@@ -1,0 +1,173 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Enums are kept as plain String columns (not Prisma `enum`) so the schema
+// works unchanged on both SQLite (local dev) and Postgres (production),
+// since SQLite does not support native enums.
+// Role: "ADMIN" | "DIRETORIA"
+// Cargo: "VENDEDOR_EXTERNO" | "ATENDIMENTO_ADM" | "SUPERVISOR" | "OUTRO_SETOR"
+// Origem: "MANUAL" | "IMPORTADO"
+// StatusFechamento: "ABERTO" | "FECHADO"
+
+model User {
+  id           String   @id @default(cuid())
+  nome         String
+  username     String   @unique
+  passwordHash String
+  role         String
+  createdAt    DateTime @default(now())
+
+  fechamentosFechados FechamentoMensal[] @relation("FechadoPor")
+  importLotes         ImportLote[]
+}
+
+model Cidade {
+  id   String @id @default(cuid())
+  nome String @unique
+
+  funcionarios Funcionario[]
+}
+
+model Equipe {
+  id           String       @id @default(cuid())
+  nome         String
+  supervisorId String?
+  supervisor   Funcionario? @relation("SupervisorDaEquipe", fields: [supervisorId], references: [id])
+  tamanhoTier  Int?
+
+  membros Funcionario[] @relation("MembroDaEquipe")
+}
+
+model Funcionario {
+  id        String   @id @default(cuid())
+  nome      String
+  cargo     String
+  cidadeId  String?
+  cidade    Cidade?  @relation(fields: [cidadeId], references: [id])
+  equipeId  String?
+  equipe    Equipe?  @relation("MembroDaEquipe", fields: [equipeId], references: [id])
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  equipesSupervisionadas Equipe[]                @relation("SupervisorDaEquipe")
+  lancamentos            LancamentoVenda[]
+  bonificacoes           BonificacaoCalculada[]
+  ajustes                Ajuste[]
+
+  @@index([cidadeId])
+  @@index([equipeId])
+}
+
+model RegraBonificacao {
+  id                     String    @id @default(cuid())
+  cargo                  String
+  vigenciaInicio         DateTime
+  vigenciaFim            DateTime?
+  metaQtd                Int?
+  valorMeta              Float?
+  superMetaQtd           Int?
+  valorSuperMeta         Float?
+  percentualTaxaAtivacao Float?
+  valoresPorProduto      Json?
+  regraSupervisor        Json?
+  observacoes            String?
+  createdAt              DateTime  @default(now())
+
+  @@index([cargo, vigenciaInicio])
+}
+
+model LancamentoVenda {
+  id               String       @id @default(cuid())
+  funcionarioId    String
+  funcionario      Funcionario  @relation(fields: [funcionarioId], references: [id])
+  periodo          String
+  quantidade       Int          @default(0)
+  aprovado         Int          @default(0)
+  cancelado        Int          @default(0)
+  valorInstalado   Float        @default(0)
+  qtdInternet      Int          @default(0)
+  qtdChip          Int          @default(0)
+  qtdGps           Int          @default(0)
+  qtdStreaming     Int          @default(0)
+  qtdTelefoniaFixa Int          @default(0)
+  origem           String       @default("MANUAL")
+  importLoteId     String?
+  importLote       ImportLote?  @relation(fields: [importLoteId], references: [id])
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@index([funcionarioId, periodo])
+  @@index([periodo])
+}
+
+model ImportLote {
+  id                String   @id @default(cuid())
+  arquivoNome       String
+  dataImportacao    DateTime @default(now())
+  usuarioId         String
+  usuario           User     @relation(fields: [usuarioId], references: [id])
+  linhasOk          Int      @default(0)
+  linhasErro        Int      @default(0)
+  mapeamentoJson    Json?
+  detalhesErrosJson Json?
+
+  lancamentos LancamentoVenda[]
+}
+
+model FechamentoMensal {
+  id                    String    @id @default(cuid())
+  periodo               String    @unique
+  status                String    @default("ABERTO")
+  valorTotalVendido     Float     @default(0)
+  valorTotalBonificacao Float     @default(0)
+  fechadoPorId          String?
+  fechadoPor            User?     @relation("FechadoPor", fields: [fechadoPorId], references: [id])
+  fechadoEm             DateTime?
+  createdAt             DateTime  @default(now())
+
+  bonificacoes BonificacaoCalculada[]
+  ajustes      Ajuste[]
+}
+
+model BonificacaoCalculada {
+  id              String           @id @default(cuid())
+  fechamentoId    String
+  fechamento      FechamentoMensal @relation(fields: [fechamentoId], references: [id])
+  funcionarioId   String
+  funcionario     Funcionario      @relation(fields: [funcionarioId], references: [id])
+  valorBase       Float            @default(0)
+  valorMeta       Float            @default(0)
+  valorSuperMeta  Float            @default(0)
+  valorProdutos   Float            @default(0)
+  valorSupervisor Float            @default(0)
+  valorTotal      Float            @default(0)
+  detalhesJson    Json?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@unique([fechamentoId, funcionarioId])
+  @@index([funcionarioId])
+}
+
+model Ajuste {
+  id            String            @id @default(cuid())
+  funcionarioId String
+  funcionario   Funcionario       @relation(fields: [funcionarioId], references: [id])
+  fechamentoId  String?
+  fechamento    FechamentoMensal? @relation(fields: [fechamentoId], references: [id])
+  periodo       String
+  descricao     String
+  valor         Float
+  createdAt     DateTime          @default(now())
+
+  @@index([funcionarioId, periodo])
+}

@@ -1,0 +1,7 @@
+.env
+.env.*
+!.env.example
+prisma/*.db
+prisma/*.db-journal
+scripts
+relatorio_lm_movel.pdf
