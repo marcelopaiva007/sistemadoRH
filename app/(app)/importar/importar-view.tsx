@@ -29,10 +29,15 @@ import { normalizarTexto } from "@/lib/text";
 import { confirmarImportacao } from "@/lib/actions/importar";
 
 type Cidade = { nome: string };
-type Funcionario = { id: string; nome: string; cidade: Cidade | null };
+type Funcionario = { id: string; nome: string; cpf: string | null; cidade: Cidade | null };
+
+function normalizarCpf(cpf: string): string {
+  return cpf.replace(/\D/g, "");
+}
 
 const CAMPOS = [
   { key: "nome", label: "Nome do funcionário", obrigatorio: true },
+  { key: "cpf", label: "CPF do funcionário", obrigatorio: false },
   { key: "quantidade", label: "Quantidade", obrigatorio: false },
   { key: "aprovado", label: "Aprovado", obrigatorio: false },
   { key: "cancelado", label: "Cancelado", obrigatorio: false },
@@ -95,6 +100,12 @@ export function ImportarView({
     return mapa;
   }, [funcionarios]);
 
+  const funcionariosPorCpf = useMemo(() => {
+    const mapa = new Map<string, Funcionario>();
+    for (const f of funcionarios) if (f.cpf) mapa.set(normalizarCpf(f.cpf), f);
+    return mapa;
+  }, [funcionarios]);
+
   async function handleFile(file: File) {
     const XLSX = await import("xlsx");
     const buffer = await file.arrayBuffer();
@@ -146,7 +157,10 @@ export function ImportarView({
 
     const construidas: LinhaRevisao[] = rows.map((row, idx) => {
       const nomeOriginal = String(row[mapping.nome!] ?? "").trim();
-      const match = funcionariosPorNomeNormalizado.get(normalizarTexto(nomeOriginal));
+      const cpfOriginal = mapping.cpf != null ? String(row[mapping.cpf] ?? "").trim() : "";
+      const match =
+        (cpfOriginal && funcionariosPorCpf.get(normalizarCpf(cpfOriginal))) ||
+        funcionariosPorNomeNormalizado.get(normalizarTexto(nomeOriginal));
       const campo = (key: CampoKey) => (mapping[key] != null ? numeroDeCelula(row[mapping[key]!]) : 0);
       return {
         linhaIndex: idx,

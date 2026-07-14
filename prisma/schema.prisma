@@ -50,6 +50,7 @@ model Equipe {
 model Funcionario {
   id        String   @id @default(cuid())
   nome      String
+  cpf       String?  @unique
   cargo     String
   cidadeId  String?
   cidade    Cidade?  @relation(fields: [cidadeId], references: [id])

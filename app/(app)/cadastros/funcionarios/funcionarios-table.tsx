@@ -45,6 +45,7 @@ type Equipe = { id: string; nome: string };
 type Funcionario = {
   id: string;
   nome: string;
+  cpf: string | null;
   cargo: string;
   ativo: boolean;
   cidadeId: string | null;
@@ -76,6 +77,7 @@ export function FuncionariosTable({
     return funcionarios.filter(
       (f) =>
         f.nome.toLowerCase().includes(termo) ||
+        f.cpf?.includes(termo.replace(/\D/g, "")) ||
         f.cidade?.nome.toLowerCase().includes(termo) ||
         cargoLabel(f.cargo).toLowerCase().includes(termo)
     );
@@ -112,6 +114,7 @@ export function FuncionariosTable({
           <TableHeader>
             <TableRow>
               <TableHead>Nome</TableHead>
+              <TableHead>CPF</TableHead>
               <TableHead>Cargo</TableHead>
               <TableHead>Cidade</TableHead>
               <TableHead>Equipe</TableHead>
@@ -122,7 +125,7 @@ export function FuncionariosTable({
           <TableBody>
             {filtrados.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+                <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
                   Nenhum funcionário encontrado.
                 </TableCell>
               </TableRow>
@@ -130,6 +133,7 @@ export function FuncionariosTable({
             {filtrados.map((f) => (
               <TableRow key={f.id} className={f.ativo ? "" : "opacity-60"}>
                 <TableCell className="font-medium">{f.nome}</TableCell>
+                <TableCell>{f.cpf ?? "—"}</TableCell>
                 <TableCell>{cargoLabel(f.cargo)}</TableCell>
                 <TableCell>{f.cidade?.nome ?? "—"}</TableCell>
                 <TableCell>{f.equipe?.nome ?? "—"}</TableCell>
@@ -215,6 +219,16 @@ function FuncionarioForm({
       <div className="space-y-2">
         <Label htmlFor="nome">Nome</Label>
         <Input id="nome" name="nome" defaultValue={defaultValues?.nome ?? ""} required autoFocus />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="cpf">CPF (opcional)</Label>
+        <Input
+          id="cpf"
+          name="cpf"
+          defaultValue={defaultValues?.cpf ?? ""}
+          placeholder="Somente números"
+          maxLength={14}
+        />
       </div>
       <div className="space-y-2">
         <Label>Cargo</Label>
