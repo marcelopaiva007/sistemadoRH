@@ -170,7 +170,7 @@ export async function GET(req: NextRequest) {
 
     step("Abrindo tela de login do elleven...");
     await page.goto(`${ELLEVEN_BASE}/ui/login`, { waitUntil: "load", timeout: 30000 });
-    await page.waitForSelector('input[placeholder="Entre com seu CPF"]', { timeout: 15000 });
+    await page.waitForSelector('input[placeholder="Entre com seu CPF"]', { timeout: 30000 });
     await page.fill('input[placeholder="Entre com seu CPF"]', login);
     await page.fill('input[placeholder="Entre com sua senha"]', password);
     await page.click('button:has-text("Entrar")');
