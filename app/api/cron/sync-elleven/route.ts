@@ -137,6 +137,76 @@ async function clickByText(frame: Frame, text: string): Promise<boolean> {
   }
 }
 
+// Abre um MUI Select pelo id (ids costumam começar com dígito/UUID, por isso
+// usamos o seletor de atributo [id="..."] em vez de "#id") e escolhe a opção
+// cujo texto bate com `matchRegex`, ou a primeira disponível como fallback.
+async function selectMuiOption(frame: Frame, elementId: string, matchRegex: RegExp) {
+  const result: { opened: boolean; options: string[]; selected?: string } = { opened: false, options: [] };
+  try {
+    await frame.locator(`[id="${elementId}"]`).click({ timeout: 5000 });
+    result.opened = true;
+  } catch {
+    return result;
+  }
+  await frame.page().waitForTimeout(600);
+  const options = await frame
+    .evaluate(() => Array.from(document.querySelectorAll('li[role="option"], ul[role="listbox"] li')).map((el) => (el.textContent || "").trim()))
+    .catch(() => [] as string[]);
+  result.options = options as string[];
+  if (result.options.length > 0) {
+    const idx = result.options.findIndex((o) => matchRegex.test(o));
+    const target = idx >= 0 ? idx : 0;
+    try {
+      await frame.locator('li[role="option"]').nth(target).click({ timeout: 5000 });
+      result.selected = result.options[target];
+    } catch {
+      /* ignore */
+    }
+  }
+  return result;
+}
+
+function todayFormats() {
+  const now = new Date();
+  const dd = String(now.getDate()).padStart(2, "0");
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const yyyy = String(now.getFullYear());
+  return { br: `${dd}/${mm}/${yyyy}`, iso: `${yyyy}-${mm}-${dd}` };
+}
+
+// Tenta preencher, de forma best-effort, qualquer input cujo rótulo/placeholder/name
+// sugira ser um campo de data (ex.: "Data Inicial", "Data Final") com a data de hoje.
+async function fillDateLikeInputs(frame: Frame): Promise<Array<{ selector: string; ok: boolean; label: string }>> {
+  const results: Array<{ selector: string; ok: boolean; label: string }> = [];
+  const { br, iso } = todayFormats();
+  const candidates = (await describeInteractiveElements(frame)) as Array<Record<string, unknown>>;
+  if (!Array.isArray(candidates)) return results;
+  for (const el of candidates) {
+    if (el.tag !== "input") continue;
+    const label = String(el.label || "");
+    const placeholder = String(el.placeholder || "");
+    const name = String(el.name || "");
+    const id = String(el.id || "");
+    const haystack = `${label} ${placeholder} ${name}`.toLowerCase();
+    const looksLikeDate = /data|date|inicial|final|início|inicio|fim/.test(haystack);
+    if (!looksLikeDate) continue;
+    const selector = name ? `[name="${name}"]` : id ? `[id="${id}"]` : "";
+    if (!selector) continue;
+    let ok = false;
+    for (const value of [br, iso]) {
+      try {
+        await frame.fill(selector, value, { timeout: 3000 });
+        ok = true;
+        break;
+      } catch {
+        /* tenta o próximo formato */
+      }
+    }
+    results.push({ selector, ok, label: label || placeholder || name });
+  }
+  return results;
+}
+
 export async function GET(req: NextRequest) {
   if (!isAuthorized(req)) return unauthorized();
 
@@ -208,6 +278,23 @@ export async function GET(req: NextRequest) {
       const step1Text = await reportFrame.evaluate(() => document.body?.innerText ?? "").catch((e: unknown) => `ERRO: ${e}`);
       const step1Elements = await describeInteractiveElements(reportFrame);
       wizardSteps.push({ name: "1-filtros", url: reportFrame.url(), textPreview: (step1Text as string).slice(0, 2000), elements: step1Elements });
+
+      // "Filtrar por *" (id mui-component-select-FilterDate) é obrigatório e define
+      // qual campo de data será usado para filtrar (ex.: Data de Ativação).
+      step("Selecionando campo de data em 'Filtrar por'...");
+      const filterDateSelection = await selectMuiOption(reportFrame, "mui-component-select-FilterDate", /ativa/i);
+      step(`Filtrar por -> aberto: ${filterDateSelection.opened}, opções: ${JSON.stringify(filterDateSelection.options)}, selecionado: ${filterDateSelection.selected}`);
+      await page.waitForTimeout(1000);
+
+      const step1AfterFilterDateElements = await describeInteractiveElements(reportFrame);
+      wizardSteps.push({ name: "1-filtros-apos-filterdate", url: reportFrame.url(), filterDateSelection, elements: step1AfterFilterDateElements });
+
+      step("Tentando preencher campos de data (hoje) que tenham aparecido...");
+      const dateFillResults = await fillDateLikeInputs(reportFrame);
+      step(`Preenchimento de datas: ${JSON.stringify(dateFillResults)}`);
+
+      const step1AfterDateFillElements = await describeInteractiveElements(reportFrame);
+      wizardSteps.push({ name: "1-filtros-apos-preencher-datas", url: reportFrame.url(), dateFillResults, elements: step1AfterDateFillElements });
 
       step("Tentando avançar da etapa Filtros...");
       const advanced1 = await clickByText(reportFrame, "AVANÇAR");
