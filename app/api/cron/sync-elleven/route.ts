@@ -179,13 +179,32 @@ function todayFormats() {
   return { br: `${dd}/${mm}/${yyyy}`, iso: `${yyyy}-${mm}-${dd}` };
 }
 
+// Define a data num input controlado pela biblioteca Flatpickr usando a API JS dela
+// (window/elemento expõe `_flatpickr`), em vez de digitar — o input costuma ser
+// somente leitura ou interceptar o teclado para navegação do calendário, então
+// `.fill()`/digitação simulada não funciona de forma confiável.
+async function setFlatpickrDate(frame: Frame, selector: string, isoDate: string): Promise<{ ok: boolean; valueAfter: string }> {
+  return frame
+    .evaluate(
+      ({ selector, isoDate }) => {
+        const el = document.querySelector(selector) as (HTMLInputElement & { _flatpickr?: { setDate: (d: string, triggerChange: boolean) => void } }) | null;
+        if (!el) return { ok: false, valueAfter: "" };
+        if (el._flatpickr) {
+          el._flatpickr.setDate(isoDate, true);
+          return { ok: true, valueAfter: el.value || "" };
+        }
+        return { ok: false, valueAfter: el.value || "" };
+      },
+      { selector, isoDate }
+    )
+    .catch(() => ({ ok: false, valueAfter: "" }));
+}
+
 // Tenta preencher, de forma best-effort, qualquer input cujo rótulo/placeholder/name
 // sugira ser um campo de data (ex.: "Data Inicial", "Data Final") com a data de hoje.
-// Usa digitação tecla-a-tecla (não .fill()) porque campos mascarados costumam ignorar
-// valores setados diretamente via DOM — precisam dos eventos reais de teclado.
 async function fillDateLikeInputs(frame: Frame): Promise<Array<{ selector: string; ok: boolean; label: string; valueAfter: string }>> {
   const results: Array<{ selector: string; ok: boolean; label: string; valueAfter: string }> = [];
-  const { br } = todayFormats();
+  const { br, iso } = todayFormats();
   const candidates = (await describeInteractiveElements(frame)) as Array<Record<string, unknown>>;
   if (!Array.isArray(candidates)) return results;
   for (const el of candidates) {
@@ -195,19 +214,27 @@ async function fillDateLikeInputs(frame: Frame): Promise<Array<{ selector: strin
     const label = String(el.label || "");
     const placeholder = String(el.placeholder || "");
     const id = String(el.id || "");
+    const className = String(el.className || "");
     const haystack = `${label} ${placeholder} ${name}`.toLowerCase();
     const looksLikeDate = /data|date|inicial|final|início|inicio|fim/.test(haystack);
     if (!looksLikeDate) continue;
     const selector = name ? `[name="${name}"]` : id ? `[id="${id}"]` : "";
     if (!selector) continue;
+
+    if (className.includes("flatpickr")) {
+      const { ok, valueAfter } = await setFlatpickrDate(frame, selector, iso);
+      results.push({ selector, ok, label: label || placeholder || name, valueAfter });
+      continue;
+    }
+
     let ok = false;
-    const digitsOnly = br.replace(/\D/g, ""); // máscaras costumam auto-inserir as barras ao digitar só os dígitos
+    const digitsOnly = br.replace(/\D/g, "");
     try {
       const locator = frame.locator(selector);
-      await locator.click({ timeout: 3000, clickCount: 3 }); // triple-click seleciona todo o conteúdo
+      await locator.click({ timeout: 3000, clickCount: 3 });
       await locator.press("Delete").catch(() => {});
       await locator.pressSequentially(digitsOnly, { delay: 80, timeout: 5000 });
-      await locator.press("Escape").catch(() => {}); // fecha eventual popup de calendário sem perder o valor digitado
+      await locator.press("Escape").catch(() => {});
       ok = true;
     } catch {
       /* ignore */
