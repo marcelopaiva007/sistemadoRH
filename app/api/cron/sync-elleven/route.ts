@@ -181,16 +181,19 @@ function todayFormats() {
 
 // Tenta preencher, de forma best-effort, qualquer input cujo rótulo/placeholder/name
 // sugira ser um campo de data (ex.: "Data Inicial", "Data Final") com a data de hoje.
-async function fillDateLikeInputs(frame: Frame): Promise<Array<{ selector: string; ok: boolean; label: string }>> {
-  const results: Array<{ selector: string; ok: boolean; label: string }> = [];
-  const { br, iso } = todayFormats();
+// Usa digitação tecla-a-tecla (não .fill()) porque campos mascarados costumam ignorar
+// valores setados diretamente via DOM — precisam dos eventos reais de teclado.
+async function fillDateLikeInputs(frame: Frame): Promise<Array<{ selector: string; ok: boolean; label: string; valueAfter: string }>> {
+  const results: Array<{ selector: string; ok: boolean; label: string; valueAfter: string }> = [];
+  const { br } = todayFormats();
   const candidates = (await describeInteractiveElements(frame)) as Array<Record<string, unknown>>;
   if (!Array.isArray(candidates)) return results;
   for (const el of candidates) {
     if (el.tag !== "input") continue;
+    const name = String(el.name || "");
+    if (name === "FilterDate") continue; // já tratado por selectMuiOption, não é um campo de data digitável
     const label = String(el.label || "");
     const placeholder = String(el.placeholder || "");
-    const name = String(el.name || "");
     const id = String(el.id || "");
     const haystack = `${label} ${placeholder} ${name}`.toLowerCase();
     const looksLikeDate = /data|date|inicial|final|início|inicio|fim/.test(haystack);
@@ -198,16 +201,22 @@ async function fillDateLikeInputs(frame: Frame): Promise<Array<{ selector: strin
     const selector = name ? `[name="${name}"]` : id ? `[id="${id}"]` : "";
     if (!selector) continue;
     let ok = false;
-    for (const value of [br, iso]) {
-      try {
-        await frame.fill(selector, value, { timeout: 3000 });
-        ok = true;
-        break;
-      } catch {
-        /* tenta o próximo formato */
-      }
+    try {
+      const locator = frame.locator(selector);
+      await locator.click({ timeout: 3000 });
+      await locator.press("Control+A").catch(() => {});
+      await locator.press("Backspace").catch(() => {});
+      await locator.pressSequentially(br, { delay: 60, timeout: 5000 });
+      await locator.press("Tab").catch(() => {});
+      ok = true;
+    } catch {
+      /* ignore */
     }
-    results.push({ selector, ok, label: label || placeholder || name });
+    const valueAfter = await frame
+      .locator(selector)
+      .inputValue()
+      .catch(() => "");
+    results.push({ selector, ok, label: label || placeholder || name, valueAfter });
   }
   return results;
 }
