@@ -225,6 +225,25 @@ async function setFlatpickrDate(frame: Frame, selector: string, isoDate: string)
     .catch((e: unknown) => ({ ok: false, valueAfter: "", debug: `erro-evaluate: ${e}` }));
 }
 
+// Abre o calendário do Flatpickr clicando no input (comportamento padrão da lib:
+// `clickOpens`) e clica na célula do dia de hoje — simula a interação real do
+// usuário, que é o único caminho confiável até agora para o estado do formulário
+// (fora do DOM) reconhecer a mudança de valor.
+async function clickFlatpickrToday(frame: Frame, selector: string): Promise<{ ok: boolean; valueAfter: string; debug: string }> {
+  try {
+    const locator = frame.locator(selector);
+    await locator.click({ timeout: 3000 });
+    const todayCell = frame.locator(".flatpickr-calendar.open .flatpickr-day.today").first();
+    await todayCell.waitFor({ state: "visible", timeout: 3000 });
+    await todayCell.click({ timeout: 3000 });
+    await frame.page().waitForTimeout(300);
+    const valueAfter = await locator.inputValue().catch(() => "");
+    return { ok: valueAfter.length > 0, valueAfter, debug: "clicou-dia-today-no-calendario" };
+  } catch (e) {
+    return { ok: false, valueAfter: "", debug: `erro-click-calendario: ${e}` };
+  }
+}
+
 // Tenta preencher, de forma best-effort, qualquer input cujo rótulo/placeholder/name
 // sugira ser um campo de data (ex.: "Data Inicial", "Data Final") com a data de hoje.
 async function fillDateLikeInputs(frame: Frame): Promise<Array<{ selector: string; ok: boolean; label: string; valueAfter: string; debug?: string }>> {
@@ -247,11 +266,17 @@ async function fillDateLikeInputs(frame: Frame): Promise<Array<{ selector: strin
     if (!selector) continue;
 
     if (className.includes("flatpickr")) {
-      // dá um tempo para a lib inicializar e anexar a instância ao elemento
-      let attempt = await setFlatpickrDate(frame, selector, iso);
-      for (let i = 0; i < 5 && !attempt.ok; i++) {
-        await frame.page().waitForTimeout(400);
-        attempt = await setFlatpickrDate(frame, selector, iso);
+      // 1ª tentativa: interação real (clicar no input abre o calendário, clicar no
+      // dia de hoje) — é o único caminho que dispara corretamente o estado do
+      // formulário. 2ª tentativa (fallback): API JS via fiber do React.
+      let attempt = await clickFlatpickrToday(frame, selector);
+      if (!attempt.ok) {
+        let apiAttempt = await setFlatpickrDate(frame, selector, iso);
+        for (let i = 0; i < 5 && !apiAttempt.ok; i++) {
+          await frame.page().waitForTimeout(400);
+          apiAttempt = await setFlatpickrDate(frame, selector, iso);
+        }
+        attempt = apiAttempt;
       }
       results.push({ selector, ok: attempt.ok, label: label || placeholder || name, valueAfter: attempt.valueAfter, debug: attempt.debug });
       continue;
