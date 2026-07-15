@@ -420,38 +420,46 @@ export async function GET(req: NextRequest) {
       }
 
       // Etapa "Geração": escolher o modo de exportação (botões só com ícone, sem
-      // texto) — preferimos uma opção de visualização em tela/tabela em vez de
-      // exportar para arquivo, para conseguirmos extrair a tabela de resultado.
+      // texto). Ao clicar, o app mostra "Aguarde, gerando relatório em PDF/EXCEL/...".
+      // Não queremos exportação em arquivo — precisamos da visualização em tela para
+      // extrair a tabela. Testa cada opção; se for PDF/Excel/CSV, volta e tenta a
+      // próxima.
       if (/Ativação Contratos - Ger/i.test(stageText as string) || /Escolha o modo de exporta/i.test(stageText as string)) {
-        step("Etapa Geração detectada — escolhendo modo de exportação...");
+        step("Etapa Geração detectada — testando modos de exportação...");
         const modeCandidates = (Array.isArray(stageElements) ? stageElements : []).filter(
           (e: Record<string, unknown>) => e.tag === "button" && /outlined/i.test(String(e.className || ""))
         );
-        step(
-          `Candidatos a modo de exportação: ${JSON.stringify(
-            modeCandidates.map((c: Record<string, unknown>) => ({ iconTestId: c.iconTestId, ariaLabel: c.ariaLabel, titleAttr: c.titleAttr, svgTitle: c.svgTitle }))
-          )}`
-        );
-        const preferredIdx = modeCandidates.findIndex((c: Record<string, unknown>) =>
-          /tela|visualiz|grid|table|list|online|view/i.test(`${c.iconTestId} ${c.ariaLabel} ${c.titleAttr} ${c.svgTitle}`)
-        );
-        const targetIdx = preferredIdx >= 0 ? preferredIdx : 0;
-        let exportModeClicked = false;
-        if (modeCandidates.length > 0) {
+        step(`Total de candidatos a modo de exportação: ${modeCandidates.length}`);
+
+        let chosenIdx = -1;
+        for (let idx = 0; idx < modeCandidates.length; idx++) {
+          let clicked = false;
           try {
-            await reportFrame.locator("button.MuiButton-outlined").nth(targetIdx).click({ timeout: 5000 });
-            exportModeClicked = true;
+            await reportFrame.locator("button.MuiButton-outlined").nth(idx).click({ timeout: 5000 });
+            clicked = true;
           } catch {
             /* ignore */
           }
+          if (!clicked) continue;
+          await page.waitForTimeout(1500);
+          reportFrame = page.frames().find((f: Frame) => f.url().includes("reports_exec")) ?? reportFrame;
+          const modeText = await reportFrame.evaluate(() => document.body?.innerText ?? "").catch((e: unknown) => `ERRO: ${e}`);
+          step(`Modo idx ${idx} -> "${(modeText as string).slice(0, 100)}"`);
+          const isFileExport = /gerando relat[óo]rio em (pdf|excel|csv|xls)/i.test(modeText as string);
+          if (!isFileExport) {
+            chosenIdx = idx;
+            stageText = modeText;
+            break;
+          }
+          const wentBack = (await clickByText(reportFrame, "VOLTAR")) || (await clickByText(reportFrame, "FECHAR"));
+          step(`Modo idx ${idx} era exportação em arquivo, voltando: ${wentBack}`);
+          await page.waitForTimeout(1500);
+          reportFrame = page.frames().find((f: Frame) => f.url().includes("reports_exec")) ?? reportFrame;
         }
-        step(`Modo de exportação clicado (idx ${targetIdx} de ${modeCandidates.length}): ${exportModeClicked}`);
-        await page.waitForTimeout(2000);
 
-        reportFrame = page.frames().find((f: Frame) => f.url().includes("reports_exec")) ?? reportFrame;
-        stageText = await reportFrame.evaluate(() => document.body?.innerText ?? "").catch((e: unknown) => `ERRO: ${e}`);
         stageElements = await describeInteractiveElements(reportFrame);
-        wizardSteps.push({ name: "3-apos-escolher-modo", url: reportFrame.url(), textPreview: (stageText as string).slice(0, 2000), elements: stageElements });
+        wizardSteps.push({ name: "3-apos-escolher-modo", url: reportFrame.url(), chosenIdx, textPreview: (stageText as string).slice(0, 2000), elements: stageElements });
+        step(`Modo escolhido (não-exportação-em-arquivo): idx ${chosenIdx}`);
       }
 
       const executed =
