@@ -420,51 +420,29 @@ export async function GET(req: NextRequest) {
       }
 
       // Etapa "Geração": escolher o modo de exportação (botões só com ícone, sem
-      // texto). Ao clicar, o app mostra "Aguarde, gerando relatório em PDF/EXCEL/...".
-      // Não queremos exportação em arquivo — precisamos da visualização em tela para
-      // extrair a tabela. Testa cada opção; se for PDF/Excel/CSV, volta e tenta a
-      // próxima.
+      // texto). Descoberto que clicar em "VOLTAR" depois de escolher um modo de
+      // exportação em arquivo (PDF/Excel) volta direto para a etapa Filtros, não
+      // para a tela de escolha de modo — então testar cada botão por tentativa e
+      // erro quebra a navegação. Em vez disso, tira um screenshot de cada botão
+      // (sem clicar) para identificar visualmente qual é a opção de visualização
+      // em tela antes de decidir em qual clicar.
       if (/Ativação Contratos - Ger/i.test(stageText as string) || /Escolha o modo de exporta/i.test(stageText as string)) {
-        step("Etapa Geração detectada — testando modos de exportação...");
-        const modeCandidates = (Array.isArray(stageElements) ? stageElements : []).filter(
-          (e: Record<string, unknown>) => e.tag === "button" && /outlined/i.test(String(e.className || ""))
-        );
-        step(`Total de candidatos a modo de exportação: ${modeCandidates.length}`);
-
-        let chosenIdx = -1;
-        for (let idx = 0; idx < modeCandidates.length; idx++) {
-          let clicked = false;
+        step("Etapa Geração detectada — capturando screenshots dos botões de modo (sem clicar)...");
+        const buttonLocators = reportFrame.locator("button.MuiButton-outlined");
+        const count = await buttonLocators.count().catch(() => 0);
+        const buttonScreenshots: string[] = [];
+        for (let i = 0; i < count; i++) {
           try {
-            await reportFrame.locator("button.MuiButton-outlined").nth(idx).click({ timeout: 5000 });
-            clicked = true;
+            const buf = await buttonLocators.nth(i).screenshot();
+            buttonScreenshots.push(buf.toString("base64"));
           } catch {
-            /* ignore */
+            buttonScreenshots.push("");
           }
-          if (!clicked) continue;
-          await page.waitForTimeout(1500);
-          reportFrame = page.frames().find((f: Frame) => f.url().includes("reports_exec")) ?? reportFrame;
-          const modeText = await reportFrame.evaluate(() => document.body?.innerText ?? "").catch((e: unknown) => `ERRO: ${e}`);
-          step(`Modo idx ${idx} -> "${(modeText as string).slice(0, 100)}"`);
-          const isFileExport = /gerando relat[óo]rio em (pdf|excel|csv|xls)/i.test(modeText as string);
-          if (!isFileExport) {
-            chosenIdx = idx;
-            stageText = modeText;
-            break;
-          }
-          const wentBack = (await clickByText(reportFrame, "VOLTAR")) || (await clickByText(reportFrame, "FECHAR"));
-          step(`Modo idx ${idx} era exportação em arquivo, voltando: ${wentBack}`);
-          await page.waitForTimeout(1500);
-          reportFrame = page.frames().find((f: Frame) => f.url().includes("reports_exec")) ?? reportFrame;
         }
-
+        step(`Total de botões de modo capturados: ${count}`);
         stageElements = await describeInteractiveElements(reportFrame);
-        wizardSteps.push({ name: "3-apos-escolher-modo", url: reportFrame.url(), chosenIdx, textPreview: (stageText as string).slice(0, 2000), elements: stageElements });
-        step(`Modo escolhido (não-exportação-em-arquivo): idx ${chosenIdx}`);
+        wizardSteps.push({ name: "3-modo-botoes-screenshots", url: reportFrame.url(), count, buttonScreenshots, elements: stageElements });
       }
-
-      const executed =
-        (await clickByText(reportFrame, "EXECUTAR")) || (await clickByText(reportFrame, "GERAR")) || (await clickByText(reportFrame, "AVANÇAR"));
-      step(`Clique em EXECUTAR/GERAR/AVANÇAR (final): ${executed}`);
 
       // Aguarda a tabela/grid de resultado aparecer (com timeout generoso, pois
       // a geração do relatório pode demorar).
