@@ -201,13 +201,13 @@ async function fillDateLikeInputs(frame: Frame): Promise<Array<{ selector: strin
     const selector = name ? `[name="${name}"]` : id ? `[id="${id}"]` : "";
     if (!selector) continue;
     let ok = false;
+    const digitsOnly = br.replace(/\D/g, ""); // máscaras costumam auto-inserir as barras ao digitar só os dígitos
     try {
       const locator = frame.locator(selector);
-      await locator.click({ timeout: 3000 });
-      await locator.press("Control+A").catch(() => {});
-      await locator.press("Backspace").catch(() => {});
-      await locator.pressSequentially(br, { delay: 60, timeout: 5000 });
-      await locator.press("Tab").catch(() => {});
+      await locator.click({ timeout: 3000, clickCount: 3 }); // triple-click seleciona todo o conteúdo
+      await locator.press("Delete").catch(() => {});
+      await locator.pressSequentially(digitsOnly, { delay: 80, timeout: 5000 });
+      await locator.press("Escape").catch(() => {}); // fecha eventual popup de calendário sem perder o valor digitado
       ok = true;
     } catch {
       /* ignore */
