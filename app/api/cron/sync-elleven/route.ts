@@ -433,7 +433,10 @@ export async function GET(req: NextRequest) {
         const buttonScreenshots: string[] = [];
         for (let i = 0; i < count; i++) {
           try {
-            const buf = await buttonLocators.nth(i).screenshot();
+            // Locator.screenshot() não tem timeout padrão (fica esperando o elemento
+            // "estabilizar" indefinidamente) — isso já travou a função até o
+            // maxDuration do servidor sem retornar erro. Timeout explícito evita isso.
+            const buf = await buttonLocators.nth(i).screenshot({ timeout: 5000 });
             buttonScreenshots.push(buf.toString("base64"));
           } catch {
             buttonScreenshots.push("");
