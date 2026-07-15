@@ -183,27 +183,37 @@ function todayFormats() {
 // (window/elemento expõe `_flatpickr`), em vez de digitar — o input costuma ser
 // somente leitura ou interceptar o teclado para navegação do calendário, então
 // `.fill()`/digitação simulada não funciona de forma confiável.
-async function setFlatpickrDate(frame: Frame, selector: string, isoDate: string): Promise<{ ok: boolean; valueAfter: string }> {
+async function setFlatpickrDate(frame: Frame, selector: string, isoDate: string): Promise<{ ok: boolean; valueAfter: string; debug: string }> {
   return frame
     .evaluate(
       ({ selector, isoDate }) => {
-        const el = document.querySelector(selector) as (HTMLInputElement & { _flatpickr?: { setDate: (d: string, triggerChange: boolean) => void } }) | null;
-        if (!el) return { ok: false, valueAfter: "" };
-        if (el._flatpickr) {
-          el._flatpickr.setDate(isoDate, true);
-          return { ok: true, valueAfter: el.value || "" };
+        const el = document.querySelector(selector) as HTMLInputElement | null;
+        if (!el) return { ok: false, valueAfter: "", debug: "elemento-nao-encontrado" };
+        const anyEl = el as unknown as Record<string, unknown>;
+        const fp = anyEl._flatpickr as { setDate: (d: string, triggerChange: boolean) => void } | undefined;
+        if (fp) {
+          fp.setDate(isoDate, true);
+          return { ok: true, valueAfter: el.value || "", debug: "usou-_flatpickr" };
         }
-        return { ok: false, valueAfter: el.value || "" };
+        // fallback: algumas versões só registram a instância no array global window.flatpickr.instances
+        const globalFp = (window as unknown as { flatpickr?: { instances?: Array<{ _input?: HTMLElement; setDate: (d: string, triggerChange: boolean) => void }> } }).flatpickr;
+        const inst = globalFp?.instances?.find((i) => i._input === el);
+        if (inst) {
+          inst.setDate(isoDate, true);
+          return { ok: true, valueAfter: el.value || "", debug: "usou-registro-global" };
+        }
+        const underscoreKeys = Object.keys(anyEl).filter((k) => k.startsWith("_"));
+        return { ok: false, valueAfter: el.value || "", debug: `sem-instancia-flatpickr; chaves-underscore=${underscoreKeys.join(",")}` };
       },
       { selector, isoDate }
     )
-    .catch(() => ({ ok: false, valueAfter: "" }));
+    .catch((e: unknown) => ({ ok: false, valueAfter: "", debug: `erro-evaluate: ${e}` }));
 }
 
 // Tenta preencher, de forma best-effort, qualquer input cujo rótulo/placeholder/name
 // sugira ser um campo de data (ex.: "Data Inicial", "Data Final") com a data de hoje.
-async function fillDateLikeInputs(frame: Frame): Promise<Array<{ selector: string; ok: boolean; label: string; valueAfter: string }>> {
-  const results: Array<{ selector: string; ok: boolean; label: string; valueAfter: string }> = [];
+async function fillDateLikeInputs(frame: Frame): Promise<Array<{ selector: string; ok: boolean; label: string; valueAfter: string; debug?: string }>> {
+  const results: Array<{ selector: string; ok: boolean; label: string; valueAfter: string; debug?: string }> = [];
   const { br, iso } = todayFormats();
   const candidates = (await describeInteractiveElements(frame)) as Array<Record<string, unknown>>;
   if (!Array.isArray(candidates)) return results;
@@ -222,8 +232,13 @@ async function fillDateLikeInputs(frame: Frame): Promise<Array<{ selector: strin
     if (!selector) continue;
 
     if (className.includes("flatpickr")) {
-      const { ok, valueAfter } = await setFlatpickrDate(frame, selector, iso);
-      results.push({ selector, ok, label: label || placeholder || name, valueAfter });
+      // dá um tempo para a lib inicializar e anexar a instância ao elemento
+      let attempt = await setFlatpickrDate(frame, selector, iso);
+      for (let i = 0; i < 5 && !attempt.ok; i++) {
+        await frame.page().waitForTimeout(400);
+        attempt = await setFlatpickrDate(frame, selector, iso);
+      }
+      results.push({ selector, ok: attempt.ok, label: label || placeholder || name, valueAfter: attempt.valueAfter, debug: attempt.debug });
       continue;
     }
 
