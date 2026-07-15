@@ -12,7 +12,11 @@
 //   SYNC_ELLEVEN_SECRET — protege o endpoint (?secret=... ou header x-sync-secret)
 import { NextRequest, NextResponse } from "next/server";
 import chromium from "@sparticuz/chromium";
-import { chromium as playwrightChromium, type Browser, type Frame } from "playwright-core";
+import {
+  chromium as playwrightChromium,
+  type Browser,
+  type Frame,
+} from "playwright-core";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -29,11 +33,13 @@ function isAuthorized(req: NextRequest): boolean {
   // Vercel Cron envia "Authorization: Bearer $CRON_SECRET" automaticamente
   // quando CRON_SECRET está definido nas env vars.
   const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret && req.headers.get("authorization") === `Bearer ${cronSecret}`) return true;
+  if (cronSecret && req.headers.get("authorization") === `Bearer ${cronSecret}`)
+    return true;
 
   // Para disparo manual/diagnóstico: ?secret=... ou header x-sync-secret.
   const manualSecret = process.env.SYNC_ELLEVEN_SECRET;
-  const provided = req.nextUrl.searchParams.get("secret") || req.headers.get("x-sync-secret");
+  const provided =
+    req.nextUrl.searchParams.get("secret") || req.headers.get("x-sync-secret");
   if (manualSecret && provided === manualSecret) return true;
 
   return false;
@@ -82,7 +88,9 @@ const DESCRIBE_INTERACTIVE_ELEMENTS_SRC = `
 `;
 
 async function describeInteractiveElements(frame: Frame) {
-  return frame.evaluate(new Function(DESCRIBE_INTERACTIVE_ELEMENTS_SRC) as () => unknown).catch((e: unknown) => `ERRO: ${e}`);
+  return frame
+    .evaluate(new Function(DESCRIBE_INTERACTIVE_ELEMENTS_SRC) as () => unknown)
+    .catch((e: unknown) => `ERRO: ${e}`);
 }
 
 // Extrai linhas de uma tabela/grid de resultado, tentando alguns formatos
@@ -128,7 +136,9 @@ const EXTRACT_TABLE_ROWS_SRC = `
 `;
 
 async function extractTableRows(frame: Frame) {
-  return frame.evaluate(new Function(EXTRACT_TABLE_ROWS_SRC) as () => unknown).catch((e: unknown) => `ERRO: ${e}`);
+  return frame
+    .evaluate(new Function(EXTRACT_TABLE_ROWS_SRC) as () => unknown)
+    .catch((e: unknown) => `ERRO: ${e}`);
 }
 
 async function clickByText(frame: Frame, text: string): Promise<boolean> {
@@ -145,8 +155,15 @@ async function clickByText(frame: Frame, text: string): Promise<boolean> {
 // Abre um MUI Select pelo id (ids costumam começar com dígito/UUID, por isso
 // usamos o seletor de atributo [id="..."] em vez de "#id") e escolhe a opção
 // cujo texto bate com `matchRegex`, ou a primeira disponível como fallback.
-async function selectMuiOption(frame: Frame, elementId: string, matchRegex: RegExp) {
-  const result: { opened: boolean; options: string[]; selected?: string } = { opened: false, options: [] };
+async function selectMuiOption(
+  frame: Frame,
+  elementId: string,
+  matchRegex: RegExp,
+) {
+  const result: { opened: boolean; options: string[]; selected?: string } = {
+    opened: false,
+    options: [],
+  };
   try {
     await frame.locator(`[id="${elementId}"]`).click({ timeout: 5000 });
     result.opened = true;
@@ -155,14 +172,21 @@ async function selectMuiOption(frame: Frame, elementId: string, matchRegex: RegE
   }
   await frame.page().waitForTimeout(600);
   const options = await frame
-    .evaluate(() => Array.from(document.querySelectorAll('li[role="option"], ul[role="listbox"] li')).map((el) => (el.textContent || "").trim()))
+    .evaluate(() =>
+      Array.from(
+        document.querySelectorAll('li[role="option"], ul[role="listbox"] li'),
+      ).map((el) => (el.textContent || "").trim()),
+    )
     .catch(() => [] as string[]);
   result.options = options as string[];
   if (result.options.length > 0) {
     const idx = result.options.findIndex((o) => matchRegex.test(o));
     const target = idx >= 0 ? idx : 0;
     try {
-      await frame.locator('li[role="option"]').nth(target).click({ timeout: 5000 });
+      await frame
+        .locator('li[role="option"]')
+        .nth(target)
+        .click({ timeout: 5000 });
       result.selected = result.options[target];
     } catch {
       /* ignore */
@@ -183,62 +207,125 @@ function todayFormats() {
 // (window/elemento expõe `_flatpickr`), em vez de digitar — o input costuma ser
 // somente leitura ou interceptar o teclado para navegação do calendário, então
 // `.fill()`/digitação simulada não funciona de forma confiável.
-async function setFlatpickrDate(frame: Frame, selector: string, isoDate: string): Promise<{ ok: boolean; valueAfter: string; debug: string }> {
+async function setFlatpickrDate(
+  frame: Frame,
+  selector: string,
+  isoDate: string,
+): Promise<{ ok: boolean; valueAfter: string; debug: string }> {
   return frame
     .evaluate(
       ({ selector, isoDate }) => {
         const el = document.querySelector(selector) as HTMLInputElement | null;
-        if (!el) return { ok: false, valueAfter: "", debug: "elemento-nao-encontrado" };
+        if (!el)
+          return {
+            ok: false,
+            valueAfter: "",
+            debug: "elemento-nao-encontrado",
+          };
         const anyEl = el as unknown as Record<string, unknown>;
-        const fp = anyEl._flatpickr as { setDate: (d: string, triggerChange: boolean) => void } | undefined;
+        const fp = anyEl._flatpickr as
+          { setDate: (d: string, triggerChange: boolean) => void } | undefined;
         if (fp) {
           fp.setDate(isoDate, true);
-          return { ok: true, valueAfter: el.value || "", debug: "usou-_flatpickr" };
+          return {
+            ok: true,
+            valueAfter: el.value || "",
+            debug: "usou-_flatpickr",
+          };
         }
         // fallback: algumas versões só registram a instância no array global window.flatpickr.instances
-        const globalFp = (window as unknown as { flatpickr?: { instances?: Array<{ _input?: HTMLElement; setDate: (d: string, triggerChange: boolean) => void }> } }).flatpickr;
+        const globalFp = (
+          window as unknown as {
+            flatpickr?: {
+              instances?: Array<{
+                _input?: HTMLElement;
+                setDate: (d: string, triggerChange: boolean) => void;
+              }>;
+            };
+          }
+        ).flatpickr;
         const inst = globalFp?.instances?.find((i) => i._input === el);
         if (inst) {
           inst.setDate(isoDate, true);
-          return { ok: true, valueAfter: el.value || "", debug: "usou-registro-global" };
+          return {
+            ok: true,
+            valueAfter: el.value || "",
+            debug: "usou-registro-global",
+          };
         }
         // fallback: react-flatpickr guarda a instância em `this.flatpickr` no componente
         // React (não no DOM) — sobe a árvore de fiber a partir do nó procurando isso.
-        const fiberKey = Object.keys(anyEl).find((k) => k.startsWith("__reactFiber$") || k.startsWith("__reactInternalInstance$"));
+        const fiberKey = Object.keys(anyEl).find(
+          (k) =>
+            k.startsWith("__reactFiber$") ||
+            k.startsWith("__reactInternalInstance$"),
+        );
         if (fiberKey) {
           type FiberNode = { stateNode?: unknown; return?: FiberNode | null };
           let fiber = anyEl[fiberKey] as FiberNode | undefined;
-          for (let depth = 0; fiber && depth < 25; depth++, fiber = fiber.return ?? undefined) {
-            const sn = fiber.stateNode as Record<string, unknown> | null | undefined;
-            const fpInst = sn && (sn.flatpickr as { setDate: (d: string, triggerChange: boolean) => void } | undefined);
+          for (
+            let depth = 0;
+            fiber && depth < 25;
+            depth++, fiber = fiber.return ?? undefined
+          ) {
+            const sn = fiber.stateNode as
+              Record<string, unknown> | null | undefined;
+            const fpInst =
+              sn &&
+              (sn.flatpickr as
+                | { setDate: (d: string, triggerChange: boolean) => void }
+                | undefined);
             if (fpInst && typeof fpInst.setDate === "function") {
               fpInst.setDate(isoDate, true);
-              return { ok: true, valueAfter: el.value || "", debug: `usou-react-fiber-flatpickr (depth=${depth})` };
+              return {
+                ok: true,
+                valueAfter: el.value || "",
+                debug: `usou-react-fiber-flatpickr (depth=${depth})`,
+              };
             }
           }
         }
-        const underscoreKeys = Object.keys(anyEl).filter((k) => k.startsWith("_"));
-        return { ok: false, valueAfter: el.value || "", debug: `sem-instancia-flatpickr; chaves-underscore=${underscoreKeys.join(",")}` };
+        const underscoreKeys = Object.keys(anyEl).filter((k) =>
+          k.startsWith("_"),
+        );
+        return {
+          ok: false,
+          valueAfter: el.value || "",
+          debug: `sem-instancia-flatpickr; chaves-underscore=${underscoreKeys.join(",")}`,
+        };
       },
-      { selector, isoDate }
+      { selector, isoDate },
     )
-    .catch((e: unknown) => ({ ok: false, valueAfter: "", debug: `erro-evaluate: ${e}` }));
+    .catch((e: unknown) => ({
+      ok: false,
+      valueAfter: "",
+      debug: `erro-evaluate: ${e}`,
+    }));
 }
 
 // Abre o calendário do Flatpickr clicando no input (comportamento padrão da lib:
 // `clickOpens`) e clica na célula do dia de hoje — simula a interação real do
 // usuário, que é o único caminho confiável até agora para o estado do formulário
 // (fora do DOM) reconhecer a mudança de valor.
-async function clickFlatpickrToday(frame: Frame, selector: string): Promise<{ ok: boolean; valueAfter: string; debug: string }> {
+async function clickFlatpickrToday(
+  frame: Frame,
+  selector: string,
+): Promise<{ ok: boolean; valueAfter: string; debug: string }> {
   try {
     const locator = frame.locator(selector);
     await locator.click({ timeout: 3000 });
-    const todayCell = frame.locator(".flatpickr-calendar.open .flatpickr-day.today").first();
+    const todayCell = frame
+      .locator(".flatpickr-calendar.open .flatpickr-day.today")
+      .first();
     await todayCell.waitFor({ state: "visible", timeout: 3000 });
     await todayCell.click({ timeout: 3000 });
     await frame.page().waitForTimeout(300);
     const valueAfter = await locator.inputValue().catch(() => "");
-    return { ok: valueAfter.length > 0, valueAfter, debug: "clicou-dia-today-no-calendario" };
+    return {
+      ok: valueAfter.length > 0,
+      valueAfter,
+      debug: "clicou-dia-today-no-calendario",
+    };
   } catch (e) {
     return { ok: false, valueAfter: "", debug: `erro-click-calendario: ${e}` };
   }
@@ -246,10 +333,28 @@ async function clickFlatpickrToday(frame: Frame, selector: string): Promise<{ ok
 
 // Tenta preencher, de forma best-effort, qualquer input cujo rótulo/placeholder/name
 // sugira ser um campo de data (ex.: "Data Inicial", "Data Final") com a data de hoje.
-async function fillDateLikeInputs(frame: Frame): Promise<Array<{ selector: string; ok: boolean; label: string; valueAfter: string; debug?: string }>> {
-  const results: Array<{ selector: string; ok: boolean; label: string; valueAfter: string; debug?: string }> = [];
+async function fillDateLikeInputs(
+  frame: Frame,
+): Promise<
+  Array<{
+    selector: string;
+    ok: boolean;
+    label: string;
+    valueAfter: string;
+    debug?: string;
+  }>
+> {
+  const results: Array<{
+    selector: string;
+    ok: boolean;
+    label: string;
+    valueAfter: string;
+    debug?: string;
+  }> = [];
   const { br, iso } = todayFormats();
-  const candidates = (await describeInteractiveElements(frame)) as Array<Record<string, unknown>>;
+  const candidates = (await describeInteractiveElements(frame)) as Array<
+    Record<string, unknown>
+  >;
   if (!Array.isArray(candidates)) return results;
   for (const el of candidates) {
     if (el.tag !== "input") continue;
@@ -260,7 +365,9 @@ async function fillDateLikeInputs(frame: Frame): Promise<Array<{ selector: strin
     const id = String(el.id || "");
     const className = String(el.className || "");
     const haystack = `${label} ${placeholder} ${name}`.toLowerCase();
-    const looksLikeDate = /data|date|inicial|final|início|inicio|fim/.test(haystack);
+    const looksLikeDate = /data|date|inicial|final|início|inicio|fim/.test(
+      haystack,
+    );
     if (!looksLikeDate) continue;
     const selector = name ? `[name="${name}"]` : id ? `[id="${id}"]` : "";
     if (!selector) continue;
@@ -278,7 +385,13 @@ async function fillDateLikeInputs(frame: Frame): Promise<Array<{ selector: strin
         }
         attempt = apiAttempt;
       }
-      results.push({ selector, ok: attempt.ok, label: label || placeholder || name, valueAfter: attempt.valueAfter, debug: attempt.debug });
+      results.push({
+        selector,
+        ok: attempt.ok,
+        label: label || placeholder || name,
+        valueAfter: attempt.valueAfter,
+        debug: attempt.debug,
+      });
       continue;
     }
 
@@ -298,7 +411,12 @@ async function fillDateLikeInputs(frame: Frame): Promise<Array<{ selector: strin
       .locator(selector)
       .inputValue()
       .catch(() => "");
-    results.push({ selector, ok, label: label || placeholder || name, valueAfter });
+    results.push({
+      selector,
+      ok,
+      label: label || placeholder || name,
+      valueAfter,
+    });
   }
   return results;
 }
@@ -310,8 +428,10 @@ export async function GET(req: NextRequest) {
   const password = process.env.ELLEVEN_PASSWORD;
   if (!login || !password) {
     return NextResponse.json(
-      { error: "ELLEVEN_LOGIN/ELLEVEN_PASSWORD não configurados nas env vars." },
-      { status: 500 }
+      {
+        error: "ELLEVEN_LOGIN/ELLEVEN_PASSWORD não configurados nas env vars.",
+      },
+      { status: 500 },
     );
   }
 
@@ -323,177 +443,295 @@ export async function GET(req: NextRequest) {
   };
 
   const wizardSteps: Array<Record<string, unknown>> = [];
-
   let browser: Browser | undefined;
-  try {
-    step("Iniciando Chromium serverless...");
-    browser = await playwrightChromium.launch({
-      args: chromium.args,
-      executablePath: await chromium.executablePath(),
-      headless: true,
-    });
-    const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
 
-    step("Abrindo tela de login do elleven...");
-    await page.goto(`${ELLEVEN_BASE}/ui/login`, { waitUntil: "load", timeout: 30000 });
-    await page.waitForSelector('input[placeholder="Entre com seu CPF"]', { timeout: 30000 });
-    await page.fill('input[placeholder="Entre com seu CPF"]', login);
-    await page.fill('input[placeholder="Entre com sua senha"]', password);
-    await page.click('button:has-text("Entrar")');
-    await page.waitForTimeout(6000);
-    step(`Login concluído. URL atual: ${page.url()}`);
+  // Já tivemos execuções que travaram por mais de 300s sem retornar erro (o
+  // maxDuration do Vercel mata a function, mas a conexão HTTP não fecha de
+  // forma limpa e o fetch do cliente fica pendurado esperando para sempre).
+  // Esse watchdog garante que SEMPRE devolvemos alguma resposta — com o log
+  // e os wizardSteps coletados até então — bem antes desse limite.
+  const WATCHDOG_MS = 260000;
+  const watchdog = new Promise<NextResponse>((resolve) => {
+    setTimeout(() => {
+      step(
+        `WATCHDOG: excedeu ${WATCHDOG_MS}ms — retornando estado parcial antes do timeout do servidor.`,
+      );
+      resolve(
+        NextResponse.json(
+          { ok: false, error: "watchdog-timeout", log, wizardSteps },
+          { status: 200 },
+        ),
+      );
+    }, WATCHDOG_MS);
+  });
 
-    if (page.url().includes("/login")) {
-      throw new Error("Login não avançou — continua na tela de login (credenciais incorretas ou CAPTCHA/MFA apareceu).");
-    }
+  const runWizard = async (): Promise<NextResponse> => {
+    try {
+      step("Iniciando Chromium serverless...");
+      browser = await playwrightChromium.launch({
+        args: chromium.args,
+        executablePath: await chromium.executablePath(),
+        headless: true,
+      });
+      const page = await browser.newPage({
+        viewport: { width: 1600, height: 1000 },
+      });
 
-    step("Navegando até o relatório Ativação Contratos...");
-    await page.goto(`${ELLEVEN_BASE}${REPORT_PATH}`, { waitUntil: "load", timeout: 30000 });
+      step("Abrindo tela de login do elleven...");
+      await page.goto(`${ELLEVEN_BASE}/ui/login`, {
+        waitUntil: "load",
+        timeout: 30000,
+      });
+      await page.waitForSelector('input[placeholder="Entre com seu CPF"]', {
+        timeout: 30000,
+      });
+      await page.fill('input[placeholder="Entre com seu CPF"]', login);
+      await page.fill('input[placeholder="Entre com sua senha"]', password);
+      await page.click('button:has-text("Entrar")');
+      await page.waitForTimeout(6000);
+      step(`Login concluído. URL atual: ${page.url()}`);
 
-    let reportFrame = page.frames().find((f: Frame) => f.url().includes("reports_exec"));
-    for (let i = 0; i < 20 && !reportFrame; i++) {
-      await page.waitForTimeout(2000);
-      reportFrame = page.frames().find((f: Frame) => f.url().includes("reports_exec"));
-    }
-    step(`Frame do relatório (reports_exec) encontrado: ${!!reportFrame}`);
-
-    if (reportFrame) {
-      for (let i = 0; i < 10; i++) {
-        const hasText = await reportFrame
-          .evaluate(() => (document.body?.innerText ?? "").trim().length > 0)
-          .catch(() => false);
-        if (hasText) break;
-        await page.waitForTimeout(1500);
-      }
-    }
-
-    const allFrameUrls = page.frames().map((f: Frame) => f.url());
-
-    if (reportFrame) {
-      // Etapa 1: Filtros
-      const step1Text = await reportFrame.evaluate(() => document.body?.innerText ?? "").catch((e: unknown) => `ERRO: ${e}`);
-      const step1Elements = await describeInteractiveElements(reportFrame);
-      wizardSteps.push({ name: "1-filtros", url: reportFrame.url(), textPreview: (step1Text as string).slice(0, 2000), elements: step1Elements });
-
-      // "Filtrar por *" (id mui-component-select-FilterDate) é obrigatório e define
-      // qual campo de data será usado para filtrar (ex.: Data de Ativação).
-      step("Selecionando campo de data em 'Filtrar por'...");
-      const filterDateSelection = await selectMuiOption(reportFrame, "mui-component-select-FilterDate", /ativa/i);
-      step(`Filtrar por -> aberto: ${filterDateSelection.opened}, opções: ${JSON.stringify(filterDateSelection.options)}, selecionado: ${filterDateSelection.selected}`);
-      await page.waitForTimeout(1000);
-
-      const step1AfterFilterDateElements = await describeInteractiveElements(reportFrame);
-      wizardSteps.push({ name: "1-filtros-apos-filterdate", url: reportFrame.url(), filterDateSelection, elements: step1AfterFilterDateElements });
-
-      step("Tentando preencher campos de data (hoje) que tenham aparecido...");
-      const dateFillResults = await fillDateLikeInputs(reportFrame);
-      step(`Preenchimento de datas: ${JSON.stringify(dateFillResults)}`);
-
-      const step1AfterDateFillElements = await describeInteractiveElements(reportFrame);
-      wizardSteps.push({ name: "1-filtros-apos-preencher-datas", url: reportFrame.url(), dateFillResults, elements: step1AfterDateFillElements });
-
-      step("Tentando avançar da etapa Filtros...");
-      const advanced1 = await clickByText(reportFrame, "AVANÇAR");
-      step(`Clique em AVANÇAR (etapa 1): ${advanced1}`);
-      await page.waitForTimeout(4000);
-
-      // Playwright pode ter trocado a referência do frame após navegação interna do SPA.
-      reportFrame = page.frames().find((f: Frame) => f.url().includes("reports_exec")) ?? reportFrame;
-
-      // Etapa 2: pode ser "Parâmetros" (se o relatório tiver parâmetros extras) ou
-      // pular direto para "Geração" (quando não há parâmetros configuráveis).
-      let stageText = await reportFrame.evaluate(() => document.body?.innerText ?? "").catch((e: unknown) => `ERRO: ${e}`);
-      let stageElements = await describeInteractiveElements(reportFrame);
-      wizardSteps.push({ name: "2-apos-avancar-filtros", url: reportFrame.url(), textPreview: (stageText as string).slice(0, 2000), elements: stageElements });
-
-      if (/Ativação Contratos - Par/i.test(stageText as string)) {
-        step("Etapa Parâmetros detectada, tentando avançar...");
-        const advancedParams =
-          (await clickByText(reportFrame, "AVANÇAR")) || (await clickByText(reportFrame, "EXECUTAR")) || (await clickByText(reportFrame, "GERAR"));
-        step(`Clique em AVANÇAR/EXECUTAR/GERAR (Parâmetros): ${advancedParams}`);
-        await page.waitForTimeout(3000);
-
-        reportFrame = page.frames().find((f: Frame) => f.url().includes("reports_exec")) ?? reportFrame;
-        stageText = await reportFrame.evaluate(() => document.body?.innerText ?? "").catch((e: unknown) => `ERRO: ${e}`);
-        stageElements = await describeInteractiveElements(reportFrame);
-        wizardSteps.push({ name: "3-apos-avancar-parametros", url: reportFrame.url(), textPreview: (stageText as string).slice(0, 2000), elements: stageElements });
+      if (page.url().includes("/login")) {
+        throw new Error(
+          "Login não avançou — continua na tela de login (credenciais incorretas ou CAPTCHA/MFA apareceu).",
+        );
       }
 
-      // Etapa "Geração": escolher o modo de exportação (botões só com ícone, sem
-      // texto). Descoberto que clicar em "VOLTAR" depois de escolher um modo de
-      // exportação em arquivo (PDF/Excel) volta direto para a etapa Filtros, não
-      // para a tela de escolha de modo — então testar cada botão por tentativa e
-      // erro quebra a navegação. Em vez disso, tira um screenshot de cada botão
-      // (sem clicar) para identificar visualmente qual é a opção de visualização
-      // em tela antes de decidir em qual clicar.
-      if (/Ativação Contratos - Ger/i.test(stageText as string) || /Escolha o modo de exporta/i.test(stageText as string)) {
-        step("Etapa Geração detectada — capturando screenshots dos botões de modo (sem clicar)...");
-        const buttonLocators = reportFrame.locator("button.MuiButton-outlined");
-        const count = await buttonLocators.count().catch(() => 0);
-        const buttonScreenshots: string[] = [];
-        for (let i = 0; i < count; i++) {
-          try {
-            // Locator.screenshot() não tem timeout padrão (fica esperando o elemento
-            // "estabilizar" indefinidamente) — isso já travou a função até o
-            // maxDuration do servidor sem retornar erro. Timeout explícito evita isso.
-            const buf = await buttonLocators.nth(i).screenshot({ timeout: 5000 });
-            buttonScreenshots.push(buf.toString("base64"));
-          } catch {
-            buttonScreenshots.push("");
+      step("Navegando até o relatório Ativação Contratos...");
+      await page.goto(`${ELLEVEN_BASE}${REPORT_PATH}`, {
+        waitUntil: "load",
+        timeout: 30000,
+      });
+
+      let reportFrame = page
+        .frames()
+        .find((f: Frame) => f.url().includes("reports_exec"));
+      for (let i = 0; i < 20 && !reportFrame; i++) {
+        await page.waitForTimeout(2000);
+        reportFrame = page
+          .frames()
+          .find((f: Frame) => f.url().includes("reports_exec"));
+      }
+      step(`Frame do relatório (reports_exec) encontrado: ${!!reportFrame}`);
+
+      if (reportFrame) {
+        for (let i = 0; i < 10; i++) {
+          const hasText = await reportFrame
+            .evaluate(() => (document.body?.innerText ?? "").trim().length > 0)
+            .catch(() => false);
+          if (hasText) break;
+          await page.waitForTimeout(1500);
+        }
+      }
+
+      const allFrameUrls = page.frames().map((f: Frame) => f.url());
+
+      if (reportFrame) {
+        // Etapa 1: Filtros
+        const step1Text = await reportFrame
+          .evaluate(() => document.body?.innerText ?? "")
+          .catch((e: unknown) => `ERRO: ${e}`);
+        const step1Elements = await describeInteractiveElements(reportFrame);
+        wizardSteps.push({
+          name: "1-filtros",
+          url: reportFrame.url(),
+          textPreview: (step1Text as string).slice(0, 2000),
+          elements: step1Elements,
+        });
+
+        // "Filtrar por *" (id mui-component-select-FilterDate) é obrigatório e define
+        // qual campo de data será usado para filtrar (ex.: Data de Ativação).
+        step("Selecionando campo de data em 'Filtrar por'...");
+        const filterDateSelection = await selectMuiOption(
+          reportFrame,
+          "mui-component-select-FilterDate",
+          /ativa/i,
+        );
+        step(
+          `Filtrar por -> aberto: ${filterDateSelection.opened}, opções: ${JSON.stringify(filterDateSelection.options)}, selecionado: ${filterDateSelection.selected}`,
+        );
+        await page.waitForTimeout(1000);
+
+        const step1AfterFilterDateElements =
+          await describeInteractiveElements(reportFrame);
+        wizardSteps.push({
+          name: "1-filtros-apos-filterdate",
+          url: reportFrame.url(),
+          filterDateSelection,
+          elements: step1AfterFilterDateElements,
+        });
+
+        step(
+          "Tentando preencher campos de data (hoje) que tenham aparecido...",
+        );
+        const dateFillResults = await fillDateLikeInputs(reportFrame);
+        step(`Preenchimento de datas: ${JSON.stringify(dateFillResults)}`);
+
+        const step1AfterDateFillElements =
+          await describeInteractiveElements(reportFrame);
+        wizardSteps.push({
+          name: "1-filtros-apos-preencher-datas",
+          url: reportFrame.url(),
+          dateFillResults,
+          elements: step1AfterDateFillElements,
+        });
+
+        step("Tentando avançar da etapa Filtros...");
+        const advanced1 = await clickByText(reportFrame, "AVANÇAR");
+        step(`Clique em AVANÇAR (etapa 1): ${advanced1}`);
+        await page.waitForTimeout(4000);
+
+        // Playwright pode ter trocado a referência do frame após navegação interna do SPA.
+        reportFrame =
+          page.frames().find((f: Frame) => f.url().includes("reports_exec")) ??
+          reportFrame;
+
+        // Etapa 2: pode ser "Parâmetros" (se o relatório tiver parâmetros extras) ou
+        // pular direto para "Geração" (quando não há parâmetros configuráveis).
+        let stageText = await reportFrame
+          .evaluate(() => document.body?.innerText ?? "")
+          .catch((e: unknown) => `ERRO: ${e}`);
+        let stageElements = await describeInteractiveElements(reportFrame);
+        wizardSteps.push({
+          name: "2-apos-avancar-filtros",
+          url: reportFrame.url(),
+          textPreview: (stageText as string).slice(0, 2000),
+          elements: stageElements,
+        });
+
+        if (/Ativação Contratos - Par/i.test(stageText as string)) {
+          step("Etapa Parâmetros detectada, tentando avançar...");
+          const advancedParams =
+            (await clickByText(reportFrame, "AVANÇAR")) ||
+            (await clickByText(reportFrame, "EXECUTAR")) ||
+            (await clickByText(reportFrame, "GERAR"));
+          step(
+            `Clique em AVANÇAR/EXECUTAR/GERAR (Parâmetros): ${advancedParams}`,
+          );
+          await page.waitForTimeout(3000);
+
+          reportFrame =
+            page
+              .frames()
+              .find((f: Frame) => f.url().includes("reports_exec")) ??
+            reportFrame;
+          stageText = await reportFrame
+            .evaluate(() => document.body?.innerText ?? "")
+            .catch((e: unknown) => `ERRO: ${e}`);
+          stageElements = await describeInteractiveElements(reportFrame);
+          wizardSteps.push({
+            name: "3-apos-avancar-parametros",
+            url: reportFrame.url(),
+            textPreview: (stageText as string).slice(0, 2000),
+            elements: stageElements,
+          });
+        }
+
+        // Etapa "Geração": escolher o modo de exportação (botões só com ícone, sem
+        // texto). Descoberto que clicar em "VOLTAR" depois de escolher um modo de
+        // exportação em arquivo (PDF/Excel) volta direto para a etapa Filtros, não
+        // para a tela de escolha de modo — então testar cada botão por tentativa e
+        // erro quebra a navegação. Em vez disso, tira um screenshot de cada botão
+        // (sem clicar) para identificar visualmente qual é a opção de visualização
+        // em tela antes de decidir em qual clicar.
+        if (
+          /Ativação Contratos - Ger/i.test(stageText as string) ||
+          /Escolha o modo de exporta/i.test(stageText as string)
+        ) {
+          step(
+            "Etapa Geração detectada — capturando screenshots dos botões de modo (sem clicar)...",
+          );
+          const buttonLocators = reportFrame.locator(
+            "button.MuiButton-outlined",
+          );
+          const count = await buttonLocators.count().catch(() => 0);
+          const buttonScreenshots: string[] = [];
+          for (let i = 0; i < count; i++) {
+            try {
+              // Locator.screenshot() não tem timeout padrão (fica esperando o elemento
+              // "estabilizar" indefinidamente) — isso já travou a função até o
+              // maxDuration do servidor sem retornar erro. Timeout explícito evita isso.
+              const buf = await buttonLocators
+                .nth(i)
+                .screenshot({ timeout: 5000 });
+              buttonScreenshots.push(buf.toString("base64"));
+            } catch {
+              buttonScreenshots.push("");
+            }
+          }
+          step(`Total de botões de modo capturados: ${count}`);
+          stageElements = await describeInteractiveElements(reportFrame);
+          wizardSteps.push({
+            name: "3-modo-botoes-screenshots",
+            url: reportFrame.url(),
+            count,
+            buttonScreenshots,
+            elements: stageElements,
+          });
+        }
+
+        // Aguarda a tabela/grid de resultado aparecer (com timeout generoso, pois
+        // a geração do relatório pode demorar).
+        let resultReady = false;
+        for (let i = 0; i < 15; i++) {
+          await page.waitForTimeout(2000);
+          reportFrame =
+            page
+              .frames()
+              .find((f: Frame) => f.url().includes("reports_exec")) ??
+            reportFrame;
+          const hasResult = await reportFrame
+            .evaluate(() => !!document.querySelector("table, .dx-datagrid"))
+            .catch(() => false);
+          if (hasResult) {
+            resultReady = true;
+            step(`Resultado detectado após ${(i + 1) * 2}s.`);
+            break;
           }
         }
-        step(`Total de botões de modo capturados: ${count}`);
-        stageElements = await describeInteractiveElements(reportFrame);
-        wizardSteps.push({ name: "3-modo-botoes-screenshots", url: reportFrame.url(), count, buttonScreenshots, elements: stageElements });
+        step(`Resultado pronto: ${resultReady}`);
+
+        const postExecText = await reportFrame
+          .evaluate(() => document.body?.innerText ?? "")
+          .catch((e: unknown) => `ERRO: ${e}`);
+        const postExecElements = await describeInteractiveElements(reportFrame);
+        const extracted = await extractTableRows(reportFrame);
+        wizardSteps.push({
+          name: "3-geracao-pos-exec",
+          url: reportFrame.url(),
+          resultReady,
+          textPreview: (postExecText as string).slice(0, 3000),
+          elements: postExecElements,
+          extracted,
+        });
       }
 
-      // Aguarda a tabela/grid de resultado aparecer (com timeout generoso, pois
-      // a geração do relatório pode demorar).
-      let resultReady = false;
-      for (let i = 0; i < 15; i++) {
-        await page.waitForTimeout(2000);
-        reportFrame = page.frames().find((f: Frame) => f.url().includes("reports_exec")) ?? reportFrame;
-        const hasResult = await reportFrame
-          .evaluate(() => !!document.querySelector("table, .dx-datagrid"))
-          .catch(() => false);
-        if (hasResult) {
-          resultReady = true;
-          step(`Resultado detectado após ${(i + 1) * 2}s.`);
-          break;
-        }
-      }
-      step(`Resultado pronto: ${resultReady}`);
-
-      const postExecText = await reportFrame.evaluate(() => document.body?.innerText ?? "").catch((e: unknown) => `ERRO: ${e}`);
-      const postExecElements = await describeInteractiveElements(reportFrame);
-      const extracted = await extractTableRows(reportFrame);
-      wizardSteps.push({
-        name: "3-geracao-pos-exec",
-        url: reportFrame.url(),
-        resultReady,
-        textPreview: (postExecText as string).slice(0, 3000),
-        elements: postExecElements,
-        extracted,
+      const screenshot = await page.screenshot({
+        fullPage: true,
+        timeout: 15000,
       });
+      step(`Screenshot capturado (${screenshot.length} bytes).`);
+
+      return NextResponse.json({
+        ok: true,
+        log,
+        currentUrl: page.url(),
+        allFrameUrls,
+        reportFrameFound: !!reportFrame,
+        wizardSteps,
+        screenshotBase64: screenshot.toString("base64"),
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      step(`ERRO: ${message}`);
+      return NextResponse.json(
+        { ok: false, error: message, log, wizardSteps },
+        { status: 500 },
+      );
+    } finally {
+      await browser?.close().catch(() => {});
     }
+  };
 
-    const screenshot = await page.screenshot({ fullPage: true });
-    step(`Screenshot capturado (${screenshot.length} bytes).`);
-
-    return NextResponse.json({
-      ok: true,
-      log,
-      currentUrl: page.url(),
-      allFrameUrls,
-      reportFrameFound: !!reportFrame,
-      wizardSteps,
-      screenshotBase64: screenshot.toString("base64"),
-    });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    step(`ERRO: ${message}`);
-    return NextResponse.json({ ok: false, error: message, log, wizardSteps }, { status: 500 });
-  } finally {
-    await browser?.close().catch(() => {});
-  }
+  return Promise.race([runWizard(), watchdog]);
 }
