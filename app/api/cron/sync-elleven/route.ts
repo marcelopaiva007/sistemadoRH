@@ -202,6 +202,21 @@ async function setFlatpickrDate(frame: Frame, selector: string, isoDate: string)
           inst.setDate(isoDate, true);
           return { ok: true, valueAfter: el.value || "", debug: "usou-registro-global" };
         }
+        // fallback: react-flatpickr guarda a instância em `this.flatpickr` no componente
+        // React (não no DOM) — sobe a árvore de fiber a partir do nó procurando isso.
+        const fiberKey = Object.keys(anyEl).find((k) => k.startsWith("__reactFiber$") || k.startsWith("__reactInternalInstance$"));
+        if (fiberKey) {
+          type FiberNode = { stateNode?: unknown; return?: FiberNode | null };
+          let fiber = anyEl[fiberKey] as FiberNode | undefined;
+          for (let depth = 0; fiber && depth < 25; depth++, fiber = fiber.return ?? undefined) {
+            const sn = fiber.stateNode as Record<string, unknown> | null | undefined;
+            const fpInst = sn && (sn.flatpickr as { setDate: (d: string, triggerChange: boolean) => void } | undefined);
+            if (fpInst && typeof fpInst.setDate === "function") {
+              fpInst.setDate(isoDate, true);
+              return { ok: true, valueAfter: el.value || "", debug: `usou-react-fiber-flatpickr (depth=${depth})` };
+            }
+          }
+        }
         const underscoreKeys = Object.keys(anyEl).filter((k) => k.startsWith("_"));
         return { ok: false, valueAfter: el.value || "", debug: `sem-instancia-flatpickr; chaves-underscore=${underscoreKeys.join(",")}` };
       },
