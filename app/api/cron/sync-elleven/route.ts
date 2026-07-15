@@ -57,6 +57,8 @@ const DESCRIBE_INTERACTIVE_ELEMENTS_SRC = `
       return '';
     }
     const rect = el.getBoundingClientRect();
+    const svgTestId = el.querySelector('[data-testid]') ? el.querySelector('[data-testid]').getAttribute('data-testid') : '';
+    const svgTitle = el.querySelector('title') ? el.querySelector('title').textContent : '';
     return {
       tag: el.tagName.toLowerCase(),
       type: el.getAttribute('type') || '',
@@ -69,6 +71,9 @@ const DESCRIBE_INTERACTIVE_ELEMENTS_SRC = `
       text: (el.innerText || el.textContent || '').trim().slice(0, 60),
       value: el.value !== undefined ? String(el.value).slice(0, 60) : '',
       label: closestLabelText(el),
+      titleAttr: el.getAttribute('title') || '',
+      iconTestId: svgTestId || '',
+      svgTitle: svgTitle || '',
       visible: rect.width > 0 && rect.height > 0,
     };
   }
@@ -304,27 +309,63 @@ export async function GET(req: NextRequest) {
       // Playwright pode ter trocado a referência do frame após navegação interna do SPA.
       reportFrame = page.frames().find((f: Frame) => f.url().includes("reports_exec")) ?? reportFrame;
 
-      // Etapa 2: Parâmetros
-      const step2Text = await reportFrame.evaluate(() => document.body?.innerText ?? "").catch((e: unknown) => `ERRO: ${e}`);
-      const step2Elements = await describeInteractiveElements(reportFrame);
-      wizardSteps.push({ name: "2-parametros", url: reportFrame.url(), textPreview: (step2Text as string).slice(0, 2000), elements: step2Elements });
+      // Etapa 2: pode ser "Parâmetros" (se o relatório tiver parâmetros extras) ou
+      // pular direto para "Geração" (quando não há parâmetros configuráveis).
+      let stageText = await reportFrame.evaluate(() => document.body?.innerText ?? "").catch((e: unknown) => `ERRO: ${e}`);
+      let stageElements = await describeInteractiveElements(reportFrame);
+      wizardSteps.push({ name: "2-apos-avancar-filtros", url: reportFrame.url(), textPreview: (stageText as string).slice(0, 2000), elements: stageElements });
 
-      step("Tentando avançar da etapa Parâmetros...");
-      const advanced2 =
-        (await clickByText(reportFrame, "AVANÇAR")) || (await clickByText(reportFrame, "EXECUTAR")) || (await clickByText(reportFrame, "GERAR"));
-      step(`Clique em AVANÇAR/EXECUTAR/GERAR (etapa 2): ${advanced2}`);
-      await page.waitForTimeout(4000);
+      if (/Ativação Contratos - Par/i.test(stageText as string)) {
+        step("Etapa Parâmetros detectada, tentando avançar...");
+        const advancedParams =
+          (await clickByText(reportFrame, "AVANÇAR")) || (await clickByText(reportFrame, "EXECUTAR")) || (await clickByText(reportFrame, "GERAR"));
+        step(`Clique em AVANÇAR/EXECUTAR/GERAR (Parâmetros): ${advancedParams}`);
+        await page.waitForTimeout(3000);
 
-      reportFrame = page.frames().find((f: Frame) => f.url().includes("reports_exec")) ?? reportFrame;
+        reportFrame = page.frames().find((f: Frame) => f.url().includes("reports_exec")) ?? reportFrame;
+        stageText = await reportFrame.evaluate(() => document.body?.innerText ?? "").catch((e: unknown) => `ERRO: ${e}`);
+        stageElements = await describeInteractiveElements(reportFrame);
+        wizardSteps.push({ name: "3-apos-avancar-parametros", url: reportFrame.url(), textPreview: (stageText as string).slice(0, 2000), elements: stageElements });
+      }
 
-      // Etapa 3: Geração — tenta clicar em Executar e aguarda o resultado carregar.
-      const preExecText = await reportFrame.evaluate(() => document.body?.innerText ?? "").catch((e: unknown) => `ERRO: ${e}`);
-      const preExecElements = await describeInteractiveElements(reportFrame);
-      wizardSteps.push({ name: "3-geracao-pre-exec", url: reportFrame.url(), textPreview: (preExecText as string).slice(0, 2000), elements: preExecElements });
+      // Etapa "Geração": escolher o modo de exportação (botões só com ícone, sem
+      // texto) — preferimos uma opção de visualização em tela/tabela em vez de
+      // exportar para arquivo, para conseguirmos extrair a tabela de resultado.
+      if (/Ativação Contratos - Ger/i.test(stageText as string) || /Escolha o modo de exporta/i.test(stageText as string)) {
+        step("Etapa Geração detectada — escolhendo modo de exportação...");
+        const modeCandidates = (Array.isArray(stageElements) ? stageElements : []).filter(
+          (e: Record<string, unknown>) => e.tag === "button" && /outlined/i.test(String(e.className || ""))
+        );
+        step(
+          `Candidatos a modo de exportação: ${JSON.stringify(
+            modeCandidates.map((c: Record<string, unknown>) => ({ iconTestId: c.iconTestId, ariaLabel: c.ariaLabel, titleAttr: c.titleAttr, svgTitle: c.svgTitle }))
+          )}`
+        );
+        const preferredIdx = modeCandidates.findIndex((c: Record<string, unknown>) =>
+          /tela|visualiz|grid|table|list|online|view/i.test(`${c.iconTestId} ${c.ariaLabel} ${c.titleAttr} ${c.svgTitle}`)
+        );
+        const targetIdx = preferredIdx >= 0 ? preferredIdx : 0;
+        let exportModeClicked = false;
+        if (modeCandidates.length > 0) {
+          try {
+            await reportFrame.locator("button.MuiButton-outlined").nth(targetIdx).click({ timeout: 5000 });
+            exportModeClicked = true;
+          } catch {
+            /* ignore */
+          }
+        }
+        step(`Modo de exportação clicado (idx ${targetIdx} de ${modeCandidates.length}): ${exportModeClicked}`);
+        await page.waitForTimeout(2000);
+
+        reportFrame = page.frames().find((f: Frame) => f.url().includes("reports_exec")) ?? reportFrame;
+        stageText = await reportFrame.evaluate(() => document.body?.innerText ?? "").catch((e: unknown) => `ERRO: ${e}`);
+        stageElements = await describeInteractiveElements(reportFrame);
+        wizardSteps.push({ name: "3-apos-escolher-modo", url: reportFrame.url(), textPreview: (stageText as string).slice(0, 2000), elements: stageElements });
+      }
 
       const executed =
         (await clickByText(reportFrame, "EXECUTAR")) || (await clickByText(reportFrame, "GERAR")) || (await clickByText(reportFrame, "AVANÇAR"));
-      step(`Clique em EXECUTAR (etapa 3): ${executed}`);
+      step(`Clique em EXECUTAR/GERAR/AVANÇAR (final): ${executed}`);
 
       // Aguarda a tabela/grid de resultado aparecer (com timeout generoso, pois
       // a geração do relatório pode demorar).
