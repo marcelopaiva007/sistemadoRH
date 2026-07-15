@@ -183,10 +183,23 @@ export async function GET(req: NextRequest) {
 
     step("Navegando até o relatório Ativação Contratos...");
     await page.goto(`${ELLEVEN_BASE}${REPORT_PATH}`, { waitUntil: "load", timeout: 30000 });
-    await page.waitForTimeout(15000);
 
     let reportFrame = page.frames().find((f: Frame) => f.url().includes("reports_exec"));
+    for (let i = 0; i < 20 && !reportFrame; i++) {
+      await page.waitForTimeout(2000);
+      reportFrame = page.frames().find((f: Frame) => f.url().includes("reports_exec"));
+    }
     step(`Frame do relatório (reports_exec) encontrado: ${!!reportFrame}`);
+
+    if (reportFrame) {
+      for (let i = 0; i < 10; i++) {
+        const hasText = await reportFrame
+          .evaluate(() => (document.body?.innerText ?? "").trim().length > 0)
+          .catch(() => false);
+        if (hasText) break;
+        await page.waitForTimeout(1500);
+      }
+    }
 
     const allFrameUrls = page.frames().map((f: Frame) => f.url());
 
