@@ -174,22 +174,30 @@ model Ajuste {
 }
 
 // Linhas do relatório "Ativação Contratos" do elleven (sync-elleven).
-// Nomes de campos foram inferidos das colunas mais prováveis do relatório —
-// ainda não confirmados com uma extração real bem-sucedida. `rawJson` guarda
-// a linha original completa para permitir reprocessar/corrigir o mapeamento
-// depois, sem precisar rodar o scraping de novo.
+// Colunas confirmadas a partir de uma extração real do CSV (scripts/ativacao-contratos.csv).
 model ContratoAtivacaoElleven {
-  id             String    @id @default(cuid())
-  numeroContrato String?   @unique
-  cpf            String?
-  nome           String?
-  produto        String?
-  dataAtivacao   DateTime?
-  status         String?
-  rawJson        Json
-  criadoEm       DateTime  @default(now())
-  atualizadoEm   DateTime  @updatedAt
+  id                       Int      @id @default(autoincrement())
+  contrato                 String   @unique
+  vendedor1                String?
+  vendedor2                String?
+  origem                   String?
+  dataContrato             String?
+  localContrato            String?
+  primeiraMensalidade      String?
+  valorPrimeiraMensalidade String?
+  codigoCliente            String?
+  nomeCliente              String?
+  enderecoAtivacao         String?
+  cep                      String?
+  cidade                   String?
+  servicoAtivado           String?
+  valServAtivado           String?
+  assinaturaContrato       String?
+  prazoAtivacaoContrato    String?
+  ativacaoContrato         String?
+  statusContrato           String?
+  ativacaoConexao          String?
+  syncedAt                 DateTime @default(now()) @updatedAt
 
-  @@unique([cpf, dataAtivacao])
-  @@index([cpf])
+  @@map("contrato_ativacao_elleven")
 }

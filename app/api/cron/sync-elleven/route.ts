@@ -1,13 +1,12 @@
-// Sincronização diária com o elleven (Voalle/EVO) — FASE DIAGNÓSTICO.
+// Sincronização diária com o elleven (Voalle/EVO).
 //
-// Este endpoint ainda não grava nada no banco. Ele faz login no elleven,
-// navega até o relatório "Ativação Contratos", percorre o assistente
-// (Filtros -> Parâmetros -> Geração), baixa o CSV do relatório (o único modo
-// de exportação com dados tabulares — não há visualização em tela) e devolve
-// os headers e uma amostra das linhas no JSON, junto com um dump estruturado
-// dos elementos interativos e screenshots de cada etapa. Objetivo desta fase:
-// ver as colunas reais do relatório antes de desenhar o schema de
-// persistência.
+// Faz login no elleven, navega até o relatório "Ativação Contratos", percorre
+// o assistente (Filtros -> Parâmetros -> Geração), baixa o CSV do relatório (o
+// único modo de exportação com dados tabulares — não há visualização em tela)
+// e faz upsert de cada linha em ContratoAtivacaoElleven (chave: número do
+// Contrato) no banco via Prisma. Devolve também os headers, uma amostra das
+// linhas, contadores de salvamento e um dump estruturado dos elementos
+// interativos/screenshots de cada etapa, para diagnóstico.
 //
 // CONFIRMADO (scripts/test-elleven-scraping.ts): a etapa "Geração" tem 3
 // botões (button.MuiButton-outlined) — índice 0 = PDF, índice 1 = CSV,
@@ -26,6 +25,7 @@ import {
   type Page,
   type Locator,
 } from "playwright-core";
+import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -133,6 +133,7 @@ async function downloadAndParseCsv(
   csvHeaders: string[];
   rowCount: number;
   sampleRows: Record<string, string>[];
+  rows: Record<string, string>[];
 }> {
   let download;
   try {
@@ -147,6 +148,7 @@ async function downloadAndParseCsv(
       csvHeaders: [],
       rowCount: 0,
       sampleRows: [],
+      rows: [],
     };
   }
 
@@ -180,6 +182,7 @@ async function downloadAndParseCsv(
       csvHeaders,
       rowCount: rows.length,
       sampleRows: rows.slice(0, 3),
+      rows,
     };
   } catch (e) {
     return {
@@ -188,6 +191,7 @@ async function downloadAndParseCsv(
       csvHeaders: [],
       rowCount: 0,
       sampleRows: [],
+      rows: [],
     };
   }
 }
@@ -626,6 +630,8 @@ export async function GET(req: NextRequest) {
 
       const allFrameUrls = page.frames().map((f: Frame) => f.url());
       let modeResult: Awaited<ReturnType<typeof downloadAndParseCsv>> | null = null;
+      let savedCount = 0;
+      let errorCount = 0;
 
       if (reportFrame) {
         // Etapa 1: Filtros
@@ -787,6 +793,70 @@ export async function GET(req: NextRequest) {
               count,
               ...modeResult,
             });
+
+            if (modeResult.ok) {
+              step(`Salvando ${modeResult.rows.length} linhas no banco...`);
+              for (const row of modeResult.rows) {
+                if (!row["Contrato"]) continue;
+                try {
+                  await prisma.contratoAtivacaoElleven.upsert({
+                    where: { contrato: row["Contrato"] },
+                    update: {
+                      vendedor1: row["Vendedor 1"] || null,
+                      vendedor2: row["Vendedor 2"] || null,
+                      origem: row["Origem"] || null,
+                      dataContrato: row["Data Contrato"] || null,
+                      localContrato: row["Local do Contrato"] || null,
+                      primeiraMensalidade: row["Primeira Mensalidade"] || null,
+                      valorPrimeiraMensalidade:
+                        row["Valor Primeira Mensalidade"] || null,
+                      codigoCliente: row["Codigo Cliente"] || null,
+                      nomeCliente: row["Nome Cliente"] || null,
+                      enderecoAtivacao: row["Endereco Ativacao"] || null,
+                      cep: row["CEP"] || null,
+                      cidade: row["Cidade"] || null,
+                      servicoAtivado: row["Servico Ativado"] || null,
+                      valServAtivado: row["Val Serv Ativado"] || null,
+                      assinaturaContrato: row["Assinatura Contrato"] || null,
+                      prazoAtivacaoContrato:
+                        row["Prazo Ativacao Contrato"] || null,
+                      ativacaoContrato: row["Ativacao Contrato"] || null,
+                      statusContrato: row["Status Contrato"] || null,
+                      ativacaoConexao: row["Ativacao Conexao"] || null,
+                    },
+                    create: {
+                      contrato: row["Contrato"],
+                      vendedor1: row["Vendedor 1"] || null,
+                      vendedor2: row["Vendedor 2"] || null,
+                      origem: row["Origem"] || null,
+                      dataContrato: row["Data Contrato"] || null,
+                      localContrato: row["Local do Contrato"] || null,
+                      primeiraMensalidade: row["Primeira Mensalidade"] || null,
+                      valorPrimeiraMensalidade:
+                        row["Valor Primeira Mensalidade"] || null,
+                      codigoCliente: row["Codigo Cliente"] || null,
+                      nomeCliente: row["Nome Cliente"] || null,
+                      enderecoAtivacao: row["Endereco Ativacao"] || null,
+                      cep: row["CEP"] || null,
+                      cidade: row["Cidade"] || null,
+                      servicoAtivado: row["Servico Ativado"] || null,
+                      valServAtivado: row["Val Serv Ativado"] || null,
+                      assinaturaContrato: row["Assinatura Contrato"] || null,
+                      prazoAtivacaoContrato:
+                        row["Prazo Ativacao Contrato"] || null,
+                      ativacaoContrato: row["Ativacao Contrato"] || null,
+                      statusContrato: row["Status Contrato"] || null,
+                      ativacaoConexao: row["Ativacao Conexao"] || null,
+                    },
+                  });
+                  savedCount++;
+                } catch (e) {
+                  errorCount++;
+                  step(`Erro upsert contrato ${row["Contrato"]}: ${e}`);
+                }
+              }
+              step(`Banco atualizado: ${savedCount} salvos, ${errorCount} erros`);
+            }
           } else {
             step(
               `Menos de 2 botões de modo encontrados (${count}) — não há como clicar no botão CSV (índice 1).`,
@@ -807,6 +877,8 @@ export async function GET(req: NextRequest) {
         csvHeaders: modeResult?.csvHeaders ?? [],
         rowCount: modeResult?.rowCount ?? 0,
         sampleRows: modeResult?.sampleRows ?? [],
+        savedCount,
+        errorCount,
         log,
         currentUrl: page.url(),
         allFrameUrls,
