@@ -50,8 +50,8 @@ model Equipe {
 model Funcionario {
   id        String   @id @default(cuid())
   nome      String
-  cargo     String
   cpf       String?  @unique
+  cargo     String
   cidadeId  String?
   cidade    Cidade?  @relation(fields: [cidadeId], references: [id])
   equipeId  String?
@@ -171,4 +171,33 @@ model Ajuste {
   createdAt     DateTime          @default(now())
 
   @@index([funcionarioId, periodo])
+}
+
+// Linhas do relatório "Ativação Contratos" do elleven (sync-elleven).
+// Colunas confirmadas a partir de uma extração real do CSV (scripts/ativacao-contratos.csv).
+model ContratoAtivacaoElleven {
+  id                       Int      @id @default(autoincrement())
+  contrato                 String   @unique
+  vendedor1                String?
+  vendedor2                String?
+  origem                   String?
+  dataContrato             String?
+  localContrato            String?
+  primeiraMensalidade      String?
+  valorPrimeiraMensalidade String?
+  codigoCliente            String?
+  nomeCliente              String?
+  enderecoAtivacao         String?
+  cep                      String?
+  cidade                   String?
+  servicoAtivado           String?
+  valServAtivado           String?
+  assinaturaContrato       String?
+  prazoAtivacaoContrato    String?
+  ativacaoContrato         String?
+  statusContrato           String?
+  ativacaoConexao          String?
+  syncedAt                 DateTime @default(now()) @updatedAt
+
+  @@map("contrato_ativacao_elleven")
 }

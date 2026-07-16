@@ -9,7 +9,7 @@ export default async function ImportarPage() {
   const funcionarios = await prisma.funcionario.findMany({
     where: { ativo: true },
     orderBy: { nome: "asc" },
-    select: { id: true, nome: true, cidade: { select: { nome: true } } },
+    select: { id: true, nome: true, cpf: true, cidade: { select: { nome: true } } },
   });
 
   return (

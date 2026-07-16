@@ -117,6 +117,12 @@ export async function deleteEquipe(id: string): Promise<ActionResult> {
 
 const funcionarioSchema = z.object({
   nome: z.string().trim().min(2, "Informe o nome do funcionário"),
+  cpf: z
+    .string()
+    .trim()
+    .transform((v) => v.replace(/\D/g, ""))
+    .refine((v) => v === "" || v.length === 11, "CPF deve ter 11 dígitos")
+    .optional(),
   cargo: z.enum(["VENDEDOR_EXTERNO", "ATENDIMENTO_ADM", "SUPERVISOR", "OUTRO_SETOR"]),
   cidadeId: z.string().trim().optional(),
   equipeId: z.string().trim().optional(),
@@ -127,6 +133,7 @@ export async function createFuncionario(_prev: ActionResult, formData: FormData)
   await requireAdmin();
   const raw = {
     nome: formData.get("nome"),
+    cpf: formData.get("cpf") || undefined,
     cargo: formData.get("cargo"),
     cidadeId: formData.get("cidadeId") || undefined,
     equipeId: formData.get("equipeId") || undefined,
@@ -138,6 +145,7 @@ export async function createFuncionario(_prev: ActionResult, formData: FormData)
   await prisma.funcionario.create({
     data: {
       nome: parsed.data.nome,
+      cpf: parsed.data.cpf || null,
       cargo: parsed.data.cargo,
       cidadeId: parsed.data.cidadeId || null,
       equipeId: parsed.data.equipeId || null,
@@ -152,6 +160,7 @@ export async function updateFuncionario(id: string, _prev: ActionResult, formDat
   await requireAdmin();
   const raw = {
     nome: formData.get("nome"),
+    cpf: formData.get("cpf") || undefined,
     cargo: formData.get("cargo"),
     cidadeId: formData.get("cidadeId") || undefined,
     equipeId: formData.get("equipeId") || undefined,
@@ -164,6 +173,7 @@ export async function updateFuncionario(id: string, _prev: ActionResult, formDat
     where: { id },
     data: {
       nome: parsed.data.nome,
+      cpf: parsed.data.cpf || null,
       cargo: parsed.data.cargo,
       cidadeId: parsed.data.cidadeId || null,
       equipeId: parsed.data.equipeId || null,
