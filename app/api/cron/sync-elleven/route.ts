@@ -2,16 +2,17 @@
 //
 // Este endpoint ainda não grava nada no banco. Ele faz login no elleven,
 // navega até o relatório "Ativação Contratos", percorre o assistente
-// (Filtros -> Parâmetros -> Geração), clica no botão de modo de exportação
-// que supostamente é "visualização em tela" e devolve as linhas extraídas da
-// tabela de resultado no JSON — junto com um dump estruturado dos elementos
-// interativos e screenshots de cada etapa. Objetivo desta fase: ver as
-// colunas reais do relatório antes de desenhar o schema de persistência.
+// (Filtros -> Parâmetros -> Geração), baixa o CSV do relatório (o único modo
+// de exportação com dados tabulares — não há visualização em tela) e devolve
+// os headers e uma amostra das linhas no JSON, junto com um dump estruturado
+// dos elementos interativos e screenshots de cada etapa. Objetivo desta fase:
+// ver as colunas reais do relatório antes de desenhar o schema de
+// persistência.
 //
-// ATENÇÃO: o índice do botão de modo (0=PDF, 1=Excel, 2=Tela) é um PALPITE
-// NÃO CONFIRMADO VISUALMENTE — ver comentário em runWizard() na etapa
-// "Geração". Confira buttonScreenshots e rows numa primeira execução antes
-// de confiar nesse índice.
+// CONFIRMADO (scripts/test-elleven-scraping.ts): a etapa "Geração" tem 3
+// botões (button.MuiButton-outlined) — índice 0 = PDF, índice 1 = CSV,
+// índice 2 = FECHAR (fecha o wizard, não é modo de exportação). Não existe
+// botão de "visualização em tela" para este relatório.
 //
 // Variáveis de ambiente necessárias:
 //   ELLEVEN_LOGIN, ELLEVEN_PASSWORD — credenciais do elleven (CPF + senha)
@@ -117,130 +118,78 @@ async function describeInteractiveElements(frame: Frame) {
   ).catch((e: unknown) => `ERRO: ${e}`);
 }
 
-// Extrai linhas de uma tabela/grid de resultado, tentando alguns formatos
-// comuns (tabela HTML nativa, ou DevExtreme dx-datagrid com role="row").
-const EXTRACT_TABLE_ROWS_SRC = `
-  function extractFromHtmlTable(table) {
-    const headerCells = Array.from(table.querySelectorAll('thead th, thead td'));
-    const headers = headerCells.map(function (c) { return c.innerText.trim(); });
-    const bodyRows = Array.from(table.querySelectorAll('tbody tr'));
-    return bodyRows.map(function (tr) {
-      const cells = Array.from(tr.querySelectorAll('td')).map(function (td) { return td.innerText.trim(); });
-      if (headers.length === cells.length) {
-        const obj = {};
-        headers.forEach(function (h, i) { obj[h || ('col' + i)] = cells[i]; });
-        return obj;
-      }
-      return { cells: cells };
-    });
-  }
-
-  function extractFromDxGrid(grid) {
-    const headerCells = Array.from(grid.querySelectorAll('.dx-datagrid-headers [role="columnheader"], .dx-datagrid-headers .dx-header-row td'));
-    const headers = headerCells.map(function (c) { return c.innerText.trim(); });
-    const rows = Array.from(grid.querySelectorAll('.dx-datagrid-rowsview [role="row"], .dx-datagrid-rowsview .dx-data-row'));
-    return rows.map(function (row) {
-      const cells = Array.from(row.querySelectorAll('[role="gridcell"], td')).map(function (td) { return td.innerText.trim(); });
-      if (headers.length === cells.length) {
-        const obj = {};
-        headers.forEach(function (h, i) { obj[h || ('col' + i)] = cells[i]; });
-        return obj;
-      }
-      return { cells: cells };
-    });
-  }
-
-  const table = document.querySelector('table');
-  if (table) return { source: 'html-table', rows: extractFromHtmlTable(table) };
-
-  const dxGrid = document.querySelector('.dx-datagrid');
-  if (dxGrid) return { source: 'dx-datagrid', rows: extractFromDxGrid(dxGrid) };
-
-  return { source: 'none', rows: [] };
-`;
-
-async function extractTableRows(frame: Frame) {
-  return withTimeout(
-    frame.evaluate(new Function(EXTRACT_TABLE_ROWS_SRC) as () => unknown),
-    EVAL_TIMEOUT_MS,
-    "extractTableRows",
-  ).catch((e: unknown) => `ERRO: ${e}`);
-}
-
-// Clica no botão de modo `targetIdx` (dentre `buttonLocators`) e tenta
-// distinguir, sem navegar de volta, se o modo ativado foi um arquivo
-// (PDF/Excel) ou a visualização em tela:
-//   1. Clica e aguarda 3s.
-//   2. Se o texto da página indicar geração de PDF/Excel, retorna erro sem
-//      tentar desfazer nada — clicar em "VOLTAR" depois de um modo de
-//      exportação em arquivo já se mostrou quebrar a navegação (volta para a
-//      etapa Filtros, não para a tela de escolha de modo), então o mais
-//      seguro é só reportar o erro e deixar o cron terminar.
-//   3. Se nenhuma tabela/grid aparecer em tela, também reporta erro.
-//   4. Caso contrário, extrai as linhas da tabela e retorna.
-async function attemptModeClick(
-  frame: Frame,
+// Clica no botão CSV (índice 1 dentre `buttonLocators` — 0=PDF, 1=CSV,
+// 2=FECHAR, confirmado em scripts/test-elleven-scraping.ts) e captura o
+// download resultante via page.waitForEvent('download'). A geração do CSV no
+// servidor do elleven pode ser lenta, por isso o timeout generoso de 180s.
+// Depois de baixado, detecta o encoding (UTF-8 ou Latin-1) e faz o parse do
+// CSV (separador ';', padrão BR) em headers + linhas.
+async function downloadAndParseCsv(
   page: Page,
   buttonLocators: Locator,
-  targetIdx: number,
 ): Promise<{
   ok: boolean;
   error?: string;
-  pageTextPreview?: string;
-  rows?: unknown[];
-  rowCount?: number;
+  csvHeaders: string[];
+  rowCount: number;
+  sampleRows: Record<string, string>[];
 }> {
+  let download;
   try {
-    await buttonLocators.nth(targetIdx).click({ timeout: 5000 });
+    [download] = await Promise.all([
+      page.waitForEvent("download", { timeout: 180_000 }),
+      buttonLocators.nth(1).click(),
+    ]);
   } catch (e) {
-    return { ok: false, error: `Falha ao clicar no botão (índice ${targetIdx}): ${e}` };
-  }
-
-  await page.waitForTimeout(3000);
-  const pageText = await withTimeout(
-    frame.evaluate(() => document.body?.innerText ?? ""),
-    EVAL_TIMEOUT_MS,
-    "attemptModeClick-pageText",
-  ).catch((e: unknown) => `ERRO: ${e}`);
-  const pageTextStr = typeof pageText === "string" ? pageText : String(pageText);
-
-  if (
-    /gerando relat[oó]rio em pdf/i.test(pageTextStr) ||
-    /gerando relat[oó]rio em excel/i.test(pageTextStr)
-  ) {
     return {
       ok: false,
-      error: `Botão ${targetIdx} ativou geração de arquivo (PDF/Excel), não visualização em tela.`,
-      pageTextPreview: pageTextStr.slice(0, 500),
+      error: `Timeout/erro esperando download do CSV: ${e}`,
+      csvHeaders: [],
+      rowCount: 0,
+      sampleRows: [],
     };
   }
 
-  const tableCount = await frame
-    .locator("table, .dx-datagrid")
-    .count()
-    .catch(() => 0);
-  if (tableCount === 0) {
+  try {
+    const stream = await download.createReadStream();
+    const chunks: Buffer[] = [];
+    await new Promise<void>((resolve, reject) => {
+      stream.on("data", (chunk: Buffer) => chunks.push(chunk));
+      stream.on("end", resolve);
+      stream.on("error", reject);
+    });
+    const raw = Buffer.concat(chunks);
+
+    // Detecta encoding: se o UTF-8 tiver os artefatos típicos de um Latin-1
+    // mal interpretado, refaz a decodificação como Latin-1.
+    const utf8 = raw.toString("utf-8");
+    const text =
+      utf8.includes("ï¿½") || utf8.includes("â€") ? raw.toString("latin1") : utf8;
+
+    const lines = text.split(/\r?\n/).filter((l) => l.trim());
+    const csvHeaders = (lines[0] ?? "")
+      .split(";")
+      .map((h) => h.replace(/"/g, "").trim());
+    const rows = lines.slice(1).map((line) => {
+      const cells = line.split(";").map((c) => c.replace(/"/g, "").trim());
+      return Object.fromEntries(csvHeaders.map((h, i) => [h, cells[i] ?? ""]));
+    });
+
+    return {
+      ok: true,
+      csvHeaders,
+      rowCount: rows.length,
+      sampleRows: rows.slice(0, 3),
+    };
+  } catch (e) {
     return {
       ok: false,
-      error: `Botão ${targetIdx} clicado mas nenhuma tabela apareceu após 3s.`,
-      pageTextPreview: pageTextStr.slice(0, 500),
+      error: `Erro lendo/parseando CSV: ${e}`,
+      csvHeaders: [],
+      rowCount: 0,
+      sampleRows: [],
     };
   }
-
-  const extracted = await extractTableRows(frame);
-  const rows =
-    extracted &&
-    typeof extracted === "object" &&
-    Array.isArray((extracted as { rows?: unknown }).rows)
-      ? (extracted as { rows: unknown[] }).rows
-      : [];
-
-  return {
-    ok: true,
-    rows,
-    rowCount: rows.length,
-    pageTextPreview: pageTextStr.slice(0, 500),
-  };
 }
 
 async function clickByText(frame: Frame, text: string): Promise<boolean> {
@@ -676,7 +625,7 @@ export async function GET(req: NextRequest) {
       }
 
       const allFrameUrls = page.frames().map((f: Frame) => f.url());
-      let modeResult: Awaited<ReturnType<typeof attemptModeClick>> | null = null;
+      let modeResult: Awaited<ReturnType<typeof downloadAndParseCsv>> | null = null;
 
       if (reportFrame) {
         // Etapa 1: Filtros
@@ -786,18 +735,10 @@ export async function GET(req: NextRequest) {
         }
 
         // Etapa "Geração": escolher o modo de exportação (botões só com ícone, sem
-        // texto). Descoberto que clicar em "VOLTAR" depois de escolher um modo de
-        // exportação em arquivo (PDF/Excel) volta direto para a etapa Filtros, não
-        // para a tela de escolha de modo — então testar cada botão por tentativa e
-        // erro quebra a navegação. Por isso sempre tiramos screenshot de cada botão
-        // (sem clicar) antes de decidir — serve de evidência para confirmar/corrigir
-        // o palpite abaixo caso o índice esteja errado — e, depois do clique,
-        // detectamos pelo texto da página se um arquivo (PDF/Excel) foi ativado por
-        // engano, para não precisar tentar voltar (abortamos e reportamos o erro).
-        //
-        // PALPITE NÃO CONFIRMADO VISUALMENTE: assume-se a ordem típica PDF / Excel /
-        // Tela, então clicamos no último botão (índice 2 com 3 botões, índice 1 com
-        // 2). Ninguém validou isso contra os screenshots acima ainda.
+        // texto). CONFIRMADO (scripts/test-elleven-scraping.ts): este relatório só
+        // tem 3 botões — 0=PDF, 1=CSV, 2=FECHAR (fecha o wizard, não exporta nada).
+        // Não há visualização em tela. Por isso baixamos o CSV (índice 1) via
+        // page.waitForEvent('download') em vez de procurar uma tabela na página.
         if (
           /Ativação Contratos - Ger/i.test(stageText as string) ||
           /Escolha o modo de exporta/i.test(stageText as string)
@@ -833,33 +774,23 @@ export async function GET(req: NextRequest) {
             elements: stageElements,
           });
 
-          if (count > 0) {
-            const targetIdx = count >= 3 ? 2 : count >= 2 ? 1 : 0;
+          if (count >= 2) {
+            step("Clicando no botão CSV (índice 1) e aguardando download...");
+            modeResult = await downloadAndParseCsv(page, buttonLocators);
             step(
-              `Clicando no botão de modo (palpite não confirmado): índice=${targetIdx} de ${count} botões.`,
-            );
-            modeResult = await attemptModeClick(
-              reportFrame,
-              page,
-              buttonLocators,
-              targetIdx,
-            );
-            step(
-              `Resultado do clique no modo: ok=${modeResult.ok}` +
-                (modeResult.rowCount !== undefined
-                  ? `, rowCount=${modeResult.rowCount}`
-                  : "") +
+              `Resultado do download do CSV: ok=${modeResult.ok}, colunas=${modeResult.csvHeaders.length}, linhas=${modeResult.rowCount}` +
                 (modeResult.error ? `, error=${modeResult.error}` : ""),
             );
             wizardSteps.push({
-              name: "3-modo-clique-resultado",
+              name: "3-csv-resultado",
               url: reportFrame.url(),
-              targetIdx,
               count,
               ...modeResult,
             });
           } else {
-            step("Nenhum botão de modo encontrado — não há como clicar.");
+            step(
+              `Menos de 2 botões de modo encontrados (${count}) — não há como clicar no botão CSV (índice 1).`,
+            );
           }
         }
       }
@@ -873,8 +804,9 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({
         ok: modeResult?.ok ?? true,
         modeError: modeResult?.ok === false ? modeResult.error : undefined,
-        rows: modeResult?.rows ?? [],
+        csvHeaders: modeResult?.csvHeaders ?? [],
         rowCount: modeResult?.rowCount ?? 0,
+        sampleRows: modeResult?.sampleRows ?? [],
         log,
         currentUrl: page.url(),
         allFrameUrls,
