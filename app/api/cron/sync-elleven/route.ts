@@ -2,10 +2,16 @@
 //
 // Este endpoint ainda não grava nada no banco. Ele faz login no elleven,
 // navega até o relatório "Ativação Contratos", percorre o assistente
-// (Filtros -> Parâmetros -> Geração), executa o relatório e devolve os
-// dados extraídos da tabela de resultado — junto com um dump estruturado
-// dos elementos interativos de cada etapa, para permitirmos ajustar os
-// seletores antes de escrever a lógica de importação definitiva.
+// (Filtros -> Parâmetros -> Geração), clica no botão de modo de exportação
+// que supostamente é "visualização em tela" e devolve as linhas extraídas da
+// tabela de resultado no JSON — junto com um dump estruturado dos elementos
+// interativos e screenshots de cada etapa. Objetivo desta fase: ver as
+// colunas reais do relatório antes de desenhar o schema de persistência.
+//
+// ATENÇÃO: o índice do botão de modo (0=PDF, 1=Excel, 2=Tela) é um PALPITE
+// NÃO CONFIRMADO VISUALMENTE — ver comentário em runWizard() na etapa
+// "Geração". Confira buttonScreenshots e rows numa primeira execução antes
+// de confiar nesse índice.
 //
 // Variáveis de ambiente necessárias:
 //   ELLEVEN_LOGIN, ELLEVEN_PASSWORD — credenciais do elleven (CPF + senha)
@@ -16,6 +22,8 @@ import {
   chromium as playwrightChromium,
   type Browser,
   type Frame,
+  type Page,
+  type Locator,
 } from "playwright-core";
 
 export const runtime = "nodejs";
@@ -157,6 +165,82 @@ async function extractTableRows(frame: Frame) {
     EVAL_TIMEOUT_MS,
     "extractTableRows",
   ).catch((e: unknown) => `ERRO: ${e}`);
+}
+
+// Clica no botão de modo `targetIdx` (dentre `buttonLocators`) e tenta
+// distinguir, sem navegar de volta, se o modo ativado foi um arquivo
+// (PDF/Excel) ou a visualização em tela:
+//   1. Clica e aguarda 3s.
+//   2. Se o texto da página indicar geração de PDF/Excel, retorna erro sem
+//      tentar desfazer nada — clicar em "VOLTAR" depois de um modo de
+//      exportação em arquivo já se mostrou quebrar a navegação (volta para a
+//      etapa Filtros, não para a tela de escolha de modo), então o mais
+//      seguro é só reportar o erro e deixar o cron terminar.
+//   3. Se nenhuma tabela/grid aparecer em tela, também reporta erro.
+//   4. Caso contrário, extrai as linhas da tabela e retorna.
+async function attemptModeClick(
+  frame: Frame,
+  page: Page,
+  buttonLocators: Locator,
+  targetIdx: number,
+): Promise<{
+  ok: boolean;
+  error?: string;
+  pageTextPreview?: string;
+  rows?: unknown[];
+  rowCount?: number;
+}> {
+  try {
+    await buttonLocators.nth(targetIdx).click({ timeout: 5000 });
+  } catch (e) {
+    return { ok: false, error: `Falha ao clicar no botão (índice ${targetIdx}): ${e}` };
+  }
+
+  await page.waitForTimeout(3000);
+  const pageText = await withTimeout(
+    frame.evaluate(() => document.body?.innerText ?? ""),
+    EVAL_TIMEOUT_MS,
+    "attemptModeClick-pageText",
+  ).catch((e: unknown) => `ERRO: ${e}`);
+  const pageTextStr = typeof pageText === "string" ? pageText : String(pageText);
+
+  if (
+    /gerando relat[oó]rio em pdf/i.test(pageTextStr) ||
+    /gerando relat[oó]rio em excel/i.test(pageTextStr)
+  ) {
+    return {
+      ok: false,
+      error: `Botão ${targetIdx} ativou geração de arquivo (PDF/Excel), não visualização em tela.`,
+      pageTextPreview: pageTextStr.slice(0, 500),
+    };
+  }
+
+  const tableCount = await frame
+    .locator("table, .dx-datagrid")
+    .count()
+    .catch(() => 0);
+  if (tableCount === 0) {
+    return {
+      ok: false,
+      error: `Botão ${targetIdx} clicado mas nenhuma tabela apareceu após 3s.`,
+      pageTextPreview: pageTextStr.slice(0, 500),
+    };
+  }
+
+  const extracted = await extractTableRows(frame);
+  const rows =
+    extracted &&
+    typeof extracted === "object" &&
+    Array.isArray((extracted as { rows?: unknown }).rows)
+      ? (extracted as { rows: unknown[] }).rows
+      : [];
+
+  return {
+    ok: true,
+    rows,
+    rowCount: rows.length,
+    pageTextPreview: pageTextStr.slice(0, 500),
+  };
 }
 
 async function clickByText(frame: Frame, text: string): Promise<boolean> {
@@ -592,6 +676,7 @@ export async function GET(req: NextRequest) {
       }
 
       const allFrameUrls = page.frames().map((f: Frame) => f.url());
+      let modeResult: Awaited<ReturnType<typeof attemptModeClick>> | null = null;
 
       if (reportFrame) {
         // Etapa 1: Filtros
@@ -704,15 +789,21 @@ export async function GET(req: NextRequest) {
         // texto). Descoberto que clicar em "VOLTAR" depois de escolher um modo de
         // exportação em arquivo (PDF/Excel) volta direto para a etapa Filtros, não
         // para a tela de escolha de modo — então testar cada botão por tentativa e
-        // erro quebra a navegação. Em vez disso, tira um screenshot de cada botão
-        // (sem clicar) para identificar visualmente qual é a opção de visualização
-        // em tela antes de decidir em qual clicar.
+        // erro quebra a navegação. Por isso sempre tiramos screenshot de cada botão
+        // (sem clicar) antes de decidir — serve de evidência para confirmar/corrigir
+        // o palpite abaixo caso o índice esteja errado — e, depois do clique,
+        // detectamos pelo texto da página se um arquivo (PDF/Excel) foi ativado por
+        // engano, para não precisar tentar voltar (abortamos e reportamos o erro).
+        //
+        // PALPITE NÃO CONFIRMADO VISUALMENTE: assume-se a ordem típica PDF / Excel /
+        // Tela, então clicamos no último botão (índice 2 com 3 botões, índice 1 com
+        // 2). Ninguém validou isso contra os screenshots acima ainda.
         if (
           /Ativação Contratos - Ger/i.test(stageText as string) ||
           /Escolha o modo de exporta/i.test(stageText as string)
         ) {
           step(
-            "Etapa Geração detectada — capturando screenshots dos botões de modo (sem clicar)...",
+            "Etapa Geração detectada — capturando screenshots dos botões de modo antes de clicar...",
           );
           const buttonLocators = reportFrame.locator(
             "button.MuiButton-outlined",
@@ -742,99 +833,35 @@ export async function GET(req: NextRequest) {
             elements: stageElements,
           });
 
-          // Tenta clicar no botão de visualização em tela
-          // Ordem típica: 0=PDF, 1=Excel, 2=Tela — tentamos do maior índice para o menor
-          const targetIdx = count >= 3 ? 2 : count >= 2 ? 1 : 0;
-          step(`Clicando botão de modo idx=${targetIdx} (total=${count} botões encontrados)`);
-          await buttonLocators.nth(targetIdx).click();
-
-          // Aguarda 4s e detecta o que foi ativado
-          await page.waitForTimeout(4000);
-          const postClickText = await withTimeout(
-            reportFrame.evaluate(() => document.body?.innerText ?? ""),
-            EVAL_TIMEOUT_MS,
-            "postClickText",
-          ).catch(() => "");
-
-          const activatedPdfOrExcel =
-            postClickText.toLowerCase().includes("gerando relat") &&
-            (postClickText.toLowerCase().includes("pdf") || postClickText.toLowerCase().includes("excel"));
-
-          if (activatedPdfOrExcel) {
-            // Botão errado — ativou geração de arquivo, não tela
+          if (count > 0) {
+            const targetIdx = count >= 3 ? 2 : count >= 2 ? 1 : 0;
+            step(
+              `Clicando no botão de modo (palpite não confirmado): índice=${targetIdx} de ${count} botões.`,
+            );
+            modeResult = await attemptModeClick(
+              reportFrame,
+              page,
+              buttonLocators,
+              targetIdx,
+            );
+            step(
+              `Resultado do clique no modo: ok=${modeResult.ok}` +
+                (modeResult.rowCount !== undefined
+                  ? `, rowCount=${modeResult.rowCount}`
+                  : "") +
+                (modeResult.error ? `, error=${modeResult.error}` : ""),
+            );
             wizardSteps.push({
-              name: "3-modo-botao-errado",
+              name: "3-modo-clique-resultado",
+              url: reportFrame.url(),
               targetIdx,
               count,
-              postClickText: postClickText.slice(0, 500),
-              error: `Botão ${targetIdx} ativou geração de PDF/Excel, não visualização em tela`,
+              ...modeResult,
             });
-            throw new Error(`Botão ${targetIdx} ativou geração de arquivo (PDF/Excel). Tente índice diferente.`);
-          }
-
-          // Aguarda a tabela aparecer (até 30s)
-          let tableReady = false;
-          for (let w = 0; w < 15; w++) {
-            const hasTable = await withTimeout(
-              reportFrame.evaluate(() => !!document.querySelector("table, .dx-datagrid")),
-              EVAL_TIMEOUT_MS,
-              "hasTable-wait",
-            ).catch(() => false);
-            if (hasTable) { tableReady = true; break; }
-            await page.waitForTimeout(2000);
-          }
-
-          const extracted = tableReady ? await extractTableRows(reportFrame) : { source: "none", rows: [] };
-          wizardSteps.push({
-            name: "3-modo-resultado",
-            targetIdx,
-            count,
-            tableReady,
-            extracted,
-            postClickText: postClickText.slice(0, 300),
-          });
-        }
-
-        // Aguarda a tabela/grid de resultado aparecer (com timeout generoso, pois
-        // a geração do relatório pode demorar).
-        let resultReady = false;
-        for (let i = 0; i < 15; i++) {
-          await page.waitForTimeout(2000);
-          reportFrame =
-            page
-              .frames()
-              .find((f: Frame) => f.url().includes("reports_exec")) ??
-            reportFrame;
-          const hasResult = await withTimeout(
-            reportFrame.evaluate(
-              () => !!document.querySelector("table, .dx-datagrid"),
-            ),
-            EVAL_TIMEOUT_MS,
-            "hasResult",
-          ).catch(() => false);
-          if (hasResult) {
-            resultReady = true;
-            step(`Resultado detectado após ${(i + 1) * 2}s.`);
-            break;
+          } else {
+            step("Nenhum botão de modo encontrado — não há como clicar.");
           }
         }
-        step(`Resultado pronto: ${resultReady}`);
-
-        const postExecText = await withTimeout(
-          reportFrame.evaluate(() => document.body?.innerText ?? ""),
-          EVAL_TIMEOUT_MS,
-          "postExecText",
-        ).catch((e: unknown) => `ERRO: ${e}`);
-        const postExecElements = await describeInteractiveElements(reportFrame);
-        const extracted = await extractTableRows(reportFrame);
-        wizardSteps.push({
-          name: "3-geracao-pos-exec",
-          url: reportFrame.url(),
-          resultReady,
-          textPreview: (postExecText as string).slice(0, 3000),
-          elements: postExecElements,
-          extracted,
-        });
       }
 
       const screenshot = await page.screenshot({
@@ -844,7 +871,10 @@ export async function GET(req: NextRequest) {
       step(`Screenshot capturado (${screenshot.length} bytes).`);
 
       return NextResponse.json({
-        ok: true,
+        ok: modeResult?.ok ?? true,
+        modeError: modeResult?.ok === false ? modeResult.error : undefined,
+        rows: modeResult?.rows ?? [],
+        rowCount: modeResult?.rowCount ?? 0,
         log,
         currentUrl: page.url(),
         allFrameUrls,
