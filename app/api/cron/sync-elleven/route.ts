@@ -21,6 +21,20 @@ import {
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
+// Vários frame.evaluate() abaixo não tinham timeout algum — se a página travasse
+// no meio de um evaluate, ficava pendurado até o watchdog/maxDuration (mesma causa
+// já corrigida para Locator.screenshot() no passo de Geração). withTimeout()
+// generaliza essa proteção para qualquer Promise do Playwright.
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`timeout-${label}-${ms}ms`)), ms),
+    ),
+  ]);
+}
+const EVAL_TIMEOUT_MS = 8000;
+
 const ELLEVEN_BASE = "https://elleven.assinelm.com.br";
 // Relatórios > Faturamento > Ativação Contratos
 const REPORT_PATH = "/ui/legacy/reports/316e54f3-bdaa-b95a-5597-e9164279071e";
@@ -88,9 +102,11 @@ const DESCRIBE_INTERACTIVE_ELEMENTS_SRC = `
 `;
 
 async function describeInteractiveElements(frame: Frame) {
-  return frame
-    .evaluate(new Function(DESCRIBE_INTERACTIVE_ELEMENTS_SRC) as () => unknown)
-    .catch((e: unknown) => `ERRO: ${e}`);
+  return withTimeout(
+    frame.evaluate(new Function(DESCRIBE_INTERACTIVE_ELEMENTS_SRC) as () => unknown),
+    EVAL_TIMEOUT_MS,
+    "describeInteractiveElements",
+  ).catch((e: unknown) => `ERRO: ${e}`);
 }
 
 // Extrai linhas de uma tabela/grid de resultado, tentando alguns formatos
@@ -136,9 +152,11 @@ const EXTRACT_TABLE_ROWS_SRC = `
 `;
 
 async function extractTableRows(frame: Frame) {
-  return frame
-    .evaluate(new Function(EXTRACT_TABLE_ROWS_SRC) as () => unknown)
-    .catch((e: unknown) => `ERRO: ${e}`);
+  return withTimeout(
+    frame.evaluate(new Function(EXTRACT_TABLE_ROWS_SRC) as () => unknown),
+    EVAL_TIMEOUT_MS,
+    "extractTableRows",
+  ).catch((e: unknown) => `ERRO: ${e}`);
 }
 
 async function clickByText(frame: Frame, text: string): Promise<boolean> {
@@ -171,13 +189,15 @@ async function selectMuiOption(
     return result;
   }
   await frame.page().waitForTimeout(600);
-  const options = await frame
-    .evaluate(() =>
+  const options = await withTimeout(
+    frame.evaluate(() =>
       Array.from(
         document.querySelectorAll('li[role="option"], ul[role="listbox"] li'),
       ).map((el) => (el.textContent || "").trim()),
-    )
-    .catch(() => [] as string[]);
+    ),
+    EVAL_TIMEOUT_MS,
+    "selectMuiOption-options",
+  ).catch(() => [] as string[]);
   result.options = options as string[];
   if (result.options.length > 0) {
     const idx = result.options.findIndex((o) => matchRegex.test(o));
@@ -212,8 +232,8 @@ async function setFlatpickrDate(
   selector: string,
   isoDate: string,
 ): Promise<{ ok: boolean; valueAfter: string; debug: string }> {
-  return frame
-    .evaluate(
+  return withTimeout(
+    frame.evaluate(
       ({ selector, isoDate }) => {
         const el = document.querySelector(selector) as HTMLInputElement | null;
         if (!el)
@@ -295,12 +315,14 @@ async function setFlatpickrDate(
         };
       },
       { selector, isoDate },
-    )
-    .catch((e: unknown) => ({
-      ok: false,
-      valueAfter: "",
-      debug: `erro-evaluate: ${e}`,
-    }));
+    ),
+    EVAL_TIMEOUT_MS,
+    "setFlatpickrDate",
+  ).catch((e: unknown) => ({
+    ok: false,
+    valueAfter: "",
+    debug: `erro-evaluate: ${e}`,
+  }));
 }
 
 // Abre o calendário do Flatpickr clicando no input (comportamento padrão da lib:
@@ -482,10 +504,51 @@ export async function GET(req: NextRequest) {
         waitUntil: "load",
         timeout: 30000,
       });
-      await page.waitForSelector('input[placeholder="Entre com seu CPF"]', {
-        timeout: 30000,
-      });
-      await page.fill('input[placeholder="Entre com seu CPF"]', login);
+
+      const CPF_SELECTOR = 'input[placeholder="Entre com seu CPF"]';
+      let cpfVisible = await page
+        .waitForSelector(CPF_SELECTOR, { timeout: 30000 })
+        .then(() => true)
+        .catch(() => false);
+
+      // A hidratação do React às vezes não conclui a tempo em Chromium serverless
+      // com CPU limitada — um reload costuma resolver antes de desistirmos.
+      if (!cpfVisible) {
+        step("Campo de CPF não apareceu em 30s — recarregando e tentando de novo...");
+        await page
+          .reload({ waitUntil: "load", timeout: 30000 })
+          .catch(() => {});
+        cpfVisible = await page
+          .waitForSelector(CPF_SELECTOR, { timeout: 30000 })
+          .then(() => true)
+          .catch(() => false);
+      }
+
+      if (!cpfVisible) {
+        const failScreenshot = await page
+          .screenshot({ timeout: 10000 })
+          .catch(() => null);
+        wizardSteps.push({
+          name: "login-cpf-nao-encontrado",
+          url: page.url(),
+          title: await page.title().catch(() => "?"),
+          bodyPreview: await withTimeout(
+            page.evaluate(() => document.body?.innerText ?? ""),
+            EVAL_TIMEOUT_MS,
+            "login-fail-bodyPreview",
+          )
+            .then((t) => (t as string).slice(0, 1000))
+            .catch(() => ""),
+          screenshotBase64: failScreenshot
+            ? failScreenshot.toString("base64")
+            : null,
+        });
+        throw new Error(
+          `Campo de CPF não apareceu mesmo após reload (URL atual: ${page.url()}).`,
+        );
+      }
+
+      await page.fill(CPF_SELECTOR, login);
       await page.fill('input[placeholder="Entre com sua senha"]', password);
       await page.click('button:has-text("Entrar")');
       await page.waitForTimeout(6000);
@@ -516,9 +579,13 @@ export async function GET(req: NextRequest) {
 
       if (reportFrame) {
         for (let i = 0; i < 10; i++) {
-          const hasText = await reportFrame
-            .evaluate(() => (document.body?.innerText ?? "").trim().length > 0)
-            .catch(() => false);
+          const hasText = await withTimeout(
+            reportFrame.evaluate(
+              () => (document.body?.innerText ?? "").trim().length > 0,
+            ),
+            EVAL_TIMEOUT_MS,
+            "hasText",
+          ).catch(() => false);
           if (hasText) break;
           await page.waitForTimeout(1500);
         }
@@ -528,9 +595,11 @@ export async function GET(req: NextRequest) {
 
       if (reportFrame) {
         // Etapa 1: Filtros
-        const step1Text = await reportFrame
-          .evaluate(() => document.body?.innerText ?? "")
-          .catch((e: unknown) => `ERRO: ${e}`);
+        const step1Text = await withTimeout(
+          reportFrame.evaluate(() => document.body?.innerText ?? ""),
+          EVAL_TIMEOUT_MS,
+          "step1Text",
+        ).catch((e: unknown) => `ERRO: ${e}`);
         const step1Elements = await describeInteractiveElements(reportFrame);
         wizardSteps.push({
           name: "1-filtros",
@@ -588,9 +657,11 @@ export async function GET(req: NextRequest) {
 
         // Etapa 2: pode ser "Parâmetros" (se o relatório tiver parâmetros extras) ou
         // pular direto para "Geração" (quando não há parâmetros configuráveis).
-        let stageText = await reportFrame
-          .evaluate(() => document.body?.innerText ?? "")
-          .catch((e: unknown) => `ERRO: ${e}`);
+        let stageText = await withTimeout(
+          reportFrame.evaluate(() => document.body?.innerText ?? ""),
+          EVAL_TIMEOUT_MS,
+          "stageText-1",
+        ).catch((e: unknown) => `ERRO: ${e}`);
         let stageElements = await describeInteractiveElements(reportFrame);
         wizardSteps.push({
           name: "2-apos-avancar-filtros",
@@ -615,9 +686,11 @@ export async function GET(req: NextRequest) {
               .frames()
               .find((f: Frame) => f.url().includes("reports_exec")) ??
             reportFrame;
-          stageText = await reportFrame
-            .evaluate(() => document.body?.innerText ?? "")
-            .catch((e: unknown) => `ERRO: ${e}`);
+          stageText = await withTimeout(
+            reportFrame.evaluate(() => document.body?.innerText ?? ""),
+            EVAL_TIMEOUT_MS,
+            "stageText-2",
+          ).catch((e: unknown) => `ERRO: ${e}`);
           stageElements = await describeInteractiveElements(reportFrame);
           wizardSteps.push({
             name: "3-apos-avancar-parametros",
@@ -668,6 +741,58 @@ export async function GET(req: NextRequest) {
             buttonScreenshots,
             elements: stageElements,
           });
+
+          // Tenta clicar no botão de visualização em tela
+          // Ordem típica: 0=PDF, 1=Excel, 2=Tela — tentamos do maior índice para o menor
+          const targetIdx = count >= 3 ? 2 : count >= 2 ? 1 : 0;
+          step(`Clicando botão de modo idx=${targetIdx} (total=${count} botões encontrados)`);
+          await buttonLocators.nth(targetIdx).click();
+
+          // Aguarda 4s e detecta o que foi ativado
+          await page.waitForTimeout(4000);
+          const postClickText = await withTimeout(
+            reportFrame.evaluate(() => document.body?.innerText ?? ""),
+            EVAL_TIMEOUT_MS,
+            "postClickText",
+          ).catch(() => "");
+
+          const activatedPdfOrExcel =
+            postClickText.toLowerCase().includes("gerando relat") &&
+            (postClickText.toLowerCase().includes("pdf") || postClickText.toLowerCase().includes("excel"));
+
+          if (activatedPdfOrExcel) {
+            // Botão errado — ativou geração de arquivo, não tela
+            wizardSteps.push({
+              name: "3-modo-botao-errado",
+              targetIdx,
+              count,
+              postClickText: postClickText.slice(0, 500),
+              error: `Botão ${targetIdx} ativou geração de PDF/Excel, não visualização em tela`,
+            });
+            throw new Error(`Botão ${targetIdx} ativou geração de arquivo (PDF/Excel). Tente índice diferente.`);
+          }
+
+          // Aguarda a tabela aparecer (até 30s)
+          let tableReady = false;
+          for (let w = 0; w < 15; w++) {
+            const hasTable = await withTimeout(
+              reportFrame.evaluate(() => !!document.querySelector("table, .dx-datagrid")),
+              EVAL_TIMEOUT_MS,
+              "hasTable-wait",
+            ).catch(() => false);
+            if (hasTable) { tableReady = true; break; }
+            await page.waitForTimeout(2000);
+          }
+
+          const extracted = tableReady ? await extractTableRows(reportFrame) : { source: "none", rows: [] };
+          wizardSteps.push({
+            name: "3-modo-resultado",
+            targetIdx,
+            count,
+            tableReady,
+            extracted,
+            postClickText: postClickText.slice(0, 300),
+          });
         }
 
         // Aguarda a tabela/grid de resultado aparecer (com timeout generoso, pois
@@ -680,9 +805,13 @@ export async function GET(req: NextRequest) {
               .frames()
               .find((f: Frame) => f.url().includes("reports_exec")) ??
             reportFrame;
-          const hasResult = await reportFrame
-            .evaluate(() => !!document.querySelector("table, .dx-datagrid"))
-            .catch(() => false);
+          const hasResult = await withTimeout(
+            reportFrame.evaluate(
+              () => !!document.querySelector("table, .dx-datagrid"),
+            ),
+            EVAL_TIMEOUT_MS,
+            "hasResult",
+          ).catch(() => false);
           if (hasResult) {
             resultReady = true;
             step(`Resultado detectado após ${(i + 1) * 2}s.`);
@@ -691,9 +820,11 @@ export async function GET(req: NextRequest) {
         }
         step(`Resultado pronto: ${resultReady}`);
 
-        const postExecText = await reportFrame
-          .evaluate(() => document.body?.innerText ?? "")
-          .catch((e: unknown) => `ERRO: ${e}`);
+        const postExecText = await withTimeout(
+          reportFrame.evaluate(() => document.body?.innerText ?? ""),
+          EVAL_TIMEOUT_MS,
+          "postExecText",
+        ).catch((e: unknown) => `ERRO: ${e}`);
         const postExecElements = await describeInteractiveElements(reportFrame);
         const extracted = await extractTableRows(reportFrame);
         wizardSteps.push({
