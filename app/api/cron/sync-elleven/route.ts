@@ -45,11 +45,55 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 const EVAL_TIMEOUT_MS = 8000;
 
 const ELLEVEN_BASE = "https://elleven.assinelm.com.br";
-// Relatórios > Faturamento > Ativação Contratos
-const REPORT_PATH = "/ui/legacy/reports/316e54f3-bdaa-b95a-5597-e9164279071e";
+
+// Relatórios de venda do elleven que sincronizamos. Cada um é uma tela/assistente
+// legado (mesmo fluxo: Filtros -> [Parâmetros] -> Geração -> download CSV). IDs
+// vieram do menu (general/me/menus). Só "ativacao-contratos" tem tabela modelada
+// e save; os demais estão em fase de descoberta (baixam o CSV e retornam os
+// cabeçalhos/amostra para modelarmos a tabela certa depois).
+const REPORTS: Record<
+  string,
+  { path: string; nome: string; persist: boolean }
+> = {
+  "ativacao-contratos": {
+    path: "/ui/legacy/reports/316e54f3-bdaa-b95a-5597-e9164279071e",
+    nome: "Ativação Contratos",
+    persist: true,
+  },
+  "vendedores-comercial": {
+    path: "/ui/legacy/reports/fc792c4f-d4cf-572a-361b-3502c29ede8c",
+    nome: "Vendedores - Comercial",
+    persist: false,
+  },
+  "funil-de-vendas": {
+    path: "/ui/legacy/reports/9f47af3b-785a-cd9f-c1b6-c0aec822e2e3",
+    nome: "Funil de Vendas - Gerencial",
+    persist: false,
+  },
+  "faturamento-por-vendedor": {
+    path: "/ui/legacy/reports/fddad397-582b-c766-0bd2-080051647004",
+    nome: "Faturamento por Vendedor",
+    persist: false,
+  },
+  "titulos-recebidos-por-vendedor": {
+    path: "/ui/legacy/reports/ddb93074-150a-9e84-ded2-9873da66ba5e",
+    nome: "CRE - Títulos Recebidos - Por Vendedor",
+    persist: false,
+  },
+  "pedidos-de-venda": {
+    path: "/ui/legacy/reports/e2e1a318-bdfb-ae98-1510-957558e4b02e",
+    nome: "Listagem Pedidos de Venda",
+    persist: false,
+  },
+};
+const DEFAULT_REPORT = "ativacao-contratos";
 
 function unauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+}
+
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function isAuthorized(req: NextRequest): boolean {
@@ -551,6 +595,23 @@ export async function GET(req: NextRequest) {
     );
   }
 
+  const slug = req.nextUrl.searchParams.get("report") || DEFAULT_REPORT;
+  const report = REPORTS[slug];
+  if (!report) {
+    return NextResponse.json(
+      {
+        error: `Relatório desconhecido: "${slug}". Válidos: ${Object.keys(REPORTS).join(", ")}`,
+      },
+      { status: 400 },
+    );
+  }
+  // O cabeçalho de cada etapa do assistente é "<Nome do Relatório> - <Etapa>"
+  // (ex.: "Ativação Contratos - Geração"). Ancoramos no nome do relatório para
+  // não confundir com um eventual breadcrump/stepper que liste as etapas.
+  const headingBase = escapeRegex(report.nome).replace(/\s+/g, "\\s+");
+  const reParametros = new RegExp(`${headingBase}\\s*-\\s*Par[âa]metros`, "i");
+  const reGeracao = new RegExp(`${headingBase}\\s*-\\s*Gera[çc][ãa]o`, "i");
+
   const log: string[] = [];
   const step = (s: string) => {
     const line = `[${new Date().toISOString()}] ${s}`;
@@ -679,8 +740,8 @@ export async function GET(req: NextRequest) {
         );
       }
 
-      step("Navegando até o relatório Ativação Contratos...");
-      await page.goto(`${ELLEVEN_BASE}${REPORT_PATH}`, {
+      step(`Navegando até o relatório ${report.nome}...`);
+      await page.goto(`${ELLEVEN_BASE}${report.path}`, {
         waitUntil: "load",
         timeout: 30000,
       });
@@ -792,7 +853,7 @@ export async function GET(req: NextRequest) {
           elements: stageElements,
         });
 
-        if (/Ativação Contratos - Par/i.test(stageText as string)) {
+        if (reParametros.test(stageText as string)) {
           step("Etapa Parâmetros detectada, tentando avançar...");
           const advancedParams =
             (await clickByText(reportFrame, "AVANÇAR")) ||
@@ -828,7 +889,7 @@ export async function GET(req: NextRequest) {
         // Não há visualização em tela. Por isso baixamos o CSV (índice 1) via
         // page.waitForEvent('download') em vez de procurar uma tabela na página.
         if (
-          /Ativação Contratos - Ger/i.test(stageText as string) ||
+          reGeracao.test(stageText as string) ||
           /Escolha o modo de exporta/i.test(stageText as string)
         ) {
           step(
@@ -876,7 +937,13 @@ export async function GET(req: NextRequest) {
               ...modeResult,
             });
 
-            if (modeResult.ok) {
+            if (modeResult.ok && !report.persist) {
+              step(
+                `Modo descoberta (${slug}): CSV baixado com ${modeResult.rowCount} linhas e ${modeResult.csvHeaders.length} colunas — não persiste ainda. Cabeçalhos: ${JSON.stringify(modeResult.csvHeaders)}`,
+              );
+            }
+
+            if (modeResult.ok && report.persist) {
               step(`Salvando ${modeResult.rows.length} linhas no banco...`);
               for (const row of modeResult.rows) {
                 if (!row["Contrato"]) continue;
@@ -955,6 +1022,9 @@ export async function GET(req: NextRequest) {
 
       return NextResponse.json({
         ok: modeResult?.ok ?? true,
+        report: slug,
+        reportNome: report.nome,
+        persist: report.persist,
         modeError: modeResult?.ok === false ? modeResult.error : undefined,
         csvHeaders: modeResult?.csvHeaders ?? [],
         rowCount: modeResult?.rowCount ?? 0,
