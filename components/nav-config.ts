@@ -25,6 +25,7 @@ export const adminNav: NavItem[] = [
   { href: "/regras", label: "Regras de Bonificação", icon: SlidersHorizontal },
   { href: "/lancamentos", label: "Lançamentos", icon: ClipboardList },
   { href: "/importar", label: "Importar Planilha/CSV", icon: Upload },
+  { href: "/importar/elleven", label: "Importar do elleven", icon: Upload },
   { href: "/fechamento", label: "Fechamento Mensal", icon: Lock },
   { href: "/relatorios", label: "Relatórios", icon: BarChart3 },
 ];
