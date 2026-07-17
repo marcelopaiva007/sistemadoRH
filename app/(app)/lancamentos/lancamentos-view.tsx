@@ -47,9 +47,11 @@ type Lancamento = {
   aprovado: number;
   cancelado: number;
   valorInstalado: number;
+  valorDemaisServicos: number;
   qtdInternet: number;
   qtdChip: number;
   qtdGps: number;
+  qtdTv: number;
   qtdStreaming: number;
   qtdTelefoniaFixa: number;
   origem: string;
@@ -257,20 +259,35 @@ function LancamentoForm({
         </div>
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="valorInstalado">Valor instalado (R$)</Label>
-        <Input
-          id="valorInstalado"
-          name="valorInstalado"
-          type="number"
-          step="0.01"
-          defaultValue={defaultValues?.valorInstalado ?? 0}
-        />
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-2">
+          <Label htmlFor="valorInstalado">Valor instalado (R$)</Label>
+          <Input
+            id="valorInstalado"
+            name="valorInstalado"
+            type="number"
+            step="0.01"
+            defaultValue={defaultValues?.valorInstalado ?? 0}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="valorDemaisServicos">Valor demais serviços (R$)</Label>
+          <Input
+            id="valorDemaisServicos"
+            name="valorDemaisServicos"
+            type="number"
+            step="0.01"
+            defaultValue={defaultValues?.valorDemaisServicos ?? 0}
+          />
+          <p className="text-xs text-muted-foreground">
+            Valor dos serviços não-internet — base dos 50% do Atendimento/ADM.
+          </p>
+        </div>
       </div>
 
       <Separator />
       <p className="text-sm font-medium">Quantidade vendida por produto</p>
-      <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
+      <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
         <div className="space-y-2">
           <Label htmlFor="qtdInternet">Internet</Label>
           <Input id="qtdInternet" name="qtdInternet" type="number" defaultValue={defaultValues?.qtdInternet ?? 0} />
@@ -282,6 +299,10 @@ function LancamentoForm({
         <div className="space-y-2">
           <Label htmlFor="qtdGps">GPS</Label>
           <Input id="qtdGps" name="qtdGps" type="number" defaultValue={defaultValues?.qtdGps ?? 0} />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="qtdTv">TV</Label>
+          <Input id="qtdTv" name="qtdTv" type="number" defaultValue={defaultValues?.qtdTv ?? 0} />
         </div>
         <div className="space-y-2">
           <Label htmlFor="qtdStreaming">Streaming</Label>

@@ -14,9 +14,9 @@ export default async function RegrasPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Regras de Bonificação</h1>
         <p className="text-muted-foreground">
-          Metas, super-metas, valores por produto e faixas de supervisor. Cada
-          mudança cria uma nova vigência — o histórico de regras anteriores fica
-          preservado.
+          Faixas e valores por serviço, por equipe e papel, além do bônus de
+          supervisor. Cada mudança cria uma nova vigência — o histórico de regras
+          anteriores fica preservado.
         </p>
       </div>
       <RegrasView regras={regras} />

@@ -59,7 +59,7 @@ export default async function HomePage({
     aprovadas: 0,
     canceladas: 0,
   };
-  const mix = { internet: 0, chip: 0, gps: 0, streaming: 0, telefoniaFixa: 0 };
+  const mix = { internet: 0, chip: 0, gps: 0, tv: 0, streaming: 0, telefoniaFixa: 0 };
   const porCidadeMap = new Map<string, { valor: number; aprovadas: number }>();
   const porCargoMap = new Map<string, { vendido: number; bonificacao: number }>();
   const rankingMap = new Map<string, RankingLinha>();
@@ -73,6 +73,7 @@ export default async function HomePage({
     mix.internet += l.qtdInternet;
     mix.chip += l.qtdChip;
     mix.gps += l.qtdGps;
+    mix.tv += l.qtdTv;
     mix.streaming += l.qtdStreaming;
     mix.telefoniaFixa += l.qtdTelefoniaFixa;
     if (l.quantidade > 0 || l.valorInstalado > 0) vendedoresComVenda.add(l.funcionarioId);
@@ -102,18 +103,16 @@ export default async function HomePage({
   }
 
   const composicao = {
-    base: 0,
-    meta: 0,
-    superMeta: 0,
-    produtos: 0,
+    internet: 0,
+    chip: 0,
+    demais: 0,
     supervisor: 0,
   };
   for (const b of bonificacoes) {
     resumo.bonificacao += b.valorTotal;
-    composicao.base += b.valorBase;
-    composicao.meta += b.valorMeta;
-    composicao.superMeta += b.valorSuperMeta;
-    composicao.produtos += b.valorProdutos;
+    composicao.internet += b.valorInternet;
+    composicao.chip += b.valorChip;
+    composicao.demais += b.valorDemais;
     composicao.supervisor += b.valorSupervisor;
 
     const cargo = porCargoMap.get(b.funcionario.cargo) ?? { vendido: 0, bonificacao: 0 };
@@ -179,14 +178,14 @@ export default async function HomePage({
           { produto: "Internet", qtd: mix.internet },
           { produto: "Chip", qtd: mix.chip },
           { produto: "GPS", qtd: mix.gps },
+          { produto: "TV", qtd: mix.tv },
           { produto: "Streaming", qtd: mix.streaming },
           { produto: "Telefonia Fixa", qtd: mix.telefoniaFixa },
         ]}
         composicao={[
-          { componente: "Base", valor: composicao.base },
-          { componente: "Meta", valor: composicao.meta },
-          { componente: "Super Meta", valor: composicao.superMeta },
-          { componente: "Produtos", valor: composicao.produtos },
+          { componente: "Internet", valor: composicao.internet },
+          { componente: "Chip", valor: composicao.chip },
+          { componente: "Demais serviços", valor: composicao.demais },
           { componente: "Supervisor", valor: composicao.supervisor },
           { componente: "Ajustes", valor: ajustesAgg._sum.valor ?? 0 },
         ]}

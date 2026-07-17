@@ -81,8 +81,8 @@ export function EquipesTable({
             <TableRow>
               <TableHead>Equipe</TableHead>
               <TableHead>Supervisor</TableHead>
-              <TableHead>Faixa</TableHead>
               <TableHead>Membros</TableHead>
+              <TableHead>Tamanho (bônus)</TableHead>
               <TableHead className="w-24 text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
@@ -98,14 +98,14 @@ export function EquipesTable({
               <TableRow key={equipe.id}>
                 <TableCell className="font-medium">{equipe.nome}</TableCell>
                 <TableCell>{equipe.supervisor?.nome ?? "—"}</TableCell>
+                <TableCell>{equipe._count.membros}</TableCell>
                 <TableCell>
-                  {equipe.tamanhoTier ? (
-                    <Badge variant="secondary">Equipe de {equipe.tamanhoTier}</Badge>
+                  {equipe.supervisor ? (
+                    <Badge variant="secondary">{equipe._count.membros + 1} pessoas</Badge>
                   ) : (
-                    "—"
+                    <span className="text-muted-foreground">sem supervisor</span>
                   )}
                 </TableCell>
-                <TableCell>{equipe._count.membros}</TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-1">
                     <Button variant="ghost" size="icon" onClick={() => setEditEquipe(equipe)}>
@@ -151,9 +151,6 @@ function EquipeForm({
   onSuccess: () => void;
 }) {
   const [supervisorId, setSupervisorId] = useState(defaultValues?.supervisorId ?? "");
-  const [tamanhoTier, setTamanhoTier] = useState(
-    defaultValues?.tamanhoTier ? String(defaultValues.tamanhoTier) : ""
-  );
 
   const [state, formAction, isPending] = useActionState(async (prev: ActionResult, fd: FormData) => {
     const result = await action(prev, fd);
@@ -193,23 +190,10 @@ function EquipeForm({
           </SelectContent>
         </Select>
       </div>
-      <div className="space-y-2">
-        <Label>Faixa de bonificação do supervisor</Label>
-        <Select
-          value={tamanhoTier}
-          onValueChange={(v) => setTamanhoTier(v ?? "")}
-          name="tamanhoTier"
-          items={{ "3": "Equipe de 3", "5": "Equipe de 5" }}
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="Selecione a faixa" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="3">Equipe de 3</SelectItem>
-            <SelectItem value="5">Equipe de 5</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+      <p className="text-xs text-muted-foreground">
+        O tamanho da equipe usado no bônus do supervisor é contado automaticamente
+        (membros ativos + o supervisor) — não é mais necessário informar a faixa.
+      </p>
       {!state.ok && (
         <Alert variant="destructive">
           <AlertDescription>{state.error}</AlertDescription>

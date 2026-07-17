@@ -453,22 +453,30 @@ async function main() {
         },
       });
 
-      const valorBase = e.valorBase ?? 0;
-      const valorMeta = e.valorMeta ?? 0;
-      const valorSuperMeta = e.valorSuperMeta ?? 0;
+      // Estes meses são um import histórico (planilha 2026) de fechamentos já
+      // FECHADOS. O breakdown antigo (base/meta/super-meta) não tem equivalente
+      // exato no novo modelo por serviço, então o bônus não-supervisor é
+      // consolidado em `valorDemais` (bucket genérico) — o que importa aqui é
+      // preservar o Total e o valor de Supervisor de cada mês congelado.
+      const valorHistorico = (e.valorBase ?? 0) + (e.valorMeta ?? 0) + (e.valorSuperMeta ?? 0);
       const valorSupervisor = e.valorSupervisor ?? 0;
-      const valorTotal = valorBase + valorMeta + valorSuperMeta + valorSupervisor;
+      const valorTotal = valorHistorico + valorSupervisor;
 
       await prisma.bonificacaoCalculada.upsert({
         where: { fechamentoId_funcionarioId: { fechamentoId: fechamento.id, funcionarioId } },
         update: {
-          valorBase: { increment: valorBase },
-          valorMeta: { increment: valorMeta },
-          valorSuperMeta: { increment: valorSuperMeta },
+          valorDemais: { increment: valorHistorico },
           valorSupervisor: { increment: valorSupervisor },
           valorTotal: { increment: valorTotal },
         },
-        create: { fechamentoId: fechamento.id, funcionarioId, valorBase, valorMeta, valorSuperMeta, valorSupervisor, valorTotal },
+        create: {
+          fechamentoId: fechamento.id,
+          funcionarioId,
+          valorDemais: valorHistorico,
+          valorSupervisor,
+          valorTotal,
+          detalhesJson: { legado: true, origem: "planilha 2026" },
+        },
       });
 
       valorTotalVendido += e.valorInstalado ?? 0;

@@ -16,9 +16,11 @@ const lancamentoSchema = z.object({
   aprovado: z.coerce.number().int().default(0),
   cancelado: z.coerce.number().int().default(0),
   valorInstalado: z.coerce.number().default(0),
+  valorDemaisServicos: z.coerce.number().default(0),
   qtdInternet: z.coerce.number().int().default(0),
   qtdChip: z.coerce.number().int().default(0),
   qtdGps: z.coerce.number().int().default(0),
+  qtdTv: z.coerce.number().int().default(0),
   qtdStreaming: z.coerce.number().int().default(0),
   qtdTelefoniaFixa: z.coerce.number().int().default(0),
 });
@@ -31,9 +33,11 @@ function parseLancamentoForm(formData: FormData) {
     aprovado: formData.get("aprovado") || 0,
     cancelado: formData.get("cancelado") || 0,
     valorInstalado: formData.get("valorInstalado") || 0,
+    valorDemaisServicos: formData.get("valorDemaisServicos") || 0,
     qtdInternet: formData.get("qtdInternet") || 0,
     qtdChip: formData.get("qtdChip") || 0,
     qtdGps: formData.get("qtdGps") || 0,
+    qtdTv: formData.get("qtdTv") || 0,
     qtdStreaming: formData.get("qtdStreaming") || 0,
     qtdTelefoniaFixa: formData.get("qtdTelefoniaFixa") || 0,
   });

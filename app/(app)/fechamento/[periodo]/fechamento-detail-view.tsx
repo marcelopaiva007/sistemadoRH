@@ -45,10 +45,9 @@ type Funcionario = { id: string; nome: string; cidade?: Cidade | null };
 type Bonificacao = {
   id: string;
   funcionario: Funcionario;
-  valorBase: number;
-  valorMeta: number;
-  valorSuperMeta: number;
-  valorProdutos: number;
+  valorInternet: number;
+  valorChip: number;
+  valorDemais: number;
   valorSupervisor: number;
   valorTotal: number;
 };
@@ -112,13 +111,12 @@ export function FechamentoDetailView({
   async function handleExportar() {
     const XLSX = await import("xlsx");
     const wsData = [
-      ["Funcionário", "Base", "Meta", "Super Meta", "Produtos", "Supervisor", "Total"],
+      ["Funcionário", "Internet", "Chip", "Demais", "Supervisor", "Total"],
       ...(fechamento?.bonificacoes.map((b) => [
         b.funcionario.nome,
-        b.valorBase,
-        b.valorMeta,
-        b.valorSuperMeta,
-        b.valorProdutos,
+        b.valorInternet,
+        b.valorChip,
+        b.valorDemais,
         b.valorSupervisor,
         b.valorTotal,
       ]) ?? []),
@@ -203,10 +201,9 @@ export function FechamentoDetailView({
           <TableHeader>
             <TableRow>
               <TableHead>Funcionário</TableHead>
-              <TableHead className="text-right">Base</TableHead>
-              <TableHead className="text-right">Meta</TableHead>
-              <TableHead className="text-right">Super Meta</TableHead>
-              <TableHead className="text-right">Produtos</TableHead>
+              <TableHead className="text-right">Internet</TableHead>
+              <TableHead className="text-right">Chip</TableHead>
+              <TableHead className="text-right">Demais</TableHead>
               <TableHead className="text-right">Supervisor</TableHead>
               <TableHead className="text-right">Total</TableHead>
             </TableRow>
@@ -214,7 +211,7 @@ export function FechamentoDetailView({
           <TableBody>
             {(fechamento?.bonificacoes.length ?? 0) === 0 && (
               <TableRow>
-                <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
+                <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
                   Nenhuma bonificação calculada ainda. Lance vendas neste período.
                 </TableCell>
               </TableRow>
@@ -222,10 +219,9 @@ export function FechamentoDetailView({
             {fechamento?.bonificacoes.map((b) => (
               <TableRow key={b.id}>
                 <TableCell className="font-medium">{b.funcionario.nome}</TableCell>
-                <TableCell className="text-right">{fmtMoeda(b.valorBase)}</TableCell>
-                <TableCell className="text-right">{fmtMoeda(b.valorMeta)}</TableCell>
-                <TableCell className="text-right">{fmtMoeda(b.valorSuperMeta)}</TableCell>
-                <TableCell className="text-right">{fmtMoeda(b.valorProdutos)}</TableCell>
+                <TableCell className="text-right">{fmtMoeda(b.valorInternet)}</TableCell>
+                <TableCell className="text-right">{fmtMoeda(b.valorChip)}</TableCell>
+                <TableCell className="text-right">{fmtMoeda(b.valorDemais)}</TableCell>
                 <TableCell className="text-right">{fmtMoeda(b.valorSupervisor)}</TableCell>
                 <TableCell className="text-right font-medium">{fmtMoeda(b.valorTotal)}</TableCell>
               </TableRow>

@@ -1,8 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Plus } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,37 +30,47 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { createRegraBonificacao } from "@/lib/actions/regras";
 import { CARGOS, type ActionResult } from "@/lib/constants";
-
-type ProdutoValores = {
-  internet?: number;
-  chip?: number;
-  gps?: number;
-  streaming?: number;
-  telefoniaFixa?: number;
-};
-
-type SupervisorTier = { meta?: number; valor?: number };
-type RegraSupervisor = { tier3?: SupervisorTier; tier5?: SupervisorTier };
+import { REGRAS_DEFAULT } from "@/lib/regras-defaults";
+import type { RegraConfig, ServicoKey, ServicoRegra, SupervisorConfig } from "@/lib/bonificacao";
 
 type Regra = {
   id: string;
   cargo: string;
   vigenciaInicio: Date;
   vigenciaFim: Date | null;
-  metaQtd: number | null;
-  valorMeta: number | null;
-  superMetaQtd: number | null;
-  valorSuperMeta: number | null;
-  percentualTaxaAtivacao: number | null;
-  valoresPorProduto: unknown;
-  regraSupervisor: unknown;
+  config: unknown;
   observacoes: string | null;
 };
 
 const initialState: ActionResult = { ok: true };
 const fmtData = (d: Date) => new Date(d).toLocaleDateString("pt-BR", { timeZone: "UTC" });
-const fmtMoeda = (v: number | null) =>
-  v == null ? "—" : v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const fmtMoeda = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+const SERVICO_LABEL: Record<ServicoKey, string> = {
+  internet: "Internet",
+  chip: "Chip",
+  gps: "GPS",
+  tv: "TV",
+  streaming: "Streaming",
+  telefoniaFixa: "Telefonia Fixa",
+  demaisServicos: "Demais serviços",
+};
+
+// Serviços editáveis por cargo e o mecanismo fixo de cada um (o tipo de regra
+// segue a política da OS; a administração edita os valores, não o mecanismo).
+const SERVICOS_POR_CARGO: Record<string, ServicoKey[]> = {
+  VENDEDOR_EXTERNO: ["internet", "chip", "gps", "tv", "streaming", "telefoniaFixa"],
+  SUPERVISOR: ["internet", "chip", "gps", "tv", "streaming", "telefoniaFixa"],
+  ATENDIMENTO_ADM: ["internet", "demaisServicos"],
+  OUTRO_SETOR: [],
+};
+
+function asConfig(cargo: string, raw: unknown): RegraConfig {
+  if (raw && typeof raw === "object" && "servicos" in (raw as object)) {
+    return raw as RegraConfig;
+  }
+  return REGRAS_DEFAULT[cargo] ?? { servicos: {} };
+}
 
 export function RegrasView({ regras }: { regras: Regra[] }) {
   return (
@@ -89,8 +99,6 @@ export function RegrasView({ regras }: { regras: Regra[] }) {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Vigência</TableHead>
-                        <TableHead>Meta</TableHead>
-                        <TableHead>Super Meta</TableHead>
                         <TableHead>Observações</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -99,12 +107,6 @@ export function RegrasView({ regras }: { regras: Regra[] }) {
                         <TableRow key={r.id}>
                           <TableCell>
                             {fmtData(r.vigenciaInicio)} — {r.vigenciaFim ? fmtData(r.vigenciaFim) : ""}
-                          </TableCell>
-                          <TableCell>
-                            {r.metaQtd ?? "—"} vendas / {fmtMoeda(r.valorMeta)}
-                          </TableCell>
-                          <TableCell>
-                            {r.superMetaQtd ?? "—"} vendas / {fmtMoeda(r.valorSuperMeta)}
                           </TableCell>
                           <TableCell className="text-muted-foreground">{r.observacoes ?? "—"}</TableCell>
                         </TableRow>
@@ -121,6 +123,24 @@ export function RegrasView({ regras }: { regras: Regra[] }) {
   );
 }
 
+function descreverServico(regra: ServicoRegra): string {
+  switch (regra.tipo) {
+    case "faixas":
+      return regra.faixas
+        .map(
+          (f) =>
+            `${f.min}${f.max == null ? "+" : `–${f.max}`} → ${fmtMoeda(f.valor)}/venda`
+        )
+        .join(" · ");
+    case "meta":
+      return `meta ${regra.metaQtd} vendas → ${fmtMoeda(regra.valor)}/venda`;
+    case "porVenda":
+      return `${fmtMoeda(regra.valor)}/venda`;
+    case "percentualValor":
+      return `${(regra.percentual * 100).toFixed(0)}% do valor vendido`;
+  }
+}
+
 function RegraAtualCard({
   cargo,
   cargoLabel,
@@ -131,8 +151,8 @@ function RegraAtualCard({
   atual: Regra | null;
 }) {
   const [open, setOpen] = useState(false);
-  const produtos = (atual?.valoresPorProduto as ProdutoValores) ?? {};
-  const supervisor = (atual?.regraSupervisor as RegraSupervisor) ?? {};
+  const config = atual ? asConfig(cargo, atual.config) : null;
+  const servicos = SERVICOS_POR_CARGO[cargo] ?? [];
 
   return (
     <Card>
@@ -150,68 +170,41 @@ function RegraAtualCard({
             <Plus className="size-4" />
             Nova vigência
           </DialogTrigger>
-          <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+          <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
             <RegraForm cargo={cargo} cargoLabel={cargoLabel} atual={atual} onSuccess={() => setOpen(false)} />
           </DialogContent>
         </Dialog>
       </CardHeader>
       <CardContent>
-        {!atual ? (
+        {!config || servicos.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            Nenhuma regra cadastrada ainda para {cargoLabel.toLowerCase()}.
+            {cargo === "OUTRO_SETOR"
+              ? "Este cargo não recebe bonificação por vendas."
+              : `Nenhuma regra cadastrada ainda para ${cargoLabel.toLowerCase()}.`}
           </p>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div>
-              <p className="text-xs text-muted-foreground">Meta</p>
-              <p className="font-medium">
-                {atual.metaQtd ?? "—"} vendas → {fmtMoeda(atual.valorMeta)}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Super Meta</p>
-              <p className="font-medium">
-                {atual.superMetaQtd ?? "—"} vendas → {fmtMoeda(atual.valorSuperMeta)}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Taxa de ativação (ex: chip)</p>
-              <p className="font-medium">
-                {atual.percentualTaxaAtivacao != null
-                  ? `${(atual.percentualTaxaAtivacao * 100).toFixed(0)}% do valor vendido`
-                  : "—"}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Observações</p>
-              <p className="font-medium">{atual.observacoes ?? "—"}</p>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              {servicos.map((key) => {
+                const regra = config.servicos?.[key];
+                return (
+                  <div key={key} className="flex items-center gap-2 text-sm">
+                    <Badge variant="secondary" className="w-32 justify-start">
+                      {SERVICO_LABEL[key]}
+                    </Badge>
+                    <span className="text-muted-foreground">
+                      {regra ? descreverServico(regra) : "sem regra"}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
 
-            <Separator className="col-span-full" />
-
-            <div className="col-span-full">
-              <p className="mb-2 text-xs text-muted-foreground">Valor por produto vendido</p>
-              <div className="flex flex-wrap gap-2">
-                <Badge variant="secondary">Internet: {fmtMoeda(produtos.internet ?? 0)}</Badge>
-                <Badge variant="secondary">Chip: {fmtMoeda(produtos.chip ?? 0)}</Badge>
-                <Badge variant="secondary">GPS: {fmtMoeda(produtos.gps ?? 0)}</Badge>
-                <Badge variant="secondary">Streaming: {fmtMoeda(produtos.streaming ?? 0)}</Badge>
-                <Badge variant="secondary">Telefonia Fixa: {fmtMoeda(produtos.telefoniaFixa ?? 0)}</Badge>
-              </div>
-            </div>
-
-            {cargo === "SUPERVISOR" && (
-              <div className="col-span-full">
-                <p className="mb-2 text-xs text-muted-foreground">Faixas de supervisor</p>
-                <div className="flex flex-wrap gap-2">
-                  <Badge variant="outline">
-                    Equipe de 3: meta {supervisor.tier3?.meta ?? 0} vendas → {fmtMoeda(supervisor.tier3?.valor ?? 0)}
-                  </Badge>
-                  <Badge variant="outline">
-                    Equipe de 5: meta {supervisor.tier5?.meta ?? 0} vendas → {fmtMoeda(supervisor.tier5?.valor ?? 0)}
-                  </Badge>
-                </div>
-              </div>
+            {cargo === "SUPERVISOR" && config.supervisor && (
+              <>
+                <Separator />
+                <SupervisorResumo supervisor={config.supervisor} />
+              </>
             )}
           </div>
         )}
@@ -219,6 +212,37 @@ function RegraAtualCard({
     </Card>
   );
 }
+
+function SupervisorResumo({ supervisor }: { supervisor: SupervisorConfig }) {
+  // Exemplo ilustrativo para uma equipe de 5 (transparência — OS §6).
+  const tamanho = 5;
+  const meta = supervisor.metaPorPessoa * tamanho;
+  const largura = supervisor.larguraPorPessoa * tamanho;
+  const faixas = supervisor.valoresFaixa
+    .map((v, i) => {
+      const inicio = meta + i * largura;
+      const fim = i === supervisor.valoresFaixa.length - 1 ? null : inicio + largura - 1;
+      return `${inicio}${fim == null ? "+" : `–${fim}`} → ${fmtMoeda(v)}/venda`;
+    })
+    .join(" · ");
+  return (
+    <div className="space-y-1 text-sm">
+      <p className="text-xs text-muted-foreground">
+        Bônus de supervisor (só internet da equipe) — meta = {supervisor.metaPorPessoa} × tamanho da equipe,
+        largura da faixa = {supervisor.larguraPorPessoa} × tamanho.
+      </p>
+      <p className="text-muted-foreground">
+        Ex. equipe de {tamanho}: meta {meta} vendas · {faixas}
+      </p>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Formulário de nova vigência
+// ---------------------------------------------------------------------------
+
+type FaixaRow = { min: string; max: string; valor: string };
 
 function RegraForm({
   cargo,
@@ -231,11 +255,100 @@ function RegraForm({
   atual: Regra | null;
   onSuccess: () => void;
 }) {
-  const produtos = (atual?.valoresPorProduto as ProdutoValores) ?? {};
-  const supervisor = (atual?.regraSupervisor as RegraSupervisor) ?? {};
+  const inicial = useMemo(() => asConfig(cargo, atual?.config), [cargo, atual]);
   const hoje = new Date().toISOString().slice(0, 10);
 
+  // --- estados por mecanismo ---
+  const internetRegra = inicial.servicos?.internet;
+  const [faixas, setFaixas] = useState<FaixaRow[]>(
+    internetRegra?.tipo === "faixas"
+      ? internetRegra.faixas.map((f) => ({
+          min: String(f.min),
+          max: f.max == null ? "" : String(f.max),
+          valor: String(f.valor),
+        }))
+      : [{ min: "", max: "", valor: "" }]
+  );
+
+  const chipRegra = inicial.servicos?.chip;
+  const [chipMetaQtd, setChipMetaQtd] = useState(
+    chipRegra?.tipo === "meta" ? String(chipRegra.metaQtd) : ""
+  );
+  const [chipValor, setChipValor] = useState(
+    chipRegra?.tipo === "meta" ? String(chipRegra.valor) : ""
+  );
+
+  const [porVenda, setPorVenda] = useState<Record<string, string>>(() => {
+    const init: Record<string, string> = {};
+    for (const key of ["gps", "tv", "streaming", "telefoniaFixa"] as const) {
+      const r = inicial.servicos?.[key];
+      init[key] = r?.tipo === "porVenda" ? String(r.valor) : "";
+    }
+    return init;
+  });
+
+  const admInternet = inicial.servicos?.internet;
+  const [admInternetValor, setAdmInternetValor] = useState(
+    admInternet?.tipo === "porVenda" ? String(admInternet.valor) : ""
+  );
+  const admDemais = inicial.servicos?.demaisServicos;
+  const [admPercentual, setAdmPercentual] = useState(
+    admDemais?.tipo === "percentualValor" ? String(admDemais.percentual * 100) : ""
+  );
+
+  const sup = inicial.supervisor;
+  const [metaPorPessoa, setMetaPorPessoa] = useState(String(sup?.metaPorPessoa ?? 20));
+  const [larguraPorPessoa, setLarguraPorPessoa] = useState(String(sup?.larguraPorPessoa ?? 10));
+  const [valoresFaixa, setValoresFaixa] = useState<string[]>(
+    (sup?.valoresFaixa ?? [2, 3, 4]).map(String)
+  );
+
+  const isVendedorLike = cargo === "VENDEDOR_EXTERNO" || cargo === "SUPERVISOR";
+  const isAdm = cargo === "ATENDIMENTO_ADM";
+
+  function buildConfig(): RegraConfig {
+    const servicosConfig: RegraConfig["servicos"] = {};
+
+    if (isVendedorLike) {
+      servicosConfig.internet = {
+        tipo: "faixas",
+        faixas: faixas.map((f) => ({
+          min: Number(f.min || 0),
+          max: f.max.trim() === "" ? null : Number(f.max),
+          valor: Number(f.valor || 0),
+        })),
+      };
+      servicosConfig.chip = {
+        tipo: "meta",
+        metaQtd: Number(chipMetaQtd || 0),
+        valor: Number(chipValor || 0),
+      };
+      for (const key of ["gps", "tv", "streaming", "telefoniaFixa"] as const) {
+        servicosConfig[key] = { tipo: "porVenda", valor: Number(porVenda[key] || 0) };
+      }
+    }
+
+    if (isAdm) {
+      servicosConfig.internet = { tipo: "porVenda", valor: Number(admInternetValor || 0) };
+      servicosConfig.demaisServicos = {
+        tipo: "percentualValor",
+        percentual: Number(admPercentual || 0) / 100,
+      };
+    }
+
+    const config: RegraConfig = { servicos: servicosConfig };
+    if (cargo === "SUPERVISOR") {
+      config.supervisor = {
+        metaPorPessoa: Number(metaPorPessoa || 0),
+        larguraPorPessoa: Number(larguraPorPessoa || 0),
+        valoresFaixa: valoresFaixa.map((v) => Number(v || 0)),
+      };
+    }
+    return config;
+  }
+
   const [state, formAction, isPending] = useActionState(async (prev: ActionResult, fd: FormData) => {
+    fd.set("config", JSON.stringify(buildConfig()));
     const result = await createRegraBonificacao(prev, fd);
     if (result.ok) {
       toast.success("Nova vigência criada.");
@@ -256,120 +369,144 @@ function RegraForm({
         <Input id="vigenciaInicio" name="vigenciaInicio" type="date" defaultValue={hoje} required />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-2">
-          <Label htmlFor="metaQtd">Meta (qtd. vendas)</Label>
-          <Input id="metaQtd" name="metaQtd" type="number" defaultValue={atual?.metaQtd ?? ""} />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="valorMeta">Valor da meta (R$)</Label>
-          <Input id="valorMeta" name="valorMeta" type="number" step="0.01" defaultValue={atual?.valorMeta ?? ""} />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="superMetaQtd">Super meta (qtd. vendas)</Label>
-          <Input id="superMetaQtd" name="superMetaQtd" type="number" defaultValue={atual?.superMetaQtd ?? ""} />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="valorSuperMeta">Valor da super meta (R$)</Label>
-          <Input
-            id="valorSuperMeta"
-            name="valorSuperMeta"
-            type="number"
-            step="0.01"
-            defaultValue={atual?.valorSuperMeta ?? ""}
-          />
-        </div>
-      </div>
+      {cargo === "OUTRO_SETOR" && (
+        <Alert>
+          <AlertDescription>
+            Este cargo não recebe bonificação por vendas. A nova vigência será registrada sem regras.
+          </AlertDescription>
+        </Alert>
+      )}
 
-      <div className="space-y-2">
-        <Label htmlFor="percentualTaxaAtivacao">Taxa de ativação (% do valor vendido, ex: chip = 50)</Label>
-        <Input
-          id="percentualTaxaAtivacao"
-          name="percentualTaxaAtivacao"
-          type="number"
-          step="1"
-          defaultValue={atual?.percentualTaxaAtivacao ? atual.percentualTaxaAtivacao * 100 : ""}
-        />
-      </div>
-
-      <Separator />
-      <p className="text-sm font-medium">Valor por produto vendido (R$)</p>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <div className="space-y-2">
-          <Label htmlFor="produto_internet">Internet</Label>
-          <Input id="produto_internet" name="produto_internet" type="number" step="0.01" defaultValue={produtos.internet ?? 0} />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="produto_chip">Chip</Label>
-          <Input id="produto_chip" name="produto_chip" type="number" step="0.01" defaultValue={produtos.chip ?? 0} />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="produto_gps">GPS</Label>
-          <Input id="produto_gps" name="produto_gps" type="number" step="0.01" defaultValue={produtos.gps ?? 0} />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="produto_streaming">Streaming</Label>
-          <Input id="produto_streaming" name="produto_streaming" type="number" step="0.01" defaultValue={produtos.streaming ?? 0} />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="produto_telefoniaFixa">Telefonia Fixa</Label>
-          <Input
-            id="produto_telefoniaFixa"
-            name="produto_telefoniaFixa"
-            type="number"
-            step="0.01"
-            defaultValue={produtos.telefoniaFixa ?? 0}
-          />
-        </div>
-      </div>
-
-      {cargo === "SUPERVISOR" && (
+      {isVendedorLike && (
         <>
           <Separator />
-          <p className="text-sm font-medium">Faixas de bonificação do supervisor</p>
+          <p className="text-sm font-medium">Internet — faixas por volume (valor aplicado a todas as vendas)</p>
+          <FaixasEditor faixas={faixas} onChange={setFaixas} />
+
+          <Separator />
+          <p className="text-sm font-medium">Chip — meta</p>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label htmlFor="supervisor_tier3_meta">Equipe de 3 — meta (vendas)</Label>
-              <Input
-                id="supervisor_tier3_meta"
-                name="supervisor_tier3_meta"
-                type="number"
-                defaultValue={supervisor.tier3?.meta ?? 0}
-              />
+              <Label>Meta (qtd. vendas)</Label>
+              <Input type="number" value={chipMetaQtd} onChange={(e) => setChipMetaQtd(e.target.value)} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="supervisor_tier3_valor">Equipe de 3 — valor (R$)</Label>
+              <Label>Valor por venda (R$)</Label>
+              <Input type="number" step="0.01" value={chipValor} onChange={(e) => setChipValor(e.target.value)} />
+            </div>
+          </div>
+
+          <Separator />
+          <p className="text-sm font-medium">Demais serviços — valor por venda (R$, desde a 1ª venda)</p>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {(["gps", "tv", "streaming", "telefoniaFixa"] as const).map((key) => (
+              <div key={key} className="space-y-2">
+                <Label>{SERVICO_LABEL[key]}</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={porVenda[key]}
+                  onChange={(e) => setPorVenda((p) => ({ ...p, [key]: e.target.value }))}
+                />
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {isAdm && (
+        <>
+          <Separator />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label>Internet — valor por venda (R$)</Label>
               <Input
-                id="supervisor_tier3_valor"
-                name="supervisor_tier3_valor"
                 type="number"
                 step="0.01"
-                defaultValue={supervisor.tier3?.valor ?? 0}
+                value={admInternetValor}
+                onChange={(e) => setAdmInternetValor(e.target.value)}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="supervisor_tier5_meta">Equipe de 5 — meta (vendas)</Label>
+              <Label>Demais serviços — % do valor vendido</Label>
               <Input
-                id="supervisor_tier5_meta"
-                name="supervisor_tier5_meta"
                 type="number"
-                defaultValue={supervisor.tier5?.meta ?? 0}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="supervisor_tier5_valor">Equipe de 5 — valor (R$)</Label>
-              <Input
-                id="supervisor_tier5_valor"
-                name="supervisor_tier5_valor"
-                type="number"
-                step="0.01"
-                defaultValue={supervisor.tier5?.valor ?? 0}
+                step="1"
+                value={admPercentual}
+                onChange={(e) => setAdmPercentual(e.target.value)}
               />
             </div>
           </div>
         </>
       )}
 
+      {cargo === "SUPERVISOR" && (
+        <>
+          <Separator />
+          <p className="text-sm font-medium">Bônus de supervisor (só internet da equipe)</p>
+          <p className="text-xs text-muted-foreground">
+            Meta = meta/pessoa × tamanho da equipe. Largura de cada faixa = largura/pessoa × tamanho. O tamanho da
+            equipe é contado automaticamente (membros ativos + o supervisor).
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label>Meta por pessoa</Label>
+              <Input type="number" value={metaPorPessoa} onChange={(e) => setMetaPorPessoa(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Largura da faixa por pessoa</Label>
+              <Input
+                type="number"
+                value={larguraPorPessoa}
+                onChange={(e) => setLarguraPorPessoa(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Valor por venda de cada faixa (R$) — da 1ª à última</Label>
+            <div className="flex flex-wrap gap-2">
+              {valoresFaixa.map((v, i) => (
+                <Input
+                  key={i}
+                  type="number"
+                  step="0.01"
+                  className="w-24"
+                  value={v}
+                  onChange={(e) =>
+                    setValoresFaixa((arr) => arr.map((x, j) => (j === i ? e.target.value : x)))
+                  }
+                />
+              ))}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setValoresFaixa((arr) => [...arr, ""])}
+              >
+                <Plus className="size-4" />
+              </Button>
+              {valoresFaixa.length > 1 && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setValoresFaixa((arr) => arr.slice(0, -1))}
+                >
+                  <Trash2 className="size-4" />
+                </Button>
+              )}
+            </div>
+          </div>
+          <Alert>
+            <AlertDescription className="text-xs">
+              ⚠️ A fórmula de faixas do supervisor foi generalizada a partir do exemplo da OS (equipe de 5).
+              Confirme os valores para equipes de tamanho diferente de 5 antes de usar em produção.
+            </AlertDescription>
+          </Alert>
+        </>
+      )}
+
+      <Separator />
       <div className="space-y-2">
         <Label htmlFor="observacoes">Observações (opcional)</Label>
         <Textarea id="observacoes" name="observacoes" defaultValue={atual?.observacoes ?? ""} />
@@ -386,5 +523,52 @@ function RegraForm({
         </Button>
       </DialogFooter>
     </form>
+  );
+}
+
+function FaixasEditor({
+  faixas,
+  onChange,
+}: {
+  faixas: FaixaRow[];
+  onChange: (f: FaixaRow[]) => void;
+}) {
+  function update(i: number, campo: keyof FaixaRow, valor: string) {
+    onChange(faixas.map((f, j) => (j === i ? { ...f, [campo]: valor } : f)));
+  }
+  return (
+    <div className="space-y-2">
+      <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 text-xs text-muted-foreground">
+        <span>Mín. vendas</span>
+        <span>Máx. vendas (vazio = ∞)</span>
+        <span>Valor/venda (R$)</span>
+        <span />
+      </div>
+      {faixas.map((f, i) => (
+        <div key={i} className="grid grid-cols-[1fr_1fr_1fr_auto] items-center gap-2">
+          <Input type="number" value={f.min} onChange={(e) => update(i, "min", e.target.value)} />
+          <Input type="number" value={f.max} onChange={(e) => update(i, "max", e.target.value)} placeholder="∞" />
+          <Input type="number" step="0.01" value={f.valor} onChange={(e) => update(i, "valor", e.target.value)} />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            disabled={faixas.length <= 1}
+            onClick={() => onChange(faixas.filter((_, j) => j !== i))}
+          >
+            <Trash2 className="size-4" />
+          </Button>
+        </div>
+      ))}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => onChange([...faixas, { min: "", max: "", valor: "" }])}
+      >
+        <Plus className="size-4" />
+        Adicionar faixa
+      </Button>
+    </div>
   );
 }

@@ -1,22 +1,19 @@
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@/app/generated/prisma/client";
+import {
+  asRegraConfig,
+  calcularBonificacaoIndividual,
+  calcularBonificacaoSupervisor,
+  periodoParaIntervalo,
+  somaLancamentos,
+  type BonificacaoSupervisor,
+  type LancamentoAgregado,
+  type RegraConfig,
+} from "@/lib/bonificacao-calc";
 
-type ProdutoValores = {
-  internet?: number;
-  chip?: number;
-  gps?: number;
-  streaming?: number;
-  telefoniaFixa?: number;
-};
-
-type SupervisorTier = { meta?: number; valor?: number };
-type RegraSupervisor = { tier3?: SupervisorTier; tier5?: SupervisorTier };
-
-export function periodoParaIntervalo(periodo: string) {
-  const [ano, mes] = periodo.split("-").map(Number);
-  const inicio = new Date(Date.UTC(ano, mes - 1, 1));
-  const fim = new Date(Date.UTC(ano, mes, 0, 23, 59, 59));
-  return { inicio, fim };
-}
+// Reexporta a API de cálculo puro para que os consumidores continuem importando
+// tudo de "@/lib/bonificacao".
+export * from "@/lib/bonificacao-calc";
 
 export async function getRegraVigente(cargo: string, periodo: string) {
   const { fim } = periodoParaIntervalo(periodo);
@@ -28,94 +25,6 @@ export async function getRegraVigente(cargo: string, periodo: string) {
     },
     orderBy: { vigenciaInicio: "desc" },
   });
-}
-
-type LancamentoAgregado = {
-  quantidade: number;
-  aprovado: number;
-  cancelado: number;
-  valorInstalado: number;
-  qtdInternet: number;
-  qtdChip: number;
-  qtdGps: number;
-  qtdStreaming: number;
-  qtdTelefoniaFixa: number;
-};
-
-function somaLancamentos(lancamentos: LancamentoAgregado[]): LancamentoAgregado {
-  return lancamentos.reduce(
-    (acc, l) => ({
-      quantidade: acc.quantidade + l.quantidade,
-      aprovado: acc.aprovado + l.aprovado,
-      cancelado: acc.cancelado + l.cancelado,
-      valorInstalado: acc.valorInstalado + l.valorInstalado,
-      qtdInternet: acc.qtdInternet + l.qtdInternet,
-      qtdChip: acc.qtdChip + l.qtdChip,
-      qtdGps: acc.qtdGps + l.qtdGps,
-      qtdStreaming: acc.qtdStreaming + l.qtdStreaming,
-      qtdTelefoniaFixa: acc.qtdTelefoniaFixa + l.qtdTelefoniaFixa,
-    }),
-    {
-      quantidade: 0,
-      aprovado: 0,
-      cancelado: 0,
-      valorInstalado: 0,
-      qtdInternet: 0,
-      qtdChip: 0,
-      qtdGps: 0,
-      qtdStreaming: 0,
-      qtdTelefoniaFixa: 0,
-    }
-  );
-}
-
-type RegraCampos = {
-  metaQtd: number | null;
-  valorMeta: number | null;
-  superMetaQtd: number | null;
-  valorSuperMeta: number | null;
-  percentualTaxaAtivacao: number | null;
-  valoresPorProduto: unknown;
-};
-
-export function calcularBonificacaoIndividual(agregado: LancamentoAgregado, regra: RegraCampos | null) {
-  if (!regra) {
-    return { valorBase: 0, valorMeta: 0, valorSuperMeta: 0, valorProdutos: 0 };
-  }
-
-  let valorMeta = 0;
-  let valorSuperMeta = 0;
-  if (regra.superMetaQtd != null && agregado.aprovado >= regra.superMetaQtd) {
-    valorSuperMeta = regra.valorSuperMeta ?? 0;
-  } else if (regra.metaQtd != null && agregado.aprovado >= regra.metaQtd) {
-    valorMeta = regra.valorMeta ?? 0;
-  }
-
-  const valorBase = regra.percentualTaxaAtivacao
-    ? agregado.valorInstalado * regra.percentualTaxaAtivacao
-    : 0;
-
-  const produtos = (regra.valoresPorProduto as ProdutoValores) ?? {};
-  const valorProdutos =
-    agregado.qtdInternet * (produtos.internet ?? 0) +
-    agregado.qtdChip * (produtos.chip ?? 0) +
-    agregado.qtdGps * (produtos.gps ?? 0) +
-    agregado.qtdStreaming * (produtos.streaming ?? 0) +
-    agregado.qtdTelefoniaFixa * (produtos.telefoniaFixa ?? 0);
-
-  return { valorBase, valorMeta, valorSuperMeta, valorProdutos };
-}
-
-export function calcularBonificacaoSupervisor(
-  totalAprovadoEquipe: number,
-  tamanhoTier: number | null,
-  regraSupervisor: unknown
-): number {
-  if (!tamanhoTier) return 0;
-  const regra = (regraSupervisor as RegraSupervisor) ?? {};
-  const tier = tamanhoTier === 5 ? regra.tier5 : regra.tier3;
-  if (!tier?.meta) return 0;
-  return totalAprovadoEquipe >= tier.meta ? tier.valor ?? 0 : 0;
 }
 
 export async function recalcularFechamento(periodo: string) {
@@ -142,17 +51,21 @@ export async function recalcularFechamento(periodo: string) {
     lancamentosPorFuncionario.set(l.funcionarioId, lista);
   }
 
-  const regraPorCargo = new Map<string, Awaited<ReturnType<typeof getRegraVigente>>>();
-  for (const cargo of ["VENDEDOR_EXTERNO", "ATENDIMENTO_ADM", "SUPERVISOR", "OUTRO_SETOR"]) {
-    regraPorCargo.set(cargo, await getRegraVigente(cargo, periodo));
-  }
-
-  // Total de aprovados por equipe (para a bonificação de supervisor)
-  const aprovadosPorEquipe = new Map<string, number>();
+  // Total de vendas de INTERNET por equipe (base do bônus de supervisor, OS §3.2).
+  const internetPorEquipe = new Map<string, number>();
   for (const f of funcionarios) {
     if (!f.equipeId) continue;
     const agregado = somaLancamentos(lancamentosPorFuncionario.get(f.id) ?? []);
-    aprovadosPorEquipe.set(f.equipeId, (aprovadosPorEquipe.get(f.equipeId) ?? 0) + agregado.aprovado);
+    internetPorEquipe.set(
+      f.equipeId,
+      (internetPorEquipe.get(f.equipeId) ?? 0) + agregado.qtdInternet
+    );
+  }
+
+  const configPorCargo = new Map<string, RegraConfig | null>();
+  for (const cargo of ["VENDEDOR_EXTERNO", "ATENDIMENTO_ADM", "SUPERVISOR", "OUTRO_SETOR"]) {
+    const regra = await getRegraVigente(cargo, periodo);
+    configPorCargo.set(cargo, asRegraConfig(regra?.config));
   }
 
   let valorTotalVendido = 0;
@@ -161,26 +74,47 @@ export async function recalcularFechamento(periodo: string) {
   await prisma.$transaction(async (tx) => {
     for (const f of funcionarios) {
       const agregado = somaLancamentos(lancamentosPorFuncionario.get(f.id) ?? []);
-      const regra = regraPorCargo.get(f.cargo) ?? null;
-      const { valorBase, valorMeta, valorSuperMeta, valorProdutos } = calcularBonificacaoIndividual(
-        agregado,
-        regra
-      );
+      const config = configPorCargo.get(f.cargo) ?? null;
+      const individual = calcularBonificacaoIndividual(agregado, config);
 
       let valorSupervisor = 0;
-      if (f.cargo === "SUPERVISOR") {
-        const equipesSupervisionadas = await tx.equipe.findMany({ where: { supervisorId: f.id } });
+      const detalhes: Record<string, unknown> = { servicos: individual.detalhes };
+
+      if (f.cargo === "SUPERVISOR" && config?.supervisor) {
+        const equipesSupervisionadas = await tx.equipe.findMany({
+          where: { supervisorId: f.id },
+          include: { membros: { where: { ativo: true }, select: { id: true } } },
+        });
+        const detalhesEquipes: BonificacaoSupervisor[] = [];
         for (const equipe of equipesSupervisionadas) {
-          const totalEquipe = aprovadosPorEquipe.get(equipe.id) ?? 0;
-          valorSupervisor += calcularBonificacaoSupervisor(
-            totalEquipe,
-            equipe.tamanhoTier,
-            regra?.regraSupervisor
+          // Conjunto único de ids: membros ativos + o próprio supervisor.
+          const ids = new Set(equipe.membros.map((m) => m.id));
+          ids.add(f.id);
+          const tamanhoEquipe = ids.size;
+
+          // Total de internet do time = internet dos membros vinculados +
+          // internet do próprio supervisor (que pode não estar em `membros`).
+          let totalInternet = internetPorEquipe.get(equipe.id) ?? 0;
+          if (!equipe.membros.some((m) => m.id === f.id)) {
+            totalInternet += agregado.qtdInternet;
+          }
+
+          const bonus = calcularBonificacaoSupervisor(
+            config.supervisor,
+            totalInternet,
+            tamanhoEquipe
           );
+          valorSupervisor += bonus.valor;
+          detalhesEquipes.push(bonus);
         }
+        detalhes.supervisor = detalhesEquipes;
       }
 
-      const valorTotal = valorBase + valorMeta + valorSuperMeta + valorProdutos + valorSupervisor;
+      const valorTotal =
+        individual.valorInternet +
+        individual.valorChip +
+        individual.valorDemais +
+        valorSupervisor;
       if (valorTotal === 0 && agregado.quantidade === 0) continue;
 
       valorTotalVendido += agregado.valorInstalado;
@@ -188,16 +122,23 @@ export async function recalcularFechamento(periodo: string) {
 
       await tx.bonificacaoCalculada.upsert({
         where: { fechamentoId_funcionarioId: { fechamentoId: fechamento.id, funcionarioId: f.id } },
-        update: { valorBase, valorMeta, valorSuperMeta, valorProdutos, valorSupervisor, valorTotal },
+        update: {
+          valorInternet: individual.valorInternet,
+          valorChip: individual.valorChip,
+          valorDemais: individual.valorDemais,
+          valorSupervisor,
+          valorTotal,
+          detalhesJson: detalhes as Prisma.InputJsonValue,
+        },
         create: {
           fechamentoId: fechamento.id,
           funcionarioId: f.id,
-          valorBase,
-          valorMeta,
-          valorSuperMeta,
-          valorProdutos,
+          valorInternet: individual.valorInternet,
+          valorChip: individual.valorChip,
+          valorDemais: individual.valorDemais,
           valorSupervisor,
           valorTotal,
+          detalhesJson: detalhes as Prisma.InputJsonValue,
         },
       });
     }

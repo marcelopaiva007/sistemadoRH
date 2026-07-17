@@ -69,19 +69,15 @@ model Funcionario {
 }
 
 model RegraBonificacao {
-  id                     String    @id @default(cuid())
-  cargo                  String
-  vigenciaInicio         DateTime
-  vigenciaFim            DateTime?
-  metaQtd                Int?
-  valorMeta              Float?
-  superMetaQtd           Int?
-  valorSuperMeta         Float?
-  percentualTaxaAtivacao Float?
-  valoresPorProduto      Json?
-  regraSupervisor        Json?
-  observacoes            String?
-  createdAt              DateTime  @default(now())
+  id             String    @id @default(cuid())
+  cargo          String
+  vigenciaInicio DateTime
+  vigenciaFim    DateTime?
+  // Configuração do motor de bonificação (faixas/metas por serviço + regra de
+  // supervisor). Formato definido em lib/bonificacao.ts (RegraConfig).
+  config         Json?
+  observacoes    String?
+  createdAt      DateTime  @default(now())
 
   @@index([cargo, vigenciaInicio])
 }
@@ -95,9 +91,13 @@ model LancamentoVenda {
   aprovado         Int          @default(0)
   cancelado        Int          @default(0)
   valorInstalado   Float        @default(0)
+  // Valor monetário total dos serviços não-internet do lançamento — base para a
+  // regra de 50% do Atendimento/Administrativo (OS §4).
+  valorDemaisServicos Float     @default(0)
   qtdInternet      Int          @default(0)
   qtdChip          Int          @default(0)
   qtdGps           Int          @default(0)
+  qtdTv            Int          @default(0)
   qtdStreaming     Int          @default(0)
   qtdTelefoniaFixa Int          @default(0)
   origem           String       @default("MANUAL")
@@ -145,10 +145,9 @@ model BonificacaoCalculada {
   fechamento      FechamentoMensal @relation(fields: [fechamentoId], references: [id])
   funcionarioId   String
   funcionario     Funcionario      @relation(fields: [funcionarioId], references: [id])
-  valorBase       Float            @default(0)
-  valorMeta       Float            @default(0)
-  valorSuperMeta  Float            @default(0)
-  valorProdutos   Float            @default(0)
+  valorInternet   Float            @default(0)
+  valorChip       Float            @default(0)
+  valorDemais     Float            @default(0)
   valorSupervisor Float            @default(0)
   valorTotal      Float            @default(0)
   detalhesJson    Json?
