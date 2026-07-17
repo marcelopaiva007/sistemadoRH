@@ -593,27 +593,43 @@ export async function GET(req: NextRequest) {
         viewport: { width: 1600, height: 1000 },
       });
 
+      // Diagnóstico do carregamento da SPA de login: se o #root não montar, esses
+      // arrays revelam a causa (erro de JS na página, bundle bloqueado, etc.).
+      const pageConsoleErrors: string[] = [];
+      const pageFailedRequests: string[] = [];
+      page.on("console", (m) => {
+        if (m.type() === "error") pageConsoleErrors.push(m.text().slice(0, 300));
+      });
+      page.on("pageerror", (e) =>
+        pageConsoleErrors.push(`PAGEERROR: ${e.message.slice(0, 300)}`),
+      );
+      page.on("requestfailed", (r) =>
+        pageFailedRequests.push(
+          `${r.url().slice(0, 200)} :: ${r.failure()?.errorText ?? ""}`,
+        ),
+      );
+
       step("Abrindo tela de login do elleven...");
       await page.goto(`${ELLEVEN_BASE}/ui/login`, {
-        waitUntil: "load",
-        timeout: 30000,
+        waitUntil: "domcontentloaded",
+        timeout: 45000,
       });
 
       const CPF_SELECTOR = 'input[placeholder="Entre com seu CPF"]';
       let cpfVisible = await page
-        .waitForSelector(CPF_SELECTOR, { timeout: 30000 })
+        .waitForSelector(CPF_SELECTOR, { timeout: 45000 })
         .then(() => true)
         .catch(() => false);
 
       // A hidratação do React às vezes não conclui a tempo em Chromium serverless
-      // com CPU limitada — um reload costuma resolver antes de desistirmos.
-      if (!cpfVisible) {
-        step("Campo de CPF não apareceu em 30s — recarregando e tentando de novo...");
+      // (CPU limitada / cold start) — recarrega e tenta de novo, até 2 reloads.
+      for (let tentativa = 1; !cpfVisible && tentativa <= 2; tentativa++) {
+        step(`Campo de CPF não apareceu — reload ${tentativa}/2...`);
         await page
-          .reload({ waitUntil: "load", timeout: 30000 })
+          .reload({ waitUntil: "domcontentloaded", timeout: 45000 })
           .catch(() => {});
         cpfVisible = await page
-          .waitForSelector(CPF_SELECTOR, { timeout: 30000 })
+          .waitForSelector(CPF_SELECTOR, { timeout: 45000 })
           .then(() => true)
           .catch(() => false);
       }
@@ -622,23 +638,32 @@ export async function GET(req: NextRequest) {
         const failScreenshot = await page
           .screenshot({ timeout: 10000 })
           .catch(() => null);
+        const rootDump = await withTimeout(
+          page.evaluate(() => ({
+            bodyLen: (document.body?.innerText || "").length,
+            rootHtml: (
+              document.getElementById("root")?.innerHTML || "NO_ROOT"
+            ).slice(0, 400),
+            scripts: Array.from(document.scripts)
+              .map((s) => s.src)
+              .filter(Boolean),
+          })),
+          EVAL_TIMEOUT_MS,
+          "login-fail-rootDump",
+        ).catch((e) => ({ erro: String(e) }));
         wizardSteps.push({
           name: "login-cpf-nao-encontrado",
           url: page.url(),
           title: await page.title().catch(() => "?"),
-          bodyPreview: await withTimeout(
-            page.evaluate(() => document.body?.innerText ?? ""),
-            EVAL_TIMEOUT_MS,
-            "login-fail-bodyPreview",
-          )
-            .then((t) => (t as string).slice(0, 1000))
-            .catch(() => ""),
+          rootDump,
+          consoleErrors: pageConsoleErrors.slice(0, 20),
+          failedRequests: pageFailedRequests.slice(0, 20),
           screenshotBase64: failScreenshot
             ? failScreenshot.toString("base64")
             : null,
         });
         throw new Error(
-          `Campo de CPF não apareceu mesmo após reload (URL atual: ${page.url()}).`,
+          `Campo de CPF não apareceu após reloads (URL atual: ${page.url()}).`,
         );
       }
 
