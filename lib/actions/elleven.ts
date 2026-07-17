@@ -30,13 +30,35 @@ function parseValorBr(raw: string | null): number {
   return Number.isNaN(n) ? 0 : n;
 }
 
+// Ordem importa: as categorias específicas são testadas ANTES de Internet, que
+// é a mais abrangente. Confirmado com dados reais do elleven: quase todo
+// "Serviço Ativado" é um plano de internet nomeado com a velocidade (ex.:
+// "PLANO_PROMOCIONAL_JULHO_600MB", "GBA_FAMILIA_400MB", "AREIAL_200MB"), então
+// Internet também casa qualquer nome com padrão de banda (\d+MB / \d+Mbps).
+// Exceções vistas nos dados: "CDNTV ..." (streaming) e "Rastreamento Veicular"
+// (GPS). "IP FIXO" e afins não batem em nada -> Outros.
 const PRODUTO_KEYWORDS = [
-  { key: "qtdInternet" as const, regex: /internet|banda ?larga|fibra/i },
-  { key: "qtdChip" as const, regex: /chip|sim ?card|m2m/i },
   { key: "qtdGps" as const, regex: /gps|rastre/i },
-  { key: "qtdStreaming" as const, regex: /stream|hbo|netflix|paramount|telecine|max\b/i },
-  { key: "qtdTelefoniaFixa" as const, regex: /telefonia|voip|fixo|fixa/i },
+  {
+    key: "qtdStreaming" as const,
+    regex: /cdntv|stream|hbo|netflix|paramount|telecine|max\b|filmes|s[ée]ries/i,
+  },
+  { key: "qtdChip" as const, regex: /chip|sim ?card|m2m/i },
+  { key: "qtdTelefoniaFixa" as const, regex: /telefonia|voip|telefone/i },
+  {
+    // \d+MB / \d+Mbps seguido de qualquer coisa que não seja letra (fim, "_",
+    // espaço, hífen) — cobre nomes como "..._600MB_PROMO" e "300MB_69,90", onde
+    // um \b falharia porque "_" também é caractere de palavra.
+    key: "qtdInternet" as const,
+    regex: /internet|banda[ _]?larga|fibra|\d+\s*mb(ps)?(?![a-z])/i,
+  },
 ];
+
+// "Status Contrato" no CSV traz "Normal", "Cancelado", etc. Contrato cancelado
+// não conta como venda aprovada nem gera bônus de produto/valor.
+function isCancelado(status: string | null): boolean {
+  return /cancel/i.test(status || "");
+}
 
 export type LinhaPreviewElleven = {
   vendedorOriginal: string;
@@ -87,10 +109,7 @@ export async function previsualizarLancamentosElleven(periodo: string) {
       vendedorOriginal,
       funcionarioId: match?.id ?? "",
       quantidade: lista.length,
-      // O relatório "Ativação Contratos" já lista contratos ativados — não há
-      // status de cancelamento nesta consulta específica, por isso tratamos
-      // tudo como aprovado. Ajuste manual continua possível depois de importar.
-      aprovado: lista.length,
+      aprovado: 0,
       cancelado: 0,
       valorInstalado: 0,
       qtdInternet: 0,
@@ -102,12 +121,19 @@ export async function previsualizarLancamentosElleven(periodo: string) {
       contratos: lista.map((c) => c.contrato),
     };
     for (const c of lista) {
+      // Contrato cancelado conta só como cancelado — não entra em aprovado,
+      // valor instalado nem categoria de produto (que geram bonificação).
+      if (isCancelado(c.statusContrato)) {
+        linha.cancelado++;
+        continue;
+      }
+      linha.aprovado++;
       linha.valorInstalado += parseValorBr(c.valServAtivado);
       const servico = c.servicoAtivado || "";
       const found = PRODUTO_KEYWORDS.find((p) => p.regex.test(servico));
       // Os 5 produtos acima são a lista fechada; qualquer serviço que não bata
-      // com nenhum deles entra em "Outros" (conta na quantidade e no valor
-      // instalado, mas não gera bônus de produto — não há regra para "Outros").
+      // com nenhum deles entra em "Outros" (conta na quantidade, mas não gera
+      // bônus de produto — não há regra para "Outros").
       if (found) linha[found.key]++;
       else linha.qtdOutros++;
     }
