@@ -50,7 +50,7 @@ export type LinhaPreviewElleven = {
   qtdGps: number;
   qtdStreaming: number;
   qtdTelefoniaFixa: number;
-  qtdSemProdutoReconhecido: number;
+  qtdOutros: number;
   contratos: string[];
 };
 
@@ -98,15 +98,18 @@ export async function previsualizarLancamentosElleven(periodo: string) {
       qtdGps: 0,
       qtdStreaming: 0,
       qtdTelefoniaFixa: 0,
-      qtdSemProdutoReconhecido: 0,
+      qtdOutros: 0,
       contratos: lista.map((c) => c.contrato),
     };
     for (const c of lista) {
       linha.valorInstalado += parseValorBr(c.valServAtivado);
       const servico = c.servicoAtivado || "";
       const found = PRODUTO_KEYWORDS.find((p) => p.regex.test(servico));
+      // Os 5 produtos acima são a lista fechada; qualquer serviço que não bata
+      // com nenhum deles entra em "Outros" (conta na quantidade e no valor
+      // instalado, mas não gera bônus de produto — não há regra para "Outros").
       if (found) linha[found.key]++;
-      else linha.qtdSemProdutoReconhecido++;
+      else linha.qtdOutros++;
     }
     linhas.push(linha);
   }

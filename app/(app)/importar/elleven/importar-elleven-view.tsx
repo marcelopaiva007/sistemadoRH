@@ -79,9 +79,6 @@ export function ImportarEllevenView({
 
   const linhasSemMatch = (linhas ?? []).filter((l) => !l.funcionarioId);
   const linhasProntas = (linhas ?? []).filter((l) => l.funcionarioId);
-  const linhasComProdutoNaoReconhecido = (linhas ?? []).filter(
-    (l) => l.qtdSemProdutoReconhecido > 0
-  );
 
   async function handleConfirmar() {
     if (!linhas || linhasSemMatch.length > 0) {
@@ -144,19 +141,6 @@ export function ImportarEllevenView({
         </Alert>
       )}
 
-      {linhasComProdutoNaoReconhecido.length > 0 && (
-        <Alert variant="destructive">
-          <AlertTriangle className="size-4" />
-          <AlertDescription>
-            {linhasComProdutoNaoReconhecido.reduce((acc, l) => acc + l.qtdSemProdutoReconhecido, 0)}{" "}
-            contrato(s) têm um serviço que não bateu com nenhuma categoria conhecida
-            (Internet/Chip/GPS/Streaming/Telefonia Fixa) — eles contam em &quot;Quantidade&quot;
-            e no valor instalado, mas não em nenhum qtd* específico, então não geram
-            bonificação por produto. Confira a coluna &quot;Sem categoria&quot; abaixo.
-          </AlertDescription>
-        </Alert>
-      )}
-
       {linhasSemMatch.length > 0 && (
         <Alert variant="destructive">
           <AlertTriangle className="size-4" />
@@ -182,7 +166,7 @@ export function ImportarEllevenView({
                   <TableHead className="text-right">GPS</TableHead>
                   <TableHead className="text-right">Streaming</TableHead>
                   <TableHead className="text-right">Tel. Fixa</TableHead>
-                  <TableHead className="text-right">Sem categoria</TableHead>
+                  <TableHead className="text-right">Outros</TableHead>
                   <TableHead className="text-right">Valor Instalado</TableHead>
                   <TableHead>Status</TableHead>
                 </TableRow>
@@ -215,13 +199,7 @@ export function ImportarEllevenView({
                     <TableCell className="text-right">{l.qtdGps}</TableCell>
                     <TableCell className="text-right">{l.qtdStreaming}</TableCell>
                     <TableCell className="text-right">{l.qtdTelefoniaFixa}</TableCell>
-                    <TableCell className="text-right">
-                      {l.qtdSemProdutoReconhecido > 0 ? (
-                        <Badge variant="destructive">{l.qtdSemProdutoReconhecido}</Badge>
-                      ) : (
-                        0
-                      )}
-                    </TableCell>
+                    <TableCell className="text-right">{l.qtdOutros}</TableCell>
                     <TableCell className="text-right">
                       {l.valorInstalado.toLocaleString("pt-BR", {
                         style: "currency",

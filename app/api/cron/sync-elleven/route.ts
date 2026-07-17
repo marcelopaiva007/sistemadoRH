@@ -252,12 +252,23 @@ async function selectMuiOption(
   return result;
 }
 
-function todayFormats() {
-  const now = new Date();
-  const dd = String(now.getDate()).padStart(2, "0");
-  const mm = String(now.getMonth() + 1).padStart(2, "0");
-  const yyyy = String(now.getFullYear());
+function dateFormats(d: Date) {
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yyyy = String(d.getFullYear());
   return { br: `${dd}/${mm}/${yyyy}`, iso: `${yyyy}-${mm}-${dd}` };
+}
+
+function todayFormats() {
+  return dateFormats(new Date());
+}
+
+// Primeiro dia do mês corrente — usado como "Data Inicial" para puxar o relatório
+// do mês inteiro (a cada rodada, do dia 1º até hoje). O upsert por número de
+// contrato garante que reprocessar os mesmos dias não gera duplicata.
+function firstOfMonthFormats() {
+  const now = new Date();
+  return dateFormats(new Date(now.getFullYear(), now.getMonth(), 1));
 }
 
 // Define a data num input controlado pela biblioteca Flatpickr usando a API JS dela
@@ -390,6 +401,43 @@ async function clickFlatpickrToday(
   }
 }
 
+// Abre o calendário e clica na célula de um dia específico DO MÊS ATUALMENTE
+// EXIBIDO (ao abrir, o Flatpickr mostra o mês da data corrente por padrão),
+// ignorando as células de transbordo do mês anterior/seguinte. Usado para
+// selecionar o dia 1º como "Data Inicial". Mesma interação real do
+// clickFlatpickrToday, que é a única que o estado do formulário reconhece.
+async function clickFlatpickrDay(
+  frame: Frame,
+  selector: string,
+  dayNumber: number,
+): Promise<{ ok: boolean; valueAfter: string; debug: string }> {
+  try {
+    const locator = frame.locator(selector);
+    await locator.click({ timeout: 3000 });
+    const dayCell = frame
+      .locator(
+        ".flatpickr-calendar.open .flatpickr-day:not(.prevMonthDay):not(.nextMonthDay):not(.flatpickr-disabled)",
+      )
+      .filter({ hasText: new RegExp(`^${dayNumber}$`) })
+      .first();
+    await dayCell.waitFor({ state: "visible", timeout: 3000 });
+    await dayCell.click({ timeout: 3000 });
+    await frame.page().waitForTimeout(300);
+    const valueAfter = await locator.inputValue().catch(() => "");
+    return {
+      ok: valueAfter.length > 0,
+      valueAfter,
+      debug: `clicou-dia-${dayNumber}-no-calendario`,
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      valueAfter: "",
+      debug: `erro-click-dia-${dayNumber}: ${e}`,
+    };
+  }
+}
+
 // Tenta preencher, de forma best-effort, qualquer input cujo rótulo/placeholder/name
 // sugira ser um campo de data (ex.: "Data Inicial", "Data Final") com a data de hoje.
 async function fillDateLikeInputs(
@@ -410,7 +458,8 @@ async function fillDateLikeInputs(
     valueAfter: string;
     debug?: string;
   }> = [];
-  const { br, iso } = todayFormats();
+  const hoje = todayFormats();
+  const inicioMes = firstOfMonthFormats();
   const candidates = (await describeInteractiveElements(frame)) as Array<
     Record<string, unknown>
   >;
@@ -431,16 +480,24 @@ async function fillDateLikeInputs(
     const selector = name ? `[name="${name}"]` : id ? `[id="${id}"]` : "";
     if (!selector) continue;
 
+    // Classifica o campo: "Data Inicial" recebe o dia 1º do mês; "Data Final"
+    // (e qualquer campo de data não classificável) recebe hoje. Assim cada
+    // rodada do cron puxa o relatório do mês inteiro (dia 1º -> hoje).
+    const isInicial = /inicial|início|inicio|\bde\b|from/.test(haystack);
+    const alvo = isInicial ? inicioMes : hoje;
+
     if (className.includes("flatpickr")) {
-      // 1ª tentativa: interação real (clicar no input abre o calendário, clicar no
-      // dia de hoje) — é o único caminho que dispara corretamente o estado do
+      // 1ª tentativa: interação real (abrir o calendário e clicar na célula do
+      // dia certo) — é o único caminho que dispara corretamente o estado do
       // formulário. 2ª tentativa (fallback): API JS via fiber do React.
-      let attempt = await clickFlatpickrToday(frame, selector);
+      let attempt = isInicial
+        ? await clickFlatpickrDay(frame, selector, 1)
+        : await clickFlatpickrToday(frame, selector);
       if (!attempt.ok) {
-        let apiAttempt = await setFlatpickrDate(frame, selector, iso);
+        let apiAttempt = await setFlatpickrDate(frame, selector, alvo.iso);
         for (let i = 0; i < 5 && !apiAttempt.ok; i++) {
           await frame.page().waitForTimeout(400);
-          apiAttempt = await setFlatpickrDate(frame, selector, iso);
+          apiAttempt = await setFlatpickrDate(frame, selector, alvo.iso);
         }
         attempt = apiAttempt;
       }
@@ -449,13 +506,13 @@ async function fillDateLikeInputs(
         ok: attempt.ok,
         label: label || placeholder || name,
         valueAfter: attempt.valueAfter,
-        debug: attempt.debug,
+        debug: `${isInicial ? "inicial" : "final"}: ${attempt.debug}`,
       });
       continue;
     }
 
     let ok = false;
-    const digitsOnly = br.replace(/\D/g, "");
+    const digitsOnly = alvo.br.replace(/\D/g, "");
     try {
       const locator = frame.locator(selector);
       await locator.click({ timeout: 3000, clickCount: 3 });
@@ -473,7 +530,7 @@ async function fillDateLikeInputs(
     results.push({
       selector,
       ok,
-      label: label || placeholder || name,
+      label: `${isInicial ? "inicial" : "final"}: ${label || placeholder || name}`,
       valueAfter,
     });
   }
