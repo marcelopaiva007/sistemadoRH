@@ -13,6 +13,7 @@ import {
   CartesianGrid,
   Legend,
   LabelList,
+  Cell,
 } from "recharts";
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -66,22 +67,30 @@ function DeltaLinha({
   variacao,
   sufixo = "%",
   legenda,
+  inverter = false,
 }: {
   variacao: number | null;
   sufixo?: string;
   legenda: string;
+  // Para métricas onde queda é bom (ex.: taxa de cancelamento).
+  inverter?: boolean;
 }) {
   if (variacao === null) {
     return <p className="text-xs text-muted-foreground">Sem base de comparação</p>;
   }
-  const Icone = variacao > 0.05 ? TrendingUp : variacao < -0.05 ? TrendingDown : Minus;
+  const subiu = variacao > 0.05;
+  const caiu = variacao < -0.05;
+  const Icone = subiu ? TrendingUp : caiu ? TrendingDown : Minus;
+  const positivo = inverter ? caiu : subiu;
+  const negativo = inverter ? subiu : caiu;
+  const cor = positivo ? "text-success" : negativo ? "text-destructive" : "text-muted-foreground";
   const sinal = variacao > 0 ? "+" : "";
   return (
-    <p className="flex items-center gap-1 text-xs text-muted-foreground">
+    <p className={`flex items-center gap-1 text-xs ${cor}`}>
       <Icone className="size-3.5" />
       {sinal}
       {variacao.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}
-      {sufixo} {legenda}
+      {sufixo} <span className="text-muted-foreground">{legenda}</span>
     </p>
   );
 }
@@ -158,9 +167,9 @@ export function DashboardView({
   const tendenciaData = tendencia.map((t) => ({ ...t, label: periodoLabel(t.periodo) }));
   const porCargoData = porCargo.map((c) => ({ ...c, label: cargoLabel(c.cargo) }));
   const aproveitamento = [
-    { etapa: "Lançadas", qtd: resumo.lancadas },
-    { etapa: "Aprovadas", qtd: resumo.aprovadas },
-    { etapa: "Canceladas", qtd: resumo.canceladas },
+    { etapa: "Lançadas", qtd: resumo.lancadas, cor: "var(--chart-2)" },
+    { etapa: "Aprovadas", qtd: resumo.aprovadas, cor: "var(--success)" },
+    { etapa: "Canceladas", qtd: resumo.canceladas, cor: "var(--destructive)" },
   ];
   const composicaoVisivel = composicao.filter((c) => c.valor !== 0);
 
@@ -179,7 +188,14 @@ export function DashboardView({
           className="w-44"
         />
         {statusFechamento ? (
-          <Badge variant={statusFechamento === "ABERTO" ? "outline" : "secondary"}>
+          <Badge
+            variant={statusFechamento === "ABERTO" ? "outline" : "secondary"}
+            className={
+              statusFechamento === "ABERTO"
+                ? "border-transparent bg-success/10 text-success"
+                : undefined
+            }
+          >
             Fechamento {statusFechamento === "ABERTO" ? "aberto" : "fechado"}
           </Badge>
         ) : (
@@ -236,6 +252,7 @@ export function DashboardView({
               }
               sufixo=" p.p."
               legenda={legendaAnterior}
+              inverter
             />
           }
         />
@@ -415,7 +432,10 @@ export function DashboardView({
                   <XAxis type="number" tick={{ fontSize: 12 }} allowDecimals={false} />
                   <YAxis dataKey="etapa" type="category" tick={{ fontSize: 12 }} width={90} />
                   <Tooltip formatter={(v) => fmtNum(Number(v))} />
-                  <Bar dataKey="qtd" name="Quantidade" fill="var(--chart-2)" radius={4}>
+                  <Bar dataKey="qtd" name="Quantidade" radius={4}>
+                    {aproveitamento.map((a) => (
+                      <Cell key={a.etapa} fill={a.cor} />
+                    ))}
                     <LabelList
                       dataKey="qtd"
                       position="right"

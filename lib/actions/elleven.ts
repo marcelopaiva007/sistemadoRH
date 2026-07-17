@@ -1,5 +1,7 @@
 "use server";
 
+import { z } from "zod";
+import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-guard";
 import { normalizarTexto } from "@/lib/text";
@@ -147,4 +149,190 @@ export async function previsualizarLancamentosElleven(periodo: string) {
     totalContratosNoPeriodo: doPeriodo.length,
     totalContratosGeral: contratos.length,
   };
+}
+
+// ---------- Sincronização do cadastro de vendedores a partir do elleven ----------
+
+// "Cidade" no elleven vem como "Guarabira - PB" — o sufixo de UF sai para
+// casar com o cadastro de cidades do sistema (que guarda só o nome).
+function limparCidadeElleven(raw: string | null): string | null {
+  const nome = (raw || "").replace(/\s*-\s*[A-Z]{2}\s*$/, "").trim();
+  return nome || null;
+}
+
+// Partículas que não ajudam a identificar a pessoa ("José DE Souza").
+const PARTICULAS = new Set(["de", "da", "do", "dos", "das", "e"]);
+
+function tokensNome(nome: string): string[] {
+  return normalizarTexto(nome)
+    .split(" ")
+    .filter((t) => t && !PARTICULAS.has(t));
+}
+
+// O elleven costuma registrar o nome completo ("JOÃO MARCELO FERNANDES DA
+// SILVA") enquanto o cadastro tem a forma curta ("JOÃO MARCELO FERNANDES").
+// Consideramos "provável mesma pessoa" quando todos os tokens do nome mais
+// curto aparecem, na mesma ordem, no nome mais longo.
+function tokensContidosEmOrdem(menor: string[], maior: string[]): boolean {
+  if (menor.length < 2) return false;
+  let i = 0;
+  for (const t of maior) {
+    if (t === menor[i]) i++;
+    if (i === menor.length) return true;
+  }
+  return false;
+}
+
+export type SituacaoVendedorElleven = "OK" | "RENOMEAR" | "NOVO";
+
+export type VendedorEllevenPreview = {
+  nomeElleven: string;
+  contratos: number;
+  ultimaAtividade: string | null;
+  cidadeElleven: string | null;
+  situacao: SituacaoVendedorElleven;
+  funcionarioSugeridoId: string | null;
+  funcionarioSugeridoNome: string | null;
+  funcionarioSemCidade: boolean;
+};
+
+export async function previsualizarVendedoresElleven() {
+  await requireAdmin();
+
+  const [contratos, funcionarios] = await Promise.all([
+    prisma.contratoAtivacaoElleven.findMany(),
+    prisma.funcionario.findMany({ include: { cidade: true } }),
+  ]);
+
+  type Grupo = { contratos: number; cidades: Map<string, number>; ultima: Date | null };
+  const porVendedor = new Map<string, Grupo>();
+  for (const c of contratos) {
+    const nome = (c.vendedor1 || "").trim();
+    if (!nome) continue;
+    const g = porVendedor.get(nome) ?? { contratos: 0, cidades: new Map(), ultima: null };
+    g.contratos++;
+    const cidade = limparCidadeElleven(c.cidade);
+    if (cidade) g.cidades.set(cidade, (g.cidades.get(cidade) ?? 0) + 1);
+    const d = parseDataBr(c.ativacaoContrato) ?? parseDataBr(c.dataContrato);
+    if (d && (!g.ultima || d > g.ultima)) g.ultima = d;
+    porVendedor.set(nome, g);
+  }
+
+  const porNomeExato = new Map(funcionarios.map((f) => [normalizarTexto(f.nome), f]));
+
+  const vendedores: VendedorEllevenPreview[] = [];
+  for (const [nomeElleven, g] of porVendedor) {
+    const cidadeElleven =
+      [...g.cidades.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+
+    let situacao: SituacaoVendedorElleven = "NOVO";
+    let sugerido = porNomeExato.get(normalizarTexto(nomeElleven)) ?? null;
+    if (sugerido) {
+      situacao = "OK";
+    } else {
+      const tokensElleven = tokensNome(nomeElleven);
+      let melhorScore = 0;
+      for (const f of funcionarios) {
+        const tokensCadastro = tokensNome(f.nome);
+        const [menor, maior] =
+          tokensCadastro.length <= tokensElleven.length
+            ? [tokensCadastro, tokensElleven]
+            : [tokensElleven, tokensCadastro];
+        if (tokensContidosEmOrdem(menor, maior) && menor.length > melhorScore) {
+          melhorScore = menor.length;
+          sugerido = f;
+        }
+      }
+      if (sugerido) situacao = "RENOMEAR";
+    }
+
+    vendedores.push({
+      nomeElleven,
+      contratos: g.contratos,
+      ultimaAtividade: g.ultima
+        ? g.ultima.toLocaleDateString("pt-BR", { timeZone: "UTC" })
+        : null,
+      cidadeElleven,
+      situacao,
+      funcionarioSugeridoId: sugerido?.id ?? null,
+      funcionarioSugeridoNome: sugerido?.nome ?? null,
+      funcionarioSemCidade: sugerido ? !sugerido.cidadeId : false,
+    });
+  }
+
+  const peso: Record<SituacaoVendedorElleven, number> = { NOVO: 0, RENOMEAR: 1, OK: 2 };
+  vendedores.sort(
+    (a, b) => peso[a.situacao] - peso[b.situacao] || b.contratos - a.contratos
+  );
+
+  return { vendedores, totalContratos: contratos.length };
+}
+
+const decisaoSchema = z.object({
+  nomeElleven: z.string().trim().min(2),
+  // null/"" => criar um funcionário novo com o nome do elleven.
+  funcionarioId: z.string().trim().nullable(),
+  cidadeElleven: z.string().trim().nullable(),
+});
+
+export type DecisaoVendedorElleven = z.infer<typeof decisaoSchema>;
+
+export async function sincronizarVendedoresElleven(decisoes: DecisaoVendedorElleven[]) {
+  await requireAdmin();
+
+  const parsed = z.array(decisaoSchema).max(500).safeParse(decisoes);
+  if (!parsed.success) return { ok: false as const, error: "Dados inválidos." };
+
+  const cidades = await prisma.cidade.findMany();
+  const cidadePorNome = new Map(cidades.map((c) => [normalizarTexto(c.nome), c]));
+
+  async function resolverCidadeId(nome: string | null): Promise<string | null> {
+    if (!nome) return null;
+    const existente = cidadePorNome.get(normalizarTexto(nome));
+    if (existente) return existente.id;
+    const criada = await prisma.cidade.create({ data: { nome } });
+    cidadePorNome.set(normalizarTexto(nome), criada);
+    return criada.id;
+  }
+
+  let criados = 0;
+  let renomeados = 0;
+  let cidadesDefinidas = 0;
+
+  for (const d of parsed.data) {
+    const cidadeId = await resolverCidadeId(d.cidadeElleven);
+
+    if (d.funcionarioId) {
+      const funcionario = await prisma.funcionario.findUnique({
+        where: { id: d.funcionarioId },
+      });
+      if (!funcionario) continue;
+      const data: { nome?: string; cidadeId?: string } = {};
+      if (funcionario.nome !== d.nomeElleven) {
+        data.nome = d.nomeElleven;
+        renomeados++;
+      }
+      if (!funcionario.cidadeId && cidadeId) {
+        data.cidadeId = cidadeId;
+        cidadesDefinidas++;
+      }
+      if (Object.keys(data).length > 0) {
+        await prisma.funcionario.update({ where: { id: funcionario.id }, data });
+      }
+    } else {
+      await prisma.funcionario.create({
+        data: {
+          nome: d.nomeElleven,
+          cargo: "VENDEDOR_EXTERNO",
+          cidadeId,
+          ativo: true,
+        },
+      });
+      criados++;
+    }
+  }
+
+  revalidatePath("/cadastros/funcionarios");
+  revalidatePath("/cadastros/cidades");
+  return { ok: true as const, criados, renomeados, cidadesDefinidas };
 }

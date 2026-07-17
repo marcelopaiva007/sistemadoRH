@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { AlertTriangle, CheckCircle2, RefreshCw } from "lucide-react";
@@ -146,8 +147,14 @@ export function ImportarEllevenView({
           <AlertTriangle className="size-4" />
           <AlertDescription>
             {linhasSemMatch.length} vendedor(es) do elleven não bateram com nenhum
-            funcionário cadastrado (por nome). Selecione manualmente ou cadastre o
-            funcionário antes de confirmar.
+            funcionário cadastrado (por nome). Selecione manualmente, ou use{" "}
+            <Link
+              href="/cadastros/funcionarios/elleven"
+              className="font-medium underline underline-offset-2"
+            >
+              Atualizar vendedores pelo elleven
+            </Link>{" "}
+            para cadastrar/renomear em lote e recarregue.
           </AlertDescription>
         </Alert>
       )}
