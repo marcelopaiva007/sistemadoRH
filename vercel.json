@@ -1,8 +1,20 @@
 {
   "crons": [
     {
-      "path": "/api/cron/sync-elleven",
+      "path": "/api/cron/sync-elleven?report=ativacao-contratos",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/sync-elleven?report=vendedores-comercial",
+      "schedule": "15 6 * * *"
+    },
+    {
+      "path": "/api/cron/sync-elleven?report=funil-de-vendas",
+      "schedule": "30 6 * * *"
+    },
+    {
+      "path": "/api/cron/sync-elleven?report=pedidos-de-venda",
+      "schedule": "45 6 * * *"
     }
   ]
 }

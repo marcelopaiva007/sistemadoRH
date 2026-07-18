@@ -74,21 +74,14 @@ const REPORTS: Record<
     nome: "Funil de Vendas - Gerencial",
     generico: true,
   },
-  "faturamento-por-vendedor": {
-    path: "/ui/legacy/reports/fddad397-582b-c766-0bd2-080051647004",
-    nome: "Faturamento por Vendedor",
-    generico: true,
-  },
-  "titulos-recebidos-por-vendedor": {
-    path: "/ui/legacy/reports/ddb93074-150a-9e84-ded2-9873da66ba5e",
-    nome: "CRE - Títulos Recebidos - Por Vendedor",
-    generico: true,
-  },
   "pedidos-de-venda": {
     path: "/ui/legacy/reports/e2e1a318-bdfb-ae98-1510-957558e4b02e",
     nome: "Listagem Pedidos de Venda",
     generico: true,
   },
+  // Faturamento por Vendedor (modal JS legado, sem iframe de relatório) e
+  // CRE - Títulos Recebidos (exige campo obrigatório extra) NÃO são usados para
+  // comissão — removidos da sincronização a pedido do usuário.
 };
 const DEFAULT_REPORT = "ativacao-contratos";
 
