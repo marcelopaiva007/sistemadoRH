@@ -10,6 +10,7 @@ import {
   Upload,
   Lock,
   BarChart3,
+  Target,
 } from "lucide-react";
 
 export type NavItem = {
@@ -26,6 +27,7 @@ export const adminNav: NavItem[] = [
   { href: "/cadastros/usuarios", label: "Usuários", icon: UserCog },
   { href: "/regras", label: "Regras de Bonificação", icon: SlidersHorizontal },
   { href: "/lancamentos", label: "Lançamentos", icon: ClipboardList },
+  { href: "/metas", label: "Acompanhamento de Metas", icon: Target },
   { href: "/importar", label: "Importar Planilha/CSV", icon: Upload },
   { href: "/importar/elleven", label: "Importar do elleven", icon: Upload },
   { href: "/fechamento", label: "Fechamento Mensal", icon: Lock },
@@ -34,6 +36,7 @@ export const adminNav: NavItem[] = [
 
 export const diretoriaNav: NavItem[] = [
   { href: "/", label: "Painel", icon: LayoutDashboard },
+  { href: "/metas", label: "Acompanhamento de Metas", icon: Target },
   { href: "/relatorios", label: "Relatórios", icon: BarChart3 },
   { href: "/fechamento", label: "Fechamentos", icon: Lock },
 ];
