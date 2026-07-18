@@ -6,3 +6,9 @@ export const CARGOS = [
   { value: "SUPERVISOR", label: "Supervisor" },
   { value: "OUTRO_SETOR", label: "Outro Setor" },
 ] as const;
+
+// Papéis de acesso ao sistema (coluna User.role).
+export const ROLES = [
+  { value: "ADMIN", label: "Administrativo/Financeiro" },
+  { value: "DIRETORIA", label: "Diretoria/Gestão" },
+] as const;
