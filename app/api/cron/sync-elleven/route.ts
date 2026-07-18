@@ -928,14 +928,17 @@ export async function GET(req: NextRequest) {
             elements: stageElements,
           });
 
-          // O botão CSV é identificado pelo texto "CSV" (o índice varia: em
-          // "Ativação Contratos" são 3 botões PDF/CSV/FECHAR, em outros são só
-          // CSV/FECHAR). Assim funciona para qualquer relatório com export CSV.
-          const csvButton = buttonLocators.filter({ hasText: /csv/i }).first();
-          const hasCsv = (await csvButton.count().catch(() => 0)) > 0;
+          // O "CSV" do botão é um ícone/SVG, não texto do DOM — hasText não
+          // acha. Mas o layout é consistente: os botões de modo são sempre
+          // [..., CSV, FECHAR], ou seja, o CSV é o PENÚLTIMO (3 botões
+          // PDF/CSV/FECHAR -> índice 1; 2 botões CSV/FECHAR -> índice 0). Logo
+          // o índice do CSV é sempre count-2.
+          const csvIndex = count - 2;
+          const hasCsv = count >= 2;
+          const csvButton = buttonLocators.nth(Math.max(0, csvIndex));
 
           if (hasCsv) {
-            step("Botão CSV localizado por texto — clicando e aguardando download...");
+            step(`Botão CSV = índice ${csvIndex} de ${count} — clicando e aguardando download...`);
             modeResult = await downloadAndParseCsv(page, csvButton);
             step(
               `Resultado do download do CSV: ok=${modeResult.ok}, colunas=${modeResult.csvHeaders.length}, linhas=${modeResult.rowCount}` +
@@ -1046,7 +1049,7 @@ export async function GET(req: NextRequest) {
             }
           } else {
             step(
-              `Botão CSV não encontrado entre os ${count} botões de export — este relatório pode não ter exportação CSV.`,
+              `Menos de 2 botões de export encontrados (${count}) — sem botão CSV para clicar.`,
             );
           }
         }
