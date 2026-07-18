@@ -51,9 +51,13 @@ const ELLEVEN_BASE = "https://elleven.assinelm.com.br";
 // vieram do menu (general/me/menus). Só "ativacao-contratos" tem tabela modelada
 // e save; os demais estão em fase de descoberta (baixam o CSV e retornam os
 // cabeçalhos/amostra para modelarmos a tabela certa depois).
+// persist  = tabela própria modelada (só ativacao-contratos, com preview e save
+//            tipado + regras de bonificação).
+// generico = guarda cada linha do CSV como JSONB em elleven_relatorio_linha
+//            (para os demais relatórios de venda, sem modelar tabela por relatório).
 const REPORTS: Record<
   string,
-  { path: string; nome: string; persist: boolean }
+  { path: string; nome: string; persist?: boolean; generico?: boolean }
 > = {
   "ativacao-contratos": {
     path: "/ui/legacy/reports/316e54f3-bdaa-b95a-5597-e9164279071e",
@@ -63,27 +67,27 @@ const REPORTS: Record<
   "vendedores-comercial": {
     path: "/ui/legacy/reports/fc792c4f-d4cf-572a-361b-3502c29ede8c",
     nome: "Vendedores - Comercial",
-    persist: false,
+    generico: true,
   },
   "funil-de-vendas": {
     path: "/ui/legacy/reports/9f47af3b-785a-cd9f-c1b6-c0aec822e2e3",
     nome: "Funil de Vendas - Gerencial",
-    persist: false,
+    generico: true,
   },
   "faturamento-por-vendedor": {
     path: "/ui/legacy/reports/fddad397-582b-c766-0bd2-080051647004",
     nome: "Faturamento por Vendedor",
-    persist: false,
+    generico: true,
   },
   "titulos-recebidos-por-vendedor": {
     path: "/ui/legacy/reports/ddb93074-150a-9e84-ded2-9873da66ba5e",
     nome: "CRE - Títulos Recebidos - Por Vendedor",
-    persist: false,
+    generico: true,
   },
   "pedidos-de-venda": {
     path: "/ui/legacy/reports/e2e1a318-bdfb-ae98-1510-957558e4b02e",
     nome: "Listagem Pedidos de Venda",
-    persist: false,
+    generico: true,
   },
 };
 const DEFAULT_REPORT = "ativacao-contratos";
@@ -162,15 +166,16 @@ async function describeInteractiveElements(frame: Frame) {
   ).catch((e: unknown) => `ERRO: ${e}`);
 }
 
-// Clica no botão CSV (índice 1 dentre `buttonLocators` — 0=PDF, 1=CSV,
-// 2=FECHAR, confirmado em scripts/test-elleven-scraping.ts) e captura o
-// download resultante via page.waitForEvent('download'). A geração do CSV no
+// Clica no botão de export CSV e captura o download via page.waitForEvent.
+// IMPORTANTE: o índice do botão CSV varia por relatório — "Ativação Contratos"
+// tem 3 botões (PDF, CSV, FECHAR) e outros têm 2 (CSV, FECHAR). Por isso
+// localizamos o botão pelo texto "CSV", não por índice. A geração do CSV no
 // servidor do elleven pode ser lenta, por isso o timeout generoso de 180s.
 // Depois de baixado, detecta o encoding (UTF-8 ou Latin-1) e faz o parse do
 // CSV (separador ';', padrão BR) em headers + linhas.
 async function downloadAndParseCsv(
   page: Page,
-  buttonLocators: Locator,
+  csvButton: Locator,
 ): Promise<{
   ok: boolean;
   error?: string;
@@ -183,7 +188,7 @@ async function downloadAndParseCsv(
   try {
     [download] = await Promise.all([
       page.waitForEvent("download", { timeout: 180_000 }),
-      buttonLocators.nth(1).click(),
+      csvButton.click({ timeout: 10_000 }),
     ]);
   } catch (e) {
     return {
@@ -923,9 +928,15 @@ export async function GET(req: NextRequest) {
             elements: stageElements,
           });
 
-          if (count >= 2) {
-            step("Clicando no botão CSV (índice 1) e aguardando download...");
-            modeResult = await downloadAndParseCsv(page, buttonLocators);
+          // O botão CSV é identificado pelo texto "CSV" (o índice varia: em
+          // "Ativação Contratos" são 3 botões PDF/CSV/FECHAR, em outros são só
+          // CSV/FECHAR). Assim funciona para qualquer relatório com export CSV.
+          const csvButton = buttonLocators.filter({ hasText: /csv/i }).first();
+          const hasCsv = (await csvButton.count().catch(() => 0)) > 0;
+
+          if (hasCsv) {
+            step("Botão CSV localizado por texto — clicando e aguardando download...");
+            modeResult = await downloadAndParseCsv(page, csvButton);
             step(
               `Resultado do download do CSV: ok=${modeResult.ok}, colunas=${modeResult.csvHeaders.length}, linhas=${modeResult.rowCount}` +
                 (modeResult.error ? `, error=${modeResult.error}` : ""),
@@ -937,10 +948,37 @@ export async function GET(req: NextRequest) {
               ...modeResult,
             });
 
-            if (modeResult.ok && !report.persist) {
-              step(
-                `Modo descoberta (${slug}): CSV baixado com ${modeResult.rowCount} linhas e ${modeResult.csvHeaders.length} colunas — não persiste ainda. Cabeçalhos: ${JSON.stringify(modeResult.csvHeaders)}`,
-              );
+            // Relatórios sem tabela modelada própria: guardamos cada linha do
+            // CSV como JSONB em elleven_relatorio_linha (chave = 1ª coluna, ou
+            // um índice quando vazia). Snapshot mensal: apaga o período e recria,
+            // mais rápido e simples que upsert linha a linha.
+            if (modeResult.ok && report.generico) {
+              const periodo = firstOfMonthFormats().iso.slice(0, 7); // YYYY-MM
+              const linhas = modeResult.rows.map((row, i) => {
+                const primeira = String(Object.values(row)[0] ?? "").trim();
+                return {
+                  relatorio: slug,
+                  periodo,
+                  chave: primeira || `linha-${i}`,
+                  dados: row,
+                };
+              });
+              try {
+                await prisma.ellevenRelatorioLinha.deleteMany({
+                  where: { relatorio: slug, periodo },
+                });
+                const res = await prisma.ellevenRelatorioLinha.createMany({
+                  data: linhas,
+                  skipDuplicates: true,
+                });
+                savedCount = res.count;
+                step(
+                  `Genérico (${slug}): ${savedCount} linha(s) salvas em elleven_relatorio_linha (período ${periodo}).`,
+                );
+              } catch (e) {
+                errorCount++;
+                step(`Erro salvando genérico (${slug}): ${e}`);
+              }
             }
 
             if (modeResult.ok && report.persist) {
@@ -1008,7 +1046,7 @@ export async function GET(req: NextRequest) {
             }
           } else {
             step(
-              `Menos de 2 botões de modo encontrados (${count}) — não há como clicar no botão CSV (índice 1).`,
+              `Botão CSV não encontrado entre os ${count} botões de export — este relatório pode não ter exportação CSV.`,
             );
           }
         }

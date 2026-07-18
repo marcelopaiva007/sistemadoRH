@@ -200,3 +200,20 @@ model ContratoAtivacaoElleven {
 
   @@map("contrato_ativacao_elleven")
 }
+
+// Armazenamento genérico das linhas dos demais relatórios de venda do elleven
+// (Vendedores - Comercial, Funil de Vendas, Faturamento por Vendedor, Títulos
+// Recebidos por Vendedor, Pedidos de Venda). Cada linha do CSV vira um registro
+// com o CSV completo em `dados` (JSONB). Snapshot mensal por relatório+período.
+model EllevenRelatorioLinha {
+  id        Int      @id @default(autoincrement())
+  relatorio String // slug do relatório (ex.: "vendedores-comercial")
+  periodo   String // YYYY-MM do sync
+  chave     String // valor da 1ª coluna do CSV (ou "linha-N" quando vazia)
+  dados     Json // linha completa do CSV
+  syncedAt  DateTime @default(now()) @updatedAt
+
+  @@unique([relatorio, periodo, chave])
+  @@index([relatorio, periodo])
+  @@map("elleven_relatorio_linha")
+}
