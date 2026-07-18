@@ -93,6 +93,32 @@ function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+// Garante que a tabela genérica exista antes de gravar, criando-a sob demanda
+// (idempotente, IF NOT EXISTS — mesmo padrão da migração do CPF). Assim o save
+// dos relatórios genéricos funciona sem depender de aplicar a migração à mão.
+let relatorioTableEnsured = false;
+async function ensureRelatorioTable(): Promise<void> {
+  if (relatorioTableEnsured) return;
+  await prisma.$executeRawUnsafe(
+    `CREATE TABLE IF NOT EXISTS "elleven_relatorio_linha" (
+      "id" SERIAL NOT NULL,
+      "relatorio" TEXT NOT NULL,
+      "periodo" TEXT NOT NULL,
+      "chave" TEXT NOT NULL,
+      "dados" JSONB NOT NULL,
+      "syncedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "elleven_relatorio_linha_pkey" PRIMARY KEY ("id")
+    );`,
+  );
+  await prisma.$executeRawUnsafe(
+    `CREATE INDEX IF NOT EXISTS "elleven_relatorio_linha_relatorio_periodo_idx" ON "elleven_relatorio_linha"("relatorio", "periodo");`,
+  );
+  await prisma.$executeRawUnsafe(
+    `CREATE UNIQUE INDEX IF NOT EXISTS "elleven_relatorio_linha_relatorio_periodo_chave_key" ON "elleven_relatorio_linha"("relatorio", "periodo", "chave");`,
+  );
+  relatorioTableEnsured = true;
+}
+
 function isAuthorized(req: NextRequest): boolean {
   // Vercel Cron envia "Authorization: Bearer $CRON_SECRET" automaticamente
   // quando CRON_SECRET está definido nas env vars.
@@ -960,6 +986,7 @@ export async function GET(req: NextRequest) {
                 };
               });
               try {
+                await ensureRelatorioTable();
                 await prisma.ellevenRelatorioLinha.deleteMany({
                   where: { relatorio: slug, periodo },
                 });
