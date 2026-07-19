@@ -52,6 +52,8 @@ type Funcionario = {
   cidade: Cidade | null;
   equipeId: string | null;
   equipe: Equipe | null;
+  email: string | null;
+  telegramChatId: string | null;
 };
 
 const initialState: ActionResult = { ok: true };
@@ -289,6 +291,26 @@ function FuncionarioForm({
             ))}
           </SelectContent>
         </Select>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="email">E-mail (opcional)</Label>
+        <Input
+          id="email"
+          name="email"
+          type="email"
+          defaultValue={defaultValues?.email ?? ""}
+          placeholder="Para receber a cobrança de meta por e-mail"
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="telegramChatId">Telegram chat ID (opcional)</Label>
+        <Input
+          id="telegramChatId"
+          name="telegramChatId"
+          defaultValue={defaultValues?.telegramChatId ?? ""}
+          placeholder="Ex.: 123456789 — para cobrança por Telegram"
+          inputMode="numeric"
+        />
       </div>
       <div className="flex items-center gap-2">
         <Checkbox id="ativo" checked={ativo} onCheckedChange={(v) => setAtivo(v === true)} />

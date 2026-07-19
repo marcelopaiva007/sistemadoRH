@@ -124,6 +124,8 @@ export type AcompanhamentoFuncionario = {
   funcionarioId: string;
   nome: string;
   cargo: string;
+  email: string | null;
+  telegramChatId: string | null;
   metas: MetaServico[];
   supervisor: AcompanhamentoSupervisor | null;
   bonificacaoAtual: number;
@@ -170,6 +172,8 @@ export function calcularAcompanhamento(params: {
   funcionarioId: string;
   nome: string;
   cargo: string;
+  email?: string | null;
+  telegramChatId?: string | null;
   agregado: LancamentoAgregado;
   config: RegraConfig | null;
   supervisorCtx?: { totalInternetEquipe: number; tamanhoEquipe: number } | null;
@@ -207,6 +211,8 @@ export function calcularAcompanhamento(params: {
     funcionarioId,
     nome,
     cargo,
+    email: params.email ?? null,
+    telegramChatId: params.telegramChatId ?? null,
     metas,
     supervisor,
     bonificacaoAtual,

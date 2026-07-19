@@ -48,11 +48,14 @@ model Equipe {
 }
 
 model Funcionario {
-  id        String   @id @default(cuid())
-  nome      String
-  cpf       String?  @unique
-  cargo     String
-  cidadeId  String?
+  id             String  @id @default(cuid())
+  nome           String
+  cpf            String? @unique
+  // Contato para as cobranças de meta (Telegram/e-mail).
+  email          String?
+  telegramChatId String?
+  cargo          String
+  cidadeId       String?
   cidade    Cidade?  @relation(fields: [cidadeId], references: [id])
   equipeId  String?
   equipe    Equipe?  @relation("MembroDaEquipe", fields: [equipeId], references: [id])

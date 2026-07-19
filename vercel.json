@@ -15,6 +15,10 @@
     {
       "path": "/api/cron/sync-elleven?report=pedidos-de-venda",
       "schedule": "45 6 * * *"
+    },
+    {
+      "path": "/api/cron/cobranca-metas",
+      "schedule": "0 12 * * *"
     }
   ]
 }

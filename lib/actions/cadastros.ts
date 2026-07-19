@@ -126,6 +126,18 @@ const funcionarioSchema = z.object({
   cargo: z.enum(["VENDEDOR_EXTERNO", "ATENDIMENTO_ADM", "SUPERVISOR", "OUTRO_SETOR"]),
   cidadeId: z.string().trim().optional(),
   equipeId: z.string().trim().optional(),
+  // Contato para as cobranças de meta (Telegram/e-mail).
+  email: z
+    .string()
+    .trim()
+    .transform((v) => v.toLowerCase())
+    .refine((v) => v === "" || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), "E-mail inválido")
+    .optional(),
+  telegramChatId: z
+    .string()
+    .trim()
+    .transform((v) => v.replace(/[^\d-]/g, ""))
+    .optional(),
   ativo: z.coerce.boolean().default(true),
 });
 
@@ -137,6 +149,8 @@ export async function createFuncionario(_prev: ActionResult, formData: FormData)
     cargo: formData.get("cargo"),
     cidadeId: formData.get("cidadeId") || undefined,
     equipeId: formData.get("equipeId") || undefined,
+    email: formData.get("email") || undefined,
+    telegramChatId: formData.get("telegramChatId") || undefined,
     ativo: formData.get("ativo") === "on" || formData.get("ativo") === "true",
   };
   const parsed = funcionarioSchema.safeParse(raw);
@@ -149,6 +163,8 @@ export async function createFuncionario(_prev: ActionResult, formData: FormData)
       cargo: parsed.data.cargo,
       cidadeId: parsed.data.cidadeId || null,
       equipeId: parsed.data.equipeId || null,
+      email: parsed.data.email || null,
+      telegramChatId: parsed.data.telegramChatId || null,
       ativo: parsed.data.ativo,
     },
   });
@@ -164,6 +180,8 @@ export async function updateFuncionario(id: string, _prev: ActionResult, formDat
     cargo: formData.get("cargo"),
     cidadeId: formData.get("cidadeId") || undefined,
     equipeId: formData.get("equipeId") || undefined,
+    email: formData.get("email") || undefined,
+    telegramChatId: formData.get("telegramChatId") || undefined,
     ativo: formData.get("ativo") === "on" || formData.get("ativo") === "true",
   };
   const parsed = funcionarioSchema.safeParse(raw);
@@ -177,6 +195,8 @@ export async function updateFuncionario(id: string, _prev: ActionResult, formDat
       cargo: parsed.data.cargo,
       cidadeId: parsed.data.cidadeId || null,
       equipeId: parsed.data.equipeId || null,
+      email: parsed.data.email || null,
+      telegramChatId: parsed.data.telegramChatId || null,
       ativo: parsed.data.ativo,
     },
   });
@@ -187,6 +207,24 @@ export async function updateFuncionario(id: string, _prev: ActionResult, formDat
 export async function toggleFuncionarioAtivo(id: string, ativo: boolean): Promise<ActionResult> {
   await requireAdmin();
   await prisma.funcionario.update({ where: { id }, data: { ativo } });
+  revalidatePath("/cadastros/funcionarios");
+  return { ok: true };
+}
+
+// Vincula (ou desvincula, com chatId vazio) o chat_id do Telegram de uma pessoa
+// a partir da tela de "Vincular Telegram". Usado para preencher o destino das
+// cobranças sem precisar digitar o número à mão.
+export async function vincularTelegramChatId(
+  funcionarioId: string,
+  chatId: string,
+): Promise<ActionResult> {
+  await requireAdmin();
+  const limpo = chatId.replace(/[^\d-]/g, "");
+  await prisma.funcionario.update({
+    where: { id: funcionarioId },
+    data: { telegramChatId: limpo || null },
+  });
+  revalidatePath("/cadastros/telegram");
   revalidatePath("/cadastros/funcionarios");
   return { ok: true };
 }
