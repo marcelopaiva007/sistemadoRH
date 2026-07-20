@@ -1,14 +1,20 @@
-// Cobrança diária de metas por Telegram e e-mail.
+// Cobrança diária de metas por Telegram (e, opcionalmente, e-mail).
 //
 // TRAVA DE SEGURANÇA: só envia de verdade quando COBRANCA_ATIVA="true". Enquanto
 // não estiver, roda em modo "dry-run" (calcula e retorna o que SERIA enviado, sem
 // mandar nada) — assim dá para configurar tudo e testar sem cobrar ninguém por
 // engano.
 //
+// CANAIS: começamos apenas pelo Telegram. O e-mail fica desligado por padrão
+// (o Resend só entrega para o dono da conta até um domínio ser verificado) e só
+// é usado quando COBRANCA_EMAIL_ATIVA="true" — aí é só ligar o flag, sem mexer
+// no código.
+//
 // Variáveis de ambiente:
-//   COBRANCA_ATIVA      — "true" liga o envio real (default: dry-run)
-//   CRON_SECRET         — auth do Vercel Cron (Bearer), como no sync-elleven
-//   COBRANCA_SECRET     — (opcional) para disparo manual via ?secret=
+//   COBRANCA_ATIVA         — "true" liga o envio real (default: dry-run)
+//   COBRANCA_EMAIL_ATIVA   — "true" também manda por e-mail (default: só Telegram)
+//   CRON_SECRET            — auth do Vercel Cron (Bearer), como no sync-elleven
+//   COBRANCA_SECRET        — (opcional) para disparo manual via ?secret=
 //   TELEGRAM_BOT_TOKEN, RESEND_API_KEY, COBRANCA_EMAIL_FROM — ver lib/notificacoes.ts
 import { NextRequest, NextResponse } from "next/server";
 import { periodoAtual, periodoLabel } from "@/lib/periodo";
@@ -41,6 +47,9 @@ export async function GET(req: NextRequest) {
   }
 
   const ativa = process.env.COBRANCA_ATIVA === "true";
+  // E-mail começa desligado; só entra quando o domínio do Resend estiver
+  // verificado e este flag for ligado.
+  const emailAtivo = process.env.COBRANCA_EMAIL_ATIVA === "true";
   const periodo = periodoAtual();
   const acompanhamentos = await carregarAcompanhamento(periodo);
   const assunto = `Sua meta de ${periodoLabel(periodo)} — LM`;
@@ -52,9 +61,10 @@ export async function GET(req: NextRequest) {
   let semContato = 0;
 
   for (const a of acompanhamentos) {
+    const usaEmail = !!a.email && emailAtivo;
     const canais: string[] = [];
     if (a.telegramChatId) canais.push("telegram");
-    if (a.email) canais.push("email");
+    if (usaEmail) canais.push("email");
     if (canais.length === 0) {
       semContato++;
       continue;
@@ -75,7 +85,7 @@ export async function GET(req: NextRequest) {
       resultados.push({ nome: a.nome, ...r });
       if (r.ok) enviados++;
     }
-    if (a.email) {
+    if (usaEmail && a.email) {
       const r = await enviarEmail(a.email, assunto, a.mensagem);
       resultados.push({ nome: a.nome, ...r });
       if (r.ok) enviados++;
@@ -87,12 +97,15 @@ export async function GET(req: NextRequest) {
     periodo,
     ativa,
     dryRun: !ativa,
+    emailAtivo,
     canaisConfigurados: {
       telegram: telegramConfigurado(),
-      email: emailConfigurado(),
+      email: emailAtivo && emailConfigurado(),
     },
     totalPessoas: acompanhamentos.length,
-    comContato: acompanhamentos.filter((a) => a.email || a.telegramChatId).length,
+    comContato: acompanhamentos.filter(
+      (a) => a.telegramChatId || (a.email && emailAtivo),
+    ).length,
     semContato,
     enviados,
     resultados: resultados.slice(0, 200),
