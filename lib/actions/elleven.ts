@@ -5,63 +5,17 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-guard";
 import { normalizarTexto } from "@/lib/text";
-import { tokensContidosEmOrdem, tokensNome } from "@/lib/vendedor-match";
-
-// Data de referência para agrupar por período: preferimos "Ativação Contrato"
-// (a mesma data usada para filtrar o relatório no elleven — "Filtrar por:
-// Data de Ativação"), caindo para "Data Contrato" quando a primeira estiver
-// vazia. Formato ainda não 100% confirmado (esperado dd/mm/aaaa, possivelmente
-// com hora) — regex extrai só a parte dd/mm/aaaa e ignora o resto.
-function parseDataBr(raw: string | null): Date | null {
-  if (!raw) return null;
-  const m = raw.match(/(\d{2})\/(\d{2})\/(\d{4})/);
-  if (!m) return null;
-  const [, dd, mm, yyyy] = m;
-  const d = new Date(Date.UTC(Number(yyyy), Number(mm) - 1, Number(dd)));
-  return Number.isNaN(d.getTime()) ? null : d;
-}
-
-// Valores monetários do CSV do elleven vêm como texto (ex.: "1.234,56" ou
-// "R$ 99,90") — best-effort, não confirmado com dado real ainda.
-function parseValorBr(raw: string | null): number {
-  if (!raw) return 0;
-  const limpo = raw
-    .replace(/[^\d,.-]/g, "")
-    .replace(/\.(?=\d{3}(,|$))/g, "")
-    .replace(",", ".");
-  const n = parseFloat(limpo);
-  return Number.isNaN(n) ? 0 : n;
-}
-
-// Ordem importa: as categorias específicas são testadas ANTES de Internet, que
-// é a mais abrangente. Confirmado com dados reais do elleven: quase todo
-// "Serviço Ativado" é um plano de internet nomeado com a velocidade (ex.:
-// "PLANO_PROMOCIONAL_JULHO_600MB", "GBA_FAMILIA_400MB", "AREIAL_200MB"), então
-// Internet também casa qualquer nome com padrão de banda (\d+MB / \d+Mbps).
-// Exceções vistas nos dados: "CDNTV ..." (streaming) e "Rastreamento Veicular"
-// (GPS). "IP FIXO" e afins não batem em nada -> Outros.
-const PRODUTO_KEYWORDS = [
-  { key: "qtdGps" as const, regex: /gps|rastre/i },
-  {
-    key: "qtdStreaming" as const,
-    regex: /cdntv|stream|hbo|netflix|paramount|telecine|max\b|filmes|s[ée]ries/i,
-  },
-  { key: "qtdChip" as const, regex: /chip|sim ?card|m2m/i },
-  { key: "qtdTelefoniaFixa" as const, regex: /telefonia|voip|telefone/i },
-  {
-    // \d+MB / \d+Mbps seguido de qualquer coisa que não seja letra (fim, "_",
-    // espaço, hífen) — cobre nomes como "..._600MB_PROMO" e "300MB_69,90", onde
-    // um \b falharia porque "_" também é caractere de palavra.
-    key: "qtdInternet" as const,
-    regex: /internet|banda[ _]?larga|fibra|\d+\s*mb(ps)?(?![a-z])/i,
-  },
-];
-
-// "Status Contrato" no CSV traz "Normal", "Cancelado", etc. Contrato cancelado
-// não conta como venda aprovada nem gera bônus de produto/valor.
-function isCancelado(status: string | null): boolean {
-  return /cancel/i.test(status || "");
-}
+// Parsing/categorização/matching vivem em lib/elleven-core.ts (fonte única,
+// compartilhada com a importação automática do cron) — ver comentário lá.
+import {
+  parseDataBr,
+  parseValorBr,
+  PRODUTO_KEYWORDS,
+  isCancelado,
+  limparCidadeElleven,
+  tokensNome,
+  tokensContidosEmOrdem,
+} from "@/lib/elleven-core";
 
 export type LinhaPreviewElleven = {
   vendedorOriginal: string;
@@ -70,9 +24,11 @@ export type LinhaPreviewElleven = {
   aprovado: number;
   cancelado: number;
   valorInstalado: number;
+  valorDemaisServicos: number;
   qtdInternet: number;
   qtdChip: number;
   qtdGps: number;
+  qtdTv: number;
   qtdStreaming: number;
   qtdTelefoniaFixa: number;
   qtdOutros: number;
@@ -115,9 +71,11 @@ export async function previsualizarLancamentosElleven(periodo: string) {
       aprovado: 0,
       cancelado: 0,
       valorInstalado: 0,
+      valorDemaisServicos: 0,
       qtdInternet: 0,
       qtdChip: 0,
       qtdGps: 0,
+      qtdTv: 0,
       qtdStreaming: 0,
       qtdTelefoniaFixa: 0,
       qtdOutros: 0,
@@ -131,14 +89,17 @@ export async function previsualizarLancamentosElleven(periodo: string) {
         continue;
       }
       linha.aprovado++;
-      linha.valorInstalado += parseValorBr(c.valServAtivado);
+      const valorServico = parseValorBr(c.valServAtivado);
+      linha.valorInstalado += valorServico;
       const servico = c.servicoAtivado || "";
       const found = PRODUTO_KEYWORDS.find((p) => p.regex.test(servico));
-      // Os 5 produtos acima são a lista fechada; qualquer serviço que não bata
+      // Os produtos acima são a lista fechada; qualquer serviço que não bata
       // com nenhum deles entra em "Outros" (conta na quantidade, mas não gera
       // bônus de produto — não há regra para "Outros").
       if (found) linha[found.key]++;
       else linha.qtdOutros++;
+      // Base dos 50% do Atendimento/ADM: valor de todo serviço não-internet.
+      if (found?.key !== "qtdInternet") linha.valorDemaisServicos += valorServico;
     }
     linhas.push(linha);
   }
@@ -153,16 +114,6 @@ export async function previsualizarLancamentosElleven(periodo: string) {
 }
 
 // ---------- Sincronização do cadastro de vendedores a partir do elleven ----------
-
-// "Cidade" no elleven vem como "Guarabira - PB" — o sufixo de UF sai para
-// casar com o cadastro de cidades do sistema (que guarda só o nome).
-function limparCidadeElleven(raw: string | null): string | null {
-  const nome = (raw || "").replace(/\s*-\s*[A-Z]{2}\s*$/, "").trim();
-  return nome || null;
-}
-
-// Helpers de casamento de nomes movidos para lib/vendedor-match.ts (comparti-
-// lhados com a importação de chips do L&M Movel).
 
 export type SituacaoVendedorElleven = "OK" | "RENOMEAR" | "NOVO";
 

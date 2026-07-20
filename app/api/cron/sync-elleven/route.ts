@@ -26,6 +26,8 @@ import {
   type Locator,
 } from "playwright-core";
 import { prisma } from "@/lib/prisma";
+import { periodoAtual } from "@/lib/periodo";
+import { importarLancamentosEllevenAuto } from "@/lib/importar-elleven-auto";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -320,23 +322,36 @@ async function selectMuiOption(
   return result;
 }
 
-function dateFormats(d: Date) {
-  const dd = String(d.getDate()).padStart(2, "0");
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const yyyy = String(d.getFullYear());
+// Data "hoje"/"mês corrente" SEMPRE no fuso de Brasília (America/Sao_Paulo), e
+// não no relógio do servidor: em produção (Vercel) o servidor é UTC, então a
+// partir das ~21h do último dia do mês o UTC já virou o mês seguinte e o sync
+// puxaria o relatório do Elleven do mês errado na virada. Intl garante o dia/mês
+// corretos no Brasil sem depender de ajuste manual a cada mês.
+function saoPauloParts(d: Date) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(d);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  return { dd: get("day"), mm: get("month"), yyyy: get("year") };
+}
+
+function dateFormats({ dd, mm, yyyy }: { dd: string; mm: string; yyyy: string }) {
   return { br: `${dd}/${mm}/${yyyy}`, iso: `${yyyy}-${mm}-${dd}` };
 }
 
 function todayFormats() {
-  return dateFormats(new Date());
+  return dateFormats(saoPauloParts(new Date()));
 }
 
 // Primeiro dia do mês corrente — usado como "Data Inicial" para puxar o relatório
 // do mês inteiro (a cada rodada, do dia 1º até hoje). O upsert por número de
 // contrato garante que reprocessar os mesmos dias não gera duplicata.
 function firstOfMonthFormats() {
-  const now = new Date();
-  return dateFormats(new Date(now.getFullYear(), now.getMonth(), 1));
+  const { mm, yyyy } = saoPauloParts(new Date());
+  return dateFormats({ dd: "01", mm, yyyy });
 }
 
 // Define a data num input controlado pela biblioteca Flatpickr usando a API JS dela
@@ -799,6 +814,9 @@ export async function GET(req: NextRequest) {
       let modeResult: Awaited<ReturnType<typeof downloadAndParseCsv>> | null = null;
       let savedCount = 0;
       let errorCount = 0;
+      let importacaoAuto: Awaited<
+        ReturnType<typeof importarLancamentosEllevenAuto>
+      > | null = null;
 
       if (reportFrame) {
         // Etapa 1: Filtros
@@ -1066,6 +1084,24 @@ export async function GET(req: NextRequest) {
                 }
               }
               step(`Banco atualizado: ${savedCount} salvos, ${errorCount} erros`);
+
+              // Importação automática: transforma os contratos recém-sincronizados
+              // do mês corrente em lançamentos e recalcula o fechamento (ABERTO).
+              // Idempotente — roda a cada sync. Falha aqui não invalida o sync dos
+              // contratos, então é capturada e apenas registrada no log.
+              try {
+                const periodo = periodoAtual();
+                step(`Importando lançamentos do elleven para ${periodo}...`);
+                importacaoAuto = await importarLancamentosEllevenAuto(periodo);
+                step(
+                  `Importação automática: ${importacaoAuto.lancamentosGerados} lançamento(s) ` +
+                    `(${importacaoAuto.matchExato} exato, ${importacaoAuto.matchFuzzy} fuzzy, ` +
+                    `${importacaoAuto.funcionariosCriados} vendedor(es) criado(s)) ` +
+                    `de ${importacaoAuto.contratosNoPeriodo} contrato(s).`,
+                );
+              } catch (e) {
+                step(`Erro na importação automática: ${e}`);
+              }
             }
           } else {
             step(
@@ -1092,6 +1128,7 @@ export async function GET(req: NextRequest) {
         sampleRows: modeResult?.sampleRows ?? [],
         savedCount,
         errorCount,
+        importacaoAuto,
         log,
         currentUrl: page.url(),
         allFrameUrls,
