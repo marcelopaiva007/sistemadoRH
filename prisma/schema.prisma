@@ -204,6 +204,33 @@ model ContratoAtivacaoElleven {
   @@map("contrato_ativacao_elleven")
 }
 
+// Vendas de chip sincronizadas do sistema de telefonia móvel (L&M Movel,
+// https://movel.assinelm.com — API REST própria, ver api/cron/sync-chip).
+// Snapshot mensal: cada rodada apaga o período e regrava o que a API retornou.
+// `vendaId` é o id da venda no L&M Movel (idempotência entre rodadas).
+model VendaChipMovel {
+  id            Int      @id @default(autoincrement())
+  vendaId       Int      @unique
+  periodo       String // YYYY-MM (mês consultado na API)
+  sellerIdMovel Int?
+  sellerNome    String?
+  sellerCpf     String?
+  clienteNome   String?
+  clienteCpf    String?
+  msisdn        String?
+  iccid         String?
+  planoNome     String?
+  planoPreco    String?
+  status        String?
+  soldAt        String?
+  activatedAt   String?
+  cancelledAt   String?
+  syncedAt      DateTime @default(now()) @updatedAt
+
+  @@index([periodo])
+  @@map("venda_chip_movel")
+}
+
 // Armazenamento genérico das linhas dos demais relatórios de venda do elleven
 // (Vendedores - Comercial, Funil de Vendas, Faturamento por Vendedor, Títulos
 // Recebidos por Vendedor, Pedidos de Venda). Cada linha do CSV vira um registro

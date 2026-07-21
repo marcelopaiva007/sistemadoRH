@@ -17,6 +17,10 @@
       "schedule": "45 6 * * *"
     },
     {
+      "path": "/api/cron/sync-chip",
+      "schedule": "0 7 * * *"
+    },
+    {
       "path": "/api/cron/cobranca-metas",
       "schedule": "0 12 * * *"
     }

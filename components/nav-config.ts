@@ -12,6 +12,7 @@ import {
   BarChart3,
   Target,
   Send,
+  Smartphone,
 } from "lucide-react";
 
 export type NavItem = {
@@ -32,6 +33,7 @@ export const adminNav: NavItem[] = [
   { href: "/cadastros/telegram", label: "Vincular Telegram", icon: Send },
   { href: "/importar", label: "Importar Planilha/CSV", icon: Upload },
   { href: "/importar/elleven", label: "Importar do elleven", icon: Upload },
+  { href: "/importar/chip", label: "Vendas de Chip (Móvel)", icon: Smartphone },
   { href: "/fechamento", label: "Fechamento Mensal", icon: Lock },
   { href: "/relatorios", label: "Relatórios", icon: BarChart3 },
 ];
