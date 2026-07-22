@@ -12,9 +12,26 @@ import {
 export type { LinhaChipMovel };
 
 // Dados da tela de conferência (/importar/chip) — snapshot já sincronizado.
-export async function previsualizarChipMovel(periodo: string) {
+// Retorna o erro real como dado (não lança): em produção o Next redige a
+// mensagem de exceções de server action, mascarando a causa — devolvendo
+// { ok:false, error } a tela consegue mostrar o motivo verdadeiro.
+export async function previsualizarChipMovel(periodo: string): Promise<
+  | {
+      ok: true;
+      linhas: LinhaChipMovel[];
+      totalVendas: number;
+      ultimaSync: Date | null;
+    }
+  | { ok: false; error: string }
+> {
   await requireAdmin();
-  return previewChipMovel(periodo);
+  try {
+    const r = await previewChipMovel(periodo);
+    return { ok: true, ...r };
+  } catch (e) {
+    console.error("[chip] previsualizarChipMovel falhou:", e);
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
 }
 
 // Botão "Sincronizar agora": mesma rotina do cron diário, sob demanda.

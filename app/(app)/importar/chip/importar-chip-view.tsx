@@ -30,15 +30,23 @@ export function ImportarChipView({ periodoInicial }: { periodoInicial: string })
   const [linhas, setLinhas] = useState<LinhaChipMovel[] | null>(null);
   const [totalVendas, setTotalVendas] = useState(0);
   const [ultimaSync, setUltimaSync] = useState<Date | null>(null);
+  const [erroCarregar, setErroCarregar] = useState<string | null>(null);
 
   const carregar = useCallback(async () => {
     setCarregando(true);
     try {
       const r = await previsualizarChipMovel(periodo);
+      if (!r.ok) {
+        setErroCarregar(r.error);
+        toast.error("Erro ao carregar as vendas de chip.");
+        return;
+      }
+      setErroCarregar(null);
       setLinhas(r.linhas);
       setTotalVendas(r.totalVendas);
       setUltimaSync(r.ultimaSync ? new Date(r.ultimaSync) : null);
-    } catch {
+    } catch (e) {
+      setErroCarregar(e instanceof Error ? e.message : String(e));
       toast.error("Erro ao carregar as vendas de chip.");
     } finally {
       setCarregando(false);
@@ -105,6 +113,16 @@ export function ImportarChipView({ periodoInicial }: { periodoInicial: string })
           </p>
         </CardContent>
       </Card>
+
+      {erroCarregar && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            Não foi possível carregar as vendas de chip. Detalhe do erro:{" "}
+            <span className="font-mono break-all">{erroCarregar}</span>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {naoMapeados.length > 0 && (
         <Alert variant="destructive">
