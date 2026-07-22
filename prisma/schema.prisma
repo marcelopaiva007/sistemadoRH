@@ -13,10 +13,15 @@ datasource db {
 // Enums are kept as plain String columns (not Prisma `enum`) so the schema
 // works unchanged on both SQLite (local dev) and Postgres (production),
 // since SQLite does not support native enums.
-// Role: "ADMIN" | "DIRETORIA"
+// Role: "ADMIN" | "DIRETORIA" | "RH_MANAGER" | "GESTOR_SETOR"
 // Cargo: "VENDEDOR_EXTERNO" | "ATENDIMENTO_ADM" | "SUPERVISOR" | "OUTRO_SETOR"
 // Origem: "MANUAL" | "IMPORTADO"
 // StatusFechamento: "ABERTO" | "FECHADO"
+// StatusPesquisa: "DRAFT" | "ACTIVE" | "FINISHED" | "ARCHIVED"
+// TipoPergunta: "LIKERT_5" | "NPS_10" | "MULTIPLE_CHOICE" | "TEXT"
+// DimensaoGPTW: "CREDIBILIDADE" | "RESPEITO" | "IMPARCIALIDADE" | "ORGULHO" | "CAMARADAGEM" | "GERAL"
+// CanalToken: "TELEGRAM" | "LINK_PUBLICO"
+// StatusToken: "PENDING" | "SENT" | "DELIVERED" | "FAILED" | "RESPONDED"
 
 model User {
   id           String   @id @default(cuid())
@@ -26,8 +31,16 @@ model User {
   role         String
   createdAt    DateTime @default(now())
 
+  // Escopo do módulo de RH: preenchido apenas para RH_MANAGER (empresaId) e
+  // GESTOR_SETOR (empresaId + setorId). ADMIN/DIRETORIA ficam nulos.
+  empresaId String?
+  empresa   Empresa? @relation(fields: [empresaId], references: [id], onDelete: SetNull)
+  setorId   String?
+  setor     Setor?   @relation(fields: [setorId], references: [id], onDelete: SetNull)
+
   fechamentosFechados FechamentoMensal[] @relation("FechadoPor")
   importLotes         ImportLote[]
+  pesquisasCriadas    Pesquisa[]
 }
 
 model Cidade {
@@ -48,14 +61,13 @@ model Equipe {
 }
 
 model Funcionario {
-  id             String  @id @default(cuid())
-  nome           String
-  cpf            String? @unique
-  // Contato para as cobranças de meta (Telegram/e-mail).
-  email          String?
+  id        String   @id @default(cuid())
+  nome      String
+  cpf       String?  @unique
+  email     String?
   telegramChatId String?
-  cargo          String
-  cidadeId       String?
+  cargo     String
+  cidadeId  String?
   cidade    Cidade?  @relation(fields: [cidadeId], references: [id])
   equipeId  String?
   equipe    Equipe?  @relation("MembroDaEquipe", fields: [equipeId], references: [id])
@@ -204,46 +216,206 @@ model ContratoAtivacaoElleven {
   @@map("contrato_ativacao_elleven")
 }
 
-// Vendas de chip sincronizadas do sistema de telefonia móvel (L&M Movel,
-// https://movel.assinelm.com — API REST própria, ver api/cron/sync-chip).
-// Snapshot mensal: cada rodada apaga o período e regrava o que a API retornou.
-// `vendaId` é o id da venda no L&M Movel (idempotência entre rodadas).
-model VendaChipMovel {
-  id            Int      @id @default(autoincrement())
-  vendaId       Int      @unique
-  periodo       String // YYYY-MM (mês consultado na API)
-  sellerIdMovel Int?
-  sellerNome    String?
-  sellerCpf     String?
-  clienteNome   String?
-  clienteCpf    String?
-  msisdn        String?
-  iccid         String?
-  planoNome     String?
-  planoPreco    String?
-  status        String?
-  soldAt        String?
-  activatedAt   String?
-  cancelledAt   String?
-  syncedAt      DateTime @default(now()) @updatedAt
-
-  @@index([periodo])
-  @@map("venda_chip_movel")
-}
-
-// Armazenamento genérico das linhas dos demais relatórios de venda do elleven
-// (Vendedores - Comercial, Funil de Vendas, Faturamento por Vendedor, Títulos
-// Recebidos por Vendedor, Pedidos de Venda). Cada linha do CSV vira um registro
-// com o CSV completo em `dados` (JSONB). Snapshot mensal por relatório+período.
-model EllevenRelatorioLinha {
+// Linhas genéricas de relatórios do elleven (sync-elleven), armazenadas como
+// JSON por relatório/período/chave — usado pelos relatórios além de
+// "Ativação Contratos" (que tem seu próprio modelo tipado acima).
+model ElevenRelatorioLinha {
   id        Int      @id @default(autoincrement())
-  relatorio String // slug do relatório (ex.: "vendedores-comercial")
-  periodo   String // YYYY-MM do sync
-  chave     String // valor da 1ª coluna do CSV (ou "linha-N" quando vazia)
-  dados     Json // linha completa do CSV
-  syncedAt  DateTime @default(now()) @updatedAt
+  relatorio String
+  periodo   String
+  chave     String
+  dados     Json
+  syncedAt  DateTime @default(now())
 
   @@unique([relatorio, periodo, chave])
   @@index([relatorio, periodo])
   @@map("elleven_relatorio_linha")
+}
+
+// ------------------------------------------------------
+// MÓDULO DE RH — CLIMA ORGANIZACIONAL (multi-empresa)
+// ------------------------------------------------------
+// Totalmente aditivo e isolado do motor de bonificação de vendas acima:
+// nenhuma relação com Funcionario/Equipe/Cidade. Cada empresa (LM Telecom,
+// Centrysol, VAPT, ...) tem seus próprios Setor/Posicao/Colaborador/Pesquisa,
+// sempre filtrados por empresaId nas queries e nas server actions.
+
+model Empresa {
+  id        String   @id @default(cuid())
+  nome      String   @unique
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  usuarios      User[]
+  setores       Setor[]
+  posicoes      Posicao[]
+  colaboradores Colaborador[]
+  pesquisas     Pesquisa[]
+}
+
+model Setor {
+  id        String   @id @default(cuid())
+  empresaId String
+  empresa   Empresa  @relation(fields: [empresaId], references: [id])
+  nome      String
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  usuarios      User[]
+  colaboradores Colaborador[]
+
+  @@unique([empresaId, nome])
+  @@index([empresaId])
+}
+
+model Posicao {
+  id        String   @id @default(cuid())
+  empresaId String
+  empresa   Empresa  @relation(fields: [empresaId], references: [id])
+  nome      String
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  colaboradores Colaborador[]
+
+  @@unique([empresaId, nome])
+  @@index([empresaId])
+}
+
+model Colaborador {
+  id             String   @id @default(cuid())
+  empresaId      String
+  empresa        Empresa  @relation(fields: [empresaId], references: [id])
+  nome           String
+  cpf            String?
+  email          String?
+  setorId        String
+  setor          Setor    @relation(fields: [setorId], references: [id])
+  posicaoId      String
+  posicao        Posicao  @relation(fields: [posicaoId], references: [id])
+  // Chat ID numérico do Telegram do colaborador, obtido manualmente (RH pede
+  // pro colaborador dar /start no bot e lê o chat_id via Bot API getUpdates).
+  // Sem isso, o convite da pesquisa não pode ser enviado automaticamente.
+  telegramChatId String?
+  ativo          Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  tokens SurveyToken[]
+  respostas Resposta[]
+
+  @@unique([empresaId, cpf])
+  @@unique([telegramChatId])
+  @@index([empresaId])
+  @@index([setorId])
+  @@index([posicaoId])
+}
+
+model Pesquisa {
+  id          String    @id @default(cuid())
+  empresaId   String
+  empresa     Empresa   @relation(fields: [empresaId], references: [id])
+  titulo      String
+  descricao   String?
+  // Regra de Ouro do Anonimato: quando true, Resposta nunca grava colaboradorId.
+  anonima     Boolean   @default(true)
+  status      String    @default("DRAFT")
+  criadoPorId String?
+  criadoPor   User?     @relation(fields: [criadoPorId], references: [id])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  iniciadaEm  DateTime?
+  encerradaEm DateTime?
+
+  perguntas Pergunta[]
+  tokens    SurveyToken[]
+  respostas Resposta[]
+
+  @@index([empresaId, status])
+}
+
+model Pergunta {
+  id           String   @id @default(cuid())
+  pesquisaId   String
+  pesquisa     Pesquisa @relation(fields: [pesquisaId], references: [id], onDelete: Cascade)
+  ordem        Int
+  enunciado    String
+  tipo         String   @default("LIKERT_5")
+  dimensaoGPTW String?
+  obrigatoria  Boolean  @default(true)
+
+  opcoes  Opcao[]
+  itens   RespostaItem[]
+
+  @@unique([pesquisaId, ordem])
+  @@index([pesquisaId])
+}
+
+model Opcao {
+  id         String   @id @default(cuid())
+  perguntaId String
+  pergunta   Pergunta @relation(fields: [perguntaId], references: [id], onDelete: Cascade)
+  ordem      Int
+  texto      String
+
+  itens RespostaItem[]
+
+  @@index([perguntaId])
+}
+
+model SurveyToken {
+  id            String    @id @default(cuid())
+  pesquisaId    String
+  pesquisa      Pesquisa    @relation(fields: [pesquisaId], references: [id], onDelete: Cascade)
+  colaboradorId String
+  colaborador   Colaborador @relation(fields: [colaboradorId], references: [id])
+  // Gerado com crypto.randomBytes(24).toString("base64url") — imprevisível,
+  // não apenas único, já que é a única "autenticação" da rota pública /responder.
+  token         String    @unique
+  canal         String    @default("TELEGRAM")
+  status        String    @default("PENDING")
+  enviadoEm     DateTime?
+  respondidoEm  DateTime?
+  erro          String?
+  createdAt     DateTime  @default(now())
+
+  @@unique([pesquisaId, colaboradorId])
+  @@index([status])
+}
+
+// Nota: quando Pesquisa.anonima = true, Resposta NUNCA grava colaboradorId —
+// só um snapshot de setor/posição no momento do envio, para o RH filtrar
+// agregados sem identificar quem respondeu. Deliberadamente não há relação
+// com SurveyToken aqui: saber "que alguém respondeu" (no token) é mantido
+// separado de "o que essa pessoa respondeu" (aqui). Consultas de agregados
+// por GESTOR_SETOR devem exigir amostra mínima de 3 respostas por
+// (setor × pesquisa) antes de exibir qualquer número.
+model Resposta {
+  id                  String   @id @default(uuid())
+  pesquisaId          String
+  pesquisa            Pesquisa     @relation(fields: [pesquisaId], references: [id], onDelete: Cascade)
+  colaboradorId       String?
+  colaborador         Colaborador? @relation(fields: [colaboradorId], references: [id])
+  setorNomeSnapshot   String
+  posicaoNomeSnapshot String
+  createdAt           DateTime     @default(now())
+
+  itens RespostaItem[]
+
+  @@index([pesquisaId])
+}
+
+model RespostaItem {
+  id            String    @id @default(uuid())
+  respostaId    String
+  resposta      Resposta  @relation(fields: [respostaId], references: [id], onDelete: Cascade)
+  perguntaId    String
+  pergunta      Pergunta  @relation(fields: [perguntaId], references: [id])
+  valorNumerico Int?
+  valorTexto    String?
+  opcaoId       String?
+  opcao         Opcao?    @relation(fields: [opcaoId], references: [id])
+
+  @@index([respostaId])
+  @@index([perguntaId])
 }

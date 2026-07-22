@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { requireUser } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
@@ -11,6 +12,11 @@ export default async function HomePage({
   searchParams: Promise<{ periodo?: string }>;
 }) {
   const user = await requireUser();
+  // RH_MANAGER/GESTOR_SETOR não têm acesso ao dashboard de vendas — o login
+  // não distingue papel, então o redirect precisa acontecer aqui, antes de
+  // qualquer query do motor de bonificação.
+  if (user.role === "RH_MANAGER") redirect("/rh");
+  if (user.role === "GESTOR_SETOR") redirect("/rh/meu-setor");
   const params = await searchParams;
 
   const fechamentos = await prisma.fechamentoMensal.findMany({

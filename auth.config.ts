@@ -18,9 +18,18 @@ export const authConfig = {
     },
     jwt({ token, user }) {
       if (user) {
-        token.id = user.id as string;
-        token.role = (user as { role: string }).role;
-        token.username = (user as { username: string }).username;
+        const u = user as {
+          id: string;
+          role: string;
+          username: string;
+          empresaId: string | null;
+          setorId: string | null;
+        };
+        token.id = u.id;
+        token.role = u.role;
+        token.username = u.username;
+        token.empresaId = u.empresaId;
+        token.setorId = u.setorId;
       }
       return token;
     },
@@ -29,6 +38,8 @@ export const authConfig = {
         session.user.id = token.id as string;
         session.user.role = token.role as string;
         session.user.username = token.username as string;
+        session.user.empresaId = token.empresaId as string | null;
+        session.user.setorId = token.setorId as string | null;
       }
       return session;
     },

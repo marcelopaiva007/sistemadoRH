@@ -6,7 +6,15 @@ import { signOut } from "next-auth/react";
 import { LogOut, KeyRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { adminNav, diretoriaNav } from "@/components/nav-config";
+import { navByRole, diretoriaNav } from "@/components/nav-config";
+import { Logo } from "@/components/logo";
+
+const ROLE_LABELS: Record<string, string> = {
+  ADMIN: "Administrativo/Financeiro",
+  DIRETORIA: "Diretoria/Gestão",
+  RH_MANAGER: "RH",
+  GESTOR_SETOR: "Gestor de Setor",
+};
 
 export function AppSidebar({
   role,
@@ -16,13 +24,13 @@ export function AppSidebar({
   nome: string;
 }) {
   const pathname = usePathname();
-  const items = role === "ADMIN" ? adminNav : diretoriaNav;
+  const items = navByRole[role] ?? diretoriaNav;
 
   return (
     <aside className="flex h-screen w-64 shrink-0 flex-col border-r bg-background">
       <div className="border-b px-4 py-4">
-        <p className="text-sm font-semibold leading-tight">LM Telecom</p>
-        <p className="text-xs text-muted-foreground">Bonificação de Vendas</p>
+        <Logo width={180} height={44} className="h-9 w-auto" />
+        <p className="mt-1 text-xs text-muted-foreground">Bonificação de Vendas</p>
       </div>
 
       <nav className="flex-1 space-y-1 overflow-y-auto p-2">
@@ -59,7 +67,7 @@ export function AppSidebar({
           <div>
             <p className="text-sm font-medium leading-tight">{nome}</p>
             <p className="text-xs text-muted-foreground">
-              {role === "ADMIN" ? "Administrativo/Financeiro" : "Diretoria/Gestão"}
+              {ROLE_LABELS[role] ?? "Diretoria/Gestão"}
             </p>
           </div>
           <KeyRound className="size-4 text-muted-foreground" />
