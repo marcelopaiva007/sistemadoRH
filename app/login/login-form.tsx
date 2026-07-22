@@ -8,8 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { LM3DLogo } from "@/components/lm-3d-logo";
 
-const LMLogo = () => (
+const LMLogoFallback = () => (
   <svg className="w-16 h-16 mx-auto mb-6" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
     <defs>
       <linearGradient id="lmGradient" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -87,7 +88,7 @@ export function LoginForm() {
       <CardContent className="pt-6">
         <div className="space-y-6">
           <div className="text-center">
-            <LMLogo />
+            <LM3DLogo />
             <h1 className="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
               LM Telecom
             </h1>
