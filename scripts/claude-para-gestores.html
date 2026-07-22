@@ -1,0 +1,1013 @@
+<title>Claude para Gestores — L&amp;M Telecom</title>
+<style>
+  :root {
+    --bg: #EDEBE4;
+    --surface: #FBFAF6;
+    --surface-2: #F4F2EA;
+    --ink: #23262A;
+    --muted: #6C7075;
+    --line: #DAD6CC;
+    --line-strong: #C7C2B5;
+    --accent: #1F6E67;
+    --accent-ink: #164e49;
+    --accent-soft: #DDE9E7;
+    --tip: #A9631A;
+    --tip-soft: #F3E7D5;
+
+    --d-fin: #2F7D54;   --d-fin-soft: #DEEBE2;
+    --d-rh:  #A24E86;   --d-rh-soft:  #F0E1EC;
+    --d-adm: #3D6BA8;   --d-adm-soft: #E0E7F1;
+    --d-est: #A9741F;   --d-est-soft: #F1E7D4;
+    --d-mkt: #BE5450;   --d-mkt-soft: #F3E1E0;
+    --d-srv: #1C8A9A;   --d-srv-soft: #DAECEE;
+
+    --serif: Georgia, 'Times New Roman', Cambria, serif;
+    --sans: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, 'SF Mono', 'SFMono-Regular', Menlo, Consolas, monospace;
+
+    --maxw: 940px;
+    --radius: 14px;
+    --shadow: 0 1px 2px rgba(20,20,20,.04), 0 8px 24px -12px rgba(20,20,20,.14);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #15171A; --surface: #1E2126; --surface-2: #23272C;
+      --ink: #E9E7E0; --muted: #9BA0A5; --line: #2D3237; --line-strong: #3A4046;
+      --accent: #58BAB0; --accent-ink: #7fcfc6; --accent-soft: #1C302E;
+      --tip: #D8A455; --tip-soft: #33291A;
+      --d-fin: #63C08A; --d-fin-soft: #1B2E24;
+      --d-rh: #D486BC; --d-rh-soft: #2E2029;
+      --d-adm: #7CA8E2; --d-adm-soft: #1E2632;
+      --d-est: #DBA751; --d-est-soft: #2E2718;
+      --d-mkt: #E58C88; --d-mkt-soft: #301F1E;
+      --d-srv: #57C3D3; --d-srv-soft: #16302F;
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #EDEBE4; --surface: #FBFAF6; --surface-2: #F4F2EA;
+    --ink: #23262A; --muted: #6C7075; --line: #DAD6CC; --line-strong: #C7C2B5;
+    --accent: #1F6E67; --accent-ink: #164e49; --accent-soft: #DDE9E7;
+    --tip: #A9631A; --tip-soft: #F3E7D5;
+    --d-fin: #2F7D54; --d-fin-soft: #DEEBE2;
+    --d-rh: #A24E86; --d-rh-soft: #F0E1EC;
+    --d-adm: #3D6BA8; --d-adm-soft: #E0E7F1;
+    --d-est: #A9741F; --d-est-soft: #F1E7D4;
+    --d-mkt: #BE5450; --d-mkt-soft: #F3E1E0;
+    --d-srv: #1C8A9A; --d-srv-soft: #DAECEE;
+  }
+  :root[data-theme="dark"] {
+    --bg: #15171A; --surface: #1E2126; --surface-2: #23272C;
+    --ink: #E9E7E0; --muted: #9BA0A5; --line: #2D3237; --line-strong: #3A4046;
+    --accent: #58BAB0; --accent-ink: #7fcfc6; --accent-soft: #1C302E;
+    --tip: #D8A455; --tip-soft: #33291A;
+    --d-fin: #63C08A; --d-fin-soft: #1B2E24;
+    --d-rh: #D486BC; --d-rh-soft: #2E2029;
+    --d-adm: #7CA8E2; --d-adm-soft: #1E2632;
+    --d-est: #DBA751; --d-est-soft: #2E2718;
+    --d-mkt: #E58C88; --d-mkt-soft: #301F1E;
+    --d-srv: #57C3D3; --d-srv-soft: #16302F;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  body { margin: 0; }
+
+  .page { background: var(--bg); color: var(--ink); font-family: var(--sans); font-size: 17px; line-height: 1.65; -webkit-font-smoothing: antialiased; padding: 0 20px 100px; }
+  .wrap { max-width: var(--maxw); margin: 0 auto; }
+
+  .hero { padding: 76px 0 40px; }
+  .brandline { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 0 0 22px; }
+  .brandmark { font-family: var(--serif); font-weight: 700; font-size: 15px; letter-spacing: .02em; color: var(--ink); border: 1.5px solid var(--accent); border-radius: 8px; padding: 4px 10px; line-height: 1; }
+  .brandmark span { color: var(--accent); }
+  .eyebrow { font-size: 12.5px; font-weight: 650; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); margin: 0; }
+  h1 { font-family: var(--serif); font-weight: 700; font-size: clamp(38px, 6.4vw, 62px); line-height: 1.02; letter-spacing: -0.015em; text-wrap: balance; margin: 0 0 22px; }
+  h1 em { font-style: italic; color: var(--accent); }
+  .lede { font-size: clamp(18px, 2.4vw, 21px); color: var(--muted); max-width: 60ch; margin: 0 0 30px; }
+  .meta-row { display: flex; flex-wrap: wrap; gap: 10px 26px; padding-top: 26px; border-top: 1px solid var(--line); font-size: 14.5px; color: var(--muted); }
+  .meta-row b { color: var(--ink); font-weight: 650; }
+
+  .navbar { position: sticky; top: 0; z-index: 50; background: color-mix(in srgb, var(--bg) 86%, transparent); backdrop-filter: saturate(1.4) blur(10px); border-bottom: 1px solid var(--line); margin: 26px 0 0; }
+  .navbar .wrap { display: flex; gap: 8px; overflow-x: auto; padding: 11px 0; scrollbar-width: none; }
+  .navbar .wrap::-webkit-scrollbar { display: none; }
+  .navpill { flex: 0 0 auto; font-size: 13.5px; font-weight: 600; color: var(--muted); text-decoration: none; padding: 6px 13px; border-radius: 999px; border: 1px solid transparent; white-space: nowrap; transition: color .15s, background .15s, border-color .15s; }
+  .navpill:hover { color: var(--ink); background: var(--surface-2); }
+  .navpill .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 7px; vertical-align: middle; background: var(--pc, var(--accent)); }
+
+  section { padding: 56px 0 0; scroll-margin-top: 64px; }
+  .kicker { font-size: 12.5px; font-weight: 650; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 0 0 14px; }
+  h2 { font-family: var(--serif); font-weight: 700; font-size: clamp(27px, 4vw, 37px); line-height: 1.1; letter-spacing: -0.01em; text-wrap: balance; margin: 0 0 16px; }
+  h2 .num { font-family: var(--mono); font-size: .5em; font-weight: 500; color: var(--accent); vertical-align: super; margin-right: 12px; letter-spacing: 0; }
+  .section-intro { font-size: 18px; color: var(--muted); max-width: 62ch; margin: 0 0 30px; }
+  p { margin: 0 0 16px; }
+  p a { color: var(--accent-ink); }
+
+  .plain { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 30px 32px; box-shadow: var(--shadow); }
+  .plain p:last-child { margin-bottom: 0; }
+  .analogy { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-top: 26px; }
+  .analogy .a { background: var(--surface-2); border: 1px solid var(--line); border-radius: 11px; padding: 16px 16px 18px; }
+  .analogy .a .t { font-family: var(--mono); font-size: 12px; color: var(--accent); letter-spacing: .04em; text-transform: uppercase; }
+  .analogy .a .d { font-size: 15px; margin-top: 6px; }
+  .analogy .a b { color: var(--ink); }
+
+  .tools { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .tool { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 24px 22px 26px; display: flex; flex-direction: column; box-shadow: var(--shadow); position: relative; overflow: hidden; }
+  .tool::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 4px; background: var(--accent); }
+  .tool .badge { font-family: var(--mono); font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  .tool h3 { font-family: var(--serif); font-size: 24px; font-weight: 700; margin: 8px 0 4px; letter-spacing: -.01em; }
+  .tool .tagline { font-size: 14.5px; color: var(--muted); font-style: italic; margin-bottom: 16px; }
+  .tool .what { font-size: 15px; margin-bottom: 18px; }
+  .tool .when { margin-top: auto; border-top: 1px dashed var(--line-strong); padding-top: 14px; font-size: 13.5px; color: var(--muted); }
+  .tool .when b { color: var(--ink); font-weight: 650; display: block; margin-bottom: 4px; font-size: 12px; letter-spacing: .05em; text-transform: uppercase; }
+
+  .rules { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  .rule { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px; display: flex; gap: 16px; align-items: flex-start; }
+  .rule .n { font-family: var(--serif); font-size: 30px; font-weight: 700; color: var(--accent); line-height: 1; flex: 0 0 auto; width: 34px; }
+  .rule h4 { margin: 2px 0 5px; font-size: 16.5px; }
+  .rule p { margin: 0; font-size: 14.5px; color: var(--muted); }
+  .rule code { font-family: var(--mono); font-size: 13px; background: var(--surface-2); padding: 1px 5px; border-radius: 5px; color: var(--ink); }
+
+  .dept { scroll-margin-top: 64px; padding-top: 60px; }
+  .dept-head { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; padding-bottom: 8px; border-bottom: 2px solid var(--pc); margin-bottom: 4px; }
+  .dept-head .tag { font-family: var(--mono); font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--pc); }
+  .dept h2 { margin: 14px 0 10px; }
+  .dept h2 span { color: var(--pc); }
+  .dept .section-intro { margin-bottom: 24px; }
+
+  .cases { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  .case { background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--pc); border-radius: 12px; padding: 20px 22px; box-shadow: var(--shadow); }
+  .case h4 { margin: 0 0 12px; font-size: 17px; font-family: var(--sans); font-weight: 680; }
+  .flow { display: flex; flex-direction: column; gap: 9px; font-size: 14.5px; }
+  .flow .step { display: flex; gap: 10px; }
+  .flow .step .lab { flex: 0 0 62px; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); padding-top: 2px; }
+  .flow .step.win .lab { color: var(--pc); }
+  .flow .step .txt { flex: 1; }
+  .case .usetool { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line-strong); font-size: 12.5px; color: var(--muted); }
+  .case .usetool .chip { display: inline-block; font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: .04em; padding: 2px 8px; border-radius: 999px; background: var(--dept-soft); color: var(--pc); border: 1px solid color-mix(in srgb, var(--pc) 30%, transparent); }
+
+  .prompt { grid-column: 1 / -1; background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; position: relative; }
+  .prompt .plabel { font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--pc); font-weight: 600; display: flex; align-items: center; gap: 7px; margin-bottom: 9px; }
+  .prompt .plabel::before { content: "▍"; }
+  .prompt .ptext { font-family: var(--mono); font-size: 13.5px; line-height: 1.6; color: var(--ink); white-space: pre-wrap; margin: 0; }
+  .prompt .ptext .fill { color: var(--pc); }
+
+  .care { background: var(--tip-soft); border: 1px solid color-mix(in srgb, var(--tip) 35%, transparent); border-radius: var(--radius); padding: 26px 30px; }
+  .care h2 { color: var(--tip); }
+  .care ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 12px; }
+  .care li { display: flex; gap: 12px; font-size: 15.5px; }
+  .care li .mk { color: var(--tip); font-weight: 700; flex: 0 0 auto; }
+  .care li b { font-weight: 680; }
+
+  .start .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+  .start .s { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 22px; box-shadow: var(--shadow); }
+  .start .s .n { font-family: var(--mono); font-size: 12px; color: var(--accent); font-weight: 600; letter-spacing: .08em; }
+  .start .s h4 { margin: 8px 0 6px; font-size: 17px; }
+  .start .s p { margin: 0; font-size: 14.5px; color: var(--muted); }
+  .challenge { background: var(--accent); border-radius: var(--radius); padding: 28px 32px; color: #fff; }
+  @media (prefers-color-scheme: dark) { .challenge { color: #0c1413; } }
+  :root[data-theme="dark"] .challenge { color: #0c1413; }
+  :root[data-theme="light"] .challenge { color: #fff; }
+  .challenge .k { font-family: var(--mono); font-size: 12px; letter-spacing: .1em; text-transform: uppercase; opacity: .8; }
+  .challenge h3 { font-family: var(--serif); font-size: 25px; margin: 10px 0 8px; font-weight: 700; }
+  .challenge p { margin: 0; opacity: .92; font-size: 16px; max-width: 56ch; }
+
+  footer { margin-top: 64px; padding-top: 26px; border-top: 1px solid var(--line); font-size: 14px; color: var(--muted); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+  footer b { color: var(--ink); }
+
+  /* ---------- Telas do Claude (mockups) ---------- */
+  .gallery { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 10px; }
+  .screen { background: var(--surface); border: 1px solid var(--line-strong); border-radius: 13px; overflow: hidden; box-shadow: var(--shadow); display: flex; flex-direction: column; }
+  .screen-bar { display: flex; align-items: center; gap: 10px; padding: 9px 13px; background: var(--surface-2); border-bottom: 1px solid var(--line); }
+  .screen-bar .dots { display: inline-flex; gap: 5px; flex: 0 0 auto; }
+  .screen-bar .dots i { width: 9px; height: 9px; border-radius: 50%; background: var(--line-strong); }
+  .screen-bar .st { font-family: var(--mono); font-size: 11.5px; color: var(--muted); letter-spacing: .02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .screen-bar .st b { color: var(--ink); font-weight: 650; }
+  .screen-bar .tchip { margin-left: auto; flex: 0 0 auto; font-family: var(--mono); font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--pc, var(--accent)); background: var(--dept-soft, var(--accent-soft)); border: 1px solid color-mix(in srgb, var(--pc, var(--accent)) 32%, transparent); border-radius: 999px; padding: 2px 9px; }
+  .screen-body { padding: 15px 15px 17px; display: flex; flex-direction: column; gap: 13px; flex: 1; }
+  .msg { display: flex; gap: 9px; align-items: flex-start; }
+  .msg.user { justify-content: flex-end; }
+  .msg.user .bub { background: var(--surface-2); border: 1px solid var(--line); border-radius: 13px 13px 4px 13px; max-width: 90%; }
+  .msg.ai .bub { max-width: 100%; }
+  .bub { font-size: 13.5px; line-height: 1.55; padding: 10px 13px; color: var(--ink); }
+  .ava { flex: 0 0 auto; width: 27px; height: 27px; border-radius: 8px; background: var(--pc, var(--accent)); display: flex; align-items: center; justify-content: center; margin-top: 1px; }
+  .ava svg { width: 15px; height: 15px; display: block; }
+  .attach { display: inline-flex; align-items: center; gap: 6px; margin-top: 9px; font-family: var(--mono); font-size: 11px; color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-radius: 7px; padding: 3px 9px; }
+  .bub p { margin: 0 0 7px; }
+  .bub p:last-child { margin-bottom: 0; }
+  .mini { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 12px; font-variant-numeric: tabular-nums; }
+  .mini th { text-align: left; font-weight: 600; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .04em; padding: 3px 7px; border-bottom: 1px solid var(--line-strong); }
+  .mini td { padding: 5px 7px; border-bottom: 1px solid var(--line); }
+  .mini td.num { text-align: right; }
+  .mini tr:last-child td { border-bottom: none; }
+  .mini tr.flag td { color: var(--d-mkt); font-weight: 600; }
+  .mini tr.best td { color: var(--accent-ink); font-weight: 650; background: var(--accent-soft); }
+  .checks { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 8px; font-size: 13px; }
+  .checks li { display: flex; gap: 9px; align-items: flex-start; line-height: 1.45; }
+  .checks .ic { flex: 0 0 auto; font-weight: 700; }
+  .checks .ic.ok { color: var(--pc, var(--accent)); }
+  .checks .ic.run { color: var(--tip); }
+  .checks .ic.wait { color: var(--muted); }
+  .connects { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+  .connects span { font-family: var(--mono); font-size: 10.5px; color: var(--muted); background: var(--surface-2); border: 1px solid var(--line); border-radius: 6px; padding: 2px 7px; }
+  .codeblk { font-family: var(--mono); font-size: 12px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 11px 13px; color: var(--ink); white-space: pre-wrap; line-height: 1.6; margin: 2px 0 0; overflow-x: auto; }
+  .codeblk .cm { color: var(--muted); }
+  .codeblk .ac { color: var(--accent-ink); }
+  .bars { display: grid; gap: 8px; margin: 9px 0 2px; }
+  .bars .row { display: grid; grid-template-columns: 118px 1fr 34px; gap: 9px; align-items: center; font-size: 12px; }
+  .bars .row .track { height: 10px; border-radius: 5px; background: var(--surface-2); overflow: hidden; }
+  .bars .row .fill { height: 100%; border-radius: 5px; background: var(--pc, var(--accent)); }
+  .bars .row .pct { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .done { color: var(--accent-ink); font-weight: 650; }
+  .screen-cap { font-size: 12.5px; color: var(--muted); padding: 10px 14px; border-top: 1px solid var(--line); background: var(--surface-2); }
+  .screen-cap b { color: var(--ink); font-weight: 650; }
+  .screen.wide { grid-column: 1 / -1; margin: 4px 0 2px; }
+
+  /* ---------- Tela do navegador (Chrome) ---------- */
+  .chrome { background: var(--surface); border: 1px solid var(--line-strong); border-radius: 13px; overflow: hidden; box-shadow: var(--shadow); margin-top: 8px; }
+  .chrome-top { background: var(--surface-2); border-bottom: 1px solid var(--line); padding: 9px 12px 0; }
+  .chrome-tabs { display: flex; align-items: center; gap: 8px; }
+  .chrome-tabs .dots { display: inline-flex; gap: 5px; margin-right: 4px; flex: 0 0 auto; }
+  .chrome-tabs .dots i { width: 9px; height: 9px; border-radius: 50%; background: var(--line-strong); }
+  .ctab { display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--line); border-bottom: none; border-radius: 9px 9px 0 0; padding: 7px 13px; font-size: 12.5px; color: var(--ink); font-weight: 600; white-space: nowrap; }
+  .ctab .fav { width: 15px; height: 15px; border-radius: 4px; background: var(--accent); display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+  .ctab .fav svg { width: 10px; height: 10px; display: block; }
+  .ctab-new { color: var(--muted); font-size: 17px; line-height: 1; padding: 0 5px; }
+  .chrome-omni { display: flex; align-items: center; gap: 12px; padding: 9px 12px; }
+  .chrome-omni .ico { color: var(--muted); font-size: 15px; letter-spacing: 2px; flex: 0 0 auto; }
+  .omnibar { flex: 1; min-width: 0; display: flex; align-items: center; gap: 9px; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 7px 15px; font-size: 13px; }
+  .omnibar .lock { color: var(--accent); flex: 0 0 auto; }
+  .omnibar .url { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .omnibar .url b { color: var(--ink); font-weight: 650; }
+  .omnibar .url .sub { color: var(--muted); }
+  .pin { display: inline-flex; width: 19px; height: 19px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 11px; font-weight: 700; align-items: center; justify-content: center; flex: 0 0 auto; font-family: var(--sans); vertical-align: middle; }
+  @media (prefers-color-scheme: dark) { .pin, .app-side .newchat, .app-send { color: #0c1413; } }
+  :root[data-theme="dark"] .pin, :root[data-theme="dark"] .app-side .newchat, :root[data-theme="dark"] .app-send { color: #0c1413; }
+  :root[data-theme="light"] .pin, :root[data-theme="light"] .app-side .newchat, :root[data-theme="light"] .app-send { color: #fff; }
+  .claudeapp { display: grid; grid-template-columns: 200px 1fr; min-height: 320px; }
+  .app-side { background: var(--surface-2); border-right: 1px solid var(--line); padding: 16px 14px; display: flex; flex-direction: column; gap: 16px; }
+  .app-side .newchat { display: inline-flex; align-items: center; gap: 8px; background: var(--accent); border-radius: 9px; padding: 9px 12px; font-size: 13px; font-weight: 650; align-self: flex-start; }
+  .app-side .hlabel { font-size: 10px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); font-weight: 650; }
+  .app-side .hist { display: grid; gap: 10px; }
+  .app-side .hist .h { font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .app-main { padding: 40px 30px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; }
+  .app-greet { font-family: var(--serif); font-size: clamp(21px, 3.4vw, 27px); color: var(--ink); text-align: center; margin: 0; }
+  .app-greet span { color: var(--accent); font-style: italic; }
+  .app-input { width: 100%; max-width: 540px; background: var(--surface); border: 1px solid var(--line-strong); border-radius: 15px; padding: 15px 16px 12px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 14px; }
+  .app-input .ph { color: var(--muted); font-size: 15px; }
+  .app-input .irow { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 15px; }
+  .app-input .irow .mdl { font-size: 12.5px; font-family: var(--mono); }
+  .app-send { margin-left: auto; width: 31px; height: 31px; border-radius: 9px; background: var(--accent); display: inline-flex; align-items: center; justify-content: center; font-size: 15px; flex: 0 0 auto; }
+  .pinlegend { list-style: none; margin: 18px 0 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 12px 26px; }
+  .pinlegend li { display: flex; gap: 11px; align-items: flex-start; font-size: 14.5px; line-height: 1.5; color: var(--muted); }
+  .pinlegend li b { color: var(--ink); font-weight: 650; }
+
+  @media (max-width: 780px) {
+    .page { font-size: 16px; }
+    .tools, .analogy, .rules, .cases, .start .steps, .gallery, .pinlegend { grid-template-columns: 1fr; }
+    .hero { padding: 52px 0 32px; }
+    .case { grid-column: auto; }
+    .bars .row { grid-template-columns: 96px 1fr 32px; }
+    .claudeapp { grid-template-columns: 1fr; }
+    .app-side { border-right: none; border-bottom: 1px solid var(--line); flex-direction: row; align-items: center; flex-wrap: wrap; gap: 12px; }
+    .app-side .hist { display: none; }
+    .app-main { padding: 30px 20px; }
+  }
+</style>
+
+<div class="page">
+
+  <header class="hero">
+    <div class="wrap">
+      <div class="brandline">
+        <span class="brandmark">L&amp;M <span>TELECOM</span></span>
+        <p class="eyebrow">Treinamento interno · IA na prática</p>
+      </div>
+      <h1>Claude para quem <em>gere</em> o provedor</h1>
+      <p class="lede">Três ferramentas, seis áreas, um objetivo: cada gerente da L&amp;M sair daqui sabendo exatamente o que pedir à IA para eliminar trabalho repetitivo, fechar relatório mais rápido e cuidar melhor do cliente. Sem jargão. Sem código. Só resultado.</p>
+      <div class="meta-row">
+        <span><b>Empresa:</b> L&amp;M Telecom — provedor de internet</span>
+        <span><b>Público:</b> Gerentes — Financeiro, RH, Administrativo, Estoque/Compras, Marketing, Serviços</span>
+        <span><b>Nível:</b> Do zero, para leigos em IA</span>
+      </div>
+    </div>
+  </header>
+
+  <nav class="navbar">
+    <div class="wrap">
+      <a class="navpill" href="#ferramentas"><span class="dot"></span>As 3 ferramentas</a>
+      <a class="navpill" href="#abrir"><span class="dot"></span>Abrir no navegador</a>
+      <a class="navpill" href="#telas"><span class="dot"></span>As telas na prática</a>
+      <a class="navpill" href="#regras"><span class="dot"></span>Como pedir</a>
+      <a class="navpill" href="#recursos"><span class="dot"></span>Conectores &amp; mais</a>
+      <a class="navpill" href="#financeiro" style="--pc:var(--d-fin)"><span class="dot"></span>Financeiro</a>
+      <a class="navpill" href="#rh" style="--pc:var(--d-rh)"><span class="dot"></span>RH</a>
+      <a class="navpill" href="#administrativo" style="--pc:var(--d-adm)"><span class="dot"></span>Administrativo</a>
+      <a class="navpill" href="#estoque" style="--pc:var(--d-est)"><span class="dot"></span>Estoque/Compras</a>
+      <a class="navpill" href="#marketing" style="--pc:var(--d-mkt)"><span class="dot"></span>Marketing</a>
+      <a class="navpill" href="#servicos" style="--pc:var(--d-srv)"><span class="dot"></span>Serviços</a>
+    </div>
+  </nav>
+
+  <div class="wrap">
+
+    <section id="oque">
+      <p class="kicker">Antes de tudo</p>
+      <h2>O que é o Claude, em uma frase</h2>
+      <p class="section-intro">É um colega de trabalho que leu praticamente tudo, escreve rápido, nunca cansa e está disponível 24 horas — e que você comanda conversando em português normal, como se estivesse mandando um áudio para um assistente muito competente.</p>
+      <div class="plain">
+        <p>Você não precisa aprender nada técnico. Você <b>escreve o que precisa</b> — do mesmo jeito que explicaria para alguém da sua equipe — e ele responde, redige, analisa ou executa a tarefa.</p>
+        <p>A diferença para uma busca no Google: o Google devolve <b>links para você ler</b>. O Claude devolve <b>o trabalho pronto</b> — a planilha conferida, o relatório escrito, o e-mail de cobrança, a análise de cancelamento.</p>
+        <p style="margin-bottom:0">Existem três "formas" de usar o Claude. Elas se diferenciam por <b>quanto trabalho ele faz sozinho</b> — de responder uma pergunta até executar uma tarefa inteira nos seus sistemas.</p>
+        <div class="analogy">
+          <div class="a"><div class="t">Chat</div><div class="d"><b>Pergunta → Resposta.</b> Ele conversa e entrega texto.</div></div>
+          <div class="a"><div class="t">Cowork</div><div class="d"><b>Tarefa → Feito.</b> Ele age nas suas ferramentas.</div></div>
+          <div class="a"><div class="t">Code</div><div class="d"><b>Ideia → Ferramenta.</b> Ele constrói automações.</div></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="ferramentas">
+      <p class="kicker">O coração do treinamento</p>
+      <h2><span class="num">01</span>As três ferramentas, sem mistério</h2>
+      <p class="section-intro">Pense em três níveis de ajuda: um consultor que responde, um assistente que executa e um técnico que constrói. A maioria de vocês vai viver no primeiro e no segundo.</p>
+      <div class="tools">
+        <article class="tool">
+          <span class="badge">Claude Chat</span>
+          <h3>O consultor</h3>
+          <p class="tagline">"Me responde isso agora."</p>
+          <p class="what">Uma conversa. Você pergunta, cola um relatório ou uma planilha, e ele responde na hora: resume, escreve, confere, analisa. É o WhatsApp de um especialista genial.</p>
+          <div class="when"><b>Use quando</b>Precisar escrever, conferir, resumir ou analisar algo mais rápido. É por aqui que todo mundo começa.</div>
+        </article>
+        <article class="tool">
+          <span class="badge">Claude Cowork</span>
+          <h3>O assistente</h3>
+          <p class="tagline">"Faz isso pra mim."</p>
+          <p class="what">Aqui ele deixa de só responder e passa a <b>executar</b>. Conectado ao e-mail, planilhas, agenda e sistemas, cumpre tarefas de várias etapas sozinho — puxa dados, cruza e entrega o resultado.</p>
+          <div class="when"><b>Use quando</b>A tarefa se repete toda semana ou passa por vários sistemas: fechar relatório, conciliar valores, coletar assinaturas, montar o resumo do dia.</div>
+        </article>
+        <article class="tool">
+          <span class="badge">Claude Code</span>
+          <h3>O construtor</h3>
+          <p class="tagline">"Constrói uma ferramenta disso."</p>
+          <p class="what">O nível técnico. Serve para criar automações, integrações e painéis sob medida. Você descreve o que quer e ele programa — com apoio de quem é mais técnico na equipe.</p>
+          <div class="when"><b>Use quando</b>Quiser automatizar de vez um processo, ligar o sistema do provedor a um painel ou gerar relatórios sozinhos, todo dia.</div>
+        </article>
+      </div>
+    </section>
+
+    <section id="abrir">
+      <p class="kicker">O primeiro passo</p>
+      <h2>Como abrir o Claude no navegador</h2>
+      <p class="section-intro">Não precisa instalar nada. É só abrir o Google Chrome (ou qualquer navegador), digitar o endereço e entrar. Esta é a tela que você vai ver — com os quatro pontos onde tudo acontece.</p>
+
+      <div class="chrome">
+        <div class="chrome-top">
+          <div class="chrome-tabs">
+            <span class="dots"><i></i><i></i><i></i></span>
+            <span class="ctab"><span class="fav"><svg viewBox="0 0 24 24" aria-hidden="true"><g stroke="#fff" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="3" x2="12" y2="21"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="5.6" y1="5.6" x2="18.4" y2="18.4"/><line x1="18.4" y1="5.6" x2="5.6" y2="18.4"/></g></svg></span>Claude</span>
+            <span class="ctab-new">+</span>
+          </div>
+        </div>
+        <div class="chrome-omni">
+          <span class="ico">‹ ›</span>
+          <span class="ico">⟳</span>
+          <span class="omnibar"><span class="lock">🔒</span><span class="url"><span class="pin">1</span>&nbsp; <b>claude.ai</b><span class="sub"> — faça login com seu e-mail</span></span></span>
+        </div>
+        <div class="claudeapp">
+          <aside class="app-side">
+            <span class="newchat"><span class="pin">2</span> Nova conversa</span>
+            <div>
+              <div class="hlabel">Conversas recentes</div>
+              <div class="hist" style="margin-top:10px">
+                <div class="h">Conferência de recebimentos</div>
+                <div class="h">Resumo da semana — diretoria</div>
+                <div class="h">Comparar cotações de ONU</div>
+                <div class="h">Motivos de cancelamento</div>
+              </div>
+            </div>
+          </aside>
+          <div class="app-main">
+            <p class="app-greet">Olá 👋 Sou o <span>Claude</span>. Como posso ajudar?</p>
+            <div class="app-input">
+              <div class="ph"><span class="pin">3</span>&nbsp; Escreva seu pedido aqui, em português normal…</div>
+              <div class="irow">
+                <span class="pin">4</span>
+                <span>📎 Anexar planilha, relatório ou PDF</span>
+                <span class="mdl">Claude</span>
+                <span class="app-send">↑</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <ol class="pinlegend">
+        <li><span class="pin">1</span><span>Digite <b>claude.ai</b> na barra de endereço do Chrome e faça login com o e-mail da empresa.</span></li>
+        <li><span class="pin">2</span><span>Clique em <b>Nova conversa</b> sempre que for começar um assunto novo (mantém tudo organizado).</span></li>
+        <li><span class="pin">3</span><span>Escreva o que você precisa na <b>caixa de texto</b> — do mesmo jeito que pediria a um colega — e aperte enviar.</span></li>
+        <li><span class="pin">4</span><span>Use o <b>clipe (📎)</b> para anexar a planilha ou o relatório que o Claude deve analisar.</span></li>
+      </ol>
+    </section>
+
+    <section id="telas">
+      <p class="kicker">Como isso aparece na sua tela</p>
+      <h2>As três ferramentas, na prática</h2>
+      <p class="section-intro">Não é planilha nem programa complicado: é uma conversa. Veja três telas reais — uma de cada ferramenta — usando casos do dia a dia da L&amp;M. Repare que você fala em português normal e recebe o trabalho pronto de volta.</p>
+      <div class="gallery">
+
+        <figure class="screen" style="--pc:var(--d-fin); --dept-soft:var(--d-fin-soft)">
+          <div class="screen-bar">
+            <span class="dots"><i></i><i></i><i></i></span>
+            <span class="st"><b>Claude</b> · conversa</span>
+            <span class="tchip">Chat</span>
+          </div>
+          <div class="screen-body">
+            <div class="msg user"><div class="bub">Confere os recebimentos de hoje contra o extrato do banco. Me aponta só o que não bateu.<span class="attach">📎 recebimentos_16-07.xlsx</span></div></div>
+            <div class="msg ai">
+              <span class="ava"><svg viewBox="0 0 24 24" aria-hidden="true"><g stroke="#fff" stroke-width="2.1" stroke-linecap="round"><line x1="12" y1="3" x2="12" y2="21"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="5.6" y1="5.6" x2="18.4" y2="18.4"/><line x1="18.4" y1="5.6" x2="5.6" y2="18.4"/></g></svg></span>
+              <div class="bub">
+                <p>Conferi os <b>148 lançamentos</b>. 3 não bateram:</p>
+                <table class="mini">
+                  <tr><th>Cliente</th><th class="num">Sistema</th><th class="num">Banco</th></tr>
+                  <tr class="flag"><td>M. Andrade</td><td class="num">109,90</td><td class="num">99,90</td></tr>
+                  <tr class="flag"><td>J. Ferreira</td><td class="num">89,90</td><td class="num">—</td></tr>
+                  <tr class="flag"><td>Lu Telecom</td><td class="num">2×149,90</td><td class="num">149,90</td></tr>
+                </table>
+                <p><span class="done">Total conferido: R$ 42.380,60.</span> Os outros 145 bateram certo.</p>
+              </div>
+            </div>
+          </div>
+          <figcaption class="screen-cap"><b>Financeiro</b> — conferência de recebimentos do dia</figcaption>
+        </figure>
+
+        <figure class="screen" style="--pc:var(--d-adm); --dept-soft:var(--d-adm-soft)">
+          <div class="screen-bar">
+            <span class="dots"><i></i><i></i><i></i></span>
+            <span class="st"><b>Claude</b> · executando</span>
+            <span class="tchip">Cowork</span>
+          </div>
+          <div class="screen-body">
+            <div class="msg user"><div class="bub">Fecha o resumo da semana: junta vendas, cancelamento e atendimento e me manda 1 página.</div></div>
+            <div class="msg ai">
+              <span class="ava"><svg viewBox="0 0 24 24" aria-hidden="true"><g stroke="#fff" stroke-width="2.1" stroke-linecap="round"><line x1="12" y1="3" x2="12" y2="21"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="5.6" y1="5.6" x2="18.4" y2="18.4"/><line x1="18.4" y1="5.6" x2="5.6" y2="18.4"/></g></svg></span>
+              <div class="bub">
+                <p>Deixa comigo. Estou puxando de:</p>
+                <div class="connects"><span>Planilhas</span><span>Sistema ISP</span><span>E-mail</span></div>
+                <ul class="checks">
+                  <li><span class="ic ok">✓</span>Vendas da semana — 37 novas ativações</li>
+                  <li><span class="ic ok">✓</span>Cancelamentos cruzados por bairro</li>
+                  <li><span class="ic run">⟳</span>Montando o resumo de 1 página…</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+          <figcaption class="screen-cap"><b>Administrativo</b> — fechamento semanal, sozinho</figcaption>
+        </figure>
+
+        <figure class="screen" style="--pc:var(--d-est); --dept-soft:var(--d-est-soft)">
+          <div class="screen-bar">
+            <span class="dots"><i></i><i></i><i></i></span>
+            <span class="st"><b>Claude</b> · construindo</span>
+            <span class="tchip">Code</span>
+          </div>
+          <div class="screen-body">
+            <div class="msg user"><div class="bub">Cria um painel que mostra a inadimplência atualizada todo dia, sem eu precisar montar planilha.</div></div>
+            <div class="msg ai">
+              <span class="ava"><svg viewBox="0 0 24 24" aria-hidden="true"><g stroke="#fff" stroke-width="2.1" stroke-linecap="round"><line x1="12" y1="3" x2="12" y2="21"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="5.6" y1="5.6" x2="18.4" y2="18.4"/><line x1="18.4" y1="5.6" x2="5.6" y2="18.4"/></g></svg></span>
+              <div class="bub">
+                <p>Montei o painel e liguei na base:</p>
+                <pre class="codeblk"><span class="cm"># painel-inadimplencia</span>
+<span class="ac">✓</span> conecta na base de clientes
+<span class="ac">✓</span> agrupa por faixa de atraso
+<span class="ac">✓</span> atualiza sozinho às 6h</pre>
+                <p><span class="done">Painel no ar.</span> Abre num link e sempre mostra o número de hoje.</p>
+              </div>
+            </div>
+          </div>
+          <figcaption class="screen-cap"><b>Estoque / Financeiro</b> — uma ferramenta sob medida</figcaption>
+        </figure>
+
+      </div>
+    </section>
+
+    <section id="regras">
+      <p class="kicker">A habilidade que importa</p>
+      <h2><span class="num">02</span>Como pedir para receber bem</h2>
+      <p class="section-intro">A qualidade da resposta depende da qualidade do pedido. Não é técnica de programador — é a mesma clareza que você usa para delegar a uma pessoa. Quatro hábitos resolvem 90% dos casos.</p>
+      <div class="rules">
+        <div class="rule"><div class="n">1</div><div><h4>Dê contexto</h4><p>Diga quem é você e para quem é. <code>Sou gerente de serviços de um provedor de internet</code> muda tudo na resposta.</p></div></div>
+        <div class="rule"><div class="n">2</div><div><h4>Diga o formato</h4><p>Peça a forma da entrega: <code>em tópicos</code>, <code>uma tabela</code>, <code>um e-mail curto</code>, <code>no máximo 5 linhas</code>.</p></div></div>
+        <div class="rule"><div class="n">3</div><div><h4>Dê um exemplo</h4><p>Cole um modelo do que você gosta: <code>escreva no mesmo tom deste comunicado</code>. Exemplo vale mais que instrução.</p></div></div>
+        <div class="rule"><div class="n">4</div><div><h4>Converse, não desista</h4><p>A primeira resposta é rascunho. <code>Ficou formal demais, deixe mais direto</code> — refinar é o normal, não o erro.</p></div></div>
+      </div>
+    </section>
+
+    <section id="recursos">
+      <p class="kicker">Indo um pouco além</p>
+      <h2>Conectores, artefatos e skills</h2>
+      <p class="section-intro">Três palavras que você vai ouvir — e que, no fundo, são simples. Uma liga o Claude às suas ferramentas, outra é o trabalho pronto que ele te entrega, e a terceira é um atalho para tarefas que se repetem. Nada técnico: é o que faz a IA sair da conversa e virar rotina de trabalho.</p>
+      <div class="tools">
+        <article class="tool">
+          <span class="badge">Conectores</span>
+          <h3>As pontes</h3>
+          <p class="tagline">"Ligue o Claude às suas ferramentas."</p>
+          <p class="what">Uma ponte segura entre o Claude e um programa que você já usa — Gmail, Google Drive e planilhas, agenda, e (com apoio técnico) o próprio sistema do provedor. Depois de ligado uma vez, ele lê e age ali. Ex.: com o Drive conectado, você diz <i>"pega a planilha de recebimentos de hoje e confere"</i> — sem anexar nada.</p>
+          <div class="when"><b>Onde entra</b>É o que transforma o Chat ("me responde") no Cowork ("faz isso pra mim"). Conectar exige o seu login e a sua autorização — você controla o que ele acessa.</div>
+        </article>
+        <article class="tool">
+          <span class="badge">Artefatos</span>
+          <h3>As entregas</h3>
+          <p class="tagline">"O trabalho pronto, num lugar só."</p>
+          <p class="what">É o entregável que o Claude constrói e te devolve para abrir, editar e compartilhar por um link — uma página, um painel, um documento, uma planilha, um comunicado. <b>Este próprio treinamento é um artefato:</b> uma página que dá para enviar aos gerentes.</p>
+          <div class="when"><b>Onde entra</b>Quando o resultado é algo que você vai reaproveitar ou mostrar — relatório da diretoria, painel de inadimplência, comunicado do RH. Fica salvo e você atualiza no mesmo link.</div>
+        </article>
+        <article class="tool">
+          <span class="badge">Skills</span>
+          <h3>Os atalhos</h3>
+          <p class="tagline">"Receitas prontas que ele já sabe fazer."</p>
+          <p class="what">Uma receita salva para uma tarefa que se repete: em vez de explicar tudo toda vez, você aciona a skill e ela já sabe o passo a passo. Ex.: uma skill <i>"fechamento do mês"</i> que sempre junta as mesmas fontes e monta o resumo no mesmo formato. Dá para usar as prontas ou criar as suas.</p>
+          <div class="when"><b>Onde entra</b>Quando uma tarefa vira rotina e você quer padronizar — todo mês, toda semana — sem reescrever o comando do zero.</div>
+        </article>
+      </div>
+    </section>
+
+    <section id="financeiro" class="dept" style="--pc:var(--d-fin); --dept-soft:var(--d-fin-soft)">
+      <div class="dept-head"><span class="tag">Área 01</span></div>
+      <h2>Financeiro <span>·</span> fim do trabalho repetitivo e da conferência manual</h2>
+      <p class="section-intro">O financeiro do provedor vive de conferir: recebimentos de mensalidade, boletos, PIX, cartão, faturas de fornecedor. É exatamente o tipo de trabalho repetitivo que a IA acelera — sem tirar o seu controle sobre o caixa.</p>
+      <div class="cases">
+        <div class="case">
+          <h4>Conferir recebimentos do dia</h4>
+          <div class="flow">
+            <div class="step"><span class="lab">Hoje</span><span class="txt">Você bate, linha a linha, o que entrou (PIX/boleto/cartão) contra o sistema.</span></div>
+            <div class="step win"><span class="lab">Com Claude</span><span class="txt">Cola as duas listas e ele aponta só o que não bateu: valor errado, pagamento a menos, duplicidade.</span></div>
+          </div>
+          <div class="usetool">Ferramenta: <span class="chip">Chat</span></div>
+        </div>
+        <div class="case">
+          <h4>Relatório de inadimplência</h4>
+          <div class="flow">
+            <div class="step"><span class="lab">Hoje</span><span class="txt">Levantar quem está em atraso e há quanto tempo é um garimpo na planilha.</span></div>
+            <div class="step win"><span class="lab">Com Claude</span><span class="txt">Ele organiza os inadimplentes por faixa de atraso e já sugere a régua de cobrança.</span></div>
+          </div>
+          <div class="usetool">Ferramenta: <span class="chip">Chat</span></div>
+        </div>
+        <div class="case">
+          <h4>Cobrança de mensalidade em atraso</h4>
+          <div class="flow">
+            <div class="step"><span class="lab">Hoje</span><span class="txt">Você reescreve a mesma mensagem de cobrança dezenas de vezes.</span></div>
+            <div class="step win"><span class="lab">Com Claude</span><span class="txt">Pede a mensagem no tom certo — lembrete gentil para 3 dias, firme para 30 dias, aviso de suspensão para 60.</span></div>
+          </div>
+          <div class="usetool">Ferramenta: <span class="chip">Chat</span></div>
+        </div>
+        <div class="case">
+          <h4>Fechamento mensal automático</h4>
+          <div class="flow">
+            <div class="step"><span class="lab">Hoje</span><span class="txt">Você junta recebimentos, despesas e faturas de vários lugares na mão.</span></div>
+            <div class="step win"><span class="lab">Com Claude</span><span class="txt">Ele consolida as fontes, aponta divergências e escreve o resumo do mês para a diretoria.</span></div>
+          </div>
+          <div class="usetool">Ferramenta: <span class="chip">Cowork</span></div>
+        </div>
+        <figure class="screen wide">
+          <div class="screen-bar">
+            <span class="dots"><i></i><i></i><i></i></span>
+            <span class="st"><b>Claude</b> · conversa</span>
+            <span class="tchip">Chat</span>
+          </div>
+          <div class="screen-body">
+            <div class="msg user"><div class="bub">Organiza os inadimplentes por faixa de atraso e me sugere a régua de cobrança.<span class="attach">📎 inadimplentes_julho.xlsx</span></div></div>
+            <div class="msg ai">
+              <span class="ava"><svg viewBox="0 0 24 24" aria-hidden="true"><g stroke="#fff" stroke-width="2.1" stroke-linecap="round"><line x1="12" y1="3" x2="12" y2="21"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="5.6" y1="5.6" x2="18.4" y2="18.4"/><line x1="18.4" y1="5.6" x2="5.6" y2="18.4"/></g></svg></span>
+              <div class="bub">
+                <p>São <b>62 clientes</b> em atraso, R$ 7.190 no total:</p>
+                <table class="mini">
+                  <tr><th>Faixa</th><th class="num">Clientes</th><th class="num">Valor</th><th>Ação sugerida</th></tr>
+                  <tr><td>1–5 dias</td><td class="num">28</td><td class="num">3.020</td><td>Lembrete gentil (SMS)</td></tr>
+                  <tr><td>15–30 dias</td><td class="num">21</td><td class="num">2.480</td><td>Cobrança firme + 2ª via</td></tr>
+                  <tr class="flag"><td>+60 dias</td><td class="num">13</td><td class="num">1.690</td><td>Aviso de suspensão</td></tr>
+                </table>
+                <p>Quer que eu já escreva as 3 mensagens no tom certo?</p>
+              </div>
+            </div>
+          </div>
+          <figcaption class="screen-cap"><b>Como aparece na tela</b> — inadimplência organizada e régua pronta</figcaption>
+        </figure>
+        <div class="prompt">
+          <div class="plabel">Exemplo de comando pronto</div>
+          <p class="ptext">Você é meu analista financeiro. Segue a lista de recebimentos do sistema e o extrato do banco.
+Me diga: <span class="fill">(1)</span> pagamentos que não bateram (valor ou data),
+<span class="fill">(2)</span> possíveis duplicidades, e <span class="fill">(3)</span> um resumo de 5 linhas
+do total recebido no dia. Sem termos técnicos.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="rh" class="dept" style="--pc:var(--d-rh); --dept-soft:var(--d-rh-soft)">
+      <div class="dept-head"><span class="tag">Área 02</span></div>
+      <h2>RH <span>·</span> acabar com a coleta de assinatura de um em um</h2>
+      <p class="section-intro">Hoje o RH imprime, entrega ao colaborador, espera assinar e corre atrás de quem não devolveu — documento por documento. A IA ajuda a redigir esses documentos e, junto com uma ferramenta de assinatura digital, a enviar para todos de uma vez e acompanhar quem falta.</p>
+      <div class="cases">
+        <div class="case">
+          <h4>Assinatura digital em vez de "de um em um"</h4>
+          <div class="flow">
+            <div class="step"><span class="lab">Hoje</span><span class="txt">Você entrega holerite, advertência ou comunicado no papel e persegue a assinatura de cada um.</span></div>
+            <div class="step win"><span class="lab">Com Claude</span><span class="txt">Ele monta o fluxo: envia o documento para todos assinarem pelo celular e avisa quem ainda não assinou. (Usa uma ferramenta de assinatura digital junto.)</span></div>
+          </div>
+          <div class="usetool">Ferramenta: <span class="chip">Cowork</span> · <span class="chip">Code</span></div>
+        </div>
+        <div class="case">
+          <h4>Redigir o documento certo</h4>
+          <div class="flow">
+            <div class="step"><span class="lab">Hoje</span><span class="txt">Cada advertência, comunicado ou aviso é escrito do zero.</span></div>
+            <div class="step win"><span class="lab">Com Claude</span><span class="txt">Você descreve a situação e ele escreve o documento no tom e no formato corretos, pronto para revisar.</span></div>
+          </div>
+          <div class="usetool">Ferramenta: <span class="chip">Chat</span></div>
+        </div>
+        <div class="case">
+          <h4>Abrir uma vaga (ex.: técnico instalador)</h4>
+          <div class="flow">
+            <div class="step"><span class="lab">Hoje</span><span class="txt">Anúncio, roteiro de entrevista e critérios saem tudo na mão.</span></div>
+            <div class="step win"><span class="lab">Com Claude</span><span class="txt">Descreve a vaga em 3 linhas e recebe anúncio, perguntas e ficha de avaliação prontos.</span></div>
+          </div>
+          <div class="usetool">Ferramenta: <span class="chip">Chat</span></div>
+        </div>
+        <div class="case">
+          <h4>Checklist de admissão e documentos</h4>
+          <div class="flow">
+            <div class="step"><span class="lab">Hoje</span><span class="txt">Conferir se cada novo colaborador entregou tudo é manual e falha.</span></div>
+            <div class="step win"><span class="lab">Com Claude</span><span class="txt">Ele monta o checklist, acompanha o que falta e gera os comunicados de pendência.</span></div>
+          </div>
+          <div class="usetool">Ferramenta: <span class="chip">Cowork</span></div>
+        </div>
+        <figure class="screen wide">
+          <div class="screen-bar">
+            <span class="dots"><i></i><i></i><i></i></span>
+            <span class="st"><b>Claude</b> · executando</span>
+            <span class="tchip">Cowork</span>
+          </div>
+          <div class="screen-body">
+            <div class="msg user"><div class="bub">Envia o comunicado de mudança de horário para a equipe e coleta o "ciente" assinado de cada um.</div></div>
+            <div class="msg ai">
+              <span class="ava"><svg viewBox="0 0 24 24" aria-hidden="true"><g stroke="#fff" stroke-width="2.1" stroke-linecap="round"><line x1="12" y1="3" x2="12" y2="21"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="5.6" y1="5.6" x2="18.4" y2="18.4"/><line x1="18.4" y1="5.6" x2="5.6" y2="18.4"/></g></svg></span>
+              <div class="bub">
+                <p>Comunicado redigido e enviado para assinatura no celular:</p>
+                <ul class="checks">
+                  <li><span class="ic ok">✓</span>Enviado a <b>24 colaboradores</b></li>
+                  <li><span class="ic ok">✓</span>18 já assinaram</li>
+                  <li><span class="ic wait">•</span>6 pendentes — mando lembrete amanhã de manhã?</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+          <figcaption class="screen-cap"><b>Como aparece na tela</b> — envio e acompanhamento das assinaturas, sem correr atrás de um em um</figcaption>
+        </figure>
+        <div class="prompt">
+          <div class="plabel">Exemplo de comando pronto</div>
+          <p class="ptext">Preciso enviar o <span class="fill">comunicado de mudança de horário</span> para toda a equipe
+e coletar o "ciente" assinado de cada colaborador.
+Escreva o comunicado em tom claro e respeitoso, e me proponha um fluxo
+para enviar a todos de uma vez e acompanhar quem ainda não assinou.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="administrativo" class="dept" style="--pc:var(--d-adm); --dept-soft:var(--d-adm-soft)">
+      <div class="dept-head"><span class="tag">Área 03</span></div>
+      <h2>Administrativo <span>·</span> muitos relatórios, uma leitura só</h2>
+      <p class="section-intro">Vendas, cancelamento, atendimento, emissão de notas, cobrança — o administrativo produz e junta relatório o dia inteiro. A IA reúne tudo isso, confere as notas e transforma pilha de números em um resumo que a diretoria entende.</p>
+      <div class="cases">
+        <div class="case">
+          <h4>Consolidar os relatórios operacionais</h4>
+          <div class="flow">
+            <div class="step"><span class="lab">Hoje</span><span class="txt">Vendas, cancelamento e atendimento vêm em planilhas separadas que você junta na mão.</span></div>
+            <div class="step win"><span class="lab">Com Claude</span><span class="txt">Ele reúne as fontes num painel único com os números do dia e o que mudou vs. ontem.</span></div>
+          </div>
+          <div class="usetool">Ferramenta: <span class="chip">Cowork</span></div>
+        </div>
+        <div class="case">
+          <h4>Conferência de emissão de notas</h4>
+          <div class="flow">
+            <div class="step"><span class="lab">Hoje</span><span class="txt">Bater notas emitidas contra clientes ativos e valores é conferência pura.</span></div>
+            <div class="step win"><span class="lab">Com Claude</span><span class="txt">Ele compara as listas e aponta nota faltando, valor divergente ou cliente cancelado ainda faturado.</span></div>
+          </div>
+          <div class="usetool">Ferramenta: <span class="chip">Chat</span></div>
+        </div>
+        <div class="case">
+          <h4>Resumo executivo para a diretoria</h4>
+          <div class="flow">
+            <div class="step"><span class="lab">Hoje</span><span class="txt">A diretoria recebe 6 relatórios e ninguém tem tempo de ler todos.</span></div>
+            <div class="step win"><span class="lab">Com Claude</span><span class="txt">Ele transforma os relatórios em um resumo de uma página com os destaques e alertas.</span></div>
+          </div>
+          <div class="usetool">Ferramenta: <span class="chip">Chat</span></div>
+        </div>
+        <div class="case">
+          <h4>Entender picos de cancelamento</h4>
+          <div class="flow">
+            <div class="step"><span class="lab">Hoje</span><span class="txt">O relatório mostra que cancelou, mas não o porquê.</span></div>
+            <div class="step win"><span class="lab">Com Claude</span><span class="txt">Ele cruza cancelamento com bairro, plano e motivo e mostra onde está o problema.</span></div>
+          </div>
+          <div class="usetool">Ferramenta: <span class="chip">Chat</span></div>
+        </div>
+        <figure class="screen wide">
+          <div class="screen-bar">
+            <span class="dots"><i></i><i></i><i></i></span>
+            <span class="st"><b>Claude</b> · conversa</span>
+            <span class="tchip">Chat</span>
+          </div>
+          <div class="screen-body">
+            <div class="msg user"><div class="bub">Transforma esses 6 relatórios num resumo de 1 página para a diretoria.<span class="attach">📎 relatorios_semana.zip</span></div></div>
+            <div class="msg ai">
+              <span class="ava"><svg viewBox="0 0 24 24" aria-hidden="true"><g stroke="#fff" stroke-width="2.1" stroke-linecap="round"><line x1="12" y1="3" x2="12" y2="21"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="5.6" y1="5.6" x2="18.4" y2="18.4"/><line x1="18.4" y1="5.6" x2="5.6" y2="18.4"/></g></svg></span>
+              <div class="bub">
+                <p><b>Resumo da semana — L&amp;M</b></p>
+                <ul class="checks">
+                  <li><span class="ic ok">↑</span>Ativações: 37 (+12% vs. semana passada)</li>
+                  <li><span class="ic run">↓</span>Cancelamentos: 14, concentrados no bairro Centro</li>
+                  <li><span class="ic ok">↑</span>Atendimentos resolvidos no 1º contato: 71%</li>
+                </ul>
+                <p><b>Decidir:</b> reforço técnico no Centro · meta de retenção · compra de ONUs.</p>
+              </div>
+            </div>
+          </div>
+          <figcaption class="screen-cap"><b>Como aparece na tela</b> — 6 relatórios viram uma página que a diretoria lê em 1 minuto</figcaption>
+        </figure>
+        <div class="prompt">
+          <div class="plabel">Exemplo de comando pronto</div>
+          <p class="ptext">Seguem os relatórios de vendas, cancelamento e atendimento da semana.
+Me entregue um resumo executivo de 1 página com: <span class="fill">(1)</span> os números principais,
+<span class="fill">(2)</span> o que melhorou e o que piorou vs. a semana passada, e
+<span class="fill">(3)</span> os 3 pontos que a diretoria precisa decidir. Linguagem simples.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="estoque" class="dept" style="--pc:var(--d-est); --dept-soft:var(--d-est-soft)">
+      <div class="dept-head"><span class="tag">Área 04</span></div>
+      <h2>Estoque &amp; Compras <span>·</span> equipamento certo, na hora certa, pelo melhor preço</h2>
+      <p class="section-intro">Roteadores, ONUs, cabo, conector, drop — o estoque do provedor tem que acompanhar as instalações. A IA cuida do relatório de estoque, compara cotações de fornecedor e prevê a compra pelo ritmo de vendas.</p>
+      <div class="cases">
+        <div class="case">
+          <h4>Comparar cotações de fornecedor</h4>
+          <div class="flow">
+            <div class="step"><span class="lab">Hoje</span><span class="txt">Você recebe 3 propostas em formatos diferentes e compara no olho.</span></div>
+            <div class="step win"><span class="lab">Com Claude</span><span class="txt">Cola as 3 e ele monta um quadro com preço, prazo e frete, e aponta a melhor no total.</span></div>
+          </div>
+          <div class="usetool">Ferramenta: <span class="chip">Chat</span></div>
+        </div>
+        <div class="case">
+          <h4>Relatório de estoque e itens parados</h4>
+          <div class="flow">
+            <div class="step"><span class="lab">Hoje</span><span class="txt">Saber o que gira e o que está encalhado dá um trabalho enorme.</span></div>
+            <div class="step win"><span class="lab">Com Claude</span><span class="txt">Ele mostra o que mais sai, o que está parado e o que está perto de acabar.</span></div>
+          </div>
+          <div class="usetool">Ferramenta: <span class="chip">Chat</span></div>
+        </div>
+        <div class="case">
+          <h4>Prever a compra pelas instalações</h4>
+          <div class="flow">
+            <div class="step"><span class="lab">Hoje</span><span class="txt">A compra de equipamento é feita "no sentimento" do mês.</span></div>
+            <div class="step win"><span class="lab">Com Claude</span><span class="txt">A partir das vendas e instalações recentes, ele estima quantas ONUs e roteadores comprar.</span></div>
+          </div>
+          <div class="usetool">Ferramenta: <span class="chip">Chat</span></div>
+        </div>
+        <div class="case">
+          <h4>Material por técnico / por OS</h4>
+          <div class="flow">
+            <div class="step"><span class="lab">Hoje</span><span class="txt">Controlar o que cada técnico retirou e usou é uma planilha bagunçada.</span></div>
+            <div class="step win"><span class="lab">Com Claude</span><span class="txt">Ele concilia retirada × instalação por OS e sinaliza diferenças de material.</span></div>
+          </div>
+          <div class="usetool">Ferramenta: <span class="chip">Cowork</span></div>
+        </div>
+        <figure class="screen wide">
+          <div class="screen-bar">
+            <span class="dots"><i></i><i></i><i></i></span>
+            <span class="st"><b>Claude</b> · conversa</span>
+            <span class="tchip">Chat</span>
+          </div>
+          <div class="screen-body">
+            <div class="msg user"><div class="bub">Compara essas 3 cotações de ONU e me diz qual vale mais a pena no total.</div></div>
+            <div class="msg ai">
+              <span class="ava"><svg viewBox="0 0 24 24" aria-hidden="true"><g stroke="#fff" stroke-width="2.1" stroke-linecap="round"><line x1="12" y1="3" x2="12" y2="21"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="5.6" y1="5.6" x2="18.4" y2="18.4"/><line x1="18.4" y1="5.6" x2="5.6" y2="18.4"/></g></svg></span>
+              <div class="bub">
+                <p>Para 50 unidades, comparando preço + frete + prazo:</p>
+                <table class="mini">
+                  <tr><th>Fornecedor</th><th class="num">Unit.</th><th class="num">Frete</th><th class="num">Total</th><th>Prazo</th></tr>
+                  <tr><td>Fornec. A</td><td class="num">92,00</td><td class="num">180</td><td class="num">4.780</td><td>7 dias</td></tr>
+                  <tr class="best"><td>Fornec. B</td><td class="num">89,00</td><td class="num">120</td><td class="num">4.570</td><td>5 dias</td></tr>
+                  <tr><td>Fornec. C</td><td class="num">87,50</td><td class="num">340</td><td class="num">4.715</td><td>12 dias</td></tr>
+                </table>
+                <p><span class="done">Recomendo o B:</span> mais barato no total e o prazo mais curto. O C parece menor no unitário, mas o frete alto vira desvantagem.</p>
+              </div>
+            </div>
+          </div>
+          <figcaption class="screen-cap"><b>Como aparece na tela</b> — 3 propostas em formatos diferentes viram uma comparação justa</figcaption>
+        </figure>
+        <div class="prompt">
+          <div class="plabel">Exemplo de comando pronto</div>
+          <p class="ptext">Recebi 3 cotações de <span class="fill">ONU/roteador</span> (vou colar abaixo).
+Monte uma tabela comparando preço unitário, prazo de entrega e frete,
+calcule o custo total de cada uma e recomende a melhor,
+explicando em 3 linhas por que ela vale mais a pena.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="marketing" class="dept" style="--pc:var(--d-mkt); --dept-soft:var(--d-mkt-soft)">
+      <div class="dept-head"><span class="tag">Área 05</span></div>
+      <h2>Marketing <span>·</span> mais conteúdo, no tom da L&amp;M, em menos tempo</h2>
+      <p class="section-intro">Redes sociais, site, promoções, respostas a comentário. Marketing é volume de conteúdo constante. A IA vira uma redatora que escreve no tom da marca, sugere pauta e organiza o calendário de posts.</p>
+      <div class="cases">
+        <div class="case">
+          <h4>Calendário de posts do mês</h4>
+          <div class="flow">
+            <div class="step"><span class="lab">Hoje</span><span class="txt">Toda semana é o aperto de "o que a gente posta hoje?".</span></div>
+            <div class="step win"><span class="lab">Com Claude</span><span class="txt">Ele monta o calendário do mês com temas: velocidade, indicação, dicas de wi-fi, datas comemorativas.</span></div>
+          </div>
+          <div class="usetool">Ferramenta: <span class="chip">Chat</span></div>
+        </div>
+        <div class="case">
+          <h4>Legendas e textos no tom da marca</h4>
+          <div class="flow">
+            <div class="step"><span class="lab">Hoje</span><span class="txt">Escrever legenda boa toda vez trava a produção.</span></div>
+            <div class="step win"><span class="lab">Com Claude</span><span class="txt">Você dá um exemplo do tom da L&amp;M e ele escreve legenda, chamada e texto de site nessa voz.</span></div>
+          </div>
+          <div class="usetool">Ferramenta: <span class="chip">Chat</span></div>
+        </div>
+        <div class="case">
+          <h4>Responder comentários e direct</h4>
+          <div class="flow">
+            <div class="step"><span class="lab">Hoje</span><span class="txt">Dúvida de plano e reclamação chegam misturadas nas redes.</span></div>
+            <div class="step win"><span class="lab">Com Claude</span><span class="txt">Ele separa por tipo e sugere uma resposta educada para cada uma, no tom da marca.</span></div>
+          </div>
+          <div class="usetool">Ferramenta: <span class="chip">Chat</span> · <span class="chip">Cowork</span></div>
+        </div>
+        <div class="case">
+          <h4>Campanha de indicação / retenção</h4>
+          <div class="flow">
+            <div class="step"><span class="lab">Hoje</span><span class="txt">Criar uma promoção completa exige juntar oferta, texto e artes.</span></div>
+            <div class="step win"><span class="lab">Com Claude</span><span class="txt">Ele estrutura a campanha "indique e ganhe": regra, textos, posts e mensagem de WhatsApp.</span></div>
+          </div>
+          <div class="usetool">Ferramenta: <span class="chip">Chat</span></div>
+        </div>
+        <figure class="screen wide">
+          <div class="screen-bar">
+            <span class="dots"><i></i><i></i><i></i></span>
+            <span class="st"><b>Claude</b> · conversa</span>
+            <span class="tchip">Chat</span>
+          </div>
+          <div class="screen-body">
+            <div class="msg user"><div class="bub">Monta o calendário de posts da próxima semana para a L&amp;M, com a legenda já pronta de cada um.</div></div>
+            <div class="msg ai">
+              <span class="ava"><svg viewBox="0 0 24 24" aria-hidden="true"><g stroke="#fff" stroke-width="2.1" stroke-linecap="round"><line x1="12" y1="3" x2="12" y2="21"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="5.6" y1="5.6" x2="18.4" y2="18.4"/><line x1="18.4" y1="5.6" x2="5.6" y2="18.4"/></g></svg></span>
+              <div class="bub">
+                <p>Prontos, no tom da L&amp;M:</p>
+                <table class="mini">
+                  <tr><th>Dia</th><th>Tema</th><th>Legenda (início)</th></tr>
+                  <tr><td>Seg</td><td>Velocidade</td><td>"Sua internet trava na hora do filme? Aqui não…"</td></tr>
+                  <tr><td>Qua</td><td>Dica de Wi-Fi</td><td>"3 lugares onde você NÃO deve colocar o roteador…"</td></tr>
+                  <tr><td>Sex</td><td>Indicação</td><td>"Indique um amigo e os dois ganham desconto…"</td></tr>
+                </table>
+                <p>Quer que eu escreva as legendas completas das 3?</p>
+              </div>
+            </div>
+          </div>
+          <figcaption class="screen-cap"><b>Como aparece na tela</b> — o "o que a gente posta hoje?" resolvido para a semana inteira</figcaption>
+        </figure>
+        <div class="prompt">
+          <div class="plabel">Exemplo de comando pronto</div>
+          <p class="ptext">Nosso tom é este: <span class="fill">"[colar 1 post que gostamos]"</span>.
+Monte um calendário de 8 posts para o próximo mês para a L&amp;M Telecom,
+com o tema de cada post e uma legenda pronta. Misture: benefícios do plano,
+dica útil de internet, prova social e uma promoção de indicação.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="servicos" class="dept" style="--pc:var(--d-srv); --dept-soft:var(--d-srv-soft)">
+      <div class="dept-head"><span class="tag">Área 06</span></div>
+      <h2>Serviços <span>·</span> entender o atendimento e segurar o cliente</h2>
+      <p class="section-intro">Atendimento, cancelamento, churn, volume de atendimento por OS. É a área que mais gera dado e mais sofre com repetição. A IA lê esse volume, mostra por que o cliente cancela e ajuda a responder mais rápido e no tom certo.</p>
+      <div class="cases">
+        <div class="case">
+          <h4>Por que o cliente está cancelando (churn)</h4>
+          <div class="flow">
+            <div class="step"><span class="lab">Hoje</span><span class="txt">Você sabe quantos cancelaram, mas não enxerga o padrão do porquê.</span></div>
+            <div class="step win"><span class="lab">Com Claude</span><span class="txt">Ele agrupa os motivos de cancelamento e mostra as 3 causas que mais pesam.</span></div>
+          </div>
+          <div class="usetool">Ferramenta: <span class="chip">Chat</span></div>
+        </div>
+        <div class="case">
+          <h4>Volume de atendimento por OS</h4>
+          <div class="flow">
+            <div class="step"><span class="lab">Hoje</span><span class="txt">Contar atendimentos por tipo de OS e por período é trabalho manual.</span></div>
+            <div class="step win"><span class="lab">Com Claude</span><span class="txt">Ele resume o volume por tipo de OS, aponta o pico e o que mais consome a equipe.</span></div>
+          </div>
+          <div class="usetool">Ferramenta: <span class="chip">Chat</span> · <span class="chip">Cowork</span></div>
+        </div>
+        <div class="case">
+          <h4>Script de retenção</h4>
+          <div class="flow">
+            <div class="step"><span class="lab">Hoje</span><span class="txt">Cada atendente tenta segurar o cancelamento do seu jeito.</span></div>
+            <div class="step win"><span class="lab">Com Claude</span><span class="txt">Ele cria um roteiro de retenção por motivo (preço, sinal, mudança) para a equipe usar.</span></div>
+          </div>
+          <div class="usetool">Ferramenta: <span class="chip">Chat</span></div>
+        </div>
+        <div class="case">
+          <h4>Respostas padrão de suporte</h4>
+          <div class="flow">
+            <div class="step"><span class="lab">Hoje</span><span class="txt">A mesma dúvida (internet lenta, sem sinal, 2ª via) é respondida do zero toda vez.</span></div>
+            <div class="step win"><span class="lab">Com Claude</span><span class="txt">Ele monta respostas-modelo claras para as 20 situações mais comuns do provedor.</span></div>
+          </div>
+          <div class="usetool">Ferramenta: <span class="chip">Chat</span></div>
+        </div>
+        <figure class="screen wide">
+          <div class="screen-bar">
+            <span class="dots"><i></i><i></i><i></i></span>
+            <span class="st"><b>Claude</b> · conversa</span>
+            <span class="tchip">Chat</span>
+          </div>
+          <div class="screen-body">
+            <div class="msg user"><div class="bub">Por que os clientes cancelaram esse mês? Me mostra os motivos que mais pesam.<span class="attach">📎 cancelamentos_julho.csv</span></div></div>
+            <div class="msg ai">
+              <span class="ava"><svg viewBox="0 0 24 24" aria-hidden="true"><g stroke="#fff" stroke-width="2.1" stroke-linecap="round"><line x1="12" y1="3" x2="12" y2="21"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="5.6" y1="5.6" x2="18.4" y2="18.4"/><line x1="18.4" y1="5.6" x2="5.6" y2="18.4"/></g></svg></span>
+              <div class="bub">
+                <p>Foram <b>41 cancelamentos</b>. Os motivos que mais pesam:</p>
+                <div class="bars">
+                  <div class="row"><span>Preço</span><span class="track"><span class="fill" style="width:44%"></span></span><span class="pct">44%</span></div>
+                  <div class="row"><span>Sinal instável</span><span class="track"><span class="fill" style="width:29%"></span></span><span class="pct">29%</span></div>
+                  <div class="row"><span>Mudança</span><span class="track"><span class="fill" style="width:17%"></span></span><span class="pct">17%</span></div>
+                </div>
+                <p>O "sinal instável" está concentrado no <b>bairro Jardim</b> — vale checar a rede lá.</p>
+              </div>
+            </div>
+          </div>
+          <figcaption class="screen-cap"><b>Como aparece na tela</b> — o "porquê" do cancelamento, não só o número</figcaption>
+        </figure>
+        <div class="prompt">
+          <div class="plabel">Exemplo de comando pronto</div>
+          <p class="ptext">Segue a lista de cancelamentos do mês com o motivo de cada um.
+Me diga: <span class="fill">(1)</span> os 3 motivos que mais aparecem,
+<span class="fill">(2)</span> se algum bairro ou plano concentra cancelamento, e
+<span class="fill">(3)</span> uma ação de retenção para cada motivo. Em linguagem simples.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="cuidados">
+      <div class="care">
+        <p class="kicker" style="color:var(--tip)">Regra de segurança</p>
+        <h2>Quatro cuidados que não podem faltar</h2>
+        <p style="color:var(--muted); max-width:60ch; margin-bottom:22px">A IA é uma poderosa assistente — mas o responsável continua sendo o gerente. Antes de soltar para a equipe, alinhe estes pontos.</p>
+        <ul>
+          <li><span class="mk">1.</span><span><b>Dado de cliente pede atenção.</b> Combine o que pode ou não ser colado (CPF, dados de pagamento, contrato). Na dúvida, tire os dados pessoais antes.</span></li>
+          <li><span class="mk">2.</span><span><b>Revise antes de enviar.</b> Trate a resposta como rascunho de um estagiário brilhante: quase sempre ótimo, mas a assinatura é sua. Confira números e nomes.</span></li>
+          <li><span class="mk">3.</span><span><b>Decisão que afeta pessoas é humana.</b> Demissão, advertência, corte de cliente, resposta a uma crise — a IA prepara, você decide.</span></li>
+          <li><span class="mk">4.</span><span><b>Ela pode errar com confiança.</b> Se um dado é crítico (valor cobrado, cliente suspenso), confira na fonte. A IA acelera, não substitui a checagem final.</span></li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="comece" class="start">
+      <p class="kicker">Saindo daqui</p>
+      <h2><span class="num">03</span>Comece na segunda-feira</h2>
+      <p class="section-intro">Nada de esperar o "projeto de IA". Cada gerente escolhe uma tarefa chata e repetitiva da própria semana e resolve com o Chat. É assim que o hábito pega.</p>
+      <div class="steps">
+        <div class="s"><div class="n">PASSO 1</div><h4>Escolha uma dor</h4><p>Aquela tarefa que você adia toda semana. Comece pelo caso da sua área nesta página.</p></div>
+        <div class="s"><div class="n">PASSO 2</div><h4>Copie um comando</h4><p>Use o "exemplo de comando pronto" da sua seção. Ajuste com seus dados e mande.</p></div>
+        <div class="s"><div class="n">PASSO 3</div><h4>Refine e repita</h4><p>Peça ajustes até ficar do seu jeito. Salve o comando que funcionou para reusar.</p></div>
+      </div>
+      <div class="challenge">
+        <div class="k">Desafio da semana · L&amp;M Telecom</div>
+        <h3>Uma tarefa. Um comando. Um tempo economizado.</h3>
+        <p>Até a próxima reunião, cada gerente traz uma tarefa que resolveu com o Claude e quanto tempo economizou. Quem trouxer o caso mais útil vira o exemplo para a empresa inteira.</p>
+      </div>
+    </section>
+
+    <footer>
+      <span>Treinamento · <b>Claude para Gestores</b> — L&amp;M Telecom</span>
+      <span>Material de apoio · uso interno</span>
+    </footer>
+
+  </div>
+</div>
+
+<script>
+  (function () {
+    var links = Array.prototype.slice.call(document.querySelectorAll('.navpill'));
+    var map = {};
+    links.forEach(function (l) { map[l.getAttribute('href').slice(1)] = l; });
+    var targets = Object.keys(map).map(function (id) { return document.getElementById(id); }).filter(Boolean);
+    if (!('IntersectionObserver' in window)) return;
+    var obs = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting) {
+          links.forEach(function (l) { l.style.background = ''; l.style.color = ''; l.style.borderColor = ''; });
+          var active = map[e.target.id];
+          if (active) { active.style.color = 'var(--ink)'; active.style.background = 'var(--surface-2)'; active.style.borderColor = 'var(--line)'; }
+        }
+      });
+    }, { rootMargin: '-45% 0px -50% 0px' });
+    targets.forEach(function (t) { obs.observe(t); });
+  })();
+</script>
