@@ -1,124 +1,66 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import * as THREE from "three";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
-
 export function LM3DLogo() {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    if (!containerRef.current) return;
-
-    try {
-      // Scene setup
-      const scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x0a0e27);
-
-      // Camera
-      const width = containerRef.current.clientWidth || 140;
-      const height = containerRef.current.clientHeight || 140;
-      const camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
-      camera.position.z = 5;
-
-      // Renderer
-      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-      renderer.setSize(width, height);
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-      containerRef.current.appendChild(renderer.domElement);
-
-      // Lighting
-      const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
-      scene.add(ambientLight);
-
-      const directionalLight = new THREE.DirectionalLight(0x00d4ff, 0.8);
-      directionalLight.position.set(5, 10, 7);
-      scene.add(directionalLight);
-
-      const pointLight = new THREE.PointLight(0x2563eb, 1);
-      pointLight.position.set(-5, -5, 5);
-      scene.add(pointLight);
-
-      let modelRef: THREE.Group | null = null;
-
-      // Load model
-      const loader = new GLTFLoader();
-      loader.load(
-        "/api/logo",
-        (gltf) => {
-          const model = gltf.scene;
-          modelRef = model;
-
-          // Scale and center
-          const box = new THREE.Box3().setFromObject(model);
-          const center = box.getCenter(new THREE.Vector3());
-          model.position.sub(center);
-
-          const size = box.getSize(new THREE.Vector3());
-          const maxDim = Math.max(size.x, size.y, size.z);
-          const scale = 3 / maxDim;
-          model.scale.multiplyScalar(scale);
-
-          scene.add(model);
-          setLoaded(true);
-        },
-        undefined,
-        (error) => {
-          console.error("Erro ao carregar GLB:", error);
-          setLoaded(true); // Show fallback
-        }
-      );
-
-      // Animation
-      let animationId: number;
-      const animate = () => {
-        animationId = requestAnimationFrame(animate);
-
-        if (modelRef) {
-          modelRef.rotation.x += 0.003;
-          modelRef.rotation.y += 0.005;
-        }
-
-        renderer.render(scene, camera);
-      };
-      animate();
-
-      // Handle resize
-      const handleResize = () => {
-        if (!containerRef.current) return;
-        const newWidth = containerRef.current.clientWidth || 140;
-        const newHeight = containerRef.current.clientHeight || 140;
-        camera.aspect = newWidth / newHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(newWidth, newHeight);
-      };
-
-      window.addEventListener("resize", handleResize);
-
-      return () => {
-        window.removeEventListener("resize", handleResize);
-        cancelAnimationFrame(animationId);
-        try {
-          if (containerRef.current?.contains(renderer.domElement)) {
-            containerRef.current.removeChild(renderer.domElement);
-          }
-        } catch (e) {
-          // Ignore cleanup errors
-        }
-        renderer.dispose();
-      };
-    } catch (error) {
-      console.error("Erro ao inicializar Three.js:", error);
-      setLoaded(true);
-    }
-  }, []);
-
   return (
-    <div
-      ref={containerRef}
-      className="w-32 h-32 mx-auto mb-6 rounded-lg bg-gradient-to-br from-slate-900/40 to-slate-950/40"
-      style={{ minHeight: "140px", minWidth: "140px" }}
-    />
+    <svg
+      className="w-16 h-16 mx-auto mb-6 animate-pulse"
+      viewBox="0 0 100 100"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <defs>
+        <linearGradient
+          id="lmGradient"
+          x1="0%"
+          y1="0%"
+          x2="100%"
+          y2="100%"
+        >
+          <stop offset="0%" stopColor="#00d4ff" />
+          <stop offset="50%" stopColor="#0ea5e9" />
+          <stop offset="100%" stopColor="#2563eb" />
+        </linearGradient>
+        <filter id="glowEffect" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="2" result="coloredBlur" />
+          <feMerge>
+            <feMergeNode in="coloredBlur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+      </defs>
+
+      <path
+        d="M 50 10 L 85 30 L 85 70 L 50 90 L 15 70 L 15 30 Z"
+        stroke="#00d4ff"
+        strokeWidth="2"
+        fill="none"
+        opacity="0.5"
+        filter="url(#glowEffect)"
+      />
+
+      <path
+        d="M 50 12 L 83 30 L 83 70 L 50 88 L 17 70 L 17 30 Z"
+        fill="url(#lmGradient)"
+        opacity="0.1"
+        filter="url(#glowEffect)"
+      />
+
+      <g filter="url(#glowEffect)">
+        <rect x="28" y="30" width="6" height="36" fill="url(#lmGradient)" rx="2" />
+        <rect x="28" y="64" width="16" height="4" fill="url(#lmGradient)" rx="2" />
+      </g>
+
+      <g filter="url(#glowEffect)">
+        <rect x="54" y="30" width="6" height="36" fill="url(#lmGradient)" rx="2" />
+        <polygon
+          points="60,30 66,45 72,30 72,66 66,66 66,45 60,66 54,66"
+          fill="url(#lmGradient)"
+        />
+      </g>
+
+      <circle cx="20" cy="25" r="1.5" fill="#00d4ff" opacity="0.8" filter="url(#glowEffect)" />
+      <circle cx="80" cy="50" r="1.5" fill="#00d4ff" opacity="0.8" filter="url(#glowEffect)" />
+      <circle cx="50" cy="92" r="1.5" fill="#00d4ff" opacity="0.8" filter="url(#glowEffect)" />
+    </svg>
   );
 }
