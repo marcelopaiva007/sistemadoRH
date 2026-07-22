@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-guard";
 import { normalizarTexto } from "@/lib/text";
+import { tokensContidosEmOrdem, tokensNome } from "@/lib/vendedor-match";
 
 // Data de referência para agrupar por período: preferimos "Ativação Contrato"
 // (a mesma data usada para filtrar o relatório no elleven — "Filtrar por:
@@ -160,28 +161,8 @@ function limparCidadeElleven(raw: string | null): string | null {
   return nome || null;
 }
 
-// Partículas que não ajudam a identificar a pessoa ("José DE Souza").
-const PARTICULAS = new Set(["de", "da", "do", "dos", "das", "e"]);
-
-function tokensNome(nome: string): string[] {
-  return normalizarTexto(nome)
-    .split(" ")
-    .filter((t) => t && !PARTICULAS.has(t));
-}
-
-// O elleven costuma registrar o nome completo ("JOÃO MARCELO FERNANDES DA
-// SILVA") enquanto o cadastro tem a forma curta ("JOÃO MARCELO FERNANDES").
-// Consideramos "provável mesma pessoa" quando todos os tokens do nome mais
-// curto aparecem, na mesma ordem, no nome mais longo.
-function tokensContidosEmOrdem(menor: string[], maior: string[]): boolean {
-  if (menor.length < 2) return false;
-  let i = 0;
-  for (const t of maior) {
-    if (t === menor[i]) i++;
-    if (i === menor.length) return true;
-  }
-  return false;
-}
+// Helpers de casamento de nomes movidos para lib/vendedor-match.ts (comparti-
+// lhados com a importação de chips do L&M Movel).
 
 export type SituacaoVendedorElleven = "OK" | "RENOMEAR" | "NOVO";
 
