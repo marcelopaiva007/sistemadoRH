@@ -10,15 +10,22 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const LMLogo = () => (
-  <svg className="w-12 h-12 mx-auto mb-4" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-    {/* Fundo com gradiente e brilho */}
+  <svg className="w-16 h-16 mx-auto mb-6" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
     <defs>
-      <linearGradient id="lmGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" style={{ stopColor: "#00d4ff", stopOpacity: 1 }} />
-        <stop offset="100%" style={{ stopColor: "#2563eb", stopOpacity: 1 }} />
+      <linearGradient id="lmGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#00d4ff" />
+        <stop offset="50%" stopColor="#0ea5e9" />
+        <stop offset="100%" stopColor="#2563eb" />
       </linearGradient>
-      <filter id="glow">
+      <filter id="glowEffect" x="-50%" y="-50%" width="200%" height="200%">
         <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+        <feMerge>
+          <feMergeNode in="coloredBlur"/>
+          <feMergeNode in="SourceGraphic"/>
+        </feMerge>
+      </filter>
+      <filter id="innerGlow">
+        <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
         <feMerge>
           <feMergeNode in="coloredBlur"/>
           <feMergeNode in="SourceGraphic"/>
@@ -26,17 +33,28 @@ const LMLogo = () => (
       </filter>
     </defs>
 
-    {/* L */}
-    <rect x="8" y="12" width="8" height="40" fill="url(#lmGrad)" filter="url(#glow)" rx="2"/>
-    <rect x="8" y="48" width="20" height="4" fill="url(#lmGrad)" filter="url(#glow)" rx="2"/>
+    {/* Hexágono externo (borda) */}
+    <path d="M 50 10 L 85 30 L 85 70 L 50 90 L 15 70 L 15 30 Z" stroke="#00d4ff" strokeWidth="2" fill="none" opacity="0.5" filter="url(#glowEffect)"/>
 
-    {/* M - dois picos */}
-    <rect x="36" y="12" width="8" height="40" fill="url(#lmGrad)" filter="url(#glow)" rx="2"/>
-    <polygon points="44,12 48,26 52,12 52,28 52,52 60,52 60,12" fill="url(#lmGrad)" filter="url(#glow)"/>
+    {/* Hexágono interno (fundo) */}
+    <path d="M 50 12 L 83 30 L 83 70 L 50 88 L 17 70 L 17 30 Z" fill="url(#lmGradient)" opacity="0.1" filter="url(#innerGlow)"/>
 
-    {/* Acentos ciano (brilho lateral) */}
-    <circle cx="4" cy="16" r="2" fill="#00d4ff" opacity="0.6"/>
-    <circle cx="60" cy="32" r="2" fill="#00d4ff" opacity="0.6"/>
+    {/* Letra L */}
+    <g filter="url(#glowEffect)">
+      <rect x="28" y="30" width="6" height="36" fill="url(#lmGradient)" rx="2"/>
+      <rect x="28" y="64" width="16" height="4" fill="url(#lmGradient)" rx="2"/>
+    </g>
+
+    {/* Letra M */}
+    <g filter="url(#glowEffect)">
+      <rect x="54" y="30" width="6" height="36" fill="url(#lmGradient)" rx="2"/>
+      <polygon points="60,30 66,45 72,30 72,66 66,66 66,45 60,66 54,66" fill="url(#lmGradient)"/>
+    </g>
+
+    {/* Pontos de brilho (accent) */}
+    <circle cx="20" cy="25" r="1.5" fill="#00d4ff" opacity="0.8" filter="url(#glowEffect)"/>
+    <circle cx="80" cy="50" r="1.5" fill="#00d4ff" opacity="0.8" filter="url(#glowEffect)"/>
+    <circle cx="50" cy="92" r="1.5" fill="#00d4ff" opacity="0.8" filter="url(#glowEffect)"/>
   </svg>
 );
 
