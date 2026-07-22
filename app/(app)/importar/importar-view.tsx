@@ -42,9 +42,11 @@ const CAMPOS = [
   { key: "aprovado", label: "Aprovado", obrigatorio: false },
   { key: "cancelado", label: "Cancelado", obrigatorio: false },
   { key: "valorInstalado", label: "Valor instalado", obrigatorio: false },
+  { key: "valorDemaisServicos", label: "Valor demais serviços (base 50% ADM)", obrigatorio: false },
   { key: "qtdInternet", label: "Qtd. Internet", obrigatorio: false },
   { key: "qtdChip", label: "Qtd. Chip", obrigatorio: false },
   { key: "qtdGps", label: "Qtd. GPS", obrigatorio: false },
+  { key: "qtdTv", label: "Qtd. TV", obrigatorio: false },
   { key: "qtdStreaming", label: "Qtd. Streaming", obrigatorio: false },
   { key: "qtdTelefoniaFixa", label: "Qtd. Telefonia Fixa", obrigatorio: false },
 ] as const;
@@ -60,9 +62,11 @@ type LinhaRevisao = {
   aprovado: number;
   cancelado: number;
   valorInstalado: number;
+  valorDemaisServicos: number;
   qtdInternet: number;
   qtdChip: number;
   qtdGps: number;
+  qtdTv: number;
   qtdStreaming: number;
   qtdTelefoniaFixa: number;
 };
@@ -170,9 +174,11 @@ export function ImportarView({
         aprovado: campo("aprovado"),
         cancelado: campo("cancelado"),
         valorInstalado: campo("valorInstalado"),
+        valorDemaisServicos: campo("valorDemaisServicos"),
         qtdInternet: campo("qtdInternet"),
         qtdChip: campo("qtdChip"),
         qtdGps: campo("qtdGps"),
+        qtdTv: campo("qtdTv"),
         qtdStreaming: campo("qtdStreaming"),
         qtdTelefoniaFixa: campo("qtdTelefoniaFixa"),
       };
@@ -204,9 +210,11 @@ export function ImportarView({
         aprovado: l.aprovado,
         cancelado: l.cancelado,
         valorInstalado: l.valorInstalado,
+        valorDemaisServicos: l.valorDemaisServicos,
         qtdInternet: l.qtdInternet,
         qtdChip: l.qtdChip,
         qtdGps: l.qtdGps,
+        qtdTv: l.qtdTv,
         qtdStreaming: l.qtdStreaming,
         qtdTelefoniaFixa: l.qtdTelefoniaFixa,
       })),

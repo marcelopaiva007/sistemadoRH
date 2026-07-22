@@ -13,9 +13,11 @@ const linhaSchema = z.object({
   aprovado: z.number().int().default(0),
   cancelado: z.number().int().default(0),
   valorInstalado: z.number().default(0),
+  valorDemaisServicos: z.number().default(0),
   qtdInternet: z.number().int().default(0),
   qtdChip: z.number().int().default(0),
   qtdGps: z.number().int().default(0),
+  qtdTv: z.number().int().default(0),
   qtdStreaming: z.number().int().default(0),
   qtdTelefoniaFixa: z.number().int().default(0),
 });

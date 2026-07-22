@@ -96,9 +96,11 @@ export function ImportarEllevenView({
         aprovado: l.aprovado,
         cancelado: l.cancelado,
         valorInstalado: l.valorInstalado,
+        valorDemaisServicos: l.valorDemaisServicos,
         qtdInternet: l.qtdInternet,
         qtdChip: l.qtdChip,
         qtdGps: l.qtdGps,
+        qtdTv: l.qtdTv,
         qtdStreaming: l.qtdStreaming,
         qtdTelefoniaFixa: l.qtdTelefoniaFixa,
       })),
@@ -171,6 +173,7 @@ export function ImportarEllevenView({
                   <TableHead className="text-right">Internet</TableHead>
                   <TableHead className="text-right">Chip</TableHead>
                   <TableHead className="text-right">GPS</TableHead>
+                  <TableHead className="text-right">TV</TableHead>
                   <TableHead className="text-right">Streaming</TableHead>
                   <TableHead className="text-right">Tel. Fixa</TableHead>
                   <TableHead className="text-right">Outros</TableHead>
@@ -204,6 +207,7 @@ export function ImportarEllevenView({
                     <TableCell className="text-right">{l.qtdInternet}</TableCell>
                     <TableCell className="text-right">{l.qtdChip}</TableCell>
                     <TableCell className="text-right">{l.qtdGps}</TableCell>
+                    <TableCell className="text-right">{l.qtdTv}</TableCell>
                     <TableCell className="text-right">{l.qtdStreaming}</TableCell>
                     <TableCell className="text-right">{l.qtdTelefoniaFixa}</TableCell>
                     <TableCell className="text-right">{l.qtdOutros}</TableCell>
