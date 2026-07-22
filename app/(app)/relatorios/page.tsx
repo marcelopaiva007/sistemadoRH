@@ -1,6 +1,7 @@
 import { requireUser } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { periodoAtual, periodoLabel } from "@/lib/periodo";
+import { Logo } from "@/components/logo";
 import { RelatoriosView } from "./relatorios-view";
 
 export default async function RelatoriosPage({
@@ -48,11 +49,14 @@ export default async function RelatoriosPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Relatórios</h1>
-        <p className="text-muted-foreground">
-          Visão consolidada de vendas e bonificação por período e cidade.
-        </p>
+      <div className="flex items-center gap-3">
+        <Logo width={160} height={40} className="h-10 w-auto" />
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Relatórios</h1>
+          <p className="text-muted-foreground">
+            Visão consolidada de vendas e bonificação por período e cidade.
+          </p>
+        </div>
       </div>
       <RelatoriosView
         periodo={periodo}

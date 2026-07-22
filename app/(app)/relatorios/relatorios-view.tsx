@@ -57,10 +57,17 @@ export function RelatoriosView({
   async function handleExportar() {
     const XLSX = await import("xlsx");
     const wsData = [
+      ["L&M Telecom"],
+      [`Relatório de Bonificação — ${periodoLabel(periodo)}`],
+      [],
       ["Funcionário", "Cidade", "Bonificação"],
       ...bonificacoes.map((b) => [b.nome, b.cidade, b.valorTotal]),
     ];
     const ws = XLSX.utils.aoa_to_sheet(wsData);
+    ws["!merges"] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 2 } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: 2 } },
+    ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Bonificacao");
     XLSX.writeFile(wb, `bonificacao-${periodo}.xlsx`);
