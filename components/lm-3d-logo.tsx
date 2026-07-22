@@ -45,7 +45,7 @@ export function LM3DLogo() {
       // Load model
       const loader = new GLTFLoader();
       loader.load(
-        "/lm-logo.glb",
+        "/api/logo",
         (gltf) => {
           const model = gltf.scene;
           modelRef = model;
