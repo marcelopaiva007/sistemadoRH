@@ -289,6 +289,14 @@ model Colaborador {
   nome           String
   cpf            String?
   email          String?
+  // Telefone/celular de contato (formato livre, como veio do elleven) — usado
+  // pelo RH para contato e envio de convites de pesquisa (WhatsApp/Telegram).
+  telefone       String?
+  cidade         String?
+  dataNascimento DateTime?
+  // "Cod Pessoa" do cadastro no elleven (ERP) — chave para re-sincronizar sem
+  // depender de CPF preenchido.
+  ellevenCodigo  String?
   setorId        String
   setor          Setor    @relation(fields: [setorId], references: [id])
   posicaoId      String
