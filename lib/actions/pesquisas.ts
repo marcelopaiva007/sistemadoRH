@@ -93,6 +93,28 @@ export async function criarPesquisaNR01(empresaId: string): Promise<ActionResult
   redirect(`/rh/${empresaId}/pesquisas/${pesquisa.id}`);
 }
 
+// Exclui a campanha inteira: perguntas, opções, convites e respostas.
+// Ordem explícita na transação para não depender do encadeamento de cascades
+// do banco. Irreversível — a UI exige confirmação em duas etapas.
+export async function deletePesquisa(empresaId: string, id: string): Promise<ActionResult> {
+  await requireEmpresaAccess(empresaId);
+
+  const pesquisa = await prisma.pesquisa.findFirst({ where: { id, empresaId } });
+  if (!pesquisa) return { ok: false, error: "Pesquisa não encontrada." };
+
+  await prisma.$transaction([
+    prisma.respostaItem.deleteMany({ where: { resposta: { pesquisaId: id } } }),
+    prisma.resposta.deleteMany({ where: { pesquisaId: id } }),
+    prisma.surveyToken.deleteMany({ where: { pesquisaId: id } }),
+    prisma.opcao.deleteMany({ where: { pergunta: { pesquisaId: id } } }),
+    prisma.pergunta.deleteMany({ where: { pesquisaId: id } }),
+    prisma.pesquisa.delete({ where: { id } }),
+  ]);
+
+  revalidatePath(`/rh/${empresaId}/pesquisas`);
+  redirect(`/rh/${empresaId}/pesquisas`);
+}
+
 export async function updatePesquisa(
   empresaId: string,
   id: string,

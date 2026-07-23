@@ -36,7 +36,7 @@ import {
   YAxis,
   Tooltip,
 } from "recharts";
-import { updatePesquisa, alterarStatusPesquisa, salvarPerguntas, gerarConvites, enviarConvites, enviarConviteToken } from "@/lib/actions/pesquisas";
+import { updatePesquisa, alterarStatusPesquisa, salvarPerguntas, gerarConvites, enviarConvites, enviarConviteToken, deletePesquisa } from "@/lib/actions/pesquisas";
 import {
   TIPOS_PERGUNTA,
   DIMENSOES_GPTW,
@@ -181,6 +181,7 @@ function CabecalhoPesquisa({ empresaId, pesquisa }: { empresaId: string; pesquis
               Marcar como {statusPesquisaLabel(proximo)}
             </Button>
           )}
+          <ExcluirPesquisaButton empresaId={empresaId} pesquisaId={pesquisa.id} />
         </div>
       </CardHeader>
       <CardContent>
@@ -208,6 +209,47 @@ function CabecalhoPesquisa({ empresaId, pesquisa }: { empresaId: string; pesquis
         </form>
       </CardContent>
     </Card>
+  );
+}
+
+// Exclusão em duas etapas: primeiro clique arma a confirmação (com o alerta de
+// que convites e respostas vão junto), segundo clique executa. Em caso de
+// sucesso a action redireciona para a lista de pesquisas.
+function ExcluirPesquisaButton({ empresaId, pesquisaId }: { empresaId: string; pesquisaId: string }) {
+  const [confirming, setConfirming] = useState(false);
+  const [excluindo, setExcluindo] = useState(false);
+
+  if (confirming) {
+    return (
+      <div className="flex items-center gap-1">
+        <span className="text-xs text-destructive">Excluir campanha, convites e respostas?</span>
+        <Button
+          type="button"
+          variant="destructive"
+          size="sm"
+          disabled={excluindo}
+          onClick={async () => {
+            setExcluindo(true);
+            const result = await deletePesquisa(empresaId, pesquisaId);
+            // só volta aqui em erro — no sucesso a action redireciona
+            setExcluindo(false);
+            if (result && !result.ok) toast.error(result.error);
+          }}
+        >
+          {excluindo ? "Excluindo..." : "Confirmar"}
+        </Button>
+        <Button type="button" variant="ghost" size="sm" onClick={() => setConfirming(false)}>
+          Cancelar
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <Button type="button" variant="destructive" size="sm" onClick={() => setConfirming(true)}>
+      <Trash2 className="size-4" />
+      Excluir
+    </Button>
   );
 }
 

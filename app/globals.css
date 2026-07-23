@@ -49,40 +49,43 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* Tema claro e suave: fundo off-white azulado, texto slate, azul sereno como
+   cor primária. (O bloco .dark abaixo permanece disponível, mas nada aplica a
+   classe "dark" hoje — o sistema roda no claro.) */
 :root {
-  --background: #0a0e27;
-  --foreground: #e0e7ff;
-  --card: #1a1f3a;
-  --card-foreground: #e0e7ff;
-  --popover: #151a2f;
-  --popover-foreground: #e0e7ff;
-  --primary: #2563eb;
-  --primary-foreground: #0a0e27;
-  --secondary: #3b82f6;
-  --secondary-foreground: #0a0e27;
-  --muted: #374151;
-  --muted-foreground: #9ca3af;
-  --accent: #00d4ff;
-  --accent-foreground: #0a0e27;
-  --destructive: #ef4444;
-  --success: #10b981;
-  --border: #1e293b;
-  --input: #1e293b;
-  --ring: #00d4ff;
+  --background: #f6f8fb;
+  --foreground: #1f2937;
+  --card: #ffffff;
+  --card-foreground: #1f2937;
+  --popover: #ffffff;
+  --popover-foreground: #1f2937;
+  --primary: #3b82f6;
+  --primary-foreground: #ffffff;
+  --secondary: #e8eef7;
+  --secondary-foreground: #1f2937;
+  --muted: #eef2f7;
+  --muted-foreground: #64748b;
+  --accent: #e0f2fe;
+  --accent-foreground: #0c4a6e;
+  --destructive: #dc2626;
+  --success: #059669;
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #93c5fd;
   --chart-1: #3b82f6;
   --chart-2: #0ea5e9;
   --chart-3: #10b981;
   --chart-4: #f59e0b;
   --chart-5: #ec4899;
   --radius: 0.625rem;
-  --sidebar: #151a2f;
-  --sidebar-foreground: #e0e7ff;
-  --sidebar-primary: #2563eb;
-  --sidebar-primary-foreground: #e0e7ff;
-  --sidebar-accent: #00d4ff;
-  --sidebar-accent-foreground: #0a0e27;
-  --sidebar-border: #1e293b;
-  --sidebar-ring: #00d4ff;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1f2937;
+  --sidebar-primary: #3b82f6;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #eef2f7;
+  --sidebar-accent-foreground: #1f2937;
+  --sidebar-border: #e2e8f0;
+  --sidebar-ring: #93c5fd;
 }
 
 .dark {
@@ -127,8 +130,8 @@
   body {
     @apply bg-background text-foreground;
     background-image:
-      radial-gradient(circle at 20% 50%, rgba(0, 212, 255, 0.05) 0%, transparent 50%),
-      radial-gradient(circle at 80% 80%, rgba(37, 99, 235, 0.05) 0%, transparent 50%);
+      radial-gradient(circle at 20% 50%, rgba(59, 130, 246, 0.04) 0%, transparent 50%),
+      radial-gradient(circle at 80% 80%, rgba(14, 165, 233, 0.04) 0%, transparent 50%);
   }
   html {
     @apply font-sans;
