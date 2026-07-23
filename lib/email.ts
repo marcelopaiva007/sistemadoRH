@@ -3,7 +3,26 @@
 //   EMAIL_FROM (ex.: "RH LM Telecom <rh@assinelm.com.br>").
 // Sem configuração, retorna erro claro (mesmo contrato de lib/telegram.ts) —
 // o convite fica FAILED com o motivo visível na tela da pesquisa.
-import nodemailer from "nodemailer";
+import nodemailer, { type Transporter } from "nodemailer";
+
+// Transporter com pool reutilizado entre envios do mesmo processo — sem isso,
+// cada e-mail paga um handshake TLS/SMTP completo (~1s), o que inviabiliza o
+// envio em lote dentro do tempo de uma server action.
+let cached: { key: string; transporter: Transporter } | null = null;
+function getTransporter(host: string, port: number, user: string, pass: string): Transporter {
+  const key = `${host}:${port}:${user}`;
+  if (cached?.key === key) return cached.transporter;
+  const transporter = nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass },
+    pool: true,
+    maxConnections: 2,
+  });
+  cached = { key, transporter };
+  return transporter;
+}
 
 export async function sendEmail(params: {
   to: string;
@@ -24,12 +43,7 @@ export async function sendEmail(params: {
   }
 
   try {
-    const transporter = nodemailer.createTransport({
-      host,
-      port,
-      secure: port === 465,
-      auth: { user, pass },
-    });
+    const transporter = getTransporter(host, port, user, pass);
     await transporter.sendMail({
       from,
       to: params.to,

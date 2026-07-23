@@ -40,6 +40,7 @@ import { updatePesquisa, alterarStatusPesquisa, salvarPerguntas, gerarConvites, 
 import {
   TIPOS_PERGUNTA,
   DIMENSOES_GPTW,
+  LIMITE_DIARIO_ENVIOS,
   statusPesquisaLabel,
   tipoPerguntaLabel,
   dimensaoGPTWLabel,
@@ -63,6 +64,7 @@ type Colaborador = { id: string; nome: string };
 type Token = {
   id: string;
   status: string;
+  canal: string;
   erro: string | null;
   enviadoEm: Date | null;
   colaborador: Colaborador;
@@ -444,12 +446,47 @@ function ConvitesSection({
     setPendingAction(null);
   }
 
+  // Envia em lotes (limite de tempo de server action na Vercel), repetindo até
+  // não restar pendente — com progresso via toast. Para se um lote inteiro
+  // falhar (ex.: SMTP fora ou limite diário do provedor atingido).
   async function handleEnviarTodos() {
     setPendingAction("enviar-todos");
-    const result = await enviarConvites(empresaId, pesquisa.id);
-    if (result.ok) toast.success("Convites enviados.");
-    else toast.error(result.error);
-    setPendingAction(null);
+    let totalEnviados = 0;
+    let totalFalhas = 0;
+    const progresso = toast.loading("Enviando convites...");
+    try {
+      for (let i = 0; i < 30; i++) {
+        const lote = await enviarConvites(empresaId, pesquisa.id);
+        totalEnviados += lote.enviados;
+        totalFalhas += lote.falhas;
+        toast.loading(
+          `Enviando... ${totalEnviados} enviado(s), ${lote.restantes} restante(s)` +
+            (totalFalhas > 0 ? `, ${totalFalhas} falha(s)` : ""),
+          { id: progresso }
+        );
+        if (lote.restantes === 0) break;
+        if (lote.enviados === 0) {
+          toast.error(
+            `Envio interrompido: ${lote.restantes} convite(s) não puderam ser enviados` +
+              (lote.error ? ` — ${lote.error}` : "") +
+              ". Corrija o problema e clique de novo para retomar.",
+            { id: progresso, duration: 10000 }
+          );
+          setPendingAction(null);
+          return;
+        }
+      }
+      if (totalFalhas === 0) {
+        toast.success(`${totalEnviados} convite(s) enviado(s) com sucesso.`, { id: progresso });
+      } else {
+        toast.warning(
+          `${totalEnviados} enviado(s), ${totalFalhas} falha(s) — veja a coluna Erro e clique de novo para reenviar as falhas.`,
+          { id: progresso, duration: 10000 }
+        );
+      }
+    } finally {
+      setPendingAction(null);
+    }
   }
 
   async function handleEnviarUm(tokenId: string) {
@@ -492,11 +529,18 @@ function ConvitesSection({
             Ative a pesquisa para gerar e enviar convites.
           </p>
         )}
+        <p className="mb-3 text-xs text-muted-foreground">
+          Envio automático: todo dia às 10h o sistema envia até {LIMITE_DIARIO_ENVIOS} convites
+          pendentes, completando setor por setor, e marca aqui o canal e a data de cada envio. O
+          botão acima envia agora, dentro do mesmo limite diário.
+        </p>
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Colaborador</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Canal</TableHead>
+              <TableHead>Enviado em</TableHead>
               <TableHead>Erro</TableHead>
               <TableHead className="w-24 text-right">Ações</TableHead>
             </TableRow>
@@ -504,7 +548,7 @@ function ConvitesSection({
           <TableBody>
             {pesquisa.tokens.length === 0 && (
               <TableRow>
-                <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
+                <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
                   Nenhum convite gerado ainda.
                 </TableCell>
               </TableRow>
@@ -516,6 +560,16 @@ function ConvitesSection({
                   <Badge variant={t.status === "RESPONDED" ? "default" : "secondary"}>
                     {statusTokenLabel(t.status)}
                   </Badge>
+                </TableCell>
+                <TableCell className="text-sm">
+                  {t.status === "SENT" || t.status === "RESPONDED" || t.status === "FAILED"
+                    ? t.canal === "EMAIL"
+                      ? "E-mail"
+                      : "Telegram"
+                    : "—"}
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {t.enviadoEm ? new Date(t.enviadoEm).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—"}
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground">{t.erro ?? "—"}</TableCell>
                 <TableCell className="text-right">

@@ -6,8 +6,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
-import { sendTelegramMessage } from "@/lib/telegram";
-import { sendEmail } from "@/lib/email";
+import { enviarUmConvite, enviosRestantesHoje, LIMITE_DIARIO_ENVIOS } from "@/lib/convites";
 import {
   PERGUNTAS_NR01,
   TITULO_PESQUISA_NR01,
@@ -258,67 +257,74 @@ export async function enviarConviteToken(empresaId: string, tokenId: string): Pr
   });
   if (!token) return { ok: false, error: "Convite não encontrado." };
 
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
-  const link = `${baseUrl}/responder/${token.token}`;
-  const primeiroNome = token.colaborador.nome.split(" ")[0];
-  const texto = `Olá, ${primeiroNome}! Você foi convidado a responder a pesquisa "${token.pesquisa.titulo}". Acesse: ${link}`;
-
-  // Canal preferido: Telegram (vinculado via bot). Fallback: e-mail do cadastro.
-  let resultado: { ok: true } | { ok: false; error: string };
-  let canal: "TELEGRAM" | "EMAIL";
-  if (token.colaborador.telegramChatId) {
-    canal = "TELEGRAM";
-    resultado = await sendTelegramMessage(token.colaborador.telegramChatId, texto);
-  } else if (token.colaborador.email) {
-    canal = "EMAIL";
-    resultado = await sendEmail({
-      to: token.colaborador.email,
-      subject: `Pesquisa: ${token.pesquisa.titulo}`,
-      html:
-        `<p>Olá, <strong>${primeiroNome}</strong>!</p>` +
-        `<p>Você foi convidado a responder a pesquisa <strong>${token.pesquisa.titulo}</strong>.</p>` +
-        (token.pesquisa.anonima
-          ? `<p>A pesquisa é anônima: as respostas são analisadas apenas de forma agregada.</p>`
-          : "") +
-        `<p><a href="${link}" style="display:inline-block;padding:10px 18px;background:#2563eb;color:#fff;border-radius:6px;text-decoration:none">Responder pesquisa</a></p>` +
-        `<p>Ou copie o link: ${link}</p>`,
-    });
-  } else {
-    await prisma.surveyToken.update({
-      where: { id: tokenId },
-      data: { status: "FAILED", erro: "Colaborador sem Telegram vinculado e sem e-mail cadastrado." },
-    });
-    return { ok: false, error: "Colaborador sem Telegram vinculado e sem e-mail cadastrado." };
-  }
-
-  await prisma.surveyToken.update({
-    where: { id: tokenId },
-    data: resultado.ok
-      ? { status: "SENT", canal, enviadoEm: new Date(), erro: null }
-      : { status: "FAILED", canal, erro: resultado.error },
-  });
-
+  const resultado = await enviarUmConvite(token);
   revalidatePath(`/rh/${empresaId}/pesquisas/${token.pesquisaId}`);
   return resultado.ok ? { ok: true } : { ok: false, error: resultado.error };
 }
 
-export async function enviarConvites(empresaId: string, pesquisaId: string): Promise<ActionResult> {
+export type EnvioLoteResult = {
+  ok: boolean;
+  enviados: number;
+  falhas: number;
+  restantes: number;
+  error?: string;
+};
+
+// Envia UM LOTE de convites pendentes/falhos e devolve quantos restam — o
+// cliente chama em loop até restantes = 0. Lotes pequenos porque uma server
+// action tem tempo de execução limitado na Vercel; enviar 200+ numa chamada
+// única estouraria o limite e deixaria envios pela metade sem retorno.
+export async function enviarConvites(
+  empresaId: string,
+  pesquisaId: string,
+  limite = 15,
+): Promise<EnvioLoteResult> {
   await requireEmpresaAccess(empresaId);
 
-  const tokens = await prisma.surveyToken.findMany({
-    where: { pesquisaId, pesquisa: { empresaId }, status: { in: ["PENDING", "FAILED"] } },
-    select: { id: true },
+  // Teto GLOBAL de envios por dia (Brasília) — compartilhado com o envio
+  // automático diário. Atingido o teto, o restante sai nos próximos dias.
+  const orcamento = await enviosRestantesHoje();
+  const restantesQuery = {
+    pesquisaId,
+    pesquisa: { empresaId },
+    status: { in: ["PENDING", "FAILED"] },
+  };
+  if (orcamento <= 0) {
+    const restantes = await prisma.surveyToken.count({ where: restantesQuery });
+    return {
+      ok: false,
+      enviados: 0,
+      falhas: 0,
+      restantes,
+      error: `Limite diário de ${LIMITE_DIARIO_ENVIOS} envios atingido — o envio automático continua amanhã.`,
+    };
+  }
+
+  const lote = await prisma.surveyToken.findMany({
+    where: restantesQuery,
+    include: { colaborador: true, pesquisa: true },
+    // PENDING antes de FAILED: um convite com falha permanente (ex.: sem canal)
+    // não pode monopolizar os lotes e impedir os pendentes de sair.
+    orderBy: [{ status: "desc" }, { createdAt: "asc" }],
+    take: Math.min(Math.max(limite, 1), 30, orcamento),
   });
 
+  let enviados = 0;
   let falhas = 0;
-  for (const t of tokens) {
-    const resultado = await enviarConviteToken(empresaId, t.id);
-    if (!resultado.ok) falhas++;
+  let ultimoErro: string | undefined;
+  for (const token of lote) {
+    const resultado = await enviarUmConvite(token);
+    if (resultado.ok) enviados++;
+    else {
+      falhas++;
+      ultimoErro = resultado.error;
+    }
   }
 
+  const restantes = await prisma.surveyToken.count({
+    where: { pesquisaId, pesquisa: { empresaId }, status: { in: ["PENDING", "FAILED"] } },
+  });
+
   revalidatePath(`/rh/${empresaId}/pesquisas/${pesquisaId}`);
-  if (falhas > 0) {
-    return { ok: false, error: `${falhas} de ${tokens.length} convite(s) não puderam ser enviados.` };
-  }
-  return { ok: true };
+  return { ok: falhas === 0, enviados, falhas, restantes, error: ultimoErro };
 }
