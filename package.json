@@ -10,7 +10,8 @@
     "postinstall": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
-    "db:seed": "tsx prisma/seed.ts"
+    "db:seed": "tsx prisma/seed.ts",
+    "diag:envios": "tsx scripts/diag-envios.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
