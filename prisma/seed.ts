@@ -2,8 +2,6 @@ import "dotenv/config";
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 import { prisma } from "../lib/prisma";
-import { Prisma } from "../app/generated/prisma/client";
-import { REGRAS_DEFAULT } from "../lib/regras-defaults";
 
 function gerarSenhaAleatoria(): string {
   return crypto.randomBytes(9).toString("base64url");
@@ -100,50 +98,6 @@ async function main() {
   console.log(
     "\nGuarde as senhas geradas acima em local seguro — elas não ficam salvas em nenhum arquivo e não podem ser recuperadas depois."
   );
-
-  await seedRegras();
-}
-
-// Pré-cadastra a política de bonificação da OS como vigência corrente. Idempotente:
-// se já houver uma vigência aberta iniciando no 1º dia do mês atual, apenas
-// atualiza a config; caso contrário, fecha as vigências abertas e cria a nova.
-async function seedRegras() {
-  const hoje = new Date();
-  const inicio = new Date(Date.UTC(hoje.getUTCFullYear(), hoje.getUTCMonth(), 1));
-  const diaAnterior = new Date(inicio);
-  diaAnterior.setUTCDate(diaAnterior.getUTCDate() - 1);
-
-  for (const [cargo, config] of Object.entries(REGRAS_DEFAULT)) {
-    const configJson = config as unknown as Prisma.InputJsonValue;
-    const aberta = await prisma.regraBonificacao.findFirst({
-      where: { cargo, vigenciaFim: null },
-      orderBy: { vigenciaInicio: "desc" },
-    });
-
-    if (aberta && aberta.vigenciaInicio.getTime() === inicio.getTime()) {
-      await prisma.regraBonificacao.update({
-        where: { id: aberta.id },
-        data: { config: configJson },
-      });
-      console.log(`Regra "${cargo}" já vigente neste mês — config atualizada.`);
-      continue;
-    }
-
-    await prisma.regraBonificacao.updateMany({
-      where: { cargo, vigenciaFim: null },
-      data: { vigenciaFim: diaAnterior },
-    });
-    await prisma.regraBonificacao.create({
-      data: {
-        cargo,
-        vigenciaInicio: inicio,
-        vigenciaFim: null,
-        config: configJson,
-        observacoes: "Política de bonificação da OS (pré-cadastrada pelo seed).",
-      },
-    });
-    console.log(`Regra "${cargo}" criada, vigente a partir de ${inicio.toISOString().slice(0, 10)}.`);
-  }
 }
 
 main()
