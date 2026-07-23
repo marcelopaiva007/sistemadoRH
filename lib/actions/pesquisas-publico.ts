@@ -56,52 +56,69 @@ export async function responderPesquisa(token: string, _prev: ActionResult, form
   const faltando = perguntasObrigatorias.some((p) => !perguntasRespondidas.has(p.id));
   if (faltando) return { ok: false, error: "Responda todas as perguntas obrigatórias." };
 
-  await prisma.$transaction(async (tx) => {
-    const resposta = await tx.resposta.create({
-      data: {
-        pesquisaId: surveyToken.pesquisaId,
-        colaboradorId: surveyToken.pesquisa.anonima ? null : surveyToken.colaboradorId,
-        setorNomeSnapshot: "",
-        posicaoNomeSnapshot: "",
-      },
-    });
+  // Sentinela para abortar a transação quando outro envio chegou primeiro.
+  const JA_RESPONDIDO = "JA_RESPONDIDO";
+  try {
+    await prisma.$transaction(async (tx) => {
+      // Marcar o token é a PRIMEIRA operação, e condicionada ao status atual:
+      // é o Postgres que serializa dois envios simultâneos (mesmo link aberto
+      // no celular e no computador). A checagem lá em cima, fora da transação,
+      // só existe para a mensagem amigável no caso comum — sem este
+      // compare-and-set o segundo envio criaria uma Resposta duplicada, e em
+      // pesquisa anônima a duplicata seria indetectável depois, entrando
+      // silenciosamente na média do setor.
+      const marcado = await tx.surveyToken.updateMany({
+        where: { id: surveyToken.id, status: { not: "RESPONDED" } },
+        data: { status: "RESPONDED", respondidoEm: new Date() },
+      });
+      if (marcado.count === 0) throw new Error(JA_RESPONDIDO);
 
-    // Snapshot de setor/posição no momento da resposta (sempre gravado, mesmo
-    // em pesquisa anônima) — é isso que permite o RH filtrar agregados por
-    // setor/posição sem jamais identificar quem respondeu. Sexo e FAIXA etária
-    // (nunca idade exata — setor pequeno + idade identificaria) seguem a mesma
-    // lógica, para os recortes demográficos da avaliação NR-01.
-    const colaborador = await tx.colaborador.findUnique({
-      where: { id: surveyToken.colaboradorId },
-      include: { setor: true, posicao: true },
-    });
-    await tx.resposta.update({
-      where: { id: resposta.id },
-      data: {
-        setorNomeSnapshot: colaborador?.setor.nome ?? "Desconhecido",
-        posicaoNomeSnapshot: colaborador?.posicao.nome ?? "Desconhecido",
-        sexoSnapshot: colaborador?.sexo ?? null,
-        faixaEtariaSnapshot: faixaEtaria(colaborador?.dataNascimento ?? null),
-      },
-    });
-
-    for (const item of parsed.data.itens) {
-      await tx.respostaItem.create({
+      const resposta = await tx.resposta.create({
         data: {
-          respostaId: resposta.id,
-          perguntaId: item.perguntaId,
-          valorNumerico: item.valorNumerico ?? null,
-          valorTexto: item.valorTexto || null,
-          opcaoId: item.opcaoId || null,
+          pesquisaId: surveyToken.pesquisaId,
+          colaboradorId: surveyToken.pesquisa.anonima ? null : surveyToken.colaboradorId,
+          setorNomeSnapshot: "",
+          posicaoNomeSnapshot: "",
         },
       });
-    }
 
-    await tx.surveyToken.update({
-      where: { id: surveyToken.id },
-      data: { status: "RESPONDED", respondidoEm: new Date() },
+      // Snapshot de setor/posição no momento da resposta (sempre gravado, mesmo
+      // em pesquisa anônima) — é isso que permite o RH filtrar agregados por
+      // setor/posição sem jamais identificar quem respondeu. Sexo e FAIXA etária
+      // (nunca idade exata — setor pequeno + idade identificaria) seguem a mesma
+      // lógica, para os recortes demográficos da avaliação NR-01.
+      const colaborador = await tx.colaborador.findUnique({
+        where: { id: surveyToken.colaboradorId },
+        include: { setor: true, posicao: true },
+      });
+      await tx.resposta.update({
+        where: { id: resposta.id },
+        data: {
+          setorNomeSnapshot: colaborador?.setor.nome ?? "Desconhecido",
+          posicaoNomeSnapshot: colaborador?.posicao.nome ?? "Desconhecido",
+          sexoSnapshot: colaborador?.sexo ?? null,
+          faixaEtariaSnapshot: faixaEtaria(colaborador?.dataNascimento ?? null),
+        },
+      });
+
+      for (const item of parsed.data.itens) {
+        await tx.respostaItem.create({
+          data: {
+            respostaId: resposta.id,
+            perguntaId: item.perguntaId,
+            valorNumerico: item.valorNumerico ?? null,
+            valorTexto: item.valorTexto || null,
+            opcaoId: item.opcaoId || null,
+          },
+        });
+      }
     });
-  });
+  } catch (e) {
+    if (e instanceof Error && e.message === JA_RESPONDIDO) {
+      return { ok: false, error: "Este convite já foi respondido." };
+    }
+    throw e;
+  }
 
   return { ok: true };
 }
