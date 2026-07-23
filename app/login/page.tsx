@@ -8,7 +8,7 @@ export default function LoginPage() {
         <div className="flex flex-col items-center space-y-2 text-center">
           <Logo width={240} height={64} className="h-14 w-auto" />
           <p className="text-sm text-muted-foreground">
-            Sistema de Bonificação de Vendas
+            Sistema do RH — Clima Organizacional
           </p>
         </div>
         <LoginForm />

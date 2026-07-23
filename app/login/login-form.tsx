@@ -92,7 +92,7 @@ export function LoginForm() {
             <h1 className="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
               LM Telecom
             </h1>
-            <p className="text-sm text-slate-400 mt-1">Sistema de Bonificação</p>
+            <p className="text-sm text-slate-400 mt-1">Sistema do RH</p>
           </div>
 
           <form action={handleSubmit} className="space-y-4">

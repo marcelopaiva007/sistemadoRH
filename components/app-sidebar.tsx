@@ -30,7 +30,7 @@ export function AppSidebar({
     <aside className="flex h-screen w-64 shrink-0 flex-col border-r bg-background">
       <div className="border-b px-4 py-4">
         <Logo width={180} height={44} className="h-9 w-auto" />
-        <p className="mt-1 text-xs text-muted-foreground">Bonificação de Vendas</p>
+        <p className="mt-1 text-xs text-muted-foreground">RH — Clima Organizacional</p>
       </div>
 
       <nav className="flex-1 space-y-1 overflow-y-auto p-2">

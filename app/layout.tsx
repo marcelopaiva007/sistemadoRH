@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Bonificação | LM Telecom",
+  title: "Sistema do RH | LM Telecom",
   description: "Sistema de bonificação de vendas — LM Telecom",
 };
 
