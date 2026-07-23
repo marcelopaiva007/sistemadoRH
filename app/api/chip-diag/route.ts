@@ -48,7 +48,25 @@ export async function GET(req: NextRequest) {
     out.auth = { ok: false, ...fmt(e) };
   }
 
-  // 2) Preview (o que a tela chama e falha)
+  // 2) requireUser (captura redirect via digest)
+  try {
+    const { requireUser } = await import("@/lib/auth-guard");
+    const u = await requireUser();
+    out.requireUser = { ok: true, role: (u as { role?: string }).role ?? null };
+  } catch (e) {
+    out.requireUser = { ok: false, ...fmt(e) };
+  }
+
+  // 3) requireAdmin (captura redirect via digest)
+  try {
+    const { requireAdmin } = await import("@/lib/auth-guard");
+    const u = await requireAdmin();
+    out.requireAdmin = { ok: true, role: (u as { role?: string }).role ?? null };
+  } catch (e) {
+    out.requireAdmin = { ok: false, ...fmt(e) };
+  }
+
+  // 4) Preview (o que a tela chama e falha)
   try {
     const periodo = periodoAtual();
     const r = await previewChipMovel(periodo);
