@@ -10,6 +10,10 @@ export const authConfig = {
   callbacks: {
     authorized({ auth, request }) {
       const isLoggedIn = !!auth?.user;
+      // /responder/<token> é público por design: o colaborador acessa pelo
+      // link do convite, sem login — a autorização é o próprio token
+      // imprevisível (ver lib/actions/pesquisas-publico.ts).
+      if (request.nextUrl.pathname.startsWith("/responder")) return true;
       const isOnLogin = request.nextUrl.pathname.startsWith("/login");
       if (isOnLogin) {
         return isLoggedIn ? Response.redirect(new URL("/", request.nextUrl)) : true;
