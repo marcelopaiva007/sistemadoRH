@@ -6,8 +6,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import chromiumServerless from "@sparticuz/chromium";
 import { chromium, type Browser } from "playwright-core";
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { calcularNR01 } from "@/lib/nr01";
 import { gerarHtmlRelatorioNR01 } from "@/lib/nr01-relatorio";
 
@@ -37,7 +37,18 @@ export async function GET(
   { params }: { params: Promise<{ empresaId: string; pesquisaId: string }> },
 ) {
   const { empresaId, pesquisaId } = await params;
-  await requireEmpresaAccess(empresaId);
+
+  // Numa rota de API devolvemos 401/403 explícitos (redirect() é para páginas).
+  // Mesma regra do requireEmpresaAccess: ADMIN acessa qualquer empresa,
+  // RH_MANAGER só a própria.
+  const session = await auth();
+  const user = session?.user;
+  if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
+  const autorizado =
+    user.role === "ADMIN" || (user.role === "RH_MANAGER" && user.empresaId === empresaId);
+  if (!autorizado) {
+    return NextResponse.json({ error: "Sem acesso a esta empresa." }, { status: 403 });
+  }
 
   const pesquisa = await prisma.pesquisa.findFirst({
     where: { id: pesquisaId, empresaId, modelo: "NR01" },
