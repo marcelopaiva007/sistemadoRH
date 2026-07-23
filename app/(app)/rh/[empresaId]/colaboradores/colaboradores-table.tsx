@@ -57,6 +57,11 @@ type Colaborador = {
 
 const initialState: ActionResult = { ok: true };
 
+function formatarCpf(cpf: string | null): string {
+  if (!cpf || cpf.length !== 11) return cpf ?? "—";
+  return `${cpf.slice(0, 3)}.${cpf.slice(3, 6)}.${cpf.slice(6, 9)}-${cpf.slice(9)}`;
+}
+
 export function ColaboradoresTable({
   empresaId,
   colaboradores,
@@ -75,9 +80,12 @@ export function ColaboradoresTable({
   const filtrados = useMemo(() => {
     const termo = busca.trim().toLowerCase();
     if (!termo) return colaboradores;
+    const termoDigitos = termo.replace(/\D/g, "");
     return colaboradores.filter(
       (c) =>
         c.nome.toLowerCase().includes(termo) ||
+        (termoDigitos && c.cpf?.includes(termoDigitos)) ||
+        c.email?.toLowerCase().includes(termo) ||
         c.setor.nome.toLowerCase().includes(termo) ||
         c.posicao.nome.toLowerCase().includes(termo)
     );
@@ -87,7 +95,7 @@ export function ColaboradoresTable({
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4">
         <Input
-          placeholder="Buscar por nome, setor ou posição..."
+          placeholder="Buscar por nome, CPF, e-mail, setor ou posição..."
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
           className="max-w-sm"
@@ -114,6 +122,8 @@ export function ColaboradoresTable({
           <TableHeader>
             <TableRow>
               <TableHead>Nome</TableHead>
+              <TableHead>CPF</TableHead>
+              <TableHead>E-mail</TableHead>
               <TableHead>Setor</TableHead>
               <TableHead>Posição</TableHead>
               <TableHead>Telegram</TableHead>
@@ -124,7 +134,7 @@ export function ColaboradoresTable({
           <TableBody>
             {filtrados.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+                <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
                   Nenhum colaborador encontrado.
                 </TableCell>
               </TableRow>
@@ -132,6 +142,10 @@ export function ColaboradoresTable({
             {filtrados.map((c) => (
               <TableRow key={c.id} className={c.ativo ? "" : "opacity-60"}>
                 <TableCell className="font-medium">{c.nome}</TableCell>
+                <TableCell className="whitespace-nowrap tabular-nums">{formatarCpf(c.cpf)}</TableCell>
+                <TableCell className="max-w-56 truncate text-muted-foreground" title={c.email ?? undefined}>
+                  {c.email ?? "—"}
+                </TableCell>
                 <TableCell>{c.setor.nome}</TableCell>
                 <TableCell>{c.posicao.nome}</TableCell>
                 <TableCell>
@@ -278,8 +292,9 @@ function ColaboradorForm({
           placeholder="Ex: 123456789"
         />
         <p className="text-xs text-muted-foreground">
-          Necessário para enviar o convite da pesquisa automaticamente pelo Telegram. Peça
-          para o colaborador dar /start no bot e informe aqui o chat_id obtido.
+          Necessário para enviar o convite da pesquisa pelo Telegram. Preenchido
+          automaticamente quando o colaborador dá /start no bot e compartilha o número —
+          só edite aqui em caso de exceção.
         </p>
       </div>
       <div className="flex items-center gap-2">
