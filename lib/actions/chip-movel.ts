@@ -24,13 +24,28 @@ export async function previsualizarChipMovel(periodo: string): Promise<
     }
   | { ok: false; error: string }
 > {
-  await requireAdmin();
   try {
+    // requireAdmin dentro do try: se a falha estiver na autenticação (ou em
+    // qualquer passo), capturamos a mensagem real em vez de deixá-la cruzar a
+    // fronteira do server action e ser redigida pelo Next.
+    await requireAdmin();
     const r = await previewChipMovel(periodo);
     return { ok: true, ...r };
   } catch (e) {
+    // redirect()/notFound() do Next usam `digest` e PRECISAM propagar.
+    if (
+      e &&
+      typeof e === "object" &&
+      "digest" in e &&
+      typeof (e as { digest?: unknown }).digest === "string" &&
+      ((e as { digest: string }).digest.startsWith("NEXT_REDIRECT") ||
+        (e as { digest: string }).digest === "NEXT_NOT_FOUND")
+    ) {
+      throw e;
+    }
     console.error("[chip] previsualizarChipMovel falhou:", e);
-    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    const detalhe = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
+    return { ok: false, error: detalhe.slice(0, 600) };
   }
 }
 
