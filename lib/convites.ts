@@ -37,8 +37,13 @@ export function inicioDoDiaSaoPaulo(agora = new Date()): Date {
 }
 
 export async function enviosRestantesHoje(): Promise<number> {
+  // Conta por enviadoEm, NUNCA por status: enviadoEm só é gravado em envio
+  // bem-sucedido e nunca é apagado, enquanto o status vira RESPONDED assim que
+  // a pessoa responde. Filtrar por status="SENT" fazia o orçamento do dia se
+  // regenerar sozinho conforme chegavam respostas, e o total real do dia podia
+  // passar do limite do provedor.
   const enviadosHoje = await prisma.surveyToken.count({
-    where: { status: "SENT", enviadoEm: { gte: inicioDoDiaSaoPaulo() } },
+    where: { enviadoEm: { gte: inicioDoDiaSaoPaulo() } },
   });
   return Math.max(0, LIMITE_DIARIO_ENVIOS - enviadosHoje);
 }
