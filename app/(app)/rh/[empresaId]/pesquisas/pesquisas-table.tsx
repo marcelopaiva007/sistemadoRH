@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useActionState, useState } from "react";
-import { Plus, ShieldAlert } from "lucide-react";
+import { Plus, ShieldAlert, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { createPesquisa, criarPesquisaNR01 } from "@/lib/actions/pesquisas";
+import { createPesquisa, criarPesquisaNR01, deletePesquisa } from "@/lib/actions/pesquisas";
 import { statusPesquisaLabel } from "@/lib/constants-rh";
 import type { ActionResult } from "@/lib/constants";
 
@@ -86,12 +86,13 @@ export function PesquisasTable({ empresaId, pesquisas }: { empresaId: string; pe
               <TableHead>Perguntas</TableHead>
               <TableHead>Convites</TableHead>
               <TableHead>Respostas</TableHead>
+              <TableHead className="w-px" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {pesquisas.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+                <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
                   Nenhuma pesquisa cadastrada ainda.
                 </TableCell>
               </TableRow>
@@ -115,12 +116,81 @@ export function PesquisasTable({ empresaId, pesquisas }: { empresaId: string; pe
                 <TableCell>{p._count.perguntas}</TableCell>
                 <TableCell>{p._count.tokens}</TableCell>
                 <TableCell>{p._count.respostas}</TableCell>
+                <TableCell className="text-right">
+                  <ExcluirPesquisaButton
+                    empresaId={empresaId}
+                    pesquisaId={p.id}
+                    titulo={p.titulo}
+                    respostas={p._count.respostas}
+                  />
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </div>
     </div>
+  );
+}
+
+// Mesmo padrão de duas etapas da tela de detalhe (pesquisa-detalhe-view.tsx):
+// primeiro clique arma, segundo executa. Aqui a confirmação nomeia a pesquisa e
+// diz quantas respostas vão junto — numa lista o risco é clicar na linha errada,
+// e a exclusão é irreversível.
+function ExcluirPesquisaButton({
+  empresaId,
+  pesquisaId,
+  titulo,
+  respostas,
+}: {
+  empresaId: string;
+  pesquisaId: string;
+  titulo: string;
+  respostas: number;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  const [excluindo, setExcluindo] = useState(false);
+
+  if (confirming) {
+    return (
+      <div className="flex items-center justify-end gap-1 whitespace-nowrap">
+        <span className="text-xs text-destructive">
+          Excluir &ldquo;{titulo}&rdquo;
+          {respostas > 0 && ` e ${respostas} resposta${respostas > 1 ? "s" : ""}`}?
+        </span>
+        <Button
+          type="button"
+          variant="destructive"
+          size="sm"
+          disabled={excluindo}
+          onClick={async () => {
+            setExcluindo(true);
+            const result = await deletePesquisa(empresaId, pesquisaId);
+            // só volta aqui em erro — no sucesso a action redireciona
+            setExcluindo(false);
+            if (result && !result.ok) toast.error(result.error);
+          }}
+        >
+          {excluindo ? "Excluindo..." : "Confirmar"}
+        </Button>
+        <Button type="button" variant="ghost" size="sm" onClick={() => setConfirming(false)}>
+          Cancelar
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      className="text-destructive hover:text-destructive"
+      onClick={() => setConfirming(true)}
+      aria-label={`Excluir ${titulo}`}
+    >
+      <Trash2 className="size-4" />
+    </Button>
   );
 }
 
