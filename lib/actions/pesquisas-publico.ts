@@ -15,6 +15,17 @@ const respostaSchema = z.object({
   itens: z.array(respostaItemSchema),
 });
 
+function faixaEtaria(nascimento: Date | null): string | null {
+  if (!nascimento) return null;
+  const idade = Math.floor((Date.now() - nascimento.getTime()) / (365.25 * 24 * 3600 * 1000));
+  if (idade < 18 || idade > 100) return null;
+  if (idade < 25) return "18-24";
+  if (idade < 35) return "25-34";
+  if (idade < 45) return "35-44";
+  if (idade < 55) return "45-54";
+  return "55+";
+}
+
 // Única server action do módulo de RH sem requireUser/requireAdmin — a
 // autorização é o próprio token (imprevisível, gerado com crypto.randomBytes).
 // Roda a partir de uma página pública, sem sessão.
@@ -57,7 +68,9 @@ export async function responderPesquisa(token: string, _prev: ActionResult, form
 
     // Snapshot de setor/posição no momento da resposta (sempre gravado, mesmo
     // em pesquisa anônima) — é isso que permite o RH filtrar agregados por
-    // setor/posição sem jamais identificar quem respondeu.
+    // setor/posição sem jamais identificar quem respondeu. Sexo e FAIXA etária
+    // (nunca idade exata — setor pequeno + idade identificaria) seguem a mesma
+    // lógica, para os recortes demográficos da avaliação NR-01.
     const colaborador = await tx.colaborador.findUnique({
       where: { id: surveyToken.colaboradorId },
       include: { setor: true, posicao: true },
@@ -67,6 +80,8 @@ export async function responderPesquisa(token: string, _prev: ActionResult, form
       data: {
         setorNomeSnapshot: colaborador?.setor.nome ?? "Desconhecido",
         posicaoNomeSnapshot: colaborador?.posicao.nome ?? "Desconhecido",
+        sexoSnapshot: colaborador?.sexo ?? null,
+        faixaEtariaSnapshot: faixaEtaria(colaborador?.dataNascimento ?? null),
       },
     });
 

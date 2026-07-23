@@ -7,10 +7,12 @@ import { cn } from "@/lib/utils";
 export function RHEmpresaNav({ empresaId }: { empresaId: string }) {
   const pathname = usePathname();
   const items = [
+    { href: `/rh/${empresaId}/dashboard`, label: "Dashboard" },
     { href: `/rh/${empresaId}/setores`, label: "Setores" },
     { href: `/rh/${empresaId}/posicoes`, label: "Posições" },
     { href: `/rh/${empresaId}/colaboradores`, label: "Colaboradores" },
     { href: `/rh/${empresaId}/pesquisas`, label: "Pesquisas" },
+    { href: `/rh/${empresaId}/relatorios`, label: "Relatórios" },
   ];
 
   return (

@@ -52,3 +52,6 @@ next-env.d.ts
 # local-only Claude Code settings and unrelated scratch files
 .claude/settings.local.json
 relatorio_lm_movel.pdf
+
+# saida de testes locais (relatorios de teste)
+scripts/out/

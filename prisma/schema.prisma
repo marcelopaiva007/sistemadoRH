@@ -292,6 +292,9 @@ model Colaborador {
   // Telefone/celular de contato (formato livre, como veio do elleven) — usado
   // pelo RH para contato e envio de convites de pesquisa (WhatsApp/Telegram).
   telefone       String?
+  // "Masculino" | "Feminino" | outro texto livre (importado do elleven) —
+  // usado apenas em agregados demográficos das pesquisas (snapshot na Resposta).
+  sexo           String?
   cidade         String?
   dataNascimento DateTime?
   // "Cod Pessoa" do cadastro no elleven (ERP) — chave para re-sincronizar sem
@@ -325,6 +328,9 @@ model Pesquisa {
   empresa     Empresa   @relation(fields: [empresaId], references: [id])
   titulo      String
   descricao   String?
+  // "CLIMA" (pesquisa livre/GPTW) | "NR01" (avaliação de riscos psicossociais
+  // NR-01/PGR — perguntas fixas de lib/nr01-modelo.ts, motor em lib/nr01.ts).
+  modelo      String    @default("CLIMA")
   // Regra de Ouro do Anonimato: quando true, Resposta nunca grava colaboradorId.
   anonima     Boolean   @default(true)
   status      String    @default("DRAFT")
@@ -350,6 +356,13 @@ model Pergunta {
   enunciado    String
   tipo         String   @default("LIKERT_5")
   dimensaoGPTW String?
+  // Campos do modelo NR-01: código original da pergunta ("01".."35"),
+  // dimensão psicossocial (DEMANDA, AUTONOMIA, SUPORTE_GESTOR,
+  // SUPORTE_COLEGAS, CLIMA_CONFLITOS, CLAREZA_MUDANCAS) e flag de fator de
+  // proteção (invertida = true -> risco = 4 - resposta).
+  codigo       String?
+  dimensao     String?
+  invertida    Boolean  @default(false)
   obrigatoria  Boolean  @default(true)
 
   opcoes  Opcao[]
@@ -406,6 +419,10 @@ model Resposta {
   colaborador         Colaborador? @relation(fields: [colaboradorId], references: [id])
   setorNomeSnapshot   String
   posicaoNomeSnapshot String
+  // Demográficos agregáveis sem identificar o respondente (faixa etária em vez
+  // de idade exata de propósito — setor pequeno + idade exata identificaria).
+  sexoSnapshot        String?
+  faixaEtariaSnapshot String?
   createdAt           DateTime     @default(now())
 
   itens RespostaItem[]

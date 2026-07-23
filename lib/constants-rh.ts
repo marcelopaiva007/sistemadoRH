@@ -7,6 +7,7 @@ export const STATUS_PESQUISA = [
 
 export const TIPOS_PERGUNTA = [
   { value: "LIKERT_5", label: "Escala 1 a 5" },
+  { value: "FREQ_0_4", label: "Frequência 0 a 4 (NR-01)" },
   { value: "NPS_10", label: "Escala 0 a 10 (NPS)" },
   { value: "MULTIPLE_CHOICE", label: "Múltipla escolha" },
   { value: "TEXT", label: "Texto livre" },

@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useActionState, useState } from "react";
-import { Plus } from "lucide-react";
+import { Plus, ShieldAlert } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,7 +27,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { createPesquisa } from "@/lib/actions/pesquisas";
+import { createPesquisa, criarPesquisaNR01 } from "@/lib/actions/pesquisas";
 import { statusPesquisaLabel } from "@/lib/constants-rh";
 import type { ActionResult } from "@/lib/constants";
 
@@ -35,6 +36,7 @@ type Pesquisa = {
   titulo: string;
   status: string;
   anonima: boolean;
+  modelo: string;
   createdAt: Date;
   _count: { perguntas: number; tokens: number; respostas: number };
 };
@@ -43,10 +45,26 @@ const initialState: ActionResult = { ok: true };
 
 export function PesquisasTable({ empresaId, pesquisas }: { empresaId: string; pesquisas: Pesquisa[] }) {
   const [createOpen, setCreateOpen] = useState(false);
+  const [criandoNR01, setCriandoNR01] = useState(false);
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        <Button
+          variant="outline"
+          disabled={criandoNR01}
+          onClick={async () => {
+            setCriandoNR01(true);
+            // Em caso de sucesso a action redireciona para a tela da pesquisa;
+            // só voltamos aqui em erro.
+            const result = await criarPesquisaNR01(empresaId);
+            setCriandoNR01(false);
+            if (result && !result.ok) toast.error(result.error);
+          }}
+        >
+          <ShieldAlert className="size-4" />
+          {criandoNR01 ? "Criando..." : "Nova Avaliação NR-01"}
+        </Button>
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <DialogTrigger render={<Button />}>
             <Plus className="size-4" />
@@ -84,6 +102,11 @@ export function PesquisasTable({ empresaId, pesquisas }: { empresaId: string; pe
                   <Link href={`/rh/${empresaId}/pesquisas/${p.id}`} className="hover:underline">
                     {p.titulo}
                   </Link>
+                  {p.modelo === "NR01" && (
+                    <Badge variant="outline" className="ml-2">
+                      NR-01
+                    </Badge>
+                  )}
                 </TableCell>
                 <TableCell>
                   <Badge variant="secondary">{statusPesquisaLabel(p.status)}</Badge>

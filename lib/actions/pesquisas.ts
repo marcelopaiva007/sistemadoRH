@@ -7,10 +7,16 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { sendTelegramMessage } from "@/lib/telegram";
+import { sendEmail } from "@/lib/email";
+import {
+  PERGUNTAS_NR01,
+  TITULO_PESQUISA_NR01,
+  DESCRICAO_PESQUISA_NR01,
+} from "@/lib/nr01-modelo";
 import type { ActionResult } from "@/lib/constants";
 
 const STATUSES = ["DRAFT", "ACTIVE", "FINISHED", "ARCHIVED"] as const;
-const TIPOS_PERGUNTA = ["LIKERT_5", "NPS_10", "MULTIPLE_CHOICE", "TEXT"] as const;
+const TIPOS_PERGUNTA = ["LIKERT_5", "FREQ_0_4", "NPS_10", "MULTIPLE_CHOICE", "TEXT"] as const;
 const DIMENSOES_GPTW = [
   "CREDIBILIDADE",
   "RESPEITO",
@@ -46,6 +52,41 @@ export async function createPesquisa(
       descricao: parsed.data.descricao || null,
       anonima: parsed.data.anonima,
       criadoPorId: user?.id ?? null,
+    },
+  });
+
+  revalidatePath(`/rh/${empresaId}/pesquisas`);
+  redirect(`/rh/${empresaId}/pesquisas/${pesquisa.id}`);
+}
+
+// Cria a Avaliação de Riscos Psicossociais (NR-01) completa para a empresa:
+// pesquisa modelo "NR01" já com as 35 perguntas fixas (escala 0-4, dimensões e
+// flags de inversão de lib/nr01-modelo.ts). Sempre anônima — requisito prático
+// para respostas honestas em avaliação psicossocial; os agregados por
+// setor/cargo saem dos snapshots.
+export async function criarPesquisaNR01(empresaId: string): Promise<ActionResult> {
+  const user = await requireEmpresaAccess(empresaId);
+
+  const ano = new Date().getFullYear();
+  const pesquisa = await prisma.pesquisa.create({
+    data: {
+      empresaId,
+      titulo: `${TITULO_PESQUISA_NR01} — ${ano}`,
+      descricao: DESCRICAO_PESQUISA_NR01,
+      modelo: "NR01",
+      anonima: true,
+      criadoPorId: user?.id ?? null,
+      perguntas: {
+        create: PERGUNTAS_NR01.map((p, index) => ({
+          ordem: index,
+          enunciado: p.enunciado,
+          tipo: "FREQ_0_4",
+          codigo: p.codigo,
+          dimensao: p.dimensao,
+          invertida: p.invertida,
+          obrigatoria: true,
+        })),
+      },
     },
   });
 
@@ -143,6 +184,13 @@ export async function salvarPerguntas(
   if (pesquisa.status !== "DRAFT") {
     return { ok: false, error: "Só é possível editar perguntas enquanto a pesquisa está em rascunho." };
   }
+  if (pesquisa.modelo === "NR01") {
+    return {
+      ok: false,
+      error:
+        "As perguntas da Avaliação NR-01 são fixas (o cálculo da matriz de risco depende delas) e não podem ser editadas.",
+    };
+  }
 
   let perguntasRaw: unknown;
   try {
@@ -210,24 +258,44 @@ export async function enviarConviteToken(empresaId: string, tokenId: string): Pr
   });
   if (!token) return { ok: false, error: "Convite não encontrado." };
 
-  if (!token.colaborador.telegramChatId) {
-    await prisma.surveyToken.update({
-      where: { id: tokenId },
-      data: { status: "FAILED", erro: "Colaborador sem chat_id do Telegram cadastrado." },
-    });
-    return { ok: false, error: "Colaborador sem chat_id do Telegram cadastrado." };
-  }
-
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
   const link = `${baseUrl}/responder/${token.token}`;
-  const texto = `Olá, ${token.colaborador.nome}! Você foi convidado a responder a pesquisa "${token.pesquisa.titulo}". Acesse: ${link}`;
+  const primeiroNome = token.colaborador.nome.split(" ")[0];
+  const texto = `Olá, ${primeiroNome}! Você foi convidado a responder a pesquisa "${token.pesquisa.titulo}". Acesse: ${link}`;
 
-  const resultado = await sendTelegramMessage(token.colaborador.telegramChatId, texto);
+  // Canal preferido: Telegram (vinculado via bot). Fallback: e-mail do cadastro.
+  let resultado: { ok: true } | { ok: false; error: string };
+  let canal: "TELEGRAM" | "EMAIL";
+  if (token.colaborador.telegramChatId) {
+    canal = "TELEGRAM";
+    resultado = await sendTelegramMessage(token.colaborador.telegramChatId, texto);
+  } else if (token.colaborador.email) {
+    canal = "EMAIL";
+    resultado = await sendEmail({
+      to: token.colaborador.email,
+      subject: `Pesquisa: ${token.pesquisa.titulo}`,
+      html:
+        `<p>Olá, <strong>${primeiroNome}</strong>!</p>` +
+        `<p>Você foi convidado a responder a pesquisa <strong>${token.pesquisa.titulo}</strong>.</p>` +
+        (token.pesquisa.anonima
+          ? `<p>A pesquisa é anônima: as respostas são analisadas apenas de forma agregada.</p>`
+          : "") +
+        `<p><a href="${link}" style="display:inline-block;padding:10px 18px;background:#2563eb;color:#fff;border-radius:6px;text-decoration:none">Responder pesquisa</a></p>` +
+        `<p>Ou copie o link: ${link}</p>`,
+    });
+  } else {
+    await prisma.surveyToken.update({
+      where: { id: tokenId },
+      data: { status: "FAILED", erro: "Colaborador sem Telegram vinculado e sem e-mail cadastrado." },
+    });
+    return { ok: false, error: "Colaborador sem Telegram vinculado e sem e-mail cadastrado." };
+  }
+
   await prisma.surveyToken.update({
     where: { id: tokenId },
     data: resultado.ok
-      ? { status: "SENT", enviadoEm: new Date(), erro: null }
-      : { status: "FAILED", erro: resultado.error },
+      ? { status: "SENT", canal, enviadoEm: new Date(), erro: null }
+      : { status: "FAILED", canal, erro: resultado.error },
   });
 
   revalidatePath(`/rh/${empresaId}/pesquisas/${token.pesquisaId}`);

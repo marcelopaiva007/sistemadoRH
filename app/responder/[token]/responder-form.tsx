@@ -23,6 +23,8 @@ type RespostaItem = { valorNumerico?: number; valorTexto?: string; opcaoId?: str
 
 const initialState: ActionResult = { ok: true };
 const LIKERT_LABELS = ["Discordo totalmente", "Discordo", "Neutro", "Concordo", "Concordo totalmente"];
+// Escala de frequência da avaliação NR-01 (riscos psicossociais): 0 a 4.
+const FREQ_LABELS = ["Nunca", "Raramente", "Às vezes", "Frequentemente", "Sempre"];
 
 export function ResponderForm({ token, pesquisa }: { token: string; pesquisa: Pesquisa }) {
   const [respostas, setRespostas] = useState<Record<string, RespostaItem>>({});
@@ -69,6 +71,25 @@ export function ResponderForm({ token, pesquisa }: { token: string; pesquisa: Pe
                   <RadioGroupItem value={String(valor)} id={`${pergunta.id}-${valor}`} />
                   <Label htmlFor={`${pergunta.id}-${valor}`} className="font-normal">
                     {valor} — {LIKERT_LABELS[valor - 1]}
+                  </Label>
+                </div>
+              ))}
+            </RadioGroup>
+          )}
+
+          {pergunta.tipo === "FREQ_0_4" && (
+            <RadioGroup
+              value={respostas[pergunta.id]?.valorNumerico?.toString() ?? ""}
+              onValueChange={(v) =>
+                setRespostas((prev) => ({ ...prev, [pergunta.id]: { valorNumerico: Number(v) } }))
+              }
+              className="gap-2"
+            >
+              {[0, 1, 2, 3, 4].map((valor) => (
+                <div key={valor} className="flex items-center gap-2">
+                  <RadioGroupItem value={String(valor)} id={`${pergunta.id}-${valor}`} />
+                  <Label htmlFor={`${pergunta.id}-${valor}`} className="font-normal">
+                    {valor} — {FREQ_LABELS[valor]}
                   </Label>
                 </div>
               ))}

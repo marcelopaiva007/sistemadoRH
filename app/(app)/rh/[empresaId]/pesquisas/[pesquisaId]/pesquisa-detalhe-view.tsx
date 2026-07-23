@@ -2,7 +2,8 @@
 
 import { useActionState, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Trash2, Send, RefreshCw } from "lucide-react";
+import { Plus, Trash2, Send, RefreshCw, BarChart3, FileDown } from "lucide-react";
+import { DIMENSOES_NR01, type DimensaoNR01 } from "@/lib/nr01-modelo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -52,6 +53,9 @@ type Pergunta = {
   enunciado: string;
   tipo: string;
   dimensaoGPTW: string | null;
+  codigo: string | null;
+  dimensao: string | null;
+  invertida: boolean;
   obrigatoria: boolean;
   opcoes: Opcao[];
 };
@@ -69,6 +73,7 @@ type Pesquisa = {
   descricao: string | null;
   anonima: boolean;
   status: string;
+  modelo: string;
   perguntas: Pergunta[];
   tokens: Token[];
 };
@@ -94,7 +99,28 @@ export function PesquisaDetalheView({
     <div className="space-y-6">
       <CabecalhoPesquisa empresaId={empresaId} pesquisa={pesquisa} />
 
-      {pesquisa.status === "DRAFT" ? (
+      {pesquisa.modelo === "NR01" && (
+        <Alert>
+          <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+            <span>
+              Avaliação de Riscos Psicossociais (NR-01/PGR) — perguntas fixas, escala 0 (Nunca) a
+              4 (Sempre). Resultados na matriz de risco do Dashboard e no relatório técnico em PDF.
+            </span>
+            <span className="flex gap-2">
+              <Button size="sm" variant="outline" render={<a href={`/rh/${empresaId}/dashboard?pesquisa=${pesquisa.id}`} />}>
+                <BarChart3 className="size-4" />
+                Dashboard
+              </Button>
+              <Button size="sm" variant="outline" render={<a href={`/api/rh/${empresaId}/pesquisas/${pesquisa.id}/relatorio-pdf`} target="_blank" rel="noreferrer" />}>
+                <FileDown className="size-4" />
+                Relatório PDF (PGR)
+              </Button>
+            </span>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {pesquisa.status === "DRAFT" && pesquisa.modelo !== "NR01" ? (
         <PerguntasBuilder empresaId={empresaId} pesquisa={pesquisa} />
       ) : (
         <PerguntasSomenteLeitura perguntas={pesquisa.perguntas} />
@@ -199,6 +225,9 @@ function PerguntasSomenteLeitura({ perguntas }: { perguntas: Pergunta[] }) {
             <p className="text-muted-foreground">
               {tipoPerguntaLabel(p.tipo)}
               {p.dimensaoGPTW ? ` · ${dimensaoGPTWLabel(p.dimensaoGPTW)}` : ""}
+              {p.dimensao && p.dimensao in DIMENSOES_NR01
+                ? ` · ${DIMENSOES_NR01[p.dimensao as DimensaoNR01].label}${p.invertida ? " (fator de proteção)" : " (fator de risco)"}`
+                : ""}
               {p.obrigatoria ? " · obrigatória" : ""}
             </p>
           </div>
