@@ -190,8 +190,7 @@ const perguntaSchema = z.object({
 const perguntasArraySchema = z.array(perguntaSchema).min(1, "Adicione pelo menos uma pergunta");
 
 // Substitui o conjunto inteiro de perguntas+opções de uma pesquisa DRAFT —
-// mais simples que reconciliar diffs linha a linha (mesmo espírito do
-// tratamento do config JSON de RegraBonificacao).
+// mais simples que reconciliar diffs linha a linha.
 export async function salvarPerguntas(
   empresaId: string,
   pesquisaId: string,

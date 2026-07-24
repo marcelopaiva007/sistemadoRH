@@ -14,9 +14,6 @@ datasource db {
 // works unchanged on both SQLite (local dev) and Postgres (production),
 // since SQLite does not support native enums.
 // Role: "ADMIN" | "DIRETORIA" | "RH_MANAGER" | "GESTOR_SETOR"
-// Cargo: "VENDEDOR_EXTERNO" | "ATENDIMENTO_ADM" | "SUPERVISOR" | "OUTRO_SETOR"
-// Origem: "MANUAL" | "IMPORTADO"
-// StatusFechamento: "ABERTO" | "FECHADO"
 // StatusPesquisa: "DRAFT" | "ACTIVE" | "FINISHED" | "ARCHIVED"
 // TipoPergunta: "LIKERT_5" | "NPS_10" | "MULTIPLE_CHOICE" | "TEXT"
 // DimensaoGPTW: "CREDIBILIDADE" | "RESPEITO" | "IMPARCIALIDADE" | "ORGULHO" | "CAMARADAGEM" | "GERAL"
@@ -38,207 +35,15 @@ model User {
   setorId   String?
   setor     Setor?   @relation(fields: [setorId], references: [id], onDelete: SetNull)
 
-  fechamentosFechados FechamentoMensal[] @relation("FechadoPor")
-  importLotes         ImportLote[]
   pesquisasCriadas    Pesquisa[]
-}
-
-model Cidade {
-  id   String @id @default(cuid())
-  nome String @unique
-
-  funcionarios Funcionario[]
-}
-
-model Equipe {
-  id           String       @id @default(cuid())
-  nome         String
-  supervisorId String?
-  supervisor   Funcionario? @relation("SupervisorDaEquipe", fields: [supervisorId], references: [id])
-  tamanhoTier  Int?
-
-  membros Funcionario[] @relation("MembroDaEquipe")
-}
-
-model Funcionario {
-  id        String   @id @default(cuid())
-  nome      String
-  cpf       String?  @unique
-  email     String?
-  telegramChatId String?
-  cargo     String
-  cidadeId  String?
-  cidade    Cidade?  @relation(fields: [cidadeId], references: [id])
-  equipeId  String?
-  equipe    Equipe?  @relation("MembroDaEquipe", fields: [equipeId], references: [id])
-  ativo     Boolean  @default(true)
-  createdAt DateTime @default(now())
-
-  equipesSupervisionadas Equipe[]                @relation("SupervisorDaEquipe")
-  lancamentos            LancamentoVenda[]
-  bonificacoes           BonificacaoCalculada[]
-  ajustes                Ajuste[]
-
-  @@index([cidadeId])
-  @@index([equipeId])
-}
-
-model RegraBonificacao {
-  id             String    @id @default(cuid())
-  cargo          String
-  vigenciaInicio DateTime
-  vigenciaFim    DateTime?
-  // Configuração do motor de bonificação (faixas/metas por serviço + regra de
-  // supervisor). Formato definido em lib/bonificacao.ts (RegraConfig).
-  config         Json?
-  observacoes    String?
-  createdAt      DateTime  @default(now())
-
-  @@index([cargo, vigenciaInicio])
-}
-
-model LancamentoVenda {
-  id               String       @id @default(cuid())
-  funcionarioId    String
-  funcionario      Funcionario  @relation(fields: [funcionarioId], references: [id])
-  periodo          String
-  quantidade       Int          @default(0)
-  aprovado         Int          @default(0)
-  cancelado        Int          @default(0)
-  valorInstalado   Float        @default(0)
-  // Valor monetário total dos serviços não-internet do lançamento — base para a
-  // regra de 50% do Atendimento/Administrativo (OS §4).
-  valorDemaisServicos Float     @default(0)
-  qtdInternet      Int          @default(0)
-  qtdChip          Int          @default(0)
-  qtdGps           Int          @default(0)
-  qtdTv            Int          @default(0)
-  qtdStreaming     Int          @default(0)
-  qtdTelefoniaFixa Int          @default(0)
-  origem           String       @default("MANUAL")
-  importLoteId     String?
-  importLote       ImportLote?  @relation(fields: [importLoteId], references: [id])
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
-
-  @@index([funcionarioId, periodo])
-  @@index([periodo])
-}
-
-model ImportLote {
-  id                String   @id @default(cuid())
-  arquivoNome       String
-  dataImportacao    DateTime @default(now())
-  usuarioId         String
-  usuario           User     @relation(fields: [usuarioId], references: [id])
-  linhasOk          Int      @default(0)
-  linhasErro        Int      @default(0)
-  mapeamentoJson    Json?
-  detalhesErrosJson Json?
-
-  lancamentos LancamentoVenda[]
-}
-
-model FechamentoMensal {
-  id                    String    @id @default(cuid())
-  periodo               String    @unique
-  status                String    @default("ABERTO")
-  valorTotalVendido     Float     @default(0)
-  valorTotalBonificacao Float     @default(0)
-  fechadoPorId          String?
-  fechadoPor            User?     @relation("FechadoPor", fields: [fechadoPorId], references: [id])
-  fechadoEm             DateTime?
-  createdAt             DateTime  @default(now())
-
-  bonificacoes BonificacaoCalculada[]
-  ajustes      Ajuste[]
-}
-
-model BonificacaoCalculada {
-  id              String           @id @default(cuid())
-  fechamentoId    String
-  fechamento      FechamentoMensal @relation(fields: [fechamentoId], references: [id])
-  funcionarioId   String
-  funcionario     Funcionario      @relation(fields: [funcionarioId], references: [id])
-  valorInternet   Float            @default(0)
-  valorChip       Float            @default(0)
-  valorDemais     Float            @default(0)
-  valorSupervisor Float            @default(0)
-  valorTotal      Float            @default(0)
-  detalhesJson    Json?
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-
-  @@unique([fechamentoId, funcionarioId])
-  @@index([funcionarioId])
-}
-
-model Ajuste {
-  id            String            @id @default(cuid())
-  funcionarioId String
-  funcionario   Funcionario       @relation(fields: [funcionarioId], references: [id])
-  fechamentoId  String?
-  fechamento    FechamentoMensal? @relation(fields: [fechamentoId], references: [id])
-  periodo       String
-  descricao     String
-  valor         Float
-  createdAt     DateTime          @default(now())
-
-  @@index([funcionarioId, periodo])
-}
-
-// Linhas do relatório "Ativação Contratos" do elleven (sync-elleven).
-// Colunas confirmadas a partir de uma extração real do CSV (scripts/ativacao-contratos.csv).
-model ContratoAtivacaoElleven {
-  id                       Int      @id @default(autoincrement())
-  contrato                 String   @unique
-  vendedor1                String?
-  vendedor2                String?
-  origem                   String?
-  dataContrato             String?
-  localContrato            String?
-  primeiraMensalidade      String?
-  valorPrimeiraMensalidade String?
-  codigoCliente            String?
-  nomeCliente              String?
-  enderecoAtivacao         String?
-  cep                      String?
-  cidade                   String?
-  servicoAtivado           String?
-  valServAtivado           String?
-  assinaturaContrato       String?
-  prazoAtivacaoContrato    String?
-  ativacaoContrato         String?
-  statusContrato           String?
-  ativacaoConexao          String?
-  syncedAt                 DateTime @default(now()) @updatedAt
-
-  @@map("contrato_ativacao_elleven")
-}
-
-// Linhas genéricas de relatórios do elleven (sync-elleven), armazenadas como
-// JSON por relatório/período/chave — usado pelos relatórios além de
-// "Ativação Contratos" (que tem seu próprio modelo tipado acima).
-model ElevenRelatorioLinha {
-  id        Int      @id @default(autoincrement())
-  relatorio String
-  periodo   String
-  chave     String
-  dados     Json
-  syncedAt  DateTime @default(now())
-
-  @@unique([relatorio, periodo, chave])
-  @@index([relatorio, periodo])
-  @@map("elleven_relatorio_linha")
 }
 
 // ------------------------------------------------------
 // MÓDULO DE RH — CLIMA ORGANIZACIONAL (multi-empresa)
 // ------------------------------------------------------
-// Totalmente aditivo e isolado do motor de bonificação de vendas acima:
-// nenhuma relação com Funcionario/Equipe/Cidade. Cada empresa (LM Telecom,
-// Centrysol, VAPT, ...) tem seus próprios Setor/Posicao/Colaborador/Pesquisa,
-// sempre filtrados por empresaId nas queries e nas server actions.
+// Cada empresa (LM Telecom, Centrysol, VAPT, ...) tem seus próprios
+// Setor/Posicao/Colaborador/Pesquisa, sempre filtrados por empresaId nas
+// queries e nas server actions.
 
 model Empresa {
   id        String   @id @default(cuid())

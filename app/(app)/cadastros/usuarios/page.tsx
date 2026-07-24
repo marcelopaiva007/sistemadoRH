@@ -15,8 +15,8 @@ export default async function UsuariosPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Usuários</h1>
         <p className="text-muted-foreground">
-          Cadastre quem acessa o sistema, com login e senha. Administrativo/Financeiro
-          tem acesso total; Diretoria/Gestão vê apenas relatórios e fechamentos.
+          Cadastre quem acessa o sistema, com login e senha. Administrativo tem
+          acesso total; RH gerencia a própria empresa e Gestão vê apenas o seu setor.
         </p>
       </div>
       <UsuariosTable
