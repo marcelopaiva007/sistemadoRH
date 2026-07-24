@@ -8,10 +8,19 @@ export default async function UsuariosPage() {
   const [usuarios, empresas, setores] = await Promise.all([
     prisma.user.findMany({
       orderBy: [{ role: "asc" }, { nome: "asc" }],
-      include: { empresa: true, setor: true },
     }),
-    prisma.empresa.findMany({ where: { ativo: true }, orderBy: { nome: "asc" } }),
-    prisma.setor.findMany({ where: { ativo: true }, orderBy: { nome: "asc" } }),
+    // O User (schema shared) não tem mais relação com Empresa/Setor (schema rh)
+    // — só as colunas empresaId/setorId. Buscamos as listas completas —
+    // incluindo inativas, para resolver o nome de um vínculo já desativado — e
+    // cruzamos por id na tabela. O formulário filtra as ativas para os selects.
+    prisma.empresa.findMany({
+      orderBy: { nome: "asc" },
+      select: { id: true, nome: true, ativo: true },
+    }),
+    prisma.setor.findMany({
+      orderBy: { nome: "asc" },
+      select: { id: true, nome: true, empresaId: true, ativo: true },
+    }),
   ]);
 
   return (

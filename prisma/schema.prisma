@@ -8,6 +8,11 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  // Banco Neon único organizado em schemas Postgres (cutover 24/07/2026):
+  //   shared      -> User (autenticação, compartilhada com o lm-bonificacao)
+  //   rh          -> todos os modelos deste app
+  // (bonificacao e as tabelas vapt_* pertencem aos outros apps.)
+  schemas  = ["shared", "rh"]
 }
 
 // Enums are kept as plain String columns (not Prisma `enum`) so the schema
@@ -30,12 +35,18 @@ model User {
 
   // Escopo do módulo de RH: preenchido apenas para RH_MANAGER (empresaId) e
   // GESTOR_SETOR (empresaId + setorId). ADMIN/DIRETORIA ficam nulos.
+  // Colunas simples, SEM @relation: o User vive no schema `shared` e foi
+  // desacoplado do RH no cutover (as FKs físicas User->Empresa/Setor foram
+  // removidas) para permitir separar os bancos no futuro. Resolver nome de
+  // empresa/setor é responsabilidade de quem consulta (lookup por id).
   empresaId String?
-  empresa   Empresa? @relation(fields: [empresaId], references: [id], onDelete: SetNull)
   setorId   String?
-  setor     Setor?   @relation(fields: [setorId], references: [id], onDelete: SetNull)
 
   pesquisasCriadas    Pesquisa[]
+
+  @@index([empresaId])
+  @@index([setorId])
+  @@schema("shared")
 }
 
 // ------------------------------------------------------
@@ -51,11 +62,12 @@ model Empresa {
   ativo     Boolean  @default(true)
   createdAt DateTime @default(now())
 
-  usuarios      User[]
   setores       Setor[]
   posicoes      Posicao[]
   colaboradores Colaborador[]
   pesquisas     Pesquisa[]
+
+  @@schema("rh")
 }
 
 model Setor {
@@ -66,11 +78,11 @@ model Setor {
   ativo     Boolean  @default(true)
   createdAt DateTime @default(now())
 
-  usuarios      User[]
   colaboradores Colaborador[]
 
   @@unique([empresaId, nome])
   @@index([empresaId])
+  @@schema("rh")
 }
 
 model Posicao {
@@ -85,6 +97,7 @@ model Posicao {
 
   @@unique([empresaId, nome])
   @@index([empresaId])
+  @@schema("rh")
 }
 
 model Colaborador {
@@ -125,6 +138,7 @@ model Colaborador {
   @@index([empresaId])
   @@index([setorId])
   @@index([posicaoId])
+  @@schema("rh")
 }
 
 model Pesquisa {
@@ -151,6 +165,8 @@ model Pesquisa {
   respostas Resposta[]
 
   @@index([empresaId, status])
+  @@index([criadoPorId])
+  @@schema("rh")
 }
 
 model Pergunta {
@@ -175,6 +191,7 @@ model Pergunta {
 
   @@unique([pesquisaId, ordem])
   @@index([pesquisaId])
+  @@schema("rh")
 }
 
 model Opcao {
@@ -187,6 +204,7 @@ model Opcao {
   itens RespostaItem[]
 
   @@index([perguntaId])
+  @@schema("rh")
 }
 
 model SurveyToken {
@@ -207,6 +225,7 @@ model SurveyToken {
 
   @@unique([pesquisaId, colaboradorId])
   @@index([status])
+  @@schema("rh")
 }
 
 // Nota: quando Pesquisa.anonima = true, Resposta NUNCA grava colaboradorId —
@@ -233,6 +252,7 @@ model Resposta {
   itens RespostaItem[]
 
   @@index([pesquisaId])
+  @@schema("rh")
 }
 
 model RespostaItem {
@@ -248,4 +268,6 @@ model RespostaItem {
 
   @@index([respostaId])
   @@index([perguntaId])
+  @@index([opcaoId])
+  @@schema("rh")
 }

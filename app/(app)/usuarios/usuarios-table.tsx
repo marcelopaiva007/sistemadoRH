@@ -48,17 +48,15 @@ const ROLES = [
 
 const roleLabel = (role: string) => ROLES.find((r) => r.value === role)?.label ?? role;
 
-type Empresa = { id: string; nome: string };
-type Setor = { id: string; nome: string; empresaId: string };
+type Empresa = { id: string; nome: string; ativo: boolean };
+type Setor = { id: string; nome: string; empresaId: string; ativo: boolean };
 type Usuario = {
   id: string;
   nome: string;
   username: string;
   role: string;
   empresaId: string | null;
-  empresa: Empresa | null;
   setorId: string | null;
-  setor: Setor | null;
 };
 
 const initialState: ActionResult = { ok: true };
@@ -76,6 +74,10 @@ export function UsuariosTable({
   const [editUsuario, setEditUsuario] = useState<Usuario | null>(null);
   const [senhaUsuario, setSenhaUsuario] = useState<Usuario | null>(null);
   const [busca, setBusca] = useState("");
+
+  // Nome da empresa/setor resolvido por id (o User não tem mais a relação).
+  const empresaNome = useMemo(() => new Map(empresas.map((e) => [e.id, e.nome])), [empresas]);
+  const setorNome = useMemo(() => new Map(setores.map((s) => [s.id, s.nome])), [setores]);
 
   const filtrados = useMemo(() => {
     const termo = busca.trim().toLowerCase();
@@ -141,8 +143,8 @@ export function UsuariosTable({
                 <TableCell>
                   <Badge variant="secondary">{roleLabel(u.role)}</Badge>
                 </TableCell>
-                <TableCell>{u.empresa?.nome ?? "—"}</TableCell>
-                <TableCell>{u.setor?.nome ?? "—"}</TableCell>
+                <TableCell>{(u.empresaId && empresaNome.get(u.empresaId)) ?? "—"}</TableCell>
+                <TableCell>{(u.setorId && setorNome.get(u.setorId)) ?? "—"}</TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-1">
                     <Button variant="ghost" size="icon" onClick={() => setSenhaUsuario(u)} title="Redefinir senha">
@@ -207,7 +209,8 @@ function UsuarioForm({
 
   const precisaEmpresa = role === "RH_MANAGER" || role === "GESTOR_SETOR";
   const precisaSetor = role === "GESTOR_SETOR";
-  const setoresDaEmpresa = setores.filter((s) => s.empresaId === empresaId);
+  const empresasAtivas = empresas.filter((e) => e.ativo);
+  const setoresDaEmpresa = setores.filter((s) => s.empresaId === empresaId && s.ativo);
 
   const [state, formAction, isPending] = useActionState(async (prev: ActionResult, fd: FormData) => {
     const result = await action(prev, fd);
@@ -271,13 +274,13 @@ function UsuarioForm({
               setSetorId("");
             }}
             name="empresaId"
-            items={Object.fromEntries(empresas.map((e) => [e.id, e.nome]))}
+            items={Object.fromEntries(empresasAtivas.map((e) => [e.id, e.nome]))}
           >
             <SelectTrigger className="w-full">
               <SelectValue placeholder="Selecione a empresa" />
             </SelectTrigger>
             <SelectContent>
-              {empresas.map((e) => (
+              {empresasAtivas.map((e) => (
                 <SelectItem key={e.id} value={e.id}>
                   {e.nome}
                 </SelectItem>
