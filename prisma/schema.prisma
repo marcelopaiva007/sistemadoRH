@@ -213,6 +213,7 @@ model Colaborador {
   certificados  CertificadoNR[]
   exames        ExameOcupacional[]
   movimentacoes Movimentacao[] @relation("MovimentacaoDoColaborador")
+  beneficios    BeneficioColaborador[]
 
   @@unique([empresaId, cpf])
   @@unique([telegramChatId])
@@ -399,6 +400,37 @@ model Movimentacao {
 
   @@index([empresaId, dataEfetiva])
   @@index([colaboradorId, dataEfetiva])
+  @@schema("rh")
+}
+
+// Benefícios do colaborador (VT, VR/VA, plano de saúde, ...). "Ativo" não é
+// coluna: é dataFim null OU no futuro — encerrar é preencher dataFim, não
+// apagar a linha, porque o custo histórico (quanto a empresa pagou em cada
+// mês) precisa continuar reconstituível depois que o benefício acabou.
+// Cobertura de dependente já existe como flag em Dependente (irrf/
+// salarioFamilia/planoSaude, da Fase 1) — não duplicado aqui.
+model BeneficioColaborador {
+  id                String      @id @default(cuid())
+  empresaId         String
+  colaboradorId     String
+  colaborador       Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  tipo              String
+  operadora         String?
+  plano             String?
+  // Custo para a empresa e desconto em folha do colaborador — normalmente
+  // diferentes (a empresa costuma subsidiar parte do plano de saúde, por ex).
+  valorEmpresa      Float?
+  valorColaborador  Float?
+  dataInicio        DateTime
+  dataFim           DateTime?
+  observacoes       String?
+  criadoPorId       String?
+  criadoPorNome     String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([empresaId, tipo])
+  @@index([colaboradorId, dataFim])
   @@schema("rh")
 }
 

@@ -19,11 +19,16 @@ export default async function ColaboradorPage({
 
   const colaborador = await prisma.colaborador.findFirst({
     where: { id: colaboradorId, empresaId },
-    include: { setor: true, posicao: true, supervisor: { select: { id: true, nome: true } } },
+    include: {
+      setor: true,
+      posicao: true,
+      supervisor: { select: { id: true, nome: true } },
+      _count: { select: { dependentes: { where: { planoSaude: true } } } },
+    },
   });
   if (!colaborador) notFound();
 
-  const [dependentes, documentos, ferias, ausencias, requisitos, certificados, exames, setores, posicoes, candidatosSupervisor, movimentacoes] =
+  const [dependentes, documentos, ferias, ausencias, requisitos, certificados, exames, setores, posicoes, candidatosSupervisor, movimentacoes, beneficios] =
     await Promise.all([
     prisma.dependente.findMany({ where: { colaboradorId }, orderBy: { nome: "asc" } }),
     prisma.documentoColaborador.findMany({
@@ -121,6 +126,10 @@ export default async function ColaboradorPage({
         registradoPorNome: true,
       },
     }),
+    prisma.beneficioColaborador.findMany({
+      where: { colaboradorId },
+      orderBy: [{ dataFim: "asc" }, { dataInicio: "desc" }],
+    }),
   ]);
 
   const resumoFerias = colaborador.dataAdmissao
@@ -157,6 +166,8 @@ export default async function ColaboradorPage({
         posicoes={posicoes}
         candidatosSupervisor={candidatosSupervisor}
         movimentacoes={movimentacoes}
+        beneficios={beneficios}
+        dependentesNoPlanoSaude={colaborador._count.dependentes}
       />
     </div>
   );

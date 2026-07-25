@@ -136,6 +136,23 @@ Brasil (UTC−3) em produção, onde o servidor roda em UTC.
   inativo aparece "solto" no topo até ser realocado, em vez de sumir da árvore.
 - Telas: aba **Carreira** na ficha do colaborador + `/organograma` na navegação.
 
+## Benefícios (Fase 2, em andamento)
+
+- **Vigente não é coluna.** Um `BeneficioColaborador` está em vigor quando
+  `dataFim` é `null` ou está no futuro — encerrar é preencher `dataFim`,
+  **nunca apagar a linha**: o custo histórico (quanto a empresa pagou em cada
+  mês) precisa continuar reconstituível depois que o benefício acabou. Excluir
+  de verdade só serve para corrigir lançamento errado.
+- **Um tipo vigente por vez, por pessoa** — conceder um segundo Plano de Saúde
+  ativo para quem já tem um é recusado (senão dobra o custo no total da
+  empresa); a correção é encerrar o atual antes de conceder outro.
+- **Valor não entra na auditoria.** Mesma regra do salário na ficha: a trilha
+  registra que o benefício foi concedido/encerrado, nunca o valor.
+- Cobertura de dependente já existe como flag em `Dependente.planoSaude` (Fase
+  1) — o card de Benefícios só aponta a contagem, não duplica o dado.
+- Telas: aba **Benefícios** na ficha do colaborador; `/beneficios` — panorama
+  por tipo (quantas pessoas, custo mensal para a empresa e desconto em folha).
+
 ## Conformidade — Saúde e Segurança (Fase 2, em andamento)
 
 `/rh/<empresa>/conformidade` — matriz de NRs por função e situação de cada
@@ -222,6 +239,7 @@ Decisões de segurança que valem lembrar antes de mexer:
 | `npm run test:conformidade` | testes do motor de conformidade SST — reciclagem, vencimento, exame (não toca o banco) |
 | `npm run smoke:sst` | fumaça da conformidade contra o banco real — requisito, certificado, ASO, **sempre em rollback** |
 | `npm run smoke:movimentacoes` | fumaça de movimentações/organograma — líder, transferência com histórico, **sempre em rollback** |
+| `npm run smoke:beneficios` | fumaça de benefícios — conceder, custo no painel, encerrar, **sempre em rollback** |
 | `npx tsx scripts/aplicar-migracao.ts <nome> [--dry]` | aplica um `migration.sql` à mão, em transação (ver "Notas sobre o banco") |
 | `npx tsx scripts/importar-colaboradores-elleven.ts [--dry]` | importa/atualiza colaboradores a partir das exportações do elleven (upsert idempotente por CPF → cód. elleven → nome) |
 | `npx tsx scripts/configurar-telegram-webhook.ts` | registra o webhook do bot do Telegram |

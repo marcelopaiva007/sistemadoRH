@@ -13,6 +13,7 @@ import { FeriasCard } from "./ferias-card";
 import { AusenciasCard } from "./ausencias-card";
 import { SegurancaCard } from "./seguranca-card";
 import { MovimentacoesCard } from "./movimentacoes-card";
+import { BeneficiosCard } from "./beneficios-card";
 
 type Colaborador = Parameters<typeof FichaBlocos>[0]["colaborador"] & {
   ativo: boolean;
@@ -38,6 +39,8 @@ export function ColaboradorDetalhe({
   posicoes,
   candidatosSupervisor,
   movimentacoes,
+  beneficios,
+  dependentesNoPlanoSaude,
 }: {
   empresaId: string;
   colaborador: Colaborador;
@@ -54,6 +57,8 @@ export function ColaboradorDetalhe({
   posicoes: Parameters<typeof MovimentacoesCard>[0]["posicoes"];
   candidatosSupervisor: Parameters<typeof MovimentacoesCard>[0]["candidatosSupervisor"];
   movimentacoes: Parameters<typeof MovimentacoesCard>[0]["movimentacoes"];
+  beneficios: Parameters<typeof BeneficiosCard>[0]["beneficios"];
+  dependentesNoPlanoSaude: number;
 }) {
   const pendencias =
     ferias.filter((f) => f.status === "PENDENTE").length +
@@ -110,6 +115,7 @@ export function ColaboradorDetalhe({
             Segurança {irregular && <Badge variant="destructive">!</Badge>}
           </TabsTrigger>
           <TabsTrigger value="carreira">Carreira ({movimentacoes.length})</TabsTrigger>
+          <TabsTrigger value="beneficios">Benefícios ({beneficios.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="ficha" className="pt-4">
@@ -154,6 +160,14 @@ export function ColaboradorDetalhe({
             posicoes={posicoes}
             candidatosSupervisor={candidatosSupervisor}
             movimentacoes={movimentacoes}
+          />
+        </TabsContent>
+        <TabsContent value="beneficios" className="pt-4">
+          <BeneficiosCard
+            empresaId={empresaId}
+            colaboradorId={colaborador.id}
+            beneficios={beneficios}
+            temDependentesNoPlano={dependentesNoPlanoSaude}
           />
         </TabsContent>
       </Tabs>
