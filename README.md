@@ -121,7 +121,28 @@ Datas de calendário (admissão, férias, validade) são gravadas e exibidas em
 **UTC** via `lib/datas.ts`. Tratadas no fuso local, apareceriam um dia antes no
 Brasil (UTC−3) em produção, onde o servidor roda em UTC.
 
-## Movimentações e organograma (Fase 2, em andamento)
+## Indicadores — BI inicial (Fase 2)
+
+`/rh/<empresa>/indicadores` — headcount, turnover, absenteísmo e custo de
+pessoal, por setor. Fecha o último item do roadmap da Fase 2.
+
+- **Tudo calculado na hora** em `lib/bi.ts`, funções puras sem Prisma — nada é
+  um número mantido à parte, e por isso dá pra testar sem banco
+  (`npm run test:bi`).
+- **Turnover reconstrói o headcount do início do período** a partir do de
+  agora: `headcountInicio = headcountFim − admissões do período + desligamentos
+  do período`. É uma aproximação (assume que ninguém foi reativado no meio do
+  caminho) — não exige guardar uma foto de headcount por mês.
+- **Absenteísmo só conta falta NÃO abonada**, mesma regra da Fase 1, numa
+  janela de 30 dias; a taxa é dias de falta ÷ (headcount do setor × ~22 dias
+  úteis).
+- **Custo de pessoal soma `Colaborador.salarioBase` + `BeneficioColaborador`
+  vigentes**, por setor. A tela avisa quando a base de salários está incompleta
+  em vez de mostrar um total artificialmente baixo como se fosse exato.
+- Gráficos com Recharts (já usado no dashboard de NR-01) — barra de headcount
+  por setor, linha de admissões × desligamentos dos últimos 12 meses.
+
+## Movimentações e organograma (Fase 2)
 
 - **Foto e filme.** `Colaborador.supervisorId` é a foto (a quem a pessoa reporta
   hoje); `Movimentacao` é o filme (cada promoção, transferência ou troca de
@@ -136,7 +157,7 @@ Brasil (UTC−3) em produção, onde o servidor roda em UTC.
   inativo aparece "solto" no topo até ser realocado, em vez de sumir da árvore.
 - Telas: aba **Carreira** na ficha do colaborador + `/organograma` na navegação.
 
-## Benefícios (Fase 2, em andamento)
+## Benefícios (Fase 2)
 
 - **Vigente não é coluna.** Um `BeneficioColaborador` está em vigor quando
   `dataFim` é `null` ou está no futuro — encerrar é preencher `dataFim`,
@@ -153,7 +174,7 @@ Brasil (UTC−3) em produção, onde o servidor roda em UTC.
 - Telas: aba **Benefícios** na ficha do colaborador; `/beneficios` — panorama
   por tipo (quantas pessoas, custo mensal para a empresa e desconto em folha).
 
-## Reconhecimento (Fase 2, em andamento)
+## Reconhecimento (Fase 2)
 
 `/rh/<empresa>/reconhecimento` — aniversariantes e marcos de tempo de casa do
 mês corrente, com botão de enviar parabéns pelo mesmo bot do Telegram já usado
@@ -168,7 +189,7 @@ nas pesquisas.
 - Marcos "redondos" (1, 3, 5, 10, 15, 20, 25, 30 anos) ganham destaque visual —
   os demais anos aparecem normalmente, sem realce.
 
-## Conformidade — Saúde e Segurança (Fase 2, em andamento)
+## Conformidade — Saúde e Segurança (Fase 2)
 
 `/rh/<empresa>/conformidade` — matriz de NRs por função e situação de cada
 colaborador; os alertas entram junto no painel de `/vencimentos` existente.
@@ -257,6 +278,8 @@ Decisões de segurança que valem lembrar antes de mexer:
 | `npm run smoke:beneficios` | fumaça de benefícios — conceder, custo no painel, encerrar, **sempre em rollback** |
 | `npm run test:reconhecimento` | testes de `anosCompletos` — tempo de casa e marcos redondos (não toca o banco) |
 | `npm run smoke:reconhecimento` | fumaça de reconhecimento — registro e duplicidade no mesmo ano, **sempre em rollback**, nenhuma mensagem enviada |
+| `npm run test:bi` | testes do BI inicial — headcount, turnover, absenteísmo, custo (não toca o banco) |
+| `npm run verificar:bi` | confere as consultas do BI contra o banco real — **read-only**, não escreve nada |
 | `npx tsx scripts/aplicar-migracao.ts <nome> [--dry]` | aplica um `migration.sql` à mão, em transação (ver "Notas sobre o banco") |
 | `npx tsx scripts/importar-colaboradores-elleven.ts [--dry]` | importa/atualiza colaboradores a partir das exportações do elleven (upsert idempotente por CPF → cód. elleven → nome) |
 | `npx tsx scripts/configurar-telegram-webhook.ts` | registra o webhook do bot do Telegram |

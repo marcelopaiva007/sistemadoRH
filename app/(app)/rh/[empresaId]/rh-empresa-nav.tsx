@@ -8,6 +8,7 @@ export function RHEmpresaNav({ empresaId }: { empresaId: string }) {
   const pathname = usePathname();
   const items = [
     { href: `/rh/${empresaId}/dashboard`, label: "Dashboard" },
+    { href: `/rh/${empresaId}/indicadores`, label: "Indicadores" },
     { href: `/rh/${empresaId}/colaboradores`, label: "Colaboradores" },
     { href: `/rh/${empresaId}/organograma`, label: "Organograma" },
     { href: `/rh/${empresaId}/aprovacoes`, label: "Aprovações" },
