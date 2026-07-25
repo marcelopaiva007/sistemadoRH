@@ -92,6 +92,32 @@ export function VagasView({
         <Indicador label="Candidatos em processo" valor={candidatosAtivos} />
       </div>
 
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-card px-4 py-3">
+        <p className="text-sm text-muted-foreground">
+          <span className="font-medium text-foreground">Página de carreiras</span> — um endereço só,
+          com as vagas publicadas de todo o grupo. É este que se divulga.
+        </p>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" render={<a href="/carreiras" target="_blank" rel="noreferrer" />}>
+            Abrir
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const url = `${window.location.origin}/carreiras`;
+              navigator.clipboard.writeText(url).then(
+                () => toast.success("Link de carreiras copiado."),
+                () => toast.error("Não foi possível copiar. O link é: " + url),
+              );
+            }}
+          >
+            <Copy className="size-3.5" />
+            Copiar link
+          </Button>
+        </div>
+      </div>
+
       <Card>
         <CardHeader>
           <CardTitle>Vagas</CardTitle>
