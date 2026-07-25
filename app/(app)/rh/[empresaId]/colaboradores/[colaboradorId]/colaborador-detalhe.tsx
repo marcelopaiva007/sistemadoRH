@@ -14,6 +14,7 @@ import { AusenciasCard } from "./ausencias-card";
 import { SegurancaCard } from "./seguranca-card";
 import { MovimentacoesCard } from "./movimentacoes-card";
 import { BeneficiosCard } from "./beneficios-card";
+import { EpisCard } from "./epis-card";
 
 type Colaborador = Parameters<typeof FichaBlocos>[0]["colaborador"] & {
   ativo: boolean;
@@ -41,6 +42,7 @@ export function ColaboradorDetalhe({
   movimentacoes,
   beneficios,
   dependentesNoPlanoSaude,
+  entregasEpi,
 }: {
   empresaId: string;
   colaborador: Colaborador;
@@ -59,6 +61,7 @@ export function ColaboradorDetalhe({
   movimentacoes: Parameters<typeof MovimentacoesCard>[0]["movimentacoes"];
   beneficios: Parameters<typeof BeneficiosCard>[0]["beneficios"];
   dependentesNoPlanoSaude: number;
+  entregasEpi: Parameters<typeof EpisCard>[0]["entregas"];
 }) {
   const pendencias =
     ferias.filter((f) => f.status === "PENDENTE").length +
@@ -116,6 +119,7 @@ export function ColaboradorDetalhe({
           </TabsTrigger>
           <TabsTrigger value="carreira">Carreira ({movimentacoes.length})</TabsTrigger>
           <TabsTrigger value="beneficios">Benefícios ({beneficios.length})</TabsTrigger>
+          <TabsTrigger value="epis">EPIs ({entregasEpi.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="ficha" className="pt-4">
@@ -169,6 +173,9 @@ export function ColaboradorDetalhe({
             beneficios={beneficios}
             temDependentesNoPlano={dependentesNoPlanoSaude}
           />
+        </TabsContent>
+        <TabsContent value="epis" className="pt-4">
+          <EpisCard empresaId={empresaId} colaboradorId={colaborador.id} entregas={entregasEpi} />
         </TabsContent>
       </Tabs>
     </div>

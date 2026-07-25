@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { calcularFerias, type PeriodoAquisitivo } from "@/lib/ferias";
 import { DIAS_ALERTA_VENCIMENTO, tipoDocumentoLabel } from "@/lib/constants-dp";
 import { tipoExameLabel } from "@/lib/constants-sst";
+import { tipoEpiLabel } from "@/lib/constants-epi";
 import { diferencaEmDiasUTC, formatarData, hojeUTC, somarDiasUTC } from "@/lib/datas";
 
 // Painel de vencimentos: o que está prestes a vencer (ou já venceu) na empresa,
@@ -23,7 +24,7 @@ export default async function VencimentosPage({
   const hoje = hojeUTC();
   const limite = somarDiasUTC(hoje, DIAS_ALERTA_VENCIMENTO);
 
-  const [documentos, certificados, exames, colaboradores] = await Promise.all([
+  const [documentos, certificados, exames, epis, colaboradores] = await Promise.all([
     prisma.documentoColaborador.findMany({
       where: { empresaId, validoAte: { not: null, lte: limite }, colaborador: { ativo: true } },
       orderBy: { validoAte: "asc" },
@@ -59,6 +60,20 @@ export default async function VencimentosPage({
         id: true,
         tipo: true,
         realizadoEm: true,
+        validoAte: true,
+        colaboradorId: true,
+        colaborador: { select: { nome: true, setor: { select: { nome: true } } } },
+      },
+    }),
+    // Mesmo cuidado dos certificados: sem filtrar validoAte<=limite aqui, para
+    // uma troca antiga já reposta não aparecer como vencida junto da nova.
+    prisma.entregaEPI.findMany({
+      where: { empresaId, validoAte: { not: null }, colaborador: { ativo: true } },
+      orderBy: { dataEntrega: "desc" },
+      select: {
+        id: true,
+        tipo: true,
+        dataEntrega: true,
         validoAte: true,
         colaboradorId: true,
         colaborador: { select: { nome: true, setor: { select: { nome: true } } } },
@@ -107,6 +122,10 @@ export default async function VencimentosPage({
     .sort((a, b) => a.validoAte!.getTime() - b.validoAte!.getTime());
   certificadosVigentes.sort((a, b) => a.validoAte!.getTime() - b.validoAte!.getTime());
 
+  const episVigentes = reduzirAoMaisRecente(epis, (e) => e.tipo)
+    .filter((e) => e.validoAte! <= limite)
+    .sort((a, b) => a.validoAte!.getTime() - b.validoAte!.getTime());
+
   const feriasEmRisco = colaboradores
     .map((c) => {
       const resumo = calcularFerias(c.dataAdmissao!, c.ferias, hoje);
@@ -121,6 +140,7 @@ export default async function VencimentosPage({
   const vencidos = documentos.filter((d) => diferencaEmDiasUTC(d.validoAte!, hoje) < 0).length;
   const nrVencidos = certificadosVigentes.filter((c) => diferencaEmDiasUTC(c.validoAte!, hoje) < 0).length;
   const asoVencidos = examesVigentes.filter((e) => diferencaEmDiasUTC(e.validoAte!, hoje) < 0).length;
+  const epiVencidos = episVigentes.filter((e) => diferencaEmDiasUTC(e.validoAte!, hoje) < 0).length;
 
   return (
     <div className="space-y-6">
@@ -128,15 +148,16 @@ export default async function VencimentosPage({
         <h2 className="text-xl font-semibold tracking-tight">Vencimentos</h2>
         <p className="text-sm text-muted-foreground">
           Tudo que vence nos próximos {DIAS_ALERTA_VENCIMENTO} dias (ou já venceu): documentos, NRs,
-          ASO e férias no limite legal. Só colaboradores ativos.
+          ASO, EPIs e férias no limite legal. Só colaboradores ativos.
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-6">
         <Indicador label="Documentos vencidos" valor={vencidos} alerta={vencidos > 0} />
         <Indicador label="Documentos a vencer" valor={documentos.length - vencidos} />
         <Indicador label="Treinamentos NR" valor={certificadosVigentes.length} complemento={`${nrVencidos} vencido(s)`} alerta={nrVencidos > 0} />
         <Indicador label="ASO / PCMSO" valor={examesVigentes.length} complemento={`${asoVencidos} vencido(s)`} alerta={asoVencidos > 0} />
+        <Indicador label="EPIs para trocar" valor={episVigentes.length} complemento={`${epiVencidos} vencido(s)`} alerta={epiVencidos > 0} />
         <Indicador
           label="Férias vencidas ou vencendo"
           valor={feriasEmRisco.length}
@@ -298,6 +319,61 @@ export default async function VencimentosPage({
                         </TableCell>
                         <TableCell className="text-muted-foreground">{e.colaborador.setor.nome}</TableCell>
                         <TableCell>{tipoExameLabel(e.tipo)}</TableCell>
+                        <TableCell className="tabular-nums">{formatarData(e.validoAte)}</TableCell>
+                        <TableCell>
+                          {dias < 0 ? (
+                            <Badge variant="destructive">Vencido há {Math.abs(dias)} d</Badge>
+                          ) : (
+                            <Badge variant="secondary">Vence em {dias} d</Badge>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>EPIs para trocar</CardTitle>
+          <CardDescription>A troca periódica mais recente de cada tipo de EPI, por colaborador.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {episVigentes.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              Nenhum EPI vencendo nos próximos {DIAS_ALERTA_VENCIMENTO} dias.
+            </p>
+          ) : (
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Colaborador</TableHead>
+                    <TableHead>Setor</TableHead>
+                    <TableHead>EPI</TableHead>
+                    <TableHead>Validade</TableHead>
+                    <TableHead>Situação</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {episVigentes.map((e) => {
+                    const dias = diferencaEmDiasUTC(e.validoAte!, hoje);
+                    return (
+                      <TableRow key={e.id}>
+                        <TableCell>
+                          <Link
+                            href={`/rh/${empresaId}/colaboradores/${e.colaboradorId}`}
+                            className="font-medium hover:underline"
+                          >
+                            {e.colaborador.nome}
+                          </Link>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">{e.colaborador.setor.nome}</TableCell>
+                        <TableCell className="font-medium">{tipoEpiLabel(e.tipo)}</TableCell>
                         <TableCell className="tabular-nums">{formatarData(e.validoAte)}</TableCell>
                         <TableCell>
                           {dias < 0 ? (

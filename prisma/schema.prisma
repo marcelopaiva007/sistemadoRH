@@ -215,6 +215,7 @@ model Colaborador {
   movimentacoes Movimentacao[] @relation("MovimentacaoDoColaborador")
   beneficios    BeneficioColaborador[]
   reconhecimentos Reconhecimento[]
+  entregasEpi   EntregaEPI[]
 
   @@unique([empresaId, cpf])
   @@unique([telegramChatId])
@@ -273,6 +274,7 @@ model Arquivo {
   ausencia    Ausencia?
   certificado CertificadoNR?
   exame       ExameOcupacional?
+  entregaEpi  EntregaEPI?
 
   @@index([empresaId])
   @@schema("rh")
@@ -548,6 +550,41 @@ model ExameOcupacional {
   updatedAt     DateTime @updatedAt
 
   @@index([colaboradorId, realizadoEm])
+  @@index([empresaId, validoAte])
+  @@schema("rh")
+}
+
+// Ficha de entrega de EPI (NR-06): cada entrega/troca de equipamento, com o CA
+// (Certificado de Aprovação) do item — não da pessoa — e a confirmação de que
+// o colaborador assinou o recebimento. `validoAte` é a troca periódica do
+// ITEM (ex.: protetor auricular a cada 6 meses), não confundir com a validade
+// do CA junto ao governo, que este cadastro não acompanha.
+model EntregaEPI {
+  id            String      @id @default(cuid())
+  empresaId     String
+  colaboradorId String
+  colaborador   Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  tipo          String
+  ca            String?
+  fabricante    String?
+  quantidade    Int      @default(1)
+  dataEntrega   DateTime
+  validadeMeses Int?
+  validoAte     DateTime?
+  // PRIMEIRA_ENTREGA | TROCA_PERIODICA | REPOSICAO_DANO | REPOSICAO_PERDA
+  motivo        String   @default("PRIMEIRA_ENTREGA")
+  // Confirmação de que o colaborador assinou o recebimento — a ficha assinada
+  // é o que a fiscalização pede, não o cadastro em si.
+  assinado      Boolean  @default(false)
+  observacoes   String?
+  arquivoId     String?  @unique
+  arquivo       Arquivo? @relation(fields: [arquivoId], references: [id], onDelete: SetNull)
+  criadoPorId   String?
+  criadoPorNome String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([colaboradorId, tipo])
   @@index([empresaId, validoAte])
   @@schema("rh")
 }
