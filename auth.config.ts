@@ -26,6 +26,9 @@ export const authConfig = {
       // (ver lib/actions/vagas-publico.ts). Não confundir com
       // /rh/<empresa>/vagas, que é a tela interna e continua protegida.
       if (request.nextUrl.pathname.startsWith("/vagas")) return true;
+      // /carreiras é a vitrine pública: lista as vagas publicadas do grupo e
+      // leva para /vagas/<slug>. Só mostra o que já é público por definição.
+      if (request.nextUrl.pathname.startsWith("/carreiras")) return true;
       const isOnLogin = request.nextUrl.pathname.startsWith("/login");
       if (isOnLogin) {
         return isLoggedIn ? Response.redirect(new URL("/", request.nextUrl)) : true;
