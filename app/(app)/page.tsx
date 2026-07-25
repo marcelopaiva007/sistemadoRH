@@ -1,16 +1,17 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Users, HeartHandshake, Send, BarChart3, FileDown } from "lucide-react";
+import { AlertTriangle, Briefcase, Building2, CheckCircle2, Rocket, Users } from "lucide-react";
 import { requireUser } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
-import { calcularNR01, NIVEIS_RISCO, type NivelRisco } from "@/lib/nr01";
+import { pendenciasDaEmpresa, totalPendencias } from "@/lib/pendencias";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 
-// Página inicial: visão geral do sistema. ADMIN/DIRETORIA veem todas as
-// empresas; RH_MANAGER só a sua; GESTOR_SETOR vai direto para o seu setor.
-// Os números de pesquisa continuam sempre por empresa — nunca misturados.
+// Tela inicial do grupo: quantas pessoas, o que está pendente e por onde
+// entrar. Até 25/07/2026 esta página era um painel de pesquisa de clima
+// ("pesquisas ativas", "convites enviados", "respostas recebidas") — resto de
+// quando o sistema era só isso. Clima virou um módulo entre 26; os números do
+// grupo aqui são de RH, e o detalhe de clima vive no painel da empresa.
 export default async function HomePage() {
   const user = await requireUser();
   if (user.role === "GESTOR_SETOR") redirect("/rh/meu-setor");
@@ -21,161 +22,97 @@ export default async function HomePage() {
       ...(user.role === "RH_MANAGER" && user.empresaId ? { id: user.empresaId } : {}),
     },
     orderBy: { nome: "asc" },
-    include: {
-      _count: { select: { colaboradores: true, setores: true } },
-    },
+    select: { id: true, nome: true },
   });
 
   const resumos = await Promise.all(
     empresas.map(async (empresa) => {
-      const [ativos, vinculadosTelegram, pesquisaNR01] = await Promise.all([
+      const [ativos, vagasAbertas, integracoesAbertas, pendencias] = await Promise.all([
         prisma.colaborador.count({ where: { empresaId: empresa.id, ativo: true } }),
-        prisma.colaborador.count({
-          where: { empresaId: empresa.id, ativo: true, telegramChatId: { not: null } },
+        prisma.vaga.count({ where: { empresaId: empresa.id, status: "ABERTA" } }),
+        prisma.checklistIntegracao.count({
+          where: { empresaId: empresa.id, concluido: false, colaborador: { ativo: true } },
         }),
-        prisma.pesquisa.findFirst({
-          where: { empresaId: empresa.id, modelo: "NR01" },
-          orderBy: { createdAt: "desc" },
-          select: {
-            id: true,
-            titulo: true,
-            status: true,
-            _count: { select: { tokens: true, respostas: true } },
-          },
-        }),
+        pendenciasDaEmpresa(empresa.id),
       ]);
-
-      let enviados = 0;
-      let nivelNR01: { nivel: NivelRisco; indice: number } | null = null;
-      if (pesquisaNR01) {
-        enviados = await prisma.surveyToken.count({
-          where: { pesquisaId: pesquisaNR01.id, status: { in: ["SENT", "RESPONDED"] } },
-        });
-        if (pesquisaNR01._count.respostas > 0) {
-          const [perguntas, respostas] = await Promise.all([
-            prisma.pergunta.findMany({
-              where: { pesquisaId: pesquisaNR01.id },
-              select: { id: true, codigo: true, enunciado: true, dimensao: true, invertida: true },
-            }),
-            prisma.resposta.findMany({
-              where: { pesquisaId: pesquisaNR01.id },
-              select: {
-                setorNomeSnapshot: true,
-                posicaoNomeSnapshot: true,
-                itens: { select: { perguntaId: true, valorNumerico: true } },
-              },
-            }),
-          ]);
-          const resultado = calcularNR01(perguntas, respostas);
-          if (!resultado.geral.amostraInsuficiente) {
-            nivelNR01 = {
-              nivel: resultado.geral.nivelGeral,
-              indice: Math.round(resultado.geral.indiceGeral100),
-            };
-          }
-        }
-      }
-
-      return { empresa, ativos, vinculadosTelegram, pesquisaNR01, enviados, nivelNR01 };
+      return { empresa, ativos, vagasAbertas, integracoesAbertas, pendencias };
     }),
   );
 
   const totalColaboradores = resumos.reduce((a, r) => a + r.ativos, 0);
-  const totalEnviados = resumos.reduce((a, r) => a + r.enviados, 0);
-  const totalRespostas = resumos.reduce((a, r) => a + (r.pesquisaNR01?._count.respostas ?? 0), 0);
-  const pesquisasAtivas = resumos.filter((r) => r.pesquisaNR01?.status === "ACTIVE").length;
+  const totalVagas = resumos.reduce((a, r) => a + r.vagasAbertas, 0);
+  const totalIntegracoes = resumos.reduce((a, r) => a + r.integracoesAbertas, 0);
+  const totalPend = resumos.reduce((a, r) => a + totalPendencias(r.pendencias), 0);
 
   return (
     <div className="space-y-6">
-      <h1 className="text-lg font-semibold">Visão geral</h1>
+      <div>
+        <h1 className="text-xl font-semibold tracking-tight">Sistema de RH</h1>
+        <p className="text-sm text-muted-foreground">
+          {empresas.length > 1
+            ? "Visão do grupo. Escolha uma empresa para entrar."
+            : "Visão geral. Entre na empresa para operar."}
+        </p>
+      </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard icone={<Users className="size-4" />} rotulo="Colaboradores ativos" valor={String(totalColaboradores)} />
-        <KpiCard icone={<HeartHandshake className="size-4" />} rotulo="Pesquisas ativas" valor={String(pesquisasAtivas)} />
-        <KpiCard icone={<Send className="size-4" />} rotulo="Convites enviados" valor={String(totalEnviados)} />
-        <KpiCard icone={<BarChart3 className="size-4" />} rotulo="Respostas recebidas" valor={String(totalRespostas)} />
+        <Kpi icone={<Users className="size-4" />} rotulo="Colaboradores ativos" valor={totalColaboradores} />
+        <Kpi
+          icone={<AlertTriangle className="size-4" />}
+          rotulo="Pendências"
+          valor={totalPend}
+          alerta={totalPend > 0}
+        />
+        <Kpi icone={<Briefcase className="size-4" />} rotulo="Vagas abertas" valor={totalVagas} />
+        <Kpi icone={<Rocket className="size-4" />} rotulo="Integrações em aberto" valor={totalIntegracoes} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        {resumos.map(({ empresa, ativos, vinculadosTelegram, pesquisaNR01, enviados, nivelNR01 }) => {
-          const participacao =
-            pesquisaNR01 && pesquisaNR01._count.tokens > 0
-              ? Math.round((pesquisaNR01._count.respostas / pesquisaNR01._count.tokens) * 100)
-              : null;
+        {resumos.map(({ empresa, ativos, vagasAbertas, integracoesAbertas, pendencias }) => {
+          const pend = totalPendencias(pendencias);
           return (
-            <Card key={empresa.id}>
-              <CardHeader className="flex flex-row items-center justify-between gap-2">
-                <CardTitle className="text-base">{empresa.nome}</CardTitle>
-                {nivelNR01 && (
-                  <span
-                    className="rounded-full px-2.5 py-0.5 text-xs font-semibold"
-                    style={{ backgroundColor: NIVEIS_RISCO[nivelNR01.nivel].corBg, color: "#1f2937" }}
-                    title={`Risco psicossocial geral (NR-01): índice ${nivelNR01.indice}/100`}
-                  >
-                    NR-01: {NIVEIS_RISCO[nivelNR01.nivel].label}
-                  </span>
-                )}
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                  <dt className="text-muted-foreground">Colaboradores ativos</dt>
-                  <dd className="text-right font-medium">{ativos}</dd>
-                  <dt className="text-muted-foreground">Telegram vinculado</dt>
-                  <dd className="text-right font-medium">{vinculadosTelegram}</dd>
-                  {pesquisaNR01 && (
-                    <>
-                      <dt className="text-muted-foreground">Convites enviados</dt>
-                      <dd className="text-right font-medium">
-                        {enviados}/{pesquisaNR01._count.tokens}
-                      </dd>
-                      <dt className="text-muted-foreground">Respostas</dt>
-                      <dd className="text-right font-medium">
-                        {pesquisaNR01._count.respostas}
-                        {participacao !== null ? ` (${participacao}%)` : ""}
-                      </dd>
-                    </>
+            <Link key={empresa.id} href={`/rh/${empresa.id}`}>
+              <Card className="h-full transition-colors hover:bg-accent/40">
+                <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Building2 className="size-4 text-muted-foreground" />
+                    {empresa.nome}
+                  </CardTitle>
+                  {pend > 0 ? (
+                    <Badge variant="destructive">{pend} pendência(s)</Badge>
+                  ) : (
+                    <Badge variant="secondary" className="gap-1">
+                      <CheckCircle2 className="size-3" />
+                      em dia
+                    </Badge>
                   )}
-                </dl>
-                {pesquisaNR01 ? (
-                  <p className="text-xs text-muted-foreground">
-                    {pesquisaNR01.titulo} —{" "}
-                    <Badge variant="secondary">{pesquisaNR01.status === "ACTIVE" ? "Ativa" : pesquisaNR01.status}</Badge>
-                  </p>
-                ) : (
-                  <p className="text-xs text-muted-foreground">Sem avaliação NR-01 criada ainda.</p>
-                )}
-                <div className="flex flex-wrap gap-1">
-                  <Button variant="outline" size="sm" render={<Link href={`/rh/${empresa.id}/dashboard`} />}>
-                    <BarChart3 className="size-4" />
-                    Dashboard
-                  </Button>
-                  <Button variant="outline" size="sm" render={<Link href={`/rh/${empresa.id}/pesquisas`} />}>
-                    <HeartHandshake className="size-4" />
-                    Pesquisas
-                  </Button>
-                  <Button variant="outline" size="sm" render={<Link href={`/rh/${empresa.id}/colaboradores`} />}>
-                    <Users className="size-4" />
-                    Colaboradores
-                  </Button>
-                  {pesquisaNR01 && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      render={
-                        <a
-                          href={`/api/rh/${empresa.id}/pesquisas/${pesquisaNR01.id}/relatorio-pdf`}
-                          target="_blank"
-                          rel="noreferrer"
-                        />
-                      }
-                    >
-                      <FileDown className="size-4" />
-                      PDF
-                    </Button>
+                </CardHeader>
+                <CardContent>
+                  <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                    <dt className="text-muted-foreground">Colaboradores</dt>
+                    <dd className="text-right font-medium tabular-nums">{ativos}</dd>
+                    <dt className="text-muted-foreground">Vagas abertas</dt>
+                    <dd className="text-right font-medium tabular-nums">{vagasAbertas}</dd>
+                    <dt className="text-muted-foreground">Integrações em aberto</dt>
+                    <dd className="text-right font-medium tabular-nums">{integracoesAbertas}</dd>
+                  </dl>
+                  {pend > 0 && (
+                    <p className="mt-3 text-xs text-muted-foreground">
+                      {[
+                        pendencias.catPendente > 0 && `${pendencias.catPendente} CAT sem emitir`,
+                        pendencias.aprovacoes > 0 && `${pendencias.aprovacoes} aguardando aprovação`,
+                        pendencias.epiVencido > 0 && `${pendencias.epiVencido} EPI vencido`,
+                        pendencias.asoVencendo > 0 && `${pendencias.asoVencendo} ASO vencendo`,
+                        pendencias.certificadosVencendo > 0 && `${pendencias.certificadosVencendo} NR vencendo`,
+                        pendencias.integracoesAtrasadas > 0 && `${pendencias.integracoesAtrasadas} integração atrasada`,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
                   )}
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </Link>
           );
         })}
       </div>
@@ -183,17 +120,27 @@ export default async function HomePage() {
   );
 }
 
-function KpiCard({ icone, rotulo, valor }: { icone: React.ReactNode; rotulo: string; valor: string }) {
+function Kpi({
+  icone,
+  rotulo,
+  valor,
+  alerta,
+}: {
+  icone: React.ReactNode;
+  rotulo: string;
+  valor: number;
+  alerta?: boolean;
+}) {
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="flex items-center gap-2 text-sm text-muted-foreground">
+        <CardTitle className="flex items-center gap-2 text-sm font-normal text-muted-foreground">
           {icone}
           {rotulo}
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <p className="text-2xl font-bold">{valor}</p>
+        <p className={`text-2xl font-bold tabular-nums ${alerta ? "text-destructive" : ""}`}>{valor}</p>
       </CardContent>
     </Card>
   );
