@@ -24,6 +24,8 @@ datasource db {
 // DimensaoGPTW: "CREDIBILIDADE" | "RESPEITO" | "IMPARCIALIDADE" | "ORGULHO" | "CAMARADAGEM" | "GERAL"
 // CanalToken: "TELEGRAM" | "LINK_PUBLICO"
 // StatusToken: "PENDING" | "SENT" | "DELIVERED" | "FAILED" | "RESPONDED"
+// TipoDocumento / TipoAusencia / TipoContrato: ver lib/constants-dp.ts
+// StatusSolicitacao: "PENDENTE" | "APROVADA" | "REPROVADA" | "CANCELADA"
 
 model User {
   id           String   @id @default(cuid())
@@ -130,14 +132,230 @@ model Colaborador {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  tokens SurveyToken[]
+  // ---- Ficha completa (Core HR) ----
+  // Tudo opcional: a base veio do elleven só com nome/CPF/contato e vai sendo
+  // completada pelo RH aos poucos. Nenhum campo aqui pode quebrar a importação.
+  matricula      String?
+  rg             String?
+  rgOrgaoEmissor String?
+  rgUf           String?
+  pis            String?
+  ctpsNumero     String?
+  ctpsSerie      String?
+  ctpsUf         String?
+  tituloEleitor  String?
+  estadoCivil    String?
+  escolaridade   String?
+  nomeMae        String?
+  nomePai        String?
+  nacionalidade  String?
+  naturalidade   String?
+
+  // Endereço (a coluna `cidade` acima já existe, veio do elleven)
+  cep            String?
+  logradouro     String?
+  numeroEndereco String?
+  complemento    String?
+  bairro         String?
+  uf             String?
+
+  // Contato de emergência — quem o RH aciona quando algo acontece em campo.
+  emergenciaNome       String?
+  emergenciaParentesco String?
+  emergenciaTelefone   String?
+
+  // Dados bancários (pagamento). Sensíveis: só ADMIN/RH_MANAGER enxergam.
+  bancoNome      String?
+  bancoAgencia   String?
+  bancoConta     String?
+  bancoTipoConta String?
+  chavePix       String?
+
+  // ---- Vínculo / contrato ----
+  // dataAdmissao é a base do cálculo de períodos aquisitivos de férias
+  // (lib/ferias.ts). Sem ela, o colaborador não entra no controle de férias.
+  dataAdmissao       DateTime?
+  dataDesligamento   DateTime?
+  motivoDesligamento String?
+  tipoContrato       String?
+  jornadaSemanal     Int?
+  salarioBase        Float?
+
+  tokens    SurveyToken[]
   respostas Resposta[]
+
+  dependentes Dependente[]
+  documentos  DocumentoColaborador[]
+  ferias      SolicitacaoFerias[]
+  ausencias   Ausencia[]
 
   @@unique([empresaId, cpf])
   @@unique([telegramChatId])
   @@index([empresaId])
   @@index([setorId])
   @@index([posicaoId])
+  @@index([empresaId, dataAdmissao])
+  @@schema("rh")
+}
+
+// ------------------------------------------------------
+// DEPARTAMENTO PESSOAL — FASE 1
+// ------------------------------------------------------
+// Referências a User (`*PorId`) são SOFT: guardam o id e um snapshot do nome,
+// sem @relation. O User mora no schema `shared` e foi desacoplado do RH no
+// cutover de 24/07/2026 para permitir separar os bancos no futuro — e, em
+// trilha de auditoria, o nome de quem agiu precisa sobreviver à exclusão do
+// usuário.
+
+model Dependente {
+  id            String      @id @default(cuid())
+  colaboradorId String
+  colaborador   Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  nome          String
+  parentesco    String
+  dataNascimento DateTime?
+  cpf           String?
+  // Para que o dependente conta — reflete direto em IRRF, salário-família e
+  // custo do plano de saúde (usado no bloco de benefícios, Fase 2).
+  irrf          Boolean  @default(false)
+  salarioFamilia Boolean @default(false)
+  planoSaude    Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([colaboradorId])
+  @@schema("rh")
+}
+
+// Conteúdo binário dos anexos (dossiê digital e atestados). Fica numa tabela
+// própria, separada dos metadados, para que listagens NUNCA carreguem o blob
+// por engano. Documento de RH é dado pessoal sensível: guardar no Postgres com
+// download autenticado (rota /api/rh/.../arquivo) em vez de um blob público.
+model Arquivo {
+  id            String   @id @default(cuid())
+  empresaId     String
+  nome          String
+  mimeType      String
+  tamanhoBytes  Int
+  conteudo      Bytes
+  criadoPorId   String?
+  criadoPorNome String?
+  createdAt     DateTime @default(now())
+
+  documento DocumentoColaborador?
+  ausencia  Ausencia?
+
+  @@index([empresaId])
+  @@schema("rh")
+}
+
+model DocumentoColaborador {
+  id            String      @id @default(cuid())
+  empresaId     String
+  colaboradorId String
+  colaborador   Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  tipo          String
+  descricao     String?
+  emitidoEm     DateTime?
+  // Quando preenchido, entra no painel de vencimentos (ASO, NRs, contratos).
+  validoAte     DateTime?
+  observacoes   String?
+  arquivoId     String?  @unique
+  arquivo       Arquivo? @relation(fields: [arquivoId], references: [id], onDelete: SetNull)
+  criadoPorId   String?
+  criadoPorNome String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([colaboradorId])
+  @@index([empresaId, validoAte])
+  @@schema("rh")
+}
+
+// Férias em regime CLT. Os períodos aquisitivos NÃO são materializados: são
+// derivados da data de admissão + solicitações aprovadas em lib/ferias.ts —
+// assim não existe tabela para manter em dia por cron. O que se guarda aqui é
+// o início do período aquisitivo a que a solicitação se refere, para o saldo
+// não mudar retroativamente se a data de admissão for corrigida depois.
+model SolicitacaoFerias {
+  id                      String      @id @default(cuid())
+  empresaId               String
+  colaboradorId           String
+  colaborador             Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  periodoAquisitivoInicio DateTime
+  dataInicio              DateTime
+  dataFim                 DateTime
+  dias                    Int
+  // Abono pecuniário: venda de até 1/3 (10 dias) do período — CLT art. 143.
+  diasAbono               Int      @default(0)
+  decimoAntecipado        Boolean  @default(false)
+  observacoes             String?
+  status                  String   @default("PENDENTE")
+  solicitadoPorId         String?
+  solicitadoPorNome       String?
+  decididoPorId           String?
+  decididoPorNome         String?
+  decididoEm              DateTime?
+  motivoDecisao           String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@index([empresaId, status])
+  @@index([colaboradorId, status])
+  @@index([empresaId, dataInicio])
+  @@schema("rh")
+}
+
+model Ausencia {
+  id                   String      @id @default(cuid())
+  empresaId            String
+  colaboradorId        String
+  colaborador          Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  tipo                 String
+  dataInicio           DateTime
+  dataFim              DateTime
+  dias                 Int
+  // Abonada = não conta como falta no absenteísmo (atestado aceito, licença).
+  abonada              Boolean  @default(false)
+  cid                  String?
+  profissional         String?
+  registroProfissional String?
+  observacoes          String?
+  status               String   @default("PENDENTE")
+  arquivoId            String?  @unique
+  arquivo              Arquivo? @relation(fields: [arquivoId], references: [id], onDelete: SetNull)
+  registradoPorId      String?
+  registradoPorNome    String?
+  decididoPorId        String?
+  decididoPorNome      String?
+  decididoEm           DateTime?
+  motivoDecisao        String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@index([empresaId, status])
+  @@index([colaboradorId, dataInicio])
+  @@index([empresaId, dataInicio])
+  @@schema("rh")
+}
+
+// Trilha de auditoria LGPD: quem viu/alterou dado pessoal e quando. Append-only
+// por convenção — nada no app atualiza ou apaga registros daqui.
+model AuditLog {
+  id          String   @id @default(cuid())
+  empresaId   String?
+  usuarioId   String?
+  usuarioNome String?
+  usuarioRole String?
+  acao        String
+  entidade    String
+  entidadeId  String?
+  resumo      String
+  detalhes    Json?
+  createdAt   DateTime @default(now())
+
+  @@index([empresaId, createdAt])
+  @@index([entidade, entidadeId])
   @@schema("rh")
 }
 

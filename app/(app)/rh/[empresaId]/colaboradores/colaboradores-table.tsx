@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useMemo, useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -141,7 +142,11 @@ export function ColaboradoresTable({
             )}
             {filtrados.map((c) => (
               <TableRow key={c.id} className={c.ativo ? "" : "opacity-60"}>
-                <TableCell className="font-medium">{c.nome}</TableCell>
+                <TableCell className="font-medium">
+                  <Link href={`/rh/${empresaId}/colaboradores/${c.id}`} className="hover:underline">
+                    {c.nome}
+                  </Link>
+                </TableCell>
                 <TableCell className="whitespace-nowrap tabular-nums">{formatarCpf(c.cpf)}</TableCell>
                 <TableCell className="max-w-56 truncate text-muted-foreground" title={c.email ?? undefined}>
                   {c.email ?? "—"}

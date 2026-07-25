@@ -8,15 +8,18 @@ export function RHEmpresaNav({ empresaId }: { empresaId: string }) {
   const pathname = usePathname();
   const items = [
     { href: `/rh/${empresaId}/dashboard`, label: "Dashboard" },
+    { href: `/rh/${empresaId}/colaboradores`, label: "Colaboradores" },
+    { href: `/rh/${empresaId}/aprovacoes`, label: "Aprovações" },
+    { href: `/rh/${empresaId}/vencimentos`, label: "Vencimentos" },
     { href: `/rh/${empresaId}/setores`, label: "Setores" },
     { href: `/rh/${empresaId}/posicoes`, label: "Posições" },
-    { href: `/rh/${empresaId}/colaboradores`, label: "Colaboradores" },
     { href: `/rh/${empresaId}/pesquisas`, label: "Pesquisas" },
     { href: `/rh/${empresaId}/relatorios`, label: "Relatórios" },
+    { href: `/rh/${empresaId}/auditoria`, label: "Auditoria" },
   ];
 
   return (
-    <nav className="flex gap-1 border-b">
+    <nav className="flex flex-wrap gap-1 border-b">
       {items.map((item) => {
         const active = pathname.startsWith(item.href);
         return (
