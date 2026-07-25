@@ -40,6 +40,19 @@ export function somarAnosUTC(d: Date, anos: number): Date {
   return new Date(Date.UTC(ano, mes, Math.min(d.getUTCDate(), ultimoDiaDoMes)));
 }
 
+/**
+ * Soma meses preservando o dia. Dia que não existe no mês de destino cai no
+ * último dia dele (31/01 + 1 mês = 28/02) — a convenção que a validade de
+ * certificado e exame usa.
+ */
+export function somarMesesUTC(d: Date, meses: number): Date {
+  const total = d.getUTCFullYear() * 12 + d.getUTCMonth() + meses;
+  const ano = Math.floor(total / 12);
+  const mes = total % 12;
+  const ultimoDiaDoMes = new Date(Date.UTC(ano, mes + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(ano, mes, Math.min(d.getUTCDate(), ultimoDiaDoMes)));
+}
+
 /** Dias de calendário de `de` até `ate` (negativo quando `ate` é anterior). */
 export function diferencaEmDiasUTC(ate: Date, de: Date): number {
   return Math.round((inicioDoDiaUTC(ate).getTime() - inicioDoDiaUTC(de).getTime()) / MS_POR_DIA);

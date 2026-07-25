@@ -102,6 +102,7 @@ model Posicao {
   createdAt DateTime @default(now())
 
   colaboradores Colaborador[]
+  requisitosNR  RequisitoNR[]
 
   @@unique([empresaId, nome])
   @@index([empresaId])
@@ -203,6 +204,8 @@ model Colaborador {
   ausencias     Ausencia[]
   acessosPortal PortalAcesso[]
   sessoesPortal PortalSessao[]
+  certificados  CertificadoNR[]
+  exames        ExameOcupacional[]
 
   @@unique([empresaId, cpf])
   @@unique([telegramChatId])
@@ -256,8 +259,10 @@ model Arquivo {
   criadoPorNome String?
   createdAt     DateTime @default(now())
 
-  documento DocumentoColaborador?
-  ausencia  Ausencia?
+  documento   DocumentoColaborador?
+  ausencia    Ausencia?
+  certificado CertificadoNR?
+  exame       ExameOcupacional?
 
   @@index([empresaId])
   @@schema("rh")
@@ -350,6 +355,98 @@ model Ausencia {
   @@index([empresaId, status])
   @@index([colaboradorId, dataInicio])
   @@index([empresaId, dataInicio])
+  @@schema("rh")
+}
+
+// ------------------------------------------------------
+// SAÚDE, SEGURANÇA E CONFORMIDADE — FASE 2
+// ------------------------------------------------------
+// Numa operação de telecom com técnico em campo, o que pega numa fiscalização
+// não é a falta do treinamento em si, é não conseguir provar que ele existe e
+// está válido. Por isso a conformidade é modelada como REQUISITO x EVIDÊNCIA:
+//
+//   RequisitoNR      -> o que a FUNÇÃO exige (NR-10 para eletricista, NR-35
+//                       para quem sobe em poste), com a periodicidade da
+//                       reciclagem;
+//   CertificadoNR    -> a evidência de que UMA PESSOA cumpriu aquele requisito,
+//                       com validade própria;
+//   ExameOcupacional -> o ASO do PCMSO, que segue a mesma lógica de validade.
+//
+// Quem está em dia, vencendo ou irregular é DERIVADO do cruzamento dos dois
+// (lib/conformidade.ts) — não existe campo "situação" para alguém manter
+// atualizado à mão, que é onde esse tipo de controle costuma apodrecer.
+
+model RequisitoNR {
+  id        String  @id @default(cuid())
+  empresaId String
+  posicaoId String
+  posicao   Posicao @relation(fields: [posicaoId], references: [id], onDelete: Cascade)
+  // Código da norma ("NR-10", "NR-35", ...) — ver NORMAS_REGULAMENTADORAS em
+  // lib/constants-sst.ts.
+  norma     String
+  // Periodicidade da reciclagem em meses (NR-35 e NR-10 básico: 24; NR-10 SEP:
+  // 12). Null = treinamento sem reciclagem obrigatória.
+  validadeMeses Int?
+  observacoes   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([posicaoId, norma])
+  @@index([empresaId])
+  @@schema("rh")
+}
+
+model CertificadoNR {
+  id            String      @id @default(cuid())
+  empresaId     String
+  colaboradorId String
+  colaborador   Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  norma         String
+  realizadoEm   DateTime
+  // Calculado na gravação a partir de realizadoEm + validadeMeses do requisito,
+  // mas gravado: a periodicidade pode mudar depois e isso não pode reescrever
+  // a validade de um certificado já emitido.
+  validoAte     DateTime?
+  cargaHoraria  Int?
+  instrutor     String?
+  observacoes   String?
+  arquivoId     String?  @unique
+  arquivo       Arquivo? @relation(fields: [arquivoId], references: [id], onDelete: SetNull)
+  criadoPorId   String?
+  criadoPorNome String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([colaboradorId, norma])
+  @@index([empresaId, validoAte])
+  @@schema("rh")
+}
+
+model ExameOcupacional {
+  id            String      @id @default(cuid())
+  empresaId     String
+  colaboradorId String
+  colaborador   Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  // ADMISSIONAL | PERIODICO | DEMISSIONAL | RETORNO_TRABALHO | MUDANCA_FUNCAO
+  tipo          String
+  realizadoEm   DateTime
+  validoAte     DateTime?
+  // APTO | APTO_COM_RESTRICAO | INAPTO
+  resultado     String
+  restricoes    String?
+  medico        String?
+  crm           String?
+  clinica       String?
+  observacoes   String?
+  arquivoId     String?  @unique
+  arquivo       Arquivo? @relation(fields: [arquivoId], references: [id], onDelete: SetNull)
+  criadoPorId   String?
+  criadoPorNome String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([colaboradorId, realizadoEm])
+  @@index([empresaId, validoAte])
   @@schema("rh")
 }
 

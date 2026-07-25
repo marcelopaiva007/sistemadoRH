@@ -121,6 +121,31 @@ Datas de calendário (admissão, férias, validade) são gravadas e exibidas em
 **UTC** via `lib/datas.ts`. Tratadas no fuso local, apareceriam um dia antes no
 Brasil (UTC−3) em produção, onde o servidor roda em UTC.
 
+## Conformidade — Saúde e Segurança (Fase 2, em andamento)
+
+`/rh/<empresa>/conformidade` — matriz de NRs por função e situação de cada
+colaborador; os alertas entram junto no painel de `/vencimentos` existente.
+
+**Requisito x evidência, nada persistido como "situação".** `RequisitoNR`
+declara o que a FUNÇÃO exige (ex.: NR-35 para quem sobe em poste, reciclagem a
+cada 24 meses); `CertificadoNR` é a evidência de que UMA PESSOA cumpriu. Quem
+está em dia, vencendo, vencido ou nunca fez é sempre calculado na hora por
+`lib/conformidade.ts`, cruzando os dois — não existe coluna para o RH lembrar de
+atualizar, que é onde esse tipo de controle costuma apodrecer. Mesma lógica
+para `ExameOcupacional` (ASO/PCMSO), sem depender de requisito por função.
+
+Pontos que valem lembrar antes de mexer:
+- **A reciclagem mais recente vale, mesmo vencida uma anterior** — o motor pega
+  sempre o certificado/exame de data mais recente por (colaborador, norma).
+- **Certificado de norma que a função não exige não conta para nada** — só os
+  `RequisitoNR` da posição atual entram no cálculo.
+- **Exame demissional nunca aparece como "vigente"** — ele encerra o vínculo,
+  não mantém ninguém apto para trabalhar.
+- **Resultado "apto com restrição" exige a restrição preenchida** — é o dado
+  que o gestor precisa respeitar montando a escala.
+- Anexos (certificado, ASO) seguem o mesmo modelo do dossiê digital: blob em
+  `Arquivo`, download por `/api/rh/.../arquivos/[id]`, auditado.
+
 ## Portal do colaborador
 
 `/portal` — autoatendimento pelo celular: saldo e programação de férias,
@@ -179,6 +204,8 @@ Decisões de segurança que valem lembrar antes de mexer:
 | `npm run test:portal` | testes do acesso ao portal (hash do token, uso único, expiração, CPF) — limpa o que cria |
 | `npx tsx scripts/portal-e2e.ts preparar\|alheio\|limpar` | colaborador descartável para conferir o portal no navegador sem tocar em dado de gente real |
 | `npm run smoke:dp` | fumaça do DP contra o banco real — ficha, anexo em bytea, férias, ausência e auditoria, **sempre em rollback** |
+| `npm run test:conformidade` | testes do motor de conformidade SST — reciclagem, vencimento, exame (não toca o banco) |
+| `npm run smoke:sst` | fumaça da conformidade contra o banco real — requisito, certificado, ASO, **sempre em rollback** |
 | `npx tsx scripts/aplicar-migracao.ts <nome> [--dry]` | aplica um `migration.sql` à mão, em transação (ver "Notas sobre o banco") |
 | `npx tsx scripts/importar-colaboradores-elleven.ts [--dry]` | importa/atualiza colaboradores a partir das exportações do elleven (upsert idempotente por CPF → cód. elleven → nome) |
 | `npx tsx scripts/configurar-telegram-webhook.ts` | registra o webhook do bot do Telegram |
