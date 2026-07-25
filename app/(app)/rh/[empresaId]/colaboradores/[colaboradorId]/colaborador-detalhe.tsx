@@ -5,11 +5,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { tipoContratoLabel } from "@/lib/constants-dp";
 import { formatarData, tempoDeCasa } from "@/lib/datas";
 import type { ResumoFerias } from "@/lib/ferias";
+import type { ConformidadeColaborador, SituacaoExame } from "@/lib/conformidade";
 import { FichaBlocos } from "./ficha-blocos";
 import { DependentesCard } from "./dependentes-card";
 import { DocumentosCard } from "./documentos-card";
 import { FeriasCard } from "./ferias-card";
 import { AusenciasCard } from "./ausencias-card";
+import { SegurancaCard } from "./seguranca-card";
 
 type Colaborador = Parameters<typeof FichaBlocos>[0]["colaborador"] & {
   ativo: boolean;
@@ -26,6 +28,10 @@ export function ColaboradorDetalhe({
   ferias,
   ausencias,
   resumoFerias,
+  conformidade,
+  certificados,
+  exames,
+  situacaoExame,
 }: {
   empresaId: string;
   colaborador: Colaborador;
@@ -34,10 +40,15 @@ export function ColaboradorDetalhe({
   ferias: Parameters<typeof FeriasCard>[0]["solicitacoes"];
   ausencias: Parameters<typeof AusenciasCard>[0]["ausencias"];
   resumoFerias: ResumoFerias | null;
+  conformidade: ConformidadeColaborador;
+  certificados: Parameters<typeof SegurancaCard>[0]["certificados"];
+  exames: Parameters<typeof SegurancaCard>[0]["exames"];
+  situacaoExame: SituacaoExame;
 }) {
   const pendencias =
     ferias.filter((f) => f.status === "PENDENTE").length +
     ausencias.filter((a) => a.status === "PENDENTE").length;
+  const irregular = !conformidade.regular || situacaoExame.situacao === "VENCIDO" || situacaoExame.situacao === "NUNCA_FEITO";
 
   return (
     <div className="space-y-6">
@@ -61,6 +72,7 @@ export function ColaboradorDetalhe({
           {!resumoFerias?.temVencido && resumoFerias?.temVencendo && (
             <Badge variant="secondary">Férias vencendo</Badge>
           )}
+          {irregular && <Badge variant="destructive">Irregular (SST)</Badge>}
         </div>
       </div>
 
@@ -84,6 +96,9 @@ export function ColaboradorDetalhe({
           <TabsTrigger value="dossie">Dossiê ({documentos.length})</TabsTrigger>
           <TabsTrigger value="ferias">Férias</TabsTrigger>
           <TabsTrigger value="ausencias">Ausências ({ausencias.length})</TabsTrigger>
+          <TabsTrigger value="seguranca">
+            Segurança {irregular && <Badge variant="destructive">!</Badge>}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="ficha" className="pt-4">
@@ -105,6 +120,17 @@ export function ColaboradorDetalhe({
         </TabsContent>
         <TabsContent value="ausencias" className="pt-4">
           <AusenciasCard empresaId={empresaId} colaboradorId={colaborador.id} ausencias={ausencias} />
+        </TabsContent>
+        <TabsContent value="seguranca" className="pt-4">
+          <SegurancaCard
+            empresaId={empresaId}
+            colaboradorId={colaborador.id}
+            posicaoNome={colaborador.posicao.nome}
+            conformidade={conformidade}
+            certificados={certificados}
+            exames={exames}
+            situacaoExame={situacaoExame}
+          />
         </TabsContent>
       </Tabs>
     </div>

@@ -15,7 +15,9 @@
     "test:ferias": "tsx scripts/test-ferias.ts",
     "test:portal": "tsx scripts/test-portal.ts",
     "test:desacoplamento": "tsx scripts/test-desacoplamento.ts",
-    "smoke:dp": "tsx scripts/smoke-dp.ts"
+    "test:conformidade": "tsx scripts/test-conformidade.ts",
+    "smoke:dp": "tsx scripts/smoke-dp.ts",
+    "smoke:sst": "tsx scripts/smoke-sst.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

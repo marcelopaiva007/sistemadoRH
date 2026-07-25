@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { calcularFerias, type PeriodoAquisitivo } from "@/lib/ferias";
 import { DIAS_ALERTA_VENCIMENTO, tipoDocumentoLabel } from "@/lib/constants-dp";
+import { tipoExameLabel } from "@/lib/constants-sst";
 import { diferencaEmDiasUTC, formatarData, hojeUTC, somarDiasUTC } from "@/lib/datas";
 
 // Painel de vencimentos: o que está prestes a vencer (ou já venceu) na empresa,
@@ -22,7 +23,7 @@ export default async function VencimentosPage({
   const hoje = hojeUTC();
   const limite = somarDiasUTC(hoje, DIAS_ALERTA_VENCIMENTO);
 
-  const [documentos, colaboradores] = await Promise.all([
+  const [documentos, certificados, exames, colaboradores] = await Promise.all([
     prisma.documentoColaborador.findMany({
       where: { empresaId, validoAte: { not: null, lte: limite }, colaborador: { ativo: true } },
       orderBy: { validoAte: "asc" },
@@ -30,6 +31,34 @@ export default async function VencimentosPage({
         id: true,
         tipo: true,
         descricao: true,
+        validoAte: true,
+        colaboradorId: true,
+        colaborador: { select: { nome: true, setor: { select: { nome: true } } } },
+      },
+    }),
+    // Sem filtrar validoAte<=limite aqui: um certificado antigo vencido, já
+    // renovado por um mais novo, não pode aparecer no painel. O corte pela
+    // janela de alerta só é aplicado DEPOIS de achar o mais recente de cada
+    // (colaborador, norma) — ver reduzirAoMaisRecente abaixo.
+    prisma.certificadoNR.findMany({
+      where: { empresaId, validoAte: { not: null }, colaborador: { ativo: true } },
+      orderBy: { realizadoEm: "desc" },
+      select: {
+        id: true,
+        norma: true,
+        realizadoEm: true,
+        validoAte: true,
+        colaboradorId: true,
+        colaborador: { select: { nome: true, setor: { select: { nome: true } } } },
+      },
+    }),
+    prisma.exameOcupacional.findMany({
+      where: { empresaId, validoAte: { not: null }, tipo: { not: "DEMISSIONAL" }, colaborador: { ativo: true } },
+      orderBy: { realizadoEm: "desc" },
+      select: {
+        id: true,
+        tipo: true,
+        realizadoEm: true,
         validoAte: true,
         colaboradorId: true,
         colaborador: { select: { nome: true, setor: { select: { nome: true } } } },
@@ -53,6 +82,31 @@ export default async function VencimentosPage({
     }),
   ]);
 
+  // Mantém só o registro mais recente por (colaborador, chave) — orderBy
+  // realizadoEm desc + primeira ocorrência resolve isso num Map.
+  function reduzirAoMaisRecente<T extends { colaboradorId: string }>(
+    itens: T[],
+    chave: (item: T) => string,
+  ): T[] {
+    const vistos = new Set<string>();
+    const resultado: T[] = [];
+    for (const item of itens) {
+      const k = `${item.colaboradorId}::${chave(item)}`;
+      if (vistos.has(k)) continue;
+      vistos.add(k);
+      resultado.push(item);
+    }
+    return resultado;
+  }
+
+  const certificadosVigentes = reduzirAoMaisRecente(certificados, (c) => c.norma).filter(
+    (c) => c.validoAte! <= limite,
+  );
+  const examesVigentes = reduzirAoMaisRecente(exames, () => "exame")
+    .filter((e) => e.validoAte! <= limite)
+    .sort((a, b) => a.validoAte!.getTime() - b.validoAte!.getTime());
+  certificadosVigentes.sort((a, b) => a.validoAte!.getTime() - b.validoAte!.getTime());
+
   const feriasEmRisco = colaboradores
     .map((c) => {
       const resumo = calcularFerias(c.dataAdmissao!, c.ferias, hoje);
@@ -65,20 +119,24 @@ export default async function VencimentosPage({
     .sort((a, b) => a.periodo.diasAteLimite - b.periodo.diasAteLimite);
 
   const vencidos = documentos.filter((d) => diferencaEmDiasUTC(d.validoAte!, hoje) < 0).length;
+  const nrVencidos = certificadosVigentes.filter((c) => diferencaEmDiasUTC(c.validoAte!, hoje) < 0).length;
+  const asoVencidos = examesVigentes.filter((e) => diferencaEmDiasUTC(e.validoAte!, hoje) < 0).length;
 
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-xl font-semibold tracking-tight">Vencimentos</h2>
         <p className="text-sm text-muted-foreground">
-          Documentos que vencem nos próximos {DIAS_ALERTA_VENCIMENTO} dias (ou já vencidos) e férias
-          chegando no limite legal. Só colaboradores ativos.
+          Tudo que vence nos próximos {DIAS_ALERTA_VENCIMENTO} dias (ou já venceu): documentos, NRs,
+          ASO e férias no limite legal. Só colaboradores ativos.
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-5">
         <Indicador label="Documentos vencidos" valor={vencidos} alerta={vencidos > 0} />
         <Indicador label="Documentos a vencer" valor={documentos.length - vencidos} />
+        <Indicador label="Treinamentos NR" valor={certificadosVigentes.length} complemento={`${nrVencidos} vencido(s)`} alerta={nrVencidos > 0} />
+        <Indicador label="ASO / PCMSO" valor={examesVigentes.length} complemento={`${asoVencidos} vencido(s)`} alerta={asoVencidos > 0} />
         <Indicador
           label="Férias vencidas ou vencendo"
           valor={feriasEmRisco.length}
@@ -129,6 +187,118 @@ export default async function VencimentosPage({
                           )}
                         </TableCell>
                         <TableCell className="tabular-nums">{formatarData(d.validoAte)}</TableCell>
+                        <TableCell>
+                          {dias < 0 ? (
+                            <Badge variant="destructive">Vencido há {Math.abs(dias)} d</Badge>
+                          ) : (
+                            <Badge variant="secondary">Vence em {dias} d</Badge>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Treinamentos de NR</CardTitle>
+          <CardDescription>
+            NR-10, NR-35 e demais — o certificado mais recente de cada norma para cada pessoa.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {certificadosVigentes.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              Nenhum treinamento vencendo nos próximos {DIAS_ALERTA_VENCIMENTO} dias.
+            </p>
+          ) : (
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Colaborador</TableHead>
+                    <TableHead>Setor</TableHead>
+                    <TableHead>Norma</TableHead>
+                    <TableHead>Validade</TableHead>
+                    <TableHead>Situação</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {certificadosVigentes.map((c) => {
+                    const dias = diferencaEmDiasUTC(c.validoAte!, hoje);
+                    return (
+                      <TableRow key={c.id}>
+                        <TableCell>
+                          <Link
+                            href={`/rh/${empresaId}/colaboradores/${c.colaboradorId}`}
+                            className="font-medium hover:underline"
+                          >
+                            {c.colaborador.nome}
+                          </Link>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">{c.colaborador.setor.nome}</TableCell>
+                        <TableCell className="font-medium">{c.norma}</TableCell>
+                        <TableCell className="tabular-nums">{formatarData(c.validoAte)}</TableCell>
+                        <TableCell>
+                          {dias < 0 ? (
+                            <Badge variant="destructive">Vencido há {Math.abs(dias)} d</Badge>
+                          ) : (
+                            <Badge variant="secondary">Vence em {dias} d</Badge>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>ASO / PCMSO</CardTitle>
+          <CardDescription>O exame ocupacional vigente de cada pessoa (demissional não entra aqui).</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {examesVigentes.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              Nenhum ASO vencendo nos próximos {DIAS_ALERTA_VENCIMENTO} dias.
+            </p>
+          ) : (
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Colaborador</TableHead>
+                    <TableHead>Setor</TableHead>
+                    <TableHead>Tipo</TableHead>
+                    <TableHead>Validade</TableHead>
+                    <TableHead>Situação</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {examesVigentes.map((e) => {
+                    const dias = diferencaEmDiasUTC(e.validoAte!, hoje);
+                    return (
+                      <TableRow key={e.id}>
+                        <TableCell>
+                          <Link
+                            href={`/rh/${empresaId}/colaboradores/${e.colaboradorId}`}
+                            className="font-medium hover:underline"
+                          >
+                            {e.colaborador.nome}
+                          </Link>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">{e.colaborador.setor.nome}</TableCell>
+                        <TableCell>{tipoExameLabel(e.tipo)}</TableCell>
+                        <TableCell className="tabular-nums">{formatarData(e.validoAte)}</TableCell>
                         <TableCell>
                           {dias < 0 ? (
                             <Badge variant="destructive">Vencido há {Math.abs(dias)} d</Badge>
@@ -210,13 +380,24 @@ export default async function VencimentosPage({
   );
 }
 
-function Indicador({ label, valor, alerta }: { label: string; valor: number; alerta?: boolean }) {
+function Indicador({
+  label,
+  valor,
+  complemento,
+  alerta,
+}: {
+  label: string;
+  valor: number;
+  complemento?: string;
+  alerta?: boolean;
+}) {
   return (
     <div className="rounded-lg bg-card px-4 py-3 ring-1 ring-foreground/10">
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className={`text-2xl font-semibold tabular-nums ${alerta ? "text-destructive" : ""}`}>
         {valor}
       </div>
+      {complemento && <div className="text-xs text-muted-foreground">{complemento}</div>}
     </div>
   );
 }

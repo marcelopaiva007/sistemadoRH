@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
 import { calcularFerias } from "@/lib/ferias";
+import { conformidadeDoColaborador, situacaoDoExame } from "@/lib/conformidade";
 import { ColaboradorDetalhe } from "./colaborador-detalhe";
 
 // Ficha completa do colaborador: dados cadastrais, dependentes, dossiê digital,
@@ -22,7 +23,7 @@ export default async function ColaboradorPage({
   });
   if (!colaborador) notFound();
 
-  const [dependentes, documentos, ferias, ausencias] = await Promise.all([
+  const [dependentes, documentos, ferias, ausencias, requisitos, certificados, exames] = await Promise.all([
     prisma.dependente.findMany({ where: { colaboradorId }, orderBy: { nome: "asc" } }),
     prisma.documentoColaborador.findMany({
       where: { colaboradorId },
@@ -66,6 +67,35 @@ export default async function ColaboradorPage({
         arquivo: { select: { id: true, nome: true, mimeType: true, tamanhoBytes: true } },
       },
     }),
+    prisma.requisitoNR.findMany({ where: { posicaoId: colaborador.posicaoId }, orderBy: { norma: "asc" } }),
+    prisma.certificadoNR.findMany({
+      where: { colaboradorId },
+      orderBy: [{ realizadoEm: "desc" }],
+      select: {
+        id: true,
+        norma: true,
+        realizadoEm: true,
+        validoAte: true,
+        cargaHoraria: true,
+        instrutor: true,
+        arquivo: { select: { id: true, nome: true } },
+      },
+    }),
+    prisma.exameOcupacional.findMany({
+      where: { colaboradorId },
+      orderBy: [{ realizadoEm: "desc" }],
+      select: {
+        id: true,
+        tipo: true,
+        realizadoEm: true,
+        validoAte: true,
+        resultado: true,
+        restricoes: true,
+        medico: true,
+        clinica: true,
+        arquivo: { select: { id: true, nome: true } },
+      },
+    }),
   ]);
 
   const resumoFerias = colaborador.dataAdmissao
@@ -74,6 +104,9 @@ export default async function ColaboradorPage({
         ferias.filter((f) => f.status === "APROVADA" || f.status === "PENDENTE"),
       )
     : null;
+
+  const conformidade = conformidadeDoColaborador(requisitos, certificados);
+  const situacaoExame = situacaoDoExame(exames);
 
   return (
     <div className="space-y-4">
@@ -91,6 +124,10 @@ export default async function ColaboradorPage({
         ferias={ferias}
         ausencias={ausencias}
         resumoFerias={resumoFerias}
+        conformidade={conformidade}
+        certificados={certificados}
+        exames={exames}
+        situacaoExame={situacaoExame}
       />
     </div>
   );
