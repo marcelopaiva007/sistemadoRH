@@ -216,6 +216,7 @@ model Colaborador {
   beneficios    BeneficioColaborador[]
   reconhecimentos Reconhecimento[]
   entregasEpi   EntregaEPI[]
+  acidentes     AcidenteTrabalho[]
 
   @@unique([empresaId, cpf])
   @@unique([telegramChatId])
@@ -275,6 +276,7 @@ model Arquivo {
   certificado CertificadoNR?
   exame       ExameOcupacional?
   entregaEpi  EntregaEPI?
+  acidente    AcidenteTrabalho?
 
   @@index([empresaId])
   @@schema("rh")
@@ -363,6 +365,11 @@ model Ausencia {
   motivoDecisao        String?
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
+
+  // Back-relation opcional: quando esta ausência é o afastamento decorrente de
+  // um acidente de trabalho registrado. Sem coluna aqui — o FK mora do lado do
+  // AcidenteTrabalho.
+  acidente AcidenteTrabalho?
 
   @@index([empresaId, status])
   @@index([colaboradorId, dataInicio])
@@ -586,6 +593,50 @@ model EntregaEPI {
 
   @@index([colaboradorId, tipo])
   @@index([empresaId, validoAte])
+  @@schema("rh")
+}
+
+// Registro de acidente de trabalho / CAT (Comunicação de Acidente de
+// Trabalho). A CAT precisa ser emitida ao INSS em até 1 dia útil (imediata se
+// fatal) — os campos de emissão (catEmitida/catNumero/catEmitidaEm) existem
+// para o RH provar que cumpriu o prazo, não para o sistema emitir a CAT em si
+// (isso continua sendo feito no site do governo).
+//
+// `ausenciaId` liga o acidente ao afastamento correspondente quando houve
+// (Ausencia.tipo = "ACIDENTE_TRABALHO", já modelado na Fase 1) — mas o
+// acidente pode existir sem afastamento (sem gravidade que tire do trabalho) e
+// por isso o vínculo é opcional.
+model AcidenteTrabalho {
+  id            String      @id @default(cuid())
+  empresaId     String
+  colaboradorId String
+  colaborador   Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  dataHora      DateTime
+  // TIPICO | TRAJETO | DOENCA_OCUPACIONAL
+  tipo          String
+  local         String?
+  descricao     String
+  parteCorpoAtingida String?
+  natureza      String?
+  houveAfastamento Boolean @default(false)
+  ausenciaId    String?   @unique
+  ausencia      Ausencia? @relation(fields: [ausenciaId], references: [id], onDelete: SetNull)
+  catEmitida    Boolean  @default(false)
+  catNumero     String?
+  catEmitidaEm  DateTime?
+  testemunhas   String?
+  medidasCorretivas String?
+  // EM_INVESTIGACAO | CONCLUIDO
+  situacao      String   @default("EM_INVESTIGACAO")
+  arquivoId     String?  @unique
+  arquivo       Arquivo? @relation(fields: [arquivoId], references: [id], onDelete: SetNull)
+  registradoPorId   String?
+  registradoPorNome String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([empresaId, dataHora])
+  @@index([colaboradorId, dataHora])
   @@schema("rh")
 }
 

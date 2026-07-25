@@ -15,6 +15,7 @@ import { SegurancaCard } from "./seguranca-card";
 import { MovimentacoesCard } from "./movimentacoes-card";
 import { BeneficiosCard } from "./beneficios-card";
 import { EpisCard } from "./epis-card";
+import { AcidentesCard } from "./acidentes-card";
 
 type Colaborador = Parameters<typeof FichaBlocos>[0]["colaborador"] & {
   ativo: boolean;
@@ -43,6 +44,8 @@ export function ColaboradorDetalhe({
   beneficios,
   dependentesNoPlanoSaude,
   entregasEpi,
+  acidentes,
+  ausenciasElegiveisAcidente,
 }: {
   empresaId: string;
   colaborador: Colaborador;
@@ -62,6 +65,8 @@ export function ColaboradorDetalhe({
   beneficios: Parameters<typeof BeneficiosCard>[0]["beneficios"];
   dependentesNoPlanoSaude: number;
   entregasEpi: Parameters<typeof EpisCard>[0]["entregas"];
+  acidentes: Parameters<typeof AcidentesCard>[0]["acidentes"];
+  ausenciasElegiveisAcidente: Parameters<typeof AcidentesCard>[0]["ausenciasElegiveis"];
 }) {
   const pendencias =
     ferias.filter((f) => f.status === "PENDENTE").length +
@@ -120,6 +125,7 @@ export function ColaboradorDetalhe({
           <TabsTrigger value="carreira">Carreira ({movimentacoes.length})</TabsTrigger>
           <TabsTrigger value="beneficios">Benefícios ({beneficios.length})</TabsTrigger>
           <TabsTrigger value="epis">EPIs ({entregasEpi.length})</TabsTrigger>
+          <TabsTrigger value="acidentes">Acidentes ({acidentes.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="ficha" className="pt-4">
@@ -176,6 +182,14 @@ export function ColaboradorDetalhe({
         </TabsContent>
         <TabsContent value="epis" className="pt-4">
           <EpisCard empresaId={empresaId} colaboradorId={colaborador.id} entregas={entregasEpi} />
+        </TabsContent>
+        <TabsContent value="acidentes" className="pt-4">
+          <AcidentesCard
+            empresaId={empresaId}
+            colaboradorId={colaborador.id}
+            acidentes={acidentes}
+            ausenciasElegiveis={ausenciasElegiveisAcidente}
+          />
         </TabsContent>
       </Tabs>
     </div>
