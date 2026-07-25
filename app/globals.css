@@ -88,126 +88,83 @@
   --sidebar-ring: #93c5fd;
 }
 
-.dark {
-  --background: #0a0e27;
-  --foreground: #e0e7ff;
-  --card: #1a1f3a;
-  --card-foreground: #e0e7ff;
-  --popover: #151a2f;
-  --popover-foreground: #e0e7ff;
-  --primary: #3b82f6;
-  --primary-foreground: #0a0e27;
-  --secondary: #0ea5e9;
-  --secondary-foreground: #0a0e27;
-  --muted: #374151;
-  --muted-foreground: #9ca3af;
-  --accent: #00d4ff;
-  --accent-foreground: #0a0e27;
-  --destructive: #ef4444;
-  --success: #10b981;
-  --border: #1e293b;
-  --input: #1e293b;
-  --ring: #00d4ff;
-  --chart-1: #3b82f6;
-  --chart-2: #0ea5e9;
-  --chart-3: #10b981;
-  --chart-4: #f59e0b;
-  --chart-5: #ec4899;
-  --sidebar: #151a2f;
-  --sidebar-foreground: #e0e7ff;
-  --sidebar-primary: #3b82f6;
-  --sidebar-primary-foreground: #e0e7ff;
-  --sidebar-accent: #00d4ff;
-  --sidebar-accent-foreground: #0a0e27;
-  --sidebar-border: #1e293b;
-  --sidebar-ring: #00d4ff;
-}
-
+/* Não há tema escuro. Existia um bloco .dark aqui, herdado de um visual
+   neon anterior (ciano #00d4ff, fundo #0a0e27) que o sistema abandonou ao
+   virar claro — e que nunca era aplicado, porque nada põe a classe `dark`
+   no documento. Foi removido em vez de mantido quebrado: se um dia houver
+   modo escuro, ele nasce dos tokens do :root acima, não dessa herança. */
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
-  body {
-    @apply bg-background text-foreground;
-    background-image:
-      radial-gradient(circle at 20% 50%, rgba(59, 130, 246, 0.04) 0%, transparent 50%),
-      radial-gradient(circle at 80% 80%, rgba(14, 165, 233, 0.04) 0%, transparent 50%);
-  }
+
   html {
     @apply font-sans;
+    /* Base mantida em 16px de propósito. Reduzir a raiz encolheria junto TODO
+       o espaçamento do Tailwind (tudo é rem) — mudança sistêmica que só faz
+       sentido depois de ver rodando. Densidade se resolve no componente. */
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    /* Sem manchas de fundo: num sistema de tabela e formulário, gradiente
+       decorativo só compete com o dado. */
+  }
+
+  /* Número em coluna precisa alinhar. Aplicado onde há dado numérico —
+     tabela, indicador, badge — em vez de caso a caso pelo código. */
+  table, .tabular, [data-slot="badge"] {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Hierarquia por peso e cor, não só por tamanho: escala curta evita a
+     inflação de títulos que vinha acontecendo (text-2xl, text-xl e text-lg
+     disputando o mesmo papel em telas diferentes). */
+  h1 { @apply text-xl font-semibold tracking-tight; }
+  h2 { @apply text-lg font-semibold tracking-tight; }
+  h3 { @apply text-sm font-semibold; }
+
+  /* Texto longo não deve atravessar a tela inteira. */
+  p { text-wrap: pretty; }
+  h1, h2, h3 { text-wrap: balance; }
+}
+
+/* Foco visível e na cor da identidade. Antes havia uma regra que forçava
+   ciano em todo input — sobra do tema escuro que o sistema não usa mais. */
+@layer base {
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-ring;
   }
 }
 
-@keyframes glow {
-  0%, 100% {
-    text-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
+/* Barra de rolagem discreta, no tom do tema claro. A anterior tinha trilho
+   escuro e polegar em gradiente ciano, herança do tema neon. */
+@media (pointer: fine) {
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
   }
-  50% {
-    text-shadow: 0 0 20px rgba(0, 212, 255, 0.8);
+  ::-webkit-scrollbar-track {
+    background: transparent;
   }
-}
-
-@keyframes float {
-  0%, 100% {
-    transform: translateY(0px);
+  ::-webkit-scrollbar-thumb {
+    background: color-mix(in oklab, var(--muted-foreground) 30%, transparent);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
   }
-  50% {
-    transform: translateY(-10px);
-  }
-}
-
-@keyframes pulse-glow {
-  0%, 100% {
-    box-shadow: 0 0 0 0 rgba(0, 212, 255, 0.7);
-  }
-  50% {
-    box-shadow: 0 0 0 10px rgba(0, 212, 255, 0);
+  ::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in oklab, var(--muted-foreground) 50%, transparent);
+    background-clip: content-box;
   }
 }
 
-.glow-text {
-  animation: glow 3s ease-in-out infinite;
-}
-
-.float {
-  animation: float 6s ease-in-out infinite;
-}
-
-.pulse-glow {
-  animation: pulse-glow 2s ease-in-out infinite;
-}
-
-/* Glassmorphism effect */
-.glass {
-  background: rgba(15, 23, 42, 0.5);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(0, 212, 255, 0.1);
-}
-
-/* Smooth transitions */
-input, button, select, textarea {
-  @apply transition-all duration-200;
-}
-
-/* Focus states com cyan */
-input:focus, select:focus, textarea:focus {
-  @apply border-cyan-500/50 ring-2 ring-cyan-500/30;
-}
-
-/* Scrollbar customizado */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  @apply bg-slate-900/50;
-}
-
-::-webkit-scrollbar-thumb {
-  @apply bg-gradient-to-b from-cyan-500 to-blue-500 rounded-full;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  @apply bg-gradient-to-b from-cyan-400 to-blue-400;
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
