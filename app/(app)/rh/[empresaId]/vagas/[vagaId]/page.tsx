@@ -17,6 +17,11 @@ export default async function VagaPage({
   });
   if (!vaga) notFound();
 
+  const [setores, posicoes] = await Promise.all([
+    prisma.setor.findMany({ where: { empresaId, ativo: true }, orderBy: { nome: "asc" }, select: { id: true, nome: true } }),
+    prisma.posicao.findMany({ where: { empresaId, ativo: true }, orderBy: { nome: "asc" }, select: { id: true, nome: true } }),
+  ]);
+
   const candidaturas = await prisma.candidatura.findMany({
     where: { vagaId },
     orderBy: [{ updatedAt: "desc" }],
@@ -40,5 +45,13 @@ export default async function VagaPage({
     },
   });
 
-  return <VagaDetalhe empresaId={empresaId} vaga={vaga} candidaturas={candidaturas} />;
+  return (
+    <VagaDetalhe
+      empresaId={empresaId}
+      vaga={vaga}
+      candidaturas={candidaturas}
+      setores={setores}
+      posicoes={posicoes}
+    />
+  );
 }

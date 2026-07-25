@@ -1,6 +1,9 @@
 "use client";
 
+import Link from "next/link";
+import { ClipboardList } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { tipoContratoLabel } from "@/lib/constants-dp";
 import { formatarData, tempoDeCasa } from "@/lib/datas";
@@ -57,6 +60,7 @@ export function ColaboradorDetalhe({
   pdi,
   participacoesTreinamento,
   treinamentosAtivos,
+  admissao,
 }: {
   empresaId: string;
   colaborador: Colaborador;
@@ -85,6 +89,10 @@ export function ColaboradorDetalhe({
   pdi: Parameters<typeof MetasPdiCard>[0]["pdi"];
   participacoesTreinamento: Parameters<typeof TreinamentosCard>[0]["participacoes"];
   treinamentosAtivos: Parameters<typeof TreinamentosCard>[0]["treinamentosAtivos"];
+  admissao: {
+    vaga: { id: string; titulo: string };
+    pendencias: { chave: string; descricao: string }[];
+  } | null;
 }) {
   const pendencias =
     ferias.filter((f) => f.status === "PENDENTE").length +
@@ -129,6 +137,26 @@ export function ColaboradorDetalhe({
         />
         <Resumo label="Pendências de aprovação" valor={pendencias > 0 ? `${pendencias}` : "nenhuma"} />
       </div>
+
+      {admissao && admissao.pendencias.length > 0 && (
+        <Alert>
+          <ClipboardList className="size-4" />
+          <AlertDescription>
+            <span className="font-medium">
+              Admissão pela vaga{" "}
+              <Link href={`/rh/${empresaId}/vagas/${admissao.vaga.id}`} className="underline">
+                {admissao.vaga.titulo}
+              </Link>{" "}
+              — {admissao.pendencias.length} pendência(s):
+            </span>
+            <ul className="mt-1 list-inside list-disc text-sm">
+              {admissao.pendencias.map((p) => (
+                <li key={p.chave}>{p.descricao}</li>
+              ))}
+            </ul>
+          </AlertDescription>
+        </Alert>
+      )}
 
       <Tabs defaultValue="ficha">
         <TabsList variant="line">

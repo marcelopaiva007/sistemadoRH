@@ -199,6 +199,25 @@ inscrição** em `/vagas/<slug>`.
   quando a action retorna, e o candidato perderia tudo por causa de um dígito
   errado no CPF.
 
+### Admissão digital
+
+"Admitir" no funil cria a ficha do colaborador a partir do que o candidato já
+informou e liga as duas pontas (`Candidatura.colaboradorId`). Não precisou de
+tabela nova.
+
+- **A conferência de admissão avisa, não bloqueia** — decisão de escopo: em
+  campo a pessoa às vezes começa antes de todo papel chegar, e travar a
+  criação da ficha só faria o RH cadastrar por fora do sistema.
+- **A lista de pendências é calculada** (`lib/admissao.ts`) sobre o dossiê e
+  os exames que já existem, nunca gravada. Um campo "status da admissão"
+  ficaria desatualizado assim que alguém anexasse o documento que faltava.
+- **Só aparece para quem entrou por processo seletivo** — os 208 importados do
+  elleven não têm candidatura, e cobrar documento admissional deles seria
+  ruído permanente na tela.
+- Recontratação distraída esbarra no `@@unique([empresaId, cpf])` do
+  `Colaborador`: a action avisa que a ficha já existe em vez de criar a
+  segunda.
+
 ## Treinamentos & trilhas — não-NR (Fase 3)
 
 `Treinamento` (catálogo) + `ParticipacaoTreinamento`, em `/rh/<empresa>/treinamentos`
@@ -440,7 +459,8 @@ Decisões de segurança que valem lembrar antes de mexer:
 | `npm run smoke:avaliacao` | fumaça de avaliação de desempenho — gerar avaliações, nota final por média de competências, faixa do nine-box, avaliador extra e cascata, **sempre em rollback** |
 | `npm run smoke:metas` | fumaça de metas & PDI — meta individual/setor, constraint CHECK de alvo único, progresso/status, item de PDI, **sempre em rollback** |
 | `npm run smoke:treinamentos` | fumaça de treinamentos — catálogo com nome único, participação com constraint de duplicidade, ausência fora da matriz de competências, **sempre em rollback** |
-| `npm run smoke:ats` | fumaça do ATS — slug único, funil com histórico, inscrição repetida barrada, banco de talentos preservado na exclusão, **sempre em rollback** |
+| `npm run smoke:ats` | fumaça do ATS — slug único, funil com histórico, inscrição repetida barrada, disponibilidade no banco de talentos, admissão ligando candidatura à ficha, **sempre em rollback** |
+| `npm run test:admissao` | testes das pendências da admissão — documento faltando, salário zero, documento extra (não toca o banco) |
 | `npx tsx scripts/aplicar-migracao.ts <nome> [--dry]` | aplica um `migration.sql` à mão, em transação (ver "Notas sobre o banco") |
 | `npx tsx scripts/importar-colaboradores-elleven.ts [--dry]` | importa/atualiza colaboradores a partir das exportações do elleven (upsert idempotente por CPF → cód. elleven → nome) |
 | `npx tsx scripts/configurar-telegram-webhook.ts` | registra o webhook do bot do Telegram |

@@ -13,6 +13,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { atualizarVaga, inscreverCandidato, moverEtapa, excluirCandidatura } from "@/lib/actions/rh-vagas";
+import { admitirCandidato } from "@/lib/actions/rh-admissao";
 import {
   ETAPAS_EM_ANDAMENTO,
   ETAPAS_FINAIS,
@@ -22,7 +23,7 @@ import {
   statusVagaLabel,
   STATUS_VAGA,
 } from "@/lib/constants-ats";
-import { MIMES_ANEXO_ACEITOS, tipoContratoLabel } from "@/lib/constants-dp";
+import { MIMES_ANEXO_ACEITOS, TIPOS_CONTRATO, tipoContratoLabel } from "@/lib/constants-dp";
 import { formatarData } from "@/lib/datas";
 import type { ActionResult } from "@/lib/constants";
 
@@ -67,13 +68,18 @@ export function VagaDetalhe({
   empresaId,
   vaga,
   candidaturas,
+  setores,
+  posicoes,
 }: {
   empresaId: string;
   vaga: Vaga;
   candidaturas: Candidatura[];
+  setores: { id: string; nome: string }[];
+  posicoes: { id: string; nome: string }[];
 }) {
   const [inscreverAberto, setInscreverAberto] = useState(false);
   const [editarAberto, setEditarAberto] = useState(false);
+  const [admitir, setAdmitir] = useState<Candidatura | null>(null);
 
   const porEtapa = (etapa: string) => candidaturas.filter((c) => c.etapa === etapa);
   const encerradas = candidaturas.filter((c) => (ETAPAS_FINAIS as readonly string[]).includes(c.etapa));
@@ -165,6 +171,7 @@ export function VagaDetalhe({
               empresaId={empresaId}
               etapa={etapa}
               candidaturas={porEtapa(etapa)}
+              onAdmitir={setAdmitir}
             />
           ))}
         </div>
@@ -188,11 +195,24 @@ export function VagaDetalhe({
                       {origemCandidatoLabel(c.candidato.origem)}
                     </span>
                     {c.motivo && <div className="text-xs text-muted-foreground">{c.motivo}</div>}
+                    {c.colaboradorId && (
+                      <Link
+                        href={`/rh/${empresaId}/colaboradores/${c.colaboradorId}`}
+                        className="text-xs hover:underline"
+                      >
+                        ver ficha do colaborador →
+                      </Link>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge variant={c.etapa === "CONTRATADO" ? "default" : "secondary"}>
                       {etapaFunilLabel(c.etapa)}
                     </Badge>
+                    {c.etapa === "CONTRATADO" && !c.colaboradorId && (
+                      <Button size="sm" variant="outline" onClick={() => setAdmitir(c)}>
+                        Criar ficha
+                      </Button>
+                    )}
                     <SeletorEtapa empresaId={empresaId} candidatura={c} />
                   </div>
                 </li>
@@ -201,7 +221,115 @@ export function VagaDetalhe({
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={!!admitir} onOpenChange={(open) => !open && setAdmitir(null)}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto">
+          {admitir && (
+            <AdmitirForm
+              empresaId={empresaId}
+              candidatura={admitir}
+              setores={setores}
+              posicoes={posicoes}
+              onSuccess={() => setAdmitir(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
+  );
+}
+
+function AdmitirForm({
+  empresaId,
+  candidatura,
+  setores,
+  posicoes,
+  onSuccess,
+}: {
+  empresaId: string;
+  candidatura: Candidatura;
+  setores: { id: string; nome: string }[];
+  posicoes: { id: string; nome: string }[];
+  onSuccess: () => void;
+}) {
+  const [state, formAction, isPending] = useActionState(async (prev: ActionResult, fd: FormData) => {
+    const result = await admitirCandidato(empresaId, candidatura.id, prev, fd);
+    if (result.ok) {
+      toast.success("Colaborador admitido. A ficha já está em Colaboradores.");
+      onSuccess();
+    }
+    return result;
+  }, initialState);
+
+  return (
+    <form action={formAction} className="space-y-4">
+      <DialogHeader>
+        <DialogTitle>Admitir {candidatura.candidato.nome}</DialogTitle>
+      </DialogHeader>
+      <p className="text-xs text-muted-foreground">
+        Cria a ficha do colaborador com o que o candidato já informou. Documentos que faltarem
+        aparecem como aviso na ficha — não travam a admissão.
+      </p>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="setorId">Setor</Label>
+          <select id="setorId" name="setorId" required defaultValue="" className={classeSelect}>
+            <option value="" disabled>
+              Escolha o setor
+            </option>
+            {setores.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.nome}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="posicaoId">Cargo</Label>
+          <select id="posicaoId" name="posicaoId" required defaultValue="" className={classeSelect}>
+            <option value="" disabled>
+              Escolha o cargo
+            </option>
+            {posicoes.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.nome}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="dataAdmissao">Data de admissão</Label>
+          <Input id="dataAdmissao" name="dataAdmissao" type="date" required />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="tipoContrato">Tipo de contrato</Label>
+          <select id="tipoContrato" name="tipoContrato" defaultValue="CLT" className={classeSelect}>
+            <option value="">—</option>
+            {TIPOS_CONTRATO.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="salarioBase">Salário base</Label>
+        <Input id="salarioBase" name="salarioBase" inputMode="decimal" placeholder="Ex.: 2200,00" />
+      </div>
+      {!state.ok && (
+        <Alert variant="destructive">
+          <AlertDescription>{state.error}</AlertDescription>
+        </Alert>
+      )}
+      <DialogFooter>
+        <Button type="submit" disabled={isPending}>
+          {isPending ? "Admitindo..." : "Admitir e criar ficha"}
+        </Button>
+      </DialogFooter>
+    </form>
   );
 }
 
@@ -209,10 +337,12 @@ function ColunaFunil({
   empresaId,
   etapa,
   candidaturas,
+  onAdmitir,
 }: {
   empresaId: string;
   etapa: string;
   candidaturas: Candidatura[];
+  onAdmitir: (c: Candidatura) => void;
 }) {
   return (
     <div className="rounded-lg border bg-card p-3">
@@ -244,8 +374,11 @@ function ColunaFunil({
                   </a>
                 )}
               </div>
-              <div className="mt-2 flex items-center gap-1">
+              <div className="mt-2 flex flex-wrap items-center gap-1">
                 <SeletorEtapa empresaId={empresaId} candidatura={c} />
+                <Button size="sm" className="h-7 px-2 text-xs" onClick={() => onAdmitir(c)}>
+                  Admitir
+                </Button>
                 <BotaoRemover empresaId={empresaId} candidaturaId={c.id} />
               </div>
             </li>
