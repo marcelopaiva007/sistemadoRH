@@ -191,6 +191,32 @@ completo fica para uma fase futura, se for necessário.
   segunda-feira, mesmo se a data de referência cair num domingo (o domingo
   pertence à semana que já passou, não à seguinte).
 
+## Folha — eventos variáveis (Fase 5, em andamento)
+
+`CompetenciaFolha` + `EventoFolha`, em `/rh/<empresa>/folha`. O que muda todo
+mês e a contabilidade precisa receber: hora extra, falta, adicional, bônus,
+desconto.
+
+- **Este sistema NÃO calcula folha.** Não sabe salário-hora, INSS, IRRF nem
+  FGTS. Ele informa quantidade e valor; quem transforma em dinheiro é o
+  Domínio, no escritório contábil. Por isso a rubrica carrega `unidade` — o
+  contador precisa saber se "8" são horas ou dias.
+- **Horas extras são lançadas à mão.** Quando a operação escolheu escala de
+  plantão em vez de ponto eletrônico (Fase 3), o sistema ficou sem fonte de
+  horas. Melhor o RH digitar o total do mês do que forjar um cálculo sem dado.
+- **`origem` separa DERIVADO de MANUAL, e isso é a regra mais importante do
+  módulo**: "Buscar faltas e benefícios" apaga **só** os derivados antes de
+  recriar. Lançamento digitado pelo RH nunca é tocado — senão recalcular
+  perderia trabalho de conferência.
+- **Falta que desconta é a não abonada** (`Ausencia.abonada = false`), mesma
+  regra do absenteísmo na Fase 2.
+- **Competência fechada trava lançamento** — é o que o escritório recebeu.
+  Reabrir é permitido e fica registrado na auditoria.
+- ⚠️ **O CSV exportado não é o layout oficial de importação do Domínio.** É um
+  arquivo legível com os campos que a folha precisa, para conferência e
+  digitação. Para casar 1:1 com a importação do Domínio é preciso um arquivo
+  de exemplo vindo do escritório contábil — o cadastro de rubricas é de lá.
+
 ## Recrutamento & seleção — ATS (Fase 4, em andamento)
 
 `Vaga` + `Candidato` + `Candidatura` + `EventoCandidatura`, em
@@ -496,6 +522,7 @@ Decisões de segurança que valem lembrar antes de mexer:
 | `npm run smoke:ats` | fumaça do ATS — slug único, funil com histórico, inscrição repetida barrada, disponibilidade no banco de talentos, admissão ligando candidatura à ficha, **sempre em rollback** |
 | `npm run test:admissao` | testes das pendências da admissão — documento faltando, salário zero, documento extra (não toca o banco) |
 | `npm run smoke:onboarding` | fumaça da trilha de integração — responsável sugerido, item personalizado com prazo, concluir/reabrir, gerar duas vezes sem duplicar, **sempre em rollback** |
+| `npm run smoke:folha` | fumaça dos eventos variáveis — competência única por mês, recálculo preservando lançamento manual, falta abonada fora do desconto, fechamento, **sempre em rollback** |
 | `npx tsx scripts/aplicar-migracao.ts <nome> [--dry]` | aplica um `migration.sql` à mão, em transação (ver "Notas sobre o banco") |
 | `npx tsx scripts/importar-colaboradores-elleven.ts [--dry]` | importa/atualiza colaboradores a partir das exportações do elleven (upsert idempotente por CPF → cód. elleven → nome) |
 | `npx tsx scripts/configurar-telegram-webhook.ts` | registra o webhook do bot do Telegram |

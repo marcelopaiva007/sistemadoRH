@@ -221,6 +221,7 @@ model Colaborador {
   entregasEpi              EntregaEPI[]
   acidentes                AcidenteTrabalho[]
   escalas                  EscalaTurno[]
+  eventosFolha             EventoFolha[]
   checklistIntegracao      ChecklistIntegracao[]
   checklistDesligamento    ChecklistDesligamento[]
   entrevistaDesligamento   EntrevistaDesligamento?
@@ -674,6 +675,68 @@ model EscalaTurno {
 
   @@unique([colaboradorId, data])
   @@index([empresaId, data])
+  @@schema("rh")
+}
+
+// ------------------------------------------------------
+// EVENTOS VARIÁVEIS DA FOLHA — FASE 5
+// ------------------------------------------------------
+// O que muda todo mês e a contabilidade precisa receber: hora extra, falta,
+// adicional, bônus, desconto. NÃO é folha de pagamento — este sistema não
+// calcula salário, INSS nem IRRF. Ele consolida o que o RH sabe e a folha
+// (Domínio, via escritório contábil) não tem como saber sozinha.
+//
+// Horas extras são LANÇADAS À MÃO: quando a operação escolheu escala de
+// plantão em vez de ponto eletrônico, o sistema ficou sem fonte de horas.
+// Melhor o RH digitar o total do mês do que fingir um cálculo sem dado.
+
+model CompetenciaFolha {
+  id             String    @id @default(cuid())
+  empresaId      String
+  // Mês de referência, sempre dia 1 em UTC (é competência, não data exata).
+  referencia     DateTime
+  // ABERTA | FECHADA — fechada trava lançamento, para o que foi exportado
+  // não mudar por baixo depois que o escritório já recebeu.
+  status         String    @default("ABERTA")
+  fechadaEm      DateTime?
+  fechadaPorId   String?
+  fechadaPorNome String?
+  observacoes    String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  eventos EventoFolha[]
+
+  @@unique([empresaId, referencia])
+  @@index([empresaId, status])
+  @@schema("rh")
+}
+
+model EventoFolha {
+  id            String           @id @default(cuid())
+  empresaId     String
+  competenciaId String
+  competencia   CompetenciaFolha @relation(fields: [competenciaId], references: [id], onDelete: Cascade)
+  colaboradorId String
+  colaborador   Colaborador      @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  // Catálogo em lib/constants-folha.ts (HORA_EXTRA_50, FALTA, BONUS, ...)
+  tipo          String
+  // Quantidade na unidade do tipo — horas, dias ou 1 para valor fechado.
+  quantidade    Float?
+  // Valor em reais, quando o tipo é em dinheiro (bônus, desconto).
+  valor         Float?
+  observacoes   String?
+  // MANUAL (o RH digitou) | DERIVADO (o sistema trouxe de Ausencia/Benefício).
+  // Derivado é recalculável; manual, não — por isso a distinção importa na
+  // hora de regerar a competência.
+  origem        String           @default("MANUAL")
+  criadoPorId   String?
+  criadoPorNome String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@index([competenciaId, colaboradorId])
+  @@index([empresaId, tipo])
   @@schema("rh")
 }
 
