@@ -29,7 +29,7 @@ export default async function ColaboradorPage({
   });
   if (!colaborador) notFound();
 
-  const [dependentes, documentos, ferias, ausencias, requisitos, certificados, exames, setores, posicoes, candidatosSupervisor, movimentacoes, beneficios, entregasEpi, acidentes, ausenciasElegiveis, checklistDesligamento, entrevistaDesligamento, avaliacoes, metas, pdi, participacoesTreinamento, treinamentosAtivos, candidaturaDeOrigem] =
+  const [dependentes, documentos, ferias, ausencias, requisitos, certificados, exames, setores, posicoes, candidatosSupervisor, movimentacoes, beneficios, entregasEpi, acidentes, ausenciasElegiveis, checklistDesligamento, entrevistaDesligamento, avaliacoes, metas, pdi, participacoesTreinamento, treinamentosAtivos, candidaturaDeOrigem, checklistIntegracao] =
     await Promise.all([
     prisma.dependente.findMany({ where: { colaboradorId }, orderBy: { nome: "asc" } }),
     prisma.documentoColaborador.findMany({
@@ -255,6 +255,19 @@ export default async function ColaboradorPage({
       where: { empresaId, colaboradorId },
       select: { id: true, vaga: { select: { id: true, titulo: true } } },
     }),
+    prisma.checklistIntegracao.findMany({
+      where: { colaboradorId },
+      orderBy: [{ concluido: "asc" }, { createdAt: "asc" }],
+      select: {
+        id: true,
+        item: true,
+        descricao: true,
+        responsavel: true,
+        prazo: true,
+        concluido: true,
+        concluidoPorNome: true,
+      },
+    }),
   ]);
 
   const resumoFerias = colaborador.dataAdmissao
@@ -317,6 +330,7 @@ export default async function ColaboradorPage({
         participacoesTreinamento={participacoesTreinamento}
         treinamentosAtivos={treinamentosAtivos}
         admissao={admissao}
+        checklistIntegracao={checklistIntegracao}
       />
     </div>
   );

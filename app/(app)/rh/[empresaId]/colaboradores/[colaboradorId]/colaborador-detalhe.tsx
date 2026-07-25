@@ -23,6 +23,7 @@ import { OffboardingCard } from "./offboarding-card";
 import { DesempenhoCard } from "./desempenho-card";
 import { MetasPdiCard } from "./metas-pdi-card";
 import { TreinamentosCard } from "./treinamentos-card";
+import { IntegracaoCard } from "./integracao-card";
 
 type Colaborador = Parameters<typeof FichaBlocos>[0]["colaborador"] & {
   ativo: boolean;
@@ -61,6 +62,7 @@ export function ColaboradorDetalhe({
   participacoesTreinamento,
   treinamentosAtivos,
   admissao,
+  checklistIntegracao,
 }: {
   empresaId: string;
   colaborador: Colaborador;
@@ -93,6 +95,7 @@ export function ColaboradorDetalhe({
     vaga: { id: string; titulo: string };
     pendencias: { chave: string; descricao: string }[];
   } | null;
+  checklistIntegracao: Parameters<typeof IntegracaoCard>[0]["itens"];
 }) {
   const pendencias =
     ferias.filter((f) => f.status === "PENDENTE").length +
@@ -175,6 +178,7 @@ export function ColaboradorDetalhe({
           <TabsTrigger value="desempenho">Desempenho ({avaliacoes.length})</TabsTrigger>
           <TabsTrigger value="metas-pdi">Metas &amp; PDI</TabsTrigger>
           <TabsTrigger value="treinamentos">Treinamentos ({participacoesTreinamento.length})</TabsTrigger>
+          {colaborador.ativo && <TabsTrigger value="integracao">Integração</TabsTrigger>}
           {colaborador.dataDesligamento && <TabsTrigger value="desligamento">Desligamento</TabsTrigger>}
         </TabsList>
 
@@ -255,6 +259,15 @@ export function ColaboradorDetalhe({
             treinamentosAtivos={treinamentosAtivos}
           />
         </TabsContent>
+        {colaborador.ativo && (
+          <TabsContent value="integracao" className="pt-4">
+            <IntegracaoCard
+              empresaId={empresaId}
+              colaboradorId={colaborador.id}
+              itens={checklistIntegracao}
+            />
+          </TabsContent>
+        )}
         {colaborador.dataDesligamento && (
           <TabsContent value="desligamento" className="pt-4">
             <OffboardingCard
