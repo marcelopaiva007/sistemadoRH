@@ -19,6 +19,7 @@ import { AcidentesCard } from "./acidentes-card";
 import { OffboardingCard } from "./offboarding-card";
 import { DesempenhoCard } from "./desempenho-card";
 import { MetasPdiCard } from "./metas-pdi-card";
+import { TreinamentosCard } from "./treinamentos-card";
 
 type Colaborador = Parameters<typeof FichaBlocos>[0]["colaborador"] & {
   ativo: boolean;
@@ -54,6 +55,8 @@ export function ColaboradorDetalhe({
   avaliacoes,
   metas,
   pdi,
+  participacoesTreinamento,
+  treinamentosAtivos,
 }: {
   empresaId: string;
   colaborador: Colaborador;
@@ -80,6 +83,8 @@ export function ColaboradorDetalhe({
   avaliacoes: Parameters<typeof DesempenhoCard>[0]["avaliacoes"];
   metas: Parameters<typeof MetasPdiCard>[0]["metas"];
   pdi: Parameters<typeof MetasPdiCard>[0]["pdi"];
+  participacoesTreinamento: Parameters<typeof TreinamentosCard>[0]["participacoes"];
+  treinamentosAtivos: Parameters<typeof TreinamentosCard>[0]["treinamentosAtivos"];
 }) {
   const pendencias =
     ferias.filter((f) => f.status === "PENDENTE").length +
@@ -141,6 +146,7 @@ export function ColaboradorDetalhe({
           <TabsTrigger value="acidentes">Acidentes ({acidentes.length})</TabsTrigger>
           <TabsTrigger value="desempenho">Desempenho ({avaliacoes.length})</TabsTrigger>
           <TabsTrigger value="metas-pdi">Metas &amp; PDI</TabsTrigger>
+          <TabsTrigger value="treinamentos">Treinamentos ({participacoesTreinamento.length})</TabsTrigger>
           {colaborador.dataDesligamento && <TabsTrigger value="desligamento">Desligamento</TabsTrigger>}
         </TabsList>
 
@@ -212,6 +218,14 @@ export function ColaboradorDetalhe({
         </TabsContent>
         <TabsContent value="metas-pdi" className="pt-4">
           <MetasPdiCard empresaId={empresaId} colaboradorId={colaborador.id} metas={metas} pdi={pdi} />
+        </TabsContent>
+        <TabsContent value="treinamentos" className="pt-4">
+          <TreinamentosCard
+            empresaId={empresaId}
+            colaboradorId={colaborador.id}
+            participacoes={participacoesTreinamento}
+            treinamentosAtivos={treinamentosAtivos}
+          />
         </TabsContent>
         {colaborador.dataDesligamento && (
           <TabsContent value="desligamento" className="pt-4">

@@ -121,7 +121,7 @@ Datas de calendário (admissão, férias, validade) são gravadas e exibidas em
 **UTC** via `lib/datas.ts`. Tratadas no fuso local, apareceriam um dia antes no
 Brasil (UTC−3) em produção, onde o servidor roda em UTC.
 
-## EPIs (Fase 3, em andamento)
+## EPIs (Fase 3)
 
 `EntregaEPI` — ficha de entrega de equipamento de proteção (NR-06): tipo, CA
 (do item, não da pessoa), fabricante, quantidade e validade da troca
@@ -137,7 +137,7 @@ periódica.
   de conformidade da Fase 2, e a mesma deduplicação no painel de vencimentos
   (por `(colaborador, tipo)`).
 
-## Acidentes de trabalho / CAT (Fase 3, em andamento)
+## Acidentes de trabalho / CAT (Fase 3)
 
 `AcidenteTrabalho` — registro de acidente/doença ocupacional. `/rh/<empresa>
 /acidentes` traz a visão consolidada da empresa (CAT pendente primeiro); a
@@ -155,7 +155,7 @@ aba **Acidentes** na ficha traz o histórico da pessoa.
   afastamento é um dado independente que existia antes e continua existindo
   depois.
 
-## Escalas de turno (Fase 3, em andamento)
+## Escalas de turno (Fase 3)
 
 `EscalaTurno` — grade semanal de plantão por setor, em `/rh/<empresa>/escalas`.
 Deliberadamente **sem cálculo de hora extra ou banco de horas**: é só "quem
@@ -172,7 +172,25 @@ completo fica para uma fase futura, se for necessário.
   segunda-feira, mesmo se a data de referência cair num domingo (o domingo
   pertence à semana que já passou, não à seguinte).
 
-## Metas & PDI (Fase 3, em andamento)
+## Treinamentos & trilhas — não-NR (Fase 3)
+
+`Treinamento` (catálogo) + `ParticipacaoTreinamento`, em `/rh/<empresa>/treinamentos`
+e na aba **Treinamentos** da ficha. "Não-NR" porque a capacitação obrigatória de
+segurança já mora em `RequisitoNR`/`CertificadoNR` desde a Fase 2 — isto aqui é
+desenvolvimento profissional geral.
+
+- **A matriz de competências não ganhou modelo próprio** — é uma leitura sobre
+  `Treinamento.competencias` (array `String[]`, chaves do mesmo catálogo fixo
+  da avaliação de desempenho) cruzada com quem tem participação com
+  `presente = true`. Ausência não conta para a matriz.
+- **Catálogo não tem exclusão, só ativar/desativar** — igual a Setor/Posição.
+  Apagar um treinamento apagaria em cascata o histórico de quem participou
+  (`onDelete: Cascade` existe só como rede de segurança contra escrita fora
+  do app, nunca é o caminho oferecido na UI).
+- **Certificado é um anexo opcional** (`Arquivo`, mesmo padrão de EPI/CAT) —
+  excluir uma participação apaga o arquivo junto, numa transação.
+
+## Metas & PDI (Fase 3)
 
 `Meta` (individual ou de setor) + `PlanoDesenvolvimento` (PDI, uma linha por
 ação), em `/rh/<empresa>/metas` e na aba **Metas & PDI** da ficha.
@@ -189,7 +207,7 @@ ação), em `/rh/<empresa>/metas` e na aba **Metas & PDI** da ficha.
   `ChecklistDesligamento` (item + concluído + quem concluiu). Cada ação de
   desenvolvimento é uma linha própria, com prazo opcional.
 
-## Avaliação de desempenho (Fase 3, em andamento)
+## Avaliação de desempenho (Fase 3)
 
 `CicloAvaliacao` + `AvaliacaoDesempenho` + `NotaCompetencia`, em
 `/rh/<empresa>/avaliacoes`. Uma linha por avaliador de cada colaborador; a aba
@@ -212,7 +230,7 @@ ação), em `/rh/<empresa>/metas` e na aba **Metas & PDI** da ficha.
   duplicidade — mesmo avaliador não avalia a mesma pessoa duas vezes no mesmo
   ciclo, mas o mesmo colaborador pode ter várias linhas (uma por avaliador).
 
-## Offboarding formal (Fase 3, em andamento)
+## Offboarding formal (Fase 3)
 
 `ChecklistDesligamento` + `EntrevistaDesligamento` — o que falta depois que a
 `dataDesligamento` é preenchida na ficha (Fase 1 já cobre motivo e data). A
@@ -394,6 +412,7 @@ Decisões de segurança que valem lembrar antes de mexer:
 | `npm run smoke:offboarding` | fumaça de offboarding — checklist padrão, item personalizado, entrevista com constraint de unicidade, **sempre em rollback** |
 | `npm run smoke:avaliacao` | fumaça de avaliação de desempenho — gerar avaliações, nota final por média de competências, faixa do nine-box, avaliador extra e cascata, **sempre em rollback** |
 | `npm run smoke:metas` | fumaça de metas & PDI — meta individual/setor, constraint CHECK de alvo único, progresso/status, item de PDI, **sempre em rollback** |
+| `npm run smoke:treinamentos` | fumaça de treinamentos — catálogo com nome único, participação com constraint de duplicidade, ausência fora da matriz de competências, **sempre em rollback** |
 | `npx tsx scripts/aplicar-migracao.ts <nome> [--dry]` | aplica um `migration.sql` à mão, em transação (ver "Notas sobre o banco") |
 | `npx tsx scripts/importar-colaboradores-elleven.ts [--dry]` | importa/atualiza colaboradores a partir das exportações do elleven (upsert idempotente por CPF → cód. elleven → nome) |
 | `npx tsx scripts/configurar-telegram-webhook.ts` | registra o webhook do bot do Telegram |
