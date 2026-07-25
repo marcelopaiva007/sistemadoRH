@@ -28,7 +28,7 @@ export default async function ColaboradorPage({
   });
   if (!colaborador) notFound();
 
-  const [dependentes, documentos, ferias, ausencias, requisitos, certificados, exames, setores, posicoes, candidatosSupervisor, movimentacoes, beneficios, entregasEpi] =
+  const [dependentes, documentos, ferias, ausencias, requisitos, certificados, exames, setores, posicoes, candidatosSupervisor, movimentacoes, beneficios, entregasEpi, acidentes, ausenciasElegiveis] =
     await Promise.all([
     prisma.dependente.findMany({ where: { colaboradorId }, orderBy: { nome: "asc" } }),
     prisma.documentoColaborador.findMany({
@@ -146,6 +146,28 @@ export default async function ColaboradorPage({
         arquivo: { select: { id: true, nome: true } },
       },
     }),
+    prisma.acidenteTrabalho.findMany({
+      where: { colaboradorId },
+      orderBy: [{ dataHora: "desc" }],
+      select: {
+        id: true,
+        dataHora: true,
+        tipo: true,
+        local: true,
+        descricao: true,
+        parteCorpoAtingida: true,
+        houveAfastamento: true,
+        catEmitida: true,
+        catNumero: true,
+        situacao: true,
+        arquivo: { select: { id: true, nome: true } },
+      },
+    }),
+    prisma.ausencia.findMany({
+      where: { colaboradorId, tipo: "ACIDENTE_TRABALHO", acidente: null },
+      orderBy: [{ dataInicio: "desc" }],
+      select: { id: true, dataInicio: true, dataFim: true },
+    }),
   ]);
 
   const resumoFerias = colaborador.dataAdmissao
@@ -185,6 +207,8 @@ export default async function ColaboradorPage({
         beneficios={beneficios}
         dependentesNoPlanoSaude={colaborador._count.dependentes}
         entregasEpi={entregasEpi}
+        acidentes={acidentes}
+        ausenciasElegiveisAcidente={ausenciasElegiveis}
       />
     </div>
   );

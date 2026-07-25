@@ -137,6 +137,24 @@ periódica.
   de conformidade da Fase 2, e a mesma deduplicação no painel de vencimentos
   (por `(colaborador, tipo)`).
 
+## Acidentes de trabalho / CAT (Fase 3, em andamento)
+
+`AcidenteTrabalho` — registro de acidente/doença ocupacional. `/rh/<empresa>
+/acidentes` traz a visão consolidada da empresa (CAT pendente primeiro); a
+aba **Acidentes** na ficha traz o histórico da pessoa.
+
+- **Este sistema não emite a CAT** — isso continua no eSocial/INSS. Os campos
+  `catEmitida`/`catNumero`/`catEmitidaEm` existem para o RH **provar que
+  cumpriu o prazo legal** (1 dia útil, imediato se fatal), não para substituir
+  o trâmite oficial.
+- **`ausenciaId` liga o acidente ao afastamento correspondente** quando houve
+  — reaproveita `Ausencia.tipo = "ACIDENTE_TRABALHO"`, já modelado na Fase 1.
+  O vínculo é opcional (nem todo acidente tira alguém do trabalho) e tem
+  `@unique`: a mesma ausência não pode ser ligada a dois acidentes.
+- **Excluir o registro do acidente nunca apaga a `Ausencia` vinculada** — o
+  afastamento é um dado independente que existia antes e continua existindo
+  depois.
+
 ## Indicadores — BI inicial (Fase 2)
 
 `/rh/<empresa>/indicadores` — headcount, turnover, absenteísmo e custo de
@@ -297,6 +315,7 @@ Decisões de segurança que valem lembrar antes de mexer:
 | `npm run test:bi` | testes do BI inicial — headcount, turnover, absenteísmo, custo (não toca o banco) |
 | `npm run verificar:bi` | confere as consultas do BI contra o banco real — **read-only**, não escreve nada |
 | `npm run smoke:epi` | fumaça de EPIs — troca vencendo a antiga, assinatura, exclusão sem órfão, **sempre em rollback** |
+| `npm run smoke:cat` | fumaça de acidentes/CAT — vínculo com ausência, emissão de CAT, constraint de duplicidade, **sempre em rollback** |
 | `npx tsx scripts/aplicar-migracao.ts <nome> [--dry]` | aplica um `migration.sql` à mão, em transação (ver "Notas sobre o banco") |
 | `npx tsx scripts/importar-colaboradores-elleven.ts [--dry]` | importa/atualiza colaboradores a partir das exportações do elleven (upsert idempotente por CPF → cód. elleven → nome) |
 | `npx tsx scripts/configurar-telegram-webhook.ts` | registra o webhook do bot do Telegram |
