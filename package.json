@@ -14,6 +14,7 @@
     "diag:envios": "tsx scripts/diag-envios.ts",
     "test:ferias": "tsx scripts/test-ferias.ts",
     "test:portal": "tsx scripts/test-portal.ts",
+    "test:desacoplamento": "tsx scripts/test-desacoplamento.ts",
     "smoke:dp": "tsx scripts/smoke-dp.ts"
   },
   "dependencies": {

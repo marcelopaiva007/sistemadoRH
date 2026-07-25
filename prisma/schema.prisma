@@ -8,11 +8,13 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  // Banco Neon único organizado em schemas Postgres (cutover 24/07/2026):
-  //   shared      -> User (autenticação, compartilhada com o lm-bonificacao)
-  //   rh          -> todos os modelos deste app
-  // (bonificacao e as tabelas vapt_* pertencem aos outros apps.)
-  schemas  = ["shared", "rh"]
+  // Este app usa APENAS o schema `rh` — inclusive o User. Até 25/07/2026 a
+  // autenticação era a tabela `shared.User`, dividida com o lm-bonificacao;
+  // hoje cada app tem a sua, e não existe mais nenhuma referência do RH a
+  // objeto de outro schema. Os schemas `bonificacao`, `shared` e `vapt`
+  // continuam no mesmo banco Neon, mas pertencem a outros apps e este aqui não
+  // os enxerga.
+  schemas  = ["rh"]
 }
 
 // Enums are kept as plain String columns (not Prisma `enum`) so the schema
@@ -27,6 +29,11 @@ datasource db {
 // TipoDocumento / TipoAusencia / TipoContrato: ver lib/constants-dp.ts
 // StatusSolicitacao: "PENDENTE" | "APROVADA" | "REPROVADA" | "CANCELADA"
 
+// Usuários do sistema (RH, diretoria, gestores). Vive no schema `rh` desde
+// 25/07/2026: antes era `shared.User`, a mesma tabela do lm-bonificacao, e as
+// duas aplicações dividiam login. A partir do desacoplamento cada app tem a sua
+// tabela — o cadastro nasceu de uma cópia, mas evolui separado (criar usuário
+// ou trocar senha aqui não muda nada no lm-bonificacao, e vice-versa).
 model User {
   id           String   @id @default(cuid())
   nome         String
@@ -37,18 +44,17 @@ model User {
 
   // Escopo do módulo de RH: preenchido apenas para RH_MANAGER (empresaId) e
   // GESTOR_SETOR (empresaId + setorId). ADMIN/DIRETORIA ficam nulos.
-  // Colunas simples, SEM @relation: o User vive no schema `shared` e foi
-  // desacoplado do RH no cutover (as FKs físicas User->Empresa/Setor foram
-  // removidas) para permitir separar os bancos no futuro. Resolver nome de
-  // empresa/setor é responsabilidade de quem consulta (lookup por id).
+  // Colunas simples, SEM @relation de propósito: desativar uma empresa ou um
+  // setor não pode derrubar o login de quem estava vinculado a ele. Resolver o
+  // nome de empresa/setor é responsabilidade de quem consulta (lookup por id).
   empresaId String?
   setorId   String?
 
-  pesquisasCriadas    Pesquisa[]
+  pesquisasCriadas Pesquisa[]
 
   @@index([empresaId])
   @@index([setorId])
-  @@schema("shared")
+  @@schema("rh")
 }
 
 // ------------------------------------------------------
@@ -211,10 +217,9 @@ model Colaborador {
 // DEPARTAMENTO PESSOAL — FASE 1
 // ------------------------------------------------------
 // Referências a User (`*PorId`) são SOFT: guardam o id e um snapshot do nome,
-// sem @relation. O User mora no schema `shared` e foi desacoplado do RH no
-// cutover de 24/07/2026 para permitir separar os bancos no futuro — e, em
-// trilha de auditoria, o nome de quem agiu precisa sobreviver à exclusão do
-// usuário.
+// sem @relation. Em trilha de auditoria, o nome de quem agiu precisa sobreviver
+// à exclusão do usuário — e o portal registra o próprio colaborador como ator,
+// que nem usuário do sistema é.
 
 model Dependente {
   id            String      @id @default(cuid())

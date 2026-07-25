@@ -1,8 +1,9 @@
 // Trilha de auditoria LGPD: quem mexeu (ou olhou) dado pessoal, quando e o quê.
 //
 // Append-only por convenção — nada no app atualiza ou apaga registros. O nome e
-// o papel do usuário são gravados como snapshot porque o User vive em outro
-// schema (`shared`) e pode ser excluído: a trilha precisa continuar legível.
+// o papel de quem agiu são gravados como snapshot, sem FK: o usuário pode ser
+// excluído depois, e no portal quem age é o próprio colaborador, que nem
+// usuário do sistema é. A trilha precisa continuar legível nos dois casos.
 //
 // Auditar NUNCA pode derrubar a operação: falha aqui vira log no servidor, não
 // exceção para o usuário.

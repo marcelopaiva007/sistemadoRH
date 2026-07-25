@@ -19,7 +19,13 @@ Stack: Next.js 16 (App Router) · React 19 · Prisma 7 + PostgreSQL · NextAuth 
 
 > Histórico: este repositório começou como `lm-bonificacao` (motor de
 > bonificação de vendas). Esse módulo foi removido em 23/07/2026 e o app passou
-> a ser exclusivamente o Sistema do RH.
+> a ser exclusivamente o Sistema do RH. Em 25/07/2026 o último vínculo com o
+> lm-bonificacao — a tabela de login `shared.User`, que as duas aplicações
+> dividiam — foi desfeito: o RH passou a ter o seu próprio `rh.User`. Os dois
+> apps ainda moram no mesmo banco Neon, mas em schemas separados, e **nenhum
+> objeto do schema `rh` referencia objeto de fora dele**. Como o cadastro de
+> usuários nasceu de uma cópia, criar usuário ou trocar senha aqui não muda
+> nada no outro sistema — e vice-versa.
 
 ## Rodando local
 
@@ -37,12 +43,41 @@ Abra http://localhost:3000 — a raiz redireciona para `/login`.
 | Variável | Para quê |
 |---|---|
 | `DATABASE_URL` | Postgres (Prisma) |
-| `AUTH_SECRET` | assinatura de sessão do NextAuth v5 |
+| `AUTH_SECRET` | assinatura de sessão do NextAuth v5. **Precisa ser diferente do valor usado pelo lm-bonificacao** — dois apps com o mesmo segredo aceitam o token de sessão um do outro (ver "Separação do lm-bonificacao") |
 | `NEXT_PUBLIC_APP_URL` | URL pública — monta o link do convite (`/responder/<token>`) |
 | `TELEGRAM_BOT_TOKEN` | canal preferido de convite + webhook que vincula o `chat_id` do colaborador |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `EMAIL_FROM` | fallback de convite por e-mail (Resend) |
 | `CRON_SECRET` | protege `/api/cron/enviar-convites` |
 | `SEED_*` | usuários/senhas fixos no seed (opcional; sem eles o seed gera senha aleatória) |
+
+## Separação do lm-bonificacao
+
+Em 25/07/2026 o Sistema do RH foi desacoplado do lm-bonificacao. O que mudou:
+
+| Antes | Agora |
+|---|---|
+| Login na tabela `shared.User`, a mesma dos dois apps | `rh.User`, própria deste app (cadastro nasceu de uma cópia) |
+| FK `rh.Pesquisa.criadoPorId → shared.User` | FK para `rh.User` — nenhuma referência sai do schema `rh` |
+| `datasource schemas = ["shared", "rh"]` | `["rh"]` — este app não enxerga mais schema de outro app |
+| Mesmo `AUTH_SECRET` nos dois | segredos distintos |
+
+**O `AUTH_SECRET` importa tanto quanto a tabela.** Com o mesmo segredo, um token
+de sessão emitido por um app é aceito pelo outro — e, rodando os dois em
+`localhost`, o cookie nem muda de dono, porque cookie ignora porta. O `.env`
+local já foi separado; **na Vercel o segredo deste projeto precisa ser trocado
+por um valor próprio** (`node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`).
+Trocar derruba as sessões abertas uma vez — todo mundo faz login de novo.
+
+Consequência do cadastro separado: criar usuário ou trocar senha aqui não muda
+nada no lm-bonificacao, e vice-versa. As senhas do momento do corte continuam
+valendo nos dois (os hashes foram copiados), mas evoluem em separado.
+
+O que ainda é comum: o mesmo banco Neon (schemas distintos), a tabela
+`_prisma_migrations` (bookkeeping do Prisma, sem dado de negócio) e o bot do
+Telegram. Separar em bancos distintos, se um dia for preciso, é um
+`pg_dump --schema=rh` — não há mais nenhuma amarra de dados a desfazer.
+
+`npm run test:desacoplamento` confere tudo isso contra o banco.
 
 ## Papéis de acesso
 
@@ -155,3 +190,15 @@ Parte do histórico de migrations foi aplicada direto no banco, fora do fluxo do
 Prisma (ver o cabeçalho de
 `prisma/migrations/20260721120000_sync_funcionario_contato_e_elleven_relatorio`).
 Ao rodar `prisma migrate` contra produção, confira o diff antes de aplicar.
+
+O banco Neon é compartilhado com outras aplicações do grupo, cada uma no seu
+schema: `rh` (este app), `bonificacao` (lm-bonificacao), `vapt` (painel de
+postos) e `shared` (o antigo login comum, hoje usado só pelo lm-bonificacao).
+**Este app enxerga apenas o schema `rh`** — é o que o `datasource` declara, e
+não há nenhuma FK saindo dele. Isso mantém a separação em bancos distintos a um
+`pg_dump --schema=rh` de distância, se um dia for preciso.
+
+Aplicar migration aqui não usa `prisma migrate deploy`: os apps dividem a
+tabela `_prisma_migrations`, então o deploy tentaria reaplicar migrations dos
+outros. Use `npx tsx scripts/aplicar-migracao.ts <nome>` (roda em transação) e
+depois `npx prisma migrate resolve --applied <nome>`.
