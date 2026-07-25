@@ -7,6 +7,7 @@ import {
   AlertOctagon,
   Award,
   BarChart3,
+  Bot,
   Briefcase,
   CalendarDays,
   CheckSquare,
@@ -79,6 +80,7 @@ const GRUPOS = [
       { slug: "dashboard", label: "Painel de clima", icon: LayoutDashboard },
       { slug: "indicadores", label: "Indicadores", icon: BarChart3 },
       { slug: "relatorios", label: "Relatórios", icon: FileBarChart },
+      { slug: "assistente", label: "Assistente", icon: Bot },
     ],
   },
   {
