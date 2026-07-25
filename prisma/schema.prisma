@@ -221,6 +221,7 @@ model Colaborador {
   entregasEpi              EntregaEPI[]
   acidentes                AcidenteTrabalho[]
   escalas                  EscalaTurno[]
+  checklistIntegracao      ChecklistIntegracao[]
   checklistDesligamento    ChecklistDesligamento[]
   entrevistaDesligamento   EntrevistaDesligamento?
   avaliacoesRecebidas      AvaliacaoDesempenho[]
@@ -673,6 +674,41 @@ model EscalaTurno {
 
   @@unique([colaboradorId, data])
   @@index([empresaId, data])
+  @@schema("rh")
+}
+
+// ------------------------------------------------------
+// ONBOARDING — FASE 4
+// ------------------------------------------------------
+// Espelho do ChecklistDesligamento: mesma forma (item do catálogo + concluído
+// + quem concluiu), do outro lado do ciclo de vida. Ganhou `responsavel` e
+// `prazo` porque a integração é distribuída — TI cria acesso, almoxarifado
+// entrega EPI, o gestor apresenta o time — enquanto a saída é quase toda do
+// RH.
+
+model ChecklistIntegracao {
+  id               String      @id @default(cuid())
+  empresaId        String
+  colaboradorId    String
+  colaborador      Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  // Catálogo em lib/constants-onboarding.ts | OUTRO
+  item             String
+  // Só usado/obrigatório quando item = OUTRO.
+  descricao        String?
+  // Texto livre: costuma ser uma área ("TI", "Almoxarifado"), não uma pessoa
+  // do cadastro — por isso não é FK.
+  responsavel      String?
+  prazo            DateTime?
+  concluido        Boolean     @default(false)
+  concluidoEm      DateTime?
+  concluidoPorId   String?
+  concluidoPorNome String?
+  observacoes      String?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  @@index([colaboradorId])
+  @@index([empresaId, concluido])
   @@schema("rh")
 }
 

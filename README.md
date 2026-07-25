@@ -199,6 +199,21 @@ inscrição** em `/vagas/<slug>`.
   quando a action retorna, e o candidato perderia tudo por causa de um dígito
   errado no CPF.
 
+### Onboarding — trilha de integração
+
+`ChecklistIntegracao`, na aba **Integração** da ficha e consolidado em
+`/rh/<empresa>/integracoes`. Espelho do checklist de desligamento: mesma
+forma, do outro lado do ciclo de vida.
+
+- **Ganhou `responsavel` e `prazo`, que o offboarding não tem** — a integração
+  é distribuída (TI cria acesso, almoxarifado entrega EPI, o gestor apresenta
+  o time), enquanto a saída é quase toda do RH. A trilha padrão já nasce com o
+  responsável sugerido de cada item.
+- `responsavel` é texto livre e **não é FK**: costuma ser uma área ("TI",
+  "Almoxarifado"), não uma pessoa do cadastro.
+- A tela consolidada agrupa por pessoa e ordena por quem tem item atrasado —
+  o RH pensa em "a integração do Fulano", não em itens soltos.
+
 ### Admissão digital
 
 "Admitir" no funil cria a ficha do colaborador a partir do que o candidato já
@@ -461,6 +476,7 @@ Decisões de segurança que valem lembrar antes de mexer:
 | `npm run smoke:treinamentos` | fumaça de treinamentos — catálogo com nome único, participação com constraint de duplicidade, ausência fora da matriz de competências, **sempre em rollback** |
 | `npm run smoke:ats` | fumaça do ATS — slug único, funil com histórico, inscrição repetida barrada, disponibilidade no banco de talentos, admissão ligando candidatura à ficha, **sempre em rollback** |
 | `npm run test:admissao` | testes das pendências da admissão — documento faltando, salário zero, documento extra (não toca o banco) |
+| `npm run smoke:onboarding` | fumaça da trilha de integração — responsável sugerido, item personalizado com prazo, concluir/reabrir, gerar duas vezes sem duplicar, **sempre em rollback** |
 | `npx tsx scripts/aplicar-migracao.ts <nome> [--dry]` | aplica um `migration.sql` à mão, em transação (ver "Notas sobre o banco") |
 | `npx tsx scripts/importar-colaboradores-elleven.ts [--dry]` | importa/atualiza colaboradores a partir das exportações do elleven (upsert idempotente por CPF → cód. elleven → nome) |
 | `npx tsx scripts/configurar-telegram-webhook.ts` | registra o webhook do bot do Telegram |

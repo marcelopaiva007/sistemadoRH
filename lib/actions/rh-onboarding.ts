@@ -1,0 +1,158 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { prisma } from "@/lib/prisma";
+import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
+import { registrarAuditoria } from "@/lib/audit";
+import { dataDoFormulario } from "@/lib/datas";
+import { ITENS_ONBOARDING, itemOnboardingLabel } from "@/lib/constants-onboarding";
+import type { ActionResult } from "@/lib/constants";
+
+const ITENS_CATALOGO = ITENS_ONBOARDING.filter((i) => i.value !== "OUTRO");
+
+/** Cria uma linha por item do catálogo que ainda não existe para esta pessoa. */
+export async function gerarTrilhaPadrao(
+  empresaId: string,
+  colaboradorId: string,
+): Promise<ActionResult> {
+  await requireEmpresaAccess(empresaId);
+
+  const colaborador = await prisma.colaborador.findFirst({
+    where: { id: colaboradorId, empresaId },
+    select: { id: true, nome: true },
+  });
+  if (!colaborador) return { ok: false, error: "Colaborador não encontrado nesta empresa." };
+
+  const existentes = await prisma.checklistIntegracao.findMany({
+    where: { colaboradorId, item: { in: ITENS_CATALOGO.map((i) => i.value) } },
+    select: { item: true },
+  });
+  const jaTem = new Set(existentes.map((e) => e.item));
+  const faltando = ITENS_CATALOGO.filter((i) => !jaTem.has(i.value));
+  if (faltando.length === 0) {
+    return { ok: false, error: "A trilha padrão já foi gerada para esta pessoa." };
+  }
+
+  await prisma.checklistIntegracao.createMany({
+    data: faltando.map((i) => ({
+      empresaId,
+      colaboradorId,
+      item: i.value,
+      responsavel: i.responsavelPadrao,
+    })),
+  });
+
+  await registrarAuditoria({
+    empresaId,
+    acao: "CRIAR",
+    entidade: "ChecklistIntegracao",
+    entidadeId: colaboradorId,
+    resumo: `Trilha de integração gerada para ${colaborador.nome} (${faltando.length} item(ns)).`,
+  });
+
+  revalidatePath(`/rh/${empresaId}/colaboradores/${colaboradorId}`);
+  revalidatePath(`/rh/${empresaId}/integracoes`);
+  return { ok: true };
+}
+
+export async function adicionarItemIntegracao(
+  empresaId: string,
+  colaboradorId: string,
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  await requireEmpresaAccess(empresaId);
+
+  const colaborador = await prisma.colaborador.findFirst({
+    where: { id: colaboradorId, empresaId },
+    select: { id: true, nome: true },
+  });
+  if (!colaborador) return { ok: false, error: "Colaborador não encontrado nesta empresa." };
+
+  const descricao = String(formData.get("descricao") ?? "").trim();
+  if (!descricao) return { ok: false, error: "Descreva o item da trilha." };
+
+  const item = await prisma.checklistIntegracao.create({
+    data: {
+      empresaId,
+      colaboradorId,
+      item: "OUTRO",
+      descricao,
+      responsavel: String(formData.get("responsavel") ?? "").trim() || null,
+      prazo: dataDoFormulario(formData.get("prazo")),
+    },
+  });
+
+  await registrarAuditoria({
+    empresaId,
+    acao: "CRIAR",
+    entidade: "ChecklistIntegracao",
+    entidadeId: item.id,
+    resumo: `Item de integração "${descricao}" adicionado para ${colaborador.nome}.`,
+  });
+
+  revalidatePath(`/rh/${empresaId}/colaboradores/${colaboradorId}`);
+  revalidatePath(`/rh/${empresaId}/integracoes`);
+  return { ok: true };
+}
+
+export async function alternarItemIntegracao(
+  empresaId: string,
+  colaboradorId: string,
+  id: string,
+): Promise<ActionResult> {
+  const usuario = await requireEmpresaAccess(empresaId);
+
+  const item = await prisma.checklistIntegracao.findFirst({
+    where: { id, empresaId, colaboradorId },
+    select: { id: true, item: true, concluido: true, colaborador: { select: { nome: true } } },
+  });
+  if (!item) return { ok: false, error: "Item não encontrado." };
+
+  const novoValor = !item.concluido;
+  await prisma.checklistIntegracao.update({
+    where: { id },
+    data: novoValor
+      ? { concluido: true, concluidoEm: new Date(), concluidoPorId: usuario?.id ?? null, concluidoPorNome: usuario?.name ?? null }
+      : { concluido: false, concluidoEm: null, concluidoPorId: null, concluidoPorNome: null },
+  });
+
+  await registrarAuditoria({
+    empresaId,
+    acao: "ATUALIZAR",
+    entidade: "ChecklistIntegracao",
+    entidadeId: id,
+    resumo: `${itemOnboardingLabel(item.item)} de ${item.colaborador.nome} marcado como ${novoValor ? "concluído" : "pendente"}.`,
+  });
+
+  revalidatePath(`/rh/${empresaId}/colaboradores/${colaboradorId}`);
+  revalidatePath(`/rh/${empresaId}/integracoes`);
+  return { ok: true };
+}
+
+export async function excluirItemIntegracao(
+  empresaId: string,
+  colaboradorId: string,
+  id: string,
+): Promise<ActionResult> {
+  await requireEmpresaAccess(empresaId);
+
+  const item = await prisma.checklistIntegracao.findFirst({
+    where: { id, empresaId, colaboradorId },
+    select: { id: true, item: true, colaborador: { select: { nome: true } } },
+  });
+  if (!item) return { ok: false, error: "Item não encontrado." };
+
+  await prisma.checklistIntegracao.delete({ where: { id } });
+  await registrarAuditoria({
+    empresaId,
+    acao: "EXCLUIR",
+    entidade: "ChecklistIntegracao",
+    entidadeId: id,
+    resumo: `${itemOnboardingLabel(item.item)} removido da trilha de ${item.colaborador.nome}.`,
+  });
+
+  revalidatePath(`/rh/${empresaId}/colaboradores/${colaboradorId}`);
+  revalidatePath(`/rh/${empresaId}/integracoes`);
+  return { ok: true };
+}
