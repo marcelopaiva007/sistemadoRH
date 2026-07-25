@@ -36,7 +36,8 @@
     "test:admissao": "tsx scripts/test-admissao.ts",
     "smoke:onboarding": "tsx scripts/smoke-onboarding.ts",
     "smoke:folha": "tsx scripts/smoke-folha.ts",
-    "verificar:assistente": "tsx scripts/verificar-assistente.ts"
+    "verificar:assistente": "tsx scripts/verificar-assistente.ts",
+    "verificar:dashboard": "tsx scripts/verificar-dashboard.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",
