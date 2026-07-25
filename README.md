@@ -121,6 +121,22 @@ Datas de calendário (admissão, férias, validade) são gravadas e exibidas em
 **UTC** via `lib/datas.ts`. Tratadas no fuso local, apareceriam um dia antes no
 Brasil (UTC−3) em produção, onde o servidor roda em UTC.
 
+## EPIs (Fase 3, em andamento)
+
+`EntregaEPI` — ficha de entrega de equipamento de proteção (NR-06): tipo, CA
+(do item, não da pessoa), fabricante, quantidade e validade da troca
+periódica.
+
+- **`ca` é o Certificado de Aprovação do EQUIPAMENTO**, não um documento da
+  pessoa — não confundir com os certificados de treinamento de NR (Fase 2,
+  `CertificadoNR`).
+- **`assinado` registra a confirmação do recebimento**, exigida pela NR-06. Uma
+  entrega pode existir sem assinatura ainda (RH cadastrou, colaborador não
+  assinou o canhoto) — a aba da ficha avisa quantas estão pendentes.
+- **Mesma lógica de "a reposição mais recente vence a anterior"** dos módulos
+  de conformidade da Fase 2, e a mesma deduplicação no painel de vencimentos
+  (por `(colaborador, tipo)`).
+
 ## Indicadores — BI inicial (Fase 2)
 
 `/rh/<empresa>/indicadores` — headcount, turnover, absenteísmo e custo de
@@ -280,6 +296,7 @@ Decisões de segurança que valem lembrar antes de mexer:
 | `npm run smoke:reconhecimento` | fumaça de reconhecimento — registro e duplicidade no mesmo ano, **sempre em rollback**, nenhuma mensagem enviada |
 | `npm run test:bi` | testes do BI inicial — headcount, turnover, absenteísmo, custo (não toca o banco) |
 | `npm run verificar:bi` | confere as consultas do BI contra o banco real — **read-only**, não escreve nada |
+| `npm run smoke:epi` | fumaça de EPIs — troca vencendo a antiga, assinatura, exclusão sem órfão, **sempre em rollback** |
 | `npx tsx scripts/aplicar-migracao.ts <nome> [--dry]` | aplica um `migration.sql` à mão, em transação (ver "Notas sobre o banco") |
 | `npx tsx scripts/importar-colaboradores-elleven.ts [--dry]` | importa/atualiza colaboradores a partir das exportações do elleven (upsert idempotente por CPF → cód. elleven → nome) |
 | `npx tsx scripts/configurar-telegram-webhook.ts` | registra o webhook do bot do Telegram |

@@ -28,7 +28,7 @@ export default async function ColaboradorPage({
   });
   if (!colaborador) notFound();
 
-  const [dependentes, documentos, ferias, ausencias, requisitos, certificados, exames, setores, posicoes, candidatosSupervisor, movimentacoes, beneficios] =
+  const [dependentes, documentos, ferias, ausencias, requisitos, certificados, exames, setores, posicoes, candidatosSupervisor, movimentacoes, beneficios, entregasEpi] =
     await Promise.all([
     prisma.dependente.findMany({ where: { colaboradorId }, orderBy: { nome: "asc" } }),
     prisma.documentoColaborador.findMany({
@@ -130,6 +130,22 @@ export default async function ColaboradorPage({
       where: { colaboradorId },
       orderBy: [{ dataFim: "asc" }, { dataInicio: "desc" }],
     }),
+    prisma.entregaEPI.findMany({
+      where: { colaboradorId },
+      orderBy: [{ dataEntrega: "desc" }],
+      select: {
+        id: true,
+        tipo: true,
+        ca: true,
+        fabricante: true,
+        quantidade: true,
+        dataEntrega: true,
+        validoAte: true,
+        motivo: true,
+        assinado: true,
+        arquivo: { select: { id: true, nome: true } },
+      },
+    }),
   ]);
 
   const resumoFerias = colaborador.dataAdmissao
@@ -168,6 +184,7 @@ export default async function ColaboradorPage({
         movimentacoes={movimentacoes}
         beneficios={beneficios}
         dependentesNoPlanoSaude={colaborador._count.dependentes}
+        entregasEpi={entregasEpi}
       />
     </div>
   );
