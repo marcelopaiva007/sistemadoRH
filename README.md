@@ -48,6 +48,7 @@ Abra http://localhost:3000 — a raiz redireciona para `/login`.
 | `TELEGRAM_BOT_TOKEN` | canal preferido de convite + webhook que vincula o `chat_id` do colaborador |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `EMAIL_FROM` | fallback de convite por e-mail (Resend) |
 | `CRON_SECRET` | protege `/api/cron/enviar-convites` |
+| `ANTHROPIC_API_KEY` | **opcional** — liga o Assistente de RH. Sem ela o recurso fica desligado e a tela avisa; nada quebra e nada é cobrado |
 | `SEED_*` | usuários/senhas fixos no seed (opcional; sem eles o seed gera senha aleatória) |
 
 ## Separação do lm-bonificacao
@@ -190,6 +191,31 @@ completo fica para uma fase futura, se for necessário.
 - Semana calculada em `lib/escala.ts` (`inicioDaSemanaUTC`): sempre começa na
   segunda-feira, mesmo se a data de referência cair num domingo (o domingo
   pertence à semana que já passou, não à seguinte).
+
+## Assistente de RH — IA (Fase 5, em andamento)
+
+`/rh/<empresa>/assistente` — pergunta em português sobre os dados da empresa.
+
+- **Precisa de `ANTHROPIC_API_KEY`.** Sem a variável o recurso fica desligado
+  e a tela avisa; nada quebra e nada é cobrado. Para ligar: criar a chave em
+  console.anthropic.com, adicionar nas variáveis do projeto na Vercel e
+  refazer o deploy. Nenhuma mudança de código é necessária.
+- **O modelo não recebe acesso ao banco.** Ele escolhe entre as ferramentas de
+  leitura em `lib/assistente/ferramentas.ts` e passa parâmetros simples. Três
+  consequências que valem entender antes de mexer:
+  1. **`empresaId` é fixado no servidor**, nunca vem do modelo — não existe
+     pergunta capaz de fazer o assistente ler outra empresa.
+  2. Toda consulta tem teto de resultados.
+  3. O que não está no arquivo de ferramentas, ele não alcança. Ampliar
+     acesso é decisão de código, não de prompt.
+- **Teto de 6 idas e voltas por pergunta** — sem isso uma pergunta ambígua
+  vira laço de chamadas e queima crédito à toa.
+- **A pergunta entra na trilha de auditoria; a resposta não.** A resposta pode
+  juntar dado de várias pessoas de uma vez; o que importa para auditar acesso
+  é quem perguntou o quê.
+- `npm run verificar:assistente` confere as ferramentas contra o banco real —
+  inclusive o isolamento entre empresas. **Não cobre a conversa com o modelo**,
+  que só dá para testar depois que a chave existir.
 
 ## Folha — eventos variáveis (Fase 5, em andamento)
 
@@ -523,6 +549,7 @@ Decisões de segurança que valem lembrar antes de mexer:
 | `npm run test:admissao` | testes das pendências da admissão — documento faltando, salário zero, documento extra (não toca o banco) |
 | `npm run smoke:onboarding` | fumaça da trilha de integração — responsável sugerido, item personalizado com prazo, concluir/reabrir, gerar duas vezes sem duplicar, **sempre em rollback** |
 | `npm run smoke:folha` | fumaça dos eventos variáveis — competência única por mês, recálculo preservando lançamento manual, falta abonada fora do desconto, fechamento, **sempre em rollback** |
+| `npm run verificar:assistente` | confere as ferramentas do assistente contra o banco real, inclusive o isolamento entre empresas — **read-only**, não escreve nada |
 | `npx tsx scripts/aplicar-migracao.ts <nome> [--dry]` | aplica um `migration.sql` à mão, em transação (ver "Notas sobre o banco") |
 | `npx tsx scripts/importar-colaboradores-elleven.ts [--dry]` | importa/atualiza colaboradores a partir das exportações do elleven (upsert idempotente por CPF → cód. elleven → nome) |
 | `npx tsx scripts/configurar-telegram-webhook.ts` | registra o webhook do bot do Telegram |

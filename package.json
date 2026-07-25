@@ -35,9 +35,11 @@
     "smoke:ats": "tsx scripts/smoke-ats.ts",
     "test:admissao": "tsx scripts/test-admissao.ts",
     "smoke:onboarding": "tsx scripts/smoke-onboarding.ts",
-    "smoke:folha": "tsx scripts/smoke-folha.ts"
+    "smoke:folha": "tsx scripts/smoke-folha.ts",
+    "verificar:assistente": "tsx scripts/verificar-assistente.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.115.0",
     "@base-ui/react": "^1.6.0",
     "@hookform/resolvers": "^5.4.0",
     "@prisma/adapter-better-sqlite3": "^7.8.0",
