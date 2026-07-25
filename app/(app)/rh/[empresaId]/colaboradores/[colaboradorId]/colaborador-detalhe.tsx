@@ -18,6 +18,7 @@ import { EpisCard } from "./epis-card";
 import { AcidentesCard } from "./acidentes-card";
 import { OffboardingCard } from "./offboarding-card";
 import { DesempenhoCard } from "./desempenho-card";
+import { MetasPdiCard } from "./metas-pdi-card";
 
 type Colaborador = Parameters<typeof FichaBlocos>[0]["colaborador"] & {
   ativo: boolean;
@@ -51,6 +52,8 @@ export function ColaboradorDetalhe({
   checklistDesligamento,
   entrevistaDesligamento,
   avaliacoes,
+  metas,
+  pdi,
 }: {
   empresaId: string;
   colaborador: Colaborador;
@@ -75,6 +78,8 @@ export function ColaboradorDetalhe({
   checklistDesligamento: Parameters<typeof OffboardingCard>[0]["checklist"];
   entrevistaDesligamento: Parameters<typeof OffboardingCard>[0]["entrevista"];
   avaliacoes: Parameters<typeof DesempenhoCard>[0]["avaliacoes"];
+  metas: Parameters<typeof MetasPdiCard>[0]["metas"];
+  pdi: Parameters<typeof MetasPdiCard>[0]["pdi"];
 }) {
   const pendencias =
     ferias.filter((f) => f.status === "PENDENTE").length +
@@ -135,6 +140,7 @@ export function ColaboradorDetalhe({
           <TabsTrigger value="epis">EPIs ({entregasEpi.length})</TabsTrigger>
           <TabsTrigger value="acidentes">Acidentes ({acidentes.length})</TabsTrigger>
           <TabsTrigger value="desempenho">Desempenho ({avaliacoes.length})</TabsTrigger>
+          <TabsTrigger value="metas-pdi">Metas &amp; PDI</TabsTrigger>
           {colaborador.dataDesligamento && <TabsTrigger value="desligamento">Desligamento</TabsTrigger>}
         </TabsList>
 
@@ -203,6 +209,9 @@ export function ColaboradorDetalhe({
         </TabsContent>
         <TabsContent value="desempenho" className="pt-4">
           <DesempenhoCard empresaId={empresaId} colaboradorId={colaborador.id} avaliacoes={avaliacoes} />
+        </TabsContent>
+        <TabsContent value="metas-pdi" className="pt-4">
+          <MetasPdiCard empresaId={empresaId} colaboradorId={colaborador.id} metas={metas} pdi={pdi} />
         </TabsContent>
         {colaborador.dataDesligamento && (
           <TabsContent value="desligamento" className="pt-4">

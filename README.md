@@ -172,6 +172,23 @@ completo fica para uma fase futura, se for necessário.
   segunda-feira, mesmo se a data de referência cair num domingo (o domingo
   pertence à semana que já passou, não à seguinte).
 
+## Metas & PDI (Fase 3, em andamento)
+
+`Meta` (individual ou de setor) + `PlanoDesenvolvimento` (PDI, uma linha por
+ação), em `/rh/<empresa>/metas` e na aba **Metas & PDI** da ficha.
+
+- **Meta é individual OU de setor, nunca as duas nem nenhuma** — garantido
+  por uma `CHECK` no banco (`Meta_colaborador_xor_setor_check`), não só na
+  action: mesmo uma escrita direta via SQL/Prisma Studio não passa por cima
+  dessa regra.
+- **Progresso e status são digitados, não calculados** — diferente do padrão
+  "situação calculada" usado em conformidade/benefícios. Meta é uma
+  combinação de fatores que só quem acompanha sabe avaliar; forçar um cálculo
+  automático a partir de datas daria uma falsa precisão.
+- **PDI é uma lista de ações, não um documento único** — mesmo formato do
+  `ChecklistDesligamento` (item + concluído + quem concluiu). Cada ação de
+  desenvolvimento é uma linha própria, com prazo opcional.
+
 ## Avaliação de desempenho (Fase 3, em andamento)
 
 `CicloAvaliacao` + `AvaliacaoDesempenho` + `NotaCompetencia`, em
@@ -376,6 +393,7 @@ Decisões de segurança que valem lembrar antes de mexer:
 | `npm run smoke:escala` | fumaça de escalas — upsert por dia, apagar, copiar semana sem sobrescrever, **sempre em rollback** |
 | `npm run smoke:offboarding` | fumaça de offboarding — checklist padrão, item personalizado, entrevista com constraint de unicidade, **sempre em rollback** |
 | `npm run smoke:avaliacao` | fumaça de avaliação de desempenho — gerar avaliações, nota final por média de competências, faixa do nine-box, avaliador extra e cascata, **sempre em rollback** |
+| `npm run smoke:metas` | fumaça de metas & PDI — meta individual/setor, constraint CHECK de alvo único, progresso/status, item de PDI, **sempre em rollback** |
 | `npx tsx scripts/aplicar-migracao.ts <nome> [--dry]` | aplica um `migration.sql` à mão, em transação (ver "Notas sobre o banco") |
 | `npx tsx scripts/importar-colaboradores-elleven.ts [--dry]` | importa/atualiza colaboradores a partir das exportações do elleven (upsert idempotente por CPF → cód. elleven → nome) |
 | `npx tsx scripts/configurar-telegram-webhook.ts` | registra o webhook do bot do Telegram |

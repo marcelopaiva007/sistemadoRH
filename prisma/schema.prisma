@@ -87,6 +87,7 @@ model Setor {
   createdAt DateTime @default(now())
 
   colaboradores Colaborador[]
+  metas         Meta[]
 
   @@unique([empresaId, nome])
   @@index([empresaId])
@@ -221,6 +222,8 @@ model Colaborador {
   checklistDesligamento  ChecklistDesligamento[]
   entrevistaDesligamento EntrevistaDesligamento?
   avaliacoesRecebidas    AvaliacaoDesempenho[]
+  metas                  Meta[]
+  pdi                    PlanoDesenvolvimento[]
 
   @@unique([empresaId, cpf])
   @@unique([telegramChatId])
@@ -810,6 +813,62 @@ model NotaCompetencia {
   nota        Int
 
   @@unique([avaliacaoId, competencia])
+  @@schema("rh")
+}
+
+// ------------------------------------------------------
+// METAS & PDI — FASE 3
+// ------------------------------------------------------
+// Meta é individual OU de setor, nunca as duas — a constraint CHECK na
+// migration garante isso no banco, não só na action. PDI é uma lista de
+// ações por colaborador (mesmo formato do ChecklistDesligamento): cada linha
+// é um item que se marca como concluído, não um documento único.
+
+model Meta {
+  id            String       @id @default(cuid())
+  empresaId     String
+  colaboradorId String?
+  colaborador   Colaborador? @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  setorId       String?
+  setor         Setor?       @relation(fields: [setorId], references: [id], onDelete: Cascade)
+  titulo        String
+  descricao     String?
+  dataInicio    DateTime
+  dataFim       DateTime
+  // 0 a 100 — atualizado à mão pelo RH/gestor, não calculado.
+  progresso     Int          @default(0)
+  // EM_ANDAMENTO | ATINGIDA | NAO_ATINGIDA | CANCELADA
+  status        String       @default("EM_ANDAMENTO")
+  criadoPorId   String?
+  criadoPorNome String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([empresaId, colaboradorId])
+  @@index([empresaId, setorId])
+  @@index([empresaId, status])
+  @@schema("rh")
+}
+
+model PlanoDesenvolvimento {
+  id               String      @id @default(cuid())
+  empresaId        String
+  colaboradorId    String
+  colaborador      Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  titulo           String
+  descricao        String?
+  prazo            DateTime?
+  concluido        Boolean     @default(false)
+  concluidoEm      DateTime?
+  concluidoPorId   String?
+  concluidoPorNome String?
+  criadoPorId      String?
+  criadoPorNome    String?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  @@index([empresaId, colaboradorId])
+  @@index([empresaId, concluido])
   @@schema("rh")
 }
 
