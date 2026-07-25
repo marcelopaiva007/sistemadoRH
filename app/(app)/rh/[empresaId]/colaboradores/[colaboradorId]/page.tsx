@@ -4,6 +4,7 @@ import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
 import { calcularFerias } from "@/lib/ferias";
 import { conformidadeDoColaborador, situacaoDoExame } from "@/lib/conformidade";
+import { pendenciasDaAdmissao } from "@/lib/admissao";
 import { ColaboradorDetalhe } from "./colaborador-detalhe";
 
 // Ficha completa do colaborador: dados cadastrais, dependentes, dossiê digital,
@@ -28,7 +29,7 @@ export default async function ColaboradorPage({
   });
   if (!colaborador) notFound();
 
-  const [dependentes, documentos, ferias, ausencias, requisitos, certificados, exames, setores, posicoes, candidatosSupervisor, movimentacoes, beneficios, entregasEpi, acidentes, ausenciasElegiveis, checklistDesligamento, entrevistaDesligamento, avaliacoes, metas, pdi, participacoesTreinamento, treinamentosAtivos] =
+  const [dependentes, documentos, ferias, ausencias, requisitos, certificados, exames, setores, posicoes, candidatosSupervisor, movimentacoes, beneficios, entregasEpi, acidentes, ausenciasElegiveis, checklistDesligamento, entrevistaDesligamento, avaliacoes, metas, pdi, participacoesTreinamento, treinamentosAtivos, candidaturaDeOrigem] =
     await Promise.all([
     prisma.dependente.findMany({ where: { colaboradorId }, orderBy: { nome: "asc" } }),
     prisma.documentoColaborador.findMany({
@@ -247,6 +248,13 @@ export default async function ColaboradorPage({
       orderBy: { nome: "asc" },
       select: { id: true, nome: true },
     }),
+    // Só quem entrou por um processo seletivo tem checklist de admissão. Os
+    // 208 importados do elleven não têm candidatura, e cobrar documento
+    // admissional deles seria ruído permanente na tela.
+    prisma.candidatura.findFirst({
+      where: { empresaId, colaboradorId },
+      select: { id: true, vaga: { select: { id: true, titulo: true } } },
+    }),
   ]);
 
   const resumoFerias = colaborador.dataAdmissao
@@ -258,6 +266,19 @@ export default async function ColaboradorPage({
 
   const conformidade = conformidadeDoColaborador(requisitos, certificados);
   const situacaoExame = situacaoDoExame(exames);
+
+  const admissao = candidaturaDeOrigem
+    ? {
+        vaga: candidaturaDeOrigem.vaga,
+        pendencias: pendenciasDaAdmissao({
+          dataAdmissao: colaborador.dataAdmissao,
+          salarioBase: colaborador.salarioBase,
+          tipoContrato: colaborador.tipoContrato,
+          tiposDeDocumentoNoDossie: documentos.map((d) => d.tipo),
+          temExameAdmissional: exames.some((e) => e.tipo === "ADMISSIONAL"),
+        }),
+      }
+    : null;
 
   return (
     <div className="space-y-4">
@@ -295,6 +316,7 @@ export default async function ColaboradorPage({
         pdi={pdi}
         participacoesTreinamento={participacoesTreinamento}
         treinamentosAtivos={treinamentosAtivos}
+        admissao={admissao}
       />
     </div>
   );

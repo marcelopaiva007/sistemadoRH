@@ -8,6 +8,7 @@
 import "dotenv/config";
 import { PrismaClient, Prisma } from "../app/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { dataUTC } from "../lib/datas";
 import { ETAPAS_EM_ANDAMENTO, gerarSlugVaga } from "../lib/constants-ats";
 import { violouUnique } from "../lib/prisma-erros";
 
@@ -213,6 +214,61 @@ async function main() {
     ok(disponiveis.includes("SMOKE Reprovado"), "reprovado volta a ficar disponível para outra vaga");
     ok(!disponiveis.includes("SMOKE EmProcesso"), "quem está em entrevista NÃO aparece como disponível");
     ok(!disponiveis.includes("SMOKE Contratado"), "quem já foi contratado NÃO aparece como disponível");
+
+    throw new RollbackProposital();
+  });
+
+  console.log("9. Admissão: candidatura vira colaborador e as duas pontas ficam ligadas");
+  await rodarComRollback(async (tx) => {
+    const setor = await tx.setor.findFirstOrThrow({ where: { empresaId: empresa.id, ativo: true } });
+    const posicao = await tx.posicao.findFirstOrThrow({ where: { empresaId: empresa.id, ativo: true } });
+
+    const vaga = await tx.vaga.create({
+      data: { empresaId: empresa.id, titulo: "SMOKE — admissao", slug: gerarSlugVaga("SMOKE adm") },
+    });
+    const candidato = await tx.candidato.create({
+      data: { empresaId: empresa.id, nome: "SMOKE Admitido", cpf: CPF_TESTE, email: "smoke@example.com" },
+    });
+    const candidatura = await tx.candidatura.create({
+      data: { empresaId: empresa.id, vagaId: vaga.id, candidatoId: candidato.id, etapa: "PROPOSTA" },
+    });
+
+    const colaborador = await tx.colaborador.create({
+      data: {
+        empresaId: empresa.id,
+        nome: candidato.nome,
+        cpf: candidato.cpf,
+        email: candidato.email,
+        setorId: setor.id,
+        posicaoId: posicao.id,
+        dataAdmissao: dataUTC(2026, 8, 1),
+      },
+    });
+    const atualizada = await tx.candidatura.update({
+      where: { id: candidatura.id },
+      data: { etapa: "CONTRATADO", colaboradorId: colaborador.id },
+    });
+
+    ok(atualizada.etapa === "CONTRATADO", "candidatura vai para CONTRATADO");
+    ok(atualizada.colaboradorId === colaborador.id, "candidatura guarda o id da ficha criada");
+    ok(colaborador.cpf === candidato.cpf, "a ficha herda o CPF do candidato, sem redigitar");
+
+    // O CPF do colaborador é único por empresa — é o que impede criar duas
+    // fichas para a mesma pessoa numa recontratação distraída.
+    try {
+      await tx.colaborador.create({
+        data: {
+          empresaId: empresa.id,
+          nome: "SMOKE Duplicado",
+          cpf: CPF_TESTE,
+          setorId: setor.id,
+          posicaoId: posicao.id,
+        },
+      });
+      ok(false, "deveria ter sido recusado");
+    } catch (e) {
+      ok(violouUnique(e, "Colaborador_empresaId_cpf_key"), "CPF duplicado não cria uma segunda ficha");
+    }
 
     throw new RollbackProposital();
   });
