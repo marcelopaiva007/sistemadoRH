@@ -28,7 +28,7 @@ export default async function ColaboradorPage({
   });
   if (!colaborador) notFound();
 
-  const [dependentes, documentos, ferias, ausencias, requisitos, certificados, exames, setores, posicoes, candidatosSupervisor, movimentacoes, beneficios, entregasEpi, acidentes, ausenciasElegiveis] =
+  const [dependentes, documentos, ferias, ausencias, requisitos, certificados, exames, setores, posicoes, candidatosSupervisor, movimentacoes, beneficios, entregasEpi, acidentes, ausenciasElegiveis, checklistDesligamento, entrevistaDesligamento] =
     await Promise.all([
     prisma.dependente.findMany({ where: { colaboradorId }, orderBy: { nome: "asc" } }),
     prisma.documentoColaborador.findMany({
@@ -168,6 +168,23 @@ export default async function ColaboradorPage({
       orderBy: [{ dataInicio: "desc" }],
       select: { id: true, dataInicio: true, dataFim: true },
     }),
+    prisma.checklistDesligamento.findMany({
+      where: { colaboradorId },
+      orderBy: [{ createdAt: "asc" }],
+      select: { id: true, item: true, descricao: true, concluido: true, concluidoPorNome: true },
+    }),
+    prisma.entrevistaDesligamento.findUnique({
+      where: { colaboradorId },
+      select: {
+        dataEntrevista: true,
+        motivoReal: true,
+        recomendariaEmpresa: true,
+        satisfacaoGeral: true,
+        pontosPositivos: true,
+        pontosMelhoria: true,
+        observacoes: true,
+      },
+    }),
   ]);
 
   const resumoFerias = colaborador.dataAdmissao
@@ -209,6 +226,8 @@ export default async function ColaboradorPage({
         entregasEpi={entregasEpi}
         acidentes={acidentes}
         ausenciasElegiveisAcidente={ausenciasElegiveis}
+        checklistDesligamento={checklistDesligamento}
+        entrevistaDesligamento={entrevistaDesligamento}
       />
     </div>
   );

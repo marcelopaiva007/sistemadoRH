@@ -16,6 +16,7 @@ import { MovimentacoesCard } from "./movimentacoes-card";
 import { BeneficiosCard } from "./beneficios-card";
 import { EpisCard } from "./epis-card";
 import { AcidentesCard } from "./acidentes-card";
+import { OffboardingCard } from "./offboarding-card";
 
 type Colaborador = Parameters<typeof FichaBlocos>[0]["colaborador"] & {
   ativo: boolean;
@@ -46,6 +47,8 @@ export function ColaboradorDetalhe({
   entregasEpi,
   acidentes,
   ausenciasElegiveisAcidente,
+  checklistDesligamento,
+  entrevistaDesligamento,
 }: {
   empresaId: string;
   colaborador: Colaborador;
@@ -67,6 +70,8 @@ export function ColaboradorDetalhe({
   entregasEpi: Parameters<typeof EpisCard>[0]["entregas"];
   acidentes: Parameters<typeof AcidentesCard>[0]["acidentes"];
   ausenciasElegiveisAcidente: Parameters<typeof AcidentesCard>[0]["ausenciasElegiveis"];
+  checklistDesligamento: Parameters<typeof OffboardingCard>[0]["checklist"];
+  entrevistaDesligamento: Parameters<typeof OffboardingCard>[0]["entrevista"];
 }) {
   const pendencias =
     ferias.filter((f) => f.status === "PENDENTE").length +
@@ -126,6 +131,7 @@ export function ColaboradorDetalhe({
           <TabsTrigger value="beneficios">Benefícios ({beneficios.length})</TabsTrigger>
           <TabsTrigger value="epis">EPIs ({entregasEpi.length})</TabsTrigger>
           <TabsTrigger value="acidentes">Acidentes ({acidentes.length})</TabsTrigger>
+          {colaborador.dataDesligamento && <TabsTrigger value="desligamento">Desligamento</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="ficha" className="pt-4">
@@ -191,6 +197,18 @@ export function ColaboradorDetalhe({
             ausenciasElegiveis={ausenciasElegiveisAcidente}
           />
         </TabsContent>
+        {colaborador.dataDesligamento && (
+          <TabsContent value="desligamento" className="pt-4">
+            <OffboardingCard
+              empresaId={empresaId}
+              colaboradorId={colaborador.id}
+              dataDesligamento={colaborador.dataDesligamento}
+              motivoDesligamento={colaborador.motivoDesligamento}
+              checklist={checklistDesligamento}
+              entrevista={entrevistaDesligamento}
+            />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

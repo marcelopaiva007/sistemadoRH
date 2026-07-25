@@ -218,6 +218,8 @@ model Colaborador {
   entregasEpi   EntregaEPI[]
   acidentes     AcidenteTrabalho[]
   escalas       EscalaTurno[]
+  checklistDesligamento ChecklistDesligamento[]
+  entrevistaDesligamento EntrevistaDesligamento?
 
   @@unique([empresaId, cpf])
   @@unique([telegramChatId])
@@ -662,6 +664,64 @@ model EscalaTurno {
 
   @@unique([colaboradorId, data])
   @@index([empresaId, data])
+  @@schema("rh")
+}
+
+// ------------------------------------------------------
+// OFFBOARDING — FASE 3
+// ------------------------------------------------------
+// O motivo do desligamento já mora em Colaborador (Fase 1); aqui só o que
+// falta: a devolução de ativos e os passos de saída (checklist) e a
+// entrevista de desligamento. Devolução de ativo é só mais um item do
+// checklist — não ganhou modelo próprio para não duplicar o conceito de
+// "tarefa marcada como feita".
+
+model ChecklistDesligamento {
+  id            String      @id @default(cuid())
+  empresaId     String
+  colaboradorId String
+  colaborador   Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  // Catálogo em lib/constants-offboarding.ts (CRACHA, NOTEBOOK, EPI, ACESSO_SISTEMA, ...) | OUTRO
+  item          String
+  // Só usado/obrigatório quando item = OUTRO.
+  descricao     String?
+  concluido     Boolean  @default(false)
+  concluidoEm   DateTime?
+  concluidoPorId   String?
+  concluidoPorNome String?
+  observacoes   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([colaboradorId])
+  @@index([empresaId, concluido])
+  @@schema("rh")
+}
+
+// Uma por colaborador — quem sai mais de uma vez do grupo volta como um
+// Colaborador novo neste modelo (não há reintegração aqui), então não há
+// necessidade de histórico de várias entrevistas para o mesmo id.
+model EntrevistaDesligamento {
+  id                  String      @id @default(cuid())
+  empresaId           String
+  colaboradorId       String      @unique
+  colaborador         Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  dataEntrevista      DateTime
+  // Motivo REAL relatado na entrevista — pode diferir do motivoDesligamento
+  // formal da ficha (ex.: formal "pedido de demissão", real "clima do setor").
+  motivoReal          String?
+  recomendariaEmpresa Boolean?
+  // 1 a 5.
+  satisfacaoGeral     Int?
+  pontosPositivos     String?
+  pontosMelhoria      String?
+  observacoes         String?
+  entrevistadoPorId   String?
+  entrevistadoPorNome String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([empresaId, dataEntrevista])
   @@schema("rh")
 }
 
