@@ -14,6 +14,12 @@ export const authConfig = {
       // link do convite, sem login — a autorização é o próprio token
       // imprevisível (ver lib/actions/pesquisas-publico.ts).
       if (request.nextUrl.pathname.startsWith("/responder")) return true;
+      // /portal tem autenticação PRÓPRIA, fora do NextAuth: o colaborador não
+      // tem usuário no sistema, entra pelo link de uso único do bot do Telegram
+      // e a sessão vive no cookie portal_sessao (ver lib/portal-auth.ts).
+      // Passar pelo NextAuth aqui só mandaria o colaborador para uma tela de
+      // login que não é dele.
+      if (request.nextUrl.pathname.startsWith("/portal")) return true;
       const isOnLogin = request.nextUrl.pathname.startsWith("/login");
       if (isOnLogin) {
         return isLoggedIn ? Response.redirect(new URL("/", request.nextUrl)) : true;
