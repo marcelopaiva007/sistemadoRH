@@ -172,6 +172,31 @@ completo fica para uma fase futura, se for necessário.
   segunda-feira, mesmo se a data de referência cair num domingo (o domingo
   pertence à semana que já passou, não à seguinte).
 
+## Recrutamento & seleção — ATS (Fase 4, em andamento)
+
+`Vaga` + `Candidato` + `Candidatura` + `EventoCandidatura`, em
+`/rh/<empresa>/vagas`. A vaga publicada ganha uma **página pública de
+inscrição** em `/vagas/<slug>`.
+
+- **`Candidato` existe independente de vaga** — é o banco de talentos.
+  Reprovado numa vaga continua cadastrado e concorre a outra sem recadastrar;
+  excluir a candidatura não apaga o candidato.
+- **Etapa é foto, evento é filme** — `Candidatura.etapa` guarda onde a pessoa
+  está agora e `EventoCandidatura` o histórico de como chegou lá (mesmo par de
+  `Movimentacao` na Fase 2).
+- **O slug tem sufixo aleatório de propósito** — o endereço da vaga não pode
+  ser adivinhado a partir do nome do cargo, senão uma vaga ainda não publicada
+  vazaria por tentativa. A página só responde se `publicada` e
+  `status = ABERTA`; fora disso é 404, sem confirmar que o slug existiu.
+- **CPF é obrigatório só na inscrição pública** (com validação de dígito
+  verificador), porque é ele que impede a mesma pessoa de se inscrever duas
+  vezes. No cadastro pelo RH é opcional — Postgres trata NULL como distinto,
+  então vários candidatos sem CPF convivem.
+- **O formulário público usa campos controlados**, diferente do resto do
+  sistema: com `<form action={...}>` o React limpa inputs não controlados
+  quando a action retorna, e o candidato perderia tudo por causa de um dígito
+  errado no CPF.
+
 ## Treinamentos & trilhas — não-NR (Fase 3)
 
 `Treinamento` (catálogo) + `ParticipacaoTreinamento`, em `/rh/<empresa>/treinamentos`
@@ -413,6 +438,7 @@ Decisões de segurança que valem lembrar antes de mexer:
 | `npm run smoke:avaliacao` | fumaça de avaliação de desempenho — gerar avaliações, nota final por média de competências, faixa do nine-box, avaliador extra e cascata, **sempre em rollback** |
 | `npm run smoke:metas` | fumaça de metas & PDI — meta individual/setor, constraint CHECK de alvo único, progresso/status, item de PDI, **sempre em rollback** |
 | `npm run smoke:treinamentos` | fumaça de treinamentos — catálogo com nome único, participação com constraint de duplicidade, ausência fora da matriz de competências, **sempre em rollback** |
+| `npm run smoke:ats` | fumaça do ATS — slug único, funil com histórico, inscrição repetida barrada, banco de talentos preservado na exclusão, **sempre em rollback** |
 | `npx tsx scripts/aplicar-migracao.ts <nome> [--dry]` | aplica um `migration.sql` à mão, em transação (ver "Notas sobre o banco") |
 | `npx tsx scripts/importar-colaboradores-elleven.ts [--dry]` | importa/atualiza colaboradores a partir das exportações do elleven (upsert idempotente por CPF → cód. elleven → nome) |
 | `npx tsx scripts/configurar-telegram-webhook.ts` | registra o webhook do bot do Telegram |

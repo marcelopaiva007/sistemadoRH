@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { registrarAuditoria } from "@/lib/audit";
 import { lerAnexo } from "@/lib/anexos";
+import { violouUnique } from "@/lib/prisma-erros";
 import { dataDoFormulario } from "@/lib/datas";
 import { COMPETENCIAS } from "@/lib/constants-avaliacao";
 import type { ActionResult } from "@/lib/constants";
@@ -51,7 +52,7 @@ export async function criarTreinamento(
       resumo: `Treinamento "${nome}" adicionado ao catálogo.`,
     });
   } catch (e) {
-    if (e instanceof Error && e.message.includes("Treinamento_empresaId_nome_key")) {
+    if (violouUnique(e, "Treinamento_empresaId_nome_key")) {
       return { ok: false, error: "Já existe um treinamento com este nome." };
     }
     throw e;
@@ -151,7 +152,7 @@ export async function registrarParticipacao(
       resumo: `${colaborador.nome} participou de "${treinamento.nome}" em ${dataRealizacao.toISOString().slice(0, 10)}.`,
     });
   } catch (e) {
-    if (e instanceof Error && e.message.includes("ParticipacaoTreinamento_colaboradorId_treinamentoId_dataRea_key")) {
+    if (violouUnique(e, "ParticipacaoTreinamento_colaboradorId_treinamentoId_dataRea_key")) {
       return { ok: false, error: "Já existe um registro deste treinamento para esta pessoa nesta data." };
     }
     throw e;

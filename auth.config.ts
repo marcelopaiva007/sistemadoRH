@@ -20,6 +20,12 @@ export const authConfig = {
       // Passar pelo NextAuth aqui só mandaria o colaborador para uma tela de
       // login que não é dele.
       if (request.nextUrl.pathname.startsWith("/portal")) return true;
+      // /vagas/<slug> é a página pública de inscrição (Fase 4). Quem acessa é
+      // candidato, que por definição não tem login. O slug tem sufixo
+      // aleatório e a action só aceita vaga ABERTA e publicada
+      // (ver lib/actions/vagas-publico.ts). Não confundir com
+      // /rh/<empresa>/vagas, que é a tela interna e continua protegida.
+      if (request.nextUrl.pathname.startsWith("/vagas")) return true;
       const isOnLogin = request.nextUrl.pathname.startsWith("/login");
       if (isOnLogin) {
         return isLoggedIn ? Response.redirect(new URL("/", request.nextUrl)) : true;

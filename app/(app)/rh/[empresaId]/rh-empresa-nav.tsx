@@ -19,6 +19,7 @@ export function RHEmpresaNav({ empresaId }: { empresaId: string }) {
     { href: `/rh/${empresaId}/avaliacoes`, label: "Avaliações" },
     { href: `/rh/${empresaId}/metas`, label: "Metas" },
     { href: `/rh/${empresaId}/treinamentos`, label: "Treinamentos" },
+    { href: `/rh/${empresaId}/vagas`, label: "Vagas" },
     { href: `/rh/${empresaId}/beneficios`, label: "Benefícios" },
     { href: `/rh/${empresaId}/desligamentos`, label: "Desligamentos" },
     { href: `/rh/${empresaId}/reconhecimento`, label: "Reconhecimento" },
