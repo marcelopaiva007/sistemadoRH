@@ -172,6 +172,22 @@ completo fica para uma fase futura, se for necessário.
   segunda-feira, mesmo se a data de referência cair num domingo (o domingo
   pertence à semana que já passou, não à seguinte).
 
+## Offboarding formal (Fase 3, em andamento)
+
+`ChecklistDesligamento` + `EntrevistaDesligamento` — o que falta depois que a
+`dataDesligamento` é preenchida na ficha (Fase 1 já cobre motivo e data). A
+aba **Desligamento** só aparece na ficha quando há data de desligamento;
+`/rh/<empresa>/desligamentos` traz a visão consolidada de quem saiu.
+
+- **Devolução de ativo é só mais um item do checklist** — sem modelo próprio.
+  "Gerar checklist padrão" cria uma linha por item do catálogo
+  (`lib/constants-offboarding.ts`) que ainda não existe para a pessoa; itens
+  fora do catálogo entram como `item: "OUTRO"` com descrição livre.
+- **`EntrevistaDesligamento` é `@unique` por colaborador** — sempre `upsert`,
+  nunca duas entrevistas para a mesma pessoa. O motivo real relatado aqui
+  pode diferir do `motivoDesligamento` formal na ficha; a auditoria registra
+  que a entrevista foi feita, não o conteúdo (dado sensível de opinião).
+
 ## Indicadores — BI inicial (Fase 2)
 
 `/rh/<empresa>/indicadores` — headcount, turnover, absenteísmo e custo de
@@ -335,6 +351,7 @@ Decisões de segurança que valem lembrar antes de mexer:
 | `npm run smoke:cat` | fumaça de acidentes/CAT — vínculo com ausência, emissão de CAT, constraint de duplicidade, **sempre em rollback** |
 | `npm run test:escala` | testes do cálculo de semana (início na segunda, domingo não avança) — não toca o banco |
 | `npm run smoke:escala` | fumaça de escalas — upsert por dia, apagar, copiar semana sem sobrescrever, **sempre em rollback** |
+| `npm run smoke:offboarding` | fumaça de offboarding — checklist padrão, item personalizado, entrevista com constraint de unicidade, **sempre em rollback** |
 | `npx tsx scripts/aplicar-migracao.ts <nome> [--dry]` | aplica um `migration.sql` à mão, em transação (ver "Notas sobre o banco") |
 | `npx tsx scripts/importar-colaboradores-elleven.ts [--dry]` | importa/atualiza colaboradores a partir das exportações do elleven (upsert idempotente por CPF → cód. elleven → nome) |
 | `npx tsx scripts/configurar-telegram-webhook.ts` | registra o webhook do bot do Telegram |
