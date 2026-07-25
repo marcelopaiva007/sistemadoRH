@@ -25,7 +25,9 @@
     "test:bi": "tsx scripts/test-bi.ts",
     "verificar:bi": "tsx scripts/verificar-bi.ts",
     "smoke:epi": "tsx scripts/smoke-epi.ts",
-    "smoke:cat": "tsx scripts/smoke-cat.ts"
+    "smoke:cat": "tsx scripts/smoke-cat.ts",
+    "test:escala": "tsx scripts/test-escala.ts",
+    "smoke:escala": "tsx scripts/smoke-escala.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
