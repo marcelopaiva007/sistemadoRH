@@ -13,6 +13,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "diag:envios": "tsx scripts/diag-envios.ts",
     "test:ferias": "tsx scripts/test-ferias.ts",
+    "test:portal": "tsx scripts/test-portal.ts",
     "smoke:dp": "tsx scripts/smoke-dp.ts"
   },
   "dependencies": {

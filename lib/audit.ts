@@ -25,16 +25,21 @@ export async function registrarAuditoria(params: {
   entidadeId?: string | null;
   resumo: string;
   detalhes?: Record<string, unknown>;
+  /**
+   * Quem agiu, quando não é um usuário do NextAuth. É o caso do portal: o
+   * colaborador não tem usuário no sistema, então sem isto a trilha registraria
+   * a ação sem autor.
+   */
+  ator?: { id: string; nome: string; papel: string };
 }) {
   try {
-    const session = await auth();
-    const user = session?.user;
+    const user = params.ator ? null : (await auth())?.user;
     await prisma.auditLog.create({
       data: {
         empresaId: params.empresaId ?? null,
-        usuarioId: user?.id ?? null,
-        usuarioNome: user?.name ?? null,
-        usuarioRole: user?.role ?? null,
+        usuarioId: params.ator?.id ?? user?.id ?? null,
+        usuarioNome: params.ator?.nome ?? user?.name ?? null,
+        usuarioRole: params.ator?.papel ?? user?.role ?? null,
         acao: params.acao,
         entidade: params.entidade,
         entidadeId: params.entidadeId ?? null,

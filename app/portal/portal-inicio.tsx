@@ -1,0 +1,335 @@
+"use client";
+
+import { CalendarDays, FileText, LogOut, Stethoscope, User } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { sairDoPortal } from "@/lib/actions/portal";
+import { formatarTamanho } from "@/lib/anexos";
+import { statusSolicitacaoLabel, tipoAusenciaLabel, tipoContratoLabel, tipoDocumentoLabel } from "@/lib/constants-dp";
+import { formatarData, tempoDeCasa } from "@/lib/datas";
+import { STATUS_PERIODO_LABEL, type ResumoFerias } from "@/lib/ferias";
+
+type Colaborador = {
+  nome: string;
+  cpf: string | null;
+  email: string | null;
+  telefone: string | null;
+  dataAdmissao: Date | null;
+  tipoContrato: string | null;
+  matricula: string | null;
+  cidade: string | null;
+  uf: string | null;
+  emergenciaNome: string | null;
+  emergenciaTelefone: string | null;
+  setor: { nome: string };
+  posicao: { nome: string };
+};
+
+type Ferias = {
+  id: string;
+  dataInicio: Date;
+  dataFim: Date;
+  dias: number;
+  diasAbono: number;
+  status: string;
+};
+
+type Documento = {
+  id: string;
+  tipo: string;
+  descricao: string | null;
+  validoAte: Date | null;
+  arquivo: { id: string; nome: string; tamanhoBytes: number } | null;
+};
+
+type Ausencia = {
+  id: string;
+  tipo: string;
+  dataInicio: Date;
+  dataFim: Date;
+  dias: number;
+  status: string;
+};
+
+function mascararCpf(cpf: string | null): string {
+  // O portal confirma a identidade, não serve para descobrir o CPF de ninguém.
+  if (!cpf || cpf.length !== 11) return "—";
+  return `***.${cpf.slice(3, 6)}.${cpf.slice(6, 9)}-**`;
+}
+
+function varianteStatus(status: string) {
+  if (status === "APROVADA") return "default" as const;
+  if (status === "REPROVADA" || status === "CANCELADA") return "destructive" as const;
+  return "secondary" as const;
+}
+
+export function PortalInicio({
+  colaborador,
+  ferias,
+  documentos,
+  ausencias,
+  resumoFerias,
+}: {
+  colaborador: Colaborador;
+  ferias: Ferias[];
+  documentos: Documento[];
+  ausencias: Ausencia[];
+  resumoFerias: ResumoFerias | null;
+}) {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-xl font-semibold tracking-tight">{colaborador.nome}</h1>
+        <p className="text-sm text-muted-foreground">
+          {colaborador.setor.nome} · {colaborador.posicao.nome}
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <Destaque
+          rotulo="Saldo de férias"
+          valor={resumoFerias ? `${resumoFerias.saldoDisponivel}` : "—"}
+          complemento={resumoFerias ? "dias disponíveis" : "fale com o RH"}
+        />
+        <Destaque
+          rotulo="Tempo de casa"
+          valor={colaborador.dataAdmissao ? tempoDeCasa(colaborador.dataAdmissao) : "—"}
+          complemento={colaborador.dataAdmissao ? `desde ${formatarData(colaborador.dataAdmissao)}` : ""}
+        />
+      </div>
+
+      <Tabs defaultValue="ferias">
+        <TabsList variant="line" className="w-full">
+          <TabsTrigger value="ferias">
+            <CalendarDays />
+            Férias
+          </TabsTrigger>
+          <TabsTrigger value="documentos">
+            <FileText />
+            Documentos
+          </TabsTrigger>
+          <TabsTrigger value="dados">
+            <User />
+            Meus dados
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="ferias" className="space-y-4 pt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Seus períodos</CardTitle>
+              <CardDescription>
+                A cada 12 meses de trabalho você ganha 30 dias de férias, que precisam ser tirados
+                no ano seguinte.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {!resumoFerias && (
+                <p className="text-sm text-muted-foreground">
+                  Sua data de admissão ainda não está no cadastro. Procure o RH para liberar o
+                  controle de férias.
+                </p>
+              )}
+              {resumoFerias?.periodos
+                .filter((p) => p.status !== "CONCLUIDO")
+                .map((p) => (
+                  <div
+                    key={p.inicio.toISOString()}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3"
+                  >
+                    <div>
+                      <div className="text-sm font-medium tabular-nums">
+                        {formatarData(p.inicio)} — {formatarData(p.fim)}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {p.status === "EM_CURSO"
+                          ? "Ainda completando 12 meses"
+                          : `Tirar até ${formatarData(p.limiteConcessivo)}`}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold tabular-nums">{p.saldo} dias</span>
+                      <Badge variant={p.status === "VENCIDO" ? "destructive" : "secondary"}>
+                        {STATUS_PERIODO_LABEL[p.status]}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              {resumoFerias && resumoFerias.periodos.every((p) => p.status === "CONCLUIDO") && (
+                <p className="text-sm text-muted-foreground">
+                  Você não tem saldo de férias em aberto no momento.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Programadas</CardTitle>
+              <CardDescription>
+                Para pedir ou alterar férias, fale com seu gestor ou com o RH.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {ferias.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nenhuma férias programada.</p>
+              ) : (
+                ferias.map((f) => (
+                  <div
+                    key={f.id}
+                    className="flex flex-wrap items-center justify-between gap-2 border-b pb-2 last:border-0 last:pb-0"
+                  >
+                    <div className="text-sm tabular-nums">
+                      {formatarData(f.dataInicio)} — {formatarData(f.dataFim)}
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        {f.dias} dia(s)
+                        {f.diasAbono > 0 && ` + ${f.diasAbono} vendidos`}
+                      </span>
+                    </div>
+                    <Badge variant={varianteStatus(f.status)}>{statusSolicitacaoLabel(f.status)}</Badge>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Stethoscope className="size-4" />
+                Atestados e ausências
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {ausencias.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nenhuma ausência registrada.</p>
+              ) : (
+                ausencias.map((a) => (
+                  <div
+                    key={a.id}
+                    className="flex flex-wrap items-center justify-between gap-2 border-b pb-2 last:border-0 last:pb-0"
+                  >
+                    <div className="text-sm">
+                      {tipoAusenciaLabel(a.tipo)}
+                      <span className="ml-2 text-xs text-muted-foreground tabular-nums">
+                        {formatarData(a.dataInicio)} — {formatarData(a.dataFim)} · {a.dias} dia(s)
+                      </span>
+                    </div>
+                    <Badge variant={varianteStatus(a.status)}>{statusSolicitacaoLabel(a.status)}</Badge>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="documentos" className="pt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Seus documentos</CardTitle>
+              <CardDescription>
+                O que o RH guardou no seu dossiê. Toque para abrir ou baixar.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {documentos.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nenhum documento disponível ainda.</p>
+              ) : (
+                documentos.map((d) => (
+                  <a
+                    key={d.id}
+                    href={`/api/portal/arquivos/${d.arquivo!.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-muted"
+                  >
+                    <FileText className="size-5 shrink-0 text-muted-foreground" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-medium">{tipoDocumentoLabel(d.tipo)}</span>
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {d.descricao ?? d.arquivo!.nome} · {formatarTamanho(d.arquivo!.tamanhoBytes)}
+                        {d.validoAte && ` · vale até ${formatarData(d.validoAte)}`}
+                      </span>
+                    </span>
+                  </a>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="dados" className="pt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Meus dados</CardTitle>
+              <CardDescription>
+                Encontrou algo errado? Avise o RH — a correção é feita por lá.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid grid-cols-2 gap-4">
+              <Dado rotulo="Matrícula" valor={colaborador.matricula} />
+              <Dado rotulo="CPF" valor={mascararCpf(colaborador.cpf)} />
+              <Dado rotulo="Admissão" valor={formatarData(colaborador.dataAdmissao)} />
+              <Dado
+                rotulo="Contrato"
+                valor={colaborador.tipoContrato ? tipoContratoLabel(colaborador.tipoContrato) : null}
+              />
+              <Dado rotulo="Setor" valor={colaborador.setor.nome} />
+              <Dado rotulo="Função" valor={colaborador.posicao.nome} />
+              <Dado rotulo="Telefone" valor={colaborador.telefone} />
+              <Dado rotulo="E-mail" valor={colaborador.email} />
+              <Dado
+                rotulo="Cidade"
+                valor={[colaborador.cidade, colaborador.uf].filter(Boolean).join(" / ") || null}
+              />
+              <Dado
+                rotulo="Contato de emergência"
+                valor={
+                  colaborador.emergenciaNome
+                    ? `${colaborador.emergenciaNome}${colaborador.emergenciaTelefone ? ` · ${colaborador.emergenciaTelefone}` : ""}`
+                    : null
+                }
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      <form action={sairDoPortal}>
+        <Button type="submit" variant="outline" size="lg" className="w-full">
+          <LogOut className="size-4" />
+          Sair
+        </Button>
+      </form>
+    </div>
+  );
+}
+
+function Destaque({
+  rotulo,
+  valor,
+  complemento,
+}: {
+  rotulo: string;
+  valor: string;
+  complemento?: string;
+}) {
+  return (
+    <div className="rounded-lg bg-card px-4 py-3 ring-1 ring-foreground/10">
+      <div className="text-xs text-muted-foreground">{rotulo}</div>
+      <div className="text-xl font-semibold tabular-nums">{valor}</div>
+      {complemento && <div className="text-xs text-muted-foreground">{complemento}</div>}
+    </div>
+  );
+}
+
+function Dado({ rotulo, valor }: { rotulo: string; valor: string | null }) {
+  return (
+    <div>
+      <div className="text-xs text-muted-foreground">{rotulo}</div>
+      <div className="text-sm break-words">{valor || "—"}</div>
+    </div>
+  );
+}

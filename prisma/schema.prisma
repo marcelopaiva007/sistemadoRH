@@ -181,13 +181,22 @@ model Colaborador {
   jornadaSemanal     Int?
   salarioBase        Float?
 
+  // Primeira entrada no portal do colaborador confirmada por CPF. O vínculo do
+  // Telegram casa pelos últimos 8 dígitos do telefone importado do elleven —
+  // margem de erro tolerável para convidar alguém a responder uma pesquisa,
+  // inaceitável para abrir salário e documentos. Por isso o portal exige o CPF
+  // uma vez, mesmo para quem já vinculou pelo telefone.
+  portalVerificadoEm DateTime?
+
   tokens    SurveyToken[]
   respostas Resposta[]
 
-  dependentes Dependente[]
-  documentos  DocumentoColaborador[]
-  ferias      SolicitacaoFerias[]
-  ausencias   Ausencia[]
+  dependentes   Dependente[]
+  documentos    DocumentoColaborador[]
+  ferias        SolicitacaoFerias[]
+  ausencias     Ausencia[]
+  acessosPortal PortalAcesso[]
+  sessoesPortal PortalSessao[]
 
   @@unique([empresaId, cpf])
   @@unique([telegramChatId])
@@ -336,6 +345,49 @@ model Ausencia {
   @@index([empresaId, status])
   @@index([colaboradorId, dataInicio])
   @@index([empresaId, dataInicio])
+  @@schema("rh")
+}
+
+// ------------------------------------------------------
+// PORTAL DO COLABORADOR — acesso sem senha
+// ------------------------------------------------------
+// O colaborador não tem usuário no sistema (são 400+ pessoas em campo). Quem
+// autentica é o bot do Telegram, que já provou a identidade no vínculo do
+// chat_id: a pessoa pede /portal e recebe, só naquele chat, um link de vida
+// curta e uso único. Abrir o link troca o token por uma sessão em cookie.
+//
+// Os tokens são guardados como SHA-256, nunca em claro: um vazamento do banco
+// não pode virar acesso ao portal (diferente do SurveyToken, que é um link
+// permanente para uma pesquisa anônima — risco de outra ordem).
+
+model PortalAcesso {
+  id            String      @id @default(cuid())
+  colaboradorId String
+  colaborador   Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  tokenHash     String      @unique
+  expiraEm      DateTime
+  usadoEm       DateTime?
+  canal         String      @default("TELEGRAM")
+  createdAt     DateTime    @default(now())
+
+  @@index([colaboradorId, usadoEm])
+  @@schema("rh")
+}
+
+model PortalSessao {
+  id             String      @id @default(cuid())
+  colaboradorId  String
+  colaborador    Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  tokenHash      String      @unique
+  expiraEm       DateTime
+  encerradaEm    DateTime?
+  // Tentativas erradas na confirmação de CPF. Estouradas, a sessão é encerrada
+  // e a pessoa precisa pedir um link novo ao bot.
+  tentativasCpf  Int         @default(0)
+  criadaEm       DateTime    @default(now())
+  ultimoAcessoEm DateTime    @default(now())
+
+  @@index([colaboradorId, encerradaEm])
   @@schema("rh")
 }
 

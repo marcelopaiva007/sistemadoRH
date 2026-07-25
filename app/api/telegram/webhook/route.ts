@@ -1,6 +1,5 @@
 // Webhook do bot do Telegram (@Marcelo_Paiva_07_bot) — vínculo automático do
-// telegramChatId dos colaboradores, necessário para enviar convites de
-// pesquisa pelo Telegram.
+// telegramChatId dos colaboradores e porta de entrada do portal.
 //
 // Fluxo para o colaborador:
 //   1. /start no bot -> o bot pede para tocar em "📱 Compartilhar meu número".
@@ -8,6 +7,9 @@
 //      (importado do elleven) pelos últimos 8 dígitos.
 //   3. Match único -> grava telegramChatId. Sem match/ambíguo -> pede o CPF,
 //      que casa com Colaborador.cpf.
+//   4. /portal -> manda para AQUELE chat um link de vida curta e uso único do
+//      portal do colaborador. É o bot fazendo o papel de login: para entrar é
+//      preciso controlar o Telegram já vinculado àquela pessoa.
 //
 // Segurança: o setWebhook registra um secret_token derivado do token do bot
 // (lib/telegram.ts); o Telegram devolve esse valor em cada update no header
@@ -17,6 +19,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendTelegramMessage, telegramWebhookSecret } from "@/lib/telegram";
+import { criarLinkDeAcesso, MINUTOS_VALIDADE_LINK } from "@/lib/portal-auth";
 
 export const runtime = "nodejs";
 
@@ -41,6 +44,14 @@ const MSG_BOAS_VINDAS =
   "Para vincular seu Telegram ao sistema de RH (e receber as pesquisas por aqui), " +
   "toque no botão \"📱 Compartilhar meu número\" abaixo.\n\n" +
   "Se o botão não aparecer, envie seu CPF (somente números).";
+const MSG_PORTAL_SEM_VINCULO =
+  "Antes de abrir o portal preciso saber quem é você. 🙂\n\n" +
+  "Envie /start e toque em \"📱 Compartilhar meu número\".";
+const MSG_PORTAL_LINK_RECENTE =
+  "Acabei de te mandar um link aqui em cima — use aquele. ⬆️\n\n" +
+  "Se ele já não valer mais, peça /portal de novo daqui a pouco.";
+const MSG_PORTAL_INDISPONIVEL =
+  "O portal está indisponível no momento. Procure o RH. 🙏";
 const MSG_PEDIR_CPF =
   "Não encontrei seu número no cadastro. 🤔\n\n" +
   "Envie seu CPF (somente números) para eu localizar você.";
@@ -87,8 +98,41 @@ async function vincular(
     chatId,
     `Pronto, ${colaborador.nome.split(" ")[0]}! ✅\n\n` +
       "Seu Telegram foi vinculado ao RH da LM Telecom. " +
-      "As pesquisas e comunicados chegarão por aqui.",
+      "As pesquisas e comunicados chegarão por aqui.\n\n" +
+      "Envie /portal quando quiser consultar suas férias, seus dados e seus documentos.",
     REMOVER_TECLADO
+  );
+}
+
+// Manda o link do portal para o chat que pediu — e só para ele. Nunca revela se
+// o chat está vinculado a alguém: quem não tem vínculo recebe a instrução de
+// fazer o /start, sem confirmar ou negar cadastro.
+async function enviarLinkDoPortal(chatId: string): Promise<void> {
+  const colaborador = await prisma.colaborador.findFirst({
+    where: { telegramChatId: chatId, ativo: true },
+    select: { id: true, nome: true },
+  });
+  if (!colaborador) {
+    await sendTelegramMessage(chatId, MSG_PORTAL_SEM_VINCULO, TECLADO_CONTATO);
+    return;
+  }
+
+  const link = await criarLinkDeAcesso(colaborador.id, "TELEGRAM");
+  if (!link.ok) {
+    await sendTelegramMessage(
+      chatId,
+      link.motivo === "link_recente" ? MSG_PORTAL_LINK_RECENTE : MSG_PORTAL_INDISPONIVEL,
+    );
+    return;
+  }
+
+  await sendTelegramMessage(
+    chatId,
+    `Oi, ${colaborador.nome.split(" ")[0]}! Aqui está seu acesso ao portal: 🔐\n\n` +
+      `${link.url}\n\n` +
+      `O link vale ${MINUTOS_VALIDADE_LINK} minutos e abre uma vez só. ` +
+      "Não repasse para ninguém — ele dá acesso aos seus dados. " +
+      "Precisando de outro, é só enviar /portal.",
   );
 }
 
@@ -141,13 +185,19 @@ export async function POST(req: NextRequest) {
 
     const texto = (message.text || "").trim();
 
-    // 2) /start -> boas-vindas com o botão de contato.
+    // 2) /portal -> link de acesso ao portal do colaborador.
+    if (texto.startsWith("/portal")) {
+      await enviarLinkDoPortal(chatId);
+      return NextResponse.json({ ok: true });
+    }
+
+    // 3) /start -> boas-vindas com o botão de contato.
     if (texto.startsWith("/start")) {
       await sendTelegramMessage(chatId, MSG_BOAS_VINDAS, TECLADO_CONTATO);
       return NextResponse.json({ ok: true });
     }
 
-    // 3) CPF digitado.
+    // 4) CPF digitado.
     const cpf = digitos(texto);
     if (cpf.length === 11) {
       const colaborador = await prisma.colaborador.findFirst({
@@ -162,7 +212,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    // 4) Qualquer outra coisa -> instruções.
+    // 5) Qualquer outra coisa -> instruções.
     await sendTelegramMessage(chatId, MSG_BOAS_VINDAS, TECLADO_CONTATO);
   } catch (e) {
     // Nunca propaga erro como 5xx (o Telegram ficaria reenviando o update);
