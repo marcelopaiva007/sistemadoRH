@@ -172,6 +172,29 @@ completo fica para uma fase futura, se for necessário.
   segunda-feira, mesmo se a data de referência cair num domingo (o domingo
   pertence à semana que já passou, não à seguinte).
 
+## Avaliação de desempenho (Fase 3, em andamento)
+
+`CicloAvaliacao` + `AvaliacaoDesempenho` + `NotaCompetencia`, em
+`/rh/<empresa>/avaliacoes`. Uma linha por avaliador de cada colaborador; a aba
+**Desempenho** na ficha mostra o histórico da pessoa em todos os ciclos.
+
+- **Ciclos 90/180/360°** — 90° só o gestor avalia; 180° soma a autoavaliação;
+  360° soma avaliadores extras (par/subordinado), adicionados à mão pelo RH
+  (não há nomeação automática de pares). "Gerar avaliações" cria a
+  autoavaliação e/ou a do gestor conforme o tipo, pulando quem já tem a linha
+  e quem não tem `supervisorId` definido (sem gestor, não tem quem preencher).
+- **Competências vêm de um catálogo fixo** (`lib/constants-avaliacao.ts`),
+  mesmo padrão dos catálogos de EPI/offboarding — sem CRUD de competência por
+  empresa. A nota final é a **média das seis notas** (1 a 5), calculada ao
+  salvar, nunca digitada direto.
+- **Nine-box** cruza desempenho (nota final da avaliação **do gestor**) com
+  potencial (também só o gestor informa) — por isso só a avaliação
+  `tipoAvaliador = GESTOR` alimenta a grade; autoavaliação e pares não têm
+  campo de potencial.
+- **`@@unique([colaboradorId, cicloId, avaliadorId])`** é a única trava contra
+  duplicidade — mesmo avaliador não avalia a mesma pessoa duas vezes no mesmo
+  ciclo, mas o mesmo colaborador pode ter várias linhas (uma por avaliador).
+
 ## Offboarding formal (Fase 3, em andamento)
 
 `ChecklistDesligamento` + `EntrevistaDesligamento` — o que falta depois que a
@@ -352,6 +375,7 @@ Decisões de segurança que valem lembrar antes de mexer:
 | `npm run test:escala` | testes do cálculo de semana (início na segunda, domingo não avança) — não toca o banco |
 | `npm run smoke:escala` | fumaça de escalas — upsert por dia, apagar, copiar semana sem sobrescrever, **sempre em rollback** |
 | `npm run smoke:offboarding` | fumaça de offboarding — checklist padrão, item personalizado, entrevista com constraint de unicidade, **sempre em rollback** |
+| `npm run smoke:avaliacao` | fumaça de avaliação de desempenho — gerar avaliações, nota final por média de competências, faixa do nine-box, avaliador extra e cascata, **sempre em rollback** |
 | `npx tsx scripts/aplicar-migracao.ts <nome> [--dry]` | aplica um `migration.sql` à mão, em transação (ver "Notas sobre o banco") |
 | `npx tsx scripts/importar-colaboradores-elleven.ts [--dry]` | importa/atualiza colaboradores a partir das exportações do elleven (upsert idempotente por CPF → cód. elleven → nome) |
 | `npx tsx scripts/configurar-telegram-webhook.ts` | registra o webhook do bot do Telegram |

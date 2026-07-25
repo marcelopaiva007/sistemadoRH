@@ -17,6 +17,7 @@ import { BeneficiosCard } from "./beneficios-card";
 import { EpisCard } from "./epis-card";
 import { AcidentesCard } from "./acidentes-card";
 import { OffboardingCard } from "./offboarding-card";
+import { DesempenhoCard } from "./desempenho-card";
 
 type Colaborador = Parameters<typeof FichaBlocos>[0]["colaborador"] & {
   ativo: boolean;
@@ -49,6 +50,7 @@ export function ColaboradorDetalhe({
   ausenciasElegiveisAcidente,
   checklistDesligamento,
   entrevistaDesligamento,
+  avaliacoes,
 }: {
   empresaId: string;
   colaborador: Colaborador;
@@ -72,6 +74,7 @@ export function ColaboradorDetalhe({
   ausenciasElegiveisAcidente: Parameters<typeof AcidentesCard>[0]["ausenciasElegiveis"];
   checklistDesligamento: Parameters<typeof OffboardingCard>[0]["checklist"];
   entrevistaDesligamento: Parameters<typeof OffboardingCard>[0]["entrevista"];
+  avaliacoes: Parameters<typeof DesempenhoCard>[0]["avaliacoes"];
 }) {
   const pendencias =
     ferias.filter((f) => f.status === "PENDENTE").length +
@@ -131,6 +134,7 @@ export function ColaboradorDetalhe({
           <TabsTrigger value="beneficios">Benefícios ({beneficios.length})</TabsTrigger>
           <TabsTrigger value="epis">EPIs ({entregasEpi.length})</TabsTrigger>
           <TabsTrigger value="acidentes">Acidentes ({acidentes.length})</TabsTrigger>
+          <TabsTrigger value="desempenho">Desempenho ({avaliacoes.length})</TabsTrigger>
           {colaborador.dataDesligamento && <TabsTrigger value="desligamento">Desligamento</TabsTrigger>}
         </TabsList>
 
@@ -196,6 +200,9 @@ export function ColaboradorDetalhe({
             acidentes={acidentes}
             ausenciasElegiveis={ausenciasElegiveisAcidente}
           />
+        </TabsContent>
+        <TabsContent value="desempenho" className="pt-4">
+          <DesempenhoCard empresaId={empresaId} colaboradorId={colaborador.id} avaliacoes={avaliacoes} />
         </TabsContent>
         {colaborador.dataDesligamento && (
           <TabsContent value="desligamento" className="pt-4">

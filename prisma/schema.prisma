@@ -110,9 +110,9 @@ model Posicao {
 }
 
 model Colaborador {
-  id             String   @id @default(cuid())
+  id             String        @id @default(cuid())
   empresaId      String
-  empresa        Empresa  @relation(fields: [empresaId], references: [id])
+  empresa        Empresa       @relation(fields: [empresaId], references: [id])
   nome           String
   cpf            String?
   email          String?
@@ -128,9 +128,9 @@ model Colaborador {
   // depender de CPF preenchido.
   ellevenCodigo  String?
   setorId        String
-  setor          Setor    @relation(fields: [setorId], references: [id])
+  setor          Setor         @relation(fields: [setorId], references: [id])
   posicaoId      String
-  posicao        Posicao  @relation(fields: [posicaoId], references: [id])
+  posicao        Posicao       @relation(fields: [posicaoId], references: [id])
   // A quem reporta — base do organograma. Sem @relation nomeada explícita não
   // dá porque é auto-relacionamento; onDelete SetNull: se o supervisor sai, o
   // time não é apagado, só fica temporariamente sem líder até o RH realocar.
@@ -141,9 +141,9 @@ model Colaborador {
   // pro colaborador dar /start no bot e lê o chat_id via Bot API getUpdates).
   // Sem isso, o convite da pesquisa não pode ser enviado automaticamente.
   telegramChatId String?
-  ativo          Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  ativo          Boolean       @default(true)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
   // ---- Ficha completa (Core HR) ----
   // Tudo opcional: a base veio do elleven só com nome/CPF/contato e vai sendo
@@ -204,22 +204,23 @@ model Colaborador {
   tokens    SurveyToken[]
   respostas Resposta[]
 
-  dependentes   Dependente[]
-  documentos    DocumentoColaborador[]
-  ferias        SolicitacaoFerias[]
-  ausencias     Ausencia[]
-  acessosPortal PortalAcesso[]
-  sessoesPortal PortalSessao[]
-  certificados  CertificadoNR[]
-  exames        ExameOcupacional[]
-  movimentacoes Movimentacao[] @relation("MovimentacaoDoColaborador")
-  beneficios    BeneficioColaborador[]
-  reconhecimentos Reconhecimento[]
-  entregasEpi   EntregaEPI[]
-  acidentes     AcidenteTrabalho[]
-  escalas       EscalaTurno[]
-  checklistDesligamento ChecklistDesligamento[]
+  dependentes            Dependente[]
+  documentos             DocumentoColaborador[]
+  ferias                 SolicitacaoFerias[]
+  ausencias              Ausencia[]
+  acessosPortal          PortalAcesso[]
+  sessoesPortal          PortalSessao[]
+  certificados           CertificadoNR[]
+  exames                 ExameOcupacional[]
+  movimentacoes          Movimentacao[]          @relation("MovimentacaoDoColaborador")
+  beneficios             BeneficioColaborador[]
+  reconhecimentos        Reconhecimento[]
+  entregasEpi            EntregaEPI[]
+  acidentes              AcidenteTrabalho[]
+  escalas                EscalaTurno[]
+  checklistDesligamento  ChecklistDesligamento[]
   entrevistaDesligamento EntrevistaDesligamento?
+  avaliacoesRecebidas    AvaliacaoDesempenho[]
 
   @@unique([empresaId, cpf])
   @@unique([telegramChatId])
@@ -240,20 +241,20 @@ model Colaborador {
 // que nem usuário do sistema é.
 
 model Dependente {
-  id            String      @id @default(cuid())
-  colaboradorId String
-  colaborador   Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
-  nome          String
-  parentesco    String
+  id             String      @id @default(cuid())
+  colaboradorId  String
+  colaborador    Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  nome           String
+  parentesco     String
   dataNascimento DateTime?
-  cpf           String?
+  cpf            String?
   // Para que o dependente conta — reflete direto em IRRF, salário-família e
   // custo do plano de saúde (usado no bloco de benefícios, Fase 2).
-  irrf          Boolean  @default(false)
-  salarioFamilia Boolean @default(false)
-  planoSaude    Boolean  @default(false)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  irrf           Boolean     @default(false)
+  salarioFamilia Boolean     @default(false)
+  planoSaude     Boolean     @default(false)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
 
   @@index([colaboradorId])
   @@schema("rh")
@@ -296,12 +297,12 @@ model DocumentoColaborador {
   // Quando preenchido, entra no painel de vencimentos (ASO, NRs, contratos).
   validoAte     DateTime?
   observacoes   String?
-  arquivoId     String?  @unique
-  arquivo       Arquivo? @relation(fields: [arquivoId], references: [id], onDelete: SetNull)
+  arquivoId     String?     @unique
+  arquivo       Arquivo?    @relation(fields: [arquivoId], references: [id], onDelete: SetNull)
   criadoPorId   String?
   criadoPorNome String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
 
   @@index([colaboradorId])
   @@index([empresaId, validoAte])
@@ -323,18 +324,18 @@ model SolicitacaoFerias {
   dataFim                 DateTime
   dias                    Int
   // Abono pecuniário: venda de até 1/3 (10 dias) do período — CLT art. 143.
-  diasAbono               Int      @default(0)
-  decimoAntecipado        Boolean  @default(false)
+  diasAbono               Int         @default(0)
+  decimoAntecipado        Boolean     @default(false)
   observacoes             String?
-  status                  String   @default("PENDENTE")
+  status                  String      @default("PENDENTE")
   solicitadoPorId         String?
   solicitadoPorNome       String?
   decididoPorId           String?
   decididoPorNome         String?
   decididoEm              DateTime?
   motivoDecisao           String?
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
+  createdAt               DateTime    @default(now())
+  updatedAt               DateTime    @updatedAt
 
   @@index([empresaId, status])
   @@index([colaboradorId, status])
@@ -352,22 +353,22 @@ model Ausencia {
   dataFim              DateTime
   dias                 Int
   // Abonada = não conta como falta no absenteísmo (atestado aceito, licença).
-  abonada              Boolean  @default(false)
+  abonada              Boolean     @default(false)
   cid                  String?
   profissional         String?
   registroProfissional String?
   observacoes          String?
-  status               String   @default("PENDENTE")
-  arquivoId            String?  @unique
-  arquivo              Arquivo? @relation(fields: [arquivoId], references: [id], onDelete: SetNull)
+  status               String      @default("PENDENTE")
+  arquivoId            String?     @unique
+  arquivo              Arquivo?    @relation(fields: [arquivoId], references: [id], onDelete: SetNull)
   registradoPorId      String?
   registradoPorNome    String?
   decididoPorId        String?
   decididoPorNome      String?
   decididoEm           DateTime?
   motivoDecisao        String?
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
 
   // Back-relation opcional: quando esta ausência é o afastamento decorrente de
   // um acidente de trabalho registrado. Sem coluna aqui — o FK mora do lado do
@@ -387,7 +388,7 @@ model Ausencia {
 // movimentação atualiza Colaborador na mesma transação — o histórico nunca
 // diverge do estado atual porque os dois nascem juntos.
 model Movimentacao {
-  id            String   @id @default(cuid())
+  id            String      @id @default(cuid())
   empresaId     String
   colaboradorId String
   colaborador   Colaborador @relation("MovimentacaoDoColaborador", fields: [colaboradorId], references: [id], onDelete: Cascade)
@@ -395,21 +396,21 @@ model Movimentacao {
   tipo          String
   dataEfetiva   DateTime
 
-  setorAnteriorNome    String?
-  setorNovoId          String?
-  setorNovoNome        String?
-  posicaoAnteriorNome  String?
-  posicaoNovaId        String?
-  posicaoNovaNome      String?
+  setorAnteriorNome      String?
+  setorNovoId            String?
+  setorNovoNome          String?
+  posicaoAnteriorNome    String?
+  posicaoNovaId          String?
+  posicaoNovaNome        String?
   supervisorAnteriorNome String?
   supervisorNovoId       String?
   supervisorNovoNome     String?
 
-  motivo        String?
-  observacoes   String?
+  motivo            String?
+  observacoes       String?
   registradoPorId   String?
   registradoPorNome String?
-  createdAt     DateTime @default(now())
+  createdAt         DateTime @default(now())
 
   @@index([empresaId, dataEfetiva])
   @@index([colaboradorId, dataEfetiva])
@@ -423,24 +424,24 @@ model Movimentacao {
 // Cobertura de dependente já existe como flag em Dependente (irrf/
 // salarioFamilia/planoSaude, da Fase 1) — não duplicado aqui.
 model BeneficioColaborador {
-  id                String      @id @default(cuid())
-  empresaId         String
-  colaboradorId     String
-  colaborador       Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
-  tipo              String
-  operadora         String?
-  plano             String?
+  id               String      @id @default(cuid())
+  empresaId        String
+  colaboradorId    String
+  colaborador      Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  tipo             String
+  operadora        String?
+  plano            String?
   // Custo para a empresa e desconto em folha do colaborador — normalmente
   // diferentes (a empresa costuma subsidiar parte do plano de saúde, por ex).
-  valorEmpresa      Float?
-  valorColaborador  Float?
-  dataInicio        DateTime
-  dataFim           DateTime?
-  observacoes       String?
-  criadoPorId       String?
-  criadoPorNome     String?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  valorEmpresa     Float?
+  valorColaborador Float?
+  dataInicio       DateTime
+  dataFim          DateTime?
+  observacoes      String?
+  criadoPorId      String?
+  criadoPorNome    String?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
 
   @@index([empresaId, tipo])
   @@index([colaboradorId, dataFim])
@@ -462,10 +463,10 @@ model Reconhecimento {
   // duplicidade dentro do mesmo ano.
   ano            Int
   anosCompletos  Int?
-  canal          String   @default("TELEGRAM")
+  canal          String      @default("TELEGRAM")
   enviadoPorId   String?
   enviadoPorNome String?
-  createdAt      DateTime @default(now())
+  createdAt      DateTime    @default(now())
 
   @@unique([colaboradorId, tipo, ano])
   @@index([empresaId, createdAt])
@@ -491,13 +492,13 @@ model Reconhecimento {
 // atualizado à mão, que é onde esse tipo de controle costuma apodrecer.
 
 model RequisitoNR {
-  id        String  @id @default(cuid())
-  empresaId String
-  posicaoId String
-  posicao   Posicao @relation(fields: [posicaoId], references: [id], onDelete: Cascade)
+  id            String   @id @default(cuid())
+  empresaId     String
+  posicaoId     String
+  posicao       Posicao  @relation(fields: [posicaoId], references: [id], onDelete: Cascade)
   // Código da norma ("NR-10", "NR-35", ...) — ver NORMAS_REGULAMENTADORAS em
   // lib/constants-sst.ts.
-  norma     String
+  norma         String
   // Periodicidade da reciclagem em meses (NR-35 e NR-10 básico: 24; NR-10 SEP:
   // 12). Null = treinamento sem reciclagem obrigatória.
   validadeMeses Int?
@@ -524,12 +525,12 @@ model CertificadoNR {
   cargaHoraria  Int?
   instrutor     String?
   observacoes   String?
-  arquivoId     String?  @unique
-  arquivo       Arquivo? @relation(fields: [arquivoId], references: [id], onDelete: SetNull)
+  arquivoId     String?     @unique
+  arquivo       Arquivo?    @relation(fields: [arquivoId], references: [id], onDelete: SetNull)
   criadoPorId   String?
   criadoPorNome String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
 
   @@index([colaboradorId, norma])
   @@index([empresaId, validoAte])
@@ -552,12 +553,12 @@ model ExameOcupacional {
   crm           String?
   clinica       String?
   observacoes   String?
-  arquivoId     String?  @unique
-  arquivo       Arquivo? @relation(fields: [arquivoId], references: [id], onDelete: SetNull)
+  arquivoId     String?     @unique
+  arquivo       Arquivo?    @relation(fields: [arquivoId], references: [id], onDelete: SetNull)
   criadoPorId   String?
   criadoPorNome String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
 
   @@index([colaboradorId, realizadoEm])
   @@index([empresaId, validoAte])
@@ -577,22 +578,22 @@ model EntregaEPI {
   tipo          String
   ca            String?
   fabricante    String?
-  quantidade    Int      @default(1)
+  quantidade    Int         @default(1)
   dataEntrega   DateTime
   validadeMeses Int?
   validoAte     DateTime?
   // PRIMEIRA_ENTREGA | TROCA_PERIODICA | REPOSICAO_DANO | REPOSICAO_PERDA
-  motivo        String   @default("PRIMEIRA_ENTREGA")
+  motivo        String      @default("PRIMEIRA_ENTREGA")
   // Confirmação de que o colaborador assinou o recebimento — a ficha assinada
   // é o que a fiscalização pede, não o cadastro em si.
-  assinado      Boolean  @default(false)
+  assinado      Boolean     @default(false)
   observacoes   String?
-  arquivoId     String?  @unique
-  arquivo       Arquivo? @relation(fields: [arquivoId], references: [id], onDelete: SetNull)
+  arquivoId     String?     @unique
+  arquivo       Arquivo?    @relation(fields: [arquivoId], references: [id], onDelete: SetNull)
   criadoPorId   String?
   criadoPorNome String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
 
   @@index([colaboradorId, tipo])
   @@index([empresaId, validoAte])
@@ -610,33 +611,33 @@ model EntregaEPI {
 // acidente pode existir sem afastamento (sem gravidade que tire do trabalho) e
 // por isso o vínculo é opcional.
 model AcidenteTrabalho {
-  id            String      @id @default(cuid())
-  empresaId     String
-  colaboradorId String
-  colaborador   Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
-  dataHora      DateTime
+  id                 String      @id @default(cuid())
+  empresaId          String
+  colaboradorId      String
+  colaborador        Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  dataHora           DateTime
   // TIPICO | TRAJETO | DOENCA_OCUPACIONAL
-  tipo          String
-  local         String?
-  descricao     String
+  tipo               String
+  local              String?
+  descricao          String
   parteCorpoAtingida String?
-  natureza      String?
-  houveAfastamento Boolean @default(false)
-  ausenciaId    String?   @unique
-  ausencia      Ausencia? @relation(fields: [ausenciaId], references: [id], onDelete: SetNull)
-  catEmitida    Boolean  @default(false)
-  catNumero     String?
-  catEmitidaEm  DateTime?
-  testemunhas   String?
-  medidasCorretivas String?
+  natureza           String?
+  houveAfastamento   Boolean     @default(false)
+  ausenciaId         String?     @unique
+  ausencia           Ausencia?   @relation(fields: [ausenciaId], references: [id], onDelete: SetNull)
+  catEmitida         Boolean     @default(false)
+  catNumero          String?
+  catEmitidaEm       DateTime?
+  testemunhas        String?
+  medidasCorretivas  String?
   // EM_INVESTIGACAO | CONCLUIDO
-  situacao      String   @default("EM_INVESTIGACAO")
-  arquivoId     String?  @unique
-  arquivo       Arquivo? @relation(fields: [arquivoId], references: [id], onDelete: SetNull)
-  registradoPorId   String?
-  registradoPorNome String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  situacao           String      @default("EM_INVESTIGACAO")
+  arquivoId          String?     @unique
+  arquivo            Arquivo?    @relation(fields: [arquivoId], references: [id], onDelete: SetNull)
+  registradoPorId    String?
+  registradoPorNome  String?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
 
   @@index([empresaId, dataHora])
   @@index([colaboradorId, dataHora])
@@ -659,8 +660,8 @@ model EscalaTurno {
   observacoes   String?
   criadoPorId   String?
   criadoPorNome String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
 
   @@unique([colaboradorId, data])
   @@index([empresaId, data])
@@ -677,21 +678,21 @@ model EscalaTurno {
 // "tarefa marcada como feita".
 
 model ChecklistDesligamento {
-  id            String      @id @default(cuid())
-  empresaId     String
-  colaboradorId String
-  colaborador   Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  id               String      @id @default(cuid())
+  empresaId        String
+  colaboradorId    String
+  colaborador      Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
   // Catálogo em lib/constants-offboarding.ts (CRACHA, NOTEBOOK, EPI, ACESSO_SISTEMA, ...) | OUTRO
-  item          String
+  item             String
   // Só usado/obrigatório quando item = OUTRO.
-  descricao     String?
-  concluido     Boolean  @default(false)
-  concluidoEm   DateTime?
+  descricao        String?
+  concluido        Boolean     @default(false)
+  concluidoEm      DateTime?
   concluidoPorId   String?
   concluidoPorNome String?
-  observacoes   String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  observacoes      String?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
 
   @@index([colaboradorId])
   @@index([empresaId, concluido])
@@ -718,10 +719,97 @@ model EntrevistaDesligamento {
   observacoes         String?
   entrevistadoPorId   String?
   entrevistadoPorNome String?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
 
   @@index([empresaId, dataEntrevista])
+  @@schema("rh")
+}
+
+// ------------------------------------------------------
+// AVALIAÇÃO DE DESEMPENHO — FASE 3
+// ------------------------------------------------------
+// Ciclos 90/180/360°: 90 = só o gestor avalia (de cima para baixo); 180 =
+// autoavaliação + gestor; 360 = os dois anteriores mais avaliadores extras
+// (par/subordinado) escolhidos à mão — não há nomeação automática de pares.
+// Competências vêm de um catálogo fixo (lib/constants-avaliacao.ts), no
+// mesmo padrão dos catálogos de EPI/offboarding: não é preciso CRUD de
+// competência por empresa para o escopo atual.
+
+model CicloAvaliacao {
+  id            String    @id @default(cuid())
+  empresaId     String
+  nome          String
+  // "90" | "180" | "360" — ver nota acima.
+  tipo          String
+  dataInicio    DateTime
+  dataFim       DateTime
+  encerrado     Boolean   @default(false)
+  encerradoEm   DateTime?
+  criadoPorId   String?
+  criadoPorNome String?
+  createdAt     DateTime  @default(now())
+
+  avaliacoes AvaliacaoDesempenho[]
+
+  @@index([empresaId, encerrado])
+  @@schema("rh")
+}
+
+// Uma linha por (colaborador avaliado, ciclo, avaliador). Para 90/180 nasce
+// no máximo uma linha AUTOAVALIACAO e uma GESTOR por "Gerar avaliações"; para
+// 360 o RH acrescenta PAR/SUBORDINADO à mão pelo botão de avaliador extra.
+model AvaliacaoDesempenho {
+  id            String         @id @default(cuid())
+  empresaId     String
+  colaboradorId String
+  colaborador   Colaborador    @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  cicloId       String
+  ciclo         CicloAvaliacao @relation(fields: [cicloId], references: [id], onDelete: Cascade)
+
+  // AUTOAVALIACAO | GESTOR | PAR | SUBORDINADO
+  tipoAvaliador String
+  // Referência solta (não FK) — o mesmo padrão de ator usado em toda a base:
+  // preserva o nome de quem avaliou mesmo que o colaborador-avaliador seja
+  // excluído depois.
+  avaliadorId   String
+  avaliadorNome String?
+
+  // Média das notas por competência (1 a 5), calculada ao concluir.
+  notaFinal Float?
+  // Só preenchido na avaliação tipo GESTOR — é o eixo Y do nine-box.
+  // BAIXO | MEDIO | ALTO
+  potencial String?
+
+  pontosFortes          String?
+  pontosDesenvolvimento String?
+  comentarios           String?
+
+  // PENDENTE | CONCLUIDA
+  status      String    @default("PENDENTE")
+  concluidaEm DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  notas NotaCompetencia[]
+
+  @@unique([colaboradorId, cicloId, avaliadorId])
+  @@index([empresaId, cicloId])
+  @@index([colaboradorId])
+  @@schema("rh")
+}
+
+model NotaCompetencia {
+  id          String              @id @default(cuid())
+  avaliacaoId String
+  avaliacao   AvaliacaoDesempenho @relation(fields: [avaliacaoId], references: [id], onDelete: Cascade)
+  // Chave do catálogo em lib/constants-avaliacao.ts.
+  competencia String
+  // 1 a 5.
+  nota        Int
+
+  @@unique([avaliacaoId, competencia])
   @@schema("rh")
 }
 
@@ -833,8 +921,8 @@ model Pergunta {
   invertida    Boolean  @default(false)
   obrigatoria  Boolean  @default(true)
 
-  opcoes  Opcao[]
-  itens   RespostaItem[]
+  opcoes Opcao[]
+  itens  RespostaItem[]
 
   @@unique([pesquisaId, ordem])
   @@index([pesquisaId])
@@ -855,20 +943,20 @@ model Opcao {
 }
 
 model SurveyToken {
-  id            String    @id @default(cuid())
+  id            String      @id @default(cuid())
   pesquisaId    String
   pesquisa      Pesquisa    @relation(fields: [pesquisaId], references: [id], onDelete: Cascade)
   colaboradorId String
   colaborador   Colaborador @relation(fields: [colaboradorId], references: [id])
   // Gerado com crypto.randomBytes(24).toString("base64url") — imprevisível,
   // não apenas único, já que é a única "autenticação" da rota pública /responder.
-  token         String    @unique
-  canal         String    @default("TELEGRAM")
-  status        String    @default("PENDING")
+  token         String      @unique
+  canal         String      @default("TELEGRAM")
+  status        String      @default("PENDING")
   enviadoEm     DateTime?
   respondidoEm  DateTime?
   erro          String?
-  createdAt     DateTime  @default(now())
+  createdAt     DateTime    @default(now())
 
   @@unique([pesquisaId, colaboradorId])
   @@index([status])
@@ -883,7 +971,7 @@ model SurveyToken {
 // por GESTOR_SETOR devem exigir amostra mínima de 3 respostas por
 // (setor × pesquisa) antes de exibir qualquer número.
 model Resposta {
-  id                  String   @id @default(uuid())
+  id                  String       @id @default(uuid())
   pesquisaId          String
   pesquisa            Pesquisa     @relation(fields: [pesquisaId], references: [id], onDelete: Cascade)
   colaboradorId       String?
@@ -903,15 +991,15 @@ model Resposta {
 }
 
 model RespostaItem {
-  id            String    @id @default(uuid())
+  id            String   @id @default(uuid())
   respostaId    String
-  resposta      Resposta  @relation(fields: [respostaId], references: [id], onDelete: Cascade)
+  resposta      Resposta @relation(fields: [respostaId], references: [id], onDelete: Cascade)
   perguntaId    String
-  pergunta      Pergunta  @relation(fields: [perguntaId], references: [id])
+  pergunta      Pergunta @relation(fields: [perguntaId], references: [id])
   valorNumerico Int?
   valorTexto    String?
   opcaoId       String?
-  opcao         Opcao?    @relation(fields: [opcaoId], references: [id])
+  opcao         Opcao?   @relation(fields: [opcaoId], references: [id])
 
   @@index([respostaId])
   @@index([perguntaId])
