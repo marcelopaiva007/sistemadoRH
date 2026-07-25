@@ -214,6 +214,7 @@ model Colaborador {
   exames        ExameOcupacional[]
   movimentacoes Movimentacao[] @relation("MovimentacaoDoColaborador")
   beneficios    BeneficioColaborador[]
+  reconhecimentos Reconhecimento[]
 
   @@unique([empresaId, cpf])
   @@unique([telegramChatId])
@@ -431,6 +432,31 @@ model BeneficioColaborador {
 
   @@index([empresaId, tipo])
   @@index([colaboradorId, dataFim])
+  @@schema("rh")
+}
+
+// Registro de parabéns enviados (aniversário / tempo de casa), pelo mesmo bot
+// do Telegram que já manda convite de pesquisa. A unique de (colaborador,
+// tipo, ano) é o que evita mandar "feliz aniversário" duas vezes no mesmo
+// ano se alguém clicar duas vezes — sem precisar de trava em memória.
+model Reconhecimento {
+  id             String      @id @default(cuid())
+  empresaId      String
+  colaboradorId  String
+  colaborador    Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  // ANIVERSARIO | TEMPO_CASA
+  tipo           String
+  // Ano-calendário do envio (não o ano do evento) — é a chave que impede
+  // duplicidade dentro do mesmo ano.
+  ano            Int
+  anosCompletos  Int?
+  canal          String   @default("TELEGRAM")
+  enviadoPorId   String?
+  enviadoPorNome String?
+  createdAt      DateTime @default(now())
+
+  @@unique([colaboradorId, tipo, ano])
+  @@index([empresaId, createdAt])
   @@schema("rh")
 }
 

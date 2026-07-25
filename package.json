@@ -19,7 +19,9 @@
     "smoke:dp": "tsx scripts/smoke-dp.ts",
     "smoke:sst": "tsx scripts/smoke-sst.ts",
     "smoke:movimentacoes": "tsx scripts/smoke-movimentacoes.ts",
-    "smoke:beneficios": "tsx scripts/smoke-beneficios.ts"
+    "smoke:beneficios": "tsx scripts/smoke-beneficios.ts",
+    "test:reconhecimento": "tsx scripts/test-reconhecimento.ts",
+    "smoke:reconhecimento": "tsx scripts/smoke-reconhecimento.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
