@@ -126,11 +126,16 @@ export function RHEmpresaNav({ empresaId }: { empresaId: string }) {
                 <li key={item.slug}>
                   <Link
                     href={href}
+                    aria-current={ativo ? "page" : undefined}
                     className={cn(
-                      "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+                      // Item ativo marcado por barra + tinta leve, não por
+                      // bloco sólido: com 23 itens na lateral, um retângulo
+                      // azul cheio grita mais que o conteúdo da tela.
+                      "relative flex items-center gap-2 rounded-md py-1.5 pr-2 pl-3 text-sm transition-colors",
+                      "before:absolute before:inset-y-1 before:left-0 before:w-0.5 before:rounded-full before:transition-colors",
                       ativo
-                        ? "bg-primary text-primary-foreground font-medium"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                        ? "bg-primary/8 text-primary font-medium before:bg-primary"
+                        : "text-muted-foreground before:bg-transparent hover:bg-muted hover:text-foreground",
                     )}
                   >
                     <Icon className="size-4 shrink-0" />
