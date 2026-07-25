@@ -19,11 +19,12 @@ export default async function ColaboradorPage({
 
   const colaborador = await prisma.colaborador.findFirst({
     where: { id: colaboradorId, empresaId },
-    include: { setor: true, posicao: true },
+    include: { setor: true, posicao: true, supervisor: { select: { id: true, nome: true } } },
   });
   if (!colaborador) notFound();
 
-  const [dependentes, documentos, ferias, ausencias, requisitos, certificados, exames] = await Promise.all([
+  const [dependentes, documentos, ferias, ausencias, requisitos, certificados, exames, setores, posicoes, candidatosSupervisor, movimentacoes] =
+    await Promise.all([
     prisma.dependente.findMany({ where: { colaboradorId }, orderBy: { nome: "asc" } }),
     prisma.documentoColaborador.findMany({
       where: { colaboradorId },
@@ -96,6 +97,30 @@ export default async function ColaboradorPage({
         arquivo: { select: { id: true, nome: true } },
       },
     }),
+    prisma.setor.findMany({ where: { empresaId, ativo: true }, orderBy: { nome: "asc" } }),
+    prisma.posicao.findMany({ where: { empresaId, ativo: true }, orderBy: { nome: "asc" } }),
+    prisma.colaborador.findMany({
+      where: { empresaId, ativo: true, id: { not: colaboradorId } },
+      orderBy: { nome: "asc" },
+      select: { id: true, nome: true },
+    }),
+    prisma.movimentacao.findMany({
+      where: { colaboradorId },
+      orderBy: { dataEfetiva: "desc" },
+      select: {
+        id: true,
+        tipo: true,
+        dataEfetiva: true,
+        setorAnteriorNome: true,
+        setorNovoNome: true,
+        posicaoAnteriorNome: true,
+        posicaoNovaNome: true,
+        supervisorAnteriorNome: true,
+        supervisorNovoNome: true,
+        motivo: true,
+        registradoPorNome: true,
+      },
+    }),
   ]);
 
   const resumoFerias = colaborador.dataAdmissao
@@ -128,6 +153,10 @@ export default async function ColaboradorPage({
         certificados={certificados}
         exames={exames}
         situacaoExame={situacaoExame}
+        setores={setores}
+        posicoes={posicoes}
+        candidatosSupervisor={candidatosSupervisor}
+        movimentacoes={movimentacoes}
       />
     </div>
   );

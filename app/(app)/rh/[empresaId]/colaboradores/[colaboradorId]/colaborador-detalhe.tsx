@@ -12,12 +12,14 @@ import { DocumentosCard } from "./documentos-card";
 import { FeriasCard } from "./ferias-card";
 import { AusenciasCard } from "./ausencias-card";
 import { SegurancaCard } from "./seguranca-card";
+import { MovimentacoesCard } from "./movimentacoes-card";
 
 type Colaborador = Parameters<typeof FichaBlocos>[0]["colaborador"] & {
   ativo: boolean;
   telegramChatId: string | null;
   setor: { nome: string };
   posicao: { nome: string };
+  supervisor: { id: string; nome: string } | null;
 };
 
 export function ColaboradorDetalhe({
@@ -32,6 +34,10 @@ export function ColaboradorDetalhe({
   certificados,
   exames,
   situacaoExame,
+  setores,
+  posicoes,
+  candidatosSupervisor,
+  movimentacoes,
 }: {
   empresaId: string;
   colaborador: Colaborador;
@@ -44,6 +50,10 @@ export function ColaboradorDetalhe({
   certificados: Parameters<typeof SegurancaCard>[0]["certificados"];
   exames: Parameters<typeof SegurancaCard>[0]["exames"];
   situacaoExame: SituacaoExame;
+  setores: Parameters<typeof MovimentacoesCard>[0]["setores"];
+  posicoes: Parameters<typeof MovimentacoesCard>[0]["posicoes"];
+  candidatosSupervisor: Parameters<typeof MovimentacoesCard>[0]["candidatosSupervisor"];
+  movimentacoes: Parameters<typeof MovimentacoesCard>[0]["movimentacoes"];
 }) {
   const pendencias =
     ferias.filter((f) => f.status === "PENDENTE").length +
@@ -99,6 +109,7 @@ export function ColaboradorDetalhe({
           <TabsTrigger value="seguranca">
             Segurança {irregular && <Badge variant="destructive">!</Badge>}
           </TabsTrigger>
+          <TabsTrigger value="carreira">Carreira ({movimentacoes.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="ficha" className="pt-4">
@@ -130,6 +141,19 @@ export function ColaboradorDetalhe({
             certificados={certificados}
             exames={exames}
             situacaoExame={situacaoExame}
+          />
+        </TabsContent>
+        <TabsContent value="carreira" className="pt-4">
+          <MovimentacoesCard
+            empresaId={empresaId}
+            colaboradorId={colaborador.id}
+            setorAtualNome={colaborador.setor.nome}
+            posicaoAtualNome={colaborador.posicao.nome}
+            supervisorAtual={colaborador.supervisor}
+            setores={setores}
+            posicoes={posicoes}
+            candidatosSupervisor={candidatosSupervisor}
+            movimentacoes={movimentacoes}
           />
         </TabsContent>
       </Tabs>

@@ -9,6 +9,7 @@ export function RHEmpresaNav({ empresaId }: { empresaId: string }) {
   const items = [
     { href: `/rh/${empresaId}/dashboard`, label: "Dashboard" },
     { href: `/rh/${empresaId}/colaboradores`, label: "Colaboradores" },
+    { href: `/rh/${empresaId}/organograma`, label: "Organograma" },
     { href: `/rh/${empresaId}/aprovacoes`, label: "Aprovações" },
     { href: `/rh/${empresaId}/vencimentos`, label: "Vencimentos" },
     { href: `/rh/${empresaId}/conformidade`, label: "Conformidade" },

@@ -17,7 +17,8 @@
     "test:desacoplamento": "tsx scripts/test-desacoplamento.ts",
     "test:conformidade": "tsx scripts/test-conformidade.ts",
     "smoke:dp": "tsx scripts/smoke-dp.ts",
-    "smoke:sst": "tsx scripts/smoke-sst.ts"
+    "smoke:sst": "tsx scripts/smoke-sst.ts",
+    "smoke:movimentacoes": "tsx scripts/smoke-movimentacoes.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
