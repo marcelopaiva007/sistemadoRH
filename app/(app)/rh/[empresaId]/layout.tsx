@@ -14,19 +14,19 @@ export default async function RHEmpresaLayout({
   const { empresaId } = await params;
   const usuario = await requireEmpresaAccess(empresaId);
 
-  const empresa = await prisma.empresa.findUnique({ where: { id: empresaId } });
-  if (!empresa) notFound();
+  // Este layout roda a CADA navegação de menu, então o custo dele entra em
+  // toda troca de tela. Por isso é uma query só: ADMIN/DIRETORIA já recebem a
+  // lista inteira (que o seletor precisa) e a empresa atual sai de dentro
+  // dela, em vez de um findUnique extra.
+  const podeTrocar = usuario?.role === "ADMIN" || usuario?.role === "DIRETORIA";
+  const empresas = await prisma.empresa.findMany({
+    where: podeTrocar ? { ativo: true } : { id: empresaId },
+    orderBy: { nome: "asc" },
+    select: { id: true, nome: true },
+  });
 
-  // ADMIN e DIRETORIA transitam entre as empresas do grupo; RH_MANAGER está
-  // preso à sua — para ele o seletor vira só o nome (ver SeletorEmpresa).
-  const empresas =
-    usuario?.role === "ADMIN" || usuario?.role === "DIRETORIA"
-      ? await prisma.empresa.findMany({
-          where: { ativo: true },
-          orderBy: { nome: "asc" },
-          select: { id: true, nome: true },
-        })
-      : [{ id: empresa.id, nome: empresa.nome }];
+  const empresa = empresas.find((e) => e.id === empresaId);
+  if (!empresa) notFound();
 
   return (
     <div className="flex gap-6">
