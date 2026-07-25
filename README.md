@@ -178,9 +178,11 @@ completo fica para uma fase futura, se for necessário.
 `/rh/<empresa>/vagas`. A vaga publicada ganha uma **página pública de
 inscrição** em `/vagas/<slug>`.
 
-- **`Candidato` existe independente de vaga** — é o banco de talentos.
-  Reprovado numa vaga continua cadastrado e concorre a outra sem recadastrar;
-  excluir a candidatura não apaga o candidato.
+- **`Candidato` existe independente de vaga** — é o banco de talentos, em
+  `/rh/<empresa>/candidatos`. Reprovado numa vaga continua cadastrado e
+  concorre a outra sem recadastrar; excluir a candidatura não apaga o
+  candidato. **"Disponível" é calculado, não gravado**: é quem não está em
+  etapa ativa em nenhuma vaga e ainda não foi contratado.
 - **Etapa é foto, evento é filme** — `Candidatura.etapa` guarda onde a pessoa
   está agora e `EventoCandidatura` o histórico de como chegou lá (mesmo par de
   `Movimentacao` na Fase 2).

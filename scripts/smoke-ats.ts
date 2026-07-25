@@ -8,7 +8,7 @@
 import "dotenv/config";
 import { PrismaClient, Prisma } from "../app/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { gerarSlugVaga } from "../lib/constants-ats";
+import { ETAPAS_EM_ANDAMENTO, gerarSlugVaga } from "../lib/constants-ats";
 import { violouUnique } from "../lib/prisma-erros";
 
 const prisma = new PrismaClient({
@@ -180,6 +180,39 @@ async function main() {
     const candidatoSobrou = await tx.candidato.count({ where: { id: candidato.id } });
     ok(candidaturas === 0 && eventos === 0, "candidaturas e eventos somem com a vaga");
     ok(candidatoSobrou === 1, "o candidato continua no banco de talentos mesmo sem a vaga");
+
+    throw new RollbackProposital();
+  });
+
+  console.log('8. Banco de talentos: quem conta como "disponível"');
+  await rodarComRollback(async (tx) => {
+    const vaga = await tx.vaga.create({
+      data: { empresaId: empresa.id, titulo: "SMOKE — disponibilidade", slug: gerarSlugVaga("SMOKE disp") },
+    });
+    const reprovado = await tx.candidato.create({ data: { empresaId: empresa.id, nome: "SMOKE Reprovado" } });
+    const emProcesso = await tx.candidato.create({ data: { empresaId: empresa.id, nome: "SMOKE EmProcesso" } });
+    const contratado = await tx.candidato.create({ data: { empresaId: empresa.id, nome: "SMOKE Contratado" } });
+
+    await tx.candidatura.create({ data: { empresaId: empresa.id, vagaId: vaga.id, candidatoId: reprovado.id, etapa: "REPROVADO" } });
+    await tx.candidatura.create({ data: { empresaId: empresa.id, vagaId: vaga.id, candidatoId: emProcesso.id, etapa: "ENTREVISTA" } });
+    await tx.candidatura.create({ data: { empresaId: empresa.id, vagaId: vaga.id, candidatoId: contratado.id, etapa: "CONTRATADO" } });
+
+    const todos = await tx.candidato.findMany({
+      where: { empresaId: empresa.id, nome: { startsWith: "SMOKE " } },
+      select: { nome: true, candidaturas: { select: { etapa: true } } },
+    });
+    const ativas = new Set<string>(ETAPAS_EM_ANDAMENTO);
+    const disponiveis = todos
+      .filter(
+        (c) =>
+          !c.candidaturas.some((cd) => ativas.has(cd.etapa)) &&
+          !c.candidaturas.some((cd) => cd.etapa === "CONTRATADO"),
+      )
+      .map((c) => c.nome);
+
+    ok(disponiveis.includes("SMOKE Reprovado"), "reprovado volta a ficar disponível para outra vaga");
+    ok(!disponiveis.includes("SMOKE EmProcesso"), "quem está em entrevista NÃO aparece como disponível");
+    ok(!disponiveis.includes("SMOKE Contratado"), "quem já foi contratado NÃO aparece como disponível");
 
     throw new RollbackProposital();
   });
