@@ -34,7 +34,8 @@
     "smoke:treinamentos": "tsx scripts/smoke-treinamentos.ts",
     "smoke:ats": "tsx scripts/smoke-ats.ts",
     "test:admissao": "tsx scripts/test-admissao.ts",
-    "smoke:onboarding": "tsx scripts/smoke-onboarding.ts"
+    "smoke:onboarding": "tsx scripts/smoke-onboarding.ts",
+    "smoke:folha": "tsx scripts/smoke-folha.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

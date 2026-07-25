@@ -19,6 +19,7 @@ import {
   ListChecks,
   LogOut,
   Network,
+  Receipt,
   Rocket,
   Search,
   ShieldCheck,
@@ -52,6 +53,7 @@ const GRUPOS = [
       { slug: "vencimentos", label: "Vencimentos", icon: CalendarDays },
       { slug: "escalas", label: "Escalas", icon: ClipboardCheck },
       { slug: "beneficios", label: "Benefícios", icon: CreditCard },
+      { slug: "folha", label: "Folha", icon: Receipt },
     ],
   },
   {
