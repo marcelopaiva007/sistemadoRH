@@ -88,6 +88,21 @@ export function formatarDataHoraBrasilia(d: Date): string {
   return d.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
 }
 
+/** Dia do mês de uma data de calendário (aniversário, admissão), em UTC. */
+export function diaDoMes(d: Date): number {
+  return d.getUTCDate();
+}
+
+/** Anos completos entre uma data-base (nascimento, admissão) e hoje. */
+export function anosCompletos(base: Date, hoje: Date = hojeUTC()): number {
+  let anos = hoje.getUTCFullYear() - base.getUTCFullYear();
+  const aindaNaoFezAniversarioEsseAno =
+    hoje.getUTCMonth() < base.getUTCMonth() ||
+    (hoje.getUTCMonth() === base.getUTCMonth() && hoje.getUTCDate() < base.getUTCDate());
+  if (aindaNaoFezAniversarioEsseAno) anos--;
+  return anos;
+}
+
 /** "3 anos e 2 meses" — tempo de casa a partir da admissão. */
 export function tempoDeCasa(dataAdmissao: Date, hoje: Date = hojeUTC()): string {
   let meses =

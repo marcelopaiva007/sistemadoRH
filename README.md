@@ -153,6 +153,21 @@ Brasil (UTC−3) em produção, onde o servidor roda em UTC.
 - Telas: aba **Benefícios** na ficha do colaborador; `/beneficios` — panorama
   por tipo (quantas pessoas, custo mensal para a empresa e desconto em folha).
 
+## Reconhecimento (Fase 2, em andamento)
+
+`/rh/<empresa>/reconhecimento` — aniversariantes e marcos de tempo de casa do
+mês corrente, com botão de enviar parabéns pelo mesmo bot do Telegram já usado
+nas pesquisas.
+
+- **A unique de `(colaboradorId, tipo, ano)` é o que impede mandar duas vezes**
+  no mesmo ano — inclusive protege contra duplo clique, sem precisar de trava
+  em memória: a segunda tentativa esbarra na constraint e é silenciosamente
+  ignorada (a mensagem já foi entregue, não tem como "desenviar").
+- Aniversário usa `dataNascimento`; tempo de casa usa `dataAdmissao`. Sem
+  Telegram vinculado, a pessoa aparece na lista mas sem botão de envio.
+- Marcos "redondos" (1, 3, 5, 10, 15, 20, 25, 30 anos) ganham destaque visual —
+  os demais anos aparecem normalmente, sem realce.
+
 ## Conformidade — Saúde e Segurança (Fase 2, em andamento)
 
 `/rh/<empresa>/conformidade` — matriz de NRs por função e situação de cada
@@ -240,6 +255,8 @@ Decisões de segurança que valem lembrar antes de mexer:
 | `npm run smoke:sst` | fumaça da conformidade contra o banco real — requisito, certificado, ASO, **sempre em rollback** |
 | `npm run smoke:movimentacoes` | fumaça de movimentações/organograma — líder, transferência com histórico, **sempre em rollback** |
 | `npm run smoke:beneficios` | fumaça de benefícios — conceder, custo no painel, encerrar, **sempre em rollback** |
+| `npm run test:reconhecimento` | testes de `anosCompletos` — tempo de casa e marcos redondos (não toca o banco) |
+| `npm run smoke:reconhecimento` | fumaça de reconhecimento — registro e duplicidade no mesmo ano, **sempre em rollback**, nenhuma mensagem enviada |
 | `npx tsx scripts/aplicar-migracao.ts <nome> [--dry]` | aplica um `migration.sql` à mão, em transação (ver "Notas sobre o banco") |
 | `npx tsx scripts/importar-colaboradores-elleven.ts [--dry]` | importa/atualiza colaboradores a partir das exportações do elleven (upsert idempotente por CPF → cód. elleven → nome) |
 | `npx tsx scripts/configurar-telegram-webhook.ts` | registra o webhook do bot do Telegram |
