@@ -131,6 +131,12 @@ model Colaborador {
   setor          Setor    @relation(fields: [setorId], references: [id])
   posicaoId      String
   posicao        Posicao  @relation(fields: [posicaoId], references: [id])
+  // A quem reporta — base do organograma. Sem @relation nomeada explícita não
+  // dá porque é auto-relacionamento; onDelete SetNull: se o supervisor sai, o
+  // time não é apagado, só fica temporariamente sem líder até o RH realocar.
+  supervisorId   String?
+  supervisor     Colaborador?  @relation("SupervisorDoColaborador", fields: [supervisorId], references: [id], onDelete: SetNull)
+  subordinados   Colaborador[] @relation("SupervisorDoColaborador")
   // Chat ID numérico do Telegram do colaborador, obtido manualmente (RH pede
   // pro colaborador dar /start no bot e lê o chat_id via Bot API getUpdates).
   // Sem isso, o convite da pesquisa não pode ser enviado automaticamente.
@@ -206,6 +212,7 @@ model Colaborador {
   sessoesPortal PortalSessao[]
   certificados  CertificadoNR[]
   exames        ExameOcupacional[]
+  movimentacoes Movimentacao[] @relation("MovimentacaoDoColaborador")
 
   @@unique([empresaId, cpf])
   @@unique([telegramChatId])
@@ -213,6 +220,7 @@ model Colaborador {
   @@index([setorId])
   @@index([posicaoId])
   @@index([empresaId, dataAdmissao])
+  @@index([supervisorId])
   @@schema("rh")
 }
 
@@ -355,6 +363,42 @@ model Ausencia {
   @@index([empresaId, status])
   @@index([colaboradorId, dataInicio])
   @@index([empresaId, dataInicio])
+  @@schema("rh")
+}
+
+// Histórico de promoção, transferência de setor e mudança de líder — a base do
+// organograma (Colaborador.supervisorId é a foto atual; isto aqui é o filme).
+// Cada linha guarda o ANTES e o DEPOIS de cada campo que mudou nesse evento;
+// campo null nos dois lados = não mudou nesse evento específico. Aplicar a
+// movimentação atualiza Colaborador na mesma transação — o histórico nunca
+// diverge do estado atual porque os dois nascem juntos.
+model Movimentacao {
+  id            String   @id @default(cuid())
+  empresaId     String
+  colaboradorId String
+  colaborador   Colaborador @relation("MovimentacaoDoColaborador", fields: [colaboradorId], references: [id], onDelete: Cascade)
+  // PROMOCAO | TRANSFERENCIA_SETOR | MUDANCA_SUPERVISOR | MUDANCA_CARGO | OUTRO
+  tipo          String
+  dataEfetiva   DateTime
+
+  setorAnteriorNome    String?
+  setorNovoId          String?
+  setorNovoNome        String?
+  posicaoAnteriorNome  String?
+  posicaoNovaId        String?
+  posicaoNovaNome      String?
+  supervisorAnteriorNome String?
+  supervisorNovoId       String?
+  supervisorNovoNome     String?
+
+  motivo        String?
+  observacoes   String?
+  registradoPorId   String?
+  registradoPorNome String?
+  createdAt     DateTime @default(now())
+
+  @@index([empresaId, dataEfetiva])
+  @@index([colaboradorId, dataEfetiva])
   @@schema("rh")
 }
 

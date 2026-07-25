@@ -121,6 +121,21 @@ Datas de calendário (admissão, férias, validade) são gravadas e exibidas em
 **UTC** via `lib/datas.ts`. Tratadas no fuso local, apareceriam um dia antes no
 Brasil (UTC−3) em produção, onde o servidor roda em UTC.
 
+## Movimentações e organograma (Fase 2, em andamento)
+
+- **Foto e filme.** `Colaborador.supervisorId` é a foto (a quem a pessoa reporta
+  hoje); `Movimentacao` é o filme (cada promoção, transferência ou troca de
+  líder, com o antes e o depois). Aplicar uma movimentação atualiza os dois **na
+  mesma transação** — o histórico nunca diverge do estado atual.
+- **Excluir uma movimentação apaga só o registro histórico**, nunca desfaz a
+  mudança aplicada. Reverter é uma movimentação nova.
+- **Ciclo de liderança é bloqueado** na action (A lidera B que lidera A), com
+  teto de 50 níveis como rede contra loop.
+- **O organograma** (`/rh/<empresa>/organograma`) é montado na hora a partir do
+  `supervisorId` — não existe desenho mantido à parte. Quem reporta a um líder
+  inativo aparece "solto" no topo até ser realocado, em vez de sumir da árvore.
+- Telas: aba **Carreira** na ficha do colaborador + `/organograma` na navegação.
+
 ## Conformidade — Saúde e Segurança (Fase 2, em andamento)
 
 `/rh/<empresa>/conformidade` — matriz de NRs por função e situação de cada
@@ -206,6 +221,7 @@ Decisões de segurança que valem lembrar antes de mexer:
 | `npm run smoke:dp` | fumaça do DP contra o banco real — ficha, anexo em bytea, férias, ausência e auditoria, **sempre em rollback** |
 | `npm run test:conformidade` | testes do motor de conformidade SST — reciclagem, vencimento, exame (não toca o banco) |
 | `npm run smoke:sst` | fumaça da conformidade contra o banco real — requisito, certificado, ASO, **sempre em rollback** |
+| `npm run smoke:movimentacoes` | fumaça de movimentações/organograma — líder, transferência com histórico, **sempre em rollback** |
 | `npx tsx scripts/aplicar-migracao.ts <nome> [--dry]` | aplica um `migration.sql` à mão, em transação (ver "Notas sobre o banco") |
 | `npx tsx scripts/importar-colaboradores-elleven.ts [--dry]` | importa/atualiza colaboradores a partir das exportações do elleven (upsert idempotente por CPF → cód. elleven → nome) |
 | `npx tsx scripts/configurar-telegram-webhook.ts` | registra o webhook do bot do Telegram |
