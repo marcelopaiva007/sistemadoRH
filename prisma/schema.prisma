@@ -205,25 +205,26 @@ model Colaborador {
   tokens    SurveyToken[]
   respostas Resposta[]
 
-  dependentes            Dependente[]
-  documentos             DocumentoColaborador[]
-  ferias                 SolicitacaoFerias[]
-  ausencias              Ausencia[]
-  acessosPortal          PortalAcesso[]
-  sessoesPortal          PortalSessao[]
-  certificados           CertificadoNR[]
-  exames                 ExameOcupacional[]
-  movimentacoes          Movimentacao[]          @relation("MovimentacaoDoColaborador")
-  beneficios             BeneficioColaborador[]
-  reconhecimentos        Reconhecimento[]
-  entregasEpi            EntregaEPI[]
-  acidentes              AcidenteTrabalho[]
-  escalas                EscalaTurno[]
-  checklistDesligamento  ChecklistDesligamento[]
-  entrevistaDesligamento EntrevistaDesligamento?
-  avaliacoesRecebidas    AvaliacaoDesempenho[]
-  metas                  Meta[]
-  pdi                    PlanoDesenvolvimento[]
+  dependentes              Dependente[]
+  documentos               DocumentoColaborador[]
+  ferias                   SolicitacaoFerias[]
+  ausencias                Ausencia[]
+  acessosPortal            PortalAcesso[]
+  sessoesPortal            PortalSessao[]
+  certificados             CertificadoNR[]
+  exames                   ExameOcupacional[]
+  movimentacoes            Movimentacao[]            @relation("MovimentacaoDoColaborador")
+  beneficios               BeneficioColaborador[]
+  reconhecimentos          Reconhecimento[]
+  entregasEpi              EntregaEPI[]
+  acidentes                AcidenteTrabalho[]
+  escalas                  EscalaTurno[]
+  checklistDesligamento    ChecklistDesligamento[]
+  entrevistaDesligamento   EntrevistaDesligamento?
+  avaliacoesRecebidas      AvaliacaoDesempenho[]
+  metas                    Meta[]
+  pdi                      PlanoDesenvolvimento[]
+  participacoesTreinamento ParticipacaoTreinamento[]
 
   @@unique([empresaId, cpf])
   @@unique([telegramChatId])
@@ -278,12 +279,13 @@ model Arquivo {
   criadoPorNome String?
   createdAt     DateTime @default(now())
 
-  documento   DocumentoColaborador?
-  ausencia    Ausencia?
-  certificado CertificadoNR?
-  exame       ExameOcupacional?
-  entregaEpi  EntregaEPI?
-  acidente    AcidenteTrabalho?
+  documento               DocumentoColaborador?
+  ausencia                Ausencia?
+  certificado             CertificadoNR?
+  exame                   ExameOcupacional?
+  entregaEpi              EntregaEPI?
+  acidente                AcidenteTrabalho?
+  participacaoTreinamento ParticipacaoTreinamento?
 
   @@index([empresaId])
   @@schema("rh")
@@ -869,6 +871,61 @@ model PlanoDesenvolvimento {
 
   @@index([empresaId, colaboradorId])
   @@index([empresaId, concluido])
+  @@schema("rh")
+}
+
+// ------------------------------------------------------
+// TREINAMENTOS & TRILHAS (não-NR) — FASE 3
+// ------------------------------------------------------
+// "Não-NR" porque a capacitação obrigatória de segurança (NR-10, NR-35, ...)
+// já mora em RequisitoNR/CertificadoNR desde a Fase 2 — isto aqui é
+// desenvolvimento profissional geral: cursos, workshops, trilhas internas.
+// A "matriz de competências" do roadmap não ganhou modelo próprio: é uma
+// leitura sobre `Treinamento.competencias` (mesmo catálogo fixo da avaliação
+// de desempenho, lib/constants-avaliacao.ts) cruzada com quem participou.
+
+model Treinamento {
+  id           String   @id @default(cuid())
+  empresaId    String
+  nome         String
+  descricao    String?
+  categoria    String?
+  cargaHoraria Int?
+  // Chaves de lib/constants-avaliacao.ts (COMPETENCIAS) — o que este
+  // treinamento desenvolve, usado só na matriz de competências.
+  competencias String[] @default([])
+  ativo        Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  participacoes ParticipacaoTreinamento[]
+
+  @@unique([empresaId, nome])
+  @@index([empresaId, ativo])
+  @@schema("rh")
+}
+
+model ParticipacaoTreinamento {
+  id                 String      @id @default(cuid())
+  empresaId          String
+  colaboradorId      String
+  colaborador        Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  treinamentoId      String
+  treinamento        Treinamento @relation(fields: [treinamentoId], references: [id], onDelete: Cascade)
+  dataRealizacao     DateTime
+  presente           Boolean     @default(true)
+  // 1 a 5, opcional — nota de avaliação/aproveitamento do treinamento.
+  notaAvaliacao      Int?
+  certificadoEmitido Boolean     @default(false)
+  arquivoId          String?     @unique
+  arquivo            Arquivo?    @relation(fields: [arquivoId], references: [id], onDelete: SetNull)
+  observacoes        String?
+  registradoPorId    String?
+  registradoPorNome  String?
+  createdAt          DateTime    @default(now())
+
+  @@unique([colaboradorId, treinamentoId, dataRealizacao])
+  @@index([empresaId, colaboradorId])
+  @@index([empresaId, treinamentoId])
   @@schema("rh")
 }
 

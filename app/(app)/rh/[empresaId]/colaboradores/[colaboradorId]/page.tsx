@@ -28,7 +28,7 @@ export default async function ColaboradorPage({
   });
   if (!colaborador) notFound();
 
-  const [dependentes, documentos, ferias, ausencias, requisitos, certificados, exames, setores, posicoes, candidatosSupervisor, movimentacoes, beneficios, entregasEpi, acidentes, ausenciasElegiveis, checklistDesligamento, entrevistaDesligamento, avaliacoes, metas, pdi] =
+  const [dependentes, documentos, ferias, ausencias, requisitos, certificados, exames, setores, posicoes, candidatosSupervisor, movimentacoes, beneficios, entregasEpi, acidentes, ausenciasElegiveis, checklistDesligamento, entrevistaDesligamento, avaliacoes, metas, pdi, participacoesTreinamento, treinamentosAtivos] =
     await Promise.all([
     prisma.dependente.findMany({ where: { colaboradorId }, orderBy: { nome: "asc" } }),
     prisma.documentoColaborador.findMany({
@@ -228,6 +228,25 @@ export default async function ColaboradorPage({
         concluidoPorNome: true,
       },
     }),
+    prisma.participacaoTreinamento.findMany({
+      where: { colaboradorId },
+      orderBy: [{ dataRealizacao: "desc" }],
+      select: {
+        id: true,
+        dataRealizacao: true,
+        presente: true,
+        notaAvaliacao: true,
+        certificadoEmitido: true,
+        observacoes: true,
+        treinamento: { select: { nome: true, categoria: true } },
+        arquivo: { select: { id: true, nome: true } },
+      },
+    }),
+    prisma.treinamento.findMany({
+      where: { empresaId, ativo: true },
+      orderBy: { nome: "asc" },
+      select: { id: true, nome: true },
+    }),
   ]);
 
   const resumoFerias = colaborador.dataAdmissao
@@ -274,6 +293,8 @@ export default async function ColaboradorPage({
         avaliacoes={avaliacoes}
         metas={metas}
         pdi={pdi}
+        participacoesTreinamento={participacoesTreinamento}
+        treinamentosAtivos={treinamentosAtivos}
       />
     </div>
   );
