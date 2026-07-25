@@ -155,6 +155,23 @@ aba **Acidentes** na ficha traz o histórico da pessoa.
   afastamento é um dado independente que existia antes e continua existindo
   depois.
 
+## Escalas de turno (Fase 3, em andamento)
+
+`EscalaTurno` — grade semanal de plantão por setor, em `/rh/<empresa>/escalas`.
+Deliberadamente **sem cálculo de hora extra ou banco de horas**: é só "quem
+está de plantão em cada dia", o que a operação de campo pediu. Ponto/folha
+completo fica para uma fase futura, se for necessário.
+
+- **Uma linha por (colaborador, dia)**, com `@@unique([colaboradorId, data])`
+  — reatribuir o turno de alguém é `upsert`, nunca empilha registro. A grade
+  inteira funciona sobre essa única constraint.
+- **"Copiar semana anterior" nunca sobrescreve um dia já preenchido** no
+  destino — só completa o que está vazio. Evita que copiar o padrão apague um
+  ajuste manual que já tinha sido feito.
+- Semana calculada em `lib/escala.ts` (`inicioDaSemanaUTC`): sempre começa na
+  segunda-feira, mesmo se a data de referência cair num domingo (o domingo
+  pertence à semana que já passou, não à seguinte).
+
 ## Indicadores — BI inicial (Fase 2)
 
 `/rh/<empresa>/indicadores` — headcount, turnover, absenteísmo e custo de
@@ -316,6 +333,8 @@ Decisões de segurança que valem lembrar antes de mexer:
 | `npm run verificar:bi` | confere as consultas do BI contra o banco real — **read-only**, não escreve nada |
 | `npm run smoke:epi` | fumaça de EPIs — troca vencendo a antiga, assinatura, exclusão sem órfão, **sempre em rollback** |
 | `npm run smoke:cat` | fumaça de acidentes/CAT — vínculo com ausência, emissão de CAT, constraint de duplicidade, **sempre em rollback** |
+| `npm run test:escala` | testes do cálculo de semana (início na segunda, domingo não avança) — não toca o banco |
+| `npm run smoke:escala` | fumaça de escalas — upsert por dia, apagar, copiar semana sem sobrescrever, **sempre em rollback** |
 | `npx tsx scripts/aplicar-migracao.ts <nome> [--dry]` | aplica um `migration.sql` à mão, em transação (ver "Notas sobre o banco") |
 | `npx tsx scripts/importar-colaboradores-elleven.ts [--dry]` | importa/atualiza colaboradores a partir das exportações do elleven (upsert idempotente por CPF → cód. elleven → nome) |
 | `npx tsx scripts/configurar-telegram-webhook.ts` | registra o webhook do bot do Telegram |

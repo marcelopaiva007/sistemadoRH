@@ -217,6 +217,7 @@ model Colaborador {
   reconhecimentos Reconhecimento[]
   entregasEpi   EntregaEPI[]
   acidentes     AcidenteTrabalho[]
+  escalas       EscalaTurno[]
 
   @@unique([empresaId, cpf])
   @@unique([telegramChatId])
@@ -637,6 +638,30 @@ model AcidenteTrabalho {
 
   @@index([empresaId, dataHora])
   @@index([colaboradorId, dataHora])
+  @@schema("rh")
+}
+
+// Escala de turno do campo — quem está de plantão em cada dia, sem entrar em
+// cálculo de hora extra ou banco de horas (isso fica para um módulo futuro de
+// ponto/folha). Uma linha por (colaborador, dia): reatribuir o turno de
+// alguém num dia é update, não um novo registro empilhado.
+model EscalaTurno {
+  id            String      @id @default(cuid())
+  empresaId     String
+  colaboradorId String
+  colaborador   Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  // Dia da escala, meia-noite UTC (é uma data de calendário, não um instante).
+  data          DateTime
+  // MANHA | TARDE | NOITE | INTEGRAL | PLANTAO | FOLGA | OUTRO
+  turno         String
+  observacoes   String?
+  criadoPorId   String?
+  criadoPorNome String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([colaboradorId, data])
+  @@index([empresaId, data])
   @@schema("rh")
 }
 
