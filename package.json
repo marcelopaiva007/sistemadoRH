@@ -31,7 +31,8 @@
     "smoke:offboarding": "tsx scripts/smoke-offboarding.ts",
     "smoke:avaliacao": "tsx scripts/smoke-avaliacao.ts",
     "smoke:metas": "tsx scripts/smoke-metas.ts",
-    "smoke:treinamentos": "tsx scripts/smoke-treinamentos.ts"
+    "smoke:treinamentos": "tsx scripts/smoke-treinamentos.ts",
+    "smoke:ats": "tsx scripts/smoke-ats.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

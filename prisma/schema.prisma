@@ -88,6 +88,7 @@ model Setor {
 
   colaboradores Colaborador[]
   metas         Meta[]
+  vagas         Vaga[]
 
   @@unique([empresaId, nome])
   @@index([empresaId])
@@ -104,6 +105,7 @@ model Posicao {
 
   colaboradores Colaborador[]
   requisitosNR  RequisitoNR[]
+  vagas         Vaga[]
 
   @@unique([empresaId, nome])
   @@index([empresaId])
@@ -286,6 +288,7 @@ model Arquivo {
   entregaEpi              EntregaEPI?
   acidente                AcidenteTrabalho?
   participacaoTreinamento ParticipacaoTreinamento?
+  curriculo               Candidato?
 
   @@index([empresaId])
   @@schema("rh")
@@ -926,6 +929,122 @@ model ParticipacaoTreinamento {
   @@unique([colaboradorId, treinamentoId, dataRealizacao])
   @@index([empresaId, colaboradorId])
   @@index([empresaId, treinamentoId])
+  @@schema("rh")
+}
+
+// ------------------------------------------------------
+// RECRUTAMENTO & SELEÇÃO (ATS) — FASE 4
+// ------------------------------------------------------
+// `Candidato` existe independente de vaga — é o banco de talentos: quem foi
+// reprovado numa vaga continua cadastrado e pode ser reaproveitado noutra sem
+// recadastrar. `Candidatura` é o cruzamento candidato × vaga, com a etapa
+// atual do funil; `EventoCandidatura` guarda o histórico dessas mudanças
+// (mesmo par foto/filme de Movimentacao na Fase 2).
+
+model Vaga {
+  id            String    @id @default(cuid())
+  empresaId     String
+  titulo        String
+  setorId       String?
+  setor         Setor?    @relation(fields: [setorId], references: [id], onDelete: SetNull)
+  posicaoId     String?
+  posicao       Posicao?  @relation(fields: [posicaoId], references: [id], onDelete: SetNull)
+  descricao     String?
+  requisitos    String?
+  tipoContrato  String?
+  // Texto livre ("a combinar", "R$ 2.000 a 2.500") — de propósito não é
+  // número: faixa salarial em vaga pública é decisão de negócio, não cálculo.
+  faixaSalarial String?
+  quantidade    Int       @default(1)
+  // ABERTA | PAUSADA | ENCERRADA
+  status        String    @default("ABERTA")
+  // Endereço da página pública de inscrição (/vagas/<slug>). Sempre gerado,
+  // mas só serve enquanto `publicada` for true e o status for ABERTA.
+  slug          String    @unique
+  publicada     Boolean   @default(false)
+  abertaEm      DateTime  @default(now())
+  encerradaEm   DateTime?
+  criadoPorId   String?
+  criadoPorNome String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  candidaturas Candidatura[]
+
+  @@index([empresaId, status])
+  @@schema("rh")
+}
+
+model Candidato {
+  id              String    @id @default(cuid())
+  empresaId       String
+  nome            String
+  cpf             String?
+  email           String?
+  telefone        String?
+  cidade          String?
+  linkedin        String?
+  observacoes     String?
+  // Currículo anexado (bytea em Arquivo, como todo anexo do sistema).
+  arquivoId       String?   @unique
+  arquivo         Arquivo?  @relation(fields: [arquivoId], references: [id], onDelete: SetNull)
+  // PUBLICO (inscreveu-se sozinho pela página da vaga) | RH | INDICACAO
+  origem          String    @default("RH")
+  // LGPD: quando o candidato aceitou o uso dos dados, na inscrição pública.
+  // Nulo para quem o RH cadastrou à mão — nesse caso o consentimento é papel,
+  // fora do sistema.
+  consentimentoEm DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  candidaturas Candidatura[]
+
+  // CPF nulo não colide (Postgres trata NULL como distinto), então o RH pode
+  // cadastrar candidato sem CPF; a inscrição pública exige, e é isso que
+  // impede a mesma pessoa de se inscrever duas vezes.
+  @@unique([empresaId, cpf])
+  @@index([empresaId, nome])
+  @@schema("rh")
+}
+
+model Candidatura {
+  id            String    @id @default(cuid())
+  empresaId     String
+  vagaId        String
+  vaga          Vaga      @relation(fields: [vagaId], references: [id], onDelete: Cascade)
+  candidatoId   String
+  candidato     Candidato @relation(fields: [candidatoId], references: [id], onDelete: Cascade)
+  // TRIAGEM | ENTREVISTA | TESTE | PROPOSTA | CONTRATADO | REPROVADO | DESISTIU
+  etapa         String    @default("TRIAGEM")
+  motivo        String?
+  observacoes   String?
+  // Preenchido quando a candidatura vira admissão — liga o candidato à ficha
+  // criada. Referência solta (sem FK): excluir o colaborador não pode apagar
+  // o histórico do processo seletivo.
+  colaboradorId String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  eventos EventoCandidatura[]
+
+  @@unique([vagaId, candidatoId])
+  @@index([empresaId, etapa])
+  @@index([candidatoId])
+  @@schema("rh")
+}
+
+model EventoCandidatura {
+  id                String      @id @default(cuid())
+  candidaturaId     String
+  candidatura       Candidatura @relation(fields: [candidaturaId], references: [id], onDelete: Cascade)
+  etapaAnterior     String?
+  etapaNova         String
+  motivo            String?
+  registradoPorId   String?
+  registradoPorNome String?
+  createdAt         DateTime    @default(now())
+
+  @@index([candidaturaId, createdAt])
   @@schema("rh")
 }
 
