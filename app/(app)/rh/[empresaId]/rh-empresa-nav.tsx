@@ -2,55 +2,142 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import {
+  Activity,
+  AlertOctagon,
+  Award,
+  BarChart3,
+  Briefcase,
+  CalendarDays,
+  CheckSquare,
+  ClipboardCheck,
+  CreditCard,
+  FileBarChart,
+  GraduationCap,
+  History,
+  LayoutDashboard,
+  ListChecks,
+  LogOut,
+  Network,
+  Rocket,
+  Search,
+  ShieldCheck,
+  Star,
+  Target,
+  Users,
+  UsersRound,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
+
+// Os grupos são os mesmos 5 blocos do artefato de escopo apresentado à
+// diretoria — a tela reflete o plano, em vez de uma lista plana que só cresce
+// a cada módulo novo. "Configuração" fica por último, separado: é o que se
+// ajusta de vez em quando, não o que se usa todo dia.
+const GRUPOS = [
+  {
+    titulo: "Ciclo de vida",
+    itens: [
+      { slug: "colaboradores", label: "Colaboradores", icon: Users },
+      { slug: "organograma", label: "Organograma", icon: Network },
+      { slug: "vagas", label: "Vagas", icon: Briefcase },
+      { slug: "candidatos", label: "Talentos", icon: Search },
+      { slug: "integracoes", label: "Integrações", icon: Rocket },
+      { slug: "desligamentos", label: "Desligamentos", icon: LogOut },
+    ],
+  },
+  {
+    titulo: "Departamento pessoal",
+    itens: [
+      { slug: "aprovacoes", label: "Aprovações", icon: CheckSquare },
+      { slug: "vencimentos", label: "Vencimentos", icon: CalendarDays },
+      { slug: "escalas", label: "Escalas", icon: ClipboardCheck },
+      { slug: "beneficios", label: "Benefícios", icon: CreditCard },
+    ],
+  },
+  {
+    titulo: "Desempenho & desenvolvimento",
+    itens: [
+      { slug: "avaliacoes", label: "Avaliações", icon: Star },
+      { slug: "metas", label: "Metas & PDI", icon: Target },
+      { slug: "treinamentos", label: "Treinamentos", icon: GraduationCap },
+      { slug: "reconhecimento", label: "Reconhecimento", icon: Award },
+      { slug: "pesquisas", label: "Pesquisas de clima", icon: Activity },
+    ],
+  },
+  {
+    titulo: "Saúde & segurança",
+    itens: [
+      { slug: "conformidade", label: "Conformidade", icon: ShieldCheck },
+      { slug: "acidentes", label: "Acidentes / CAT", icon: AlertOctagon },
+    ],
+  },
+  {
+    titulo: "Gestão",
+    itens: [
+      { slug: "dashboard", label: "Painel de clima", icon: LayoutDashboard },
+      { slug: "indicadores", label: "Indicadores", icon: BarChart3 },
+      { slug: "relatorios", label: "Relatórios", icon: FileBarChart },
+    ],
+  },
+  {
+    titulo: "Configuração",
+    itens: [
+      { slug: "setores", label: "Setores", icon: UsersRound },
+      { slug: "posicoes", label: "Cargos", icon: ListChecks },
+      { slug: "auditoria", label: "Auditoria", icon: History },
+    ],
+  },
+] as const;
 
 export function RHEmpresaNav({ empresaId }: { empresaId: string }) {
   const pathname = usePathname();
-  const items = [
-    { href: `/rh/${empresaId}/dashboard`, label: "Dashboard" },
-    { href: `/rh/${empresaId}/indicadores`, label: "Indicadores" },
-    { href: `/rh/${empresaId}/colaboradores`, label: "Colaboradores" },
-    { href: `/rh/${empresaId}/organograma`, label: "Organograma" },
-    { href: `/rh/${empresaId}/aprovacoes`, label: "Aprovações" },
-    { href: `/rh/${empresaId}/vencimentos`, label: "Vencimentos" },
-    { href: `/rh/${empresaId}/conformidade`, label: "Conformidade" },
-    { href: `/rh/${empresaId}/acidentes`, label: "Acidentes" },
-    { href: `/rh/${empresaId}/escalas`, label: "Escalas" },
-    { href: `/rh/${empresaId}/avaliacoes`, label: "Avaliações" },
-    { href: `/rh/${empresaId}/metas`, label: "Metas" },
-    { href: `/rh/${empresaId}/treinamentos`, label: "Treinamentos" },
-    { href: `/rh/${empresaId}/vagas`, label: "Vagas" },
-    { href: `/rh/${empresaId}/candidatos`, label: "Talentos" },
-    { href: `/rh/${empresaId}/integracoes`, label: "Integrações" },
-    { href: `/rh/${empresaId}/beneficios`, label: "Benefícios" },
-    { href: `/rh/${empresaId}/desligamentos`, label: "Desligamentos" },
-    { href: `/rh/${empresaId}/reconhecimento`, label: "Reconhecimento" },
-    { href: `/rh/${empresaId}/setores`, label: "Setores" },
-    { href: `/rh/${empresaId}/posicoes`, label: "Posições" },
-    { href: `/rh/${empresaId}/pesquisas`, label: "Pesquisas" },
-    { href: `/rh/${empresaId}/relatorios`, label: "Relatórios" },
-    { href: `/rh/${empresaId}/auditoria`, label: "Auditoria" },
-  ];
+  const base = `/rh/${empresaId}`;
 
   return (
-    <nav className="flex flex-wrap gap-1 border-b">
-      {items.map((item) => {
-        const active = pathname.startsWith(item.href);
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={cn(
-              "border-b-2 px-3 py-2 text-sm font-medium transition-colors",
-              active
-                ? "border-primary text-foreground"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            )}
-          >
-            {item.label}
-          </Link>
-        );
-      })}
+    <nav className="space-y-4 pb-6">
+      <Link
+        href={base}
+        className={cn(
+          "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium transition-colors",
+          pathname === base
+            ? "bg-primary text-primary-foreground"
+            : "text-muted-foreground hover:bg-muted hover:text-foreground",
+        )}
+      >
+        <ListChecks className="size-4" />
+        Pendências
+      </Link>
+
+      {GRUPOS.map((grupo) => (
+        <div key={grupo.titulo}>
+          <p className="px-2 pb-1 text-[11px] font-semibold tracking-wide text-muted-foreground/70 uppercase">
+            {grupo.titulo}
+          </p>
+          <ul className="space-y-0.5">
+            {grupo.itens.map((item) => {
+              const href = `${base}/${item.slug}`;
+              const ativo = pathname.startsWith(href);
+              const Icon = item.icon;
+              return (
+                <li key={item.slug}>
+                  <Link
+                    href={href}
+                    className={cn(
+                      "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+                      ativo
+                        ? "bg-primary text-primary-foreground font-medium"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                    )}
+                  >
+                    <Icon className="size-4 shrink-0" />
+                    <span className="truncate">{item.label}</span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
     </nav>
   );
 }

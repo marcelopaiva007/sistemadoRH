@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Sistema do RH | LM Telecom",
-  description: "Clima organizacional e riscos psicossociais (NR-01) — LM Telecom",
+  description: "Sistema de RH do grupo — departamento pessoal, segurança, desempenho e recrutamento",
 };
 
 export default function RootLayout({

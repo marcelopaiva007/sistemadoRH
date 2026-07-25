@@ -79,6 +79,25 @@ Telegram. Separar em bancos distintos, se um dia for preciso, é um
 
 `npm run test:desacoplamento` confere tudo isso contra o banco.
 
+## Navegação
+
+O sistema abre em `/rh`, onde se escolhe a empresa. Dentro dela, a navegação é
+um **menu lateral agrupado pelos 5 blocos do artefato de escopo** (Ciclo de
+vida · Departamento pessoal · Desempenho & desenvolvimento · Saúde & segurança
+· Gestão), mais um grupo **Configuração** no rodapé com o que se ajusta de vez
+em quando (Setores, Cargos, Auditoria).
+
+- **A tela inicial da empresa é a central de pendências** (`/rh/<empresa>`),
+  não um dashboard: mostra o que exige ação hoje — CAT sem emitir, aprovações
+  paradas, ASO/NR vencendo, EPI vencido, integração atrasada — e cada cartão
+  leva para onde a coisa se resolve. Item com prazo legal aparece primeiro e
+  em vermelho.
+- **A empresa continua na URL** (`/rh/<empresaId>/...`). O seletor no topo da
+  lateral troca de empresa mantendo a seção: quem está em Colaboradores da LM
+  Telecom cai em Colaboradores da Centrysol. **Sub-rota é descartada de
+  propósito** — o id de um colaborador da empresa A não existe na B.
+- Para `RH_MANAGER`, preso a uma empresa só, o seletor vira apenas o nome.
+
 ## Papéis de acesso
 
 | Papel | Enxerga |

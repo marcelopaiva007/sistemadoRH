@@ -34,9 +34,9 @@ export function AppTopbar({
         <div className="flex shrink-0 items-center gap-3">
           <Logo width={140} height={34} className="h-8 w-auto" />
           <p className="hidden text-xs leading-tight text-muted-foreground lg:block">
-            RH — Clima
+            Sistema
             <br />
-            Organizacional
+            de RH
           </p>
         </div>
 

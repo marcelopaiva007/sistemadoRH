@@ -23,8 +23,8 @@ export default async function RHHubPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">RH — Clima Organizacional</h1>
-        <p className="text-muted-foreground">Selecione a empresa para gerenciar setores, colaboradores e pesquisas.</p>
+        <h1 className="text-2xl font-semibold tracking-tight">Sistema de RH</h1>
+        <p className="text-muted-foreground">Selecione a empresa para começar.</p>
       </div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {empresas.map((e) => (
