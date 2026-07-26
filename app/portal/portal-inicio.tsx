@@ -7,6 +7,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { sairDoPortal } from "@/lib/actions/portal";
 import { formatarTamanho } from "@/lib/anexos";
+// Mesma máscara usada na listagem interna — o portal confirma identidade,
+// não serve para descobrir o CPF de ninguém.
+import { mascararCpf } from "@/lib/cpf";
 import { statusSolicitacaoLabel, tipoAusenciaLabel, tipoContratoLabel, tipoDocumentoLabel } from "@/lib/constants-dp";
 import { formatarData, tempoDeCasa } from "@/lib/datas";
 import { STATUS_PERIODO_LABEL, type ResumoFerias } from "@/lib/ferias";
@@ -52,12 +55,6 @@ type Ausencia = {
   dias: number;
   status: string;
 };
-
-function mascararCpf(cpf: string | null): string {
-  // O portal confirma a identidade, não serve para descobrir o CPF de ninguém.
-  if (!cpf || cpf.length !== 11) return "—";
-  return `***.${cpf.slice(3, 6)}.${cpf.slice(6, 9)}-**`;
-}
 
 function varianteStatus(status: string) {
   if (status === "APROVADA") return "default" as const;

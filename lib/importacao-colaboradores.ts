@@ -70,6 +70,48 @@ export type LinhaValidada = {
 
 export type ProblemaLinha = { numeroDaLinha: number; nome: string; mensagens: string[] };
 
+/**
+ * Limpa marcações de sistema que vêm coladas no nome.
+ *
+ * A base herdada do Elleven trouxe nomes como "(SERASA) FULANO DE TAL" — o
+ * prefixo é anotação operacional de outro sistema, não parte do nome da
+ * pessoa. Gravado como veio, ele aparece na ficha, na lista, no crachá e no
+ * documento que a pessoa assina.
+ *
+ * Removemos só marcação entre parênteses NO INÍCIO, e só se o que sobra ainda
+ * for um nome. Nada de adivinhar dentro do nome: "(SERASA) João" vira "João",
+ * mas "Maria (Filha)" fica como está.
+ */
+export function limparNome(bruto: string): string {
+  let nome = bruto.trim();
+  // Pode haver mais de uma marcação encadeada.
+  while (true) {
+    const semPrefixo = nome.replace(/^\([^)]{1,20}\)\s*/, "").trim();
+    if (semPrefixo === nome || semPrefixo.length < 3) break;
+    nome = semPrefixo;
+  }
+  return nome.replace(/\s+/g, " ");
+}
+
+/**
+ * Setor literalmente chamado "Não definido" não é um setor — é a ausência de
+ * um. Normalizamos para uma forma só, para não nascerem três variantes
+ * ("Nao definido", "NÃO DEFINIDO", "não definido") como setores distintos.
+ */
+export const SETOR_PENDENTE = "Não definido";
+
+export function normalizarSetor(bruto: string): string {
+  const chave = bruto
+    .trim()
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase();
+  if (chave === "nao definido" || chave === "indefinido" || chave === "sem setor") {
+    return SETOR_PENDENTE;
+  }
+  return bruto.trim();
+}
+
 /** dd/mm/aaaa ou aaaa-mm-dd → ISO aaaa-mm-dd. null = não informado; erro = string ruim. */
 function lerData(valor: string): { iso: string | null } | { erro: string } {
   if (!valor) return { iso: null };
@@ -182,7 +224,7 @@ export function validarPlanilhaColaboradores(
 
   for (const { numeroDaLinha, dados } of linhas) {
     const mensagens: string[] = [];
-    const nome = pegar(dados, "nome");
+    const nome = limparNome(pegar(dados, "nome"));
     if (!nome) mensagens.push("sem nome");
 
     let cpf: string | null = null;
@@ -211,7 +253,7 @@ export function validarPlanilhaColaboradores(
       }
     }
 
-    const setor = pegar(dados, "setor");
+    const setor = normalizarSetor(pegar(dados, "setor"));
     const cargo = pegar(dados, "cargo");
     if (!setor) mensagens.push("sem setor");
     if (!cargo) mensagens.push("sem cargo");
