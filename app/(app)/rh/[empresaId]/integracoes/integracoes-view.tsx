@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { itemOnboardingLabel } from "@/lib/constants-onboarding";
 import { formatarData, diferencaEmDiasUTC, hojeUTC } from "@/lib/datas";
+import { Indicador } from "@/components/indicador";
 
 type Pendente = {
   id: string;
@@ -47,9 +48,9 @@ export function IntegracoesView({
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <Indicador label="Integrações em aberto" valor={emAberto.length} />
-        <Indicador label="Itens atrasados" valor={totalAtrasados} alerta={totalAtrasados > 0} />
-        <Indicador label="Integrações concluídas" valor={concluidas} />
+        <Indicador rotulo="Integrações em aberto" valor={emAberto.length} />
+        <Indicador rotulo="Itens atrasados" valor={totalAtrasados} alerta={totalAtrasados > 0} />
+        <Indicador rotulo="Integrações concluídas" valor={concluidas} />
       </div>
 
       {emAberto.length === 0 ? (
@@ -106,11 +107,3 @@ function SituacaoPrazo({ prazo }: { prazo: Date }) {
   return <span>vence em {dias} d</span>;
 }
 
-function Indicador({ label, valor, alerta }: { label: string; valor: number; alerta?: boolean }) {
-  return (
-    <div className="rounded-lg bg-card px-4 py-3 ring-1 ring-foreground/10">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className={`text-2xl font-semibold tabular-nums ${alerta ? "text-destructive" : ""}`}>{valor}</div>
-    </div>
-  );
-}

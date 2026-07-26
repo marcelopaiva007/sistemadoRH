@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { conferirPlanilha, confirmarImportacao } from "@/lib/actions/rh-importacao";
 import type { RelatorioConferencia, ResultadoImportacao } from "@/lib/actions/rh-importacao";
 import { formatarDataHoraBrasilia } from "@/lib/datas";
+import { Indicador } from "@/components/indicador";
 
 type ItemHistorico = {
   id: string;
@@ -152,9 +153,9 @@ export function ImportacoesView({
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-3">
-              <Numero rotulo="Serão criados" valor={relatorio.criar.length} />
-              <Numero rotulo="Serão atualizados" valor={relatorio.atualizar.length} />
-              <Numero
+              <Indicador rotulo="Serão criados" valor={relatorio.criar.length} />
+              <Indicador rotulo="Serão atualizados" valor={relatorio.atualizar.length} />
+              <Indicador
                 rotulo="Com problema (ficam de fora)"
                 valor={relatorio.problemas.length}
                 alerta={relatorio.problemas.length > 0}
@@ -289,13 +290,3 @@ export function ImportacoesView({
   );
 }
 
-function Numero({ rotulo, valor, alerta }: { rotulo: string; valor: number; alerta?: boolean }) {
-  return (
-    <div className="rounded-lg bg-card px-4 py-3 ring-1 ring-foreground/10">
-      <div className="text-xs text-muted-foreground">{rotulo}</div>
-      <div className={`text-2xl font-semibold tabular-nums ${alerta ? "text-warning" : ""}`}>
-        {valor}
-      </div>
-    </div>
-  );
-}

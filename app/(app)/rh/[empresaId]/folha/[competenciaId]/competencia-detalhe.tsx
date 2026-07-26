@@ -28,6 +28,7 @@ import {
   unidadeLabel,
 } from "@/lib/constants-folha";
 import type { ActionResult } from "@/lib/constants";
+import { Indicador } from "@/components/indicador";
 
 const initialState: ActionResult = { ok: true };
 const classeSelect =
@@ -168,9 +169,9 @@ export function CompetenciaDetalhe({
       )}
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <Indicador label="Pessoas com lançamento" valor={String(pessoas)} />
-        <Indicador label="Proventos em dinheiro" valor={brl(totalProventos)} />
-        <Indicador label="Descontos em dinheiro" valor={brl(totalDescontos)} />
+        <Indicador rotulo="Pessoas com lançamento" valor={String(pessoas)} />
+        <Indicador rotulo="Proventos em dinheiro" valor={brl(totalProventos)} />
+        <Indicador rotulo="Descontos em dinheiro" valor={brl(totalDescontos)} />
       </div>
 
       <Card>
@@ -256,14 +257,6 @@ export function CompetenciaDetalhe({
   );
 }
 
-function Indicador({ label, valor }: { label: string; valor: string }) {
-  return (
-    <div className="rounded-lg bg-card px-4 py-3 ring-1 ring-foreground/10">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="text-xl font-semibold tabular-nums">{valor}</div>
-    </div>
-  );
-}
 
 function LancarForm({
   empresaId,

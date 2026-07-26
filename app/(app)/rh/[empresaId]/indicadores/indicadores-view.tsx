@@ -19,6 +19,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatarReais } from "@/lib/constants-beneficios";
 import type { LinhaAbsenteismo, LinhaCusto, LinhaHeadcount, ResultadoTurnover } from "@/lib/bi";
+import { Indicador } from "@/components/indicador";
 
 export function IndicadoresView({
   headcount,
@@ -65,24 +66,24 @@ export function IndicadoresView({
       )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Kpi
-          label="Headcount ativo"
+        <Indicador variante="cartao"
+          rotulo="Headcount ativo"
           valor={`${totalAtivos}`}
           complemento={`${totalHistorico} já passaram pela empresa`}
         />
-        <Kpi
-          label="Turnover (12 meses)"
+        <Indicador variante="cartao"
+          rotulo="Turnover (12 meses)"
           valor={`${turnover.taxaPct.toFixed(1)}%`}
           complemento={`${turnover.desligados} saída(s) · ${turnover.admissoes} admissão(ões)`}
           alerta={turnover.taxaPct > 20}
         />
-        <Kpi
-          label="Absenteísmo médio"
+        <Indicador variante="cartao"
+          rotulo="Absenteísmo médio"
           valor={`${absenteismoGeral.toFixed(1)}%`}
           complemento={piorAbsenteismo ? `pior: ${piorAbsenteismo.setor} (${piorAbsenteismo.taxaPct.toFixed(1)}%)` : "últimos 30 dias"}
           alerta={absenteismoGeral > 3}
         />
-        <Kpi label="Custo de pessoal/mês" valor={formatarReais(custoTotal)} complemento="folha + benefícios vigentes" />
+        <Indicador variante="cartao" rotulo="Custo de pessoal/mês" valor={formatarReais(custoTotal)} complemento="folha + benefícios vigentes" />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -212,26 +213,3 @@ export function IndicadoresView({
   );
 }
 
-function Kpi({
-  label,
-  valor,
-  complemento,
-  alerta,
-}: {
-  label: string;
-  valor: string;
-  complemento?: string;
-  alerta?: boolean;
-}) {
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm text-muted-foreground">{label}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <p className={`text-2xl font-bold tabular-nums ${alerta ? "text-destructive" : ""}`}>{valor}</p>
-        {complemento && <p className="text-xs text-muted-foreground">{complemento}</p>}
-      </CardContent>
-    </Card>
-  );
-}
