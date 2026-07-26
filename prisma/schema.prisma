@@ -1228,6 +1228,29 @@ model PortalSessao {
   @@schema("rh")
 }
 
+// Histórico de importações em massa (Fase 6, etapa C). Guarda o RESUMO de
+// cada planilha processada — contagens e quem subiu — nunca o conteúdo: o
+// arquivo pode ter CPF e salário, e replicá-lo aqui viraria uma segunda base
+// de dado pessoal fora da ficha.
+model ImportacaoArquivo {
+  id           String   @id @default(cuid())
+  empresaId    String
+  arquivoNome  String
+  tipo         String // "COLABORADORES" (outros tipos entram quando existirem)
+  totalLinhas  Int
+  criados      Int
+  atualizados  Int
+  comErro      Int
+  // Ator em referência branda, como no resto do sistema: apagar o usuário não
+  // pode apagar o histórico do que foi importado.
+  criadoPorId   String?
+  criadoPorNome String?
+  createdAt     DateTime @default(now())
+
+  @@index([empresaId, createdAt])
+  @@schema("rh")
+}
+
 // Trilha de auditoria LGPD: quem viu/alterou dado pessoal e quando. Append-only
 // por convenção — nada no app atualiza ou apaga registros daqui.
 model AuditLog {

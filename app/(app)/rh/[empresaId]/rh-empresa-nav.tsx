@@ -15,6 +15,7 @@ import {
   ClipboardCheck,
   CreditCard,
   FileBarChart,
+  FileUp,
   GraduationCap,
   History,
   LayoutDashboard,
@@ -92,6 +93,7 @@ const GRUPOS = [
       // Estrutura é a única entrada aqui que configura o GRUPO, não a empresa
       // aberta. Fica neste grupo mesmo assim porque é onde se procura por ela.
       { slug: "estrutura", label: "Marcas & CNPJs", icon: Building2 },
+      { slug: "importacoes", label: "Importações", icon: FileUp },
       { slug: "auditoria", label: "Auditoria", icon: History },
     ],
   },
