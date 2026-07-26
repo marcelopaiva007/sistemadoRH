@@ -48,7 +48,9 @@ export function DashboardEmpresa({ empresaId, resumo }: { empresaId: string; res
   ];
 
   return (
-    <section className="space-y-3">
+    // pt-1: o seletor de empresa da lateral é fixo (sticky top-14), então ao
+    // rolar a página este título encostava nele sem folga nenhuma.
+    <section className="space-y-3 pt-1">
       <div className="flex items-baseline justify-between gap-4">
         <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
           Visão da empresa
