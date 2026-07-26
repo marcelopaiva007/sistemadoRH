@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { pendenciasDaEmpresa, totalPendencias } from "@/lib/pendencias";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Indicador } from "@/components/indicador";
 
 // Tela inicial do grupo: quantas pessoas, o que está pendente e por onde
 // entrar. Até 25/07/2026 esta página era um painel de pesquisa de clima
@@ -68,15 +69,15 @@ export default async function HomePage() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Kpi icone={<Users className="size-4" />} rotulo="Colaboradores ativos" valor={totalColaboradores} />
-        <Kpi
+        <Indicador variante="cartao" icone={<Users className="size-4" />} rotulo="Colaboradores ativos" valor={totalColaboradores} />
+        <Indicador variante="cartao"
           icone={<AlertTriangle className="size-4" />}
           rotulo="Pendências"
           valor={totalPend}
           alerta={totalPend > 0}
         />
-        <Kpi icone={<Briefcase className="size-4" />} rotulo="Vagas abertas" valor={totalVagas} />
-        <Kpi icone={<Rocket className="size-4" />} rotulo="Integrações em aberto" valor={totalIntegracoes} />
+        <Indicador variante="cartao" icone={<Briefcase className="size-4" />} rotulo="Vagas abertas" valor={totalVagas} />
+        <Indicador variante="cartao" icone={<Rocket className="size-4" />} rotulo="Integrações em aberto" valor={totalIntegracoes} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
@@ -179,28 +180,3 @@ export default async function HomePage() {
   );
 }
 
-function Kpi({
-  icone,
-  rotulo,
-  valor,
-  alerta,
-}: {
-  icone: React.ReactNode;
-  rotulo: string;
-  valor: number;
-  alerta?: boolean;
-}) {
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="flex items-center gap-2 text-sm font-normal text-muted-foreground">
-          {icone}
-          {rotulo}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <p className={`text-2xl font-bold tabular-nums ${alerta ? "text-destructive" : ""}`}>{valor}</p>
-      </CardContent>
-    </Card>
-  );
-}

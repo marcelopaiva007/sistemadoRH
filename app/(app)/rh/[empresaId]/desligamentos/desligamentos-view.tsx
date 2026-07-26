@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { motivoDesligamentoLabel } from "@/lib/constants-dp";
 import { formatarData } from "@/lib/datas";
+import { Indicador } from "@/components/indicador";
 
 type Desligamento = {
   id: string;
@@ -38,13 +39,13 @@ export function DesligamentosView({
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <Indicador label="Total desligado" valor={resumo.total} />
+        <Indicador rotulo="Total desligado" valor={resumo.total} />
         <Indicador
-          label="Checklist não iniciado / pendente"
+          rotulo="Checklist não iniciado / pendente"
           valor={resumo.semChecklist + resumo.checklistPendente}
           alerta={resumo.semChecklist + resumo.checklistPendente > 0}
         />
-        <Indicador label="Sem entrevista de desligamento" valor={resumo.semEntrevista} />
+        <Indicador rotulo="Sem entrevista de desligamento" valor={resumo.semEntrevista} />
       </div>
 
       <Card>
@@ -120,11 +121,3 @@ export function DesligamentosView({
   );
 }
 
-function Indicador({ label, valor, alerta }: { label: string; valor: number; alerta?: boolean }) {
-  return (
-    <div className="rounded-lg bg-card px-4 py-3 ring-1 ring-foreground/10">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className={`text-2xl font-semibold tabular-nums ${alerta ? "text-destructive" : ""}`}>{valor}</div>
-    </div>
-  );
-}

@@ -4,11 +4,36 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
+/**
+ * Dica visual de que a tabela rola na horizontal.
+ *
+ * O contêiner já rolava — mas sem sinal nenhum, uma coluna cortada na borda
+ * parece defeito de layout, não conteúdo a alcançar. (A auditoria de design
+ * chegou a registrar isso como bug antes de conferir o código.)
+ *
+ * Feito só com CSS, sem JavaScript e sem medir posição de rolagem:
+ * `background-attachment: local` desenha a sombra colada ao CONTEÚDO, e
+ * `scroll` a desenha colada à MOLDURA. Sobrepondo as duas, a sombra some
+ * sozinha na extremidade em que não há mais o que rolar. Custo zero de
+ * runtime, e vale para toda tabela do sistema de uma vez.
+ */
+// Escrito como propriedades arbitrárias inteiras: valor arbitrário do
+// Tailwind não pode conter espaço — quebrar isso em partes gera
+// `background-image: none` silenciosamente (foi o que aconteceu na primeira
+// tentativa, pego conferindo o CSS do build).
+const SOMBRA_DE_ROLAGEM = cn(
+  "[background-image:linear-gradient(to_right,var(--card),transparent),linear-gradient(to_left,var(--card),transparent),linear-gradient(to_right,rgba(15,23,42,0.13),transparent),linear-gradient(to_left,rgba(15,23,42,0.13),transparent)]",
+  "[background-size:28px_100%,28px_100%,12px_100%,12px_100%]",
+  "[background-position:left_center,right_center,left_center,right_center]",
+  "[background-repeat:no-repeat]",
+  "[background-attachment:local,local,scroll,scroll]",
+)
+
 function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
     <div
       data-slot="table-container"
-      className="relative w-full overflow-x-auto"
+      className={cn("relative w-full overflow-x-auto", SOMBRA_DE_ROLAGEM)}
     >
       <table
         data-slot="table"

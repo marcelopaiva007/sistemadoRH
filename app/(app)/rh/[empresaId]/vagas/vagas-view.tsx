@@ -18,6 +18,7 @@ import { statusVagaLabel } from "@/lib/constants-ats";
 import { TIPOS_CONTRATO } from "@/lib/constants-dp";
 import { formatarData } from "@/lib/datas";
 import type { ActionResult } from "@/lib/constants";
+import { Indicador } from "@/components/indicador";
 
 const initialState: ActionResult = { ok: true };
 const classeSelect =
@@ -87,9 +88,9 @@ export function VagasView({
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <Indicador label="Vagas abertas" valor={abertas} />
-        <Indicador label="Posições em aberto" valor={posicoesEmAberto} />
-        <Indicador label="Candidatos em processo" valor={candidatosAtivos} />
+        <Indicador rotulo="Vagas abertas" valor={abertas} />
+        <Indicador rotulo="Posições em aberto" valor={posicoesEmAberto} />
+        <Indicador rotulo="Candidatos em processo" valor={candidatosAtivos} />
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-card px-4 py-3">
@@ -200,14 +201,6 @@ function BotaoCopiarLink({ slug }: { slug: string }) {
   );
 }
 
-function Indicador({ label, valor }: { label: string; valor: number }) {
-  return (
-    <div className="rounded-lg bg-card px-4 py-3 ring-1 ring-foreground/10">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="text-2xl font-semibold tabular-nums">{valor}</div>
-    </div>
-  );
-}
 
 function NovaVagaForm({
   empresaId,

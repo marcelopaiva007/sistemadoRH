@@ -15,6 +15,7 @@ import { definirRequisitoNR, removerRequisitoNR } from "@/lib/actions/rh-sst";
 import { NORMAS_REGULAMENTADORAS, validadePadraoDaNorma } from "@/lib/constants-sst";
 import { SITUACAO_LABEL, type ConformidadeColaborador, type SituacaoExame, type SituacaoItem } from "@/lib/conformidade";
 import type { ActionResult } from "@/lib/constants";
+import { Indicador } from "@/components/indicador";
 
 type Posicao = {
   id: string;
@@ -88,18 +89,18 @@ export function ConformidadeView({
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Indicador
-          label="Colaboradores ativos"
+          rotulo="Colaboradores ativos"
           valor={`${resumo.totalColaboradores}`}
           alerta={false}
         />
         <Indicador
-          label="Em dia com as NRs da função"
+          rotulo="Em dia com as NRs da função"
           valor={percentualNR === null ? "—" : `${percentualNR}%`}
           complemento={resumo.totalComRequisito > 0 ? `${resumo.regularesNR}/${resumo.totalComRequisito}` : "nenhuma NR exigida ainda"}
           alerta={percentualNR !== null && percentualNR < 100}
         />
         <Indicador
-          label="ASO em dia"
+          rotulo="ASO em dia"
           valor={percentualExame === null ? "—" : `${percentualExame}%`}
           complemento={`${resumo.examesEmDia}/${resumo.totalComExameExigivel}`}
           alerta={percentualExame !== null && percentualExame < 100}
@@ -326,22 +327,3 @@ function FormularioRequisito({
   );
 }
 
-function Indicador({
-  label,
-  valor,
-  complemento,
-  alerta,
-}: {
-  label: string;
-  valor: string;
-  complemento?: string;
-  alerta: boolean;
-}) {
-  return (
-    <div className="rounded-lg bg-card px-4 py-3 ring-1 ring-foreground/10">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className={`text-2xl font-semibold tabular-nums ${alerta ? "text-destructive" : ""}`}>{valor}</div>
-      {complemento && <div className="text-xs text-muted-foreground">{complemento}</div>}
-    </div>
-  );
-}

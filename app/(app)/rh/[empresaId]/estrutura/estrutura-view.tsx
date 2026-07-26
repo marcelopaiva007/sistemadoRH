@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { criarMarca, editarMarca, criarEmpresa, editarEmpresa } from "@/lib/actions/rh-estrutura";
 import { formatarCnpj, UFS } from "@/lib/cnpj";
 import type { ActionResult } from "@/lib/constants";
+import { Indicador } from "@/components/indicador";
 
 const initialState: ActionResult = { ok: true };
 const classeSelect =
@@ -78,9 +79,9 @@ export function EstruturaView({
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <Indicador label="Marcas" valor={marcas.length} />
-        <Indicador label="CNPJs cadastrados" valor={totalCnpjs} />
-        <Indicador label="Colaboradores no grupo" valor={totalPessoas} />
+        <Indicador rotulo="Marcas" valor={marcas.length} />
+        <Indicador rotulo="CNPJs cadastrados" valor={totalCnpjs} />
+        <Indicador rotulo="Colaboradores no grupo" valor={totalPessoas} />
       </div>
 
       {semCnpj.length > 0 && (
@@ -243,14 +244,6 @@ function LinhaEmpresa({
   );
 }
 
-function Indicador({ label, valor }: { label: string; valor: number }) {
-  return (
-    <div className="rounded-lg bg-card px-4 py-3 ring-1 ring-foreground/10">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="text-2xl font-semibold tabular-nums">{valor}</div>
-    </div>
-  );
-}
 
 function MarcaForm({ marca, onSuccess }: { marca?: Marca; onSuccess: () => void }) {
   const [state, formAction, isPending] = useActionState(async (prev: ActionResult, fd: FormData) => {

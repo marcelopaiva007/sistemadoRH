@@ -9,6 +9,7 @@ import { DIAS_ALERTA_VENCIMENTO, tipoDocumentoLabel } from "@/lib/constants-dp";
 import { tipoExameLabel } from "@/lib/constants-sst";
 import { tipoEpiLabel } from "@/lib/constants-epi";
 import { diferencaEmDiasUTC, formatarData, hojeUTC, somarDiasUTC } from "@/lib/datas";
+import { Indicador } from "@/components/indicador";
 
 // Painel de vencimentos: o que está prestes a vencer (ou já venceu) na empresa,
 // num lugar só — documentos com validade (ASO, NRs, contratos) e férias no
@@ -153,13 +154,13 @@ export default async function VencimentosPage({
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-6">
-        <Indicador label="Documentos vencidos" valor={vencidos} alerta={vencidos > 0} />
-        <Indicador label="Documentos a vencer" valor={documentos.length - vencidos} />
-        <Indicador label="Treinamentos NR" valor={certificadosVigentes.length} complemento={`${nrVencidos} vencido(s)`} alerta={nrVencidos > 0} />
-        <Indicador label="ASO / PCMSO" valor={examesVigentes.length} complemento={`${asoVencidos} vencido(s)`} alerta={asoVencidos > 0} />
-        <Indicador label="EPIs para trocar" valor={episVigentes.length} complemento={`${epiVencidos} vencido(s)`} alerta={epiVencidos > 0} />
+        <Indicador rotulo="Documentos vencidos" valor={vencidos} alerta={vencidos > 0} />
+        <Indicador rotulo="Documentos a vencer" valor={documentos.length - vencidos} />
+        <Indicador rotulo="Treinamentos NR" valor={certificadosVigentes.length} complemento={`${nrVencidos} vencido(s)`} alerta={nrVencidos > 0} />
+        <Indicador rotulo="ASO / PCMSO" valor={examesVigentes.length} complemento={`${asoVencidos} vencido(s)`} alerta={asoVencidos > 0} />
+        <Indicador rotulo="EPIs para trocar" valor={episVigentes.length} complemento={`${epiVencidos} vencido(s)`} alerta={epiVencidos > 0} />
         <Indicador
-          label="Férias vencidas ou vencendo"
+          rotulo="Férias vencidas ou vencendo"
           valor={feriasEmRisco.length}
           alerta={feriasEmRisco.some((f) => f.periodo.status === "VENCIDO")}
         />
@@ -456,24 +457,3 @@ export default async function VencimentosPage({
   );
 }
 
-function Indicador({
-  label,
-  valor,
-  complemento,
-  alerta,
-}: {
-  label: string;
-  valor: number;
-  complemento?: string;
-  alerta?: boolean;
-}) {
-  return (
-    <div className="rounded-lg bg-card px-4 py-3 ring-1 ring-foreground/10">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className={`text-2xl font-semibold tabular-nums ${alerta ? "text-destructive" : ""}`}>
-        {valor}
-      </div>
-      {complemento && <div className="text-xs text-muted-foreground">{complemento}</div>}
-    </div>
-  );
-}

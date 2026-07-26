@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { situacaoAcidenteLabel, tipoAcidenteLabel } from "@/lib/constants-cat";
 import { formatarDataHoraBrasilia } from "@/lib/datas";
+import { Indicador } from "@/components/indicador";
 
 type Acidente = {
   id: string;
@@ -42,9 +43,9 @@ export function AcidentesView({
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <Indicador label="Total registrado" valor={resumo.total} />
-        <Indicador label="CAT pendente de emissão" valor={resumo.catsPendentes} alerta={resumo.catsPendentes > 0} />
-        <Indicador label="Em investigação" valor={resumo.emInvestigacao} />
+        <Indicador rotulo="Total registrado" valor={resumo.total} />
+        <Indicador rotulo="CAT pendente de emissão" valor={resumo.catsPendentes} alerta={resumo.catsPendentes > 0} />
+        <Indicador rotulo="Em investigação" valor={resumo.emInvestigacao} />
       </div>
 
       {resumo.catsPendentes > 0 && (
@@ -124,11 +125,3 @@ export function AcidentesView({
   );
 }
 
-function Indicador({ label, valor, alerta }: { label: string; valor: number; alerta?: boolean }) {
-  return (
-    <div className="rounded-lg bg-card px-4 py-3 ring-1 ring-foreground/10">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className={`text-2xl font-semibold tabular-nums ${alerta ? "text-destructive" : ""}`}>{valor}</div>
-    </div>
-  );
-}
