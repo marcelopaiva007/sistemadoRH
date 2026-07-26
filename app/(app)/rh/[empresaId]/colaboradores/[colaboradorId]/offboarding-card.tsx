@@ -179,7 +179,7 @@ export function OffboardingCard({
             </ul>
           )}
           {tudoConcluido && (
-            <div className="mt-3 flex items-center gap-2 text-sm text-teal-600 dark:text-teal-400">
+            <div className="mt-3 flex items-center gap-2 text-sm text-success">
               <CheckCircle2 className="size-4" />
               Checklist concluído.
             </div>

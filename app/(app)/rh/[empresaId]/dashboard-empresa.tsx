@@ -73,7 +73,7 @@ export function DashboardEmpresa({ empresaId, resumo }: { empresaId: string; res
                   {c.rotulo}
                 </div>
                 <div className="text-2xl font-semibold tabular-nums">{c.valor}</div>
-                <p className={`text-xs ${c.alerta ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}>
+                <p className={`text-xs ${c.alerta ? "text-warning" : "text-muted-foreground"}`}>
                   {c.apoio}
                 </p>
               </CardContent>
