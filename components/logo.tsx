@@ -9,9 +9,27 @@ import { cn } from "@/lib/utils";
  * - `lm-telecom-icon.png`        → logo horizontal (usada como fallback do ícone)
  *
  * No dark mode a versão branca é exibida automaticamente.
+ *
+ * ── Recorte da faixa inferior ────────────────────────────────────────────
+ * O arquivo colorido tem 1024x190, e o slogan "MAIS QUE INTERNET" está
+ * pintado de BRANCO PURO nas linhas 171 a 190. Medido pixel a pixel: até a
+ * linha 170 há arte colorida; da 171 em diante são ~1.000 pixels claros e 8
+ * coloridos.
+ *
+ * Ou seja: o arquivo foi feito para fundo escuro. Sobre o nosso fundo claro
+ * (#f6f8fb) o slogan dá ~1,04:1 de contraste — não é "difícil de ler", é
+ * invisível, e ainda ocupa 10% da altura da logo como espaço vazio.
+ *
+ * Enquanto não vier um arquivo próprio para fundo claro, exibimos só a parte
+ * que aparece: proporção de 1024x170 com `object-cover` ancorado no topo.
+ * Nada é redesenhado — apenas deixamos de reservar espaço para o que não se
+ * vê. A versão branca não precisa disso: sobre fundo escuro o slogan aparece.
  */
 const LOGO_COLOR = "/lm-telecom-logo.png";
 const LOGO_WHITE = "/lm-telecom-logo-branca.png";
+
+/** 1024x190 é o arquivo; 170 é onde a arte colorida termina. */
+const RECORTE_CLARO = "aspect-[1024/170] object-cover object-top";
 
 /** Logo horizontal completa (símbolo + wordmark), do arquivo original. */
 export function Logo({
@@ -34,7 +52,7 @@ export function Logo({
         height={height}
         priority
         unoptimized
-        className={cn("object-contain dark:hidden", className)}
+        className={cn(RECORTE_CLARO, "dark:hidden", className)}
       />
       <Image
         src={LOGO_WHITE}
