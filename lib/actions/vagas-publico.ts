@@ -4,6 +4,9 @@ import { prisma } from "@/lib/prisma";
 import { lerAnexo } from "@/lib/anexos";
 import { registrarAuditoria } from "@/lib/audit";
 import { violouUnique } from "@/lib/prisma-erros";
+// A mesma conta de CPF do importador de planilhas — uma implementação só,
+// para os dois nunca discordarem sobre o que é um CPF válido.
+import { apenasDigitosCpf as soDigitos, cpfValido } from "@/lib/cpf";
 import type { ActionResult } from "@/lib/constants";
 
 // Server action SEM sessão — roda a partir de /vagas/<slug>, página pública.
@@ -14,22 +17,6 @@ import type { ActionResult } from "@/lib/constants";
 // cadastro pelo RH) e a constraint @@unique([vagaId, candidatoId]) barra a
 // segunda tentativa da mesma pessoa na mesma vaga.
 
-const soDigitos = (v: string) => v.replace(/\D/g, "");
-
-/** Validação de CPF pelos dígitos verificadores — evita lixo no banco de talentos. */
-function cpfValido(cpf: string): boolean {
-  if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) return false;
-  for (const [comprimento, posicaoDigito] of [
-    [9, 9],
-    [10, 10],
-  ]) {
-    let soma = 0;
-    for (let i = 0; i < comprimento; i++) soma += Number(cpf[i]) * (comprimento + 1 - i);
-    const resto = (soma * 10) % 11 % 10;
-    if (resto !== Number(cpf[posicaoDigito])) return false;
-  }
-  return true;
-}
 
 export async function inscreverSePublicamente(
   slug: string,
