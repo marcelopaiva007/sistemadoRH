@@ -3,7 +3,7 @@
 import { useActionState, useMemo, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Eye, EyeOff, Plus, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -39,6 +39,7 @@ import {
   deleteColaborador,
   toggleColaboradorAtivo,
 } from "@/lib/actions/rh-colaboradores";
+import { formatarCpf, mascararCpf } from "@/lib/cpf";
 import type { ActionResult } from "@/lib/constants";
 
 type Setor = { id: string; nome: string };
@@ -58,9 +59,51 @@ type Colaborador = {
 
 const initialState: ActionResult = { ok: true };
 
-function formatarCpf(cpf: string | null): string {
-  if (!cpf || cpf.length !== 11) return cpf ?? "—";
-  return `${cpf.slice(0, 3)}.${cpf.slice(3, 6)}.${cpf.slice(6, 9)}-${cpf.slice(9)}`;
+/**
+ * CPF mascarado por padrão, revelado por gesto.
+ *
+ * O portal do colaborador já mascarava; esta listagem mostrava o número
+ * inteiro — e é ela que abre com 208 pessoas de uma vez. Quem procura uma
+ * pessoa não precisa ver o CPF de todas as outras no caminho.
+ *
+ * O estado é POR LINHA de propósito: revelar uma não revela as demais, então
+ * a tela nunca volta a exibir a lista completa de números.
+ */
+function CelulaCpf({ cpf }: { cpf: string | null }) {
+  const [revelado, setRevelado] = useState(false);
+
+  if (!cpf) return <span className="text-muted-foreground">—</span>;
+
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className="tabular-nums">{revelado ? formatarCpf(cpf) : mascararCpf(cpf)}</span>
+      <button
+        type="button"
+        onClick={() => setRevelado((v) => !v)}
+        className="text-muted-foreground transition-colors hover:text-foreground"
+        aria-label={revelado ? "Ocultar CPF" : "Revelar CPF"}
+        title={revelado ? "Ocultar" : "Revelar para conferir com o documento"}
+      >
+        {revelado ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+      </button>
+    </span>
+  );
+}
+
+// A importação do Elleven trouxe setor literalmente chamado "Não definido".
+// Ele não é um setor — é a ausência de um. Exibir como texto normal faz
+// parecer cadastro completo; como etiqueta, fica claro que falta preencher.
+const SETOR_AUSENTE = "não definido";
+
+function CelulaSetor({ nome }: { nome: string }) {
+  if (nome.trim().toLowerCase() === SETOR_AUSENTE) {
+    return (
+      <Badge variant="outline" className="text-muted-foreground font-normal">
+        Setor pendente
+      </Badge>
+    );
+  }
+  return <>{nome}</>;
 }
 
 export function ColaboradoresTable({
@@ -147,11 +190,15 @@ export function ColaboradoresTable({
                     {c.nome}
                   </Link>
                 </TableCell>
-                <TableCell className="whitespace-nowrap tabular-nums">{formatarCpf(c.cpf)}</TableCell>
+                <TableCell className="whitespace-nowrap">
+                  <CelulaCpf cpf={c.cpf} />
+                </TableCell>
                 <TableCell className="max-w-56 truncate text-muted-foreground" title={c.email ?? undefined}>
                   {c.email ?? "—"}
                 </TableCell>
-                <TableCell>{c.setor.nome}</TableCell>
+                <TableCell>
+                  <CelulaSetor nome={c.setor.nome} />
+                </TableCell>
                 <TableCell>{c.posicao.nome}</TableCell>
                 <TableCell>
                   {c.telegramChatId ? (

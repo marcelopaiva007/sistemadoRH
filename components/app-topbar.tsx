@@ -21,9 +21,12 @@ const ROLE_LABELS: Record<string, string> = {
 export function AppTopbar({
   role,
   nome,
+  versao,
 }: {
   role: string;
   nome: string;
+  /** Ex.: "v1.0.0 - a1b2c3d". Vem do layout: o commit so existe no servidor. */
+  versao: string;
 }) {
   const pathname = usePathname();
   const items = navByRole[role] ?? diretoriaNav;
@@ -33,11 +36,11 @@ export function AppTopbar({
       <div className="flex h-14 items-center gap-4 px-4">
         <div className="flex shrink-0 items-center gap-3">
           <Logo width={140} height={34} className="h-8 w-auto" />
-          <p className="hidden text-xs leading-tight text-muted-foreground lg:block">
-            Sistema
-            <br />
-            de RH
-          </p>
+          <div className="hidden leading-tight lg:block">
+            <p className="text-xs text-muted-foreground">Sistema de RH</p>
+            {/* Responde "estou vendo a versao nova?" sem sair da tela. */}
+            <p className="font-mono text-[10px] text-muted-foreground/70">{versao}</p>
+          </div>
         </div>
 
         <nav className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
