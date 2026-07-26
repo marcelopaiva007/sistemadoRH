@@ -17,15 +17,22 @@ const nextConfig: NextConfig = {
   images: {
     // O projeto não otimiza imagem nenhuma: os três usos de next/image (o
     // logo, em components/logo.tsx) já passam `unoptimized`, e não há foto de
-    // catálogo nem conteúdo visual dinâmico.
+    // catálogo nem conteúdo visual dinâmico. Isto declara no nível do projeto
+    // o que já valia em cada uso.
     //
-    // Mesmo assim o endpoint /_next/image ficava de pé em produção,
-    // respondendo 200 e alimentando o `sharp` — que carrega as
-    // vulnerabilidades herdadas do libvips (aviso GHSA-f88m-g3jw-g9cj, versão
-    // instalada 0.34.5, corrigida só a partir da 0.35).
+    // ATENÇÃO, medido em produção: isto NÃO desliga o endpoint /_next/image
+    // na Vercel. Ele continua respondendo 200 e redimensionando de verdade —
+    // quem serve é a plataforma (`Server: Vercel`), não o build do Next, e a
+    // configuração daqui não a alcança. Para fechar de fato, é no painel da
+    // Vercel.
     //
-    // Desligar remove a superfície inteira em vez de perseguir a versão do
-    // sharp, e não muda nada na tela: todo uso já era `unoptimized`.
+    // Por que ainda assim não é exposição relevante: o endpoint só aceita
+    // caminho local do próprio projeto. Testado — rota protegida devolve 307,
+    // caminho de API 400, URL externa 400, travessia de diretório 400. Ou
+    // seja, só processa as nossas imagens; não há como um estranho entregar
+    // imagem criada por ele, que é o que as falhas herdadas do libvips
+    // (GHSA-f88m-g3jw-g9cj, sharp 0.34.5) exigiriam. E o processamento roda
+    // na infraestrutura da Vercel, não no sharp que vem no nosso pacote.
     unoptimized: true,
   },
   experimental: {
