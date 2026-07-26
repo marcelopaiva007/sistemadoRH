@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { AlertTriangle, Briefcase, Building2, CheckCircle2, Rocket, Users } from "lucide-react";
+import { AlertTriangle, Briefcase, Building2, CheckCircle2, CircleDashed, Rocket, Users } from "lucide-react";
 import { requireUser } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { pendenciasDaEmpresa, totalPendencias } from "@/lib/pendencias";
@@ -87,6 +87,12 @@ export default async function HomePage() {
           const integracoesAbertas = marca.itens.reduce((a, r) => a + r.integracoesAbertas, 0);
           const pend = marca.itens.reduce((a, r) => a + totalPendencias(r.pendencias), 0);
           const varios = marca.itens.length > 1;
+          // "Em dia" e "não tem ninguém cadastrado" davam a MESMA etiqueta
+          // verde. Uma diz que o RH está com tudo em ordem; a outra, que a
+          // empresa nem começou a ser alimentada — e ler a segunda como a
+          // primeira é justamente o engano que faz uma empresa vazia passar
+          // despercebida.
+          const semCadastro = ativos === 0;
 
           const corpo = (
             <Card className="h-full transition-colors hover:bg-accent/40">
@@ -97,6 +103,11 @@ export default async function HomePage() {
                 </CardTitle>
                 {pend > 0 ? (
                   <Badge variant="destructive">{pend} pendência(s)</Badge>
+                ) : semCadastro ? (
+                  <Badge variant="outline" className="gap-1 text-muted-foreground font-normal">
+                    <CircleDashed className="size-3" />
+                    sem cadastro
+                  </Badge>
                 ) : (
                   <Badge variant="secondary" className="gap-1">
                     <CheckCircle2 className="size-3" />

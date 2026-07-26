@@ -66,7 +66,7 @@ export default async function CarreirasPage() {
           <h1 className="max-w-2xl text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
             Venha construir a rede que conecta o Piauí.
           </h1>
-          <p className="mt-4 max-w-prose text-muted-foreground">
+          <p className="mt-4 medida-de-leitura text-muted-foreground">
             Somos um grupo de telecomunicações e energia com mais de 400 pessoas, entre LM Telecom,
             Centrysol e VAPT. A candidatura leva poucos minutos e{" "}
             <span className="font-medium text-foreground">você não precisa criar conta</span>.
@@ -155,7 +155,7 @@ export default async function CarreirasPage() {
 
       <footer className="border-t bg-card">
         <div className="mx-auto max-w-4xl px-4 py-6 text-xs text-muted-foreground">
-          <p className="max-w-prose">
+          <p className="medida-de-leitura">
             Os dados enviados na candidatura são usados apenas no processo seletivo e para futuras
             oportunidades do grupo. Você pode pedir a exclusão a qualquer momento.
           </p>
