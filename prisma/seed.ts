@@ -30,13 +30,21 @@ async function seedEmpresas() {
   const nomes = ["LM Telecom", "Centrysol", "VAPT"];
   const empresas = [];
   for (const nome of nomes) {
-    const empresa = await prisma.empresa.upsert({
+    // Cada marca começa com uma pessoa jurídica de mesmo nome (Fase 6). Os
+    // demais CNPJs de cada marca entram pela tela de Marcas & CNPJs, com
+    // razão social e número — dado que só o RH tem.
+    const marca = await prisma.marca.upsert({
       where: { nome },
       update: {},
       create: { nome },
     });
+    const empresa = await prisma.empresa.upsert({
+      where: { nome },
+      update: {},
+      create: { nome, marcaId: marca.id },
+    });
     empresas.push(empresa);
-    console.log(`Empresa "${nome}" pronta.`);
+    console.log(`Marca e empresa "${nome}" prontas.`);
   }
 
   // Setor/Posição demo na primeira empresa (LM Telecom), só pra não deixar as

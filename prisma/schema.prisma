@@ -58,23 +58,61 @@ model User {
 }
 
 // ------------------------------------------------------
-// MÓDULO DE RH — CLIMA ORGANIZACIONAL (multi-empresa)
+// MÓDULO DE RH — ESTRUTURA DO GRUPO (marca → CNPJ)
 // ------------------------------------------------------
-// Cada empresa (LM Telecom, Centrysol, VAPT, ...) tem seus próprios
-// Setor/Posicao/Colaborador/Pesquisa, sempre filtrados por empresaId nas
-// queries e nas server actions.
+// Duas camadas, e a distinção importa:
+//
+//   Marca   — como o grupo se apresenta (LM Telecom, Centrysol, VAPT).
+//             É o nível que a diretoria enxerga e onde os números somam.
+//   Empresa — a pessoa jurídica, o CNPJ. É de onde a folha sai e a quem a
+//             obrigação acessória é cobrada. Uma marca pode ter vários.
+//
+// `Empresa` continua sendo o dono de Setor/Posicao/Colaborador/Pesquisa e de
+// todos os demais registros — 33 tabelas apontam para `empresaId`, e nenhuma
+// precisou mudar quando a Marca entrou acima. O colaborador se vincula ao
+// CNPJ porque é esse o vínculo empregatício, não à marca.
+
+model Marca {
+  id        String   @id @default(cuid())
+  nome      String   @unique
+  logoUrl   String?
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  empresas Empresa[]
+
+  @@schema("rh")
+}
 
 model Empresa {
   id        String   @id @default(cuid())
+  // Nome curto de exibição — o que aparece no seletor e nos títulos. Continua
+  // sendo o rótulo do dia a dia; razão social é para documento.
   nome      String   @unique
   ativo     Boolean  @default(true)
   createdAt DateTime @default(now())
 
+  // --- Identificação da pessoa jurídica (Fase 6) ---
+  // Opcionais porque as empresas já existentes foram criadas antes desta
+  // fase e o dado ainda não foi levantado. A tela cobra o preenchimento; o
+  // banco não bloqueia, para não travar o que já está em uso.
+  marcaId           String
+  razaoSocial       String?
+  nomeFantasia      String?
+  // Guardado só com dígitos (14), sem máscara — a formatação é da tela.
+  cnpj              String?  @unique
+  inscricaoEstadual String?
+  cidade            String?
+  uf                String?
+
+  marca         Marca         @relation(fields: [marcaId], references: [id])
   setores       Setor[]
   posicoes      Posicao[]
   colaboradores Colaborador[]
   pesquisas     Pesquisa[]
 
+  @@index([marcaId])
   @@schema("rh")
 }
 

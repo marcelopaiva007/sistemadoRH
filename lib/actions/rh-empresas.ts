@@ -16,7 +16,15 @@ export async function createEmpresa(_prev: ActionResult, formData: FormData): Pr
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
 
   try {
-    await prisma.empresa.create({ data: parsed.data });
+    // Empresa agora pertence a uma marca (Fase 6). Criar por aqui significa
+    // "entrou um negócio novo no grupo", então nasce a marca junto, com a
+    // primeira pessoa jurídica dela — mesmo critério da migração. Para
+    // acrescentar OUTRO CNPJ a uma marca que já existe, a tela é
+    // Configuração → Marcas & CNPJs.
+    await prisma.$transaction(async (tx) => {
+      const marca = await tx.marca.create({ data: { nome: parsed.data.nome } });
+      await tx.empresa.create({ data: { ...parsed.data, marcaId: marca.id } });
+    });
   } catch {
     return { ok: false, error: "Já existe uma empresa com esse nome." };
   }

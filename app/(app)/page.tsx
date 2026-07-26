@@ -22,7 +22,7 @@ export default async function HomePage() {
       ...(user.role === "RH_MANAGER" && user.empresaId ? { id: user.empresaId } : {}),
     },
     orderBy: { nome: "asc" },
-    select: { id: true, nome: true },
+    select: { id: true, nome: true, marca: { select: { id: true, nome: true } } },
   });
 
   const resumos = await Promise.all(
@@ -38,6 +38,18 @@ export default async function HomePage() {
       return { empresa, ativos, vagasAbertas, integracoesAbertas, pendencias };
     }),
   );
+
+  // Os números somam por MARCA, não por CNPJ: é assim que a diretoria pensa o
+  // grupo. O CNPJ continua sendo onde o dado vive (e de onde a folha sai), mas
+  // ver "LM Telecom" partida em três linhas não ajuda ninguém a decidir nada.
+  const porMarca = new Map<string, { nome: string; itens: typeof resumos }>();
+  for (const r of resumos) {
+    const chave = r.empresa.marca.id;
+    const atual = porMarca.get(chave);
+    if (atual) atual.itens.push(r);
+    else porMarca.set(chave, { nome: r.empresa.marca.nome, itens: [r] });
+  }
+  const marcas = [...porMarca.values()].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
 
   const totalColaboradores = resumos.reduce((a, r) => a + r.ativos, 0);
   const totalVagas = resumos.reduce((a, r) => a + r.vagasAbertas, 0);
@@ -68,50 +80,97 @@ export default async function HomePage() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        {resumos.map(({ empresa, ativos, vagasAbertas, integracoesAbertas, pendencias }) => {
-          const pend = totalPendencias(pendencias);
-          return (
-            <Link key={empresa.id} href={`/rh/${empresa.id}`}>
-              <Card className="h-full transition-colors hover:bg-accent/40">
-                <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <Building2 className="size-4 text-muted-foreground" />
-                    {empresa.nome}
-                  </CardTitle>
-                  {pend > 0 ? (
-                    <Badge variant="destructive">{pend} pendência(s)</Badge>
-                  ) : (
-                    <Badge variant="secondary" className="gap-1">
-                      <CheckCircle2 className="size-3" />
-                      em dia
-                    </Badge>
-                  )}
-                </CardHeader>
-                <CardContent>
-                  <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                    <dt className="text-muted-foreground">Colaboradores</dt>
-                    <dd className="text-right font-medium tabular-nums">{ativos}</dd>
-                    <dt className="text-muted-foreground">Vagas abertas</dt>
-                    <dd className="text-right font-medium tabular-nums">{vagasAbertas}</dd>
-                    <dt className="text-muted-foreground">Integrações em aberto</dt>
-                    <dd className="text-right font-medium tabular-nums">{integracoesAbertas}</dd>
-                  </dl>
-                  {pend > 0 && (
-                    <p className="mt-3 text-xs text-muted-foreground">
-                      {[
-                        pendencias.catPendente > 0 && `${pendencias.catPendente} CAT sem emitir`,
-                        pendencias.aprovacoes > 0 && `${pendencias.aprovacoes} aguardando aprovação`,
-                        pendencias.epiVencido > 0 && `${pendencias.epiVencido} EPI vencido`,
-                        pendencias.asoVencendo > 0 && `${pendencias.asoVencendo} ASO vencendo`,
-                        pendencias.certificadosVencendo > 0 && `${pendencias.certificadosVencendo} NR vencendo`,
-                        pendencias.integracoesAtrasadas > 0 && `${pendencias.integracoesAtrasadas} integração atrasada`,
+        {marcas.map((marca) => {
+          const ativos = marca.itens.reduce((a, r) => a + r.ativos, 0);
+          const vagasAbertas = marca.itens.reduce((a, r) => a + r.vagasAbertas, 0);
+          const integracoesAbertas = marca.itens.reduce((a, r) => a + r.integracoesAbertas, 0);
+          const pend = marca.itens.reduce((a, r) => a + totalPendencias(r.pendencias), 0);
+          const varios = marca.itens.length > 1;
+
+          const corpo = (
+            <Card className="h-full transition-colors hover:bg-accent/40">
+              <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Building2 className="size-4 text-muted-foreground" />
+                  {marca.nome}
+                </CardTitle>
+                {pend > 0 ? (
+                  <Badge variant="destructive">{pend} pendência(s)</Badge>
+                ) : (
+                  <Badge variant="secondary" className="gap-1">
+                    <CheckCircle2 className="size-3" />
+                    em dia
+                  </Badge>
+                )}
+              </CardHeader>
+              <CardContent>
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                  <dt className="text-muted-foreground">Colaboradores</dt>
+                  <dd className="text-right font-medium tabular-nums">{ativos}</dd>
+                  <dt className="text-muted-foreground">Vagas abertas</dt>
+                  <dd className="text-right font-medium tabular-nums">{vagasAbertas}</dd>
+                  <dt className="text-muted-foreground">Integrações em aberto</dt>
+                  <dd className="text-right font-medium tabular-nums">{integracoesAbertas}</dd>
+                </dl>
+
+                {/* Só abre por CNPJ quando há mais de um. Com um só, a quebra
+                    repetiria o número de cima e não informaria nada. */}
+                {varios && (
+                  <div className="mt-3 space-y-1 border-t pt-3">
+                    <p className="text-xs text-muted-foreground">
+                      {marca.itens.length} CNPJs nesta marca:
+                    </p>
+                    {marca.itens.map((r) => (
+                      <Link
+                        key={r.empresa.id}
+                        href={`/rh/${r.empresa.id}`}
+                        className="flex items-baseline justify-between rounded px-1 py-0.5 text-sm hover:bg-accent"
+                      >
+                        <span>{r.empresa.nome}</span>
+                        <span className="tabular-nums text-muted-foreground">
+                          {r.ativos}
+                          {totalPendencias(r.pendencias) > 0 && (
+                            <span className="text-destructive">
+                              {" "}
+                              · {totalPendencias(r.pendencias)} pend.
+                            </span>
+                          )}
+                        </span>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+
+                {pend > 0 && (
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    {(() => {
+                      const soma = (campo: keyof (typeof marca.itens)[0]["pendencias"]) =>
+                        marca.itens.reduce((a, r) => a + (r.pendencias[campo] as number), 0);
+                      return [
+                        soma("catPendente") > 0 && `${soma("catPendente")} CAT sem emitir`,
+                        soma("aprovacoes") > 0 && `${soma("aprovacoes")} aguardando aprovação`,
+                        soma("epiVencido") > 0 && `${soma("epiVencido")} EPI vencido`,
+                        soma("asoVencendo") > 0 && `${soma("asoVencendo")} ASO vencendo`,
+                        soma("certificadosVencendo") > 0 && `${soma("certificadosVencendo")} NR vencendo`,
+                        soma("integracoesAtrasadas") > 0 && `${soma("integracoesAtrasadas")} integração atrasada`,
                       ]
                         .filter(Boolean)
-                        .join(" · ")}
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
+                        .join(" · ");
+                    })()}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          );
+
+          // Com um CNPJ só, o cartão inteiro entra na empresa — é o gesto que
+          // já existia. Com vários, entrar "na marca" não significa nada: a
+          // navegação passa a ser por CNPJ, na lista de dentro.
+          return varios ? (
+            <div key={marca.nome}>{corpo}</div>
+          ) : (
+            <Link key={marca.nome} href={`/rh/${marca.itens[0].empresa.id}`}>
+              {corpo}
             </Link>
           );
         })}
