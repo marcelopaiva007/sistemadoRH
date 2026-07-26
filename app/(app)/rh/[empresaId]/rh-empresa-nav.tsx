@@ -9,6 +9,7 @@ import {
   BarChart3,
   Bot,
   Briefcase,
+  Building2,
   CalendarDays,
   CheckSquare,
   ClipboardCheck,
@@ -88,6 +89,9 @@ const GRUPOS = [
     itens: [
       { slug: "setores", label: "Setores", icon: UsersRound },
       { slug: "posicoes", label: "Cargos", icon: ListChecks },
+      // Estrutura é a única entrada aqui que configura o GRUPO, não a empresa
+      // aberta. Fica neste grupo mesmo assim porque é onde se procura por ela.
+      { slug: "estrutura", label: "Marcas & CNPJs", icon: Building2 },
       { slug: "auditoria", label: "Auditoria", icon: History },
     ],
   },
