@@ -128,6 +128,20 @@
   --sidebar-ring: #93c5fd;
 }
 
+/* Largura de leitura confortável — 45 a 75 caracteres por linha.
+   Linha longa demais faz o olho perder onde recomeçar.
+
+   Por que NÃO usar o `max-w-prose` do Tailwind: ele vale 65ch, e `ch` é a
+   largura do algarismo ZERO, bem mais larga que a letra média. Medido nesta
+   fonte, `max-w-prose` entrega 87 caracteres por linha, não 65.
+
+   `em` resolve porque escala junto com a fonte: a letra média da Geist mede
+   cerca de 0,5em, então 34em dá ~68 caracteres tanto num texto de 16px
+   quanto num de 12px — conferido nos dois. */
+@utility medida-de-leitura {
+  max-width: 34em;
+}
+
 /* Não há tema escuro. Existia um bloco .dark aqui, herdado de um visual
    neon anterior (ciano #00d4ff, fundo #0a0e27) que o sistema abandonou ao
    virar claro — e que nunca era aplicado, porque nada põe a classe `dark`

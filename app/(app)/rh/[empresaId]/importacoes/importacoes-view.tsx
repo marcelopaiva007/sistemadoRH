@@ -78,7 +78,7 @@ export function ImportacoesView({
     <div className="space-y-6">
       <div>
         <h2 className="text-xl font-semibold tracking-tight">Importações</h2>
-        <p className="max-w-prose text-sm text-muted-foreground">
+        <p className="medida-de-leitura text-sm text-muted-foreground">
           Suba a planilha de colaboradores de {empresaNome} em CSV. Nada é gravado antes de você
           conferir o resumo — linha com problema fica de fora e é listada com o motivo.
         </p>
