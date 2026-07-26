@@ -54,9 +54,15 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* Tema claro e suave: fundo off-white azulado, texto slate, azul sereno como
-   cor primária. (O bloco .dark abaixo permanece disponível, mas nada aplica a
-   classe "dark" hoje — o sistema roda no claro.) */
+/* Tema claro: fundo off-white azulado, texto slate, azul como cor primária.
+   O sistema roda só no claro — não existe bloco .dark (o antigo foi removido
+   por nunca ativar). Se um dia entrar tema escuro, cada token abaixo precisa
+   de par próprio e de nova conferência de contraste, não de inversão.
+
+   Os valores aqui foram escolhidos por MEDIÇÃO, não por gosto: cada um passa
+   nos limites da WCAG AA no uso que tem (4,5:1 para texto, 3:1 para
+   controle). Antes de trocar qualquer cor, remedir — vários tons "bonitos"
+   dessa paleta reprovam por pouco. */
 :root {
   --background: #f6f8fb;
   --foreground: #1f2937;
@@ -64,20 +70,43 @@
   --card-foreground: #1f2937;
   --popover: #ffffff;
   --popover-foreground: #1f2937;
-  --primary: #3b82f6;
+  /* blue-600, não blue-500. O 500 dava 3,68:1 contra branco — reprova no AA
+     (4,5:1) nos três usos que fazemos dele: texto de link, item ativo do menu
+     e rótulo branco dentro do botão principal. O 600 dá 5,17:1 e mantém o
+     mesmo azul de identidade. */
+  --primary: #2563eb;
   --primary-foreground: #ffffff;
   --secondary: #e8eef7;
   --secondary-foreground: #1f2937;
   --muted: #eef2f7;
-  --muted-foreground: #64748b;
+  /* slate-600. O 500 dava 4,47:1 contra o fundo da página — reprovava por
+     três centésimos, e é a cor de quase todo texto de apoio do sistema
+     (descrições, legendas, células secundárias de tabela). */
+  --muted-foreground: #475569;
   --accent: #e0f2fe;
   --accent-foreground: #0c4a6e;
+  /* destructive fica no red-600: já passa (4,83:1 como texto, 4,83:1 com o
+     branco por cima). Não se mexe em token que passa. */
   --destructive: #dc2626;
-  --success: #059669;
+  /* success sobe para emerald-700: o 600 dava 3,77:1, e ele carrega
+     informação ("em dia", "aprovado") — não é enfeite. */
+  --success: #047857;
+
+  /* border e input eram a MESMA cor, e têm papéis diferentes: um é traço
+     decorativo entre linhas de tabela, o outro delimita um campo onde a
+     pessoa precisa clicar. Só o segundo é um controle. */
   --border: #e2e8f0;
-  --input: #e2e8f0;
-  --ring: #93c5fd;
-  --chart-1: #3b82f6;
+  /* Fora da escala do Tailwind de propósito: o slate-400 dá 2,56:1 e o
+     slate-500 dá 4,76:1 (pesado demais para contornar todo campo). Este é o
+     tom mais CLARO que ainda cumpre os 3:1 exigidos de um controle. */
+  --input: #8794a9;
+
+  /* O anel de foco em blue-200 dava 1,8:1 — invisível para quem navega por
+     teclado. Vai para a mesma cor da primária: os componentes aplicam
+     `border-ring` sólido junto do halo translúcido, e é a borda sólida que
+     cumpre os 3:1 exigidos para indicador de foco. */
+  --ring: #2563eb;
+  --chart-1: #2563eb;
   --chart-2: #0ea5e9;
   --chart-3: #10b981;
   --chart-4: #f59e0b;
