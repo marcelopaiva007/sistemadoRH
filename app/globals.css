@@ -33,6 +33,7 @@
   --color-border: var(--border);
   --color-destructive: var(--destructive);
   --color-success: var(--success);
+  --color-warning: var(--warning);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -91,6 +92,11 @@
   /* success sobe para emerald-700: o 600 dava 3,77:1, e ele carrega
      informação ("em dia", "aprovado") — não é enfeite. */
   --success: #047857;
+  /* amber-700. Aviso é o caso em que reprovar dói mais: é a cor de "vence
+     hoje", de EPI vencido, de integração atrasada — texto pequeno que a
+     pessoa precisa ler para agir. O amber-600 que estava espalhado pelas
+     telas dava 2,99:1 contra o fundo da página. */
+  --warning: #b45309;
 
   /* border e input eram a MESMA cor, e têm papéis diferentes: um é traço
      decorativo entre linhas de tabela, o outro delimita um campo onde a

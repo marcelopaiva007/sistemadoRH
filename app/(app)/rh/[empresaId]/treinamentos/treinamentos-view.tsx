@@ -153,7 +153,7 @@ export function TreinamentosView({
                       <TableCell className="font-medium whitespace-nowrap">{linha.nome}</TableCell>
                       {COMPETENCIAS.map((c) => (
                         <TableCell key={c.value} className="text-center">
-                          {linha.competencias.includes(c.value) && <Check className="mx-auto size-4 text-teal-600 dark:text-teal-400" />}
+                          {linha.competencias.includes(c.value) && <Check className="mx-auto size-4 text-success" />}
                         </TableCell>
                       ))}
                     </TableRow>

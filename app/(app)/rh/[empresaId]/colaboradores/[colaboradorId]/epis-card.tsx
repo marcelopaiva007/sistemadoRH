@@ -60,7 +60,7 @@ export function EpisCard({
         <CardDescription>
           Ficha de entrega de equipamento de proteção (NR-06).
           {pendentesDeAssinatura > 0 && (
-            <span className="mt-1 block text-amber-600 dark:text-amber-400">
+            <span className="mt-1 block text-warning">
               {pendentesDeAssinatura} entrega(s) aguardando assinatura do colaborador.
             </span>
           )}

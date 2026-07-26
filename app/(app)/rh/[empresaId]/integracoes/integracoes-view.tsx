@@ -102,7 +102,7 @@ export function IntegracoesView({
 function SituacaoPrazo({ prazo }: { prazo: Date }) {
   const dias = diferencaEmDiasUTC(prazo, hojeUTC());
   if (dias < 0) return <span className="text-destructive">atrasado há {Math.abs(dias)} d</span>;
-  if (dias === 0) return <span className="text-amber-600 dark:text-amber-400">vence hoje</span>;
+  if (dias === 0) return <span className="text-warning">vence hoje</span>;
   return <span>vence em {dias} d</span>;
 }
 

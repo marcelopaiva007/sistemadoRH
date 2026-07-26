@@ -140,7 +140,7 @@ export function IntegracaoCard({
           </ul>
         )}
         {tudoConcluido && (
-          <div className="mt-3 flex items-center gap-2 text-sm text-teal-600 dark:text-teal-400">
+          <div className="mt-3 flex items-center gap-2 text-sm text-success">
             <CheckCircle2 className="size-4" />
             Integração concluída.
           </div>
@@ -154,6 +154,6 @@ function SituacaoPrazo({ prazo, concluido }: { prazo: Date; concluido: boolean }
   if (concluido) return <span>prazo era {formatarData(prazo)}</span>;
   const dias = diferencaEmDiasUTC(prazo, hojeUTC());
   if (dias < 0) return <span className="text-destructive">atrasado há {Math.abs(dias)} d</span>;
-  if (dias === 0) return <span className="text-amber-600 dark:text-amber-400">vence hoje</span>;
+  if (dias === 0) return <span className="text-warning">vence hoje</span>;
   return <span>vence em {dias} d</span>;
 }

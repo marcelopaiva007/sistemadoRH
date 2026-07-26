@@ -103,7 +103,7 @@ export function PendenciasView({
       {comPendencia.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center gap-2 py-12 text-center">
-            <CheckCircle2 className="size-8 text-teal-600 dark:text-teal-400" />
+            <CheckCircle2 className="size-8 text-success" />
             <p className="font-medium">Tudo em dia</p>
             <p className="max-w-md text-sm text-muted-foreground">
               Nenhuma aprovação parada, nenhum documento vencendo, nenhuma CAT em aberto. Use o menu

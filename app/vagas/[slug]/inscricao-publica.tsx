@@ -40,7 +40,7 @@ export function InscricaoPublica({ slug, empresaNome }: { slug: string; empresaN
   if (enviado) {
     return (
       <div className="rounded-lg border bg-card p-8 text-center">
-        <CheckCircle2 className="mx-auto mb-3 size-8 text-teal-600 dark:text-teal-400" />
+        <CheckCircle2 className="mx-auto mb-3 size-8 text-success" />
         <h2 className="text-lg font-semibold">Inscrição enviada</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Recebemos seus dados. Se o perfil for compatível, o RH entrará em contato pelo telefone ou
