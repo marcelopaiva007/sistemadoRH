@@ -22,6 +22,7 @@ import {
   ListChecks,
   LogOut,
   Network,
+  Palmtree,
   Receipt,
   Rocket,
   Search,
@@ -54,6 +55,7 @@ const GRUPOS = [
     itens: [
       { slug: "aprovacoes", label: "Aprovações", icon: CheckSquare },
       { slug: "vencimentos", label: "Vencimentos", icon: CalendarDays },
+      { slug: "ferias", label: "Férias", icon: Palmtree },
       { slug: "escalas", label: "Escalas", icon: ClipboardCheck },
       { slug: "beneficios", label: "Benefícios", icon: CreditCard },
       { slug: "folha", label: "Folha", icon: Receipt },
