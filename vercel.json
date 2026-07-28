@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/enviar-convites",
       "schedule": "0 13 * * *"
+    },
+    {
+      "path": "/api/cron/lembrete-portal",
+      "schedule": "0 12 * * *"
     }
   ]
 }
