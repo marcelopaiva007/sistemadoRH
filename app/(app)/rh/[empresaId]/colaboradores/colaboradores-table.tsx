@@ -39,6 +39,7 @@ import {
   deleteColaborador,
 } from "@/lib/actions/rh-colaboradores";
 import { AtivarDesativarButton } from "./ativar-desativar-button";
+import { AlertaDuplicados } from "./alerta-duplicados";
 import { formatarCpf, mascararCpf } from "@/lib/cpf";
 import type { ActionResult } from "@/lib/constants";
 
@@ -49,6 +50,7 @@ type Colaborador = {
   nome: string;
   cpf: string | null;
   email: string | null;
+  telefone: string | null;
   telegramChatId: string | null;
   ativo: boolean;
   setorId: string;
@@ -223,6 +225,8 @@ export function ColaboradoresTable({
 
   return (
     <div className="space-y-4">
+      <AlertaDuplicados empresaId={empresaId} colaboradores={colaboradores} />
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-1 flex-wrap items-center gap-2">
           <Input
