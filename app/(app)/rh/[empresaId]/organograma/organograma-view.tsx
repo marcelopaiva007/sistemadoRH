@@ -2,11 +2,17 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronDown, ChevronRight, Users } from "lucide-react";
+import { toast } from "sonner";
+import { ChevronDown, ChevronRight, Pencil, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { definirSupervisor } from "@/lib/actions/rh-colaboradores";
 import { cn } from "@/lib/utils";
+
+const classeSelect =
+  "h-8 w-full min-w-0 rounded-md border border-input bg-transparent px-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:bg-input/30";
 
 type Colaborador = {
   id: string;
@@ -90,7 +96,7 @@ export function OrganogramaView({ empresaId, colaboradores }: { empresaId: strin
           ) : (
             <div className="space-y-0.5">
               {[...raizes, ...orfaos].map((no) => (
-                <Nodo key={no.id} empresaId={empresaId} no={no} nivel={0} termo={termo} />
+                <Nodo key={no.id} empresaId={empresaId} no={no} nivel={0} termo={termo} todos={colaboradores} />
               ))}
             </div>
           )}
@@ -110,8 +116,21 @@ function combina(no: No, termo: string): boolean {
   return no.filhos.some((f) => combina(f, termo));
 }
 
-function Nodo({ empresaId, no, nivel, termo }: { empresaId: string; no: No; nivel: number; termo: string }) {
+function Nodo({
+  empresaId,
+  no,
+  nivel,
+  termo,
+  todos,
+}: {
+  empresaId: string;
+  no: No;
+  nivel: number;
+  termo: string;
+  todos: Colaborador[];
+}) {
   const [aberto, setAberto] = useState(nivel < 1 || termo.length > 0);
+  const [editando, setEditando] = useState(false);
   if (!combina(no, termo)) return null;
 
   const subordinados = contaSubordinados(no);
@@ -147,11 +166,106 @@ function Nodo({ empresaId, no, nivel, termo }: { empresaId: string; no: No; nive
             {subordinados}
           </Badge>
         )}
+        {!editando && (
+          // Sempre visível, não só no hover: é o campo que a tela inteira
+          // existe para preencher, e escondido atrás de hover foi exatamente
+          // o motivo de não ser achado da primeira vez.
+          <button
+            type="button"
+            onClick={() => setEditando(true)}
+            className="flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+            title="Definir líder"
+          >
+            <Pencil className="size-3" />
+            {!no.supervisorId && "Definir líder"}
+          </button>
+        )}
       </div>
+      {editando && (
+        <div style={{ paddingLeft: `${nivel * 20 + 24}px` }}>
+          <EditorDeLider empresaId={empresaId} no={no} todos={todos} onFechar={() => setEditando(false)} />
+        </div>
+      )}
       {aberto &&
         no.filhos.map((filho) => (
-          <Nodo key={filho.id} empresaId={empresaId} no={filho} nivel={nivel + 1} termo={termo} />
+          <Nodo key={filho.id} empresaId={empresaId} no={filho} nivel={nivel + 1} termo={termo} todos={todos} />
         ))}
+    </div>
+  );
+}
+
+/** Todo mundo que `no` já lidera, direta ou indiretamente — não pode virar líder DELE. */
+function idsDescendentes(no: No): Set<string> {
+  const ids = new Set<string>();
+  const empilhar = (n: No) => {
+    for (const filho of n.filhos) {
+      ids.add(filho.id);
+      empilhar(filho);
+    }
+  };
+  empilhar(no);
+  return ids;
+}
+
+function EditorDeLider({
+  empresaId,
+  no,
+  todos,
+  onFechar,
+}: {
+  empresaId: string;
+  no: No;
+  todos: Colaborador[];
+  onFechar: () => void;
+}) {
+  const [supervisorId, setSupervisorId] = useState(no.supervisorId ?? "");
+  const [salvando, setSalvando] = useState(false);
+
+  // Nem a própria pessoa, nem quem ela já lidera (ciclo óbvio) — o servidor
+  // confere o resto (ciclo mais longo, líder de outra empresa).
+  const bloqueados = useMemo(() => new Set([no.id, ...idsDescendentes(no)]), [no]);
+  const opcoes = todos.filter((c) => !bloqueados.has(c.id)).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+
+  async function salvar() {
+    setSalvando(true);
+    try {
+      const result = await definirSupervisor(empresaId, no.id, supervisorId || null);
+      if (result.ok) {
+        toast.success(supervisorId ? "Líder definido." : "Líder removido.");
+        onFechar();
+      } else {
+        toast.error(result.error);
+      }
+    } catch {
+      // Sem isto, um erro de rede ou uma exceção não tratada no servidor
+      // fechava o clique em silêncio: nem sucesso nem mensagem, e quem clicou
+      // não tinha como saber se precisava tentar de novo.
+      toast.error("Não foi possível salvar — verifique a conexão e tente de novo.");
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 py-1">
+      <select
+        value={supervisorId}
+        onChange={(e) => setSupervisorId(e.target.value)}
+        className={cn(classeSelect, "max-w-64")}
+      >
+        <option value="">Sem líder</option>
+        {opcoes.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.nome}
+          </option>
+        ))}
+      </select>
+      <Button type="button" size="sm" disabled={salvando} onClick={salvar}>
+        {salvando ? "Salvando..." : "Salvar"}
+      </Button>
+      <Button type="button" size="sm" variant="ghost" onClick={onFechar}>
+        Cancelar
+      </Button>
     </div>
   );
 }

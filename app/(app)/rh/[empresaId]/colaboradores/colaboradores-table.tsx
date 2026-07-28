@@ -39,6 +39,8 @@ import {
   deleteColaborador,
 } from "@/lib/actions/rh-colaboradores";
 import { AtivarDesativarButton } from "./ativar-desativar-button";
+import { AlertaDuplicados } from "./alerta-duplicados";
+import { ConferirCpfs } from "./conferir-cpfs";
 import { formatarCpf, mascararCpf } from "@/lib/cpf";
 import type { ActionResult } from "@/lib/constants";
 
@@ -49,7 +51,9 @@ type Colaborador = {
   nome: string;
   cpf: string | null;
   email: string | null;
+  telefone: string | null;
   telegramChatId: string | null;
+  supervisorId: string | null;
   ativo: boolean;
   setorId: string;
   setor: Setor;
@@ -223,6 +227,9 @@ export function ColaboradoresTable({
 
   return (
     <div className="space-y-4">
+      <AlertaDuplicados empresaId={empresaId} colaboradores={colaboradores} />
+      <ConferirCpfs empresaId={empresaId} colaboradores={colaboradores} />
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-1 flex-wrap items-center gap-2">
           <Input
@@ -284,6 +291,7 @@ export function ColaboradoresTable({
               title="Novo Colaborador"
               setores={setores}
               posicoes={posicoes}
+              candidatosSupervisor={colaboradores}
               onSuccess={() => setCreateOpen(false)}
             />
           </DialogContent>
@@ -413,6 +421,7 @@ export function ColaboradoresTable({
               title="Editar Colaborador"
               setores={setores}
               posicoes={posicoes}
+              candidatosSupervisor={colaboradores}
               defaultValues={editColaborador}
               onSuccess={() => setEditColaborador(null)}
             />
@@ -428,6 +437,7 @@ function ColaboradorForm({
   title,
   setores,
   posicoes,
+  candidatosSupervisor,
   defaultValues,
   onSuccess,
 }: {
@@ -435,12 +445,21 @@ function ColaboradorForm({
   title: string;
   setores: Setor[];
   posicoes: Posicao[];
+  candidatosSupervisor: Colaborador[];
   defaultValues?: Colaborador;
   onSuccess: () => void;
 }) {
   const [setorId, setSetorId] = useState(defaultValues?.setorId ?? "");
   const [posicaoId, setPosicaoId] = useState(defaultValues?.posicaoId ?? "");
+  const [supervisorId, setSupervisorId] = useState(defaultValues?.supervisorId ?? "");
   const [ativo, setAtivo] = useState(defaultValues?.ativo ?? true);
+
+  // Ativos, sem a própria pessoa (na edição) e sem quem já reporta a ela —
+  // reportar ao próprio subordinado criaria um ciclo de dois na hora; o resto
+  // dos ciclos mais longos a action pega no servidor (criariCiclo).
+  const opcoesLider = candidatosSupervisor.filter(
+    (c) => c.ativo && c.id !== defaultValues?.id && c.supervisorId !== defaultValues?.id,
+  );
 
   const [state, formAction, isPending] = useActionState(async (prev: ActionResult, fd: FormData) => {
     fd.set("ativo", ativo ? "true" : "false");
@@ -508,6 +527,27 @@ function ColaboradorForm({
             ))}
           </SelectContent>
         </Select>
+      </div>
+      <div className="space-y-2">
+        <Label>Reporta a (opcional)</Label>
+        <Select
+          value={supervisorId}
+          onValueChange={(v) => setSupervisorId(v ?? "")}
+          name="supervisorId"
+          items={Object.fromEntries(opcoesLider.map((c) => [c.id, c.nome]))}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Sem líder" />
+          </SelectTrigger>
+          <SelectContent>
+            {opcoesLider.map((c) => (
+              <SelectItem key={c.id} value={c.id}>
+                {c.nome}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-muted-foreground">É o que monta o Organograma — some sozinho quando o líder muda.</p>
       </div>
       <div className="space-y-2">
         <Label htmlFor="telegramChatId">Chat ID do Telegram (opcional)</Label>
