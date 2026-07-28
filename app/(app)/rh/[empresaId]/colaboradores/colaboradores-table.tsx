@@ -59,10 +59,10 @@ type Colaborador = {
 
 const initialState: ActionResult = { ok: true };
 
-// 25 linhas cabem numa tela sem rolar demais e mantêm a paginação curta:
-// 188 ativos dão 8 páginas. Muito menos criaria uma navegação longa; muito
-// mais recriaria o problema de rolar procurando alguém.
-const POR_PAGINA = 25;
+// 50 linhas com a tabela compacta ocupam menos que as 25 antigas ocupavam no
+// tamanho normal: 188 ativos passam de 8 páginas para 4. Menos troca de página
+// para conferir a base inteira, que é o que o RH faz aqui.
+const POR_PAGINA = 50;
 
 const classeFiltro =
   "h-9 rounded-md border border-input bg-transparent px-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
@@ -291,7 +291,7 @@ export function ColaboradoresTable({
       </div>
 
       <div className="rounded-md border bg-background">
-        <Table>
+        <Table compacta>
           <TableHeader>
             <TableRow>
               <ColunaOrdenavel campo="nome" rotulo="Nome" ordem={ordem} aoOrdenar={aoOrdenar} />

@@ -150,7 +150,7 @@ export default async function VencimentosPage({
             </p>
           ) : (
             <div className="rounded-md border">
-              <Table>
+              <Table compacta>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Colaborador</TableHead>
@@ -212,7 +212,7 @@ export default async function VencimentosPage({
             </p>
           ) : (
             <div className="rounded-md border">
-              <Table>
+              <Table compacta>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Colaborador</TableHead>
@@ -267,7 +267,7 @@ export default async function VencimentosPage({
             </p>
           ) : (
             <div className="rounded-md border">
-              <Table>
+              <Table compacta>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Colaborador</TableHead>
@@ -322,7 +322,7 @@ export default async function VencimentosPage({
             </p>
           ) : (
             <div className="rounded-md border">
-              <Table>
+              <Table compacta>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Colaborador</TableHead>

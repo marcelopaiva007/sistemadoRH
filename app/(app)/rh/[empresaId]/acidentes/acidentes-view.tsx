@@ -71,7 +71,7 @@ export function AcidentesView({
             </p>
           ) : (
             <div className="rounded-md border">
-              <Table>
+              <Table compacta>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Quando</TableHead>
