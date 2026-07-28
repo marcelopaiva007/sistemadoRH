@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { enviarUmConvite, enviosRestantesHoje, LIMITE_DIARIO_ENVIOS } from "@/lib/convites";
+import { vinculoTelegramQuebrado, MSG_AGUARDANDO_NOVO_VINCULO } from "@/lib/pesquisa-numeros";
 import {
   PERGUNTAS_NR01,
   TITULO_PESQUISA_NR01,
@@ -511,6 +512,103 @@ export async function limparExcluidosDaPesquisa(
 
   revalidarNumerosDaPesquisa(empresaId, pesquisaId);
   return { ok: true, message: `${apagados} pessoa(s) apagada(s) da lista.` };
+}
+
+/**
+ * Limpa um vínculo de Telegram morto: apaga o chat_id do COLABORADOR (não só
+ * deste convite) e volta o token para PENDING com um motivo que dá para agir.
+ *
+ * É a Colaborador que a coluna some, não o SurveyToken — o chat_id ruim
+ * pertence à ficha e atrapalharia qualquer outra pesquisa também. Volta a
+ * PENDING, não fica FAILED: FAILED nunca é retentado pelo envio automático
+ * (ver lib/convites.ts), e é exatamente o /start seguinte que vai gravar um
+ * chat_id válido por cima — precisa que o envio tente de novo sozinho quando
+ * isso acontecer.
+ */
+async function limparVinculo(
+  empresaId: string,
+  where: { pesquisaId: string } | { id: string },
+): Promise<{ limpos: number; pesquisaId: string | null; nomes: string[] }> {
+  const tokens = await prisma.surveyToken.findMany({
+    where: { ...where, pesquisa: { empresaId } },
+    select: {
+      id: true,
+      pesquisaId: true,
+      status: true,
+      canal: true,
+      erro: true,
+      colaboradorId: true,
+      colaborador: { select: { nome: true } },
+    },
+  });
+  const quebrados = tokens.filter(vinculoTelegramQuebrado);
+  if (quebrados.length === 0) return { limpos: 0, pesquisaId: null, nomes: [] };
+
+  const tokenIds = quebrados.map((t) => t.id);
+  const colaboradorIds = [...new Set(quebrados.map((t) => t.colaboradorId))];
+
+  await prisma.$transaction([
+    prisma.colaborador.updateMany({
+      where: { id: { in: colaboradorIds }, empresaId },
+      data: { telegramChatId: null },
+    }),
+    prisma.surveyToken.updateMany({
+      where: { id: { in: tokenIds } },
+      data: { status: "PENDING", canal: "TELEGRAM", erro: MSG_AGUARDANDO_NOVO_VINCULO },
+    }),
+  ]);
+
+  return {
+    limpos: quebrados.length,
+    pesquisaId: quebrados[0].pesquisaId,
+    nomes: quebrados.map((t) => t.colaborador.nome),
+  };
+}
+
+/** Limpa o vínculo quebrado de uma pessoa (chat_id morto no Telegram). */
+export async function limparVinculoQuebrado(
+  empresaId: string,
+  tokenId: string,
+): Promise<ResultadoComMensagem> {
+  await requireEmpresaAccess(empresaId);
+
+  const { limpos, pesquisaId, nomes } = await limparVinculo(empresaId, { id: tokenId });
+  if (limpos === 0) {
+    return { ok: false, error: "Este convite não está com vínculo quebrado." };
+  }
+
+  await registrarAuditoria({
+    empresaId,
+    acao: "ATUALIZAR",
+    entidade: "Colaborador",
+    entidadeId: tokenId,
+    resumo: `Vínculo do Telegram de ${nomes[0]} foi limpo (chat_id morto).`,
+  });
+
+  revalidarNumerosDaPesquisa(empresaId, pesquisaId!);
+  return { ok: true, message: `Vínculo de ${nomes[0]} limpo — peça para a pessoa mandar /start de novo.` };
+}
+
+/** Limpa de uma vez todos os vínculos quebrados desta pesquisa. */
+export async function limparVinculosQuebradosDaPesquisa(
+  empresaId: string,
+  pesquisaId: string,
+): Promise<ResultadoComMensagem> {
+  await requireEmpresaAccess(empresaId);
+
+  const { limpos } = await limparVinculo(empresaId, { pesquisaId });
+  if (limpos === 0) return { ok: true, message: "Não há vínculo quebrado nesta pesquisa." };
+
+  await registrarAuditoria({
+    empresaId,
+    acao: "ATUALIZAR",
+    entidade: "Colaborador",
+    entidadeId: pesquisaId,
+    resumo: `${limpos} vínculo(s) de Telegram quebrado(s) foram limpos.`,
+  });
+
+  revalidarNumerosDaPesquisa(empresaId, pesquisaId);
+  return { ok: true, message: `${limpos} vínculo(s) limpo(s).` };
 }
 
 export async function enviarConviteToken(empresaId: string, tokenId: string): Promise<ActionResult> {

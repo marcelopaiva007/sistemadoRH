@@ -8,6 +8,7 @@ import {
   RefreshCw,
   Send,
   Trash2,
+  Unlink,
   UserMinus,
   UserPlus,
 } from "lucide-react";
@@ -31,9 +32,11 @@ import {
   reincluirNaPesquisa,
   apagarConviteExcluido,
   limparExcluidosDaPesquisa,
+  limparVinculoQuebrado,
+  limparVinculosQuebradosDaPesquisa,
 } from "@/lib/actions/pesquisas";
 import { LIMITE_DIARIO_ENVIOS, statusTokenLabel } from "@/lib/constants-rh";
-import { participacaoPct } from "@/lib/pesquisa-numeros";
+import { participacaoPct, vinculoTelegramQuebrado } from "@/lib/pesquisa-numeros";
 import type { PesquisaBase, Token } from "./tipos";
 
 // 50 por página, como na lista de colaboradores: com a tabela compacta os 205
@@ -84,6 +87,7 @@ export function ConvitesView({
       responderam,
       naoResponderam: naPesquisa.length - responderam,
       fora: tokens.length - naPesquisa.length,
+      vinculoQuebrado: tokens.filter(vinculoTelegramQuebrado).length,
     };
   }, [tokens]);
 
@@ -155,6 +159,22 @@ export function ConvitesView({
     setPendingAction("limpar");
     const result = await limparExcluidosDaPesquisa(empresaId, pesquisa.id);
     if (result.ok) toast.success(result.message ?? "Lista limpa.");
+    else toast.error(result.error);
+    setPendingAction(null);
+  }
+
+  async function handleLimparVinculo(tokenId: string) {
+    setPendingAction(tokenId);
+    const result = await limparVinculoQuebrado(empresaId, tokenId);
+    if (result.ok) toast.success(result.message ?? "Vínculo limpo.");
+    else toast.error(result.error);
+    setPendingAction(null);
+  }
+
+  async function handleLimparTodosVinculos() {
+    setPendingAction("limpar-vinculo");
+    const result = await limparVinculosQuebradosDaPesquisa(empresaId, pesquisa.id);
+    if (result.ok) toast.success(result.message ?? "Vínculos limpos.");
     else toast.error(result.error);
     setPendingAction(null);
   }
@@ -232,6 +252,19 @@ export function ConvitesView({
                 disabled={pendingAction === "limpar"}
                 onConfirmar={handleLimparExcluidos}
               />
+            )}
+            {numeros.vinculoQuebrado > 0 && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                title="Chat_id morto no Telegram (bloqueou o bot, apagou a conta, ou foi digitado errado) — limpa e volta para pendente, esperando a pessoa mandar /start de novo"
+                disabled={pendingAction === "limpar-vinculo"}
+                onClick={handleLimparTodosVinculos}
+              >
+                <Unlink className="size-4" />
+                Limpar {numeros.vinculoQuebrado} vínculo(s) quebrado(s)
+              </Button>
             )}
             <Button
               type="button"
@@ -398,6 +431,18 @@ export function ConvitesView({
                           >
                             <UserMinus className="size-4" />
                           </Button>
+                          {vinculoTelegramQuebrado(t) && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              title="Chat_id do Telegram morto — limpar e esperar a pessoa mandar /start de novo"
+                              disabled={pendingAction === t.id}
+                              onClick={() => handleLimparVinculo(t.id)}
+                            >
+                              <Unlink className="size-4" />
+                            </Button>
+                          )}
                         </>
                       )}
                     </TableCell>

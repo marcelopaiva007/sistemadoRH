@@ -33,6 +33,32 @@ async function validarSetorEPosicaoDaEmpresa(empresaId: string, setorId: string,
   return null;
 }
 
+/**
+ * O chat_id do Telegram é digitado à mão aqui — o RH lê do retorno da API do
+ * bot (getUpdates) e cola no campo. O bot (app/api/telegram/webhook) já
+ * impede duas pessoas com o mesmo chat_id quando o vínculo nasce de um
+ * /start, mas essa tela não tinha a mesma trava: nada impedia colar o mesmo
+ * número em duas fichas por engano, e o erro só aparece semanas depois como
+ * "Bad Request: chat not found" no envio — o dono de verdade recebe, o outro
+ * nunca vai receber nada e ninguém sabe por quê.
+ *
+ * Não há `@@unique` no schema para isto: um índice único bloquearia o
+ * `create`/`update` com um erro genérico do banco; aqui o nome de quem já
+ * está com aquele número entra na mensagem, para o RH corrigir sem precisar
+ * caçar.
+ */
+async function validarTelegramChatIdLivre(
+  empresaId: string,
+  telegramChatId: string,
+  idExcluido?: string,
+): Promise<string | null> {
+  const dono = await prisma.colaborador.findFirst({
+    where: { empresaId, telegramChatId, ...(idExcluido ? { NOT: { id: idExcluido } } : {}) },
+    select: { nome: true },
+  });
+  return dono ? `Este chat_id do Telegram já está no cadastro de ${dono.nome}.` : null;
+}
+
 export async function createColaborador(
   empresaId: string,
   _prev: ActionResult,
@@ -53,6 +79,11 @@ export async function createColaborador(
 
   const erroEscopo = await validarSetorEPosicaoDaEmpresa(empresaId, parsed.data.setorId, parsed.data.posicaoId);
   if (erroEscopo) return { ok: false, error: erroEscopo };
+
+  if (parsed.data.telegramChatId) {
+    const erroChatId = await validarTelegramChatIdLivre(empresaId, parsed.data.telegramChatId);
+    if (erroChatId) return { ok: false, error: erroChatId };
+  }
 
   try {
     await prisma.colaborador.create({
@@ -96,6 +127,11 @@ export async function updateColaborador(
 
   const erroEscopo = await validarSetorEPosicaoDaEmpresa(empresaId, parsed.data.setorId, parsed.data.posicaoId);
   if (erroEscopo) return { ok: false, error: erroEscopo };
+
+  if (parsed.data.telegramChatId) {
+    const erroChatId = await validarTelegramChatIdLivre(empresaId, parsed.data.telegramChatId, id);
+    if (erroChatId) return { ok: false, error: erroChatId };
+  }
 
   try {
     await prisma.colaborador.update({
