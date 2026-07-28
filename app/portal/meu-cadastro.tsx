@@ -141,11 +141,17 @@ export function MeuCadastro({ dados, faltando }: { dados: MeusDados; faltando: n
 
 export function EnviarDocumento({ enviados }: { enviados: { tipo: string; conferido: boolean }[] }) {
   const [arquivoNome, setArquivoNome] = useState<string | null>(null);
+  const [enviadoAgora, setEnviadoAgora] = useState(false);
   const [estado, acao, enviando] = useActionState(async (prev: ActionResult, fd: FormData) => {
     const r = await enviarMeuDocumento(prev, fd);
     if (r.ok) {
       toast.success("Documento enviado. O RH vai conferir.");
       setArquivoNome(null);
+      setEnviadoAgora(true);
+      // Limpa o campo — sem isso o nome do arquivo fica na tela e parece que
+      // não enviou.
+      const form = document.querySelector<HTMLFormElement>("form[data-envio-documento]");
+      form?.reset();
     }
     return r;
   }, inicial);
@@ -160,19 +166,43 @@ export function EnviarDocumento({ enviados }: { enviados: { tipo: string; confer
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
+        {/* Lista nomeada em vez de etiquetas soltas: quem enviou precisa
+            reconhecer o próprio documento e saber em que pé está, senão manda
+            de novo achando que não chegou. */}
         {enviados.length > 0 && (
-          <div className="flex flex-wrap gap-2">
+          <div className="space-y-2 rounded-lg border p-3">
+            <p className="text-xs font-medium text-muted-foreground">Você já enviou</p>
             {enviados.map((d, i) => (
-              <Badge key={i} variant={d.conferido ? "default" : "secondary"}>
-                {d.conferido && <Check className="mr-1 size-3" />}
-                {d.tipo}
-                {!d.conferido && " · em conferência"}
-              </Badge>
+              <div key={i} className="flex items-center justify-between gap-3">
+                <span className="min-w-0 text-sm">{d.tipo}</span>
+                {d.conferido ? (
+                  <Badge variant="default" className="shrink-0">
+                    <Check className="mr-1 size-3" />
+                    Aceito pelo RH
+                  </Badge>
+                ) : (
+                  <Badge variant="secondary" className="shrink-0">
+                    Em conferência
+                  </Badge>
+                )}
+              </div>
             ))}
+            <p className="text-xs text-muted-foreground">
+              Enviou e ainda está em conferência? Não precisa mandar de novo — o RH avisa por aqui
+              se algo estiver ilegível.
+            </p>
           </div>
         )}
 
-        <form action={acao} className="space-y-4">
+        <form action={acao} data-envio-documento className="space-y-4">
+          {enviadoAgora && estado.ok && (
+            <Alert>
+              <AlertDescription>
+                <b>Documento enviado.</b> Ele aparece na aba <b>Documentos</b> como “em
+                conferência” até o RH validar.
+              </AlertDescription>
+            </Alert>
+          )}
           {!estado.ok && estado.error && (
             <Alert variant="destructive">
               <AlertDescription>{estado.error}</AlertDescription>

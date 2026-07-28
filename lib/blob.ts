@@ -8,7 +8,7 @@
 // Sem BLOB_READ_WRITE_TOKEN a função devolve erro claro em vez de explodir,
 // mesmo contrato de lib/telegram.ts e lib/email.ts: o recurso fica inerte até
 // alguém configurar, e o resto do sistema não quebra por falta dele.
-import { put, del } from "@vercel/blob";
+import { put, del, get } from "@vercel/blob";
 
 export function blobConfigurado(): boolean {
   return !!process.env.BLOB_READ_WRITE_TOKEN;
@@ -19,12 +19,15 @@ export type EnvioBlob =
   | { ok: false; error: string };
 
 /**
- * Sobe um anexo e devolve a URL pública.
+ * Sobe um anexo e devolve a URL para recuperá-lo depois.
  *
- * `addRandomSuffix` é obrigatório aqui: dois colaboradores mandando "rg.pdf"
- * no mesmo caminho sobrescreveriam um ao outro — e o segundo veria o documento
- * do primeiro. O sufixo aleatório também serve de proteção: a URL é pública
- * para quem a tem, e não dá para adivinhar o caminho do documento alheio.
+ * `access: "private"` é o que o store exige, e é o que documento pessoal pede:
+ * a URL sozinha não abre nada. Quem serve o arquivo é a nossa rota, que já
+ * valida a sessão e registra na auditoria quem baixou o quê.
+ *
+ * `addRandomSuffix` porque dois colaboradores mandando "rg.pdf" no mesmo
+ * caminho sobrescreveriam um ao outro — e o segundo veria o documento do
+ * primeiro.
  */
 export async function enviarParaBlob(params: {
   empresaId: string;
@@ -46,13 +49,35 @@ export async function enviarParaBlob(params: {
 
   try {
     const { url } = await put(caminho, Buffer.from(params.bytes), {
-      access: "public",
+      access: "private",
       addRandomSuffix: true,
       contentType: params.mimeType,
     });
     return { ok: true, url };
   } catch (e) {
     return { ok: false, error: `Falha ao enviar o arquivo: ${String(e).slice(0, 120)}` };
+  }
+}
+
+/**
+ * Lê um anexo do Blob para servir pela nossa rota.
+ *
+ * Store privado não abre por URL — o arquivo tem que passar por aqui, o que é
+ * exatamente o que se quer para RG e comprovante de residência: quem baixa
+ * passa pelo guarda de sessão e fica registrado na auditoria.
+ */
+export async function baixarDoBlob(
+  url: string,
+): Promise<{ ok: true; bytes: ArrayBuffer } | { ok: false; error: string }> {
+  if (!blobConfigurado()) {
+    return { ok: false, error: "Armazenamento de arquivos não configurado." };
+  }
+  try {
+    const resultado = await get(url, { access: "private" });
+    if (!resultado) return { ok: false, error: "Arquivo não encontrado no armazenamento." };
+    return { ok: true, bytes: await new Response(resultado.stream).arrayBuffer() };
+  } catch (e) {
+    return { ok: false, error: `Falha ao ler o arquivo: ${String(e).slice(0, 120)}` };
   }
 }
 

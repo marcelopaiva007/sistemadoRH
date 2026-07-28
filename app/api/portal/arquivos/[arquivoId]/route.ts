@@ -5,6 +5,7 @@
 // nunca a um colega. Como no lado do RH, cada download entra na auditoria.
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { baixarDoBlob } from "@/lib/blob";
 import { lerSessaoPortal } from "@/lib/portal-auth";
 import { registrarAuditoria } from "@/lib/audit";
 
@@ -68,7 +69,21 @@ export async function GET(
   // Dois modos de armazenamento convivem: o que veio pelo portal está no Vercel
   // Blob, o que o RH anexou antes continua na coluna Bytes. A auditoria acima
   // roda nos dois casos — é ela que registra quem baixou o quê.
-  if (arquivo.blobUrl) return NextResponse.redirect(arquivo.blobUrl);
+  //
+  // O store do Blob é privado: a URL não abre sozinha, então buscamos os bytes
+  // aqui e servimos por esta rota. É o comportamento certo para documento
+  // pessoal — um redirect entregaria o arquivo sem passar pelo guarda.
+  if (arquivo.blobUrl) {
+    const doBlob = await baixarDoBlob(arquivo.blobUrl);
+    if (!doBlob.ok) return new NextResponse(doBlob.error, { status: 404 });
+    return new NextResponse(doBlob.bytes, {
+      headers: {
+        "Content-Type": arquivo.mimeType,
+        "Content-Disposition": `${visualizar ? "inline" : "attachment"}; filename*=UTF-8''${nomeCodificado}`,
+        "Cache-Control": "private, no-store",
+      },
+    });
+  }
   if (!arquivo.conteudo) {
     return new NextResponse("Arquivo indisponível.", { status: 404 });
   }
