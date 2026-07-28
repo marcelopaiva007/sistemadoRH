@@ -9,6 +9,7 @@ import { tipoContratoLabel } from "@/lib/constants-dp";
 import { formatarData, tempoDeCasa } from "@/lib/datas";
 import type { ResumoFerias } from "@/lib/ferias";
 import type { ConformidadeColaborador, SituacaoExame } from "@/lib/conformidade";
+import { AtivarDesativarButton } from "../ativar-desativar-button";
 import { FichaBlocos } from "./ficha-blocos";
 import { DependentesCard } from "./dependentes-card";
 import { DocumentosCard } from "./documentos-card";
@@ -116,6 +117,12 @@ export function ColaboradorDetalhe({
           <Badge variant={colaborador.ativo ? "default" : "secondary"}>
             {colaborador.ativo ? "Ativo" : "Inativo"}
           </Badge>
+          <AtivarDesativarButton
+            empresaId={empresaId}
+            id={colaborador.id}
+            ativo={colaborador.ativo}
+            comRotulo
+          />
           {colaborador.tipoContrato && (
             <Badge variant="outline">{tipoContratoLabel(colaborador.tipoContrato)}</Badge>
           )}

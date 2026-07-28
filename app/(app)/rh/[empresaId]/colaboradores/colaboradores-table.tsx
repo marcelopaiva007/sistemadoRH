@@ -39,6 +39,7 @@ import {
   deleteColaborador,
   toggleColaboradorAtivo,
 } from "@/lib/actions/rh-colaboradores";
+import { AtivarDesativarButton } from "./ativar-desativar-button";
 import { formatarCpf, mascararCpf } from "@/lib/cpf";
 import type { ActionResult } from "@/lib/constants";
 
@@ -343,20 +344,19 @@ export function ColaboradoresTable({
                   )}
                 </TableCell>
                 <TableCell>
-                  <button
-                    onClick={async () => {
-                      const result = await toggleColaboradorAtivo(empresaId, c.id, !c.ativo);
-                      if (result.ok) toast.success(c.ativo ? "Colaborador desativado." : "Colaborador ativado.");
-                    }}
-                  >
-                    <Badge variant={c.ativo ? "default" : "secondary"}>{c.ativo ? "Ativo" : "Inativo"}</Badge>
-                  </button>
+                  {/* Só rótulo. Até 28/07/2026 este badge era um botão que
+                      ativava/desativava a pessoa no primeiro clique, sem dizer
+                      que era clicável e sem confirmar — quem passava por aqui
+                      não achava a ação, e quem achava por acidente desativava
+                      alguém sem querer. A ação foi para a coluna de ações. */}
+                  <Badge variant={c.ativo ? "default" : "secondary"}>{c.ativo ? "Ativo" : "Inativo"}</Badge>
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-1">
                     <Button variant="ghost" size="icon" onClick={() => setEditColaborador(c)}>
                       <Pencil className="size-4" />
                     </Button>
+                    <AtivarDesativarButton empresaId={empresaId} id={c.id} ativo={c.ativo} />
                     <DeleteColaboradorButton empresaId={empresaId} colaborador={c} />
                   </div>
                 </TableCell>
@@ -559,14 +559,15 @@ function DeleteColaboradorButton({ empresaId, colaborador }: { empresaId: string
 
   if (confirming) {
     return (
-      <div className="flex gap-1">
+      <span className="inline-flex items-center gap-1">
+        <span className="text-xs text-destructive">Apagar a ficha?</span>
         <Button variant="destructive" size="sm" onClick={handleDelete}>
           Confirmar
         </Button>
         <Button variant="ghost" size="sm" onClick={() => setConfirming(false)}>
           Cancelar
         </Button>
-      </div>
+      </span>
     );
   }
 

@@ -29,6 +29,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { createPesquisa, criarPesquisaNR01, deletePesquisa } from "@/lib/actions/pesquisas";
 import { statusPesquisaLabel } from "@/lib/constants-rh";
+import { participacaoPct } from "@/lib/pesquisa-numeros";
 import type { ActionResult } from "@/lib/constants";
 
 type Pesquisa = {
@@ -43,7 +44,16 @@ type Pesquisa = {
 
 const initialState: ActionResult = { ok: true };
 
-export function PesquisasTable({ empresaId, pesquisas }: { empresaId: string; pesquisas: Pesquisa[] }) {
+export function PesquisasTable({
+  empresaId,
+  pesquisas,
+  colaboradoresAtivos,
+}: {
+  empresaId: string;
+  pesquisas: Pesquisa[];
+  /** Colaboradores ativos da empresa hoje — o universo que a pesquisa deveria cobrir. */
+  colaboradoresAtivos: number;
+}) {
   const [createOpen, setCreateOpen] = useState(false);
   const [criandoNR01, setCriandoNR01] = useState(false);
 
@@ -84,6 +94,7 @@ export function PesquisasTable({ empresaId, pesquisas }: { empresaId: string; pe
               <TableHead>Status</TableHead>
               <TableHead>Anônima</TableHead>
               <TableHead>Perguntas</TableHead>
+              <TableHead>Cadastrados</TableHead>
               <TableHead>Convites</TableHead>
               <TableHead>Respostas</TableHead>
               <TableHead className="w-px" />
@@ -92,7 +103,7 @@ export function PesquisasTable({ empresaId, pesquisas }: { empresaId: string; pe
           <TableBody>
             {pesquisas.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
+                <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
                   Nenhuma pesquisa cadastrada ainda.
                 </TableCell>
               </TableRow>
@@ -114,8 +125,19 @@ export function PesquisasTable({ empresaId, pesquisas }: { empresaId: string; pe
                 </TableCell>
                 <TableCell>{p.anonima ? "Sim" : "Não"}</TableCell>
                 <TableCell>{p._count.perguntas}</TableCell>
+                {/* Cadastrados é da EMPRESA, não da pesquisa: repete em toda
+                    linha de propósito, porque é a referência contra a qual os
+                    outros dois números se leem. */}
+                <TableCell className="text-muted-foreground">{colaboradoresAtivos}</TableCell>
                 <TableCell>{p._count.tokens}</TableCell>
-                <TableCell>{p._count.respostas}</TableCell>
+                <TableCell>
+                  {p._count.respostas}
+                  {p._count.tokens > 0 && (
+                    <span className="ml-1 text-xs text-muted-foreground">
+                      ({participacaoPct(p._count.respostas, p._count.tokens)}%)
+                    </span>
+                  )}
+                </TableCell>
                 <TableCell className="text-right">
                   <ExcluirPesquisaButton
                     empresaId={empresaId}

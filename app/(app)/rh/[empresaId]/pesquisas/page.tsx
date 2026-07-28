@@ -11,7 +11,11 @@ export default async function PesquisasPage({ params }: { params: Promise<{ empr
   // findMany: a contagem de relação com `where` é o tipo de coisa que passa no
   // type-check e devolve o total cru se algo mudar por baixo. Aqui a condição
   // está na consulta, onde dá para conferir.
-  const [pesquisas, convitesPorPesquisa] = await Promise.all([
+  const [ativos, pesquisas, convitesPorPesquisa] = await Promise.all([
+    // Quantos colaboradores existem hoje. É o número que dá sentido aos
+    // outros dois: 205 convites sobre 208 cadastrados diz que a lista está em
+    // dia; sobre 260, diz que falta gerar convite para muita gente.
+    prisma.colaborador.count({ where: { empresaId, ativo: true } }),
     prisma.pesquisa.findMany({
       where: { empresaId },
       orderBy: { createdAt: "desc" },
@@ -29,6 +33,7 @@ export default async function PesquisasPage({ params }: { params: Promise<{ empr
   return (
     <PesquisasTable
       empresaId={empresaId}
+      colaboradoresAtivos={ativos}
       pesquisas={pesquisas.map((p) => ({
         ...p,
         _count: { ...p._count, tokens: convites.get(p.id) ?? 0 },
