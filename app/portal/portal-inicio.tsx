@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, FileText, LogOut, PencilLine, Stethoscope, User } from "lucide-react";
+import { CalendarDays, FileText, LogOut, PencilLine, Stethoscope, Upload, User } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -129,6 +129,10 @@ export function PortalInicio({
           <TabsTrigger value="atualizar">
             <PencilLine />
             Atualizar
+          </TabsTrigger>
+          <TabsTrigger value="enviar">
+            <Upload />
+            Enviar documentos
           </TabsTrigger>
           <TabsTrigger value="documentos">
             <FileText />
@@ -342,10 +346,15 @@ export function PortalInicio({
           </Card>
         </TabsContent>
 
-        {/* Autoatendimento: contato, endereço e emergência gravam direto; o que
-            o colaborador anexa espera conferência do RH antes de valer. */}
-        <TabsContent value="atualizar" className="space-y-4 pt-4">
+        {/* Contato, endereço e emergência gravam direto — nada aqui espera
+            aval do RH. Anexar documento é outra tarefa, com outro tempo e outra
+            expectativa, então mora na aba ao lado. */}
+        <TabsContent value="atualizar" className="pt-4">
           <MeuCadastro dados={colaborador} faltando={camposFaltando} />
+        </TabsContent>
+
+        {/* O que o colaborador anexa espera conferência do RH antes de valer. */}
+        <TabsContent value="enviar" className="pt-4">
           <EnviarDocumento
             enviados={documentos.map((d) => ({
               tipo: tipoDocumentoLabel(d.tipo),
