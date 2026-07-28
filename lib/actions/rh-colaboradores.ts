@@ -220,6 +220,50 @@ export async function toggleColaboradorAtivo(empresaId: string, id: string, ativ
 }
 
 /**
+ * Só o "Reporta a" — para editar direto no Organograma sem abrir o formulário
+ * inteiro do colaborador (que pede nome/setor/posição também). `supervisorId
+ * null` remove o líder.
+ */
+export async function definirSupervisor(
+  empresaId: string,
+  id: string,
+  supervisorId: string | null,
+): Promise<ActionResult> {
+  await requireEmpresaAccess(empresaId);
+
+  const colaborador = await prisma.colaborador.findFirst({
+    where: { id, empresaId },
+    select: { nome: true, supervisorId: true },
+  });
+  if (!colaborador) return { ok: false, error: "Colaborador não encontrado." };
+
+  let nomeNovoLider: string | null = null;
+  if (supervisorId) {
+    const erro = await validarSupervisor(empresaId, supervisorId, id);
+    if (erro) return { ok: false, error: erro };
+    nomeNovoLider = (await prisma.colaborador.findUnique({ where: { id: supervisorId }, select: { nome: true } }))!
+      .nome;
+  }
+
+  await prisma.colaborador.update({ where: { id, empresaId }, data: { supervisorId } });
+
+  await registrarAuditoria({
+    empresaId,
+    acao: "ATUALIZAR",
+    entidade: "Colaborador",
+    entidadeId: id,
+    resumo: nomeNovoLider
+      ? `${colaborador.nome} passou a reportar a ${nomeNovoLider}.`
+      : `${colaborador.nome} ficou sem líder definido.`,
+  });
+
+  revalidatePath(`/rh/${empresaId}/organograma`);
+  revalidatePath(`/rh/${empresaId}/colaboradores`);
+  revalidatePath(`/rh/${empresaId}/colaboradores/${id}`);
+  return { ok: true };
+}
+
+/**
  * Apaga a ficha inteira.
  *
  * Quem PARTICIPOU de pesquisa não pode ser apagado: a resposta é anônima
