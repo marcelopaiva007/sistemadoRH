@@ -25,6 +25,22 @@ import type { ActionResult } from "@/lib/constants";
 const texto = (fd: FormData, campo: string, max = 200) =>
   String(fd.get(campo) ?? "").trim().slice(0, max) || null;
 
+const digitos = (fd: FormData, campo: string, max: number) =>
+  String(fd.get(campo) ?? "").replace(/\D/g, "").slice(0, max) || null;
+
+const uf = (fd: FormData, campo: string) =>
+  String(fd.get(campo) ?? "").trim().toUpperCase().slice(0, 2) || null;
+
+/** Módulo 11 sobre os 10 primeiros dígitos, como manda o layout do PIS/PASEP. */
+function pisValido(valor: string): boolean {
+  if (valor.length !== 11 || /^(\d)\1{10}$/.test(valor)) return false;
+  const pesos = [3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+  const soma = pesos.reduce((acc, peso, i) => acc + Number(valor[i]) * peso, 0);
+  const resto = soma % 11;
+  const dv = resto < 2 ? 0 : 11 - resto;
+  return dv === Number(valor[10]);
+}
+
 /** Campos sem impacto em folha ou pagamento — gravam direto. */
 export async function atualizarMeusDados(
   _prev: ActionResult,
@@ -45,6 +61,14 @@ export async function atualizarMeusDados(
   }
   const cep = String(formData.get("cep") ?? "").replace(/\D/g, "").slice(0, 8) || null;
   if (cep && cep.length !== 8) return { ok: false, error: "O CEP precisa ter 8 dígitos." };
+
+  // O PIS carrega dígito verificador. Conferir aqui custa nada e evita que um
+  // dígito trocado atravesse a conferência do RH e só quebre no eSocial, meses
+  // depois, quando ninguém lembra de onde veio.
+  const pis = String(formData.get("pis") ?? "").replace(/\D/g, "") || null;
+  if (pis && !pisValido(pis)) {
+    return { ok: false, error: "PIS/PASEP inválido — confira os números no documento." };
+  }
 
   await prisma.colaborador.update({
     where: { id: colaborador.id },
@@ -67,6 +91,16 @@ export async function atualizarMeusDados(
       emergenciaNome: texto(formData, "emergenciaNome"),
       emergenciaParentesco: texto(formData, "emergenciaParentesco", 40),
       emergenciaTelefone: texto(formData, "emergenciaTelefone", 40),
+      // Números de documento: quem tem o papel na mão digita melhor do que quem
+      // lê a foto depois. O RH confere contra o anexo em vez de transcrever.
+      rg: texto(formData, "rg", 20),
+      rgOrgaoEmissor: texto(formData, "rgOrgaoEmissor", 20),
+      rgUf: uf(formData, "rgUf"),
+      pis,
+      tituloEleitor: digitos(formData, "tituloEleitor", 14),
+      ctpsNumero: texto(formData, "ctpsNumero", 20),
+      ctpsSerie: texto(formData, "ctpsSerie", 10),
+      ctpsUf: uf(formData, "ctpsUf"),
     },
   });
 

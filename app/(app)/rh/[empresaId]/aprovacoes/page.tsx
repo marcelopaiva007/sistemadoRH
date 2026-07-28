@@ -63,7 +63,15 @@ export default async function AprovacoesPage({
         observacoes: true,
         createdAt: true,
         arquivo: { select: { id: true, nome: true, tamanhoBytes: true } },
-        colaborador: { select: { nome: true, setor: { select: { nome: true } } } },
+        // Os números que a própria pessoa digitou. Conferir o anexo contra eles
+        // é o trabalho — sem isso o RH abre a foto sem saber com o que comparar.
+        colaborador: {
+          select: {
+            nome: true, cpf: true, rg: true, rgOrgaoEmissor: true, rgUf: true,
+            pis: true, ctpsNumero: true, ctpsSerie: true, ctpsUf: true, tituloEleitor: true,
+            setor: { select: { nome: true } },
+          },
+        },
       },
     }),
     prisma.auditLog.findMany({

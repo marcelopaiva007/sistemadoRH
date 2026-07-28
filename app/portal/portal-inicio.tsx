@@ -39,6 +39,14 @@ type Colaborador = {
   numeroEndereco: string | null;
   complemento: string | null;
   bairro: string | null;
+  rg: string | null;
+  rgOrgaoEmissor: string | null;
+  rgUf: string | null;
+  pis: string | null;
+  ctpsNumero: string | null;
+  ctpsSerie: string | null;
+  ctpsUf: string | null;
+  tituloEleitor: string | null;
   setor: { nome: string };
   posicao: { nome: string };
 };
