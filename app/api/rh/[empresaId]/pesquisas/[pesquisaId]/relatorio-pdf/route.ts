@@ -58,9 +58,6 @@ export async function GET(
       perguntas: {
         select: { id: true, codigo: true, enunciado: true, dimensao: true, invertida: true },
       },
-      // Sem os excluídos: o relatório do PGR vai para o engenheiro de SST e o
-      // "respostas/convites" precisa bater com o que a tela mostra.
-      _count: { select: { tokens: { where: CONVITES_NA_PESQUISA } } },
     },
   });
   if (!pesquisa) {
@@ -70,14 +67,19 @@ export async function GET(
     );
   }
 
-  const respostas = await prisma.resposta.findMany({
-    where: { pesquisaId },
-    select: {
-      setorNomeSnapshot: true,
-      posicaoNomeSnapshot: true,
-      itens: { select: { perguntaId: true, valorNumerico: true } },
-    },
-  });
+  // Convites sem os excluídos: o relatório do PGR vai para o engenheiro de SST
+  // e o "respostas/convites" precisa bater com o que a tela mostra.
+  const [convites, respostas] = await Promise.all([
+    prisma.surveyToken.count({ where: { pesquisaId, ...CONVITES_NA_PESQUISA } }),
+    prisma.resposta.findMany({
+      where: { pesquisaId },
+      select: {
+        setorNomeSnapshot: true,
+        posicaoNomeSnapshot: true,
+        itens: { select: { perguntaId: true, valorNumerico: true } },
+      },
+    }),
+  ]);
 
   const resultado = calcularNR01(pesquisa.perguntas, respostas);
   const html = gerarHtmlRelatorioNR01({
@@ -86,7 +88,7 @@ export async function GET(
     pesquisaStatus: pesquisa.status,
     iniciadaEm: pesquisa.iniciadaEm,
     encerradaEm: pesquisa.encerradaEm,
-    convites: pesquisa._count.tokens,
+    convites,
     resultado,
   });
 

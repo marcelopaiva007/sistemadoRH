@@ -25,8 +25,7 @@ export default async function DashboardPage({
       id: true,
       titulo: true,
       status: true,
-      // Convites sem os excluídos: é este o denominador da participação.
-      _count: { select: { respostas: true, tokens: { where: CONVITES_NA_PESQUISA } } },
+      _count: { select: { respostas: true } },
     },
   });
 
@@ -37,7 +36,11 @@ export default async function DashboardPage({
     return <DashboardNR01View pesquisas={[]} resultado={null} pesquisaSelecionada={null} convites={0} empresaId={empresaId} />;
   }
 
-  const [perguntas, respostas] = await Promise.all([
+  // Denominador da participação: convites da pesquisa sem os excluídos.
+  const [convites, perguntas, respostas] = await Promise.all([
+    prisma.surveyToken.count({
+      where: { pesquisaId: selecionada.id, ...CONVITES_NA_PESQUISA },
+    }),
     prisma.pergunta.findMany({
       where: { pesquisaId: selecionada.id },
       select: { id: true, codigo: true, enunciado: true, dimensao: true, invertida: true },
@@ -59,7 +62,7 @@ export default async function DashboardPage({
       empresaId={empresaId}
       pesquisas={pesquisasNR01.map((p) => ({ id: p.id, titulo: p.titulo, status: p.status }))}
       pesquisaSelecionada={selecionada.id}
-      convites={selecionada._count.tokens}
+      convites={convites}
       resultado={resultado}
     />
   );

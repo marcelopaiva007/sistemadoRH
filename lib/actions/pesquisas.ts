@@ -22,6 +22,24 @@ import type { ActionResult } from "@/lib/constants";
  */
 type ResultadoComMensagem = { ok: true; message?: string } | { ok: false; error: string };
 
+/**
+ * Todas as telas onde o número de convites aparece.
+ *
+ * Tirar alguém da pesquisa muda quatro telas ao mesmo tempo, e é fácil
+ * revalidar só aquela em que o RH clicou: ele volta para a lista de pesquisas,
+ * vê o total de antes e conclui que a exclusão não funcionou. Cada caminho
+ * está escrito aqui em vez de confiar na revalidação do layout.
+ */
+function revalidarNumerosDaPesquisa(empresaId: string, pesquisaId: string) {
+  revalidatePath(`/rh/${empresaId}/pesquisas/${pesquisaId}`);
+  revalidatePath(`/rh/${empresaId}/pesquisas`);
+  revalidatePath(`/rh/${empresaId}/dashboard`);
+  revalidatePath(`/rh/${empresaId}/relatorios`);
+  // Headcount da empresa e do grupo — a exclusão desativa o cadastro.
+  revalidatePath(`/rh/${empresaId}`, "layout");
+  revalidatePath("/");
+}
+
 const STATUSES = ["DRAFT", "ACTIVE", "FINISHED", "ARCHIVED"] as const;
 const TIPOS_PERGUNTA = ["LIKERT_5", "FREQ_0_4", "NPS_10", "MULTIPLE_CHOICE", "TEXT"] as const;
 const DIMENSOES_GPTW = [
@@ -351,10 +369,7 @@ export async function excluirDaPesquisa(
       (desativouCadastro ? " e o cadastro foi desativado." : "."),
   });
 
-  revalidatePath(`/rh/${empresaId}/pesquisas/${token.pesquisaId}`);
-  // O headcount e as listas da empresa mudam junto quando o cadastro é desativado.
-  revalidatePath(`/rh/${empresaId}`, "layout");
-  revalidatePath("/");
+  revalidarNumerosDaPesquisa(empresaId, token.pesquisaId);
   return {
     ok: true,
     message: desativouCadastro
@@ -396,7 +411,7 @@ export async function reincluirNaPesquisa(
     resumo: `${token.colaborador.nome} voltou para a pesquisa.`,
   });
 
-  revalidatePath(`/rh/${empresaId}/pesquisas/${token.pesquisaId}`);
+  revalidarNumerosDaPesquisa(empresaId, token.pesquisaId);
   return {
     ok: true,
     message: token.colaborador.ativo
@@ -472,9 +487,7 @@ export async function apagarConviteExcluido(
     resumo: `Convite de ${nomes[0]} apagado da pesquisa.`,
   });
 
-  revalidatePath(`/rh/${empresaId}/pesquisas/${pesquisaId}`);
-  revalidatePath(`/rh/${empresaId}`, "layout");
-  revalidatePath("/");
+  revalidarNumerosDaPesquisa(empresaId, pesquisaId!);
   return { ok: true, message: `${nomes[0]} saiu da lista.` };
 }
 
@@ -496,9 +509,7 @@ export async function limparExcluidosDaPesquisa(
     resumo: `${apagados} convite(s) de quem estava fora da pesquisa foram apagados.`,
   });
 
-  revalidatePath(`/rh/${empresaId}/pesquisas/${pesquisaId}`);
-  revalidatePath(`/rh/${empresaId}`, "layout");
-  revalidatePath("/");
+  revalidarNumerosDaPesquisa(empresaId, pesquisaId);
   return { ok: true, message: `${apagados} pessoa(s) apagada(s) da lista.` };
 }
 

@@ -28,15 +28,27 @@ export default async function RelatoriosPage({
   const { empresaId } = await params;
   await requireEmpresaAccess(empresaId);
 
-  const [empresa, pesquisas] = await Promise.all([
+  const [empresa, pesquisasBase, convitesPorPesquisa] = await Promise.all([
     prisma.empresa.findUnique({ where: { id: empresaId }, select: { nome: true } }),
     prisma.pesquisa.findMany({
       where: { empresaId },
       orderBy: { createdAt: "desc" },
-      // Convites sem os excluídos — o mesmo denominador da tela da pesquisa.
-      include: { _count: { select: { tokens: { where: CONVITES_NA_PESQUISA }, respostas: true } } },
+      include: { _count: { select: { respostas: true } } },
+    }),
+    // Convites sem os excluídos — o mesmo denominador da tela da pesquisa,
+    // contado na consulta e não por `_count` filtrado.
+    prisma.surveyToken.groupBy({
+      by: ["pesquisaId"],
+      where: { pesquisa: { empresaId }, ...CONVITES_NA_PESQUISA },
+      _count: { _all: true },
     }),
   ]);
+
+  const convitesPorId = new Map(convitesPorPesquisa.map((g) => [g.pesquisaId, g._count._all]));
+  const pesquisas = pesquisasBase.map((p) => ({
+    ...p,
+    _count: { ...p._count, tokens: convitesPorId.get(p.id) ?? 0 },
+  }));
 
   // Nível geral das avaliações NR-01 (só quando há amostra suficiente).
   const niveisPorPesquisa = new Map<string, { nivel: keyof typeof NIVEIS_RISCO; indice: number } | null>();
