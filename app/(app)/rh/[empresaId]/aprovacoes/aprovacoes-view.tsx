@@ -54,7 +54,19 @@ type Documento = {
   observacoes: string | null;
   createdAt: Date;
   arquivo: { id: string; nome: string; tamanhoBytes: number } | null;
-  colaborador: { nome: string; setor: { nome: string } };
+  colaborador: {
+    nome: string;
+    cpf: string | null;
+    rg: string | null;
+    rgOrgaoEmissor: string | null;
+    rgUf: string | null;
+    pis: string | null;
+    ctpsNumero: string | null;
+    ctpsSerie: string | null;
+    ctpsUf: string | null;
+    tituloEleitor: string | null;
+    setor: { nome: string };
+  };
 };
 
 type Decidida = {
@@ -64,6 +76,27 @@ type Decidida = {
   usuarioNome: string | null;
   createdAt: Date;
 };
+
+/**
+ * O que a pessoa digitou para o tipo de documento que anexou. É contra isto que
+ * o RH compara a foto — sem, a conferência vira "parece um RG mesmo".
+ */
+function numeroDeclarado(d: Documento): string | null {
+  const c = d.colaborador;
+  const junta = (...partes: (string | null)[]) => partes.filter(Boolean).join(" · ") || null;
+  switch (d.tipo) {
+    case "RG":
+      return junta(c.rg && `RG ${c.rg}`, c.rgOrgaoEmissor, c.rgUf);
+    case "CPF":
+      return c.cpf && `CPF ${c.cpf}`;
+    case "CTPS":
+      return junta(c.ctpsNumero && `CTPS ${c.ctpsNumero}`, c.ctpsSerie && `série ${c.ctpsSerie}`, c.ctpsUf);
+    case "TITULO_ELEITOR":
+      return c.tituloEleitor && `Título ${c.tituloEleitor}`;
+    default:
+      return null;
+  }
+}
 
 export function AprovacoesView({
   empresaId,
@@ -148,6 +181,8 @@ export function AprovacoesView({
               titulo={d.colaborador.nome}
               subtitulo={`${d.colaborador.setor.nome} · ${tipoDocumentoLabel(d.tipo)}`}
               linhas={[
+                // O número que a pessoa digitou, para bater com a foto.
+                numeroDeclarado(d) ?? "Sem número digitado para este documento.",
                 d.descricao ?? "",
                 d.validoAte ? `Válido até ${formatarData(d.validoAte)}` : "",
                 d.observacoes ?? "",

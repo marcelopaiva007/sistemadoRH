@@ -34,6 +34,14 @@ export type MeusDados = {
   emergenciaNome: string | null;
   emergenciaParentesco: string | null;
   emergenciaTelefone: string | null;
+  rg: string | null;
+  rgOrgaoEmissor: string | null;
+  rgUf: string | null;
+  pis: string | null;
+  ctpsNumero: string | null;
+  ctpsSerie: string | null;
+  ctpsUf: string | null;
+  tituloEleitor: string | null;
 };
 
 function Campo({
@@ -107,6 +115,26 @@ export function MeuCadastro({ dados, faltando }: { dados: MeusDados; faltando: n
               <Campo name="nomePai" label="Nome do pai" defaultValue={dados.nomePai} />
               <Campo name="nacionalidade" label="Nacionalidade" defaultValue={dados.nacionalidade} />
               <Campo name="naturalidade" label="Cidade onde nasceu" defaultValue={dados.naturalidade} />
+            </div>
+          </Secao>
+
+          {/* Quem tem o documento na mão digita muito melhor do que quem lê a
+              foto depois. O RH confere contra o anexo e aprova — em vez de
+              transcrever 253 fichas. */}
+          <Secao titulo="Documentos">
+            <p className="text-xs text-muted-foreground">
+              Copie exatamente como está no documento. Envie também a foto na aba{" "}
+              <b>Enviar documentos</b> — o RH confere os dois juntos.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-6">
+              <Campo name="rg" label="RG" defaultValue={dados.rg} className="sm:col-span-3" />
+              <Campo name="rgOrgaoEmissor" label="Órgão emissor" defaultValue={dados.rgOrgaoEmissor} placeholder="SSP" className="sm:col-span-2" />
+              <Campo name="rgUf" label="UF" defaultValue={dados.rgUf} maxLength={2} className="sm:col-span-1" />
+              <Campo name="pis" label="PIS / PASEP / NIT" defaultValue={dados.pis} inputMode="numeric" className="sm:col-span-3" />
+              <Campo name="tituloEleitor" label="Título de eleitor" defaultValue={dados.tituloEleitor} inputMode="numeric" className="sm:col-span-3" />
+              <Campo name="ctpsNumero" label="CTPS — número" defaultValue={dados.ctpsNumero} className="sm:col-span-3" />
+              <Campo name="ctpsSerie" label="CTPS — série" defaultValue={dados.ctpsSerie} className="sm:col-span-2" />
+              <Campo name="ctpsUf" label="UF" defaultValue={dados.ctpsUf} maxLength={2} className="sm:col-span-1" />
             </div>
           </Secao>
 
