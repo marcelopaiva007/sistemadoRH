@@ -29,7 +29,20 @@ const SOMBRA_DE_ROLAGEM = cn(
   "[background-attachment:local,local,scroll,scroll]",
 )
 
-function Table({ className, ...props }: React.ComponentProps<"table">) {
+function Table({
+  className,
+  compacta,
+  ...props
+}: React.ComponentProps<"table"> & {
+  /**
+   * Densidade reduzida para as listas longas de pessoas (colaboradores,
+   * convites de pesquisa, folha). Fonte e altura de linha menores cabem
+   * cerca de um terço mais gente na mesma tela — numa lista de 200 pessoas o
+   * que se procura é a linha certa, e rolar menos vale mais do que o conforto
+   * de leitura de uma tabela de cinco itens.
+   */
+  compacta?: boolean
+}) {
   return (
     <div
       data-slot="table-container"
@@ -37,7 +50,11 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
     >
       <table
         data-slot="table"
-        className={cn("w-full caption-bottom text-sm", className)}
+        className={cn(
+          "w-full caption-bottom text-sm",
+          compacta && "text-xs [&_th]:h-8 [&_th]:py-1 [&_td]:py-1.5",
+          className
+        )}
         {...props}
       />
     </div>

@@ -100,7 +100,7 @@ export function MetasView({
             <p className="py-6 text-center text-sm text-muted-foreground">Nenhuma meta cadastrada ainda.</p>
           ) : (
             <div className="rounded-md border">
-              <Table>
+              <Table compacta>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Meta</TableHead>

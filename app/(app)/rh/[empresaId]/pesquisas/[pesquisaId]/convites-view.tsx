@@ -36,9 +36,9 @@ import { LIMITE_DIARIO_ENVIOS, statusTokenLabel } from "@/lib/constants-rh";
 import { participacaoPct } from "@/lib/pesquisa-numeros";
 import type { PesquisaBase, Token } from "./tipos";
 
-// 25 por página, como na lista de colaboradores: 205 convites dão 9 páginas,
-// e a tela deixa de renderizar 200 linhas de uma vez.
-const POR_PAGINA = 25;
+// 50 por página, como na lista de colaboradores: com a tabela compacta os 205
+// convites cabem em 5 páginas, e a tela nunca renderiza a lista inteira.
+const POR_PAGINA = 50;
 
 type Filtro = "todos" | "nao_enviados" | "sem_resposta" | "responderam" | "fora";
 
@@ -294,7 +294,7 @@ export function ConvitesView({
           </div>
 
           <div className="overflow-x-auto">
-            <Table>
+            <Table compacta>
               <TableHeader>
                 <TableRow>
                   <TableHead>Colaborador</TableHead>
