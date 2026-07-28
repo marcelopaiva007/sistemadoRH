@@ -37,6 +37,7 @@ export async function GET(
       nome: true,
       mimeType: true,
       conteudo: true,
+      blobUrl: true,
       empresaId: true,
       documento: { select: { id: true } },
       ausencia: { select: { id: true } },
@@ -63,6 +64,15 @@ export async function GET(
 
   const nomeCodificado = encodeURIComponent(arquivo.nome);
   const visualizar = req.nextUrl.searchParams.get("download") !== "1";
+
+  // Dois modos de armazenamento convivem: o que veio pelo portal está no Vercel
+  // Blob, o que o RH anexou antes continua na coluna Bytes. A auditoria acima
+  // roda nos dois casos — é ela que registra quem baixou o quê.
+  if (arquivo.blobUrl) return NextResponse.redirect(arquivo.blobUrl);
+  if (!arquivo.conteudo) {
+    return new NextResponse("Arquivo indisponível.", { status: 404 });
+  }
+
   return new NextResponse(new Uint8Array(arquivo.conteudo), {
     headers: {
       "Content-Type": arquivo.mimeType,

@@ -4,6 +4,7 @@ import { hojeUTC, somarDiasUTC } from "@/lib/datas";
 
 export type Pendencias = {
   aprovacoes: number;
+  documentosAConferir: number;
   asoVencendo: number;
   certificadosVencendo: number;
   catPendente: number;
@@ -22,10 +23,14 @@ export async function pendenciasDaEmpresa(empresaId: string): Promise<Pendencias
   const hoje = hojeUTC();
   const limite = somarDiasUTC(hoje, DIAS_ALERTA_VENCIMENTO);
 
-  const [feriasPendentes, ausenciasPendentes, asoVencendo, certificadosVencendo, catPendente, integracoesAtrasadas, epiVencido] =
+  const [feriasPendentes, ausenciasPendentes, documentosAConferir, asoVencendo, certificadosVencendo, catPendente, integracoesAtrasadas, epiVencido] =
     await Promise.all([
       prisma.solicitacaoFerias.count({ where: { empresaId, status: "PENDENTE" } }),
       prisma.ausencia.count({ where: { empresaId, status: "PENDENTE" } }),
+      // Enviado pelo colaborador no portal e ainda não conferido pelo RH.
+      prisma.documentoColaborador.count({
+        where: { empresaId, origem: "COLABORADOR", conferidoEm: null },
+      }),
       prisma.exameOcupacional.count({
         where: { empresaId, validoAte: { not: null, lte: limite }, colaborador: { ativo: true } },
       }),
@@ -43,6 +48,7 @@ export async function pendenciasDaEmpresa(empresaId: string): Promise<Pendencias
 
   return {
     aprovacoes: feriasPendentes + ausenciasPendentes,
+    documentosAConferir,
     asoVencendo,
     certificadosVencendo,
     catPendente,

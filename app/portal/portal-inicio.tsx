@@ -1,10 +1,11 @@
 "use client";
 
-import { CalendarDays, FileText, LogOut, Stethoscope, User } from "lucide-react";
+import { CalendarDays, FileText, LogOut, PencilLine, Stethoscope, User } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MeuCadastro, EnviarDocumento } from "./meu-cadastro";
 import { sairDoPortal } from "@/lib/actions/portal";
 import { formatarTamanho } from "@/lib/anexos";
 // Mesma máscara usada na listagem interna — o portal confirma identidade,
@@ -26,6 +27,18 @@ type Colaborador = {
   uf: string | null;
   emergenciaNome: string | null;
   emergenciaTelefone: string | null;
+  emergenciaParentesco: string | null;
+  estadoCivil: string | null;
+  escolaridade: string | null;
+  nomeMae: string | null;
+  nomePai: string | null;
+  nacionalidade: string | null;
+  naturalidade: string | null;
+  cep: string | null;
+  logradouro: string | null;
+  numeroEndereco: string | null;
+  complemento: string | null;
+  bairro: string | null;
   setor: { nome: string };
   posicao: { nome: string };
 };
@@ -44,6 +57,8 @@ type Documento = {
   tipo: string;
   descricao: string | null;
   validoAte: Date | null;
+  origem: string;
+  conferidoEm: Date | null;
   arquivo: { id: string; nome: string; tamanhoBytes: number } | null;
 };
 
@@ -75,6 +90,15 @@ export function PortalInicio({
   ausencias: Ausencia[];
   resumoFerias: ResumoFerias | null;
 }) {
+  // O que ainda falta na ficha. Serve de convite: um número concreto puxa mais
+  // preenchimento que um formulário mudo.
+  const camposFaltando = [
+    colaborador.telefone, colaborador.email, colaborador.estadoCivil,
+    colaborador.escolaridade, colaborador.nomeMae, colaborador.nacionalidade,
+    colaborador.cep, colaborador.logradouro, colaborador.bairro,
+    colaborador.emergenciaNome, colaborador.emergenciaTelefone,
+  ].filter((v) => !v).length;
+
   return (
     <div className="space-y-6">
       <div>
@@ -110,6 +134,10 @@ export function PortalInicio({
           <TabsTrigger value="dados">
             <User />
             Meus dados
+          </TabsTrigger>
+          <TabsTrigger value="atualizar">
+            <PencilLine />
+            Atualizar
           </TabsTrigger>
         </TabsList>
 
@@ -291,6 +319,18 @@ export function PortalInicio({
               />
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Autoatendimento: contato, endereço e emergência gravam direto; o que
+            o colaborador anexa espera conferência do RH antes de valer. */}
+        <TabsContent value="atualizar" className="space-y-4 pt-4">
+          <MeuCadastro dados={colaborador} faltando={camposFaltando} />
+          <EnviarDocumento
+            enviados={documentos.map((d) => ({
+              tipo: tipoDocumentoLabel(d.tipo),
+              conferido: d.origem !== "COLABORADOR" || d.conferidoEm !== null,
+            }))}
+          />
         </TabsContent>
       </Tabs>
 

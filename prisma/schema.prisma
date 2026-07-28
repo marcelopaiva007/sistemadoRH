@@ -168,6 +168,10 @@ model Colaborador {
   // "Cod Pessoa" do cadastro no elleven (ERP) — chave para re-sincronizar sem
   // depender de CPF preenchido.
   ellevenCodigo  String?
+  // Razão social do CNPJ que assina a carteira. A planilha do DP traz 11 delas
+  // para 3 marcas — guardar aqui evita multiplicar Empresa, que 33 tabelas
+  // referenciam por empresaId.
+  razaoSocial    String?
   setorId        String
   setor          Setor         @relation(fields: [setorId], references: [id])
   posicaoId      String
@@ -316,7 +320,11 @@ model Arquivo {
   nome          String
   mimeType      String
   tamanhoBytes  Int
-  conteudo      Bytes
+  // Dois modos de armazenamento convivem: `blobUrl` (Vercel Blob) é o caminho
+  // novo, `conteudo` guarda o que já estava no banco. Com os documentos das
+  // 253 pessoas, manter tudo em Bytes levaria o Postgres a poucos GB.
+  blobUrl       String?
+  conteudo      Bytes?
   criadoPorId   String?
   criadoPorNome String?
   createdAt     DateTime @default(now())
@@ -347,6 +355,11 @@ model DocumentoColaborador {
   observacoes   String?
   arquivoId     String?     @unique
   arquivo       Arquivo?    @relation(fields: [arquivoId], references: [id], onDelete: SetNull)
+  // "RH" | "COLABORADOR". O que vem do portal aguarda conferência antes de
+  // valer como verdade cadastral — `conferidoEm` nulo = ainda na fila.
+  origem           String    @default("RH")
+  conferidoEm      DateTime?
+  conferidoPorNome String?
   criadoPorId   String?
   criadoPorNome String?
   createdAt     DateTime    @default(now())
@@ -354,6 +367,7 @@ model DocumentoColaborador {
 
   @@index([colaboradorId])
   @@index([empresaId, validoAte])
+  @@index([empresaId, origem, conferidoEm])
   @@schema("rh")
 }
 
