@@ -121,11 +121,14 @@ export function PortalInicio({
         />
       </div>
 
-      <Tabs defaultValue="ferias">
+      <Tabs defaultValue="atualizar">
         <TabsList variant="line" className="w-full">
-          <TabsTrigger value="ferias">
-            <CalendarDays />
-            Férias
+          {/* "Atualizar" primeiro e como padrão: hoje o que o RH precisa de
+              cada pessoa é a ficha completa, e a aba que abre é a que é usada.
+              Férias fica por último — é consulta, não tarefa pendente. */}
+          <TabsTrigger value="atualizar">
+            <PencilLine />
+            Atualizar
           </TabsTrigger>
           <TabsTrigger value="documentos">
             <FileText />
@@ -135,9 +138,9 @@ export function PortalInicio({
             <User />
             Meus dados
           </TabsTrigger>
-          <TabsTrigger value="atualizar">
-            <PencilLine />
-            Atualizar
+          <TabsTrigger value="ferias">
+            <CalendarDays />
+            Férias
           </TabsTrigger>
         </TabsList>
 
@@ -255,31 +258,49 @@ export function PortalInicio({
             <CardHeader>
               <CardTitle>Seus documentos</CardTitle>
               <CardDescription>
-                O que o RH guardou no seu dossiê. Toque para abrir ou baixar.
+                O que você enviou e o que o RH guardou no seu dossiê. Toque para abrir ou baixar.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
               {documentos.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Nenhum documento disponível ainda.</p>
               ) : (
-                documentos.map((d) => (
-                  <a
-                    key={d.id}
-                    href={`/api/portal/arquivos/${d.arquivo!.id}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-muted"
-                  >
-                    <FileText className="size-5 shrink-0 text-muted-foreground" />
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-medium">{tipoDocumentoLabel(d.tipo)}</span>
-                      <span className="block truncate text-xs text-muted-foreground">
-                        {d.descricao ?? d.arquivo!.nome} · {formatarTamanho(d.arquivo!.tamanhoBytes)}
-                        {d.validoAte && ` · vale até ${formatarData(d.validoAte)}`}
+                documentos.map((d) => {
+                  // Enviado pela pessoa e ainda sem aval do RH. Sem dizer isso na
+                  // tela, quem manda um documento não sabe se chegou, se está
+                  // sendo olhado, ou se precisa mandar de novo — e manda de novo.
+                  const emConferencia = d.origem === "COLABORADOR" && d.conferidoEm === null;
+                  return (
+                    <a
+                      key={d.id}
+                      href={`/api/portal/arquivos/${d.arquivo!.id}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-muted"
+                    >
+                      <FileText className="size-5 shrink-0 text-muted-foreground" />
+                      <span className="min-w-0 flex-1">
+                        <span className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-medium">{tipoDocumentoLabel(d.tipo)}</span>
+                          {emConferencia ? (
+                            <Badge variant="secondary">Em conferência pelo RH</Badge>
+                          ) : d.origem === "COLABORADOR" ? (
+                            <Badge variant="default">Aceito</Badge>
+                          ) : null}
+                        </span>
+                        <span className="block truncate text-xs text-muted-foreground">
+                          {d.descricao ?? d.arquivo!.nome} · {formatarTamanho(d.arquivo!.tamanhoBytes)}
+                          {d.validoAte && ` · vale até ${formatarData(d.validoAte)}`}
+                        </span>
+                        {emConferencia && (
+                          <span className="block text-xs text-muted-foreground">
+                            Você enviou. O RH vai conferir — não precisa mandar de novo.
+                          </span>
+                        )}
                       </span>
-                    </span>
-                  </a>
-                ))
+                    </a>
+                  );
+                })
               )}
             </CardContent>
           </Card>
