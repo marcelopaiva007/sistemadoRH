@@ -245,7 +245,12 @@ export async function definirSupervisor(
       .nome;
   }
 
-  await prisma.colaborador.update({ where: { id, empresaId }, data: { supervisorId } });
+  try {
+    await prisma.colaborador.update({ where: { id, empresaId }, data: { supervisorId } });
+  } catch (e) {
+    console.error("definirSupervisor:", e);
+    return { ok: false, error: "Não foi possível salvar o líder. Tente de novo." };
+  }
 
   await registrarAuditoria({
     empresaId,

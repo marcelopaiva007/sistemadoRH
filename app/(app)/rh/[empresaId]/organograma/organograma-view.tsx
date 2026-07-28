@@ -228,13 +228,21 @@ function EditorDeLider({
 
   async function salvar() {
     setSalvando(true);
-    const result = await definirSupervisor(empresaId, no.id, supervisorId || null);
-    setSalvando(false);
-    if (result.ok) {
-      toast.success(supervisorId ? "Líder definido." : "Líder removido.");
-      onFechar();
-    } else {
-      toast.error(result.error);
+    try {
+      const result = await definirSupervisor(empresaId, no.id, supervisorId || null);
+      if (result.ok) {
+        toast.success(supervisorId ? "Líder definido." : "Líder removido.");
+        onFechar();
+      } else {
+        toast.error(result.error);
+      }
+    } catch {
+      // Sem isto, um erro de rede ou uma exceção não tratada no servidor
+      // fechava o clique em silêncio: nem sucesso nem mensagem, e quem clicou
+      // não tinha como saber se precisava tentar de novo.
+      toast.error("Não foi possível salvar — verifique a conexão e tente de novo.");
+    } finally {
+      setSalvando(false);
     }
   }
 
