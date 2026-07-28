@@ -28,6 +28,14 @@ export async function sendEmail(params: {
   to: string;
   subject: string;
   html: string;
+  /** Versão em texto puro. Melhora a entrega e atende quem lê sem HTML. */
+  text?: string;
+  /**
+   * Nome exibido no remetente. O endereço é sempre o mesmo (é o domínio
+   * verificado), mas o nome varia por marca — quem é da Centrysol não deve ver
+   * "RH LM Telecom" na caixa de entrada.
+   */
+  fromName?: string;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const host = process.env.SMTP_HOST;
   const port = Number(process.env.SMTP_PORT || 587);
@@ -44,11 +52,16 @@ export async function sendEmail(params: {
 
   try {
     const transporter = getTransporter(host, port, user, pass);
+    // Troca só o nome de exibição, preservando o endereço configurado.
+    const remetente = params.fromName
+      ? `${params.fromName} <${String(from).match(/<(.+)>/)?.[1] ?? from}>`
+      : from;
     await transporter.sendMail({
-      from,
+      from: remetente,
       to: params.to,
       subject: params.subject,
       html: params.html,
+      ...(params.text ? { text: params.text } : {}),
     });
     return { ok: true };
   } catch (e) {
