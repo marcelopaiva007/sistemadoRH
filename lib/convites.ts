@@ -76,8 +76,13 @@ export async function enviarUmConvite(
         `<p>Ou copie o link: ${link}</p>`,
     });
   } else {
-    const erro = "Colaborador sem Telegram vinculado e sem e-mail cadastrado.";
-    await prisma.surveyToken.update({ where: { id: token.id }, data: { status: "FAILED", erro } });
+    // Sem canal não é falha, é espera: FAILED nunca é retentado pelo envio
+    // automático, então marcar assim aposentaria o convite para sempre — e
+    // justamente quem está sem Telegram hoje é quem está sendo cobrado para
+    // vincular. Fica PENDING com o motivo à vista, e sai sozinho no dia em que
+    // a pessoa vincular.
+    const erro = "Aguardando vínculo do Telegram (sem Telegram e sem e-mail cadastrado).";
+    await prisma.surveyToken.update({ where: { id: token.id }, data: { erro } });
     return { ok: false, error: erro };
   }
 
@@ -124,7 +129,16 @@ export async function rodadaEnvioAutomatico(): Promise<{
     if (restante <= 0) break;
 
     const pendentes = await prisma.surveyToken.findMany({
-      where: { pesquisaId: pesquisa.id, status: "PENDING" },
+      // Quem não tem canal nenhum fica de fora da rodada em vez de ser tentado
+      // e contado como falha todo dia. O convite continua PENDING e entra
+      // sozinho na primeira rodada depois que a pessoa vincular o Telegram.
+      where: {
+        pesquisaId: pesquisa.id,
+        status: "PENDING",
+        colaborador: {
+          OR: [{ telegramChatId: { not: null } }, { email: { not: null } }],
+        },
+      },
       select: {
         id: true,
         token: true,

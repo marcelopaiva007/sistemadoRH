@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Trash2, Send, RefreshCw, BarChart3, FileDown } from "lucide-react";
+import { Plus, Trash2, Send, RefreshCw, BarChart3, FileDown, UserMinus, UserPlus } from "lucide-react";
 import { DIMENSOES_NR01, type DimensaoNR01 } from "@/lib/nr01-modelo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,7 +36,7 @@ import {
   YAxis,
   Tooltip,
 } from "recharts";
-import { updatePesquisa, alterarStatusPesquisa, salvarPerguntas, gerarConvites, enviarConvites, enviarConviteToken, deletePesquisa } from "@/lib/actions/pesquisas";
+import { updatePesquisa, alterarStatusPesquisa, salvarPerguntas, gerarConvites, enviarConvites, enviarConviteToken, excluirDaPesquisa, reincluirNaPesquisa, deletePesquisa } from "@/lib/actions/pesquisas";
 import {
   TIPOS_PERGUNTA,
   DIMENSOES_GPTW,
@@ -85,14 +85,14 @@ const initialState: ActionResult = { ok: true };
 export function PesquisaDetalheView({
   empresaId,
   pesquisa,
-  colaboradoresAtivos,
+  semConvite,
   totalRespostas,
   mediaPorDimensao,
   mediaPorSetor,
 }: {
   empresaId: string;
   pesquisa: Pesquisa;
-  colaboradoresAtivos: number;
+  semConvite: number;
   totalRespostas: number;
   mediaPorDimensao: { dimensao: string; media: number; respostas: number }[];
   mediaPorSetor: { setor: string; media: number; respostas: number }[];
@@ -131,7 +131,7 @@ export function PesquisaDetalheView({
       <ConvitesSection
         empresaId={empresaId}
         pesquisa={pesquisa}
-        colaboradoresAtivos={colaboradoresAtivos}
+        semConvite={semConvite}
       />
 
       <ResultadosSection
@@ -472,18 +472,34 @@ function PerguntasBuilder({ empresaId, pesquisa }: { empresaId: string; pesquisa
 function ConvitesSection({
   empresaId,
   pesquisa,
-  colaboradoresAtivos,
+  semConvite,
 }: {
   empresaId: string;
   pesquisa: Pesquisa;
-  colaboradoresAtivos: number;
+  semConvite: number;
 }) {
   const [pendingAction, setPendingAction] = useState<string | null>(null);
 
   async function handleGerarConvites() {
     setPendingAction("gerar");
     const result = await gerarConvites(empresaId, pesquisa.id);
-    if (result.ok) toast.success("Convites gerados.");
+    if (result.ok) toast.success(result.message ?? "Convites gerados.");
+    else toast.error(result.error);
+    setPendingAction(null);
+  }
+
+  async function handleExcluir(tokenId: string) {
+    setPendingAction(tokenId);
+    const result = await excluirDaPesquisa(empresaId, tokenId);
+    if (result.ok) toast.success(result.message ?? "Retirado da pesquisa.");
+    else toast.error(result.error, { duration: 8000 });
+    setPendingAction(null);
+  }
+
+  async function handleReincluir(tokenId: string) {
+    setPendingAction(tokenId);
+    const result = await reincluirNaPesquisa(empresaId, tokenId);
+    if (result.ok) toast.success(result.message ?? "Voltou para a lista.");
     else toast.error(result.error);
     setPendingAction(null);
   }
@@ -552,7 +568,9 @@ function ConvitesSection({
             onClick={handleGerarConvites}
           >
             <RefreshCw className="size-4" />
-            Gerar convites ({colaboradoresAtivos} colaborador(es) ativo(s))
+            {semConvite > 0
+              ? `Gerar convites (${semConvite} sem convite)`
+              : "Gerar convites (lista completa)"}
           </Button>
           <Button
             type="button"
@@ -584,7 +602,7 @@ function ConvitesSection({
               <TableHead>Canal</TableHead>
               <TableHead>Enviado em</TableHead>
               <TableHead>Erro</TableHead>
-              <TableHead className="w-24 text-right">Ações</TableHead>
+              <TableHead className="w-28 text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -599,7 +617,16 @@ function ConvitesSection({
               <TableRow key={t.id}>
                 <TableCell>{t.colaborador.nome}</TableCell>
                 <TableCell>
-                  <Badge variant={t.status === "RESPONDED" ? "default" : "secondary"}>
+                  <Badge
+                    variant={
+                      t.status === "RESPONDED"
+                        ? "default"
+                        : t.status === "EXCLUIDO"
+                          ? "outline"
+                          : "secondary"
+                    }
+                    className={t.status === "EXCLUIDO" ? "text-muted-foreground" : undefined}
+                  >
                     {statusTokenLabel(t.status)}
                   </Badge>
                 </TableCell>
@@ -615,15 +642,45 @@ function ConvitesSection({
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground">{t.erro ?? "—"}</TableCell>
                 <TableCell className="text-right">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    disabled={t.status === "RESPONDED" || pendingAction === t.id}
-                    onClick={() => handleEnviarUm(t.id)}
-                  >
-                    <Send className="size-4" />
-                  </Button>
+                  {t.status === "EXCLUIDO" ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      title="Colocar de volta na pesquisa"
+                      disabled={pendingAction === t.id}
+                      onClick={() => handleReincluir(t.id)}
+                    >
+                      <UserPlus className="size-4" />
+                    </Button>
+                  ) : (
+                    <>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        title="Enviar convite"
+                        disabled={t.status === "RESPONDED" || pendingAction === t.id}
+                        onClick={() => handleEnviarUm(t.id)}
+                      >
+                        <Send className="size-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        title={
+                          t.status === "RESPONDED"
+                            ? "Já respondeu — a resposta é anônima e não pode ser retirada"
+                            : "Tirar da pesquisa (não é funcionário)"
+                        }
+                        disabled={t.status === "RESPONDED" || pendingAction === t.id}
+                        onClick={() => handleExcluir(t.id)}
+                      >
+                        <UserMinus className="size-4" />
+                      </Button>
+                    </>
+                  )}
                 </TableCell>
               </TableRow>
             ))}

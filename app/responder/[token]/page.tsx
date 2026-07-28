@@ -29,6 +29,11 @@ export default async function ResponderPage({ params }: { params: Promise<{ toke
           <p className="text-center text-muted-foreground">
             Você já respondeu esta pesquisa. Obrigado pela participação!
           </p>
+        ) : surveyToken.status === "EXCLUIDO" ? (
+          <p className="text-center text-muted-foreground">
+            Este convite não está mais válido. Se você acredita que deveria participar, fale com o
+            RH.
+          </p>
         ) : (
           <ResponderForm token={token} pesquisa={surveyToken.pesquisa} />
         )}

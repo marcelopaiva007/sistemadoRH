@@ -28,6 +28,10 @@ export const STATUS_TOKEN = [
   { value: "DELIVERED", label: "Entregue" },
   { value: "FAILED", label: "Falhou" },
   { value: "RESPONDED", label: "Respondido" },
+  // Tirado da pesquisa pelo RH. O convite não é apagado de propósito: a linha
+  // que sobra é o que impede "Gerar convites" de recriá-lo na próxima rodada
+  // (o par pesquisa+colaborador já existe) e o que deixa a exclusão auditável.
+  { value: "EXCLUIDO", label: "Fora da pesquisa" },
 ] as const;
 
 export const statusPesquisaLabel = (v: string) => STATUS_PESQUISA.find((s) => s.value === v)?.label ?? v;

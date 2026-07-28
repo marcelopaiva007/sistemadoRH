@@ -12,7 +12,15 @@ import {
   TITULO_PESQUISA_NR01,
   DESCRICAO_PESQUISA_NR01,
 } from "@/lib/nr01-modelo";
+import { registrarAuditoria } from "@/lib/audit";
 import type { ActionResult } from "@/lib/constants";
+
+/**
+ * Igual ao ActionResult, mas com um texto de sucesso para a tela. Serve para as
+ * ações cujo resultado não é óbvio olhando a lista depois — "gerou quantos?",
+ * "quem saiu?" — em que um "pronto" genérico não diz o que mudou.
+ */
+type ResultadoComMensagem = { ok: true; message?: string } | { ok: false; error: string };
 
 const STATUSES = ["DRAFT", "ACTIVE", "FINISHED", "ARCHIVED"] as const;
 const TIPOS_PERGUNTA = ["LIKERT_5", "FREQ_0_4", "NPS_10", "MULTIPLE_CHOICE", "TEXT"] as const;
@@ -245,7 +253,7 @@ export async function salvarPerguntas(
   return { ok: true };
 }
 
-export async function gerarConvites(empresaId: string, pesquisaId: string): Promise<ActionResult> {
+export async function gerarConvites(empresaId: string, pesquisaId: string): Promise<ResultadoComMensagem> {
   await requireEmpresaAccess(empresaId);
 
   const pesquisa = await prisma.pesquisa.findFirst({ where: { id: pesquisaId, empresaId } });
@@ -256,7 +264,12 @@ export async function gerarConvites(empresaId: string, pesquisaId: string): Prom
     select: { id: true },
   });
 
-  await prisma.surveyToken.createMany({
+  // `skipDuplicates` sobre a unique [pesquisaId, colaboradorId] é o que torna
+  // este botão seguro de clicar de novo: quem já tem convite não ganha outro,
+  // quem foi EXCLUIDO não volta, e quem entrou depois da geração inicial entra
+  // agora. É assim que a lista acompanha a base — sem ele, gerar de novo
+  // duplicaria os 200 convites já enviados.
+  const { count } = await prisma.surveyToken.createMany({
     data: colaboradores.map((c) => ({
       pesquisaId,
       colaboradorId: c.id,
@@ -266,7 +279,87 @@ export async function gerarConvites(empresaId: string, pesquisaId: string): Prom
   });
 
   revalidatePath(`/rh/${empresaId}/pesquisas/${pesquisaId}`);
-  return { ok: true };
+  return { ok: true, message: count === 0 ? "Nenhum convite novo — a lista já está completa." : `${count} convite(s) novo(s) gerado(s).` };
+}
+
+/**
+ * Tira alguém da pesquisa sem apagar o convite.
+ *
+ * Apagar seria mais simples e estaria errado: "Gerar convites" recriaria a
+ * pessoa na rodada seguinte, porque a única coisa que segura a recriação é a
+ * linha existente na unique [pesquisaId, colaboradorId]. Marcando o status a
+ * exclusão gruda — e nenhum dos caminhos de envio (manual, lote e automático)
+ * olha para EXCLUIDO, todos filtram PENDING/FAILED.
+ *
+ * Quem já respondeu não pode ser excluído: a resposta anônima já está contada
+ * nos agregados e não há como retirá-la, então tirar o convite só apagaria o
+ * registro de que aquela pessoa participou.
+ */
+export async function excluirDaPesquisa(
+  empresaId: string,
+  tokenId: string,
+  motivo?: string,
+): Promise<ResultadoComMensagem> {
+  await requireEmpresaAccess(empresaId);
+
+  const token = await prisma.surveyToken.findFirst({
+    where: { id: tokenId, pesquisa: { empresaId } },
+    include: { colaborador: { select: { nome: true } }, pesquisa: { select: { titulo: true } } },
+  });
+  if (!token) return { ok: false, error: "Convite não encontrado." };
+  if (token.status === "RESPONDED") {
+    return {
+      ok: false,
+      error: "Esta pessoa já respondeu — a resposta é anônima e não pode ser retirada dos resultados.",
+    };
+  }
+  if (token.status === "EXCLUIDO") return { ok: true, message: "Já estava fora da pesquisa." };
+
+  await prisma.surveyToken.update({
+    where: { id: tokenId },
+    data: { status: "EXCLUIDO", erro: motivo?.trim().slice(0, 200) || null },
+  });
+
+  await registrarAuditoria({
+    empresaId,
+    acao: "ATUALIZAR",
+    entidade: "SurveyToken",
+    entidadeId: tokenId,
+    resumo: `${token.colaborador.nome} foi retirado(a) da pesquisa "${token.pesquisa.titulo}".`,
+  });
+
+  revalidatePath(`/rh/${empresaId}/pesquisas/${token.pesquisaId}`);
+  return { ok: true, message: `${token.colaborador.nome} saiu da pesquisa.` };
+}
+
+/** Desfaz a exclusão: volta a PENDING e o convite entra no próximo envio. */
+export async function reincluirNaPesquisa(
+  empresaId: string,
+  tokenId: string,
+): Promise<ResultadoComMensagem> {
+  await requireEmpresaAccess(empresaId);
+
+  const token = await prisma.surveyToken.findFirst({
+    where: { id: tokenId, pesquisa: { empresaId }, status: "EXCLUIDO" },
+    include: { colaborador: { select: { nome: true } } },
+  });
+  if (!token) return { ok: false, error: "Convite não encontrado ou não está excluído." };
+
+  await prisma.surveyToken.update({
+    where: { id: tokenId },
+    data: { status: "PENDING", erro: null },
+  });
+
+  await registrarAuditoria({
+    empresaId,
+    acao: "ATUALIZAR",
+    entidade: "SurveyToken",
+    entidadeId: tokenId,
+    resumo: `${token.colaborador.nome} voltou para a pesquisa.`,
+  });
+
+  revalidatePath(`/rh/${empresaId}/pesquisas/${token.pesquisaId}`);
+  return { ok: true, message: `${token.colaborador.nome} voltou para a lista.` };
 }
 
 export async function enviarConviteToken(empresaId: string, tokenId: string): Promise<ActionResult> {

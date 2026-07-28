@@ -41,6 +41,11 @@ export async function responderPesquisa(token: string, _prev: ActionResult, form
   if (surveyToken.status === "RESPONDED") {
     return { ok: false, error: "Este convite já foi respondido." };
   }
+  // Quem o RH tirou da pesquisa já pode ter o link no celular — a exclusão só
+  // vale se ela for verificada aqui também, não apenas na hora de enviar.
+  if (surveyToken.status === "EXCLUIDO") {
+    return { ok: false, error: "Este convite não está mais válido." };
+  }
 
   let itensRaw: unknown;
   try {

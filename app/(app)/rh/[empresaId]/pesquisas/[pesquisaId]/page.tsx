@@ -20,7 +20,17 @@ export default async function PesquisaDetalhePage({
   });
   if (!pesquisa) notFound();
 
-  const colaboradoresAtivos = await prisma.colaborador.count({ where: { empresaId, ativo: true } });
+  // Quantos ativos ainda não têm convite nesta pesquisa. É esse número, e não o
+  // total de ativos, que diz se vale clicar em "Gerar convites": a base cresce
+  // depois da geração inicial (admissões, vínculos novos) e sem isso a lista da
+  // pesquisa fica parada no dia em que foi criada.
+  const semConvite = await prisma.colaborador.count({
+    where: {
+      empresaId,
+      ativo: true,
+      tokens: { none: { pesquisaId } },
+    },
+  });
 
   const respostas = await prisma.resposta.findMany({
     where: { pesquisaId },
@@ -56,7 +66,7 @@ export default async function PesquisaDetalhePage({
     <PesquisaDetalheView
       empresaId={empresaId}
       pesquisa={pesquisa}
-      colaboradoresAtivos={colaboradoresAtivos}
+      semConvite={semConvite}
       totalRespostas={respostas.length}
       mediaPorDimensao={mediaPorDimensao}
       mediaPorSetor={mediaPorSetor}
