@@ -4,6 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
+import { proximaMatricula } from "@/lib/matricula";
 import type { ActionResult } from "@/lib/constants";
 
 const colaboradorSchema = z.object({
@@ -56,6 +57,7 @@ export async function createColaborador(
     await prisma.colaborador.create({
       data: {
         empresaId,
+        matricula: await proximaMatricula(),
         nome: parsed.data.nome,
         cpf: parsed.data.cpf || null,
         email: parsed.data.email || null,
