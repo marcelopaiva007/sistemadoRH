@@ -10,11 +10,48 @@ import { registrarAuditoria } from "@/lib/audit";
 
 export const runtime = "nodejs";
 
+// Quem abre o link não é sempre a pessoa. Mensageiros e redes sociais buscam a
+// URL para montar o card de preview, e navegadores às vezes pré-carregam — cada
+// um desses acessos queimava o token de uso único antes de o colaborador tocar
+// na tela. Era o que fazia todo mundo ver "esse link já foi usado".
+//
+// Estes acessos recebem 204 e não consomem nada. Um humano nunca chega aqui
+// com essas marcas: navegador de verdade manda `sec-fetch-mode: navigate`.
+function ehAcessoAutomatico(req: NextRequest): boolean {
+  const ua = (req.headers.get("user-agent") ?? "").toLowerCase();
+  const robos = [
+    "telegrambot", "whatsapp", "facebookexternalhit", "slackbot", "discordbot",
+    "twitterbot", "linkedinbot", "skypeuripreview", "bot", "crawler", "spider",
+    "preview", "curl", "wget", "python-requests", "headless",
+  ];
+  if (robos.some((r) => ua.includes(r))) return true;
+
+  // Prefetch/prerender do navegador — Chrome, Safari e Next mandam um destes.
+  const proposito = [
+    req.headers.get("purpose"),
+    req.headers.get("x-purpose"),
+    req.headers.get("sec-purpose"),
+    req.headers.get("x-moz"),
+    req.headers.get("next-router-prefetch"),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return proposito.includes("prefetch") || proposito.includes("preview") || proposito.includes("prerender");
+}
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ token: string }> },
 ) {
   const { token } = await params;
+
+  if (ehAcessoAutomatico(req)) {
+    // 204 e nada mais: sem corpo não há o que pôr no card, e o token segue
+    // válido esperando a pessoa.
+    return new NextResponse(null, { status: 204 });
+  }
+
   const resultado = await consumirLinkDeAcesso(token);
 
   if (!resultado.ok) {
