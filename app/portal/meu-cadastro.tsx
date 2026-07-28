@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState, type ReactNode } from "react";
+import { useActionState, useState, startTransition, type ReactNode } from "react";
 import { toast } from "sonner";
 import { Upload, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -93,7 +93,20 @@ export function MeuCadastro({ dados, faltando }: { dados: MeusDados; faltando: n
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <form action={acao} className="space-y-6">
+        {/*
+          Submete por onSubmit em vez de `action={...}`. Com `action`, o React 19
+          reseta o formulário assim que a ação retorna — inclusive quando ela
+          retorna erro. Quem preenchesse vinte campos e errasse um dígito do PIS
+          perdia tudo e teria que digitar de novo; na prática, desistia.
+        */}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            const dados = new FormData(e.currentTarget);
+            startTransition(() => acao(dados));
+          }}
+          className="space-y-6"
+        >
           {!estado.ok && estado.error && (
             <Alert variant="destructive">
               <AlertDescription>{estado.error}</AlertDescription>
