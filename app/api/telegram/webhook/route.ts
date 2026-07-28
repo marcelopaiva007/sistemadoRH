@@ -39,8 +39,10 @@ const TECLADO_CONTATO = {
 };
 const REMOVER_TECLADO = { remove_keyboard: true };
 
+// Sem nome de marca: no /start ainda não sabemos quem é a pessoa, e citar uma
+// marca do grupo diante de quem é de outra soa como mensagem trocada.
 const MSG_BOAS_VINDAS =
-  "Olá! Aqui é o RH da LM Telecom. 👋\n\n" +
+  "Olá! Aqui é o RH. 👋\n\n" +
   "Para vincular seu Telegram ao sistema de RH (e receber as pesquisas por aqui), " +
   "toque no botão \"📱 Compartilhar meu número\" abaixo.\n\n" +
   "Se o botão não aparecer, envie seu CPF (somente números).";
@@ -70,6 +72,20 @@ function sufixoTelefone(s: string): string {
   return digitos(s).slice(-8);
 }
 
+/**
+ * Marca da empresa do colaborador — nunca as três do grupo.
+ *
+ * Quem é da Centrysol ou da VAPT recebendo mensagem assinada "LM Telecom" lê
+ * como e-mail trocado, e é o primeiro contato do RH pelo canal novo.
+ */
+async function marcaDo(colaboradorId: string): Promise<string> {
+  const c = await prisma.colaborador.findUnique({
+    where: { id: colaboradorId },
+    select: { empresa: { select: { marca: { select: { nome: true } } } } },
+  });
+  return c?.empresa.marca.nome ?? "RH";
+}
+
 async function vincular(
   chatId: string,
   colaborador: { id: string; nome: string; telegramChatId: string | null }
@@ -97,7 +113,7 @@ async function vincular(
   await sendTelegramMessage(
     chatId,
     `Pronto, ${colaborador.nome.split(" ")[0]}! ✅\n\n` +
-      "Seu Telegram foi vinculado ao RH da LM Telecom. " +
+      `Seu Telegram foi vinculado ao RH da ${await marcaDo(colaborador.id)}. ` +
       "As pesquisas e comunicados chegarão por aqui.\n\n" +
       "Envie /portal quando quiser consultar suas férias, seus dados e seus documentos.",
     REMOVER_TECLADO
