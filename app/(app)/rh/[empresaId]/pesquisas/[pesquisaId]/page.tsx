@@ -1,9 +1,13 @@
 import { notFound } from "next/navigation";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
-import { PesquisaDetalheView } from "./pesquisa-detalhe-view";
+import { CONVITES_NA_PESQUISA, participacaoPct } from "@/lib/pesquisa-numeros";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DadosPesquisaForm } from "./dados-pesquisa-form";
 
-export default async function PesquisaDetalhePage({
+// Visão geral: os dados da campanha e o placar. Nada de lista — quem quer a
+// lista abre a aba Convites, e é lá que os 205 registros são carregados.
+export default async function PesquisaVisaoGeralPage({
   params,
 }: {
   params: Promise<{ empresaId: string; pesquisaId: string }>;
@@ -13,63 +17,74 @@ export default async function PesquisaDetalhePage({
 
   const pesquisa = await prisma.pesquisa.findFirst({
     where: { id: pesquisaId, empresaId },
-    include: {
-      perguntas: { orderBy: { ordem: "asc" }, include: { opcoes: { orderBy: { ordem: "asc" } } } },
-      tokens: { include: { colaborador: true }, orderBy: { createdAt: "asc" } },
+    select: {
+      id: true,
+      titulo: true,
+      descricao: true,
+      anonima: true,
+      status: true,
+      modelo: true,
+      _count: { select: { respostas: true } },
     },
   });
   if (!pesquisa) notFound();
 
-  // Quantos ativos ainda não têm convite nesta pesquisa. É esse número, e não o
-  // total de ativos, que diz se vale clicar em "Gerar convites": a base cresce
-  // depois da geração inicial (admissões, vínculos novos) e sem isso a lista da
-  // pesquisa fica parada no dia em que foi criada.
-  const semConvite = await prisma.colaborador.count({
-    where: {
-      empresaId,
-      ativo: true,
-      tokens: { none: { pesquisaId } },
+  const [convites, enviados, cadastrados, semConvite] = await Promise.all([
+    prisma.surveyToken.count({ where: { pesquisaId, ...CONVITES_NA_PESQUISA } }),
+    // Enviado conta por enviadoEm, não por status: o status vira RESPONDED
+    // quando a pessoa responde, e por status os respondentes sumiriam da conta.
+    prisma.surveyToken.count({
+      where: { pesquisaId, ...CONVITES_NA_PESQUISA, enviadoEm: { not: null } },
+    }),
+    prisma.colaborador.count({ where: { empresaId, ativo: true } }),
+    prisma.colaborador.count({
+      where: { empresaId, ativo: true, tokens: { none: { pesquisaId } } },
+    }),
+  ]);
+
+  const respostas = pesquisa._count.respostas;
+
+  const numeros = [
+    {
+      rotulo: "Colaboradores cadastrados",
+      valor: cadastrados,
+      apoio: semConvite > 0 ? `${semConvite} ainda sem convite` : "todos com convite",
     },
-  });
-
-  const respostas = await prisma.resposta.findMany({
-    where: { pesquisaId },
-    include: { itens: { include: { pergunta: true } } },
-  });
-
-  const somaPorChave = new Map<string, { soma: number; qtd: number }>();
-  const acumular = (chave: string, valor: number) => {
-    const atual = somaPorChave.get(chave) ?? { soma: 0, qtd: 0 };
-    atual.soma += valor;
-    atual.qtd += 1;
-    somaPorChave.set(chave, atual);
-  };
-
-  for (const resposta of respostas) {
-    for (const item of resposta.itens) {
-      if (item.valorNumerico == null) continue;
-      const dimensao = item.pergunta.dimensaoGPTW ?? "GERAL";
-      acumular(`dimensao:${dimensao}`, item.valorNumerico);
-      acumular(`setor:${resposta.setorNomeSnapshot}`, item.valorNumerico);
-    }
-  }
-
-  const mediaPorDimensao = [...somaPorChave.entries()]
-    .filter(([chave]) => chave.startsWith("dimensao:"))
-    .map(([chave, v]) => ({ dimensao: chave.replace("dimensao:", ""), media: v.soma / v.qtd, respostas: v.qtd }));
-
-  const mediaPorSetor = [...somaPorChave.entries()]
-    .filter(([chave]) => chave.startsWith("setor:"))
-    .map(([chave, v]) => ({ setor: chave.replace("setor:", ""), media: v.soma / v.qtd, respostas: v.qtd }));
+    { rotulo: "Na pesquisa", valor: convites, apoio: "convites válidos" },
+    {
+      rotulo: "Convites enviados",
+      valor: enviados,
+      apoio: `${convites - enviados} ainda não enviado(s)`,
+    },
+    {
+      rotulo: "Respostas",
+      valor: respostas,
+      apoio: `${participacaoPct(respostas, convites)}% de participação`,
+    },
+  ];
 
   return (
-    <PesquisaDetalheView
-      empresaId={empresaId}
-      pesquisa={pesquisa}
-      semConvite={semConvite}
-      totalRespostas={respostas.length}
-      mediaPorDimensao={mediaPorDimensao}
-      mediaPorSetor={mediaPorSetor}
-    />
+    <div className="space-y-6">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {numeros.map((n) => (
+          <Card key={n.rotulo}>
+            <CardContent className="space-y-1 py-4">
+              <p className="text-xs text-muted-foreground">{n.rotulo}</p>
+              <p className="text-2xl font-semibold tabular-nums">{n.valor}</p>
+              <p className="text-xs text-muted-foreground">{n.apoio}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Dados da pesquisa</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <DadosPesquisaForm empresaId={empresaId} pesquisa={pesquisa} />
+        </CardContent>
+      </Card>
+    </div>
   );
 }

@@ -37,7 +37,6 @@ import {
   createColaborador,
   updateColaborador,
   deleteColaborador,
-  toggleColaboradorAtivo,
 } from "@/lib/actions/rh-colaboradores";
 import { AtivarDesativarButton } from "./ativar-desativar-button";
 import { formatarCpf, mascararCpf } from "@/lib/cpf";
