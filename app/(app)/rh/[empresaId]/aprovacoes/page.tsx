@@ -3,7 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { AprovacoesView } from "./aprovacoes-view";
 
 // Central de aprovações: tudo que espera uma decisão do RH/gestor num lugar só
-// — férias programadas e ausências registradas. Sempre escopada à empresa.
+// — férias programadas, ausências registradas e documentos que o colaborador
+// enviou pelo portal. Sempre escopada à empresa.
 export default async function AprovacoesPage({
   params,
 }: {
@@ -12,7 +13,7 @@ export default async function AprovacoesPage({
   const { empresaId } = await params;
   await requireEmpresaAccess(empresaId);
 
-  const [ferias, ausencias, decididasRecentes] = await Promise.all([
+  const [ferias, ausencias, documentos, decididasRecentes] = await Promise.all([
     prisma.solicitacaoFerias.findMany({
       where: { empresaId, status: "PENDENTE" },
       orderBy: { dataInicio: "asc" },
@@ -47,6 +48,24 @@ export default async function AprovacoesPage({
         colaborador: { select: { nome: true, setor: { select: { nome: true } } } },
       },
     }),
+    // Enviados pelo colaborador no portal e ainda sem aval: `conferidoEm` nulo
+    // é a fila. Nada disso vale como verdade cadastral até alguém olhar.
+    prisma.documentoColaborador.findMany({
+      where: { empresaId, origem: "COLABORADOR", conferidoEm: null },
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true,
+        colaboradorId: true,
+        tipo: true,
+        descricao: true,
+        emitidoEm: true,
+        validoAte: true,
+        observacoes: true,
+        createdAt: true,
+        arquivo: { select: { id: true, nome: true, tamanhoBytes: true } },
+        colaborador: { select: { nome: true, setor: { select: { nome: true } } } },
+      },
+    }),
     prisma.auditLog.findMany({
       where: { empresaId, acao: { in: ["APROVAR", "REPROVAR", "CANCELAR"] } },
       orderBy: { createdAt: "desc" },
@@ -60,6 +79,7 @@ export default async function AprovacoesPage({
       empresaId={empresaId}
       ferias={ferias}
       ausencias={ausencias}
+      documentos={documentos}
       decididasRecentes={decididasRecentes}
     />
   );

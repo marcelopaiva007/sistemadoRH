@@ -3,14 +3,16 @@
 import { useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Check, X, FileText, CalendarDays, Stethoscope } from "lucide-react";
+import { Check, X, FileText, CalendarDays, Stethoscope, IdCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { decidirFerias } from "@/lib/actions/rh-ferias";
 import { decidirAusencia } from "@/lib/actions/rh-ausencias";
-import { tipoAusenciaLabel } from "@/lib/constants-dp";
+import { conferirDocumento, devolverDocumento } from "@/lib/actions/rh-documentos-conferencia";
+import { tipoAusenciaLabel, tipoDocumentoLabel } from "@/lib/constants-dp";
+import { formatarTamanho } from "@/lib/anexos";
 import { formatarData, formatarDataHoraBrasilia } from "@/lib/datas";
 import type { ActionResult } from "@/lib/constants";
 
@@ -42,6 +44,19 @@ type Ausencia = {
   colaborador: { nome: string; setor: { nome: string } };
 };
 
+type Documento = {
+  id: string;
+  colaboradorId: string;
+  tipo: string;
+  descricao: string | null;
+  emitidoEm: Date | null;
+  validoAte: Date | null;
+  observacoes: string | null;
+  createdAt: Date;
+  arquivo: { id: string; nome: string; tamanhoBytes: number } | null;
+  colaborador: { nome: string; setor: { nome: string } };
+};
+
 type Decidida = {
   id: string;
   acao: string;
@@ -54,14 +69,16 @@ export function AprovacoesView({
   empresaId,
   ferias,
   ausencias,
+  documentos,
   decididasRecentes,
 }: {
   empresaId: string;
   ferias: Ferias[];
   ausencias: Ausencia[];
+  documentos: Documento[];
   decididasRecentes: Decidida[];
 }) {
-  const total = ferias.length + ausencias.length;
+  const total = ferias.length + ausencias.length + documentos.length;
 
   return (
     <div className="space-y-6">
@@ -99,6 +116,59 @@ export function AprovacoesView({
                 `Solicitado por ${f.solicitadoPorNome ?? "—"} em ${formatarDataHoraBrasilia(f.createdAt)}`,
               ]}
               onDecidir={(decisao, motivo) => decidirFerias(empresaId, f.id, decisao, motivo)}
+            />
+          ))}
+        </CardContent>
+      </Card>
+
+      {/* Chegou do portal e ainda não passou por ninguém. Abrir o anexo é o
+          trabalho: o que o colaborador digitou pode não bater com a foto. */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <IdCard className="size-4" />
+            Documentos a conferir ({documentos.length})
+          </CardTitle>
+          <CardDescription>
+            Cópias enviadas pelo colaborador no portal. Abra o anexo e confira contra o que está na
+            ficha antes de aceitar — devolver apaga o arquivo e avisa a pessoa pelo Telegram.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {documentos.length === 0 && (
+            <p className="py-4 text-center text-sm text-muted-foreground">
+              Nenhum documento aguardando conferência.
+            </p>
+          )}
+          {documentos.map((d) => (
+            <ItemAprovacao
+              key={d.id}
+              empresaId={empresaId}
+              colaboradorId={d.colaboradorId}
+              titulo={d.colaborador.nome}
+              subtitulo={`${d.colaborador.setor.nome} · ${tipoDocumentoLabel(d.tipo)}`}
+              linhas={[
+                d.descricao ?? "",
+                d.validoAte ? `Válido até ${formatarData(d.validoAte)}` : "",
+                d.observacoes ?? "",
+                `Enviado em ${formatarDataHoraBrasilia(d.createdAt)}`,
+              ]}
+              anexo={
+                d.arquivo
+                  ? {
+                      href: `/api/rh/${empresaId}/arquivos/${d.arquivo.id}`,
+                      nome: `${d.arquivo.nome} · ${formatarTamanho(d.arquivo.tamanhoBytes)}`,
+                    }
+                  : undefined
+              }
+              rotuloAprovar="Conferir"
+              rotuloReprovar="Devolver"
+              motivoObrigatorio
+              onDecidir={(decisao, motivo) =>
+                decisao === "APROVADA"
+                  ? conferirDocumento(empresaId, d.id)
+                  : devolverDocumento(empresaId, d.id, motivo ?? "")
+              }
             />
           ))}
         </CardContent>
@@ -177,6 +247,9 @@ function ItemAprovacao({
   etiqueta,
   linhas,
   anexo,
+  rotuloAprovar = "Aprovar",
+  rotuloReprovar = "Reprovar",
+  motivoObrigatorio = false,
   onDecidir,
 }: {
   empresaId: string;
@@ -186,6 +259,11 @@ function ItemAprovacao({
   etiqueta?: string;
   linhas: string[];
   anexo?: { href: string; nome: string } | null;
+  /** "Aprovar" não descreve conferir um RG — cada fila nomeia sua própria ação. */
+  rotuloAprovar?: string;
+  rotuloReprovar?: string;
+  /** Devolver documento sem dizer o porquê faz a pessoa reenviar a mesma foto. */
+  motivoObrigatorio?: boolean;
   onDecidir: (decisao: "APROVADA" | "REPROVADA", motivo?: string) => Promise<ActionResult>;
 }) {
   const [motivo, setMotivo] = useState("");
@@ -197,7 +275,7 @@ function ItemAprovacao({
     const resultado = await onDecidir(decisao, comMotivo);
     setEnviando(false);
     if (resultado.ok) {
-      toast.success(decisao === "APROVADA" ? "Aprovado." : "Reprovado.");
+      toast.success(decisao === "APROVADA" ? `${rotuloAprovar} com sucesso.` : "Devolvido ao colaborador.");
       setPedindoMotivo(false);
       setMotivo("");
     } else {
@@ -241,7 +319,7 @@ function ItemAprovacao({
         <div className="flex shrink-0 gap-1">
           <Button size="sm" disabled={enviando} onClick={() => decidir("APROVADA")}>
             <Check className="size-4" />
-            Aprovar
+            {rotuloAprovar}
           </Button>
           <Button
             variant="outline"
@@ -250,7 +328,7 @@ function ItemAprovacao({
             onClick={() => setPedindoMotivo((v) => !v)}
           >
             <X className="size-4" />
-            Reprovar
+            {rotuloReprovar}
           </Button>
         </div>
       </div>
@@ -260,16 +338,20 @@ function ItemAprovacao({
           <Input
             value={motivo}
             onChange={(e) => setMotivo(e.target.value)}
-            placeholder="Motivo da reprovação (fica no histórico)"
+            placeholder={
+              motivoObrigatorio
+                ? "O que precisa ser corrigido? (o colaborador vai ler isto)"
+                : "Motivo da reprovação (fica no histórico)"
+            }
             className="max-w-md"
           />
           <Button
             variant="destructive"
             size="sm"
-            disabled={enviando}
+            disabled={enviando || (motivoObrigatorio && motivo.trim().length < 5)}
             onClick={() => decidir("REPROVADA", motivo)}
           >
-            Confirmar reprovação
+            Confirmar {rotuloReprovar.toLowerCase()}
           </Button>
           <Button variant="ghost" size="sm" onClick={() => setPedindoMotivo(false)}>
             Cancelar
