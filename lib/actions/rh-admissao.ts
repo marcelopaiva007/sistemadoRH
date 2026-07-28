@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { proximaMatricula } from "@/lib/matricula";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { registrarAuditoria } from "@/lib/audit";
 import { dataDoFormulario } from "@/lib/datas";
@@ -75,6 +76,7 @@ export async function admitirCandidato(
       const colaborador = await tx.colaborador.create({
         data: {
           empresaId,
+          matricula: await proximaMatricula(tx),
           nome: candidatura.candidato.nome,
           cpf,
           email: candidatura.candidato.email,

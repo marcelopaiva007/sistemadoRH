@@ -191,6 +191,108 @@ export async function decidirFerias(
   return { ok: true };
 }
 
+/**
+ * Lança férias que JÁ foram gozadas, direto como APROVADA.
+ *
+ * Existe porque a base nasceu sem histórico de gozo: a planilha do DP só trazia
+ * o marco do período aquisitivo em aberto, não os períodos já tirados. Sem isso
+ * o motor assume que ninguém nunca saiu de férias e acusa como vencido todo
+ * mundo com mais de dois anos de casa.
+ *
+ * Não passa pelo fluxo de aprovação de propósito — é registro retroativo do RH,
+ * não pedido. As demais regras (saldo, fracionamento, sobreposição) continuam
+ * valendo, senão o lançamento de correção viraria porta para estourar o saldo.
+ */
+export async function registrarFeriasGozadas(
+  empresaId: string,
+  colaboradorId: string,
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const usuario = await requireEmpresaAccess(empresaId);
+
+  const ctx = await carregarContexto(empresaId, colaboradorId);
+  if (!ctx) return { ok: false, error: "Colaborador não encontrado nesta empresa." };
+  if (!ctx.colaborador.dataAdmissao) {
+    return {
+      ok: false,
+      error: "Preencha a data de admissão na ficha antes de lançar férias já gozadas.",
+    };
+  }
+
+  const periodoAquisitivoInicio = dataDoFormulario(formData.get("periodoAquisitivoInicio"));
+  const dataInicio = dataDoFormulario(formData.get("dataInicio"));
+  const dataFim = dataDoFormulario(formData.get("dataFim"));
+  if (!periodoAquisitivoInicio) return { ok: false, error: "Selecione o período aquisitivo." };
+  if (!dataInicio || !dataFim) return { ok: false, error: "Informe o início e o fim das férias." };
+
+  const diasAbono = Number.parseInt(String(formData.get("diasAbono") ?? "0"), 10) || 0;
+  const observacoes = String(formData.get("observacoes") ?? "").trim() || null;
+
+  const resumo = calcularFerias(ctx.colaborador.dataAdmissao, ctx.solicitacoes);
+  const validacao = validarSolicitacaoFerias({
+    resumo,
+    periodoAquisitivoInicio,
+    dataInicio,
+    dataFim,
+    diasAbono,
+    fracoesExistentes: ctx.solicitacoes.filter(
+      (s) => s.periodoAquisitivoInicio.getTime() === periodoAquisitivoInicio.getTime(),
+    ),
+  });
+  if (!validacao.ok) return { ok: false, error: validacao.error };
+
+  const conflito = await prisma.solicitacaoFerias.findFirst({
+    where: {
+      colaboradorId,
+      status: { in: ["APROVADA", "PENDENTE"] },
+      dataInicio: { lte: dataFim },
+      dataFim: { gte: dataInicio },
+    },
+    select: { dataInicio: true, dataFim: true },
+  });
+  if (conflito) {
+    return {
+      ok: false,
+      error: `Já existe um período de ${formatarData(conflito.dataInicio)} a ${formatarData(conflito.dataFim)} que se sobrepõe a este.`,
+    };
+  }
+
+  const agora = new Date();
+  const solicitacao = await prisma.solicitacaoFerias.create({
+    data: {
+      empresaId,
+      colaboradorId,
+      periodoAquisitivoInicio,
+      dataInicio,
+      dataFim,
+      dias: validacao.dias,
+      diasAbono,
+      decimoAntecipado: false,
+      observacoes,
+      status: "APROVADA",
+      solicitadoPorId: usuario?.id ?? null,
+      solicitadoPorNome: usuario?.name ?? null,
+      decididoPorId: usuario?.id ?? null,
+      decididoPorNome: usuario?.name ?? null,
+      decididoEm: agora,
+      motivoDecisao: "Registro retroativo de férias já gozadas.",
+    },
+  });
+
+  await registrarAuditoria({
+    empresaId,
+    acao: "CRIAR",
+    entidade: "SolicitacaoFerias",
+    entidadeId: solicitacao.id,
+    resumo: `Férias já gozadas de ${ctx.colaborador.nome} registradas pelo RH: ${formatarData(dataInicio)} a ${formatarData(dataFim)} (${validacao.dias} dias).`,
+  });
+
+  revalidatePath(`/rh/${empresaId}/colaboradores/${colaboradorId}`);
+  revalidatePath(`/rh/${empresaId}/ferias`);
+  return { ok: true };
+}
+
 export async function excluirSolicitacaoFerias(empresaId: string, id: string): Promise<ActionResult> {
   await requireEmpresaAccess(empresaId);
 

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { proximaMatricula } from "@/lib/matricula";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { registrarAuditoria } from "@/lib/audit";
 import {
@@ -271,7 +272,8 @@ export async function confirmarImportacao(
               setorId,
               posicaoId,
               cpf: linha.cpf,
-              matricula: linha.matricula,
+              // A planilha manda quando traz o número; sem ele, o sistema gera.
+              matricula: linha.matricula || (await proximaMatricula(tx)),
               email: linha.email,
               telefone: linha.telefone,
               dataAdmissao: paraData(linha.dataAdmissao),

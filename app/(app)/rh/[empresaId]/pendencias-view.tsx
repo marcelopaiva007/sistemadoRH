@@ -3,6 +3,7 @@
 import Link from "next/link";
 import {
   AlertOctagon,
+  FileCheck,
   CalendarDays,
   CheckCircle2,
   CheckSquare,
@@ -15,6 +16,7 @@ import { Card, CardContent } from "@/components/ui/card";
 
 type Pendencias = {
   aprovacoes: number;
+  documentosAConferir: number;
   asoVencendo: number;
   certificadosVencendo: number;
   catPendente: number;
@@ -54,6 +56,13 @@ export function PendenciasView({
       descricao: "Férias e ausências esperando decisão do RH.",
       href: `/rh/${empresaId}/aprovacoes`,
       icon: CheckSquare,
+    },
+    {
+      chave: "documentosAConferir",
+      titulo: "Documentos a conferir",
+      descricao: "Cópias enviadas pelo colaborador no portal, esperando validação.",
+      href: `/rh/${empresaId}/colaboradores`,
+      icon: FileCheck,
     },
     {
       chave: "asoVencendo",
