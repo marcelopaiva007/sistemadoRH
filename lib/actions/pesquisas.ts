@@ -283,13 +283,22 @@ export async function gerarConvites(empresaId: string, pesquisaId: string): Prom
 }
 
 /**
- * Tira alguém da pesquisa sem apagar o convite.
+ * Tira alguém da pesquisa sem apagar o convite, e desativa o cadastro.
  *
- * Apagar seria mais simples e estaria errado: "Gerar convites" recriaria a
- * pessoa na rodada seguinte, porque a única coisa que segura a recriação é a
- * linha existente na unique [pesquisaId, colaboradorId]. Marcando o status a
- * exclusão gruda — e nenhum dos caminhos de envio (manual, lote e automático)
- * olha para EXCLUIDO, todos filtram PENDING/FAILED.
+ * Apagar o convite seria mais simples e estaria errado: "Gerar convites"
+ * recriaria a pessoa na rodada seguinte, porque a única coisa que segura a
+ * recriação é a linha existente na unique [pesquisaId, colaboradorId].
+ * Marcando o status a exclusão gruda — e nenhum dos caminhos de envio (manual,
+ * lote e automático) olha para EXCLUIDO, todos filtram PENDING/FAILED.
+ *
+ * O cadastro também sai do ar (ativo = false). O motivo de tirar alguém da
+ * pesquisa é sempre o mesmo — não é funcionário —, e com o cadastro ativo essa
+ * pessoa continuaria somando no número de colaboradores da empresa, nas
+ * pendências, nos benefícios e nas férias: tirar da pesquisa e deixar no
+ * headcount corrige um número e deixa o outro errado. Desativar, e não apagar,
+ * porque a ficha continua valendo como registro e o RH reativa em
+ * Colaboradores se tiver se enganado. A importação por planilha não desfaz
+ * isso — o update do importador não toca em `ativo`.
  *
  * Quem já respondeu não pode ser excluído: a resposta anônima já está contada
  * nos agregados e não há como retirá-la, então tirar o convite só apagaria o
@@ -304,7 +313,10 @@ export async function excluirDaPesquisa(
 
   const token = await prisma.surveyToken.findFirst({
     where: { id: tokenId, pesquisa: { empresaId } },
-    include: { colaborador: { select: { nome: true } }, pesquisa: { select: { titulo: true } } },
+    include: {
+      colaborador: { select: { id: true, nome: true, ativo: true } },
+      pesquisa: { select: { titulo: true } },
+    },
   });
   if (!token) return { ok: false, error: "Convite não encontrado." };
   if (token.status === "RESPONDED") {
@@ -315,9 +327,18 @@ export async function excluirDaPesquisa(
   }
   if (token.status === "EXCLUIDO") return { ok: true, message: "Já estava fora da pesquisa." };
 
-  await prisma.surveyToken.update({
-    where: { id: tokenId },
-    data: { status: "EXCLUIDO", erro: motivo?.trim().slice(0, 200) || null },
+  const desativouCadastro = token.colaborador.ativo;
+
+  // As duas escritas na mesma transação: cadastro desativado com convite ainda
+  // pendente é justamente o estado meio-termo que esta ação existe para evitar.
+  await prisma.$transaction(async (tx) => {
+    await tx.surveyToken.update({
+      where: { id: tokenId },
+      data: { status: "EXCLUIDO", erro: motivo?.trim().slice(0, 200) || null },
+    });
+    if (desativouCadastro) {
+      await tx.colaborador.update({ where: { id: token.colaborador.id }, data: { ativo: false } });
+    }
   });
 
   await registrarAuditoria({
@@ -325,14 +346,31 @@ export async function excluirDaPesquisa(
     acao: "ATUALIZAR",
     entidade: "SurveyToken",
     entidadeId: tokenId,
-    resumo: `${token.colaborador.nome} foi retirado(a) da pesquisa "${token.pesquisa.titulo}".`,
+    resumo:
+      `${token.colaborador.nome} foi retirado(a) da pesquisa "${token.pesquisa.titulo}"` +
+      (desativouCadastro ? " e o cadastro foi desativado." : "."),
   });
 
   revalidatePath(`/rh/${empresaId}/pesquisas/${token.pesquisaId}`);
-  return { ok: true, message: `${token.colaborador.nome} saiu da pesquisa.` };
+  // O headcount e as listas da empresa mudam junto quando o cadastro é desativado.
+  revalidatePath(`/rh/${empresaId}`, "layout");
+  revalidatePath("/");
+  return {
+    ok: true,
+    message: desativouCadastro
+      ? `${token.colaborador.nome} saiu da pesquisa e o cadastro foi desativado.`
+      : `${token.colaborador.nome} saiu da pesquisa.`,
+  };
 }
 
-/** Desfaz a exclusão: volta a PENDING e o convite entra no próximo envio. */
+/**
+ * Desfaz a exclusão: o convite volta a PENDING e entra no próximo envio.
+ *
+ * Não reativa o cadastro de propósito. Cadastro inativo não quer dizer só
+ * "saiu da pesquisa" — pode ser desligamento —, e reativar por tabela
+ * ressuscitaria um demitido no headcount, nos benefícios e nas férias. A ação
+ * avisa quando é esse o caso; reativar é um clique em Colaboradores.
+ */
 export async function reincluirNaPesquisa(
   empresaId: string,
   tokenId: string,
@@ -341,7 +379,7 @@ export async function reincluirNaPesquisa(
 
   const token = await prisma.surveyToken.findFirst({
     where: { id: tokenId, pesquisa: { empresaId }, status: "EXCLUIDO" },
-    include: { colaborador: { select: { nome: true } } },
+    include: { colaborador: { select: { nome: true, ativo: true } } },
   });
   if (!token) return { ok: false, error: "Convite não encontrado ou não está excluído." };
 
@@ -359,7 +397,12 @@ export async function reincluirNaPesquisa(
   });
 
   revalidatePath(`/rh/${empresaId}/pesquisas/${token.pesquisaId}`);
-  return { ok: true, message: `${token.colaborador.nome} voltou para a lista.` };
+  return {
+    ok: true,
+    message: token.colaborador.ativo
+      ? `${token.colaborador.nome} voltou para a lista.`
+      : `${token.colaborador.nome} voltou para a lista, mas o cadastro está inativo — reative em Colaboradores para o convite ser enviado.`,
+  };
 }
 
 export async function enviarConviteToken(empresaId: string, tokenId: string): Promise<ActionResult> {
@@ -370,6 +413,14 @@ export async function enviarConviteToken(empresaId: string, tokenId: string): Pr
     include: { colaborador: true, pesquisa: true },
   });
   if (!token) return { ok: false, error: "Convite não encontrado." };
+  // O botão nem aparece nesses dois casos; a checagem é aqui porque enviar um
+  // convite é o que o excluído não pode receber de jeito nenhum.
+  if (token.status === "EXCLUIDO") {
+    return { ok: false, error: "Esta pessoa está fora da pesquisa." };
+  }
+  if (!token.colaborador.ativo) {
+    return { ok: false, error: "Cadastro inativo — reative em Colaboradores para enviar o convite." };
+  }
 
   const resultado = await enviarUmConvite(token);
   revalidatePath(`/rh/${empresaId}/pesquisas/${token.pesquisaId}`);
@@ -398,10 +449,15 @@ export async function enviarConvites(
   // Teto GLOBAL de envios por dia (Brasília) — compartilhado com o envio
   // automático diário. Atingido o teto, o restante sai nos próximos dias.
   const orcamento = await enviosRestantesHoje();
+  // Só quem está ativo. Um convite pendente de cadastro desativado (tirado da
+  // pesquisa por não ser funcionário, ou desligado depois da geração) não pode
+  // consumir orçamento de envio nem contar como "restante" — o loop do cliente
+  // chama esta action até restantes = 0 e ficaria rodando à toa.
   const restantesQuery = {
     pesquisaId,
     pesquisa: { empresaId },
     status: { in: ["PENDING", "FAILED"] },
+    colaborador: { ativo: true },
   };
   if (orcamento <= 0) {
     const restantes = await prisma.surveyToken.count({ where: restantesQuery });
@@ -435,9 +491,7 @@ export async function enviarConvites(
     }
   }
 
-  const restantes = await prisma.surveyToken.count({
-    where: { pesquisaId, pesquisa: { empresaId }, status: { in: ["PENDING", "FAILED"] } },
-  });
+  const restantes = await prisma.surveyToken.count({ where: restantesQuery });
 
   revalidatePath(`/rh/${empresaId}/pesquisas/${pesquisaId}`);
   return { ok: falhas === 0, enviados, falhas, restantes, error: ultimoErro };

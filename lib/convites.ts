@@ -132,10 +132,15 @@ export async function rodadaEnvioAutomatico(): Promise<{
       // Quem não tem canal nenhum fica de fora da rodada em vez de ser tentado
       // e contado como falha todo dia. O convite continua PENDING e entra
       // sozinho na primeira rodada depois que a pessoa vincular o Telegram.
+      //
+      // `ativo` é a outra trava: quem foi tirado da pesquisa tem o cadastro
+      // desativado, e quem é desligado no meio da rodada não deve receber
+      // convite no dia seguinte.
       where: {
         pesquisaId: pesquisa.id,
         status: "PENDING",
         colaborador: {
+          ativo: true,
           OR: [{ telegramChatId: { not: null } }, { email: { not: null } }],
         },
       },

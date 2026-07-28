@@ -3,6 +3,7 @@ import { FileDown, BarChart3 } from "lucide-react";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
 import { calcularNR01, NIVEIS_RISCO } from "@/lib/nr01";
+import { CONVITES_NA_PESQUISA, participacaoPct } from "@/lib/pesquisa-numeros";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -32,7 +33,8 @@ export default async function RelatoriosPage({
     prisma.pesquisa.findMany({
       where: { empresaId },
       orderBy: { createdAt: "desc" },
-      include: { _count: { select: { tokens: true, respostas: true } } },
+      // Convites sem os excluídos — o mesmo denominador da tela da pesquisa.
+      include: { _count: { select: { tokens: { where: CONVITES_NA_PESQUISA }, respostas: true } } },
     }),
   ]);
 
@@ -94,8 +96,7 @@ export default async function RelatoriosPage({
             )}
             {pesquisas.map((p) => {
               const nivel = niveisPorPesquisa.get(p.id) ?? null;
-              const participacao =
-                p._count.tokens > 0 ? Math.round((p._count.respostas / p._count.tokens) * 100) : 0;
+              const participacao = participacaoPct(p._count.respostas, p._count.tokens);
               return (
                 <TableRow key={p.id}>
                   <TableCell className="font-medium">

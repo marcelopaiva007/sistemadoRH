@@ -1,5 +1,6 @@
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
+import { CONVITES_NA_PESQUISA } from "@/lib/pesquisa-numeros";
 import { calcularNR01 } from "@/lib/nr01";
 import { DashboardNR01View } from "./dashboard-view";
 
@@ -24,7 +25,8 @@ export default async function DashboardPage({
       id: true,
       titulo: true,
       status: true,
-      _count: { select: { respostas: true, tokens: true } },
+      // Convites sem os excluídos: é este o denominador da participação.
+      _count: { select: { respostas: true, tokens: { where: CONVITES_NA_PESQUISA } } },
     },
   });
 

@@ -9,6 +9,7 @@ import { chromium, type Browser } from "playwright-core";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { calcularNR01 } from "@/lib/nr01";
+import { CONVITES_NA_PESQUISA } from "@/lib/pesquisa-numeros";
 import { gerarHtmlRelatorioNR01 } from "@/lib/nr01-relatorio";
 
 export const runtime = "nodejs";
@@ -57,7 +58,9 @@ export async function GET(
       perguntas: {
         select: { id: true, codigo: true, enunciado: true, dimensao: true, invertida: true },
       },
-      _count: { select: { tokens: true } },
+      // Sem os excluídos: o relatório do PGR vai para o engenheiro de SST e o
+      // "respostas/convites" precisa bater com o que a tela mostra.
+      _count: { select: { tokens: { where: CONVITES_NA_PESQUISA } } },
     },
   });
   if (!pesquisa) {

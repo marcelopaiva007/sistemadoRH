@@ -37,6 +37,7 @@ import {
   Tooltip,
 } from "recharts";
 import { updatePesquisa, alterarStatusPesquisa, salvarPerguntas, gerarConvites, enviarConvites, enviarConviteToken, excluirDaPesquisa, reincluirNaPesquisa, deletePesquisa } from "@/lib/actions/pesquisas";
+import { participacaoPct } from "@/lib/pesquisa-numeros";
 import {
   TIPOS_PERGUNTA,
   DIMENSOES_GPTW,
@@ -97,6 +98,12 @@ export function PesquisaDetalheView({
   mediaPorDimensao: { dimensao: string; media: number; respostas: number }[];
   mediaPorSetor: { setor: string; media: number; respostas: number }[];
 }) {
+  // Os excluídos continuam na tabela (o RH precisa ver quem tirou e poder
+  // voltar atrás), mas ficam fora de tudo que é número: eles não são convites
+  // a caminho de virar resposta.
+  const convites = pesquisa.tokens.filter((t) => t.status !== "EXCLUIDO").length;
+  const fora = pesquisa.tokens.length - convites;
+
   return (
     <div className="space-y-6">
       <CabecalhoPesquisa empresaId={empresaId} pesquisa={pesquisa} />
@@ -132,10 +139,13 @@ export function PesquisaDetalheView({
         empresaId={empresaId}
         pesquisa={pesquisa}
         semConvite={semConvite}
+        convites={convites}
+        fora={fora}
       />
 
       <ResultadosSection
         totalRespostas={totalRespostas}
+        convites={convites}
         anonima={pesquisa.anonima}
         mediaPorDimensao={mediaPorDimensao}
         mediaPorSetor={mediaPorSetor}
@@ -473,10 +483,15 @@ function ConvitesSection({
   empresaId,
   pesquisa,
   semConvite,
+  convites,
+  fora,
 }: {
   empresaId: string;
   pesquisa: Pesquisa;
   semConvite: number;
+  /** Convites que contam: total menos os excluídos. */
+  convites: number;
+  fora: number;
 }) {
   const [pendingAction, setPendingAction] = useState<string | null>(null);
 
@@ -558,7 +573,14 @@ function ConvitesSection({
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-4">
-        <CardTitle className="text-base">Convites ({pesquisa.tokens.length})</CardTitle>
+        <CardTitle className="text-base">
+          Convites ({convites})
+          {fora > 0 && (
+            <span className="ml-2 text-sm font-normal text-muted-foreground">
+              + {fora} fora da pesquisa
+            </span>
+          )}
+        </CardTitle>
         <div className="flex gap-2">
           <Button
             type="button"
@@ -575,7 +597,7 @@ function ConvitesSection({
           <Button
             type="button"
             size="sm"
-            disabled={pesquisa.tokens.length === 0 || pendingAction === "enviar-todos"}
+            disabled={convites === 0 || pendingAction === "enviar-todos"}
             onClick={handleEnviarTodos}
           >
             <Send className="size-4" />
@@ -693,11 +715,13 @@ function ConvitesSection({
 
 function ResultadosSection({
   totalRespostas,
+  convites,
   anonima,
   mediaPorDimensao,
   mediaPorSetor,
 }: {
   totalRespostas: number;
+  convites: number;
   anonima: boolean;
   mediaPorDimensao: { dimensao: string; media: number; respostas: number }[];
   mediaPorSetor: { setor: string; media: number; respostas: number }[];
@@ -705,7 +729,10 @@ function ResultadosSection({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Resultados ({totalRespostas} resposta(s))</CardTitle>
+        <CardTitle className="text-base">
+          Resultados ({totalRespostas} de {convites} —{" "}
+          {participacaoPct(totalRespostas, convites)}%)
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
         {anonima && (
