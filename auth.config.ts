@@ -42,12 +42,14 @@ export const authConfig = {
           role: string;
           username: string;
           empresaId: string | null;
+          empresaIds: string[];
           setorId: string | null;
         };
         token.id = u.id;
         token.role = u.role;
         token.username = u.username;
         token.empresaId = u.empresaId;
+        token.empresaIds = u.empresaIds ?? [];
         token.setorId = u.setorId;
       }
       return token;
@@ -58,6 +60,7 @@ export const authConfig = {
         session.user.role = token.role as string;
         session.user.username = token.username as string;
         session.user.empresaId = token.empresaId as string | null;
+        session.user.empresaIds = (token.empresaIds as string[] | undefined) ?? [];
         session.user.setorId = token.setorId as string | null;
       }
       return session;

@@ -20,7 +20,7 @@ export default async function HomePage() {
   const empresas = await prisma.empresa.findMany({
     where: {
       ativo: true,
-      ...(user.role === "RH_MANAGER" && user.empresaId ? { id: user.empresaId } : {}),
+      ...(user.role === "RH_MANAGER" ? { id: { in: user.empresaIds } } : {}),
     },
     orderBy: { nome: "asc" },
     select: { id: true, nome: true, marca: { select: { id: true, nome: true } } },

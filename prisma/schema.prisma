@@ -42,13 +42,16 @@ model User {
   role         String
   createdAt    DateTime @default(now())
 
-  // Escopo do módulo de RH: preenchido apenas para RH_MANAGER (empresaId) e
-  // GESTOR_SETOR (empresaId + setorId). ADMIN/DIRETORIA ficam nulos.
+  // Escopo do módulo de RH: RH_MANAGER usa empresaIds (uma ou mais empresas);
+  // GESTOR_SETOR usa empresaId + setorId (um setor pertence a uma única
+  // empresa, então não há "mais de uma" para esse papel). ADMIN/DIRETORIA
+  // ficam com os três vazios — já enxergam o grupo inteiro.
   // Colunas simples, SEM @relation de propósito: desativar uma empresa ou um
   // setor não pode derrubar o login de quem estava vinculado a ele. Resolver o
   // nome de empresa/setor é responsabilidade de quem consulta (lookup por id).
-  empresaId String?
-  setorId   String?
+  empresaId  String?
+  empresaIds String[] @default([])
+  setorId    String?
 
   pesquisasCriadas Pesquisa[]
 

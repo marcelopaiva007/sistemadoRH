@@ -56,6 +56,8 @@ type Usuario = {
   username: string;
   role: string;
   empresaId: string | null;
+  /** RH_MANAGER pode ver mais de uma empresa; os outros papéis ficam com []. */
+  empresaIds: string[];
   setorId: string | null;
 };
 
@@ -143,7 +145,21 @@ export function UsuariosTable({
                 <TableCell>
                   <Badge variant="secondary">{roleLabel(u.role)}</Badge>
                 </TableCell>
-                <TableCell>{(u.empresaId && empresaNome.get(u.empresaId)) ?? "—"}</TableCell>
+                <TableCell>
+                  {u.role === "RH_MANAGER" ? (
+                    u.empresaIds.length === 0 ? (
+                      "—"
+                    ) : u.empresaIds.length === 1 ? (
+                      empresaNome.get(u.empresaIds[0]) ?? "—"
+                    ) : (
+                      <span title={u.empresaIds.map((id) => empresaNome.get(id) ?? id).join(", ")}>
+                        {u.empresaIds.length} empresas
+                      </span>
+                    )
+                  ) : (
+                    (u.empresaId && empresaNome.get(u.empresaId)) ?? "—"
+                  )}
+                </TableCell>
                 <TableCell>{(u.setorId && setorNome.get(u.setorId)) ?? "—"}</TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-1">
@@ -205,12 +221,17 @@ function UsuarioForm({
 }) {
   const [role, setRole] = useState(defaultValues?.role ?? "DIRETORIA");
   const [empresaId, setEmpresaId] = useState(defaultValues?.empresaId ?? "");
+  const [empresaIds, setEmpresaIds] = useState<string[]>(defaultValues?.empresaIds ?? []);
   const [setorId, setSetorId] = useState(defaultValues?.setorId ?? "");
 
-  const precisaEmpresa = role === "RH_MANAGER" || role === "GESTOR_SETOR";
-  const precisaSetor = role === "GESTOR_SETOR";
+  const ehGestorRH = role === "RH_MANAGER";
+  const ehGestorSetor = role === "GESTOR_SETOR";
   const empresasAtivas = empresas.filter((e) => e.ativo);
   const setoresDaEmpresa = setores.filter((s) => s.empresaId === empresaId && s.ativo);
+
+  function alternarEmpresa(id: string) {
+    setEmpresaIds((prev) => (prev.includes(id) ? prev.filter((e) => e !== id) : [...prev, id]));
+  }
 
   const [state, formAction, isPending] = useActionState(async (prev: ActionResult, fd: FormData) => {
     const result = await action(prev, fd);
@@ -247,6 +268,7 @@ function UsuarioForm({
           onValueChange={(v) => {
             setRole(v ?? "DIRETORIA");
             setEmpresaId("");
+            setEmpresaIds([]);
             setSetorId("");
           }}
           name="role"
@@ -264,7 +286,30 @@ function UsuarioForm({
           </SelectContent>
         </Select>
       </div>
-      {precisaEmpresa && (
+      {ehGestorRH && (
+        <div className="space-y-2">
+          <Label>Empresas</Label>
+          <p className="text-xs text-muted-foreground">
+            Marque uma ou mais — é a lista que a pessoa vê ao entrar e pode trocar pelo seletor.
+          </p>
+          <div className="max-h-48 space-y-1 overflow-y-auto rounded-md border p-2">
+            {empresasAtivas.map((e) => (
+              <label key={e.id} className="flex items-center gap-2 rounded px-1 py-1 text-sm hover:bg-muted">
+                <input
+                  type="checkbox"
+                  name="empresaIds"
+                  value={e.id}
+                  checked={empresaIds.includes(e.id)}
+                  onChange={() => alternarEmpresa(e.id)}
+                  className="size-4 accent-primary"
+                />
+                {e.nome}
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+      {ehGestorSetor && (
         <div className="space-y-2">
           <Label>Empresa</Label>
           <Select
@@ -289,7 +334,7 @@ function UsuarioForm({
           </Select>
         </div>
       )}
-      {precisaSetor && (
+      {ehGestorSetor && (
         <div className="space-y-2">
           <Label>Setor</Label>
           <Select

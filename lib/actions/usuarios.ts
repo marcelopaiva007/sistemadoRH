@@ -14,12 +14,16 @@ const usuarioSchema = z
     nome: z.string().trim().min(2, "Informe o nome"),
     username: z.string().trim().min(3, "Informe o usuário de login"),
     role: z.enum(ROLES),
+    // RH_MANAGER: uma ou mais empresas (empresaIds). GESTOR_SETOR: uma única
+    // empresa (empresaId) + um setor dela — um setor não existe em mais de uma
+    // empresa, então não há "mais de uma" para esse papel.
+    empresaIds: z.array(z.string().trim().min(1)).optional(),
     empresaId: z.string().trim().optional(),
     setorId: z.string().trim().optional(),
   })
-  .refine((data) => data.role !== "RH_MANAGER" || !!data.empresaId, {
-    message: "Selecione a empresa do gestor de RH",
-    path: ["empresaId"],
+  .refine((data) => data.role !== "RH_MANAGER" || (data.empresaIds?.length ?? 0) > 0, {
+    message: "Selecione ao menos uma empresa para o gestor de RH",
+    path: ["empresaIds"],
   })
   .refine((data) => data.role !== "GESTOR_SETOR" || !!data.empresaId, {
     message: "Selecione a empresa do gestor de setor",
@@ -31,9 +35,10 @@ const usuarioSchema = z
   });
 
 function escopoPorRole(data: z.infer<typeof usuarioSchema>) {
-  if (data.role === "RH_MANAGER") return { empresaId: data.empresaId!, setorId: null };
-  if (data.role === "GESTOR_SETOR") return { empresaId: data.empresaId!, setorId: data.setorId! };
-  return { empresaId: null, setorId: null };
+  if (data.role === "RH_MANAGER") return { empresaId: null, empresaIds: data.empresaIds!, setorId: null };
+  if (data.role === "GESTOR_SETOR")
+    return { empresaId: data.empresaId!, empresaIds: [], setorId: data.setorId! };
+  return { empresaId: null, empresaIds: [], setorId: null };
 }
 
 export async function createUsuario(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
@@ -46,6 +51,7 @@ export async function createUsuario(_prev: ActionResult, formData: FormData): Pr
     nome: formData.get("nome"),
     username: formData.get("username"),
     role: formData.get("role"),
+    empresaIds: formData.getAll("empresaIds"),
     empresaId: formData.get("empresaId") || undefined,
     setorId: formData.get("setorId") || undefined,
   });
@@ -77,6 +83,7 @@ export async function updateUsuario(id: string, _prev: ActionResult, formData: F
     nome: formData.get("nome"),
     username: formData.get("username"),
     role: formData.get("role"),
+    empresaIds: formData.getAll("empresaIds"),
     empresaId: formData.get("empresaId") || undefined,
     setorId: formData.get("setorId") || undefined,
   });
