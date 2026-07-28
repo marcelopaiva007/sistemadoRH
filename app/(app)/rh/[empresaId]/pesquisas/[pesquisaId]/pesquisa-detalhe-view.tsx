@@ -36,7 +36,7 @@ import {
   YAxis,
   Tooltip,
 } from "recharts";
-import { updatePesquisa, alterarStatusPesquisa, salvarPerguntas, gerarConvites, enviarConvites, enviarConviteToken, excluirDaPesquisa, reincluirNaPesquisa, deletePesquisa } from "@/lib/actions/pesquisas";
+import { updatePesquisa, alterarStatusPesquisa, salvarPerguntas, gerarConvites, enviarConvites, enviarConviteToken, excluirDaPesquisa, reincluirNaPesquisa, apagarConviteExcluido, limparExcluidosDaPesquisa, deletePesquisa } from "@/lib/actions/pesquisas";
 import { participacaoPct } from "@/lib/pesquisa-numeros";
 import {
   TIPOS_PERGUNTA,
@@ -225,6 +225,69 @@ function CabecalhoPesquisa({ empresaId, pesquisa }: { empresaId: string; pesquis
 // Exclusão em duas etapas: primeiro clique arma a confirmação (com o alerta de
 // que convites e respostas vão junto), segundo clique executa. Em caso de
 // sucesso a action redireciona para a lista de pesquisas.
+/**
+ * Botão de apagar com confirmação no lugar, sem modal: a pergunta troca o
+ * próprio botão. Apagar convite não tem desfazer, e o mesmo componente serve
+ * para a linha (só ícone) e para o cabeçalho (com rótulo).
+ */
+function ConfirmarAcao({
+  pergunta,
+  onConfirmar,
+  rotulo,
+  titulo,
+  disabled,
+  variant = "destructive",
+}: {
+  pergunta: string;
+  onConfirmar: () => Promise<void>;
+  rotulo?: string;
+  titulo?: string;
+  disabled?: boolean;
+  variant?: "destructive" | "ghost";
+}) {
+  const [confirmando, setConfirmando] = useState(false);
+  const [rodando, setRodando] = useState(false);
+
+  if (confirmando) {
+    return (
+      <span className="inline-flex items-center gap-1">
+        <span className="text-xs text-destructive">{pergunta}</span>
+        <Button
+          type="button"
+          variant="destructive"
+          size="sm"
+          disabled={rodando}
+          onClick={async () => {
+            setRodando(true);
+            await onConfirmar();
+            setRodando(false);
+            setConfirmando(false);
+          }}
+        >
+          {rodando ? "Apagando..." : "Confirmar"}
+        </Button>
+        <Button type="button" variant="ghost" size="sm" onClick={() => setConfirmando(false)}>
+          Cancelar
+        </Button>
+      </span>
+    );
+  }
+
+  return (
+    <Button
+      type="button"
+      variant={variant}
+      size="sm"
+      title={titulo}
+      disabled={disabled}
+      onClick={() => setConfirmando(true)}
+    >
+      <Trash2 className="size-4" />
+      {rotulo}
+    </Button>
+  );
+}
+
 function ExcluirPesquisaButton({ empresaId, pesquisaId }: { empresaId: string; pesquisaId: string }) {
   const [confirming, setConfirming] = useState(false);
   const [excluindo, setExcluindo] = useState(false);
@@ -519,6 +582,22 @@ function ConvitesSection({
     setPendingAction(null);
   }
 
+  async function handleApagar(tokenId: string) {
+    setPendingAction(tokenId);
+    const result = await apagarConviteExcluido(empresaId, tokenId);
+    if (result.ok) toast.success(result.message ?? "Apagado da lista.");
+    else toast.error(result.error);
+    setPendingAction(null);
+  }
+
+  async function handleLimparExcluidos() {
+    setPendingAction("limpar");
+    const result = await limparExcluidosDaPesquisa(empresaId, pesquisa.id);
+    if (result.ok) toast.success(result.message ?? "Lista limpa.");
+    else toast.error(result.error);
+    setPendingAction(null);
+  }
+
   // Envia em lotes (limite de tempo de server action na Vercel), repetindo até
   // não restar pendente — com progresso via toast. Para se um lote inteiro
   // falhar (ex.: SMTP fora ou limite diário do provedor atingido).
@@ -582,6 +661,14 @@ function ConvitesSection({
           )}
         </CardTitle>
         <div className="flex gap-2">
+          {fora > 0 && (
+            <ConfirmarAcao
+              rotulo={`Apagar os ${fora} de fora`}
+              pergunta={`Apagar ${fora} convite(s) de quem está fora da pesquisa? Os cadastros continuam desativados em Colaboradores.`}
+              disabled={pendingAction === "limpar"}
+              onConfirmar={handleLimparExcluidos}
+            />
+          )}
           <Button
             type="button"
             variant="outline"
@@ -665,6 +752,7 @@ function ConvitesSection({
                 <TableCell className="text-sm text-muted-foreground">{t.erro ?? "—"}</TableCell>
                 <TableCell className="text-right">
                   {t.status === "EXCLUIDO" ? (
+                    <>
                     <Button
                       type="button"
                       variant="ghost"
@@ -675,6 +763,14 @@ function ConvitesSection({
                     >
                       <UserPlus className="size-4" />
                     </Button>
+                    <ConfirmarAcao
+                      pergunta="Apagar?"
+                      titulo="Apagar da lista (o cadastro continua desativado)"
+                      variant="ghost"
+                      disabled={pendingAction === t.id}
+                      onConfirmar={() => handleApagar(t.id)}
+                    />
+                    </>
                   ) : (
                     <>
                       <Button

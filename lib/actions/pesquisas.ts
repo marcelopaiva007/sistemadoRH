@@ -405,6 +405,103 @@ export async function reincluirNaPesquisa(
   };
 }
 
+/**
+ * Apaga de vez o convite de quem está fora da pesquisa — a linha some da lista.
+ *
+ * Só é seguro apagar porque a exclusão desativa o cadastro: "Gerar convites"
+ * só olha para colaboradores ativos, então o convite não volta sozinho na
+ * rodada seguinte. Por garantia a ação desativa aqui também — um EXCLUIDO que
+ * tenha sobrado ativo (exclusão feita antes desta regra existir, ou cadastro
+ * reativado depois) reapareceria no próximo "Gerar convites" se o convite
+ * fosse apagado com o cadastro no ar.
+ *
+ * Só apaga EXCLUIDO. Um convite respondido carrega o registro de que aquela
+ * pessoa participou, e a resposta é anônima: apagar o convite não tira a
+ * resposta do resultado, só esconde de quem ela veio.
+ */
+async function apagarExcluidos(
+  empresaId: string,
+  where: { pesquisaId: string } | { id: string },
+): Promise<{ apagados: number; pesquisaId: string | null; nomes: string[] }> {
+  const tokens = await prisma.surveyToken.findMany({
+    where: { ...where, status: "EXCLUIDO", pesquisa: { empresaId } },
+    select: {
+      id: true,
+      pesquisaId: true,
+      colaboradorId: true,
+      colaborador: { select: { nome: true } },
+    },
+  });
+  if (tokens.length === 0) return { apagados: 0, pesquisaId: null, nomes: [] };
+
+  const ids = tokens.map((t) => t.id);
+  const colaboradorIds = tokens.map((t) => t.colaboradorId);
+
+  await prisma.$transaction([
+    prisma.colaborador.updateMany({
+      where: { id: { in: colaboradorIds }, empresaId, ativo: true },
+      data: { ativo: false },
+    }),
+    prisma.surveyToken.deleteMany({ where: { id: { in: ids } } }),
+  ]);
+
+  return {
+    apagados: tokens.length,
+    pesquisaId: tokens[0].pesquisaId,
+    nomes: tokens.map((t) => t.colaborador.nome),
+  };
+}
+
+/** Apaga o convite de uma pessoa que está fora da pesquisa. */
+export async function apagarConviteExcluido(
+  empresaId: string,
+  tokenId: string,
+): Promise<ResultadoComMensagem> {
+  await requireEmpresaAccess(empresaId);
+
+  const { apagados, pesquisaId, nomes } = await apagarExcluidos(empresaId, { id: tokenId });
+  if (apagados === 0) {
+    return { ok: false, error: "Só dá para apagar quem está fora da pesquisa." };
+  }
+
+  await registrarAuditoria({
+    empresaId,
+    acao: "EXCLUIR",
+    entidade: "SurveyToken",
+    entidadeId: tokenId,
+    resumo: `Convite de ${nomes[0]} apagado da pesquisa.`,
+  });
+
+  revalidatePath(`/rh/${empresaId}/pesquisas/${pesquisaId}`);
+  revalidatePath(`/rh/${empresaId}`, "layout");
+  revalidatePath("/");
+  return { ok: true, message: `${nomes[0]} saiu da lista.` };
+}
+
+/** Apaga de uma vez todos os convites que estão fora da pesquisa. */
+export async function limparExcluidosDaPesquisa(
+  empresaId: string,
+  pesquisaId: string,
+): Promise<ResultadoComMensagem> {
+  await requireEmpresaAccess(empresaId);
+
+  const { apagados } = await apagarExcluidos(empresaId, { pesquisaId });
+  if (apagados === 0) return { ok: true, message: "Não há ninguém fora da pesquisa." };
+
+  await registrarAuditoria({
+    empresaId,
+    acao: "EXCLUIR",
+    entidade: "SurveyToken",
+    entidadeId: pesquisaId,
+    resumo: `${apagados} convite(s) de quem estava fora da pesquisa foram apagados.`,
+  });
+
+  revalidatePath(`/rh/${empresaId}/pesquisas/${pesquisaId}`);
+  revalidatePath(`/rh/${empresaId}`, "layout");
+  revalidatePath("/");
+  return { ok: true, message: `${apagados} pessoa(s) apagada(s) da lista.` };
+}
+
 export async function enviarConviteToken(empresaId: string, tokenId: string): Promise<ActionResult> {
   await requireEmpresaAccess(empresaId);
 
