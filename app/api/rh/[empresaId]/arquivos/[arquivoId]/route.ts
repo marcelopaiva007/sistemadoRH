@@ -19,12 +19,12 @@ export async function GET(
 
   // Numa rota de API devolvemos 401/403 explícitos (redirect() é para páginas).
   // Mesma regra do requireEmpresaAccess: ADMIN acessa qualquer empresa,
-  // RH_MANAGER só as vinculadas a ele.
+  // RH_MANAGER só a própria.
   const session = await auth();
   const user = session?.user;
   if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
   const autorizado =
-    user.role === "ADMIN" || (user.role === "RH_MANAGER" && user.empresaIds?.includes(empresaId));
+    user.role === "ADMIN" || (user.role === "RH_MANAGER" && user.empresaId === empresaId);
   if (!autorizado) return NextResponse.json({ error: "Sem acesso a esta empresa." }, { status: 403 });
 
   const arquivo = await prisma.arquivo.findFirst({

@@ -15,18 +15,12 @@ export default async function RHEmpresaLayout({
   const usuario = await requireEmpresaAccess(empresaId);
 
   // Este layout roda a CADA navegação de menu, então o custo dele entra em
-  // toda troca de tela. Por isso é uma query só: quem pode trocar já recebe a
-  // lista inteira que o seletor precisa (o grupo todo para ADMIN/DIRETORIA, só
-  // as próprias para RH_MANAGER com mais de uma) e a empresa atual sai de
-  // dentro dela, em vez de um findUnique extra.
-  const podeTrocar =
-    usuario?.role === "ADMIN" ||
-    usuario?.role === "DIRETORIA" ||
-    (usuario?.role === "RH_MANAGER" && usuario.empresaIds.length > 1);
+  // toda troca de tela. Por isso é uma query só: ADMIN/DIRETORIA já recebem a
+  // lista inteira (que o seletor precisa) e a empresa atual sai de dentro
+  // dela, em vez de um findUnique extra.
+  const podeTrocar = usuario?.role === "ADMIN" || usuario?.role === "DIRETORIA";
   const empresas = await prisma.empresa.findMany({
-    where: podeTrocar
-      ? { ativo: true, ...(usuario?.role === "RH_MANAGER" ? { id: { in: usuario.empresaIds } } : {}) }
-      : { id: empresaId },
+    where: podeTrocar ? { ativo: true } : { id: empresaId },
     orderBy: { nome: "asc" },
     select: { id: true, nome: true },
   });

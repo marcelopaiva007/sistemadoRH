@@ -21,17 +21,10 @@ export default async function ContaPage() {
   // Empresa/setor são colunas soltas no User (sem @relation, para desativar
   // uma empresa não derrubar o login de quem estava vinculado); o nome se
   // resolve por lookup, e some se o vínculo tiver sido apagado.
-  const [empresa, empresasDoRHManager, setor] = await Promise.all([
+  const [empresa, setor] = await Promise.all([
     user.empresaId
       ? prisma.empresa.findUnique({ where: { id: user.empresaId }, select: { nome: true } })
       : null,
-    user.empresaIds.length > 0
-      ? prisma.empresa.findMany({
-          where: { id: { in: user.empresaIds } },
-          orderBy: { nome: "asc" },
-          select: { nome: true },
-        })
-      : [],
     user.setorId
       ? prisma.setor.findUnique({ where: { id: user.setorId }, select: { nome: true } })
       : null,
@@ -69,16 +62,6 @@ export default async function ContaPage() {
               <div>
                 <dt className="text-muted-foreground">Empresa</dt>
                 <dd className="font-medium">{empresa.nome}</dd>
-              </div>
-            )}
-            {empresasDoRHManager.length > 0 && (
-              <div className="sm:col-span-2">
-                <dt className="text-muted-foreground">
-                  {empresasDoRHManager.length === 1 ? "Empresa" : "Empresas"}
-                </dt>
-                <dd className="font-medium">
-                  {empresasDoRHManager.map((e) => e.nome).join(", ")}
-                </dd>
               </div>
             )}
             {setor && (

@@ -9,13 +9,12 @@ export async function requireRHAccess() {
   return user;
 }
 
-// ADMIN acessa qualquer empresa; RH_MANAGER só as vinculadas a ele (uma ou
-// mais — user.empresaIds); demais papéis não têm acesso a telas escopadas por
-// empresa (ex: GESTOR_SETOR usa /rh/meu-setor).
+// ADMIN acessa qualquer empresa; RH_MANAGER só a própria; demais papéis não
+// têm acesso a telas escopadas por empresa (ex: GESTOR_SETOR usa /rh/meu-setor).
 export async function requireEmpresaAccess(empresaId: string) {
   const user = await requireRHAccess();
   if (user.role === "ADMIN") return user;
-  if (user.role === "RH_MANAGER" && user.empresaIds?.includes(empresaId)) return user;
+  if (user.role === "RH_MANAGER" && user.empresaId === empresaId) return user;
   redirect(user.role === "GESTOR_SETOR" ? "/rh/meu-setor" : "/rh");
 }
 

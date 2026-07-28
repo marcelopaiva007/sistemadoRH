@@ -18,7 +18,7 @@ export async function GET(
   const user = session?.user;
   if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
   const autorizado =
-    user.role === "ADMIN" || (user.role === "RH_MANAGER" && user.empresaIds?.includes(empresaId));
+    user.role === "ADMIN" || (user.role === "RH_MANAGER" && user.empresaId === empresaId);
   if (!autorizado) return NextResponse.json({ error: "Sem acesso a esta empresa." }, { status: 403 });
 
   const exemplo = [

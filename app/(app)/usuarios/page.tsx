@@ -29,8 +29,8 @@ export default async function UsuariosPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Usuários</h1>
         <p className="text-muted-foreground">
-          Contas de acesso ao sistema. RH (gestor de empresa) fica vinculado a uma ou mais
-          empresas; Gestor de setor fica vinculado a uma única empresa e a um setor dela.
+          Contas de acesso ao sistema. RH_MANAGER e GESTOR_SETOR ficam vinculados a uma
+          empresa (e, no caso de GESTOR_SETOR, também a um setor) do módulo de RH.
         </p>
       </div>
       <UsuariosTable usuarios={usuarios} empresas={empresas} setores={setores} />
