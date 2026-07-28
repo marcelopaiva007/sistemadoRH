@@ -6,6 +6,7 @@ import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { registrarAuditoria } from "@/lib/audit";
 import { dataDoFormulario, formatarData } from "@/lib/datas";
 import { TIPOS_MOVIMENTACAO, tipoMovimentacaoLabel } from "@/lib/constants-movimentacao";
+import { criariCiclo } from "@/lib/organograma";
 import type { ActionResult } from "@/lib/constants";
 
 const TIPOS_VALIDOS = new Set<string>(TIPOS_MOVIMENTACAO.map((t) => t.value));
@@ -15,22 +16,6 @@ const TIPOS_VALIDOS = new Set<string>(TIPOS_MOVIMENTACAO.map((t) => t.value));
 // isso agora". Sem essa distinção não dava para diferenciar "não mexer no
 // líder" de "esta pessoa passa a não ter líder".
 const SEM_SUPERVISOR = "__sem_supervisor__";
-
-/** Sobe a cadeia de liderança a partir de `inicioId`; true se achar `alvoId`. */
-async function criariCiclo(alvoId: string, inicioId: string): Promise<boolean> {
-  let atualId: string | null = inicioId;
-  // Limite de segurança: nenhuma empresa real tem 50 níveis de hierarquia: é
-  // uma rede contra um ciclo já existente no banco entrar em loop infinito.
-  for (let i = 0; i < 50 && atualId; i++) {
-    if (atualId === alvoId) return true;
-    const atual: { supervisorId: string | null } | null = await prisma.colaborador.findUnique({
-      where: { id: atualId },
-      select: { supervisorId: true },
-    });
-    atualId = atual?.supervisorId ?? null;
-  }
-  return false;
-}
 
 export async function registrarMovimentacao(
   empresaId: string,

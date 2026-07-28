@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { proximaMatricula } from "@/lib/matricula";
 import { registrarAuditoria } from "@/lib/audit";
+import { criariCiclo } from "@/lib/organograma";
 import type { ActionResult } from "@/lib/constants";
 
 const colaboradorSchema = z.object({
@@ -20,8 +21,32 @@ const colaboradorSchema = z.object({
   setorId: z.string().trim().min(1, "Selecione o setor"),
   posicaoId: z.string().trim().min(1, "Selecione a posição"),
   telegramChatId: z.string().trim().optional(),
+  supervisorId: z.string().trim().optional(),
   ativo: z.coerce.boolean().default(true),
 });
+
+/**
+ * "Reporta a" — usada tanto na criação quanto na edição, com o `idExcluido`
+ * só fazendo sentido na edição (ninguém pode liderar a si mesmo, mas na
+ * criação o colaborador ainda nem tem id).
+ */
+async function validarSupervisor(
+  empresaId: string,
+  supervisorId: string,
+  idExcluido?: string,
+): Promise<string | null> {
+  if (supervisorId === idExcluido) return "Alguém não pode liderar a si mesmo.";
+  const supervisor = await prisma.colaborador.findFirst({
+    where: { id: supervisorId, empresaId, ativo: true },
+  });
+  if (!supervisor) return "Líder inválido para essa empresa.";
+  // Na criação não há ciclo possível: um colaborador novo não lidera ninguém
+  // ainda, então não pode aparecer na própria cadeia de liderança.
+  if (idExcluido && (await criariCiclo(idExcluido, supervisorId))) {
+    return "Essa escolha criaria um ciclo de liderança (A lidera B que lidera A).";
+  }
+  return null;
+}
 
 async function validarSetorEPosicaoDaEmpresa(empresaId: string, setorId: string, posicaoId: string) {
   const [setor, posicao] = await Promise.all([
@@ -72,6 +97,7 @@ export async function createColaborador(
     setorId: formData.get("setorId"),
     posicaoId: formData.get("posicaoId"),
     telegramChatId: formData.get("telegramChatId") || undefined,
+    supervisorId: formData.get("supervisorId") || undefined,
     ativo: formData.get("ativo") === "on" || formData.get("ativo") === "true",
   };
   const parsed = colaboradorSchema.safeParse(raw);
@@ -85,6 +111,11 @@ export async function createColaborador(
     if (erroChatId) return { ok: false, error: erroChatId };
   }
 
+  if (parsed.data.supervisorId) {
+    const erroSupervisor = await validarSupervisor(empresaId, parsed.data.supervisorId);
+    if (erroSupervisor) return { ok: false, error: erroSupervisor };
+  }
+
   try {
     await prisma.colaborador.create({
       data: {
@@ -96,6 +127,7 @@ export async function createColaborador(
         setorId: parsed.data.setorId,
         posicaoId: parsed.data.posicaoId,
         telegramChatId: parsed.data.telegramChatId || null,
+        supervisorId: parsed.data.supervisorId || null,
         ativo: parsed.data.ativo,
       },
     });
@@ -120,6 +152,7 @@ export async function updateColaborador(
     setorId: formData.get("setorId"),
     posicaoId: formData.get("posicaoId"),
     telegramChatId: formData.get("telegramChatId") || undefined,
+    supervisorId: formData.get("supervisorId") || undefined,
     ativo: formData.get("ativo") === "on" || formData.get("ativo") === "true",
   };
   const parsed = colaboradorSchema.safeParse(raw);
@@ -133,6 +166,11 @@ export async function updateColaborador(
     if (erroChatId) return { ok: false, error: erroChatId };
   }
 
+  if (parsed.data.supervisorId) {
+    const erroSupervisor = await validarSupervisor(empresaId, parsed.data.supervisorId, id);
+    if (erroSupervisor) return { ok: false, error: erroSupervisor };
+  }
+
   try {
     await prisma.colaborador.update({
       where: { id, empresaId },
@@ -143,6 +181,7 @@ export async function updateColaborador(
         setorId: parsed.data.setorId,
         posicaoId: parsed.data.posicaoId,
         telegramChatId: parsed.data.telegramChatId || null,
+        supervisorId: parsed.data.supervisorId || null,
         ativo: parsed.data.ativo,
       },
     });
