@@ -1,6 +1,5 @@
-// Cliente fino da Bot API do Telegram. Usa o bot pessoal já existente
-// (@Marcelo_Paiva_07_bot) — o token vive só em TELEGRAM_BOT_TOKEN (.env),
-// nunca no config pessoal do Claude Code (~/.claude/telegram/config.json).
+// Cliente fino da Bot API do Telegram. O token vive só em TELEGRAM_BOT_TOKEN
+// (.env), nunca no config pessoal do Claude Code (~/.claude/telegram/config.json).
 import { createHash } from "crypto";
 
 export async function sendTelegramMessage(
@@ -20,6 +19,11 @@ export async function sendTelegramMessage(
       body: JSON.stringify({
         chat_id: chatId,
         text,
+        // O Telegram abre todo link que passa por aqui para montar o card de
+        // preview — e o link do portal é de uso único, então esse acesso o
+        // queimava antes de a pessoa tocar na tela. Todo link enviado pelo bot
+        // hoje é de uso único; preview aqui não serve para nada e quebra tudo.
+        link_preview_options: { is_disabled: true },
         ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
       }),
     });
