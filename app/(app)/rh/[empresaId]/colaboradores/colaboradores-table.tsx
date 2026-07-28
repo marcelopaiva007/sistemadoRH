@@ -40,6 +40,7 @@ import {
 } from "@/lib/actions/rh-colaboradores";
 import { AtivarDesativarButton } from "./ativar-desativar-button";
 import { AlertaDuplicados } from "./alerta-duplicados";
+import { ConferirCpfs } from "./conferir-cpfs";
 import { formatarCpf, mascararCpf } from "@/lib/cpf";
 import type { ActionResult } from "@/lib/constants";
 
@@ -226,6 +227,7 @@ export function ColaboradoresTable({
   return (
     <div className="space-y-4">
       <AlertaDuplicados empresaId={empresaId} colaboradores={colaboradores} />
+      <ConferirCpfs empresaId={empresaId} colaboradores={colaboradores} />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-1 flex-wrap items-center gap-2">
