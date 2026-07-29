@@ -1,39 +1,8 @@
-import { requireAdmin } from "@/lib/auth-guard";
-import { prisma } from "@/lib/prisma";
-import { UsuariosTable } from "./usuarios-table";
+import { redirect } from "next/navigation";
 
-export default async function UsuariosPage() {
-  await requireAdmin();
-
-  const [usuarios, empresas, setores] = await Promise.all([
-    prisma.user.findMany({
-      orderBy: [{ role: "asc" }, { nome: "asc" }],
-    }),
-    // O User não tem @relation com Empresa/Setor — só as colunas
-    // empresaId/setorId, para desativar uma empresa não derrubar o login de
-    // quem estava vinculado a ela. Buscamos as listas completas — incluindo as
-    // inativas, para resolver o nome de um vínculo já desativado — e cruzamos
-    // por id na tabela. O formulário filtra as ativas para os selects.
-    prisma.empresa.findMany({
-      orderBy: { nome: "asc" },
-      select: { id: true, nome: true, ativo: true },
-    }),
-    prisma.setor.findMany({
-      orderBy: { nome: "asc" },
-      select: { id: true, nome: true, empresaId: true, ativo: true },
-    }),
-  ]);
-
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Usuários</h1>
-        <p className="text-muted-foreground">
-          Contas de acesso ao sistema. RH_MANAGER e GESTOR_SETOR ficam vinculados a uma
-          empresa (e, no caso de GESTOR_SETOR, também a um setor) do módulo de RH.
-        </p>
-      </div>
-      <UsuariosTable usuarios={usuarios} empresas={empresas} setores={setores} />
-    </div>
-  );
+// Página legada — mantida como redirect para evitar links externos quebrados
+// (e-mails antigos, favoritos, integrações). A tela de cadastro vive em
+// /cadastros/usuarios.
+export default function UsuariosPage() {
+  redirect("/cadastros/usuarios");
 }

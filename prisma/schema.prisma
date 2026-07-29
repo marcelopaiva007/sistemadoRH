@@ -35,25 +35,72 @@ datasource db {
 // tabela — o cadastro nasceu de uma cópia, mas evolui separado (criar usuário
 // ou trocar senha aqui não muda nada no lm-bonificacao, e vice-versa).
 model User {
-  id           String   @id @default(cuid())
-  nome         String
-  username     String   @unique
-  passwordHash String
-  role         String
-  createdAt    DateTime @default(now())
+  id               String    @id @default(cuid())
+  nome             String
+  username         String    @unique
+  passwordHash     String
+  role             String
+  ativo            Boolean   @default(true)
+  email            String?   @unique
+  telefone         String?
+  avatarUrl        String?
+  // Definidos quando o usuário é criado via convite e ainda não aceitou:
+  // `conviteExpiraEm` bloqueia o `aceitarConviteUsuario` se passou do prazo,
+  // e `conviteTokenHash` guarda só o hash SHA-256 do token — o valor em claro
+  // só volta na URL uma vez, no e-mail.
+  conviteExpiraEm  DateTime?
+  conviteTokenHash String?
+  ultimoAcessoEm   DateTime?
+  createdAt        DateTime  @default(now())
 
   // Escopo do módulo de RH: preenchido apenas para RH_MANAGER (empresaId) e
   // GESTOR_SETOR (empresaId + setorId). ADMIN/DIRETORIA ficam nulos.
-  // Colunas simples, SEM @relation de propósito: desativar uma empresa ou um
-  // setor não pode derrubar o login de quem estava vinculado a ele. Resolver o
-  // nome de empresa/setor é responsabilidade de quem consulta (lookup por id).
+  // Colunas legadas mantidas durante a transição para o pivô UserEmpresa —
+  // remoção fica para a Fase 8 do plano multi-empresa.
   empresaId String?
   setorId   String?
 
+  // Pivô: lista de empresas onde este usuário tem papel. ADMIN/DIRETORIA
+  // permanecem com este array vazio (papel é global). RH_MANAGER e
+  // GESTOR_SETOR têm 1+ linhas, com exatamente uma marcada papelPrincipal.
+  empresas         UserEmpresa[]
   pesquisasCriadas Pesquisa[]
 
   @@index([empresaId])
   @@index([setorId])
+  @@schema("rh")
+}
+
+// Pivô usuário × empresa: define em quais empresas um usuário tem papel de
+// RH e qual papel (RH_MANAGER ou GESTOR_SETOR) ele exerce em cada uma.
+// ADMIN e DIRETORIA ficam fora — eles têm perfil global, sem empresa.
+//
+// `papelPrincipal` indica a empresa que abre por padrão após o login
+// (enquanto o cookie `rh_empresa_ativa` não disser outra coisa). Apenas uma
+// linha por usuário pode ter papelPrincipal=true — a action de vincular
+// rebaixa a anterior antes de marcar a nova.
+//
+// Desativar a empresa NÃO derruba a linha: `UserEmpresa.ativo` é que vira
+// false. A linha continua viva para preservar histórico de auditoria
+// (logs guardam snapshot, não FK).
+model UserEmpresa {
+  id             String   @id @default(cuid())
+  userId         String
+  empresaId      String
+  role           String // "RH_MANAGER" | "GESTOR_SETOR"
+  setorId        String?
+  ativo          Boolean  @default(true)
+  papelPrincipal Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @default(now()) @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+  setor   Setor?  @relation(fields: [setorId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, empresaId])
+  @@index([empresaId])
+  @@index([userId])
   @@schema("rh")
 }
 
@@ -101,7 +148,7 @@ model Empresa {
   razaoSocial       String?
   nomeFantasia      String?
   // Guardado só com dígitos (14), sem máscara — a formatação é da tela.
-  cnpj              String?  @unique
+  cnpj              String? @unique
   inscricaoEstadual String?
   cidade            String?
   uf                String?
@@ -111,6 +158,7 @@ model Empresa {
   posicoes      Posicao[]
   colaboradores Colaborador[]
   pesquisas     Pesquisa[]
+  userEmpresas  UserEmpresa[]
 
   @@index([marcaId])
   @@schema("rh")
@@ -127,6 +175,7 @@ model Setor {
   colaboradores Colaborador[]
   metas         Meta[]
   vagas         Vaga[]
+  userEmpresas  UserEmpresa[]
 
   @@unique([empresaId, nome])
   @@index([empresaId])
@@ -343,27 +392,27 @@ model Arquivo {
 }
 
 model DocumentoColaborador {
-  id            String      @id @default(cuid())
-  empresaId     String
-  colaboradorId String
-  colaborador   Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
-  tipo          String
-  descricao     String?
-  emitidoEm     DateTime?
+  id               String      @id @default(cuid())
+  empresaId        String
+  colaboradorId    String
+  colaborador      Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  tipo             String
+  descricao        String?
+  emitidoEm        DateTime?
   // Quando preenchido, entra no painel de vencimentos (ASO, NRs, contratos).
-  validoAte     DateTime?
-  observacoes   String?
-  arquivoId     String?     @unique
-  arquivo       Arquivo?    @relation(fields: [arquivoId], references: [id], onDelete: SetNull)
+  validoAte        DateTime?
+  observacoes      String?
+  arquivoId        String?     @unique
+  arquivo          Arquivo?    @relation(fields: [arquivoId], references: [id], onDelete: SetNull)
   // "RH" | "COLABORADOR". O que vem do portal aguarda conferência antes de
   // valer como verdade cadastral — `conferidoEm` nulo = ainda na fila.
-  origem           String    @default("RH")
+  origem           String      @default("RH")
   conferidoEm      DateTime?
   conferidoPorNome String?
-  criadoPorId   String?
-  criadoPorNome String?
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  criadoPorId      String?
+  criadoPorNome    String?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
 
   @@index([colaboradorId])
   @@index([empresaId, validoAte])
@@ -1247,14 +1296,14 @@ model PortalSessao {
 // arquivo pode ter CPF e salário, e replicá-lo aqui viraria uma segunda base
 // de dado pessoal fora da ficha.
 model ImportacaoArquivo {
-  id           String   @id @default(cuid())
-  empresaId    String
-  arquivoNome  String
-  tipo         String // "COLABORADORES" (outros tipos entram quando existirem)
-  totalLinhas  Int
-  criados      Int
-  atualizados  Int
-  comErro      Int
+  id            String   @id @default(cuid())
+  empresaId     String
+  arquivoNome   String
+  tipo          String // "COLABORADORES" (outros tipos entram quando existirem)
+  totalLinhas   Int
+  criados       Int
+  atualizados   Int
+  comErro       Int
   // Ator em referência branda, como no resto do sistema: apagar o usuário não
   // pode apagar o histórico do que foi importado.
   criadoPorId   String?

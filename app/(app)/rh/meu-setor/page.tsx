@@ -6,13 +6,13 @@ import { MeuSetorView } from "./meu-setor-view";
 export default async function MeuSetorPage() {
   const user = await requireGestorSetor();
 
-  const setor = await prisma.setor.findUnique({ where: { id: user.setorId } });
+  const setor = await prisma.setor.findUnique({ where: { id: user.setorAtivaId } });
   if (!setor) {
     return <p className="text-muted-foreground">Setor não encontrado.</p>;
   }
 
   const pesquisas = await prisma.pesquisa.findMany({
-    where: { empresaId: user.empresaId, status: { in: ["ACTIVE", "FINISHED"] } },
+    where: { empresaId: user.empresaAtivaId, status: { in: ["ACTIVE", "FINISHED"] } },
     orderBy: { createdAt: "desc" },
     include: {
       perguntas: true,

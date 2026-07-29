@@ -11,4 +11,10 @@ export const CARGOS = [
 export const ROLES = [
   { value: "ADMIN", label: "Administrativo/Financeiro" },
   { value: "DIRETORIA", label: "Diretoria/Gestão" },
+  { value: "RH_MANAGER", label: "Gestor(a) de RH" },
+  { value: "GESTOR_SETOR", label: "Gestor(a) de Setor" },
 ] as const;
+
+export const ROLE_LABEL: Record<string, string> = Object.fromEntries(
+  ROLES.map((r) => [r.value, r.label]),
+);

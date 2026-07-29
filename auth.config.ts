@@ -1,5 +1,12 @@
 import type { NextAuthConfig } from "next-auth";
 
+// Configuração Edge-safe: importada tanto pelo middleware (proxy.ts) quanto
+// pelo handler de auth (auth.ts). NÃO pode usar Prisma aqui — middleware
+// roda em Edge runtime e o client Prisma não funciona.
+//
+// A parte "pesada" (resolver empresa ativa via banco, ler cookies com
+// query ao Prisma) vive no callback `jwt` definido em auth.ts, que sobrescreve
+// este stub.
 export const authConfig = {
   pages: {
     signIn: "/login",
@@ -35,30 +42,37 @@ export const authConfig = {
       }
       return isLoggedIn;
     },
-    jwt({ token, user }) {
-      if (user) {
-        const u = user as {
-          id: string;
-          role: string;
-          username: string;
-          empresaId: string | null;
-          setorId: string | null;
-        };
-        token.id = u.id;
-        token.role = u.role;
-        token.username = u.username;
-        token.empresaId = u.empresaId;
-        token.setorId = u.setorId;
-      }
+    // Stub: auth.ts sobrescreve este callback com a versão completa que tem
+    // acesso a Prisma. Manter aqui só para satisfazer o tipo NextAuthConfig.
+    jwt({ token }) {
       return token;
     },
     session({ session, token }) {
+      // Não popula empresaAtivaId/setorAtivaId aqui — vem do callback `jwt`
+      // em auth.ts (Node runtime).
       if (session.user) {
-        session.user.id = token.id as string;
-        session.user.role = token.role as string;
-        session.user.username = token.username as string;
-        session.user.empresaId = token.empresaId as string | null;
-        session.user.setorId = token.setorId as string | null;
+        const u = session.user as unknown as {
+          id: string;
+          role: string;
+          username: string;
+          email: string | null;
+          ativo: boolean;
+          empresas: unknown[];
+          empresaAtivaId: string | null;
+          setorAtivaId: string | null;
+          empresaId: string | null;
+          setorId: string | null;
+        };
+        u.id = token.id as string;
+        u.role = token.role as string;
+        u.username = token.username as string;
+        u.email = (token.email as string | null | undefined) ?? null;
+        u.ativo = (token.ativo as boolean) ?? true;
+        u.empresas = (token.empresas as unknown[]) ?? [];
+        u.empresaAtivaId = (token.empresaAtivaId as string | null) ?? null;
+        u.setorAtivaId = (token.setorAtivaId as string | null) ?? null;
+        u.empresaId = (token.empresaId as string | null) ?? null;
+        u.setorId = (token.setorId as string | null) ?? null;
       }
       return session;
     },
