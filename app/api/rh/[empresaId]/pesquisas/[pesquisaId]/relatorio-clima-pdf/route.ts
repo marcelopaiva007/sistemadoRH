@@ -1,5 +1,5 @@
 // Gera o Relatório de Clima Organizacional (GPTW) em PDF.
-// Mesma estrutura do relatorio-pdf de NR-01.
+// Mesmo padrão do relatorio-pdf de NR-01.
 import { NextRequest, NextResponse } from "next/server";
 import chromiumServerless from "@sparticuz/chromium";
 import { chromium, type Browser } from "playwright-core";
@@ -7,7 +7,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { CONVITES_NA_PESQUISA } from "@/lib/pesquisa-numeros";
 import { gerarHtmlRelatorioClima } from "@/lib/clima-relatorio";
-import { calcularClima, calcularNPS, compararCiclos } from "@/lib/clima";
+import { calcularClima, compararCiclos, extrairEvolucao, type RespostaPrisma } from "@/lib/clima";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -47,13 +47,7 @@ export async function GET(
 
   const pesquisa = await prisma.pesquisa.findFirst({
     where: { id: pesquisaId, empresaId, modelo: "CLIMA" },
-    include: {
-      empresa: { select: { nome: true } },
-      perguntas: {
-        where: { tipo: "NPS_10" },
-        select: { id: true },
-      },
-    },
+    include: { empresa: { select: { nome: true } } },
   });
   if (!pesquisa) {
     return NextResponse.json(
@@ -62,64 +56,99 @@ export async function GET(
     );
   }
 
-  const [convites, respostas] = await Promise.all([
+  const [convites, respostas, perguntas] = await Promise.all([
     prisma.surveyToken.count({ where: { pesquisaId, ...CONVITES_NA_PESQUISA } }),
     prisma.resposta.findMany({
       where: { pesquisaId },
-      include: {
-        itens: { include: { pergunta: true } },
-      },
+      include: { itens: { include: { pergunta: true } } },
+    }),
+    prisma.pergunta.findMany({
+      where: { pesquisaId },
+      select: { id: true, dimensaoGPTW: true, dimensao: true, enunciado: true, tipo: true },
     }),
   ]);
 
-  // Perguntas NPS
-  const perguntaIdsNPS = pesquisa.perguntas.map((p) => p.id);
-  const itensNPS =
-    perguntaIdsNPS.length > 0
-      ? respostas.flatMap((r) =>
-          r.itens
-            .filter((i) => perguntaIdsNPS.includes(i.perguntaId))
-            .map((i) => ({ valorNumerico: i.valorNumerico })),
-        )
-      : undefined;
-
-  const { resultado } = calcularClima({
-    respostas: respostas.map((r) => ({
-      setorNomeSnapshot: r.setorNomeSnapshot,
-      itens: r.itens.map((i) => ({
-        pergunta: { dimensaoGPTW: i.pergunta.dimensaoGPTW, dimensao: i.pergunta.dimensao },
-        valorNumerico: i.valorNumerico,
-      })),
+  const respostasTipadas: RespostaPrisma[] = respostas.map((r) => ({
+    setorNomeSnapshot: r.setorNomeSnapshot,
+    sexoSnapshot: r.sexoSnapshot,
+    faixaEtariaSnapshot: r.faixaEtariaSnapshot,
+    itens: r.itens.map((i) => ({
+      pergunta: {
+        id: i.pergunta.id,
+        enunciado: i.pergunta.enunciado,
+        dimensaoGPTW: i.pergunta.dimensaoGPTW,
+        dimensao: i.pergunta.dimensao,
+        tipo: i.pergunta.tipo,
+      },
+      valorNumerico: i.valorNumerico,
+      valorTexto: i.valorTexto,
     })),
-    perguntaNPS: itensNPS,
-  });
+  }));
+
+  const { resultado } = calcularClima({ respostas: respostasTipadas, perguntas });
 
   // Ciclo anterior
-  const ciclosAnteriores = await prisma.pesquisa.findMany({
-    where: { empresaId, modelo: "CLIMA", encerradaEm: { not: null } },
+  const cicloAnterior = await prisma.pesquisa.findFirst({
+    where: { empresaId, modelo: "CLIMA", encerradaEm: { not: null }, id: { not: pesquisaId } },
     orderBy: { encerradaEm: "desc" },
-    take: 1,
-    include: {
-      respostas: {
-        include: { itens: { include: { pergunta: true } } },
-      },
-    },
+    include: { respostas: { include: { itens: { include: { pergunta: true } } } } },
   });
 
   let comparativo = null;
-  if (ciclosAnteriores.length > 0) {
-    const anterior = ciclosAnteriores[0];
-    const { resultado: resultadoAnterior } = calcularClima({
-      respostas: anterior.respostas.map((r) => ({
-        setorNomeSnapshot: r.setorNomeSnapshot,
-        itens: r.itens.map((i) => ({
-          pergunta: { dimensaoGPTW: i.pergunta.dimensaoGPTW, dimensao: i.pergunta.dimensao },
-          valorNumerico: i.valorNumerico,
-        })),
+  if (cicloAnterior) {
+    const respostasAnterior: RespostaPrisma[] = cicloAnterior.respostas.map((r) => ({
+      setorNomeSnapshot: r.setorNomeSnapshot,
+      sexoSnapshot: r.sexoSnapshot,
+      faixaEtariaSnapshot: r.faixaEtariaSnapshot,
+      itens: r.itens.map((i) => ({
+        pergunta: {
+          id: i.pergunta.id,
+          enunciado: i.pergunta.enunciado,
+          dimensaoGPTW: i.pergunta.dimensaoGPTW,
+          dimensao: i.pergunta.dimensao,
+          tipo: i.pergunta.tipo,
+        },
+        valorNumerico: i.valorNumerico,
+        valorTexto: i.valorTexto,
       })),
+    }));
+    const { resultado: resultadoAnterior } = calcularClima({
+      respostas: respostasAnterior,
+      perguntas: [],
     });
     comparativo = compararCiclos(resultado, resultadoAnterior);
   }
+
+  // Evolução histórica
+  const ciclosHistorico = await prisma.pesquisa.findMany({
+    where: { empresaId, modelo: "CLIMA", encerradaEm: { not: null } },
+    orderBy: { encerradaEm: "desc" },
+    take: 5,
+    include: { respostas: { include: { itens: { include: { pergunta: true } } } } },
+  });
+
+  const evolucao = extrairEvolucao(
+    ciclosHistorico.map((c) => ({
+      titulo: c.titulo,
+      encerradaEm: c.encerradaEm!,
+      respostas: c.respostas.map((r) => ({
+        setorNomeSnapshot: r.setorNomeSnapshot,
+        sexoSnapshot: r.sexoSnapshot,
+        faixaEtariaSnapshot: r.faixaEtariaSnapshot,
+        itens: r.itens.map((i) => ({
+          pergunta: {
+            id: i.pergunta.id,
+            enunciado: i.pergunta.enunciado,
+            dimensaoGPTW: i.pergunta.dimensaoGPTW,
+            dimensao: i.pergunta.dimensao,
+            tipo: i.pergunta.tipo,
+          },
+          valorNumerico: i.valorNumerico,
+          valorTexto: i.valorTexto,
+        })),
+      })),
+    })),
+  );
 
   const html = gerarHtmlRelatorioClima({
     empresaNome: pesquisa.empresa.nome,
@@ -130,6 +159,7 @@ export async function GET(
     convites,
     resultado,
     comparativo,
+    evolucao,
   });
 
   let browser: Browser | undefined;
