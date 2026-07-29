@@ -196,6 +196,7 @@ export async function excluirEmpresa(empresaId: string): Promise<ActionResult> {
   revalidatePath("/", "layout");
   return { ok: true };
 }
+export async function editarEmpresa(
   empresaId: string,
   _prev: ActionResult,
   fd: FormData,
