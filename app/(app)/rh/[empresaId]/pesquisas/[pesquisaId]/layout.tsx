@@ -7,6 +7,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { AcoesPesquisa } from "./acoes-pesquisa";
 import { AbasDaPesquisa } from "./abas-da-pesquisa";
+import Link from "next/link";
 
 /**
  * Cabeçalho comum das telas da pesquisa.
@@ -81,6 +82,41 @@ export default async function PesquisaLayout({
               >
                 <FileDown className="size-4" />
                 Relatório PDF (PGR)
+              </Button>
+            </span>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {pesquisa.modelo === "CLIMA" && (
+        <Alert>
+          <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+            <span>
+              Pesquisa de Clima Organizacional (GPTW) — dimensões Credibilidade, Respeito,
+              Imparcialidade, Orgulho, Camaradagem e NPS.
+            </span>
+            <span className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                render={<Link href={`/rh/${empresaId}/pesquisas/${pesquisa.id}/dashboard-clima`} />}
+              >
+                <BarChart3 className="size-4" />
+                Dashboard
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                render={
+                  <a
+                    href={`/api/rh/${empresaId}/pesquisas/${pesquisa.id}/relatorio-clima-pdf`}
+                    target="_blank"
+                    rel="noreferrer"
+                  />
+                }
+              >
+                <FileDown className="size-4" />
+                Relatório PDF
               </Button>
             </span>
           </AlertDescription>
