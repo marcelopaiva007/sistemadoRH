@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Indicador } from "@/components/indicador";
 import { STATUS_PERIODO_LABEL, type StatusPeriodo } from "@/lib/ferias";
 import { formatarData } from "@/lib/datas";
+import { CheckCircle2 } from "lucide-react";
 import type { LinhaFerias } from "./page";
 
 const FILTROS = [
@@ -160,6 +161,7 @@ export function FeriasView({
                   <TableHead>Gozar até</TableHead>
                   <TableHead className="text-right">Saldo</TableHead>
                   <TableHead>Situação</TableHead>
+                  <TableHead className="w-10" />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -206,6 +208,15 @@ export function FeriasView({
                           {STATUS_PERIODO_LABEL[l.periodo.status]}
                         </Badge>
                       )}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Link
+                        href={`/rh/${empresaId}/colaboradores/${l.colaboradorId}`}
+                        className="inline-block rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                        title="Abrir ficha do colaborador para conferência e correção"
+                      >
+                        <CheckCircle2 className="size-4" />
+                      </Link>
                     </TableCell>
                   </TableRow>
                 ))}
