@@ -1,12 +1,9 @@
 {
   "crons": [
-    {
-      "path": "/api/cron/enviar-convites",
-      "schedule": "0 9 * * *"
-    },
-    {
-      "path": "/api/cron/lembrete-portal",
-      "schedule": "0 15 * * *"
-    }
+    { "path": "/api/cron/gestao-ciclo-pesquisas", "schedule": "0 9 * * *" },
+    { "path": "/api/cron/enviar-convites", "schedule": "0 12 * * *" },
+    { "path": "/api/cron/lembrete-pesquisa", "schedule": "0 13 * * *" },
+    { "path": "/api/cron/lembrete-pesquisa", "schedule": "0 19 * * *" },
+    { "path": "/api/cron/lembrete-portal", "schedule": "0 18 * * *" }
   ]
 }
