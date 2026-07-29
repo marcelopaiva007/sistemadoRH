@@ -41,6 +41,5 @@ export const statusTokenLabel = (v: string) => STATUS_TOKEN.find((s) => s.value 
 
 export const AMOSTRA_MINIMA_ANONIMATO = 3;
 
-// Teto global de convites enviados por dia-calendário (Brasília) — margem sob
-// o limite diário do plano do provedor de e-mail (Resend free: ~100/dia).
-export const LIMITE_DIARIO_ENVIOS = 90;
+// Limite diário só para e-mail (100/dia). Telegram sem limite.
+export const LIMITE_DIARIO_ENVIOS = 100;

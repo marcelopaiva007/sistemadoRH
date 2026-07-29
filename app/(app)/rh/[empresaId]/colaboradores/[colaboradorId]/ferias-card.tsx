@@ -113,6 +113,7 @@ export function FeriasCard({
                   <TableHead className="text-right">Pendentes</TableHead>
                   <TableHead className="text-right">Saldo</TableHead>
                   <TableHead>Situação</TableHead>
+                  <TableHead className="w-10" />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -130,6 +131,21 @@ export function FeriasCard({
                         {STATUS_PERIODO_LABEL[p.status]}
                         {p.status === "VENCENDO" && ` · ${p.diasAteLimite} d`}
                       </Badge>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {p.status === "VENCIDO" && p.saldo > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            // Pré-seleciona o período e abre o modal
+                            setGozadaAberto(true);
+                          }}
+                          className="inline-block rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                          title="Marcar como gozada"
+                        >
+                          <History className="size-4" />
+                        </button>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}

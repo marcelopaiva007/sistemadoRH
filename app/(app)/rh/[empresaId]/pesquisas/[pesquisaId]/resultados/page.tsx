@@ -37,7 +37,8 @@ export default async function ResultadosPage({
   for (const resposta of respostas) {
     for (const item of resposta.itens) {
       if (item.valorNumerico == null) continue;
-      const dimensao = item.pergunta.dimensaoGPTW ?? "GERAL";
+      // Usa dimensaoGPTW se existir, senão dimensão do modelo NR-01, senão "GERAL"
+      const dimensao = item.pergunta.dimensaoGPTW || item.pergunta.dimensao || "GERAL";
       acumular(`dimensao:${dimensao}`, item.valorNumerico);
       acumular(`setor:${resposta.setorNomeSnapshot}`, item.valorNumerico);
     }
