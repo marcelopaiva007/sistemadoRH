@@ -103,9 +103,12 @@ export type ResumoEnvioAutomatico = {
 
 // Uma rodada do envio automático: percorre as pesquisas ATIVAS (cada uma já é
 // de uma única empresa — envios nunca misturam empresas) e envia convites
-// PENDENTES agrupados por setor, dentro do orçamento diário. Convites FAILED
-// não são retentados automaticamente (ficam para revisão/reenvio manual na
-// tela), para uma falha permanente não consumir o orçamento todo dia.
+// PENDENTES com prioridade:
+// 1. Telegram: sem limite (tudo de uma vez)
+// 2. E-mail: respeitando o orçamento diário (máximo 100/dia)
+//
+// Convites FAILED não são retentados automaticamente (ficam para revisão/reenvio
+// manual na tela), para uma falha permanente não consumir o orçamento todo dia.
 export async function rodadaEnvioAutomatico(): Promise<{
   orcamentoInicial: number;
   totalEnviados: number;
@@ -113,7 +116,7 @@ export async function rodadaEnvioAutomatico(): Promise<{
   pesquisas: ResumoEnvioAutomatico[];
 }> {
   const orcamentoInicial = await enviosRestantesHoje();
-  let restante = orcamentoInicial;
+  let restanteEmail = orcamentoInicial;
   let totalEnviados = 0;
   let totalFalhas = 0;
   const resumo: ResumoEnvioAutomatico[] = [];
@@ -125,16 +128,7 @@ export async function rodadaEnvioAutomatico(): Promise<{
   });
 
   for (const pesquisa of pesquisasAtivas) {
-    if (restante <= 0) break;
-
     const pendentes = await prisma.surveyToken.findMany({
-      // Quem não tem canal nenhum fica de fora da rodada em vez de ser tentado
-      // e contado como falha todo dia. O convite continua PENDING e entra
-      // sozinho na primeira rodada depois que a pessoa vincular o Telegram.
-      //
-      // `ativo` é a outra trava: quem foi tirado da pesquisa tem o cadastro
-      // desativado, e quem é desligado no meio da rodada não deve receber
-      // convite no dia seguinte.
       where: {
         pesquisaId: pesquisa.id,
         status: "PENDING",
@@ -158,17 +152,6 @@ export async function rodadaEnvioAutomatico(): Promise<{
     });
     if (pendentes.length === 0) continue;
 
-    // Agrupa por setor; menores primeiro para completar setores inteiros.
-    const porSetor = new Map<string, typeof pendentes>();
-    for (const t of pendentes) {
-      const setor = t.colaborador.setor?.nome ?? "Sem setor";
-      if (!porSetor.has(setor)) porSetor.set(setor, []);
-      porSetor.get(setor)!.push(t);
-    }
-    const setoresOrdenados = [...porSetor.entries()].sort(
-      (a, b) => a[1].length - b[1].length || a[0].localeCompare(b[0]),
-    );
-
     const resumoPesquisa: ResumoEnvioAutomatico = {
       pesquisaId: pesquisa.id,
       pesquisaTitulo: pesquisa.titulo,
@@ -176,11 +159,41 @@ export async function rodadaEnvioAutomatico(): Promise<{
       porSetor: [],
     };
 
-    for (const [setor, tokens] of setoresOrdenados) {
-      if (restante <= 0) break;
+    // Prioriza Telegram (sem limite), depois e-mail (com limite)
+    const porTelegram = pendentes.filter(t => t.colaborador.telegramChatId);
+    const porEmail = pendentes.filter(t => !t.colaborador.telegramChatId && t.colaborador.email);
+
+    const todasAsPrioridades = [...porTelegram, ...porEmail];
+
+    // Agrupa por setor para resumo
+    const porSetor = new Map<string, { telegram: typeof porTelegram; email: typeof porEmail }>();
+    for (const t of todasAsPrioridades) {
+      const setor = t.colaborador.setor?.nome ?? "Sem setor";
+      if (!porSetor.has(setor)) porSetor.set(setor, { telegram: [], email: [] });
+      const grupo = porSetor.get(setor)!;
+      if (t.colaborador.telegramChatId) grupo.telegram.push(t);
+      else grupo.email.push(t);
+    }
+
+    for (const [setor, { telegram, email }] of porSetor.entries()) {
       let enviados = 0;
       let falhas = 0;
-      for (const t of tokens.slice(0, restante)) {
+
+      // Telegram: sem limite
+      for (const t of telegram) {
+        const resultado = await enviarUmConvite({
+          id: t.id,
+          token: t.token,
+          colaborador: t.colaborador,
+          pesquisa: { titulo: pesquisa.titulo, anonima: pesquisa.anonima },
+        });
+        if (resultado.ok) enviados++;
+        else falhas++;
+      }
+
+      // E-mail: respeitando limite
+      for (const t of email) {
+        if (restanteEmail <= 0) break;
         const resultado = await enviarUmConvite({
           id: t.id,
           token: t.token,
@@ -189,11 +202,12 @@ export async function rodadaEnvioAutomatico(): Promise<{
         });
         if (resultado.ok) {
           enviados++;
-          restante--;
+          restanteEmail--;
         } else {
           falhas++;
         }
       }
+
       totalEnviados += enviados;
       totalFalhas += falhas;
       if (enviados + falhas > 0) resumoPesquisa.porSetor.push({ setor, enviados, falhas });

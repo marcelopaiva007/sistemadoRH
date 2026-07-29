@@ -1,1 +1,12 @@
-{}
+{
+  "crons": [
+    {
+      "path": "/api/cron/enviar-convites",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/lembrete-portal",
+      "schedule": "0 15 * * *"
+    }
+  ]
+}
