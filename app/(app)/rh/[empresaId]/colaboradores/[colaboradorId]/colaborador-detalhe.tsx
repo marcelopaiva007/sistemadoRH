@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { ClipboardList } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -103,8 +104,19 @@ export function ColaboradorDetalhe({
     ausencias.filter((a) => a.status === "PENDENTE").length;
   const irregular = !conformidade.regular || situacaoExame.situacao === "VENCIDO" || situacaoExame.situacao === "NUNCA_FEITO";
 
+  // Se vier com ?tab=ferias na URL, abre direto nessa aba
+  const searchParams = useSearchParams();
+  const abaPadrao = (searchParams.get("tab") ?? "ficha") as string;
+
   return (
     <div className="space-y-6">
+      <Link
+        href={`/rh/${empresaId}/colaboradores`}
+        className="text-sm text-muted-foreground hover:text-foreground"
+      >
+        ← Colaboradores
+      </Link>
+
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 className="text-xl font-semibold tracking-tight">{colaborador.nome}</h2>
@@ -168,7 +180,7 @@ export function ColaboradorDetalhe({
         </Alert>
       )}
 
-      <Tabs defaultValue="ficha">
+      <Tabs defaultValue={abaPadrao}>
         <TabsList variant="line">
           <TabsTrigger value="ficha">Ficha</TabsTrigger>
           <TabsTrigger value="dependentes">Dependentes ({dependentes.length})</TabsTrigger>

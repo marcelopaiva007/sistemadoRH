@@ -347,7 +347,7 @@ function Nodo({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2">
             <Link
-              href={`/rh/${empresaId}/colaboradores/${no.id}`}
+              href={`/rh/${empresaId}/colaboradores/${no.id}?tab=ferias`}
               className="truncate text-sm font-medium hover:underline"
             >
               {nomeExibicao(no.nome)}
@@ -462,7 +462,7 @@ function PessoaSemLider({
         </span>
         <div className="min-w-0 flex-1">
           <Link
-            href={`/rh/${empresaId}/colaboradores/${pessoa.id}`}
+            href={`/rh/${empresaId}/colaboradores/${pessoa.id}?tab=ferias`}
             className="block truncate text-sm font-medium hover:underline"
           >
             {nomeExibicao(pessoa.nome)}
