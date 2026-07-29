@@ -6,13 +6,13 @@
 // Setor ativo em cookie separado `rh_setor_ativo` (GESTOR_SETOR pode ter
 // vários setores entre as várias empresas).
 //
-// IMPORTANTE: este módulo é importado tanto de runtime Node (auth.ts,
-// server actions) quanto do bundle do middleware (proxy.ts) via
-// auth.config. Se o import estático de `@/lib/prisma` ficar aqui, o bundler
-// inclui o adapter Prisma no bundle Edge — e o build da Vercel quebra.
-// Por isso `resolverEmpresaAtiva` carrega o Prisma dinamicamente, só quando
-// chamada.
+// IMPORTANTE: este arquivo é importado apenas de runtime Node (auth.ts via
+// callback jwt e server actions em lib/actions/usuarios.ts). O bundle Edge
+// do middleware NÃO inclui este módulo — auth.config.ts não importa nada
+// daqui. Os callbacks de auth.config.ts são stubs; a versão completa está em
+// auth.ts (Node), onde Prisma está disponível.
 import { cookies } from "next/headers";
+import { prisma } from "@/lib/prisma";
 
 const COOKIE_EMPRESA = "rh_empresa_ativa";
 const COOKIE_SETOR = "rh_setor_ativo";
@@ -67,15 +67,10 @@ export async function escreverCookieSetorAtivo(setorId: string | null): Promise<
 //   2. UserEmpresa com papelPrincipal=true.
 //   3. Primeira UserEmpresa ativa.
 //   4. null (ADMIN/DIRETORIA sem empresa específica).
-//
-// Import dinâmico: este módulo pode ser importado em Edge bundle, e o
-// adapter Prisma não funciona lá. Quem chamar `resolverEmpresaAtiva` tem que
-// estar em runtime Node (auth.ts, server actions).
 export async function resolverEmpresaAtiva(
   userId: string,
   cookie: CookieEmpresa | null,
 ): Promise<{ empresaId: string; setorId: string | null } | null> {
-  const { prisma } = await import("@/lib/prisma");
   const vinculos = await prisma.userEmpresa.findMany({
     where: { userId, ativo: true },
     orderBy: [{ papelPrincipal: "desc" }, { createdAt: "asc" }],
