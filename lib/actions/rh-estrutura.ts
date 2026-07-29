@@ -174,7 +174,28 @@ export async function criarEmpresa(
   return { ok: true };
 }
 
-export async function editarEmpresa(
+export async function excluirEmpresa(empresaId: string): Promise<ActionResult> {
+  await requireRHAccess();
+
+  const count = await prisma.colaborador.count({ where: { empresaId } });
+  if (count > 0) {
+    return {
+      ok: false,
+      error: `Não é possível excluir: há ${count} colaborador${count === 1 ? "" : "es"} vinculado${count === 1 ? "" : "s"} a esse CNPJ.`,
+    };
+  }
+
+  const empresa = await prisma.empresa.delete({ where: { id: empresaId } });
+  await registrarAuditoria({
+    acao: "EXCLUIR",
+    entidade: "Empresa",
+    entidadeId: empresaId,
+    resumo: `CNPJ "${empresa.nome}" excluído`,
+  });
+
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
   empresaId: string,
   _prev: ActionResult,
   fd: FormData,
