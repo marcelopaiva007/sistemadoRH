@@ -124,6 +124,114 @@ export function DashboardClimaView({
         </Alert>
       )}
 
+      {/* Análise Executiva */}
+      <Card className="border-2" style={{ borderColor: clsGeral.cor }}>
+        <CardHeader>
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <CardTitle className="text-base">📊 Análise Executiva</CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                Como está o clima e se estamos no caminho certo
+              </p>
+            </div>
+            <Badge style={{ backgroundColor: clsGeral.cor }} className="text-white">
+              {resultado.analiseExecutiva.tendencia === "melhora" ? "↗ Melhora" :
+                resultado.analiseExecutiva.tendencia === "queda" ? "↘ Queda" :
+                resultado.analiseExecutiva.tendencia === "estavel" ? "→ Estável" : "— Primeiro ciclo"}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <h4 className="font-semibold text-sm mb-2">Veredito geral</h4>
+            <p className="text-sm leading-relaxed">{resultado.analiseExecutiva.vereditoGeral}</p>
+          </div>
+
+          <div>
+            <h4 className="font-semibold text-sm mb-2">Tendência</h4>
+            <p className="text-sm leading-relaxed">{resultado.analiseExecutiva.resumoTendencia}</p>
+          </div>
+
+          {resultado.analiseExecutiva.alertasTexto.length > 0 && (
+            <div className="rounded-lg border-2 border-amber-300 bg-amber-50 dark:bg-amber-950/30 p-3">
+              <h4 className="font-semibold text-sm mb-2 text-amber-900 dark:text-amber-200">⚠️ Alertas</h4>
+              <ul className="space-y-1 text-sm text-amber-900 dark:text-amber-100">
+                {resultado.analiseExecutiva.alertasTexto.map((a, i) => (
+                  <li key={i}>• {a}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {resultado.analiseExecutiva.pontosFortes.length > 0 && (
+            <div>
+              <h4 className="font-semibold text-sm mb-2 text-green-700 dark:text-green-400">✓ Pontos fortes</h4>
+              <ul className="space-y-1 text-sm">
+                {resultado.analiseExecutiva.pontosFortes.map((p, i) => (
+                  <li key={i} className="flex gap-2">
+                    <span className="text-green-600">•</span>
+                    <span>{p}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {resultado.analiseExecutiva.pontosCriticos.length > 0 && (
+            <div>
+              <h4 className="font-semibold text-sm mb-2 text-red-700 dark:text-red-400">⚠ Pontos críticos</h4>
+              <ul className="space-y-1 text-sm">
+                {resultado.analiseExecutiva.pontosCriticos.map((p, i) => (
+                  <li key={i} className="flex gap-2">
+                    <span className="text-red-600">•</span>
+                    <span>{p}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {resultado.analiseExecutiva.setoresEmRisco.length > 0 && (
+            <div>
+              <h4 className="font-semibold text-sm mb-2">🔴 Setores que pedem atenção</h4>
+              <ul className="space-y-1 text-sm">
+                {resultado.analiseExecutiva.setoresEmRisco.map((s, i) => (
+                  <li key={i} className="flex gap-2">
+                    <span className="text-red-600">•</span>
+                    <span>{s}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {resultado.analiseExecutiva.setoresEmAlta.length > 0 && (
+            <div>
+              <h4 className="font-semibold text-sm mb-2">🟢 Setores referência</h4>
+              <ul className="space-y-1 text-sm">
+                {resultado.analiseExecutiva.setoresEmAlta.map((s, i) => (
+                  <li key={i} className="flex gap-2">
+                    <span className="text-green-600">•</span>
+                    <span>{s}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <div className="rounded-lg bg-muted p-3">
+            <p className="text-xs text-muted-foreground">
+              <strong>Adesão:</strong> {resultado.analiseExecutiva.participacaoNota}
+            </p>
+          </div>
+
+          <div className="border-t pt-3">
+            <h4 className="font-semibold text-sm mb-2">Conclusão</h4>
+            <p className="text-sm leading-relaxed">{resultado.analiseExecutiva.conclusao}</p>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* KPIs */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>

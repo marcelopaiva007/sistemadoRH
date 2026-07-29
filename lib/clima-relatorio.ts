@@ -108,6 +108,57 @@ function recomendacoesHtml(recomendacoes: ResultadoClima["recomendacoes"]): stri
   }).join("");
 }
 
+function analiseExecutivaHtml(analise: ResultadoClima["analiseExecutiva"]): string {
+  const tendanceLabel =
+    analise.tendencia === "melhora" ? "Em melhora" :
+    analise.tendencia === "queda" ? "Em queda" :
+    analise.tendencia === "estavel" ? "Estável" : "Sem histórico";
+
+  const sec = (titulo: string, itens: string[], corIcone = "•") => {
+    if (!itens.length) return "";
+    return `<div style="margin:8px 0">
+      <h4 style="margin:6px 0;font-size:11px">${titulo}</h4>
+      <ul style="margin:4px 0;padding-left:18px">${itens.map((i) => `<li>${i}</li>`).join("")}</ul>
+    </div>`;
+  };
+
+  return `
+<h2 style="margin-top:20px">2. Análise Executiva — Como está o clima e se estamos no caminho certo</h2>
+<div style="border:2px solid ${CORES_NIVEL[classificarScore(0).nivel]};border-radius:8px;padding:12px;background:#f9fafb;margin:8px 0">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+    <strong>Veredito:</strong>
+    <span style="background:#e5e7eb;padding:3px 10px;border-radius:12px;font-size:11px"><strong>${tendanceLabel}</strong></span>
+  </div>
+  <p style="margin:6px 0">${esc(analise.vereditoGeral)}</p>
+  <p style="margin:6px 0"><strong>Tendência:</strong> ${esc(analise.resumoTendencia)}</p>
+
+  ${analise.alertasTexto.length > 0 ? `
+  <div style="background:#fef3c7;border-left:4px solid #f59e0b;padding:8px 12px;margin:8px 0">
+    <strong>⚠ Alertas:</strong>
+    <ul style="margin:4px 0;padding-left:20px">${analise.alertasTexto.map((a) => `<li>${esc(a)}</li>`).join("")}</ul>
+  </div>` : ""}
+
+  ${sec("✓ Pontos fortes", analise.pontosFortes)}
+  ${sec("⚠ Pontos críticos", analise.pontosCriticos)}
+  ${sec("🔴 Setores que pedem atenção", analise.setoresEmRisco)}
+  ${sec("🟢 Setores referência", analise.setoresEmAlta)}
+
+  <p style="margin:6px 0;font-size:10px;background:#fff;padding:6px 10px;border-radius:4px;border:1px solid #e5e7eb">
+    <strong>Adesão:</strong> ${esc(analise.participacaoNota)}
+  </p>
+
+  <div style="margin-top:10px;padding-top:8px;border-top:1px solid #d1d5db">
+    <strong>Conclusão:</strong>
+    <p style="margin:4px 0">${esc(analise.conclusao)}</p>
+  </div>
+</div>`;
+}
+
+function alertasHtml(alertas: string[]): string {
+  if (!alertas.length) return `<div style="background:#ecfdf5;border:1px solid #22c55e;padding:8px 12px;border-radius:6px;margin:8px 0"><strong>✓ Sem alertas:</strong> todas as dimensões classificadas como Bom ou Excelente.</div>`;
+  return `<div style="background:#fef2f2;border-left:4px solid #dc2626;padding:8px 12px;margin:8px 0"><strong>⚠ Atenção prioritária:</strong> ${alertas.length} dimensão${alertas.length === 1 ? "" : "es"} em alerta. Ver seção 2 (Análise Executiva).</div>`;
+}
+
 function comentariosHtml(comentarios: ResultadoClima["comentarios"]): string {
   if (!comentarios.length) return "<p>Nenhum comentário textual.</p>";
   return comentarios.map((c) => `<div style="border-left:2px solid #d1d5db;padding:4px 8px;margin:4px 0;font-size:10.5px">
@@ -199,20 +250,23 @@ ${alertas.length > 0 ? `
   <strong>⚠️ Atenção prioritária:</strong> ${alertas.length} dimensão${alertas.length === 1 ? "" : "es"} ${alertas.length === 1 ? "está" : "estão"} em nível Crítico ou Atenção — ${alertas.map((a) => `<strong>${esc(a.label)}</strong>`).join(", ")}. Ver recomendações na seção 6.
 </div>` : `<div class="alerta" style="background:#ecfdf5;border-color:#22c55e"><strong>✓ Sem alertas:</strong> todas as dimensões classificadas como Bom ou Excelente.</div>`}
 
-<h2>2. Scores por Dimensão GPTW</h2>
+<h2>2. Análise Executiva — Como está o clima e se estamos no caminho certo</h2>
+${analiseExecutivaHtml(resultado.analiseExecutiva)}
+
+<h2>3. Scores por Dimensão GPTW</h2>
 <table>
   <thead><tr><th>Dimensão</th><th style="text-align:center">Respostas</th><th style="text-align:center">Média (1-5)</th><th style="text-align:center">Score (0-100)</th><th>Evolução</th><th style="text-align:center">Nível</th></tr></thead>
   <tbody>${dimensoesHtml(resultado.mediaPorDimensao)}</tbody>
 </table>
 <p style="color:#6b7280;font-size:10px">Crítico 0-39 · Atenção 40-59 · Bom 60-74 · Excelente 75-100</p>
 
-<h2>3. Heatmap — Setor × Dimensão</h2>
+<h2>4. Heatmap — Setor × Dimensão</h2>
 ${heatmapHtml(resultado.heatmap)}
 
-<h2>4. Perguntas Críticas (Top 5 piores)</h2>
+<h2>5. Perguntas Críticas (Top 5 piores)</h2>
 ${perguntasCriticasHtml(resultado.perguntasCriticas)}
 
-<h2>5. Resultados por Setor — Ranking</h2>
+<h2>6. Resultados por Setor — Ranking</h2>
 <table>
   <thead><tr><th>#</th><th>Setor</th><th style="text-align:center">Respostas</th><th style="text-align:center">Score</th><th>Nível</th></tr></thead>
   <tbody>
@@ -229,13 +283,13 @@ ${perguntasCriticasHtml(resultado.perguntasCriticas)}
 <h2 class="quebra">6. Plano de Ação Recomendado</h2>
 ${recomendacoesHtml(resultado.recomendacoes)}
 
-<h2>7. Evolução Histórica</h2>
+<h2>8. Evolução Histórica</h2>
 ${evolucaoHtml(evolucao)}
 
-<h2>8. Comentários dos Colaboradores</h2>
+<h2>9. Comentários dos Colaboradores</h2>
 ${comentariosHtml(resultado.comentarios)}
 
-<h2>9. Nota Metodológica</h2>
+<h2>10. Nota Metodológica</h2>
 <p>Instrumento de clima organizacional baseado no modelo Great Place to Work (GPTW): 21 perguntas
 em escala Likert 1-5 distribuídas em 5 dimensões (Credibilidade, Respeito, Imparcialidade, Orgulho,
 Camaradagem) + 1 pergunta NPS (Net Promoter Score, 0-10).</p>

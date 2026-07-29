@@ -18,9 +18,22 @@ export type ResultadoClima = {
   comentarios: Comentario[];
   demografia: AnaliseDemografica | null;
   recomendacoes: Recomendacao[];
+  analiseExecutiva: AnaliseExecutiva;
   mostraAmostraInsuficiente: boolean;
 };
 
+export type AnaliseExecutiva = {
+  vereditoGeral: string;
+  tendencia: "melhora" | "estavel" | "queda" | "sem_historico";
+  resumoTendencia: string;
+  pontosFortes: string[];
+  pontosCriticos: string[];
+  setoresEmRisco: string[];
+  setoresEmAlta: string[];
+  participacaoNota: string;
+  conclusao: string;
+  alertasTexto: string[];
+};
 export type ResultadoDimensao = {
   dimensao: DimensaoGPTW;
   label: string;
@@ -147,6 +160,119 @@ export function classificarNPS(score: number): { label: string; cor: string } {
   if (score < 50) return { label: "Baixo", cor: "#f59e0b" };
   if (score < 75) return { label: "Bom", cor: "#22c55e" };
   return { label: "Excelente", cor: "#16a34a" };
+}
+
+// ---------------------------------------------------------------- Interpretação Executiva
+
+// (analiseExecutiva definida na seção de tipos acima)
+
+function gerarTextoVariacao(v: number): string {
+  if (v > 0) return `melhorou ${v} pontos`;
+  if (v < 0) return `piorou ${Math.abs(v)} pontos`;
+  return "ficou estável";
+}
+
+export function gerarAnaliseExecutiva(
+  resultado: ResultadoClima,
+  comparativo: ResultadoComparativo | null,
+  participacao: number,
+): AnaliseExecutiva {
+  const cls = classificarScore(resultado.scoreGeral);
+  const tendencia: AnaliseExecutiva["tendencia"] = comparativo
+    ? comparativo.atual.scoreGeral > comparativo.anterior!.scoreGeral + 2
+      ? "melhora"
+      : comparativo.atual.scoreGeral < comparativo.anterior!.scoreGeral - 2
+      ? "queda"
+      : "estavel"
+    : "sem_historico";
+
+  const resumoTendencia =
+    tendencia === "melhora"
+      ? `O clima da empresa está em melhora. Em relação ao ciclo anterior, o score geral subiu ${comparativo!.atual.scoreGeral - comparativo!.anterior!.scoreGeral} pontos, saindo de ${comparativo!.anterior!.scoreGeral} para ${comparativo!.atual.scoreGeral}.`
+      : tendencia === "queda"
+      ? `O clima da empresa está em queda. Em relação ao ciclo anterior, o score geral caiu ${comparativo!.anterior!.scoreGeral - comparativo!.atual.scoreGeral} pontos, indo de ${comparativo!.anterior!.scoreGeral} para ${comparativo!.atual.scoreGeral}. É preciso investigar as causas e agir rápido.`
+      : tendencia === "estavel"
+      ? `O clima da empresa se manteve estável em relação ao ciclo anterior (variação de ${comparativo!.atual.scoreGeral - comparativo!.anterior!.scoreGeral} pontos). Não há queda expressiva, mas também não há melhora.`
+      : `Este é o primeiro ciclo com dados suficientes — não há base anterior para comparar tendência. O foco deve ser estabelecer referência para os próximos ciclos.`;
+
+  // Pontos fortes: dimensões em Bom/Excelente
+  const pontosFortes = resultado.mediaPorDimensao
+    .filter((d) => d.nivel === "bom" || d.nivel === "excelente")
+    .sort((a, b) => b.media100 - a.media100)
+    .map((d) => `${d.label} (${d.media100}/100) — o que está funcionando bem aqui indica práticas que devem ser disseminadas para outras dimensões e setores`);
+
+  // Pontos críticos: dimensões em Crítico/Atenção
+  const pontosCriticos = resultado.mediaPorDimensao
+    .filter((d) => d.nivel === "critico" || d.nivel === "atencao")
+    .sort((a, b) => a.media100 - b.media100)
+    .map((d) => `${d.label} (${d.media100}/100) — considerado ${d.nivel === "critico" ? "CRÍTICO" : "em atenção"}; o setor precisa de intervenção direta (ver plano de ação)`);
+
+  // Setores em risco: piores setores
+  const setoresEmRisco = resultado.porSetor
+    .filter((s) => !s.amostraInsuficiente && s.media100 < 60)
+    .slice(0, 3)
+    .map((s) => `${s.setor} (${s.media100}/100) — recomenda-se reunião entre RH e liderança local para entender os motivos`);
+
+  const setoresEmAlta = resultado.porSetor
+    .filter((s) => !s.amostraInsuficiente && s.media100 >= 75)
+    .slice(0, 3)
+    .map((s) => `${s.setor} (${s.media100}/100) — referência para outras áreas; investigue práticas para replicar`);
+
+  const participacaoNota =
+    participacao >= 80
+      ? `Adesão excelente (${participacao}%). O dado é robusto e reflete a visão da maioria.`
+      : participacao >= 60
+      ? `Adesão boa (${participacao}%). O dado é confiável para tomada de decisão.`
+      : participacao >= 40
+      ? `Adesão moderada (${participacao}%). Os resultados indicam direção mas ainda não refletem a empresa inteira — vale intensificar comunicação.`
+      : `Adesão baixa (${participacao}%). Resultados devem ser interpretados com cautela; comunicação sobre a próxima pesquisa deve ser mais intensa.`;
+
+  const vereditoGeral =
+    cls.nivel === "excelente"
+      ? `A empresa atravessa um momento de clima organizacional EXCELENTE (${resultado.scoreGeral}/100). O engajamento é alto e as pessoas se sentem bem trabalhando aqui. O foco deve ser em Manutenção das práticas que geram esse resultado.`
+      : cls.nivel === "bom"
+      ? `A empresa está com clima organizacional BOM (${resultado.scoreGeral}/100). Há uma base sólida, mas há dimensões específicas que pedem atenção para evitar regressão.`
+      : cls.nivel === "atencao"
+      ? `A empresa está com clima organizacional em ATENÇÃO (${resultado.scoreGeral}/100). Há sinais claros de desgaste em dimensões importantes. É hora de agir — sem intervenção, o ciclo seguinte tende a piorar.`
+      : `A empresa está com clima organizacional CRÍTICO (${resultado.scoreGeral}/100). Há problemas estruturais que pedem ação imediata da diretoria. Risco de perda de talentos, queda de produtividade e absenteísmo.`;
+
+  const alertasTexto: string[] = [];
+  if (resultado.nps && resultado.nps.score < 0) {
+    alertasTexto.push(`NPS negativo (${resultado.nps.score}): mais pessoas detratoras do que promotoras. Indica risco de perda de marca empregadora.`);
+  }
+  if (setoresEmRisco.length > 0) {
+    alertasTexto.push(`${setoresEmRisco.length} setor(es) com score abaixo de 60 — exigem atenção individualizada.`);
+  }
+  if (comparativo && comparativo.atual.scoreGeral < comparativo.anterior!.scoreGeral - 5) {
+    alertasTexto.push(`Queda superior a 5 pontos em relação ao ciclo anterior — investigar mudanças organizacionais recentes.`);
+  }
+  if (pontosCriticos.length >= 2) {
+    alertasTexto.push(`${pontosCriticos.length} dimensões em alerta simultaneamente — risco de insatisfação sistêmica.`);
+  }
+
+  const conclusao = cls.nivel === "excelente" || cls.nivel === "bom"
+    ? `A empresa está no caminho certo. ${tendênciaMensagem(tendencia)} O desafio agora é preservar o que funciona e corrigir o que ainda não funciona.`
+    : `A empresa precisa de mudanças estruturais. ${tendênciaMensagem(tendencia)} O plano de ação (seção 6) é o ponto de partida — mas precisa de ritmo e acompanhamento da diretoria para reverter o cenário.`;
+
+  return {
+    vereditoGeral,
+    tendencia,
+    resumoTendencia,
+    pontosFortes,
+    pontosCriticos,
+    setoresEmRisco,
+    setoresEmAlta,
+    participacaoNota,
+    conclusao,
+    alertasTexto,
+  };
+}
+
+function tendênciaMensagem(t: AnaliseExecutiva["tendencia"]): string {
+  if (t === "melhora") return "A trajetória é positiva e vale a pena intensificar as iniciativas que vêm dando certo.";
+  if (t === "queda") return "A tendência de queda precisa ser revertida com ações imediatas dos RH e gestores.";
+  if (t === "estavel") return "A estabilidade é positiva, mas sem evolução o cenário fica vulnerável a mudanças externas.";
+  return "Ainda não há trajetória para analisar — foque em ações de curto prazo.";
 }
 
 // ---------------------------------------------------------------- Recomendações GPTW
@@ -482,6 +608,26 @@ export function calcularClima(dados: {
   const recomendacoes = gerarRecomendacoes(mediaPorDimensao);
 
   const scoreGeral = calcularScoreGeral(mediaPorDimensao);
+
+  const analiseExecutiva = gerarAnaliseExecutiva(
+    {
+      totalRespostas: respostas.length,
+      mediaPorDimensao,
+      scoreGeral,
+      nps,
+      porSetor: resultadoSetor,
+      heatmap,
+      perguntasCriticas,
+      comentarios,
+      demografia,
+      recomendacoes,
+      analiseExecutiva: { vereditoGeral: "", tendencia: "sem_historico", resumoTendencia: "", pontosFortes: [], pontosCriticos: [], setoresEmRisco: [], setoresEmAlta: [], participacaoNota: "", conclusao: "", alertasTexto: [] },
+      mostraAmostraInsuficiente: respostas.length < AMOSTRA_MINIMA_ANONIMATO,
+    },
+    null,
+    0,
+  );
+
   const resultado: ResultadoClima = {
     totalRespostas: respostas.length,
     mediaPorDimensao,
@@ -493,6 +639,7 @@ export function calcularClima(dados: {
     comentarios,
     demografia,
     recomendacoes,
+    analiseExecutiva,
     mostraAmostraInsuficiente: respostas.length < AMOSTRA_MINIMA_ANONIMATO,
   };
 

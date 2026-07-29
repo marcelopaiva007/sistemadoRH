@@ -7,7 +7,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { CONVITES_NA_PESQUISA } from "@/lib/pesquisa-numeros";
 import { gerarHtmlRelatorioClima } from "@/lib/clima-relatorio";
-import { calcularClima, compararCiclos, extrairEvolucao, type RespostaPrisma } from "@/lib/clima";
+import { calcularClima, compararCiclos, extrairEvolucao, gerarAnaliseExecutiva, type RespostaPrisma } from "@/lib/clima";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -118,6 +118,10 @@ export async function GET(
     });
     comparativo = compararCiclos(resultado, resultadoAnterior);
   }
+
+  // Enriquece análise executiva
+  const participacaoPct = convites > 0 ? Math.round((resultado.totalRespostas / convites) * 100) : 0;
+  resultado.analiseExecutiva = gerarAnaliseExecutiva(resultado, comparativo, participacaoPct);
 
   // Evolução histórica
   const ciclosHistorico = await prisma.pesquisa.findMany({
