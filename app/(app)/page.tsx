@@ -25,11 +25,6 @@ export default async function HomePage() {
       ? user.empresas.map((e) => e.empresaId)
       : undefined;
 
-  // Debug: log da sessão (remover em produção)
-  console.log("[HomePage] user.role:", user.role);
-  console.log("[HomePage] user.empresas:", user.empresas);
-  console.log("[HomePage] empresasIds:", empresasIds);
-
   const empresas = await prisma.empresa.findMany({
     where: {
       ativo: true,
