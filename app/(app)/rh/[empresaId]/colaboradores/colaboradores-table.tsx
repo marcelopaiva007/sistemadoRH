@@ -66,8 +66,8 @@ import type { ActionResult } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
 type Empresa = { id: string; nome: string };
-type Setor = { id: string; nome: string };
-type Posicao = { id: string; nome: string };
+type Setor = { id: string; nome: string; empresaId: string };
+type Posicao = { id: string; nome: string; empresaId: string };
 type Colaborador = {
   id: string;
   nome: string;
@@ -738,13 +738,13 @@ function ColaboradorForm({
           value={setorId}
           onValueChange={(v) => setSetorId(v ?? "")}
           name="setorId"
-          items={Object.fromEntries(setoresFiltrados.map((s) => [s.id, s.nome]))}
+          items={Object.fromEntries(setores.map((s) => [s.id, s.nome]))}
         >
           <SelectTrigger className="w-full">
             <SelectValue placeholder="Selecione o setor" />
           </SelectTrigger>
           <SelectContent>
-            {setoresFiltrados.map((s) => (
+            {setores.map((s) => (
               <SelectItem key={s.id} value={s.id}>
                 {s.nome}
               </SelectItem>
@@ -758,13 +758,13 @@ function ColaboradorForm({
           value={posicaoId}
           onValueChange={(v) => setPosicaoId(v ?? "")}
           name="posicaoId"
-          items={Object.fromEntries(posicoesFiltradas.map((p) => [p.id, p.nome]))}
+          items={Object.fromEntries(posicoes.map((p) => [p.id, p.nome]))}
         >
           <SelectTrigger className="w-full">
             <SelectValue placeholder="Selecione a posição" />
           </SelectTrigger>
           <SelectContent>
-            {posicoesFiltradas.map((p) => (
+            {posicoes.map((p) => (
               <SelectItem key={p.id} value={p.id}>
                 {p.nome}
               </SelectItem>

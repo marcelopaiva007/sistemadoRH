@@ -34,10 +34,11 @@ type Empresa = {
   ativo: boolean;
   _count: { setores: number; colaboradores: number; pesquisas: number };
 };
+type Marca = { id: string; nome: string };
 
 const initialState: ActionResult = { ok: true };
 
-export function EmpresasTable({ empresas }: { empresas: Empresa[] }) {
+export function EmpresasTable({ empresas, marcas }: { empresas: Empresa[]; marcas: Marca[] }) {
   const [createOpen, setCreateOpen] = useState(false);
   const [editEmpresa, setEditEmpresa] = useState<Empresa | null>(null);
 
@@ -50,7 +51,12 @@ export function EmpresasTable({ empresas }: { empresas: Empresa[] }) {
             Nova Empresa
           </DialogTrigger>
           <DialogContent>
-            <EmpresaForm action={createEmpresa} title="Nova Empresa" onSuccess={() => setCreateOpen(false)} />
+            <EmpresaForm
+              action={createEmpresa}
+              title="Nova Empresa"
+              marcas={marcas}
+              onSuccess={() => setCreateOpen(false)}
+            />
           </DialogContent>
         </Dialog>
       </div>
@@ -128,11 +134,13 @@ function EmpresaForm({
   action,
   title,
   defaultNome = "",
+  marcas,
   onSuccess,
 }: {
   action: (prev: ActionResult, formData: FormData) => Promise<ActionResult>;
   title: string;
   defaultNome?: string;
+  marcas?: Marca[];
   onSuccess: () => void;
 }) {
   const [state, formAction, isPending] = useActionState(async (prev: ActionResult, fd: FormData) => {
@@ -153,6 +161,24 @@ function EmpresaForm({
         <Label htmlFor="nome">Nome da empresa</Label>
         <Input id="nome" name="nome" defaultValue={defaultNome} required autoFocus />
       </div>
+      {marcas && (
+        <div className="space-y-2">
+          <Label htmlFor="marcaId">Marca</Label>
+          <select
+            id="marcaId"
+            name="marcaId"
+            required
+            className="h-9 w-full rounded-md border border-input bg-transparent px-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          >
+            <option value="">Selecione a marca</option>
+            {marcas.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.nome}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       {!state.ok && (
         <Alert variant="destructive">
           <AlertDescription>{state.error}</AlertDescription>

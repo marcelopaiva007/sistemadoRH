@@ -106,18 +106,12 @@ export function FiltroEmpresas({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full justify-between"
-        >
-          <span className="flex items-center gap-2">
-            <Building2 className="size-4" />
-            <span className="truncate">{labelBotao}</span>
-          </span>
-          <ChevronDown className="size-4 shrink-0 opacity-50" />
-        </Button>
+      <PopoverTrigger render={<Button variant="outline" size="sm" className="w-full justify-between" />}>
+        <span className="flex items-center gap-2">
+          <Building2 className="size-4" />
+          <span className="truncate">{labelBotao}</span>
+        </span>
+        <ChevronDown className="size-4 shrink-0 opacity-50" />
       </PopoverTrigger>
       <PopoverContent className="w-56 p-4" align="start">
         <div className="space-y-4">

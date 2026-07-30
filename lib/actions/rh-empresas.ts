@@ -10,9 +10,16 @@ const empresaSchema = z.object({
   nome: z.string().trim().min(2, "Informe o nome da empresa"),
 });
 
+const empresaCreateSchema = empresaSchema.extend({
+  marcaId: z.string().trim().min(1, "Informe a marca"),
+});
+
 export async function createEmpresa(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   await requireAdmin();
-  const parsed = empresaSchema.safeParse({ nome: formData.get("nome") });
+  const parsed = empresaCreateSchema.safeParse({
+    nome: formData.get("nome"),
+    marcaId: formData.get("marcaId"),
+  });
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
 
   try {

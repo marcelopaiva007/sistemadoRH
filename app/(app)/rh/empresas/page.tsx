@@ -5,10 +5,17 @@ import { EmpresasTable } from "./empresas-table";
 export default async function EmpresasPage() {
   await requireAdmin();
 
-  const empresas = await prisma.empresa.findMany({
-    orderBy: [{ ativo: "desc" }, { nome: "asc" }],
-    include: { _count: { select: { setores: true, colaboradores: true, pesquisas: true } } },
-  });
+  const [empresas, marcas] = await Promise.all([
+    prisma.empresa.findMany({
+      orderBy: [{ ativo: "desc" }, { nome: "asc" }],
+      include: { _count: { select: { setores: true, colaboradores: true, pesquisas: true } } },
+    }),
+    prisma.marca.findMany({
+      where: { ativo: true },
+      orderBy: { nome: "asc" },
+      select: { id: true, nome: true },
+    }),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -19,7 +26,7 @@ export default async function EmpresasPage() {
           próprios setores, posições, colaboradores e pesquisas.
         </p>
       </div>
-      <EmpresasTable empresas={empresas} />
+      <EmpresasTable empresas={empresas} marcas={marcas} />
     </div>
   );
 }
