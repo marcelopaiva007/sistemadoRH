@@ -2,7 +2,9 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 
-const RH_ROLES = ["ADMIN", "RH_MANAGER", "GESTOR_SETOR"] as const;
+// DIRETORIA entra na lista: o papel é global e de consulta — barrá-lo aqui
+// fazia todo clique em empresa voltar para a home, sem mensagem nenhuma.
+const RH_ROLES = ["ADMIN", "DIRETORIA", "RH_MANAGER", "GESTOR_SETOR"] as const;
 
 export async function requireRHAccess() {
   const user = await requireUser();
@@ -16,7 +18,9 @@ export async function requireRHAccess() {
 // no módulo RH).
 export async function requireEmpresaAccess(empresaId: string) {
   const user = await requireRHAccess();
-  if (user.role === "ADMIN") return user;
+  // Papel global: ADMIN opera, DIRETORIA consulta. Nenhum dos dois passa pelo
+  // pivô — exigir vínculo deles devolvia a diretoria para a home a cada clique.
+  if (user.role === "ADMIN" || user.role === "DIRETORIA") return user;
   const temAcesso = user.empresas.some(
     (e) => e.empresaId === empresaId && e.ativo && (e.papel === "RH_MANAGER" || e.papel === "GESTOR_SETOR"),
   );
