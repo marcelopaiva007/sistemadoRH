@@ -3,7 +3,19 @@ import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { authConfig } from "@/auth.config";
 import { prisma } from "@/lib/prisma";
+import { lerCookieEmpresaAtiva, resolverEmpresaAtiva } from "@/lib/empresa-ativa";
 
+type EmpresaNaSessao = {
+  empresaId: string;
+  papel: "RH_MANAGER" | "GESTOR_SETOR";
+  setorId: string | null;
+  papelPrincipal: boolean;
+  ativo: true;
+};
+
+// auth.ts roda em Node (rotas de API e server actions). Aqui podemos usar
+// Prisma para resolver a empresa ativa. A versão stub em auth.config.ts
+// (Edge-safe) é sobrescrita por este callback mais completo.
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
   providers: [
@@ -19,19 +31,90 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         const user = await prisma.user.findUnique({ where: { username } });
         if (!user) return null;
+        if (!user.ativo) return null;
 
         const valid = await bcrypt.compare(password, user.passwordHash);
         if (!valid) return null;
+
+        // Marca último acesso — separado do `update` para que erro de DB não
+        // quebre o login (login é caminho quente, não pode falhar por causa
+        // de telemetria).
+        prisma.user
+          .update({ where: { id: user.id }, data: { ultimoAcessoEm: new Date() } })
+          .catch(() => {});
+
+        // Carrega pivô UserEmpresa para injetar no JWT via callback `jwt`.
+        // Apenas ativos — desativados caem fora da sessão.
+        const vinculos = await prisma.userEmpresa.findMany({
+          where: { userId: user.id, ativo: true },
+          orderBy: [{ papelPrincipal: "desc" }, { createdAt: "asc" }],
+          select: { empresaId: true, role: true, setorId: true, papelPrincipal: true },
+        });
 
         return {
           id: user.id,
           name: user.nome,
           username: user.username,
+          email: user.email,
+          ativo: user.ativo,
           role: user.role,
-          empresaId: user.empresaId,
-          setorId: user.setorId,
+          empresas: vinculos.map((v) => ({
+            empresaId: v.empresaId,
+            papel: v.role as "RH_MANAGER" | "GESTOR_SETOR",
+            setorId: v.setorId,
+            papelPrincipal: v.papelPrincipal,
+            ativo: true as const,
+          })),
         };
       },
     }),
   ],
+  callbacks: {
+    // Mantém `authorized`/`session` do config; sobrescreve só `jwt`.
+    authorized: authConfig.callbacks!.authorized!,
+    session: authConfig.callbacks!.session!,
+    async jwt({ token, user }) {
+      // Reaplica tudo do token existente (campos spreads pelo NextAuth).
+      const next = { ...token };
+
+      if (user) {
+        // Login fresco: copiar tudo que o `authorize` trouxe.
+        const u = user as {
+          id: string;
+          role: string;
+          username: string;
+          email: string | null;
+          ativo: boolean;
+          empresas: EmpresaNaSessao[];
+        };
+        next.id = u.id;
+        next.role = u.role;
+        next.username = u.username;
+        next.email = u.email;
+        next.ativo = u.ativo;
+        next.empresas = u.empresas;
+      }
+
+      // Resolver empresa ativa: lê cookie, valida contra pivô.
+      // Chamado em todo request — cookie pode ter mudado desde o login
+      // (troca de empresa via UI em `trocarEmpresaAtiva`).
+      const cookie = await lerCookieEmpresaAtiva();
+      const empresas = (next.empresas as EmpresaNaSessao[] | undefined) ?? [];
+      if (empresas.length === 0) {
+        next.empresaAtivaId = null;
+        next.setorAtivaId = null;
+        next.empresaId = null;
+        next.setorId = null;
+      } else {
+        const ativa = await resolverEmpresaAtiva(next.id as string, cookie);
+        next.empresaAtivaId = ativa?.empresaId ?? null;
+        next.setorAtivaId = ativa?.setorId ?? null;
+        // Legado: Fase 8 remove esses campos.
+        next.empresaId = ativa?.empresaId ?? null;
+        next.setorId = ativa?.setorId ?? null;
+      }
+
+      return next;
+    },
+  },
 });

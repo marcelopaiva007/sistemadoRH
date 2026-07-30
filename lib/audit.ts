@@ -17,7 +17,14 @@ export type AcaoAuditoria =
   | "APROVAR"
   | "REPROVAR"
   | "CANCELAR"
-  | "BAIXAR_DOCUMENTO";
+  | "BAIXAR_DOCUMENTO"
+  | "VINCULAR"
+  | "DESVINCULAR"
+  | "DESATIVAR"
+  | "REATIVAR"
+  | "ENVIAR_CONVITE"
+  | "ACEITAR_CONVITE"
+  | "RESET_SENHA";
 
 export async function registrarAuditoria(params: {
   empresaId?: string | null;

@@ -1,6 +1,6 @@
 {
   "name": "sistema-rh",
-  "version": "1.10.2",
+  "version": "1.11.1",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -11,6 +11,7 @@
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
+    "release": "node scripts/release.mjs",
     "diag:envios": "tsx scripts/diag-envios.ts",
     "test:ferias": "tsx scripts/test-ferias.ts",
     "test:portal": "tsx scripts/test-portal.ts",

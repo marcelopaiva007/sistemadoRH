@@ -33,7 +33,8 @@ export async function GET(
   const user = session?.user;
   if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
   const autorizado =
-    user.role === "ADMIN" || (user.role === "RH_MANAGER" && user.empresaId === empresaId);
+    user.role === "ADMIN" ||
+    user.empresas.some((e) => e.empresaId === empresaId && e.ativo);
   if (!autorizado) return NextResponse.json({ error: "Sem acesso a esta empresa." }, { status: 403 });
 
   const competencia = await prisma.competenciaFolha.findFirst({

@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { toast } from "sonner";
-import { Building2, Pencil, Plus, TriangleAlert } from "lucide-react";
+import { Building2, Pencil, Plus, Trash2, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,7 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { criarMarca, editarMarca, criarEmpresa, editarEmpresa } from "@/lib/actions/rh-estrutura";
+import { criarMarca, editarMarca, criarEmpresa, editarEmpresa, excluirEmpresa } from "@/lib/actions/rh-estrutura";
 import { formatarCnpj, UFS } from "@/lib/cnpj";
 import type { ActionResult } from "@/lib/constants";
 import { Indicador } from "@/components/indicador";
@@ -225,25 +225,61 @@ function LinhaEmpresa({
       </TableCell>
       <TableCell className="text-right tabular-nums">{empresa._count.colaboradores}</TableCell>
       <TableCell className="text-right">
-        <Dialog open={aberto} onOpenChange={setAberto}>
-          <DialogTrigger render={<Button variant="ghost" size="sm" />}>
-            <Pencil className="size-3.5" />
-            Editar
-          </DialogTrigger>
-          <DialogContent className="max-h-[85vh] overflow-y-auto">
-            <EmpresaForm
-              marcaId={marcaId}
-              marcas={marcas}
-              empresa={empresa}
-              onSuccess={() => setAberto(false)}
-            />
-          </DialogContent>
-        </Dialog>
+        <div className="flex justify-end gap-1">
+          <Dialog open={aberto} onOpenChange={setAberto}>
+            <DialogTrigger render={<Button variant="ghost" size="sm" />}>
+              <Pencil className="size-3.5" />
+              Editar
+            </DialogTrigger>
+            <DialogContent className="max-h-[85vh] overflow-y-auto">
+              <EmpresaForm
+                marcaId={marcaId}
+                marcas={marcas}
+                empresa={empresa}
+                onSuccess={() => setAberto(false)}
+              />
+            </DialogContent>
+          </Dialog>
+          <ExcluirEmpresaButton empresa={empresa} />
+        </div>
       </TableCell>
     </TableRow>
   );
 }
 
+
+function ExcluirEmpresaButton({ empresa }: { empresa: Empresa }) {
+  const [confirmando, setConfirmando] = useState(false);
+
+  async function handleExcluir() {
+    const result = await excluirEmpresa(empresa.id);
+    if (result.ok) {
+      toast.success("CNPJ excluído.");
+    } else {
+      toast.error(result.error);
+    }
+    setConfirmando(false);
+  }
+
+  if (confirmando) {
+    return (
+      <div className="flex gap-1">
+        <Button variant="destructive" size="sm" onClick={handleExcluir}>
+          Confirmar
+        </Button>
+        <Button variant="ghost" size="sm" onClick={() => setConfirmando(false)}>
+          Cancelar
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <Button variant="ghost" size="sm" onClick={() => setConfirmando(true)}>
+      <Trash2 className="size-3.5" />
+    </Button>
+  );
+}
 
 function MarcaForm({ marca, onSuccess }: { marca?: Marca; onSuccess: () => void }) {
   const [state, formAction, isPending] = useActionState(async (prev: ActionResult, fd: FormData) => {
@@ -364,15 +400,6 @@ function EmpresaForm({
       <div className="space-y-2">
         <Label htmlFor="nomeFantasia">Nome fantasia</Label>
         <Input id="nomeFantasia" name="nomeFantasia" defaultValue={empresa?.nomeFantasia ?? ""} />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="inscricaoEstadual">Inscrição estadual</Label>
-        <Input
-          id="inscricaoEstadual"
-          name="inscricaoEstadual"
-          defaultValue={empresa?.inscricaoEstadual ?? ""}
-          placeholder="Isento, se for o caso"
-        />
       </div>
 
       <div className="grid grid-cols-3 gap-4">
