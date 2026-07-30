@@ -3,6 +3,7 @@ import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
 import { RHEmpresaNav } from "./rh-empresa-nav";
 import { FiltroEmpresas } from "./filtro-empresas";
+import { ListaEmpresas } from "./lista-empresas";
 
 export default async function RHEmpresaLayout({
   children,
@@ -45,6 +46,13 @@ export default async function RHEmpresaLayout({
             usuarioEmpresas={empresasDoUsuario}
           />
         </div>
+
+        {/* Lista de empresas agrupadas por marca */}
+        <div className="border-t py-2">
+          <p className="text-xs font-medium text-muted-foreground px-2 py-2">Marcas e CNPJs</p>
+          <ListaEmpresas marcas={marcas} empresas={empresas} empresaIdAtiva={empresaId} />
+        </div>
+
         <RHEmpresaNav empresaId={empresaId} />
       </aside>
 
@@ -59,6 +67,10 @@ export default async function RHEmpresaLayout({
               empresas={empresas}
               usuarioEmpresas={empresasDoUsuario}
             />
+          </div>
+          <div className="border-t mt-2 px-4">
+            <p className="text-xs font-medium text-muted-foreground py-2">Marcas e CNPJs</p>
+            <ListaEmpresas marcas={marcas} empresas={empresas} empresaIdAtiva={empresaId} />
           </div>
           <div className="mt-2 overflow-x-auto">
             <RHEmpresaNav empresaId={empresaId} />
