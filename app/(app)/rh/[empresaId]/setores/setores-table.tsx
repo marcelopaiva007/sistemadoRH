@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useState, useEffect } from "react";
+import { useFiltroEmpresas } from "../filtro-empresas";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -27,18 +28,35 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { createSetor, updateSetor, deleteSetor, toggleSetorAtivo } from "@/lib/actions/rh-setores";
 import type { ActionResult } from "@/lib/constants";
 
+type Empresa = { id: string; nome: string };
 type Setor = {
   id: string;
   nome: string;
   ativo: boolean;
+  empresaId: string;
+  empresa: Empresa;
   _count: { colaboradores: number };
 };
 
 const initialState: ActionResult = { ok: true };
 
-export function SetoresTable({ empresaId, setores }: { empresaId: string; setores: Setor[] }) {
+export function SetoresTable({
+  empresaId,
+  empresasDoUsuario,
+  setores,
+}: {
+  empresaId: string;
+  empresasDoUsuario: string[];
+  setores: Setor[];
+}) {
+  const empresasSelecionadas = useFiltroEmpresas(empresasDoUsuario);
+  const [setoresFiltrados, setSetoresFiltrados] = useState(setores);
   const [createOpen, setCreateOpen] = useState(false);
   const [editSetor, setEditSetor] = useState<Setor | null>(null);
+
+  useEffect(() => {
+    setSetoresFiltrados(setores.filter((s) => empresasSelecionadas.includes(s.empresaId)));
+  }, [setores, empresasSelecionadas]);
 
   return (
     <div className="space-y-4">
@@ -69,14 +87,14 @@ export function SetoresTable({ empresaId, setores }: { empresaId: string; setore
             </TableRow>
           </TableHeader>
           <TableBody>
-            {setores.length === 0 && (
+            {setoresFiltrados.length === 0 && (
               <TableRow>
                 <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
                   Nenhum setor cadastrado ainda.
                 </TableCell>
               </TableRow>
             )}
-            {setores.map((s) => (
+            {setoresFiltrados.map((s) => (
               <TableRow key={s.id} className={s.ativo ? "" : "opacity-60"}>
                 <TableCell className="font-medium">{s.nome}</TableCell>
                 <TableCell>{s._count.colaboradores}</TableCell>
