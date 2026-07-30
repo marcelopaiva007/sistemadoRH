@@ -17,10 +17,17 @@ export default async function HomePage() {
   const user = await requireUser();
   if (user.role === "GESTOR_SETOR") redirect("/rh/meu-setor");
 
+  // RH_MANAGER: buscar apenas as empresas vinculadas a ele
+  // ADMIN/DIRETORIA: buscar todas as empresas ativas
+  const empresasIds =
+    user.role === "RH_MANAGER" && user.empresas.length > 0
+      ? user.empresas.map((e) => e.empresaId)
+      : undefined;
+
   const empresas = await prisma.empresa.findMany({
     where: {
       ativo: true,
-      ...(user.role === "RH_MANAGER" && user.empresaId ? { id: user.empresaId } : {}),
+      ...(empresasIds ? { id: { in: empresasIds } } : {}),
     },
     orderBy: { nome: "asc" },
     select: { id: true, nome: true, marca: { select: { id: true, nome: true } } },
