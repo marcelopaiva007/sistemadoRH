@@ -58,6 +58,15 @@ const pesquisaSchema = z.object({
   anonima: z.coerce.boolean().default(true),
 });
 
+// `anonima` se decide na criação e não muda mais. A tela já trata o campo como
+// imutável (dados-pesquisa-form.tsx só mostra "Anônima: sim/não" em texto), mas
+// server action é endpoint HTTP: sem tirar o campo daqui, um POST direto viraria
+// uma pesquisa anônima em identificada no meio da coleta — depois de o convite
+// já ter prometido anonimato ao colaborador (lib/convites.ts). E como o valor
+// vinha de `formData.get("anonima") === "true"`, campo ausente virava `false`:
+// falhava abrindo, no sentido mais perigoso.
+const pesquisaUpdateSchema = pesquisaSchema.omit({ anonima: true });
+
 export async function createPesquisa(
   empresaId: string,
   _prev: ActionResult,
@@ -149,10 +158,9 @@ export async function updatePesquisa(
   formData: FormData
 ): Promise<ActionResult> {
   await requireEmpresaAccess(empresaId);
-  const parsed = pesquisaSchema.safeParse({
+  const parsed = pesquisaUpdateSchema.safeParse({
     titulo: formData.get("titulo"),
     descricao: formData.get("descricao") || undefined,
-    anonima: formData.get("anonima") === "on" || formData.get("anonima") === "true",
   });
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
 
@@ -161,7 +169,6 @@ export async function updatePesquisa(
     data: {
       titulo: parsed.data.titulo,
       descricao: parsed.data.descricao || null,
-      anonima: parsed.data.anonima,
     },
   });
 

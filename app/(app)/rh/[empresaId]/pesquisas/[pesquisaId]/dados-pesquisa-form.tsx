@@ -21,7 +21,7 @@ export function DadosPesquisaForm({
   pesquisa: PesquisaBase;
 }) {
   const [state, formAction, isPending] = useActionState(async (prev: ActionResult, fd: FormData) => {
-    fd.set("anonima", pesquisa.anonima ? "true" : "false");
+    // Não reenvia `anonima`: updatePesquisa ignora o campo de propósito.
     const result = await updatePesquisa(empresaId, pesquisa.id, prev, fd);
     if (result.ok) toast.success("Pesquisa atualizada.");
     return result;
