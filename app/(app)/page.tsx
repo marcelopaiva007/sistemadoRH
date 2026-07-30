@@ -19,10 +19,16 @@ export default async function HomePage() {
 
   // RH_MANAGER: buscar apenas as empresas vinculadas a ele
   // ADMIN/DIRETORIA: buscar todas as empresas ativas
+  const isRHManager = user.role === "RH_MANAGER";
   const empresasIds =
-    user.role === "RH_MANAGER" && user.empresas.length > 0
+    isRHManager && Array.isArray(user.empresas) && user.empresas.length > 0
       ? user.empresas.map((e) => e.empresaId)
       : undefined;
+
+  // Debug: log da sessão (remover em produção)
+  console.log("[HomePage] user.role:", user.role);
+  console.log("[HomePage] user.empresas:", user.empresas);
+  console.log("[HomePage] empresasIds:", empresasIds);
 
   const empresas = await prisma.empresa.findMany({
     where: {
