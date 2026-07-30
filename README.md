@@ -551,6 +551,7 @@ Decisões de segurança que valem lembrar antes de mexer:
 | `npm run smoke:folha` | fumaça dos eventos variáveis — competência única por mês, recálculo preservando lançamento manual, falta abonada fora do desconto, fechamento, **sempre em rollback** |
 | `npm run verificar:assistente` | confere as ferramentas do assistente contra o banco real, inclusive o isolamento entre empresas — **read-only**, não escreve nada |
 | `npx tsx scripts/aplicar-migracao.ts <nome> [--dry]` | aplica um `migration.sql` à mão, em transação (ver "Notas sobre o banco") |
+| `npm run check:migracoes` | lista migration do repo que o banco ainda não recebeu — **read-only**; roda sozinho antes de todo `npm run build` |
 | `npx tsx scripts/importar-colaboradores-elleven.ts [--dry]` | importa/atualiza colaboradores a partir das exportações do elleven (upsert idempotente por CPF → cód. elleven → nome) |
 | `npx tsx scripts/configurar-telegram-webhook.ts` | registra o webhook do bot do Telegram |
 | `npm run db:studio` | Prisma Studio |
@@ -573,3 +574,16 @@ Aplicar migration aqui não usa `prisma migrate deploy`: os apps dividem a
 tabela `_prisma_migrations`, então o deploy tentaria reaplicar migrations dos
 outros. Use `npx tsx scripts/aplicar-migracao.ts <nome>` (roda em transação) e
 depois `npx prisma migrate resolve --applied <nome>`.
+
+Como aplicar é passo manual, é fácil esquecer — e em 30/07/2026 o código subiu
+sem a migration do pivô `UserEmpresa`: as telas responderam 404 e lista vazia, e
+passou-se o dia achando que o banco tinha zerado (não tinha). Por isso todo
+`npm run build` roda antes o `prisma/checar-migracoes.mjs`, que compara as pastas
+de `prisma/migrations/` com o que está registrado no banco e **barra o deploy**
+se faltar alguma. Se ele não conseguir checar (sem `DATABASE_URL`, banco fora do
+ar), avisa e deixa passar — derrubar deploy por defeito da ferramenta foi o que
+fez a checagem ser desligada da primeira vez.
+
+O checador mora em `prisma/`, não em `scripts/`, porque o `.vercelignore` exclui
+`scripts` inteiro: qualquer coisa que o `build` execute e viva ali some no deploy
+com `Cannot find module`.

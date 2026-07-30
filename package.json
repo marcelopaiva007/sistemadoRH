@@ -1,11 +1,11 @@
 {
   "name": "sistema-rh",
-  "version": "1.12.5",
+  "version": "1.12.6",
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
-    "check:migracoes": "node scripts/checar-migracoes.mjs",
+    "build": "node prisma/checar-migracoes.mjs && next build",
+    "check:migracoes": "node prisma/checar-migracoes.mjs",
     "start": "next start",
     "lint": "eslint",
     "postinstall": "prisma generate",
