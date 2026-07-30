@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useMemo, useState, useEffect } from "react";
+import { useFiltroEmpresas } from "../filtro-empresas";
 import Link from "next/link";
 import { toast } from "sonner";
 import {
@@ -64,6 +65,7 @@ import { formatarCpf, mascararCpf } from "@/lib/cpf";
 import type { ActionResult } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
+type Empresa = { id: string; nome: string };
 type Setor = { id: string; nome: string };
 type Posicao = { id: string; nome: string };
 type Colaborador = {
@@ -75,6 +77,8 @@ type Colaborador = {
   telegramChatId: string | null;
   supervisorId: string | null;
   ativo: boolean;
+  empresaId: string;
+  empresa: Empresa;
   setorId: string;
   setor: Setor;
   posicaoId: string;
@@ -269,15 +273,34 @@ function Kpi({
 
 export function ColaboradoresTable({
   empresaId,
+  empresasDoUsuario,
   colaboradores,
   setores,
   posicoes,
 }: {
   empresaId: string;
+  empresasDoUsuario: string[];
   colaboradores: Colaborador[];
   setores: Setor[];
   posicoes: Posicao[];
 }) {
+  // Aplicar filtro de marcas/empresas selecionadas
+  const empresasSelecionadas = useFiltroEmpresas(empresasDoUsuario);
+  const [colaboradoresFiltrados, setColaboradoresFiltrados] = useState(colaboradores);
+  const [setoresFiltrados, setSetoresFiltrados] = useState(setores);
+  const [posicoesFiltradas, setPosicoesFiltradas] = useState(posicoes);
+
+  useEffect(() => {
+    setColaboradoresFiltrados(
+      colaboradores.filter((c) => empresasSelecionadas.includes(c.empresaId))
+    );
+    setSetoresFiltrados(
+      setores.filter((s) => empresasSelecionadas.includes(s.empresaId))
+    );
+    setPosicoesFiltradas(
+      posicoes.filter((p) => empresasSelecionadas.includes(p.empresaId))
+    );
+  }, [colaboradores, setores, posicoes, empresasSelecionadas]);
   const [createOpen, setCreateOpen] = useState(false);
   const [editColaborador, setEditColaborador] = useState<Colaborador | null>(null);
   const [busca, setBusca] = useState("");
@@ -291,19 +314,19 @@ export function ColaboradoresTable({
   const [pagina, setPagina] = useState(1);
 
   const totais = useMemo(() => {
-    const ativos = colaboradores.filter((c) => c.ativo).length;
-    const telegram = colaboradores.filter((c) => c.ativo && c.telegramChatId).length;
-    const semSetor = colaboradores.filter(
+    const ativos = colaboradoresFiltrados.filter((c) => c.ativo).length;
+    const telegram = colaboradoresFiltrados.filter((c) => c.ativo && c.telegramChatId).length;
+    const semSetor = colaboradoresFiltrados.filter(
       (c) => c.ativo && c.setor.nome.trim().toLowerCase() === SETOR_AUSENTE,
     ).length;
-    return { total: colaboradores.length, ativos, telegram, semSetor };
-  }, [colaboradores]);
+    return { total: colaboradoresFiltrados.length, ativos, telegram, semSetor };
+  }, [colaboradoresFiltrados]);
 
   const filtrados = useMemo(() => {
     const termo = busca.trim().toLowerCase();
     const termoDigitos = termo.replace(/\D/g, "");
 
-    const lista = colaboradores.filter((c) => {
+    const lista = colaboradoresFiltrados.filter((c) => {
       if (filtroStatus === "ativos" && !c.ativo) return false;
       if (filtroStatus === "inativos" && c.ativo) return false;
       if (filtroSetor !== "todos" && c.setorId !== filtroSetor) return false;
@@ -326,7 +349,7 @@ export function ColaboradoresTable({
       const r = valor(a).localeCompare(valor(b), "pt-BR", { sensitivity: "base" });
       return ordem.desc ? -r : r;
     });
-  }, [colaboradores, busca, filtroSetor, filtroPosicao, filtroStatus, ordem]);
+  }, [colaboradoresFiltrados, busca, filtroSetor, filtroPosicao, filtroStatus, ordem]);
 
   const totalPaginas = Math.max(1, Math.ceil(filtrados.length / POR_PAGINA));
   // Mudar filtro pode encolher a lista para menos páginas do que a atual;
@@ -385,8 +408,8 @@ export function ColaboradoresTable({
               <ColaboradorForm
                 action={createColaborador.bind(null, empresaId)}
                 title="Novo Colaborador"
-                setores={setores}
-                posicoes={posicoes}
+                setores={setoresFiltrados}
+                posicoes={posicoesFiltradas}
                 candidatosSupervisor={colaboradores}
                 onSuccess={() => setCreateOpen(false)}
               />
@@ -433,7 +456,7 @@ export function ColaboradoresTable({
             aria-label="Filtrar por setor"
           >
             <option value="todos">Todos os setores</option>
-            {setores.map((s) => (
+            {setoresFiltrados.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.nome}
               </option>
@@ -446,7 +469,7 @@ export function ColaboradoresTable({
             aria-label="Filtrar por cargo"
           >
             <option value="todos">Todos os cargos</option>
-            {posicoes.map((p) => (
+            {posicoesFiltradas.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.nome}
               </option>
@@ -640,8 +663,8 @@ export function ColaboradoresTable({
             <ColaboradorForm
               action={updateColaborador.bind(null, empresaId, editColaborador.id)}
               title="Editar Colaborador"
-              setores={setores}
-              posicoes={posicoes}
+              setores={setoresFiltrados}
+              posicoes={posicoesFiltradas}
               candidatosSupervisor={colaboradores}
               defaultValues={editColaborador}
               onSuccess={() => setEditColaborador(null)}
@@ -715,13 +738,13 @@ function ColaboradorForm({
           value={setorId}
           onValueChange={(v) => setSetorId(v ?? "")}
           name="setorId"
-          items={Object.fromEntries(setores.map((s) => [s.id, s.nome]))}
+          items={Object.fromEntries(setoresFiltrados.map((s) => [s.id, s.nome]))}
         >
           <SelectTrigger className="w-full">
             <SelectValue placeholder="Selecione o setor" />
           </SelectTrigger>
           <SelectContent>
-            {setores.map((s) => (
+            {setoresFiltrados.map((s) => (
               <SelectItem key={s.id} value={s.id}>
                 {s.nome}
               </SelectItem>
@@ -735,13 +758,13 @@ function ColaboradorForm({
           value={posicaoId}
           onValueChange={(v) => setPosicaoId(v ?? "")}
           name="posicaoId"
-          items={Object.fromEntries(posicoes.map((p) => [p.id, p.nome]))}
+          items={Object.fromEntries(posicoesFiltradas.map((p) => [p.id, p.nome]))}
         >
           <SelectTrigger className="w-full">
             <SelectValue placeholder="Selecione a posição" />
           </SelectTrigger>
           <SelectContent>
-            {posicoes.map((p) => (
+            {posicoesFiltradas.map((p) => (
               <SelectItem key={p.id} value={p.id}>
                 {p.nome}
               </SelectItem>
