@@ -43,16 +43,28 @@ if (!process.env.DATABASE_URL) {
   }
 }
 
-// Avisa e deixa passar. Vale para tudo que impede a CHECAGEM de acontecer:
-// falta de credencial, banco inalcançável, tabela ilegível. Só migration
-// pendente derruba o deploy; defeito da ferramenta, não. Confundir os dois é o
-// que fez a checagem ser desligada em vez de consertada.
-function desistir(motivo) {
-  console.warn(`· checar-migracoes: ${motivo} — checagem pulada.`);
+// Sem DATABASE_URL não há o que checar e não há deploy acontecendo: é a máquina
+// de alguém, ou um CI sem segredo. Avisa e passa.
+if (!process.env.DATABASE_URL) {
+  console.warn("· checar-migracoes: sem DATABASE_URL — checagem pulada.");
   process.exit(0);
 }
 
-if (!process.env.DATABASE_URL) desistir("sem DATABASE_URL");
+// Mas se a variável EXISTE e mesmo assim não dá para checar, isso é defeito de
+// configuração e derruba o build. A primeira versão desta checagem avisava e
+// passava aqui — e um `DATABASE_URL` de Preview malformado (host `base`,
+// `getaddrinfo ENOTFOUND`) fez a trava rodar, não checar nada e liberar um
+// build com migration pendente, em silêncio. Proteção que falha para o lado
+// permissivo, sem ninguém ver, é pior que proteção nenhuma: dá confiança falsa.
+function abortar(motivo) {
+  console.error(
+    `\n✖ checar-migracoes: ${motivo}.\n\n` +
+      `  DATABASE_URL está definida mas não dá para consultar o banco, então\n` +
+      `  não sei se falta migration — e não vou deixar passar no escuro.\n` +
+      `  Confira o valor da variável no ambiente deste build.\n`,
+  );
+  process.exit(1);
+}
 
 const noRepo = readdirSync(resolve(AQUI, "migrations"), { withFileTypes: true })
   .filter((d) => d.isDirectory())
@@ -85,7 +97,7 @@ let client;
 try {
   client = await conectar();
 } catch (erro) {
-  desistir(`banco inalcancavel (${erro.message})`);
+  abortar(`banco inalcancavel (${erro.message})`);
 }
 
 let pendentes;
@@ -97,7 +109,7 @@ try {
   pendentes = noRepo.filter((m) => !aplicadas.has(m));
 } catch (erro) {
   await client.end().catch(() => {});
-  desistir(`nao consegui ler _prisma_migrations (${erro.message})`);
+  abortar(`nao consegui ler _prisma_migrations (${erro.message})`);
 } finally {
   await client.end().catch(() => {});
 }
