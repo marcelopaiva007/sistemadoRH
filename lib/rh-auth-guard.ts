@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth-guard";
+import { prisma } from "@/lib/prisma";
 
 const RH_ROLES = ["ADMIN", "RH_MANAGER", "GESTOR_SETOR"] as const;
 
@@ -21,6 +22,26 @@ export async function requireEmpresaAccess(empresaId: string) {
   );
   if (temAcesso) return user;
   redirect(user.role === "GESTOR_SETOR" ? "/rh/meu-setor" : "/rh");
+}
+
+// Empresas que o usuário enxerga no módulo de RH — a base do filtro por
+// marca/CNPJ, que consolida tudo por padrão.
+//
+// ADMIN e DIRETORIA têm papel GLOBAL: o pivô UserEmpresa fica vazio para eles.
+// Montar a lista a partir do pivô devolveria lista nenhuma — e uma tela que
+// depende dela some, ou responde 404 achando que a empresa não existe.
+export async function empresasVisiveis(user: {
+  role: string;
+  empresas: { empresaId: string; ativo: boolean }[];
+}): Promise<string[]> {
+  if (user.role === "ADMIN" || user.role === "DIRETORIA") {
+    const todas = await prisma.empresa.findMany({
+      where: { ativo: true },
+      select: { id: true },
+    });
+    return todas.map((e) => e.id);
+  }
+  return user.empresas.filter((e) => e.ativo).map((e) => e.empresaId);
 }
 
 // GESTOR_SETOR com empresa ativa + setor ativo no JWT. Se faltarem (cookie

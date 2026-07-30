@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
+import { requireEmpresaAccess, empresasVisiveis } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
 import { RHEmpresaNav } from "./rh-empresa-nav";
 import { FiltroEmpresas } from "./filtro-empresas";
@@ -15,8 +15,7 @@ export default async function RHEmpresaLayout({
   const { empresaId } = await params;
   const usuario = await requireEmpresaAccess(empresaId);
 
-  // Buscar todas as empresas que o usuário tem acesso (RH_MANAGER ou GESTOR_SETOR)
-  const empresasDoUsuario = usuario.empresas.map((e) => e.empresaId);
+  const empresasDoUsuario = await empresasVisiveis(usuario);
 
   const empresas = await prisma.empresa.findMany({
     where: { id: { in: empresasDoUsuario }, ativo: true },

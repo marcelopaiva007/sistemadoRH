@@ -1,4 +1,4 @@
-import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
+import { requireEmpresaAccess, empresasVisiveis } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
 import { ColaboradoresTable } from "./colaboradores-table";
 
@@ -7,7 +7,7 @@ export default async function ColaboradoresPage({ params }: { params: Promise<{ 
   const usuario = await requireEmpresaAccess(empresaId);
 
   // Buscar de todas as empresas que o usuário tem acesso
-  const empresasDoUsuario = usuario.empresas.map((e) => e.empresaId);
+  const empresasDoUsuario = await empresasVisiveis(usuario);
 
   const [colaboradores, setores, posicoes] = await Promise.all([
     prisma.colaborador.findMany({
