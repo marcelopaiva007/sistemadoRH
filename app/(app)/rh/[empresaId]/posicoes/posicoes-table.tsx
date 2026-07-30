@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useState, useEffect } from "react";
+import { useFiltroEmpresas } from "../filtro-empresas";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -27,18 +28,35 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { createPosicao, updatePosicao, deletePosicao, togglePosicaoAtiva } from "@/lib/actions/rh-posicoes";
 import type { ActionResult } from "@/lib/constants";
 
+type Empresa = { id: string; nome: string };
 type Posicao = {
   id: string;
   nome: string;
   ativo: boolean;
+  empresaId: string;
+  empresa: Empresa;
   _count: { colaboradores: number };
 };
 
 const initialState: ActionResult = { ok: true };
 
-export function PosicoesTable({ empresaId, posicoes }: { empresaId: string; posicoes: Posicao[] }) {
+export function PosicoesTable({
+  empresaId,
+  empresasDoUsuario,
+  posicoes,
+}: {
+  empresaId: string;
+  empresasDoUsuario: string[];
+  posicoes: Posicao[];
+}) {
+  const empresasSelecionadas = useFiltroEmpresas(empresasDoUsuario);
+  const [posicoesFiltradas, setPosiçoesFiltradas] = useState(posicoes);
   const [createOpen, setCreateOpen] = useState(false);
   const [editPosicao, setEditPosicao] = useState<Posicao | null>(null);
+
+  useEffect(() => {
+    setPosiçoesFiltradas(posicoes.filter((p) => empresasSelecionadas.includes(p.empresaId)));
+  }, [posicoes, empresasSelecionadas]);
 
   return (
     <div className="space-y-4">
@@ -69,14 +87,14 @@ export function PosicoesTable({ empresaId, posicoes }: { empresaId: string; posi
             </TableRow>
           </TableHeader>
           <TableBody>
-            {posicoes.length === 0 && (
+            {posicoesFiltradas.length === 0 && (
               <TableRow>
                 <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
                   Nenhuma posição cadastrada ainda.
                 </TableCell>
               </TableRow>
             )}
-            {posicoes.map((p) => (
+            {posicoesFiltradas.map((p) => (
               <TableRow key={p.id} className={p.ativo ? "" : "opacity-60"}>
                 <TableCell className="font-medium">{p.nome}</TableCell>
                 <TableCell>{p._count.colaboradores}</TableCell>
