@@ -401,15 +401,6 @@ function EmpresaForm({
         <Label htmlFor="nomeFantasia">Nome fantasia</Label>
         <Input id="nomeFantasia" name="nomeFantasia" defaultValue={empresa?.nomeFantasia ?? ""} />
       </div>
-      <div className="space-y-2">
-        <Label htmlFor="inscricaoEstadual">Inscrição estadual</Label>
-        <Input
-          id="inscricaoEstadual"
-          name="inscricaoEstadual"
-          defaultValue={empresa?.inscricaoEstadual ?? ""}
-          placeholder="Isento, se for o caso"
-        />
-      </div>
 
       <div className="grid grid-cols-3 gap-4">
         <div className="col-span-2 space-y-2">
