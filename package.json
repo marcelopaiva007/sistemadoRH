@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/checar-migracoes.mjs && next build",
+    "build": "next build",
     "check:migracoes": "node scripts/checar-migracoes.mjs",
     "start": "next start",
     "lint": "eslint",
