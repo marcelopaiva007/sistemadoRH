@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "tsx scripts/checar-migracoes.ts && next build",
+    "check:migracoes": "tsx scripts/checar-migracoes.ts",
     "start": "next start",
     "lint": "eslint",
     "postinstall": "prisma generate",
