@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
 import { RHEmpresaNav } from "./rh-empresa-nav";
-import { SeletorEmpresa } from "./seletor-empresa";
+import { FiltroEmpresas } from "./filtro-empresas";
 
 export default async function RHEmpresaLayout({
   children,
@@ -14,13 +14,19 @@ export default async function RHEmpresaLayout({
   const { empresaId } = await params;
   const usuario = await requireEmpresaAccess(empresaId);
 
-  // Este layout roda a CADA navegação de menu, então o custo dele entra em
-  // toda troca de tela. Por isso é uma query só: ADMIN/DIRETORIA já recebem a
-  // lista inteira (que o seletor precisa) e a empresa atual sai de dentro
-  // dela, em vez de um findUnique extra.
-  const podeTrocar = usuario?.role === "ADMIN" || usuario?.role === "DIRETORIA";
+  // Buscar todas as empresas que o usuário tem acesso (RH_MANAGER ou GESTOR_SETOR)
+  const empresasDoUsuario = usuario.empresas.map((e) => e.empresaId);
+
   const empresas = await prisma.empresa.findMany({
-    where: podeTrocar ? { ativo: true } : { id: empresaId },
+    where: { id: { in: empresasDoUsuario }, ativo: true },
+    orderBy: { nome: "asc" },
+    select: { id: true, nome: true, marcaId: true },
+  });
+
+  // Buscar marcas daquelas empresas
+  const marcasIds = [...new Set(empresas.map((e) => e.marcaId))];
+  const marcas = await prisma.marca.findMany({
+    where: { id: { in: marcasIds } },
     orderBy: { nome: "asc" },
     select: { id: true, nome: true },
   });
@@ -31,8 +37,13 @@ export default async function RHEmpresaLayout({
   return (
     <div className="flex gap-6">
       <aside className="sticky top-14 hidden h-[calc(100vh-3.5rem)] w-56 shrink-0 overflow-y-auto border-r pr-3 md:block">
-        <div className="py-4">
-          <SeletorEmpresa empresaId={empresaId} empresas={empresas} />
+        <div className="py-4 space-y-2">
+          <p className="text-xs font-medium text-muted-foreground px-2">Filtrar por marca/CNPJ</p>
+          <FiltroEmpresas
+            marcas={marcas}
+            empresas={empresas}
+            usuarioEmpresas={empresasDoUsuario}
+          />
         </div>
         <RHEmpresaNav empresaId={empresaId} />
       </aside>
@@ -40,8 +51,15 @@ export default async function RHEmpresaLayout({
       <div className="min-w-0 flex-1 py-4">
         {/* No celular o menu vira uma barra rolável no topo: o RH trabalha no
             computador, mas a tela pequena não pode ficar sem navegação. */}
-        <div className="mb-4 md:hidden">
-          <SeletorEmpresa empresaId={empresaId} empresas={empresas} />
+        <div className="mb-4 md:hidden space-y-2">
+          <p className="text-xs font-medium text-muted-foreground px-4">Filtrar por marca/CNPJ</p>
+          <div className="px-4">
+            <FiltroEmpresas
+              marcas={marcas}
+              empresas={empresas}
+              usuarioEmpresas={empresasDoUsuario}
+            />
+          </div>
           <div className="mt-2 overflow-x-auto">
             <RHEmpresaNav empresaId={empresaId} />
           </div>
