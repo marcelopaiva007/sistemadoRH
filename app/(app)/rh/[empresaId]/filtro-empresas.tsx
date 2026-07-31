@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ChevronDown, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -205,8 +205,18 @@ export function FiltroEmpresas({
  */
 export function useFiltroEmpresas(usuarioEmpresas: string[]) {
   const searchParams = useSearchParams();
-  const filtro = lerFiltro(searchParams);
-  if (filtro.length === 0) return usuarioEmpresas;
-  // Interseção: um CNPJ na URL que o usuário não enxerga não vira acesso.
-  return filtro.filter((id) => usuarioEmpresas.includes(id));
+  const bruto = searchParams.get(PARAM) ?? "";
+  // Chaves em texto, não os arrays: quem consome põe o retorno em dependência
+  // de useEffect que chama setState. Devolver array novo a cada render fecha o
+  // laço render -> efeito -> setState -> render e congela a tela.
+  const chaveUsuario = usuarioEmpresas.join(",");
+
+  return useMemo(() => {
+    const todas = chaveUsuario ? chaveUsuario.split(",") : [];
+    const filtro = bruto.split(",").filter(Boolean);
+    if (filtro.length === 0) return todas;
+    // Interseção: um CNPJ digitado na URL que o usuário não enxerga não vira
+    // acesso.
+    return filtro.filter((id) => todas.includes(id));
+  }, [bruto, chaveUsuario]);
 }
