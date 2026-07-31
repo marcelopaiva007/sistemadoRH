@@ -2,14 +2,15 @@
 
 import { useActionState, useState, startTransition } from "react";
 import { toast } from "sonner";
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, UserPlus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { salvarMinhaAvaliacao } from "@/lib/actions/portal-avaliacao";
+import { adicionarPessoaParaAvaliar, salvarMinhaAvaliacao } from "@/lib/actions/portal-avaliacao";
 import { COMPETENCIAS, NIVEIS_POTENCIAL } from "@/lib/constants-avaliacao";
 import type { ActionResult } from "@/lib/constants";
 
@@ -40,13 +41,25 @@ export type MinhaAvaliacao = {
   notas: { competencia: string; nota: number }[];
 };
 
+export type EquipeDoGerente = {
+  /** Nome do ciclo aberto na empresa, ou null quando não há nenhum. */
+  cicloAberto: string | null;
+  candidatos: { id: string; nome: string; setor: string; empresa: string }[];
+};
+
 const comoAvalio: Record<string, string> = {
   GESTOR: "como gestor",
   PAR: "como colega de equipe",
   SUBORDINADO: "como liderado",
 };
 
-export function MinhasAvaliacoes({ avaliacoes: recebidas }: { avaliacoes: MinhaAvaliacao[] }) {
+export function MinhasAvaliacoes({
+  avaliacoes: recebidas,
+  equipe,
+}: {
+  avaliacoes: MinhaAvaliacao[];
+  equipe: EquipeDoGerente | null;
+}) {
   // O que falta responder primeiro, e a própria antes das dos outros: quem tem
   // dez pessoas na equipe rola a lista até o fim e esquece a própria.
   const avaliacoes = [...recebidas].sort(
@@ -71,12 +84,15 @@ export function MinhasAvaliacoes({ avaliacoes: recebidas }: { avaliacoes: MinhaA
       <CardHeader>
         <CardTitle>Avaliação de desempenho</CardTitle>
         <CardDescription>
-          {pendentes === 0
-            ? "Você respondeu tudo. Obrigado! Dá para revisar suas respostas enquanto o ciclo estiver aberto."
-            : `${pendentes} avaliação(ões) esperando por você. São 6 notas e um espaço para comentar — leva uns 3 minutos cada.`}
+          {avaliacoes.length === 0
+            ? "Sua lista está vazia. Comece incluindo as pessoas que você avalia."
+            : pendentes === 0
+              ? "Você respondeu tudo. Obrigado! Dá para revisar suas respostas enquanto o ciclo estiver aberto."
+              : `${pendentes} avaliação(ões) esperando por você. São 6 notas e um espaço para comentar — leva uns 3 minutos cada.`}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
+        {equipe && <IncluirNaEquipe equipe={equipe} />}
         {avaliacoes.map((a) => {
           const concluida = a.status === "CONCLUIDA";
           const estaAberta = aberta === a.id;
@@ -119,6 +135,101 @@ export function MinhasAvaliacoes({ avaliacoes: recebidas }: { avaliacoes: MinhaA
         })}
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * Inclusão de gente na equipe do gerente. Fica dentro da própria aba, acima da
+ * lista: quem abre o portal para avaliar é quem sabe quem falta ali.
+ */
+function IncluirNaEquipe({ equipe }: { equipe: EquipeDoGerente }) {
+  const [escolhido, setEscolhido] = useState("");
+  const [busca, setBusca] = useState("");
+  const [incluindo, setIncluindo] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  // São 200+ nomes do grupo inteiro. Sem filtro, achar alguém no seletor do
+  // celular é rolagem cega.
+  const termo = busca.trim().toLowerCase();
+  const candidatos = termo
+    ? equipe.candidatos.filter((c) => c.nome.toLowerCase().includes(termo))
+    : equipe.candidatos;
+
+  if (!equipe.cicloAberto) {
+    return (
+      <Alert>
+        <AlertDescription>
+          Não há ciclo de avaliação aberto na sua empresa no momento. Quando o RH abrir, suas
+          pessoas aparecem aqui.
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  return (
+    <div className="space-y-2 rounded-lg border border-dashed p-3">
+      <p className="text-sm font-medium">Quem mais você avalia?</p>
+      <p className="text-xs text-muted-foreground">
+        Inclua as pessoas da sua equipe, de qualquer empresa do grupo. Cada uma entra na sua lista e
+        recebe também a própria autoavaliação. Incluiu errado? O RH remove.
+      </p>
+      <Input
+        value={busca}
+        onChange={(e) => setBusca(e.target.value)}
+        placeholder="Buscar por nome"
+        className="h-11"
+      />
+      <div className="flex gap-2">
+        <select
+          value={escolhido}
+          onChange={(e) => {
+            setEscolhido(e.target.value);
+            setErro(null);
+          }}
+          className="h-11 min-w-0 flex-1 rounded-md border border-input bg-transparent px-3 text-sm dark:bg-input/30"
+        >
+          <option value="">
+            {termo && candidatos.length === 0 ? "Ninguém com esse nome" : "Escolha a pessoa"}
+          </option>
+          {candidatos.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.nome} · {c.setor} ({c.empresa})
+            </option>
+          ))}
+        </select>
+        <Button
+          type="button"
+          size="lg"
+          variant="outline"
+          disabled={!escolhido || incluindo}
+          onClick={async () => {
+            setIncluindo(true);
+            const r = await adicionarPessoaParaAvaliar(escolhido);
+            setIncluindo(false);
+            if (r.ok) {
+              toast.success("Pessoa incluída na sua lista.");
+              setEscolhido("");
+              setErro(null);
+            } else {
+              setErro(r.error ?? "Não foi possível incluir.");
+            }
+          }}
+        >
+          <UserPlus className="size-4" />
+          {incluindo ? "Incluindo..." : "Incluir"}
+        </Button>
+      </div>
+      {equipe.candidatos.length === 0 && (
+        <p className="text-xs text-muted-foreground">
+          Todo mundo da sua empresa já está na sua lista.
+        </p>
+      )}
+      {erro && (
+        <Alert variant="destructive">
+          <AlertDescription>{erro}</AlertDescription>
+        </Alert>
+      )}
+    </div>
   );
 }
 

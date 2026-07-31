@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MeuCadastro, EnviarDocumento } from "./meu-cadastro";
-import { MinhasAvaliacoes, type MinhaAvaliacao } from "./minhas-avaliacoes";
+import { MinhasAvaliacoes, type MinhaAvaliacao, type EquipeDoGerente } from "./minhas-avaliacoes";
 import { sairDoPortal } from "@/lib/actions/portal";
 import { formatarTamanho } from "@/lib/anexos";
 // Mesma máscara usada na listagem interna — o portal confirma identidade,
@@ -93,6 +93,7 @@ export function PortalInicio({
   ausencias,
   resumoFerias,
   avaliacoes,
+  equipe,
 }: {
   colaborador: Colaborador;
   ferias: Ferias[];
@@ -100,8 +101,11 @@ export function PortalInicio({
   ausencias: Ausencia[];
   resumoFerias: ResumoFerias | null;
   avaliacoes: MinhaAvaliacao[];
+  equipe: EquipeDoGerente | null;
 }) {
   const avaliacoesPendentes = avaliacoes.filter((a) => a.status !== "CONCLUIDA").length;
+  // Gerente vê a aba mesmo sem nada na lista — é onde ele monta a lista.
+  const temAvaliacao = avaliacoes.length > 0 || equipe !== null;
   // O que ainda falta na ficha. Serve de convite: um número concreto puxa mais
   // preenchimento que um formulário mudo.
   const camposFaltando = [
@@ -136,9 +140,15 @@ export function PortalInicio({
       {/* Avaliação em aberto manda na aba inicial: é tarefa com prazo, vinda de
           um convite que a pessoa acabou de receber. Passado o ciclo, a tela
           volta a abrir em "Atualizar". */}
-      <Tabs defaultValue={avaliacoesPendentes > 0 ? "avaliacao" : "atualizar"}>
+      <Tabs
+        defaultValue={
+          avaliacoesPendentes > 0 || (equipe !== null && avaliacoes.length === 0)
+            ? "avaliacao"
+            : "atualizar"
+        }
+      >
         <TabsList variant="line" className="w-full">
-          {avaliacoes.length > 0 && (
+          {temAvaliacao && (
             <TabsTrigger value="avaliacao">
               <Star />
               Avaliação
@@ -174,9 +184,9 @@ export function PortalInicio({
           </TabsTrigger>
         </TabsList>
 
-        {avaliacoes.length > 0 && (
+        {temAvaliacao && (
           <TabsContent value="avaliacao" className="pt-4">
-            <MinhasAvaliacoes avaliacoes={avaliacoes} />
+            <MinhasAvaliacoes avaliacoes={avaliacoes} equipe={equipe} />
           </TabsContent>
         )}
 

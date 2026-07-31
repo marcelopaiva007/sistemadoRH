@@ -16,6 +16,121 @@ import type { ActionResult } from "@/lib/constants";
 // faz sobre ele. O id da avaliação vem do cliente, mas só é aceito se o
 // avaliador daquela linha for a pessoa da sessão.
 
+/**
+ * O gerente inclui alguém na própria lista de avaliados.
+ *
+ * Existe porque o organograma não serve para isso: `supervisorId` diz a quem a
+ * pessoa reporta, e aqui quem avalia é o gerente — em três empresas o
+ * organograma está vazio e ninguém entraria no ciclo. Quem pode incluir é só
+ * quem o RH marcou como gerente.
+ *
+ * A pessoa incluída pode ser de outra empresa do grupo: a chefia aqui cruza CNPJ
+ * (um gerente da BR SISTEMAS responde por gente da LM SISTEMAS), e barrar isso
+ * deixaria de fora justamente quem já é avaliado hoje. A avaliação nasce no
+ * ciclo da empresa DA PESSOA AVALIADA — é o RH dela que acompanha o ciclo.
+ *
+ * Incluir alguém cria duas linhas: a avaliação do gerente e, se ainda não
+ * existir, a autoavaliação da pessoa — entrar no ciclo é ser avaliado e também
+ * se avaliar.
+ */
+export async function adicionarPessoaParaAvaliar(
+  colaboradorId: string,
+): Promise<ActionResult> {
+  const sessao = await lerSessaoPortal();
+  if (!sessao) return { ok: false, error: "Sua sessão expirou. Peça /portal ao bot novamente." };
+  if (!sessao.verificado) return { ok: false, error: "Confirme seu CPF antes de montar sua equipe." };
+
+  const gerente = await prisma.colaborador.findUnique({
+    where: { id: sessao.colaboradorId },
+    select: { id: true, nome: true, empresaId: true, gerente: true },
+  });
+  if (!gerente) return { ok: false, error: "Cadastro não encontrado. Procure o RH." };
+  if (!gerente.gerente) {
+    return { ok: false, error: "Só quem está marcado como gerente pode incluir pessoas. Fale com o RH." };
+  }
+  if (colaboradorId === gerente.id) {
+    return { ok: false, error: "Sua autoavaliação já está na lista — não dá para se incluir como equipe." };
+  }
+
+  const alvo = await prisma.colaborador.findFirst({
+    where: { id: colaboradorId, ativo: true },
+    select: { id: true, nome: true, empresaId: true, empresa: { select: { nome: true } } },
+  });
+  if (!alvo) return { ok: false, error: "Essa pessoa não está ativa no cadastro." };
+
+  const ciclo = await prisma.cicloAvaliacao.findFirst({
+    where: { empresaId: alvo.empresaId, encerrado: false },
+    orderBy: { dataInicio: "desc" },
+    select: { id: true, nome: true },
+  });
+  if (!ciclo) {
+    return {
+      ok: false,
+      error: `Não há ciclo de avaliação aberto na ${alvo.empresa.nome}. Fale com o RH.`,
+    };
+  }
+
+  const jaExiste = await prisma.avaliacaoDesempenho.findUnique({
+    where: {
+      colaboradorId_cicloId_avaliadorId: {
+        colaboradorId: alvo.id,
+        cicloId: ciclo.id,
+        avaliadorId: gerente.id,
+      },
+    },
+    select: { id: true },
+  });
+  if (jaExiste) return { ok: false, error: `${alvo.nome} já está na sua lista.` };
+
+  await prisma.$transaction(async (tx) => {
+    await tx.avaliacaoDesempenho.create({
+      data: {
+        empresaId: alvo.empresaId,
+        colaboradorId: alvo.id,
+        cicloId: ciclo.id,
+        tipoAvaliador: "GESTOR",
+        avaliadorId: gerente.id,
+        avaliadorNome: gerente.nome,
+      },
+    });
+    const temAuto = await tx.avaliacaoDesempenho.findUnique({
+      where: {
+        colaboradorId_cicloId_avaliadorId: {
+          colaboradorId: alvo.id,
+          cicloId: ciclo.id,
+          avaliadorId: alvo.id,
+        },
+      },
+      select: { id: true },
+    });
+    if (!temAuto) {
+      await tx.avaliacaoDesempenho.create({
+        data: {
+          empresaId: alvo.empresaId,
+          colaboradorId: alvo.id,
+          cicloId: ciclo.id,
+          tipoAvaliador: "AUTOAVALIACAO",
+          avaliadorId: alvo.id,
+          avaliadorNome: alvo.nome,
+        },
+      });
+    }
+  });
+
+  await registrarAuditoria({
+    empresaId: alvo.empresaId,
+    acao: "CRIAR",
+    entidade: "AvaliacaoDesempenho",
+    entidadeId: alvo.id,
+    resumo: `${gerente.nome} incluiu ${alvo.nome} na própria equipe de avaliação do ciclo "${ciclo.nome}", pelo portal.`,
+    ator: { id: gerente.id, nome: gerente.nome, papel: "COLABORADOR" },
+  });
+
+  revalidatePath("/portal");
+  revalidatePath(`/rh/${alvo.empresaId}/avaliacoes/${ciclo.id}`);
+  return { ok: true };
+}
+
 export async function salvarMinhaAvaliacao(
   avaliacaoId: string,
   _prev: ActionResult,

@@ -262,6 +262,12 @@ model Colaborador {
   supervisorId   String?
   supervisor     Colaborador?  @relation("SupervisorDoColaborador", fields: [supervisorId], references: [id], onDelete: SetNull)
   subordinados   Colaborador[] @relation("SupervisorDoColaborador")
+  // Quem avalia a equipe no ciclo de desempenho. É outra pergunta que a de
+  // cima: `supervisorId` diz a quem a pessoa reporta; aqui quem avalia é o
+  // gerente, que pode ter muito mais gente do que o organograma mostra — e em
+  // parte das empresas o organograma nem existe. Marcado pelo RH; o gerente
+  // monta a própria lista de avaliados pelo portal.
+  gerente        Boolean       @default(false)
   // Chat ID numérico do Telegram do colaborador, obtido manualmente (RH pede
   // pro colaborador dar /start no bot e lê o chat_id via Bot API getUpdates).
   // Sem isso, o convite da pesquisa não pode ser enviado automaticamente.
@@ -359,6 +365,7 @@ model Colaborador {
   @@index([posicaoId])
   @@index([empresaId, dataAdmissao])
   @@index([supervisorId])
+  @@index([empresaId, gerente])
   @@schema("rh")
 }
 

@@ -22,6 +22,7 @@ const colaboradorSchema = z.object({
   posicaoId: z.string().trim().min(1, "Selecione a posição"),
   telegramChatId: z.string().trim().optional(),
   supervisorId: z.string().trim().optional(),
+  gerente: z.coerce.boolean().default(false),
   ativo: z.coerce.boolean().default(true),
 });
 
@@ -98,6 +99,7 @@ export async function createColaborador(
     posicaoId: formData.get("posicaoId"),
     telegramChatId: formData.get("telegramChatId") || undefined,
     supervisorId: formData.get("supervisorId") || undefined,
+    gerente: formData.get("gerente") === "on" || formData.get("gerente") === "true",
     ativo: formData.get("ativo") === "on" || formData.get("ativo") === "true",
   };
   const parsed = colaboradorSchema.safeParse(raw);
@@ -128,6 +130,7 @@ export async function createColaborador(
         posicaoId: parsed.data.posicaoId,
         telegramChatId: parsed.data.telegramChatId || null,
         supervisorId: parsed.data.supervisorId || null,
+        gerente: parsed.data.gerente,
         ativo: parsed.data.ativo,
       },
     });
@@ -153,6 +156,7 @@ export async function updateColaborador(
     posicaoId: formData.get("posicaoId"),
     telegramChatId: formData.get("telegramChatId") || undefined,
     supervisorId: formData.get("supervisorId") || undefined,
+    gerente: formData.get("gerente") === "on" || formData.get("gerente") === "true",
     ativo: formData.get("ativo") === "on" || formData.get("ativo") === "true",
   };
   const parsed = colaboradorSchema.safeParse(raw);
@@ -182,6 +186,7 @@ export async function updateColaborador(
         posicaoId: parsed.data.posicaoId,
         telegramChatId: parsed.data.telegramChatId || null,
         supervisorId: parsed.data.supervisorId || null,
+        gerente: parsed.data.gerente,
         ativo: parsed.data.ativo,
       },
     });

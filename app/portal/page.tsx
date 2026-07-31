@@ -48,6 +48,8 @@ export default async function PortalPage() {
       ctpsSerie: true,
       ctpsUf: true,
       tituloEleitor: true,
+      empresaId: true,
+      gerente: true,
       setor: { select: { nome: true } },
       posicao: { select: { nome: true } },
     },
@@ -103,6 +105,7 @@ export default async function PortalPage() {
       select: {
         id: true,
         colaboradorId: true,
+        empresaId: true,
         tipoAvaliador: true,
         status: true,
         potencial: true,
@@ -115,6 +118,32 @@ export default async function PortalPage() {
       },
     }),
   ]);
+
+  // Gerente monta a própria lista de avaliados: precisa de um ciclo aberto na
+  // empresa e da lista de quem pode entrar. Para quem não é gerente nada disso
+  // é consultado — é a maioria das entradas no portal.
+  const [cicloAberto, colegas] = colaborador.gerente
+    ? await Promise.all([
+        prisma.cicloAvaliacao.findFirst({
+          where: { empresaId: colaborador.empresaId, encerrado: false },
+          orderBy: { dataInicio: "desc" },
+          select: { nome: true, dataFim: true },
+        }),
+        // Todas as empresas do grupo, não só a dele: aqui a chefia cruza CNPJ
+        // (gerente da BR SISTEMAS responde por gente da LM SISTEMAS). São nome,
+        // setor e empresa — nada de CPF, salário ou documento.
+        prisma.colaborador.findMany({
+          where: { ativo: true, id: { not: colaborador.id } },
+          orderBy: { nome: "asc" },
+          select: {
+            id: true,
+            nome: true,
+            setor: { select: { nome: true } },
+            empresa: { select: { nome: true } },
+          },
+        }),
+      ])
+    : [null, []];
 
   const resumoFerias = colaborador.dataAdmissao
     ? calcularFerias(
@@ -130,6 +159,23 @@ export default async function PortalPage() {
       documentos={documentos}
       ausencias={ausencias}
       resumoFerias={resumoFerias}
+      equipe={
+        colaborador.gerente
+          ? {
+              cicloAberto: cicloAberto?.nome ?? null,
+              // Quem já está na lista dele sai do seletor: incluir de novo só
+              // devolveria "já está na sua lista".
+              candidatos: colegas
+                .filter((c) => !avaliacoes.some((a) => a.colaboradorId === c.id))
+                .map((c) => ({
+                  id: c.id,
+                  nome: c.nome,
+                  setor: c.setor.nome,
+                  empresa: c.empresa.nome,
+                })),
+            }
+          : null
+      }
       avaliacoes={avaliacoes.map((a) => ({
         id: a.id,
         tipoAvaliador: a.tipoAvaliador,

@@ -101,6 +101,7 @@ type Colaborador = {
   // Usados pelo filtro ?lacuna=; vêm do include da página.
   salarioBase: unknown | null;
   dataAdmissao: Date | string | null;
+  gerente: boolean;
   ativo: boolean;
   empresaId: string;
   empresa: Empresa;
@@ -752,6 +753,7 @@ function ColaboradorForm({
   const [setorId, setSetorId] = useState(defaultValues?.setorId ?? "");
   const [posicaoId, setPosicaoId] = useState(defaultValues?.posicaoId ?? "");
   const [supervisorId, setSupervisorId] = useState(defaultValues?.supervisorId ?? "");
+  const [gerente, setGerente] = useState(defaultValues?.gerente ?? false);
   const [ativo, setAtivo] = useState(defaultValues?.ativo ?? true);
 
   // Ativos, sem a própria pessoa (na edição) e sem quem já reporta a ela —
@@ -762,6 +764,7 @@ function ColaboradorForm({
   );
 
   const [state, formAction, isPending] = useActionState(async (prev: ActionResult, fd: FormData) => {
+    fd.set("gerente", gerente ? "true" : "false");
     fd.set("ativo", ativo ? "true" : "false");
     const result = await action(prev, fd);
     if (result.ok) {
@@ -861,6 +864,19 @@ function ColaboradorForm({
           Necessário para enviar o convite da pesquisa pelo Telegram. Preenchido
           automaticamente quando o colaborador dá /start no bot e compartilha o número —
           só edite aqui em caso de exceção.
+        </p>
+      </div>
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <Checkbox id="gerente" checked={gerente} onCheckedChange={(v) => setGerente(v === true)} />
+          <Label htmlFor="gerente" className="font-normal">
+            É gerente — avalia a equipe
+          </Label>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Quem estiver marcado monta a própria lista de avaliados no portal, durante o ciclo de
+          avaliação. É diferente de &quot;Reporta a&quot;: aqui quem avalia é o gerente, que costuma
+          ter mais gente do que o organograma mostra.
         </p>
       </div>
       <div className="flex items-center gap-2">
