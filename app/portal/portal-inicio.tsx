@@ -1,11 +1,12 @@
 "use client";
 
-import { CalendarDays, FileText, LogOut, PencilLine, Stethoscope, Upload, User } from "lucide-react";
+import { CalendarDays, FileText, LogOut, PencilLine, Star, Stethoscope, Upload, User } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MeuCadastro, EnviarDocumento } from "./meu-cadastro";
+import { MinhasAvaliacoes, type MinhaAvaliacao } from "./minhas-avaliacoes";
 import { sairDoPortal } from "@/lib/actions/portal";
 import { formatarTamanho } from "@/lib/anexos";
 // Mesma máscara usada na listagem interna — o portal confirma identidade,
@@ -91,13 +92,16 @@ export function PortalInicio({
   documentos,
   ausencias,
   resumoFerias,
+  avaliacoes,
 }: {
   colaborador: Colaborador;
   ferias: Ferias[];
   documentos: Documento[];
   ausencias: Ausencia[];
   resumoFerias: ResumoFerias | null;
+  avaliacoes: MinhaAvaliacao[];
 }) {
+  const avaliacoesPendentes = avaliacoes.filter((a) => a.status !== "CONCLUIDA").length;
   // O que ainda falta na ficha. Serve de convite: um número concreto puxa mais
   // preenchimento que um formulário mudo.
   const camposFaltando = [
@@ -129,8 +133,22 @@ export function PortalInicio({
         />
       </div>
 
-      <Tabs defaultValue="atualizar">
+      {/* Avaliação em aberto manda na aba inicial: é tarefa com prazo, vinda de
+          um convite que a pessoa acabou de receber. Passado o ciclo, a tela
+          volta a abrir em "Atualizar". */}
+      <Tabs defaultValue={avaliacoesPendentes > 0 ? "avaliacao" : "atualizar"}>
         <TabsList variant="line" className="w-full">
+          {avaliacoes.length > 0 && (
+            <TabsTrigger value="avaliacao">
+              <Star />
+              Avaliação
+              {avaliacoesPendentes > 0 && (
+                <Badge variant="destructive" className="ml-1 px-1.5 tabular-nums">
+                  {avaliacoesPendentes}
+                </Badge>
+              )}
+            </TabsTrigger>
+          )}
           {/* "Atualizar" primeiro e como padrão: hoje o que o RH precisa de
               cada pessoa é a ficha completa, e a aba que abre é a que é usada.
               Férias fica por último — é consulta, não tarefa pendente. */}
@@ -155,6 +173,12 @@ export function PortalInicio({
             Férias
           </TabsTrigger>
         </TabsList>
+
+        {avaliacoes.length > 0 && (
+          <TabsContent value="avaliacao" className="pt-4">
+            <MinhasAvaliacoes avaliacoes={avaliacoes} />
+          </TabsContent>
+        )}
 
         <TabsContent value="ferias" className="space-y-4 pt-4">
           <Card>

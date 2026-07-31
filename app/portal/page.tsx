@@ -58,7 +58,7 @@ export default async function PortalPage() {
     return <ConfirmarCpf primeiroNome={colaborador.nome.split(" ")[0]} />;
   }
 
-  const [ferias, documentos, ausencias] = await Promise.all([
+  const [ferias, documentos, ausencias, avaliacoes] = await Promise.all([
     prisma.solicitacaoFerias.findMany({
       where: { colaboradorId: colaborador.id },
       orderBy: { dataInicio: "desc" },
@@ -91,6 +91,29 @@ export default async function PortalPage() {
       take: 10,
       select: { id: true, tipo: true, dataInicio: true, dataFim: true, dias: true, status: true },
     }),
+    // O que ESTA pessoa tem para responder: a própria autoavaliação e, se for
+    // gestor (ou tiver sido escolhida como par/subordinado), as dos outros.
+    // Filtra por `avaliadorId` — nunca por colaboradorId, que traria de volta o
+    // que o chefe escreveu sobre ela.
+    prisma.avaliacaoDesempenho.findMany({
+      where: { avaliadorId: colaborador.id, ciclo: { encerrado: false } },
+      // Ordem de exibição é decidida na tela (pendente, depois a própria, depois
+      // por nome); aqui só um critério estável para a lista não dançar.
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true,
+        colaboradorId: true,
+        tipoAvaliador: true,
+        status: true,
+        potencial: true,
+        pontosFortes: true,
+        pontosDesenvolvimento: true,
+        comentarios: true,
+        colaborador: { select: { nome: true } },
+        ciclo: { select: { nome: true, dataFim: true } },
+        notas: { select: { competencia: true, nota: true } },
+      },
+    }),
   ]);
 
   const resumoFerias = colaborador.dataAdmissao
@@ -107,6 +130,19 @@ export default async function PortalPage() {
       documentos={documentos}
       ausencias={ausencias}
       resumoFerias={resumoFerias}
+      avaliacoes={avaliacoes.map((a) => ({
+        id: a.id,
+        tipoAvaliador: a.tipoAvaliador,
+        status: a.status,
+        potencial: a.potencial,
+        pontosFortes: a.pontosFortes,
+        pontosDesenvolvimento: a.pontosDesenvolvimento,
+        comentarios: a.comentarios,
+        avaliado: a.colaborador.nome,
+        souEu: a.colaboradorId === colaborador.id,
+        ciclo: a.ciclo,
+        notas: a.notas,
+      }))}
     />
   );
 }
