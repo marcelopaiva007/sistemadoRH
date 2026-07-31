@@ -86,6 +86,16 @@ const norm = (s: string) =>
     .replace(/[^A-Z0-9]+/g, " ")
     .trim();
 
+// A planilha chama de "RSM CONSULTORIA ..." o que no cadastro é RSM TELECOM
+// LTDA — mesma empresa, nome antigo. Confirmado por Marcelo em 31/07/2026.
+// Casa por prefixo porque a planilha varia o sufixo ("EM TECNOLOGIA LTDA",
+// "ESTAGIO", nada).
+const APELIDOS: [string, string][] = [["RSM CONSULTORIA", "RSM TELECOM LTDA"]];
+const aplicarApelido = (bruto: string) => {
+  const n = norm(bruto);
+  return APELIDOS.find(([de]) => n.startsWith(de))?.[1] ?? bruto;
+};
+
 async function main() {
   const todosRegs: Reg[] = JSON.parse(readFileSync(ORIGEM, "utf8"));
   const foraDoAno = todosRegs.filter((r) => !r.demissao?.startsWith(ANO));
@@ -109,8 +119,8 @@ async function main() {
   const regs = [...porPessoa.values()];
 
   const empresas = await prisma.empresa.findMany({ select: { id: true, nome: true } });
-  const acharEmpresa = (bruto: string) => {
-    const n = norm(bruto);
+  const acharEmpresa = (original: string) => {
+    const n = norm(aplicarApelido(original));
     return (
       empresas.find((e) => norm(e.nome) === n) ??
       empresas.find((e) => norm(e.nome).startsWith(n) || n.startsWith(norm(e.nome)))

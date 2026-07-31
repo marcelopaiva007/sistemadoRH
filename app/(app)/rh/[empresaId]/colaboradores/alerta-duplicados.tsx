@@ -14,6 +14,7 @@ type Colaborador = {
   cpf: string | null;
   telefone: string | null;
   ativo: boolean;
+  empresaId: string;
   setor: { nome: string };
 };
 
@@ -34,6 +35,14 @@ export function AlertaDuplicados({ empresaId, colaboradores }: { empresaId: stri
       .map((c) => ({ id: c.id, nome: c.nome, telefone: c.telefone, cpf: c.cpf, setorNome: c.setor.nome }));
     return encontrarDuplicados(ativos);
   }, [colaboradores]);
+
+  // A ficha é escopada à empresa da rota, e a lista mistura marcas: o link tem
+  // de apontar para a empresa do próprio colaborador, senão dá 404. O mapa
+  // existe porque PessoaParaComparar não carrega empresaId.
+  const empresaDoColaborador = useMemo(
+    () => new Map(colaboradores.map((c) => [c.id, c.empresaId])),
+    [colaboradores],
+  );
 
   if (grupos.length === 0) return null;
 
@@ -71,7 +80,7 @@ export function AlertaDuplicados({ empresaId, colaboradores }: { empresaId: stri
                   {g.pessoas.map((p) => (
                     <li key={p.id} className="flex flex-wrap items-center gap-2">
                       <Link
-                        href={`/rh/${empresaId}/colaboradores/${p.id}`}
+                        href={`/rh/${empresaDoColaborador.get(p.id) ?? empresaId}/colaboradores/${p.id}`}
                         className="font-medium hover:underline"
                       >
                         {p.nome}

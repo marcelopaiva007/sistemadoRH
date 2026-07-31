@@ -543,7 +543,10 @@ export function ColaboradoresTable({
               <TableRow key={c.id} className="group">
                 <TableCell className="py-2">
                   <Link
-                    href={`/rh/${empresaId}/colaboradores/${c.id}`}
+                    // A lista traz colaboradores de TODAS as marcas visíveis ao
+                    // usuário, mas a ficha é escopada à empresa da rota. Usar o
+                    // empresaId da URL aqui dava 404 em quem é de outra empresa.
+                    href={`/rh/${c.empresaId}/colaboradores/${c.id}`}
                     className="flex items-center gap-3 outline-none focus-visible:ring-2 focus-visible:ring-ring/40 rounded-md"
                   >
                     <AvatarIniciais nome={c.nome} id={c.id} ativo={c.ativo} />
@@ -607,8 +610,10 @@ export function ColaboradoresTable({
                     <Button variant="ghost" size="icon" onClick={() => setEditColaborador(c)} title="Editar">
                       <Pencil className="size-4" />
                     </Button>
-                    <AtivarDesativarButton empresaId={empresaId} id={c.id} ativo={c.ativo} />
-                    <DeleteColaboradorButton empresaId={empresaId} colaborador={c} />
+                    {/* Mesma razão do link acima: a ação tem de ir para a
+                        empresa do colaborador, não para a da rota. */}
+                    <AtivarDesativarButton empresaId={c.empresaId} id={c.id} ativo={c.ativo} />
+                    <DeleteColaboradorButton empresaId={c.empresaId} colaborador={c} />
                   </div>
                 </TableCell>
               </TableRow>
@@ -661,7 +666,7 @@ export function ColaboradoresTable({
         <DialogContent>
           {editColaborador && (
             <ColaboradorForm
-              action={updateColaborador.bind(null, empresaId, editColaborador.id)}
+              action={updateColaborador.bind(null, editColaborador.empresaId, editColaborador.id)}
               title="Editar Colaborador"
               setores={setoresFiltrados}
               posicoes={posicoesFiltradas}
