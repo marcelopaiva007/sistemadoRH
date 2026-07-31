@@ -110,13 +110,25 @@ export function ArvoreVisual({
   );
 }
 
-// Acima disto, os filhos empilham na vertical em vez de ficar lado a lado.
+// Acima disto, os filhos saem do desenho clássico lado a lado.
 //
-// A hierarquia real é rasa e larga: um supervisor com 30 subordinados diretos
-// vira 30 caixas em linha, e a árvore passou de 34.000px — ninguém acha ninguém
-// rolando isso. Empilhar troca largura impossível por altura rolável, que é a
-// direção em que a tela já rola.
-const MAX_LADO_A_LADO = 4;
+// A hierarquia real é rasa e larga: dois supervisores concentram 109 das 166
+// pessoas. Com todos em linha a árvore passava de 34.000px — ninguém acha
+// ninguém rolando isso.
+//
+// O 3 não é gosto: medindo a distribuição real de subordinados diretos
+// ([1,1,2,2,2,2,3,3,3,4,4,6,6,7,8,52,57]), é o maior limite que mantém o
+// desenho dentro da largura da tela (1072px), acabando com a rolagem
+// horizontal. Subir para 4 custa 1304px e economiza 6 linhas; 6 custa 2184px
+// e economiza 11. Nenhum dos dois paga.
+const MAX_LADO_A_LADO = 3;
+
+// Grupo grande de FOLHAS vira grade em vez de coluna única.
+//
+// Quem não tem ninguém abaixo não precisa de espaço vertical para a própria
+// subárvore — e é o caso de 57 de 57 e 47 de 52 nos dois grupos gigantes.
+// Empilhar essa gente em coluna única gerava 12.400px de altura à toa.
+const COLUNAS_FOLHAS = 3;
 
 function Ramo({ empresaId, no }: { empresaId: string; no: NoArvore }) {
   const [aberto, setAberto] = useState(true);
@@ -173,12 +185,38 @@ function Ramo({ empresaId, no }: { empresaId: string; no: NoArvore }) {
           {/* Tronco: começa no topo e morre na altura do último L, para não
               sobrar linha solta abaixo do último filho. */}
           <div className="absolute bottom-[3.25rem] left-0 top-0 w-px bg-border" />
-          {no.filhos.map((filho) => (
-            <div key={filho.id} className="relative py-1.5">
-              <div className="absolute left-[-1.5rem] top-[2.25rem] h-px w-6 bg-border" />
-              <Ramo empresaId={empresaId} no={filho} />
-            </div>
-          ))}
+
+          {/* Quem tem equipe embaixo vai um por linha: precisa da altura da
+              própria subárvore. */}
+          {no.filhos
+            .filter((f) => f.filhos.length > 0)
+            .map((filho) => (
+              <div key={filho.id} className="relative py-1.5">
+                <div className="absolute left-[-1.5rem] top-[2.25rem] h-px w-6 bg-border" />
+                <Ramo empresaId={empresaId} no={filho} />
+              </div>
+            ))}
+
+          {/* Folhas em grade — nada pendura embaixo delas. */}
+          {(() => {
+            const folhas = no.filhos.filter((f) => f.filhos.length === 0);
+            if (folhas.length === 0) return null;
+            return (
+              <div className="relative py-1.5">
+                <div className="absolute left-[-1.5rem] top-[2.25rem] h-px w-6 bg-border" />
+                <div
+                  className="grid gap-2"
+                  // 13rem é a largura da caixa (w-52). Coluna fluida brigaria
+                  // com ela e desalinharia a grade.
+                  style={{ gridTemplateColumns: `repeat(${COLUNAS_FOLHAS}, 13rem)` }}
+                >
+                  {folhas.map((f) => (
+                    <Caixa key={f.id} empresaId={empresaId} no={f} total={0} aberto />
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
     </div>
