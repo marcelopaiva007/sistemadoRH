@@ -55,10 +55,13 @@ if (!process.env.DATABASE_URL) {
 // aplicada no banco do .env local, enquanto o build olhava outro DATABASE_URL.
 // Dois ambientes discordando sobre qual banco é "o banco" só se diagnostica
 // com o host na cara.
+// Defangado (ponto vira "[.]") de propósito: o log da Vercel redige qualquer
+// linha que contenha substring do valor de uma env sensível — o host cru some
+// como "Sensitive Environment Variable Redacted" e o diagnóstico morre.
 function ondeEstouOlhando() {
   try {
     const u = new URL(process.env.DATABASE_URL);
-    return `${u.hostname}${u.pathname}`;
+    return `${u.hostname}${u.pathname}`.replaceAll(".", "[.]");
   } catch {
     return "(DATABASE_URL nao e uma URL valida)";
   }
