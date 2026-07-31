@@ -84,7 +84,8 @@ export async function resumoDaEmpresa(empresaId: string): Promise<ResumoDashboar
 }
 
 export type LacunaDaBase = {
-  chave: string;
+  /** Também é o valor de ?lacuna= na lista de colaboradores. */
+  chave: "salario" | "admissao" | "setor" | "cpf" | "telegram";
   rotulo: string;
   faltando: number;
   /** O que deixa de funcionar enquanto este campo estiver vazio. */

@@ -1,8 +1,9 @@
 "use client";
 
 import { useActionState, useMemo, useState, useEffect } from "react";
-import { useFiltroEmpresas } from "../filtro-empresas";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { useFiltroEmpresas } from "../filtro-empresas";
 import { toast } from "sonner";
 import {
   ArrowDown,
@@ -65,6 +66,27 @@ import { formatarCpf, mascararCpf } from "@/lib/cpf";
 import type { ActionResult } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
+// Rótulos das lacunas — os mesmos textos do bloco na tela inicial, para quem
+// clica reconhecer onde chegou.
+const ROTULO_LACUNA: Record<string, string> = {
+  salario: "sem salário na ficha",
+  admissao: "sem data de admissão",
+  setor: "sem setor definido",
+  cpf: "sem CPF",
+  telegram: "sem Telegram vinculado",
+};
+
+function temLacuna(c: { salarioBase: unknown | null; dataAdmissao: unknown; cpf: string | null; telegramChatId: string | null; setor: { nome: string } }, chave: string): boolean {
+  switch (chave) {
+    case "salario": return c.salarioBase === null || c.salarioBase === undefined;
+    case "admissao": return !c.dataAdmissao;
+    case "cpf": return !c.cpf;
+    case "telegram": return !c.telegramChatId;
+    case "setor": return c.setor.nome.trim().toLowerCase() === "não definido";
+    default: return true;
+  }
+}
+
 type Empresa = { id: string; nome: string };
 type Setor = { id: string; nome: string; empresaId: string };
 type Posicao = { id: string; nome: string; empresaId: string };
@@ -76,6 +98,9 @@ type Colaborador = {
   telefone: string | null;
   telegramChatId: string | null;
   supervisorId: string | null;
+  // Usados pelo filtro ?lacuna=; vêm do include da página.
+  salarioBase: unknown | null;
+  dataAdmissao: Date | string | null;
   ativo: boolean;
   empresaId: string;
   empresa: Empresa;
@@ -307,6 +332,11 @@ export function ColaboradoresTable({
   const [filtroSetor, setFiltroSetor] = useState("todos");
   const [filtroPosicao, setFiltroPosicao] = useState("todos");
   const [filtroStatus, setFiltroStatus] = useState("ativos");
+
+  // ?lacuna= vem do bloco "Preenchimento da base" da tela inicial: o número
+  // ali vira esta lista, já isolada em quem tem o campo vazio. Sem isto o
+  // bloco apontava o problema e escondia quem era.
+  const lacuna = useSearchParams().get("lacuna");
   const [ordem, setOrdem] = useState<{ campo: CampoOrdenavel; desc: boolean }>({
     campo: "nome",
     desc: false,
@@ -331,6 +361,7 @@ export function ColaboradoresTable({
       if (filtroStatus === "inativos" && c.ativo) return false;
       if (filtroSetor !== "todos" && c.setorId !== filtroSetor) return false;
       if (filtroPosicao !== "todos" && c.posicaoId !== filtroPosicao) return false;
+      if (lacuna && !temLacuna(c, lacuna)) return false;
       if (!termo) return true;
       return (
         c.nome.toLowerCase().includes(termo) ||
@@ -349,7 +380,7 @@ export function ColaboradoresTable({
       const r = valor(a).localeCompare(valor(b), "pt-BR", { sensitivity: "base" });
       return ordem.desc ? -r : r;
     });
-  }, [colaboradoresFiltrados, busca, filtroSetor, filtroPosicao, filtroStatus, ordem]);
+  }, [colaboradoresFiltrados, busca, filtroSetor, filtroPosicao, filtroStatus, ordem, lacuna]);
 
   const totalPaginas = Math.max(1, Math.ceil(filtrados.length / POR_PAGINA));
   // Mudar filtro pode encolher a lista para menos páginas do que a atual;
@@ -435,6 +466,26 @@ export function ColaboradoresTable({
 
       {/* Filtros numa faixa separada — barra de busca em destaque, secundários
           em selects compactos; tudo num bloco que se lê como "filtre aqui". */}
+      {/* Chegou pelo bloco "Preenchimento da base": diz em que lista a pessoa
+          caiu e como sair dela — sem isso o filtro fica invisível e a lista
+          parece só estar faltando gente. */}
+      {lacuna && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
+          <span>
+            Mostrando apenas quem está{" "}
+            <strong>{ROTULO_LACUNA[lacuna] ?? lacuna}</strong> —{" "}
+            <span className="tabular-nums">{filtrados.length}</span>{" "}
+            {filtrados.length === 1 ? "pessoa" : "pessoas"}.
+          </span>
+          <Link
+            href={`/rh/${empresaId}/colaboradores`}
+            className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+          >
+            Ver todos
+          </Link>
+        </div>
+      )}
+
       <div className="rounded-xl border bg-card p-3 shadow-xs">
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative min-w-0 flex-1 sm:max-w-xs">
