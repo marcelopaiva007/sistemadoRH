@@ -22,12 +22,32 @@ import { prisma } from "../lib/prisma";
 
 const GRAVAR = process.argv.includes("--gravar");
 
-// Quem ainda consta ATIVO não é desativado por esta importação. Desativar quem
-// ainda trabalha tem consequência real — some das listas, para de receber
-// convite e pesquisa — e a planilha diverge do sistema justamente nesses dois:
-// um deles aparece em demanda com prazo posterior à suposta demissão. Fica para
-// o RH confirmar caso a caso.
-const PRESERVAR_ATIVOS = true;
+// REGRA DE READMISSÃO — o motivo de existir.
+//
+// Importação retroativa vê uma demissão e quer desligar a pessoa. Só que gente
+// sai e volta: quem foi readmitido depois daquela data está trabalhando hoje, e
+// desligá-la some das listas, corta convite e corta pesquisa de alguém que está
+// no posto. Por isso a saída é sempre comparada com a entrada.
+//
+// Duas formas de detectar, porque o cadastro nem sempre acompanha:
+//
+//  1. dataAdmissao posterior à demissão da planilha — readmissão registrada.
+//  2. colaborador ATIVO no sistema — na prática, está trabalhando. Vale mesmo
+//     com admissão antiga: em 31/07/2026 um dos dois casos tinha voltado sem
+//     que ninguém atualizasse a data, e ele ainda exibia a admissão de 2022.
+//
+// O modelo não guarda histórico de vínculos: há um dataAdmissao e um
+// dataDesligamento, só. Para quem voltou, gravar o desligamento antigo
+// apagaria o vínculo atual — então o desligamento histórico é descartado, e
+// fica registrado no relatório em vez de no banco.
+function foiReadmitido(
+  atual: { ativo: boolean; dataAdmissao: Date | null },
+  demissaoPlanilha: string | null,
+): boolean {
+  if (atual.ativo) return true;
+  if (!atual.dataAdmissao || !demissaoPlanilha) return false;
+  return atual.dataAdmissao.toISOString().slice(0, 10) > demissaoPlanilha;
+}
 const ORIGEM = String.raw`C:\Users\User\AppData\Local\Temp\claude\C--LM-Claude\a4532e4d-b800-4386-a837-fa2b3ec6867b\scratchpad\demitidos.json`;
 
 type Reg = { linha: number; nome: string; cpf: string; empresa: string; demissao: string | null };
@@ -65,7 +85,7 @@ async function main() {
 
   const existentes = await prisma.colaborador.findMany({
     where: { cpf: { in: alvos.map((a) => a.cpf).filter(Boolean) } },
-    select: { id: true, cpf: true, nome: true, ativo: true, dataDesligamento: true },
+    select: { id: true, cpf: true, nome: true, ativo: true, dataAdmissao: true, dataDesligamento: true },
   });
   const porCpf = new Map(existentes.map((e) => [e.cpf!, e]));
 
@@ -118,10 +138,11 @@ async function main() {
   let preservados = 0;
   for (const b of baixas) {
     const atual = porCpf.get(b.cpf)!;
-    const preservado = PRESERVAR_ATIVOS && atual.ativo;
-    const precisa = !preservado && (atual.ativo || !atual.dataDesligamento);
-    const situacao = preservado
-      ? "  <- PRESERVADO (ainda ativo, confirmar com o RH)"
+    const readmitido = foiReadmitido(atual, b.demissao);
+    const precisa = !readmitido && !atual.dataDesligamento;
+    const admissao = atual.dataAdmissao?.toISOString().slice(0, 10);
+    const situacao = readmitido
+      ? `  <- READMITIDO (${admissao ? `admissao ${admissao}` : "ativo hoje"}), desligamento historico descartado`
       : precisa
         ? ""
         : "  (nada a fazer)";
@@ -130,7 +151,7 @@ async function main() {
         ` desligamento=${atual.dataDesligamento?.toISOString().slice(0, 10) ?? "(vazio)"}` +
         ` -> ${b.demissao}${situacao}`,
     );
-    if (preservado) preservados++;
+    if (readmitido) preservados++;
     if (!precisa) continue;
     alterados++;
     if (GRAVAR) {
@@ -147,7 +168,7 @@ async function main() {
   console.log(`\n=== RESUMO ===`);
   console.log(`  Criar:              ${novos.length}`);
   console.log(`  Atualizar:          ${alterados}`);
-  console.log(`  Preservados (ativos): ${preservados}`);
+  console.log(`  Readmitidos (preservados): ${preservados}`);
   console.log(`  Sem alteração:      ${baixas.length - alterados - preservados}`);
   console.log(`  Ignorados:          ${ignorados.length}`);
   console.log(GRAVAR ? "\nAplicado." : "\nNada foi gravado.");
