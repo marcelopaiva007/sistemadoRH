@@ -5,7 +5,7 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/auth-guard";
+import { requireGestaoUsuarios } from "@/lib/auth-guard";
 import { auth } from "@/auth";
 import { sendEmail } from "@/lib/email";
 import { registrarAuditoria, diffCampos } from "@/lib/audit";
@@ -76,7 +76,7 @@ function hashToken(token: string): string {
 }
 
 export async function createUsuario(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
-  const admin = await requireAdmin();
+  const admin = await requireGestaoUsuarios();
 
   const senha = String(formData.get("senha") ?? "");
   if (senha.length < 8) return { ok: false, error: "A senha deve ter pelo menos 8 caracteres." };
@@ -151,7 +151,7 @@ export async function createUsuario(_prev: ActionResult, formData: FormData): Pr
 }
 
 export async function updateUsuario(id: string, _prev: ActionResult, formData: FormData): Promise<ActionResult> {
-  await requireAdmin();
+  await requireGestaoUsuarios();
 
   const parsed = editarSchema.safeParse({
     nome: formData.get("nome"),
@@ -212,7 +212,7 @@ export async function updateUsuario(id: string, _prev: ActionResult, formData: F
 }
 
 export async function resetSenhaUsuario(id: string, _prev: ActionResult, formData: FormData): Promise<ActionResult> {
-  await requireAdmin();
+  await requireGestaoUsuarios();
 
   const senha = String(formData.get("senha") ?? "");
   if (senha.length < 8) return { ok: false, error: "A senha deve ter pelo menos 8 caracteres." };
@@ -236,7 +236,7 @@ export async function resetSenhaUsuario(id: string, _prev: ActionResult, formDat
 }
 
 export async function deleteUsuario(id: string): Promise<ActionResult> {
-  const admin = await requireAdmin();
+  const admin = await requireGestaoUsuarios();
   if (admin.id === id) {
     return { ok: false, error: "Você não pode excluir seu próprio usuário." };
   }
@@ -281,7 +281,7 @@ export async function deleteUsuario(id: string): Promise<ActionResult> {
 }
 
 export async function vincularEmpresaUsuario(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
-  await requireAdmin();
+  await requireGestaoUsuarios();
 
   const parsed = vincularSchema.safeParse({
     userId: formData.get("userId"),
@@ -350,7 +350,7 @@ export async function vincularEmpresaUsuario(_prev: ActionResult, formData: Form
 }
 
 export async function desativarVinculoUsuario(userId: string, empresaId: string): Promise<ActionResult> {
-  await requireAdmin();
+  await requireGestaoUsuarios();
 
   const vinculo = await prisma.userEmpresa.findUnique({
     where: { userId_empresaId: { userId, empresaId } },
@@ -384,7 +384,7 @@ export async function desativarVinculoUsuario(userId: string, empresaId: string)
 }
 
 export async function reativarVinculoUsuario(userId: string, empresaId: string): Promise<ActionResult> {
-  await requireAdmin();
+  await requireGestaoUsuarios();
 
   const vinculo = await prisma.userEmpresa.findUnique({
     where: { userId_empresaId: { userId, empresaId } },
@@ -434,7 +434,7 @@ const conviteSchema = z.object({
 });
 
 export async function criarConviteUsuario(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
-  await requireAdmin();
+  await requireGestaoUsuarios();
 
   const parsed = conviteSchema.safeParse({
     email: formData.get("email"),

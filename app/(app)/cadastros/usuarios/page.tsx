@@ -1,9 +1,9 @@
-import { requireAdmin } from "@/lib/auth-guard";
+import { requireGestaoUsuarios } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { UsuariosTable } from "./usuarios-table";
 
 export default async function UsuariosPage() {
-  const admin = await requireAdmin();
+  const admin = await requireGestaoUsuarios();
 
   const [usuarios, empresas, setores] = await Promise.all([
     prisma.user.findMany({

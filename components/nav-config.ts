@@ -17,7 +17,9 @@ const usuariosItem: NavItem = { href: "/usuarios", label: "Usuários", icon: Use
 const meuSetorItem: NavItem = { href: "/rh/meu-setor", label: "Meu Setor", icon: HeartHandshake };
 
 export const adminNav: NavItem[] = [inicioItem, usuariosItem];
-export const diretoriaNav: NavItem[] = [inicioItem];
+// Diretoria também gere usuários desde 31/07/2026 — ver requireGestaoUsuarios
+// em lib/auth-guard.ts. Sem o item aqui a permissão existiria sem caminho.
+export const diretoriaNav: NavItem[] = [inicioItem, usuariosItem];
 
 // Lookup por role — RH_MANAGER/GESTOR_SETOR têm navegação própria e enxuta.
 export const navByRole: Record<string, NavItem[]> = {
