@@ -268,7 +268,7 @@ export async function executarFerramenta(
     }
 
     case "pendencias_da_empresa":
-      return { ...(await pendenciasDaEmpresa(empresaId)) };
+      return { ...(await pendenciasDaEmpresa([empresaId])) };
 
     case "vagas_e_candidatos": {
       const vagas = await prisma.vaga.findMany({

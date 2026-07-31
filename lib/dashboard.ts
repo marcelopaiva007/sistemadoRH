@@ -21,7 +21,10 @@ export type ResumoDashboard = {
  * gráfico; a inicial precisa só do total, e é a tela que abre a cada login.
  * Trocar isso por findMany traria de volta a lentidão que acabamos de tirar.
  */
-export async function resumoDaEmpresa(empresaId: string): Promise<ResumoDashboard> {
+// Recebe os CNPJs da marca (ver lib/escopo-marca.ts), não um só: a tela
+// inicial é da marca inteira.
+export async function resumoDaEmpresa(empresaIds: string[]): Promise<ResumoDashboard> {
+  const empresaId = { in: empresaIds };
   const hoje = hojeUTC();
   const inicio12m = somarMesesUTC(hoje, -12);
   const inicio30d = somarDiasUTC(hoje, -30);
@@ -106,11 +109,11 @@ export type LacunaDaBase = {
  *
  * Só `count`, como o resto desta tela — ela abre a cada login.
  */
-export async function lacunasDaBase(empresaId: string): Promise<{
+export async function lacunasDaBase(empresaIds: string[]): Promise<{
   ativos: number;
   lacunas: LacunaDaBase[];
 }> {
-  const base = { empresaId, ativo: true };
+  const base = { empresaId: { in: empresaIds }, ativo: true };
   const [ativos, semSalario, semAdmissao, semCpf, semTelegram, semSetor] = await Promise.all([
     prisma.colaborador.count({ where: base }),
     prisma.colaborador.count({ where: { ...base, salarioBase: null } }),

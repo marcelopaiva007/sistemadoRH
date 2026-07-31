@@ -2,6 +2,7 @@ import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { DIAS_ALERTA_VENCIMENTO } from "@/lib/constants-dp";
 import { pendenciasDaEmpresa } from "@/lib/pendencias";
 import { resumoDaEmpresa, lacunasDaBase } from "@/lib/dashboard";
+import { empresasDaMesmaMarca } from "@/lib/escopo-marca";
 import { DashboardEmpresa } from "./dashboard-empresa";
 import { PendenciasView } from "./pendencias-view";
 import { LacunasView } from "./lacunas-view";
@@ -20,10 +21,15 @@ export default async function InicioDaEmpresaPage({
   const { empresaId } = await params;
   await requireEmpresaAccess(empresaId);
 
+  // A tela é da MARCA, como o organograma: contar só o CNPJ do endereço
+  // mostrava um pedaço e escondia o resto sem avisar — 13 sem Telegram na RSM
+  // quando o grupo tinha 93.
+  const empresas = await empresasDaMesmaMarca(empresaId);
+
   const [resumo, pendencias, base] = await Promise.all([
-    resumoDaEmpresa(empresaId),
-    pendenciasDaEmpresa(empresaId),
-    lacunasDaBase(empresaId),
+    resumoDaEmpresa(empresas),
+    pendenciasDaEmpresa(empresas),
+    lacunasDaBase(empresas),
   ]);
 
   return (
@@ -32,7 +38,12 @@ export default async function InicioDaEmpresaPage({
       <PendenciasView empresaId={empresaId} pendencias={pendencias} diasAlerta={DIAS_ALERTA_VENCIMENTO} />
       {/* Por último: pendência é o que exige ação HOJE; preenchimento da base
           é o trabalho de fundo que faz os módulos valerem. */}
-      <LacunasView empresaId={empresaId} ativos={base.ativos} lacunas={base.lacunas} />
+      <LacunasView
+        empresaId={empresaId}
+        empresasDaMarca={empresas}
+        ativos={base.ativos}
+        lacunas={base.lacunas}
+      />
     </div>
   );
 }

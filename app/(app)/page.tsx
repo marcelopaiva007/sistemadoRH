@@ -42,7 +42,7 @@ export default async function HomePage() {
         prisma.checklistIntegracao.count({
           where: { empresaId: empresa.id, concluido: false, colaborador: { ativo: true } },
         }),
-        pendenciasDaEmpresa(empresa.id),
+        pendenciasDaEmpresa([empresa.id]),
       ]);
       return { empresa, ativos, vagasAbertas, integracoesAbertas, pendencias };
     }),

@@ -16,10 +16,13 @@ import type { LacunaDaBase } from "@/lib/dashboard";
  */
 export function LacunasView({
   empresaId,
+  empresasDaMarca,
   ativos,
   lacunas,
 }: {
   empresaId: string;
+  /** CNPJs contados aqui — vão no link para a lista bater com o número. */
+  empresasDaMarca: string[];
   ativos: number;
   lacunas: LacunaDaBase[];
 }) {
@@ -81,7 +84,10 @@ export function LacunasView({
                 // apontava o problema e escondia quem era.
                 <li key={l.chave}>
                   <Link
-                    href={`/rh/${empresaId}/colaboradores?lacuna=${l.chave}`}
+                    // Leva o escopo junto: a contagem é da marca, mas a lista
+                    // de colaboradores mostra todas as empresas que o usuário
+                    // enxerga. Sem isto o número não bateria com a tela.
+                    href={`/rh/${empresaId}/colaboradores?empresas=${empresasDaMarca.join(",")}&lacuna=${l.chave}`}
                     className="group block space-y-1 rounded-md px-2 py-1.5 -mx-2 transition-colors hover:bg-accent/50"
                   >
                   <div className="flex flex-wrap items-baseline justify-between gap-x-3 text-sm">
