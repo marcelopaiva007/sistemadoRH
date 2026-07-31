@@ -88,15 +88,31 @@ async function criarPessoas(
 ) {
   console.log(`\n--- ${rotulo}: ${pessoas.length} pessoa(s) ---`);
   const est = await estruturaDe(empresaId);
+  // Existência conferida no sistema INTEIRO, não só na empresa de destino.
+  // Restringir a busca a `empresaId` foi o que criou 6 duplicatas em
+  // 31/07/2026: os 4 da Mobility Tech já estavam na VAPT e os 2 estagiários na
+  // RSM, e em vez de moverem-se ganharam registro novo. Quem já existe é
+  // MOVIDO; só quem não existe em lugar nenhum é criado.
   const existentes = await prisma.colaborador.findMany({
-    where: { empresaId },
-    select: { cpf: true },
+    select: { id: true, cpf: true, empresa: { select: { nome: true } } },
   });
-  const jaTem = new Set(existentes.map((e) => dig(e.cpf)));
+  const jaTem = new Map(existentes.filter((e) => e.cpf).map((e) => [dig(e.cpf), e]));
 
   for (const p of pessoas) {
-    if (jaTem.has(p.cpf)) {
-      console.log(`   = ${p.nome.slice(0, 30)} — já cadastrado, pulado`);
+    const existente = jaTem.get(p.cpf);
+    if (existente) {
+      console.log(`   ~ ${p.nome.slice(0, 30).padEnd(32)} já existe em ${existente.empresa.nome} — MOVENDO`);
+      const { setorId, posicaoId } = await garantir(empresaId, est, p.setor, p.cargoFinal);
+      if (GRAVAR && setorId && posicaoId) {
+        await prisma.$transaction([
+          prisma.colaborador.update({
+            where: { id: existente.id },
+            data: { empresaId, setorId, posicaoId },
+          }),
+          prisma.solicitacaoFerias.updateMany({ where: { colaboradorId: existente.id }, data: { empresaId } }),
+          prisma.documentoColaborador.updateMany({ where: { colaboradorId: existente.id }, data: { empresaId } }),
+        ]);
+      }
       continue;
     }
     console.log(`   ${p.nome.slice(0, 30).padEnd(32)} ${p.setor.slice(0, 22).padEnd(24)} ${p.cargoFinal}`);
