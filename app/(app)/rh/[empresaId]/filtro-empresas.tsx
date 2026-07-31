@@ -45,7 +45,7 @@ export function useFiltroEmpresas(usuarioEmpresas: string[]) {
 /**
  * Estado do filtro + como trocá-lo. Para quem desenha a interface do filtro.
  */
-export function useControleFiltro() {
+export function useControleFiltro(empresaIdAtual: string) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -57,12 +57,35 @@ export function useControleFiltro() {
       if (empresaIds.length === 0) params.delete(PARAM);
       else params.set(PARAM, empresaIds.join(","));
       const query = params.toString();
+
+      // Filtrar por UM CNPJ também entra nele. O caminho carrega a "empresa
+      // atual", que é quem recebe cadastro novo: filtrar por Centrysol com o
+      // caminho em RSM fazia "Novo Colaborador" criar em RSM, calado. Com
+      // vários CNPJs não há para onde entrar, e o caminho fica onde está.
+      const base =
+        empresaIds.length === 1
+          ? trocarEmpresaNoCaminho(pathname, empresaIdAtual, empresaIds[0])
+          : pathname;
+
       // replace e não push: filtrar não é navegação, não deve encher o
       // histórico a ponto de o "voltar" do navegador virar desfazer-filtro.
-      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+      router.replace(query ? `${base}?${query}` : base, { scroll: false });
     },
-    [router, pathname, searchParams],
+    [router, pathname, searchParams, empresaIdAtual],
   );
 
   return { selecionadas, aplicar };
+}
+
+// /rh/<atual>/colaboradores -> /rh/<novo>/colaboradores, preservando a tela em
+// que a pessoa está.
+//
+// Só troca o segmento quando ele é mesmo o id da empresa atual: /rh/meu-setor e
+// /rh/empresas também casam com /rh/<algo>, e trocar às cegas quebraria essas
+// rotas.
+function trocarEmpresaNoCaminho(pathname: string, atual: string, novo: string): string {
+  const partes = pathname.split("/");
+  if (partes[1] !== "rh" || partes[2] !== atual) return pathname;
+  partes[2] = novo;
+  return partes.join("/");
 }

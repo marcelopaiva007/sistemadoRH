@@ -41,7 +41,7 @@ export default async function RHEmpresaLayout({
             papel — dois controles parecidos lado a lado. */}
         <div className="py-2">
           <p className="text-xs font-medium text-muted-foreground px-2 py-2">Filtrar por marca/CNPJ</p>
-          <ListaEmpresas marcas={marcas} empresas={empresas} />
+          <ListaEmpresas marcas={marcas} empresas={empresas} empresaIdAtiva={empresaId} />
         </div>
 
         <RHEmpresaNav empresaId={empresaId} />
@@ -53,7 +53,7 @@ export default async function RHEmpresaLayout({
         <div className="mb-4 md:hidden space-y-2">
           <div className="px-4">
             <p className="text-xs font-medium text-muted-foreground py-2">Filtrar por marca/CNPJ</p>
-            <ListaEmpresas marcas={marcas} empresas={empresas} />
+            <ListaEmpresas marcas={marcas} empresas={empresas} empresaIdAtiva={empresaId} />
           </div>
           <div className="mt-2 overflow-x-auto">
             <RHEmpresaNav empresaId={empresaId} />

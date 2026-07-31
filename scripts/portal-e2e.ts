@@ -13,12 +13,13 @@ process.env.NEXT_PUBLIC_APP_URL ??= "http://localhost:3100";
 import { prisma } from "@/lib/prisma";
 import { criarLinkDeAcesso } from "@/lib/portal-auth";
 import { dataUTC } from "@/lib/datas";
+import { empresaDeTeste } from "./_empresa-de-teste";
 
 const NOME = "ZZ Teste do Portal (descartável)";
 const CPF_FALSO = "00000000191";
 
 async function preparar() {
-  const empresa = await prisma.empresa.findFirst({ where: { ativo: true } });
+  const empresa = await empresaDeTeste(prisma, { comSetor: true });
   if (!empresa) throw new Error("Nenhuma empresa cadastrada.");
   const setor = await prisma.setor.findFirst({ where: { empresaId: empresa.id } });
   const posicao = await prisma.posicao.findFirst({ where: { empresaId: empresa.id } });
@@ -101,7 +102,7 @@ const NOME_ALHEIO = "ZZ Teste Colega (descartável)";
 
 /** Anexo pertencente a outro colaborador — a sessão do portal não pode baixá-lo. */
 async function alheio() {
-  const empresa = await prisma.empresa.findFirst({ where: { ativo: true } });
+  const empresa = await empresaDeTeste(prisma, { comSetor: true });
   if (!empresa) throw new Error("Nenhuma empresa cadastrada.");
   const setor = await prisma.setor.findFirst({ where: { empresaId: empresa.id } });
   const posicao = await prisma.posicao.findFirst({ where: { empresaId: empresa.id } });

@@ -11,6 +11,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { dataUTC } from "../lib/datas";
 import { ETAPAS_EM_ANDAMENTO, gerarSlugVaga } from "../lib/constants-ats";
 import { violouUnique } from "../lib/prisma-erros";
+import { empresaDeTeste } from "./_empresa-de-teste";
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
@@ -38,7 +39,7 @@ async function rodarComRollback(fn: (tx: Prisma.TransactionClient) => Promise<vo
 const CPF_TESTE = "52998224725";
 
 async function main() {
-  const empresa = await prisma.empresa.findFirst({ where: { ativo: true } });
+  const empresa = await empresaDeTeste(prisma, { comSetor: true });
   if (!empresa) throw new Error("Nenhuma empresa cadastrada.");
 
   console.log(`Empresa: ${empresa.nome}`);

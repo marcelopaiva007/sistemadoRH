@@ -23,11 +23,13 @@ type Empresa = { id: string; nome: string; marcaId: string };
 export function ListaEmpresas({
   marcas,
   empresas,
+  empresaIdAtiva,
 }: {
   marcas: Marca[];
   empresas: Empresa[];
+  empresaIdAtiva: string;
 }) {
-  const { selecionadas, aplicar } = useControleFiltro();
+  const { selecionadas, aplicar } = useControleFiltro(empresaIdAtiva);
   const [marcasExpandidas, setMarcasExpandidas] = useState<Set<string>>(
     new Set(marcas.map((m) => m.id)),
   );
