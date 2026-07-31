@@ -2,7 +2,6 @@ import { notFound } from "next/navigation";
 import { requireEmpresaAccess, empresasVisiveis } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
 import { RHEmpresaNav } from "./rh-empresa-nav";
-import { FiltroEmpresas } from "./filtro-empresas";
 import { ListaEmpresas } from "./lista-empresas";
 
 export default async function RHEmpresaLayout({
@@ -37,19 +36,12 @@ export default async function RHEmpresaLayout({
   return (
     <div className="flex gap-6">
       <aside className="sticky top-14 hidden h-[calc(100vh-3.5rem)] w-56 shrink-0 overflow-y-auto border-r pr-3 md:block">
-        <div className="py-4 space-y-2">
-          <p className="text-xs font-medium text-muted-foreground px-2">Filtrar por marca/CNPJ</p>
-          <FiltroEmpresas
-            marcas={marcas}
-            empresas={empresas}
-            usuarioEmpresas={empresasDoUsuario}
-          />
-        </div>
-
-        {/* Lista de empresas agrupadas por marca */}
-        <div className="border-t py-2">
-          <p className="text-xs font-medium text-muted-foreground px-2 py-2">Marcas e CNPJs</p>
-          <ListaEmpresas marcas={marcas} empresas={empresas} empresaIdAtiva={empresaId} />
+        {/* A árvore É o filtro: marca mostra todos os CNPJs dela, CNPJ mostra
+            só ele. Havia um painel de checkboxes aqui em cima fazendo o mesmo
+            papel — dois controles parecidos lado a lado. */}
+        <div className="py-2">
+          <p className="text-xs font-medium text-muted-foreground px-2 py-2">Filtrar por marca/CNPJ</p>
+          <ListaEmpresas marcas={marcas} empresas={empresas} />
         </div>
 
         <RHEmpresaNav empresaId={empresaId} />
@@ -59,17 +51,9 @@ export default async function RHEmpresaLayout({
         {/* No celular o menu vira uma barra rolável no topo: o RH trabalha no
             computador, mas a tela pequena não pode ficar sem navegação. */}
         <div className="mb-4 md:hidden space-y-2">
-          <p className="text-xs font-medium text-muted-foreground px-4">Filtrar por marca/CNPJ</p>
           <div className="px-4">
-            <FiltroEmpresas
-              marcas={marcas}
-              empresas={empresas}
-              usuarioEmpresas={empresasDoUsuario}
-            />
-          </div>
-          <div className="border-t mt-2 px-4">
-            <p className="text-xs font-medium text-muted-foreground py-2">Marcas e CNPJs</p>
-            <ListaEmpresas marcas={marcas} empresas={empresas} empresaIdAtiva={empresaId} />
+            <p className="text-xs font-medium text-muted-foreground py-2">Filtrar por marca/CNPJ</p>
+            <ListaEmpresas marcas={marcas} empresas={empresas} />
           </div>
           <div className="mt-2 overflow-x-auto">
             <RHEmpresaNav empresaId={empresaId} />
