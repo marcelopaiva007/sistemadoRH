@@ -10,10 +10,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Dialog,
   DialogContent,
@@ -40,12 +43,16 @@ import {
   vincularEmpresaUsuario,
   desativarVinculoUsuario,
   reativarVinculoUsuario,
+  vincularMarcaUsuario,
+  desativarVinculoMarca,
+  reativarVinculoMarca,
   criarConviteUsuario,
 } from "@/lib/actions/usuarios";
 import { ROLES, ROLE_LABEL, type ActionResult } from "@/lib/constants";
 
-type EmpresaResumo = { id: string; nome: string; ativo: boolean };
+type EmpresaResumo = { id: string; nome: string; ativo: boolean; marcaId: string };
 type SetorResumo = { id: string; nome: string; empresaId: string; ativo: boolean };
+type MarcaResumo = { id: string; nome: string };
 
 type Vinculo = {
   empresaId: string;
@@ -58,6 +65,15 @@ type Vinculo = {
   papelPrincipal: boolean;
 };
 
+// Vínculo com a marca inteira: não tem setor nem papelPrincipal porque não
+// aponta para um CNPJ — o papel é sempre RH e a empresa de entrada continua
+// saindo dos vínculos por CNPJ.
+type VinculoMarca = {
+  marcaId: string;
+  marcaNome: string;
+  ativo: boolean;
+};
+
 type Usuario = {
   id: string;
   nome: string;
@@ -67,6 +83,7 @@ type Usuario = {
   role: string;
   ativo: boolean;
   empresas: Vinculo[];
+  marcasVinculadas: VinculoMarca[];
 };
 
 const initialState: ActionResult = { ok: true };
@@ -76,15 +93,41 @@ const PAPEL_LABEL: Record<string, string> = {
   GESTOR_SETOR: "Setor",
 };
 
+// O acesso vem por UM dos dois: a marca inteira (dinâmica, CNPJ novo entra
+// sozinho) ou um CNPJ específico. É escolha exclusiva porque o servidor recusa
+// os dois juntos — ver as validações em lib/actions/usuarios.ts.
+type Escopo = "MARCA" | "CNPJ";
+
+// Agrupa os CNPJs pela marca a que pertencem para o select ficar legível.
+// Empresa ativa cuja marca foi desativada não pode sumir da lista, então cai
+// num grupo sem rótulo de marca em vez de virar opção invisível.
+function agruparPorMarca(empresas: EmpresaResumo[], marcas: MarcaResumo[]) {
+  const grupos = marcas
+    .map((m) => ({
+      id: m.id,
+      nome: m.nome,
+      empresas: empresas.filter((e) => e.marcaId === m.id),
+    }))
+    .filter((g) => g.empresas.length > 0);
+
+  const semMarca = empresas.filter((e) => !marcas.some((m) => m.id === e.marcaId));
+  if (semMarca.length > 0) {
+    grupos.push({ id: "__sem_marca", nome: "Outras", empresas: semMarca });
+  }
+  return grupos;
+}
+
 export function UsuariosTable({
   usuarios,
   empresas,
   setores,
+  marcas,
   currentUserId,
 }: {
   usuarios: Usuario[];
   empresas: EmpresaResumo[];
   setores: SetorResumo[];
+  marcas: MarcaResumo[];
   currentUserId: string;
 }) {
   const [createOpen, setCreateOpen] = useState(false);
@@ -107,6 +150,7 @@ export function UsuariosTable({
               title="Novo Usuário"
               empresas={empresas}
               setores={setores}
+              marcas={marcas}
               onSuccess={() => setCreateOpen(false)}
             />
           </DialogContent>
@@ -121,7 +165,8 @@ export function UsuariosTable({
               <TableHead>Login</TableHead>
               <TableHead>E-mail</TableHead>
               <TableHead>Papel</TableHead>
-              <TableHead>Empresas</TableHead>
+              {/* "Acesso" e não "Empresas": a coluna mistura marca e CNPJ. */}
+              <TableHead>Acesso</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="w-44 text-right">Ações</TableHead>
             </TableRow>
@@ -151,9 +196,21 @@ export function UsuariosTable({
                 </TableCell>
                 <TableCell>
                   <div className="flex flex-wrap gap-1">
-                    {u.empresas.length === 0 && (
+                    {u.empresas.length === 0 && u.marcasVinculadas.length === 0 && (
                       <span className="text-xs text-muted-foreground">—</span>
                     )}
+                    {/* Marca primeiro, com variante própria: esse vínculo cobre
+                        CNPJs que nem aparecem nos badges ao lado. */}
+                    {u.marcasVinculadas.map((v) => (
+                      <Badge
+                        key={`marca-${v.marcaId}`}
+                        variant="secondary"
+                        className={!v.ativo ? "opacity-50 line-through" : undefined}
+                        title={`${v.marcaNome} · marca — todos os CNPJs, inclusive os cadastrados depois`}
+                      >
+                        {v.marcaNome} · marca
+                      </Badge>
+                    ))}
                     {u.empresas.map((v) => (
                       <Badge
                         key={v.empresaId}
@@ -227,6 +284,7 @@ export function UsuariosTable({
               title="Editar Usuário"
               empresas={empresas}
               setores={setores}
+              marcas={marcas}
               defaultValues={editUsuario}
               onSuccess={() => setEditUsuario(null)}
             />
@@ -252,6 +310,7 @@ export function UsuariosTable({
               usuario={vincularUsuario}
               empresas={empresas}
               setores={setores}
+              marcas={marcas}
               onSuccess={() => setVincularUsuario(null)}
             />
           )}
@@ -280,6 +339,7 @@ function UsuarioForm({
   defaultValues,
   empresas,
   setores,
+  marcas,
   onSuccess,
 }: {
   action: (prev: ActionResult, formData: FormData) => Promise<ActionResult>;
@@ -287,18 +347,33 @@ function UsuarioForm({
   defaultValues?: Usuario;
   empresas: EmpresaResumo[];
   setores: SetorResumo[];
+  marcas: MarcaResumo[];
   onSuccess: () => void;
 }) {
   const isEdit = !!defaultValues;
   const [role, setRole] = useState<string>(defaultValues?.role ?? "DIRETORIA");
+  const [escopo, setEscopo] = useState<Escopo>(
+    defaultValues?.marcasVinculadas.some((m) => m.ativo) ? "MARCA" : "CNPJ",
+  );
+  const [marcaId, setMarcaId] = useState<string>(
+    defaultValues?.marcasVinculadas.find((m) => m.ativo)?.marcaId ?? "",
+  );
   const [empresaId, setEmpresaId] = useState<string>(
     defaultValues?.empresas.find((v) => v.papelPrincipal)?.empresaId ?? "",
   );
   const [setorId, setSetorId] = useState<string>("");
 
-  const precisaEmpresa = role === "RH_MANAGER" || role === "GESTOR_SETOR";
+  // Só na criação. `updateUsuario` não lê marca/empresa/setor — quem altera
+  // acesso de quem já existe é o diálogo "Vincular". Mostrar os campos aqui na
+  // edição seria oferecer um controle que não faz nada.
+  const precisaEmpresa = !isEdit && (role === "RH_MANAGER" || role === "GESTOR_SETOR");
   const precisaSetor = role === "GESTOR_SETOR";
 
+  // Gestor de setor não tem escopo de marca — setor pertence a um CNPJ. Forçar
+  // aqui evita mandar o formulário para o servidor só para ele recusar.
+  const escopoEfetivo: Escopo = precisaSetor ? "CNPJ" : escopo;
+
+  const empresasAtivas = empresas.filter((e) => e.ativo);
   const setoresFiltrados = setores.filter((s) => s.empresaId === empresaId);
 
   const [state, formAction, isPending] = useActionState(async (prev: ActionResult, fd: FormData) => {
@@ -389,6 +464,73 @@ function UsuarioForm({
       </div>
       {precisaEmpresa && (
         <div className="space-y-2">
+          <Label>Escopo do acesso</Label>
+          <RadioGroup
+            value={escopoEfetivo}
+            onValueChange={(v) => setEscopo((v ?? "CNPJ") as Escopo)}
+            className="gap-2"
+          >
+            <div className="flex items-start gap-2">
+              <RadioGroupItem
+                value="MARCA"
+                id="escopo-marca"
+                disabled={precisaSetor}
+                className="mt-0.5"
+              />
+              <div>
+                <Label htmlFor="escopo-marca" className="font-normal">
+                  Marca inteira
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Dá acesso a todos os CNPJs da marca, inclusive os cadastrados depois.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start gap-2">
+              <RadioGroupItem value="CNPJ" id="escopo-cnpj" className="mt-0.5" />
+              <div>
+                <Label htmlFor="escopo-cnpj" className="font-normal">
+                  CNPJ específico
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Acesso só à empresa escolhida.
+                </p>
+              </div>
+            </div>
+          </RadioGroup>
+          {precisaSetor && (
+            <p className="text-xs text-muted-foreground">
+              Gestor(a) de Setor é sempre por CNPJ: o setor pertence a um CNPJ, não à marca.
+            </p>
+          )}
+        </div>
+      )}
+      {/* Marca e empresa são montadas uma OU outra — esconder por CSS deixaria
+          o campo escondido no FormData e cairia no "escolha marca ou CNPJ". */}
+      {precisaEmpresa && escopoEfetivo === "MARCA" && (
+        <div className="space-y-2">
+          <Label>Marca</Label>
+          <Select
+            value={marcaId}
+            onValueChange={(v) => setMarcaId(v ?? "")}
+            name="marcaId"
+            items={Object.fromEntries(marcas.map((m) => [m.id, m.nome]))}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Selecione a marca" />
+            </SelectTrigger>
+            <SelectContent>
+              {marcas.map((m) => (
+                <SelectItem key={m.id} value={m.id}>
+                  {m.nome}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+      {precisaEmpresa && escopoEfetivo === "CNPJ" && (
+        <div className="space-y-2">
           <Label>Empresa</Label>
           <Select
             value={empresaId}
@@ -397,26 +539,27 @@ function UsuarioForm({
               setSetorId("");
             }}
             name="empresaId"
-            items={Object.fromEntries(
-              empresas.filter((e) => e.ativo).map((e) => [e.id, e.nome]),
-            )}
+            items={Object.fromEntries(empresasAtivas.map((e) => [e.id, e.nome]))}
           >
             <SelectTrigger className="w-full">
               <SelectValue placeholder="Selecione a empresa" />
             </SelectTrigger>
             <SelectContent>
-              {empresas
-                .filter((e) => e.ativo)
-                .map((e) => (
-                  <SelectItem key={e.id} value={e.id}>
-                    {e.nome}
-                  </SelectItem>
-                ))}
+              {agruparPorMarca(empresasAtivas, marcas).map((g) => (
+                <SelectGroup key={g.id}>
+                  <SelectLabel>{g.nome}</SelectLabel>
+                  {g.empresas.map((e) => (
+                    <SelectItem key={e.id} value={e.id}>
+                      {e.nome}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              ))}
             </SelectContent>
           </Select>
         </div>
       )}
-      {precisaSetor && empresaId && (
+      {precisaSetor && escopoEfetivo === "CNPJ" && empresaId && (
         <div className="space-y-2">
           <Label>Setor</Label>
           <Select
@@ -441,6 +584,11 @@ function UsuarioForm({
             </SelectContent>
           </Select>
         </div>
+      )}
+      {isEdit && (role === "RH_MANAGER" || role === "GESTOR_SETOR") && (
+        <p className="text-xs text-muted-foreground">
+          Marca e CNPJs não se alteram por aqui — use &ldquo;Vincular&rdquo; na linha do usuário.
+        </p>
       )}
       {isEdit && (
         <div className="flex items-center gap-2">
@@ -508,16 +656,26 @@ function VincularForm({
   usuario,
   empresas,
   setores,
+  marcas,
   onSuccess,
 }: {
   usuario: Usuario;
   empresas: EmpresaResumo[];
   setores: SetorResumo[];
+  marcas: MarcaResumo[];
   onSuccess: () => void;
 }) {
   const empresasDisponiveis = empresas.filter(
     (e) => e.ativo && !usuario.empresas.some((v) => v.empresaId === e.id && v.ativo),
   );
+  // Marca já vinculada e ativa sai da lista: revincular a mesma marca não
+  // acrescenta acesso nenhum.
+  const marcasDisponiveis = marcas.filter(
+    (m) => !usuario.marcasVinculadas.some((v) => v.marcaId === m.id && v.ativo),
+  );
+
+  const [escopo, setEscopo] = useState<Escopo>("CNPJ");
+  const [marcaId, setMarcaId] = useState<string>(marcasDisponiveis[0]?.id ?? "");
   const [empresaId, setEmpresaId] = useState<string>(empresasDisponiveis[0]?.id ?? "");
   const [role, setRole] = useState<"RH_MANAGER" | "GESTOR_SETOR">("RH_MANAGER");
   const [setorId, setSetorId] = useState<string>("");
@@ -534,125 +692,279 @@ function VincularForm({
     return result;
   }, initialState);
 
+  // Form próprio para a marca em vez de trocar a action: cada `useActionState`
+  // amarra um form a uma action, e o payload da marca é outro (sem setor, sem
+  // empresa principal).
+  const [stateMarca, formActionMarca, isPendingMarca] = useActionState(
+    async (prev: ActionResult, fd: FormData) => {
+      const result = await vincularMarcaUsuario(prev, fd);
+      if (result.ok) {
+        toast.success("Vínculo salvo.");
+        onSuccess();
+      }
+      return result;
+    },
+    initialState,
+  );
+
   // Vínculos desativados (reativar inline)
   const desativados = usuario.empresas.filter((v) => !v.ativo);
 
   return (
     <div className="space-y-6">
-      <form action={formAction} className="space-y-4">
-        <DialogHeader>
-          <DialogTitle>Vincular {usuario.nome} a uma empresa</DialogTitle>
-        </DialogHeader>
-        <input type="hidden" name="userId" value={usuario.id} />
-        {empresasDisponiveis.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            Este usuário já está vinculado a todas as empresas ativas do grupo.
-            {desativados.length > 0 && " Use a lista abaixo para reativar um vínculo desativado."}
-          </p>
-        ) : (
-          <>
+      <DialogHeader>
+        <DialogTitle>Vincular {usuario.nome}</DialogTitle>
+      </DialogHeader>
+
+      {/* O seletor fica fora dos dois forms — ele escolhe qual form aparece,
+          não é campo enviado. */}
+      <div className="space-y-2">
+        <Label>Escopo do acesso</Label>
+        <RadioGroup
+          value={escopo}
+          onValueChange={(v) => setEscopo((v ?? "CNPJ") as Escopo)}
+          className="gap-2"
+        >
+          <div className="flex items-start gap-2">
+            <RadioGroupItem value="MARCA" id="vincular-escopo-marca" className="mt-0.5" />
+            <div>
+              <Label htmlFor="vincular-escopo-marca" className="font-normal">
+                Marca inteira
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Dá acesso a todos os CNPJs da marca, inclusive os cadastrados depois.
+                Sempre como Gestor(a) de RH.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-start gap-2">
+            <RadioGroupItem value="CNPJ" id="vincular-escopo-cnpj" className="mt-0.5" />
+            <div>
+              <Label htmlFor="vincular-escopo-cnpj" className="font-normal">
+                CNPJ específico
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Acesso só à empresa escolhida — é o único escopo que comporta gestor de setor.
+              </p>
+            </div>
+          </div>
+        </RadioGroup>
+      </div>
+
+      {escopo === "MARCA" ? (
+        <form action={formActionMarca} className="space-y-4">
+          <input type="hidden" name="userId" value={usuario.id} />
+          {/* Vínculo por marca é sempre RH — setor pertence a um CNPJ. */}
+          <input type="hidden" name="role" value="RH_MANAGER" />
+          {marcasDisponiveis.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Este usuário já tem acesso a todas as marcas ativas do grupo.
+              {usuario.marcasVinculadas.some((v) => !v.ativo) &&
+                " Use a lista abaixo para reativar um vínculo desativado."}
+            </p>
+          ) : (
             <div className="space-y-2">
-              <Label>Empresa</Label>
+              <Label>Marca</Label>
               <Select
-                value={empresaId}
-                onValueChange={(v) => {
-                  setEmpresaId(v ?? "");
-                  setSetorId("");
-                }}
-                name="empresaId"
-                items={Object.fromEntries(empresasDisponiveis.map((e) => [e.id, e.nome]))}
+                value={marcaId}
+                onValueChange={(v) => setMarcaId(v ?? "")}
+                name="marcaId"
+                items={Object.fromEntries(marcasDisponiveis.map((m) => [m.id, m.nome]))}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
                 <SelectContent>
-                  {empresasDisponiveis.map((e) => (
-                    <SelectItem key={e.id} value={e.id}>
-                      {e.nome}
+                  {marcasDisponiveis.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.nome}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Papel</Label>
-              <Select
-                value={role}
-                onValueChange={(v) => {
-                  setRole((v ?? "RH_MANAGER") as "RH_MANAGER" | "GESTOR_SETOR");
-                  if (v !== "GESTOR_SETOR") setSetorId("");
-                }}
-                name="role"
-                items={{
-                  RH_MANAGER: "Gestor(a) de RH",
-                  GESTOR_SETOR: "Gestor(a) de Setor",
-                }}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="RH_MANAGER">Gestor(a) de RH</SelectItem>
-                  <SelectItem value="GESTOR_SETOR">Gestor(a) de Setor</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {role === "GESTOR_SETOR" && (
+          )}
+          {!stateMarca.ok && (
+            <Alert variant="destructive">
+              <AlertDescription>{stateMarca.error}</AlertDescription>
+            </Alert>
+          )}
+          {marcasDisponiveis.length > 0 && (
+            <DialogFooter>
+              <Button type="submit" disabled={isPendingMarca}>
+                {isPendingMarca ? "Salvando..." : "Vincular"}
+              </Button>
+            </DialogFooter>
+          )}
+        </form>
+      ) : (
+        <form action={formAction} className="space-y-4">
+          <input type="hidden" name="userId" value={usuario.id} />
+          {empresasDisponiveis.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Este usuário já está vinculado a todas as empresas ativas do grupo.
+              {desativados.length > 0 && " Use a lista abaixo para reativar um vínculo desativado."}
+            </p>
+          ) : (
+            <>
               <div className="space-y-2">
-                <Label>Setor</Label>
+                <Label>Empresa</Label>
                 <Select
-                  value={setorId}
-                  onValueChange={(v) => setSetorId(v ?? "")}
-                  name="setorId"
-                  items={Object.fromEntries(setoresFiltrados.map((s) => [s.id, s.nome]))}
+                  value={empresaId}
+                  onValueChange={(v) => {
+                    setEmpresaId(v ?? "");
+                    setSetorId("");
+                  }}
+                  name="empresaId"
+                  items={Object.fromEntries(empresasDisponiveis.map((e) => [e.id, e.nome]))}
                 >
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Selecione o setor" />
+                    <SelectValue placeholder="Selecione" />
                   </SelectTrigger>
                   <SelectContent>
-                    {setoresFiltrados.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>
-                        {s.nome}
-                      </SelectItem>
+                    {agruparPorMarca(empresasDisponiveis, marcas).map((g) => (
+                      <SelectGroup key={g.id}>
+                        <SelectLabel>{g.nome}</SelectLabel>
+                        {g.empresas.map((e) => (
+                          <SelectItem key={e.id} value={e.id}>
+                            {e.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-            )}
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="papelPrincipal"
-                name="papelPrincipal"
-                checked={papelPrincipal}
-                onCheckedChange={(v) => setPapelPrincipal(!!v)}
-              />
-              <Label htmlFor="papelPrincipal">
-                Marcar como empresa principal (será a aberta por padrão após login)
-              </Label>
-            </div>
-          </>
-        )}
-        {!state.ok && (
-          <Alert variant="destructive">
-            <AlertDescription>{state.error}</AlertDescription>
-          </Alert>
-        )}
-        {empresasDisponiveis.length > 0 && (
-          <DialogFooter>
-            <Button type="submit" disabled={isPending}>
-              {isPending ? "Salvando..." : "Vincular"}
-            </Button>
-          </DialogFooter>
-        )}
-      </form>
+              <div className="space-y-2">
+                <Label>Papel</Label>
+                <Select
+                  value={role}
+                  onValueChange={(v) => {
+                    setRole((v ?? "RH_MANAGER") as "RH_MANAGER" | "GESTOR_SETOR");
+                    if (v !== "GESTOR_SETOR") setSetorId("");
+                  }}
+                  name="role"
+                  items={{
+                    RH_MANAGER: "Gestor(a) de RH",
+                    GESTOR_SETOR: "Gestor(a) de Setor",
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="RH_MANAGER">Gestor(a) de RH</SelectItem>
+                    <SelectItem value="GESTOR_SETOR">Gestor(a) de Setor</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {role === "GESTOR_SETOR" && (
+                <div className="space-y-2">
+                  <Label>Setor</Label>
+                  <Select
+                    value={setorId}
+                    onValueChange={(v) => setSetorId(v ?? "")}
+                    name="setorId"
+                    items={Object.fromEntries(setoresFiltrados.map((s) => [s.id, s.nome]))}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Selecione o setor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {setoresFiltrados.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {s.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="papelPrincipal"
+                  name="papelPrincipal"
+                  checked={papelPrincipal}
+                  onCheckedChange={(v) => setPapelPrincipal(!!v)}
+                />
+                <Label htmlFor="papelPrincipal">
+                  Marcar como empresa principal (será a aberta por padrão após login)
+                </Label>
+              </div>
+            </>
+          )}
+          {!state.ok && (
+            <Alert variant="destructive">
+              <AlertDescription>{state.error}</AlertDescription>
+            </Alert>
+          )}
+          {empresasDisponiveis.length > 0 && (
+            <DialogFooter>
+              <Button type="submit" disabled={isPending}>
+                {isPending ? "Salvando..." : "Vincular"}
+              </Button>
+            </DialogFooter>
+          )}
+        </form>
+      )}
 
       {/* Lista de vínculos existentes — permite desativar/reativar. */}
       <div className="space-y-2 border-t pt-4">
         <h3 className="text-sm font-medium">Vínculos atuais</h3>
-        {usuario.empresas.length === 0 ? (
+        {usuario.empresas.length === 0 && usuario.marcasVinculadas.length === 0 ? (
           <p className="text-sm text-muted-foreground">Nenhum vínculo ainda.</p>
         ) : (
           <ul className="divide-y">
+            {/* Marca vem primeiro e rotulada: sem isso, quem lê a lista acha
+                que o acesso é só o dos CNPJs listados logo abaixo. */}
+            {usuario.marcasVinculadas.map((v) => (
+              <li
+                key={`marca-${v.marcaId}`}
+                className="flex items-center justify-between gap-2 py-2 text-sm"
+              >
+                <div>
+                  <div className="flex items-center gap-2 font-medium">
+                    <Badge variant="secondary">marca</Badge>
+                    {v.marcaNome}
+                    {!v.ativo && (
+                      <span className="text-xs font-normal text-muted-foreground">(desativado)</span>
+                    )}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Todos os CNPJs da marca · {PAPEL_LABEL.RH_MANAGER}
+                  </div>
+                </div>
+                <div className="flex gap-1">
+                  {v.ativo ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={async () => {
+                        const r = await desativarVinculoMarca(usuario.id, v.marcaId);
+                        if (r.ok) toast.success("Vínculo desativado.");
+                        else toast.error(r.error);
+                      }}
+                      title="Desativar vínculo com a marca"
+                    >
+                      <Link2Off className="size-4" />
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={async () => {
+                        const r = await reativarVinculoMarca(usuario.id, v.marcaId);
+                        if (r.ok) toast.success("Vínculo reativado.");
+                        else toast.error(r.error);
+                      }}
+                      title="Reativar vínculo com a marca"
+                    >
+                      <Link2 className="size-4" />
+                    </Button>
+                  )}
+                </div>
+              </li>
+            ))}
             {usuario.empresas.map((v) => (
               <li
                 key={v.empresaId}

@@ -25,6 +25,11 @@ export async function requireEmpresaAccess(empresaId: string) {
     (e) => e.empresaId === empresaId && e.ativo && (e.papel === "RH_MANAGER" || e.papel === "GESTOR_SETOR"),
   );
   if (temAcesso) return user;
+
+  // Pode não ter vínculo com este CNPJ e ainda assim alcançá-lo pela marca.
+  const porMarca = await empresasDasMarcasDoUsuario(user.id);
+  if (porMarca.includes(empresaId)) return user;
+
   redirect(user.role === "GESTOR_SETOR" ? "/rh/meu-setor" : "/rh");
 }
 
@@ -35,6 +40,7 @@ export async function requireEmpresaAccess(empresaId: string) {
 // Montar a lista a partir do pivô devolveria lista nenhuma — e uma tela que
 // depende dela some, ou responde 404 achando que a empresa não existe.
 export async function empresasVisiveis(user: {
+  id?: string;
   role: string;
   empresas: { empresaId: string; ativo: boolean }[];
 }): Promise<string[]> {
@@ -45,7 +51,27 @@ export async function empresasVisiveis(user: {
     });
     return todas.map((e) => e.id);
   }
-  return user.empresas.filter((e) => e.ativo).map((e) => e.empresaId);
+
+  const porEmpresa = user.empresas.filter((e) => e.ativo).map((e) => e.empresaId);
+  const porMarca = await empresasDasMarcasDoUsuario(user.id);
+  return [...new Set([...porEmpresa, ...porMarca])];
+}
+
+// CNPJs que o usuário alcança por ter acesso à MARCA inteira. Consultado a cada
+// request, e não lido do JWT, justamente para que um CNPJ cadastrado depois
+// entre no acesso sem exigir novo login — é o que o vínculo por marca promete.
+async function empresasDasMarcasDoUsuario(userId?: string): Promise<string[]> {
+  if (!userId) return [];
+  const vinculos = await prisma.userMarca.findMany({
+    where: { userId, ativo: true },
+    select: { marcaId: true },
+  });
+  if (vinculos.length === 0) return [];
+  const empresas = await prisma.empresa.findMany({
+    where: { marcaId: { in: vinculos.map((v) => v.marcaId) }, ativo: true },
+    select: { id: true },
+  });
+  return empresas.map((e) => e.id);
 }
 
 // GESTOR_SETOR com empresa ativa + setor ativo no JWT. Se faltarem (cookie

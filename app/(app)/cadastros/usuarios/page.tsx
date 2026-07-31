@@ -5,7 +5,7 @@ import { UsuariosTable } from "./usuarios-table";
 export default async function UsuariosPage() {
   const admin = await requireGestaoUsuarios();
 
-  const [usuarios, empresas, setores] = await Promise.all([
+  const [usuarios, empresas, setores, marcas] = await Promise.all([
     prisma.user.findMany({
       orderBy: [{ role: "asc" }, { nome: "asc" }],
       include: {
@@ -16,6 +16,13 @@ export default async function UsuariosPage() {
             setor: { select: { id: true, nome: true } },
           },
         },
+        // Vínculo por marca vem separado das empresas de propósito: ele não
+        // aponta para um CNPJ, cobre todos os da marca — inclusive os que
+        // forem cadastrados depois. A tela precisa mostrar os dois lado a lado.
+        marcas: {
+          orderBy: { createdAt: "asc" },
+          include: { marca: { select: { id: true, nome: true } } },
+        },
       },
     }),
     // O User não tem @relation com Empresa/Setor — só as colunas
@@ -25,11 +32,22 @@ export default async function UsuariosPage() {
     // por id na tabela. O formulário filtra as ativas para os selects.
     prisma.empresa.findMany({
       orderBy: { nome: "asc" },
-      select: { id: true, nome: true, ativo: true },
+      // marcaId vai junto para a tela agrupar os CNPJs por marca no select —
+      // com várias marcas no grupo, uma lista chapada de nomes não diz a quem
+      // cada CNPJ pertence.
+      select: { id: true, nome: true, ativo: true, marcaId: true },
     }),
     prisma.setor.findMany({
       orderBy: { nome: "asc" },
       select: { id: true, nome: true, empresaId: true, ativo: true },
+    }),
+    // Só as marcas ativas: aqui a lista serve para conceder acesso novo, e
+    // conceder acesso a uma marca desativada não faz sentido. Vínculo antigo
+    // numa marca desativada continua aparecendo pelo include acima.
+    prisma.marca.findMany({
+      where: { ativo: true },
+      orderBy: { nome: "asc" },
+      select: { id: true, nome: true },
     }),
   ]);
 
@@ -39,8 +57,8 @@ export default async function UsuariosPage() {
         <h1 className="text-2xl font-semibold tracking-tight">Usuários</h1>
         <p className="text-muted-foreground">
           Contas de acesso ao sistema. ADMIN e Diretoria são perfis globais.
-          Gestores de RH e de Setor ficam vinculados a uma ou mais empresas
-          do grupo.
+          Gestores de RH e de Setor ficam vinculados a uma marca inteira ou a
+          CNPJs específicos do grupo.
         </p>
       </div>
       <UsuariosTable
@@ -62,9 +80,15 @@ export default async function UsuariosPage() {
             ativo: e.ativo,
             papelPrincipal: e.papelPrincipal,
           })),
+          marcasVinculadas: u.marcas.map((m) => ({
+            marcaId: m.marcaId,
+            marcaNome: m.marca.nome,
+            ativo: m.ativo,
+          })),
         }))}
         empresas={empresas}
         setores={setores}
+        marcas={marcas}
         currentUserId={admin.id}
       />
     </div>

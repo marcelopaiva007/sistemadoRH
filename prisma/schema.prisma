@@ -64,6 +64,8 @@ model User {
   // permanecem com este array vazio (papel é global). RH_MANAGER e
   // GESTOR_SETOR têm 1+ linhas, com exatamente uma marcada papelPrincipal.
   empresas         UserEmpresa[]
+  // Acesso concedido por marca inteira — ver o model UserMarca.
+  marcas           UserMarca[]
   pesquisasCriadas Pesquisa[]
 
   @@index([empresaId])
@@ -128,7 +130,36 @@ model Marca {
   updatedAt DateTime @default(now()) @updatedAt
 
   empresas Empresa[]
+  usuarios UserMarca[]
 
+  @@schema("rh")
+}
+
+// Acesso concedido a uma MARCA inteira, em vez de CNPJ a CNPJ. O vínculo é
+// dinâmico de propósito: CNPJ novo cadastrado na marca entra no acesso sozinho,
+// que é o que "dê acesso à marca" significa para quem usa. Por isso mora numa
+// tabela própria e não como coluna opcional em UserEmpresa — ali empresaId é
+// obrigatório e a unicidade é (userId, empresaId), que não acomoda "a marca
+// toda" sem virar linha fantasma.
+//
+// A expansão marca -> empresas acontece no servidor a cada request
+// (empresasVisiveis, em lib/rh-auth-guard.ts), nunca no JWT: gravada no token,
+// a lista congelaria até o próximo login.
+model UserMarca {
+  id        String   @id @default(cuid())
+  userId    String
+  marcaId   String
+  role      String // "RH_MANAGER" | "GESTOR_SETOR"
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  marca Marca @relation(fields: [marcaId], references: [id])
+
+  @@unique([userId, marcaId])
+  @@index([userId])
+  @@index([marcaId])
   @@schema("rh")
 }
 

@@ -34,12 +34,27 @@ const criarSchema = z
     email: emailSchema,
     telefone: z.string().trim().optional(),
     role: z.enum(ROLES),
+    // O acesso vem por UM dos dois: a marca inteira ou um CNPJ. Marca dá acesso
+    // dinâmico (CNPJ novo entra sozinho); CNPJ é pontual e é o único que
+    // comporta GESTOR_SETOR, já que setor pertence a um CNPJ específico.
+    marcaId: z.string().trim().optional(),
     empresaId: z.string().trim().optional(),
     setorId: z.string().trim().optional(),
   })
-  .refine((d) => !ROLES_COM_EMPRESA.includes(d.role as (typeof ROLES_COM_EMPRESA)[number]) || !!d.empresaId, {
-    message: "Selecione a empresa do usuário",
-    path: ["empresaId"],
+  .refine(
+    (d) =>
+      !ROLES_COM_EMPRESA.includes(d.role as (typeof ROLES_COM_EMPRESA)[number]) ||
+      !!d.empresaId ||
+      !!d.marcaId,
+    { message: "Selecione a marca ou o CNPJ do usuário", path: ["empresaId"] },
+  )
+  .refine((d) => !(d.marcaId && d.empresaId), {
+    message: "Escolha marca ou CNPJ, não os dois",
+    path: ["marcaId"],
+  })
+  .refine((d) => d.role !== "GESTOR_SETOR" || !d.marcaId, {
+    message: "Gestor de setor precisa de um CNPJ — setor pertence a um CNPJ, não à marca",
+    path: ["marcaId"],
   })
   .refine((d) => d.role !== "GESTOR_SETOR" || !!d.setorId, {
     message: "Selecione o setor do gestor",
@@ -87,12 +102,13 @@ export async function createUsuario(_prev: ActionResult, formData: FormData): Pr
     email: formData.get("email") || undefined,
     telefone: formData.get("telefone") || undefined,
     role: formData.get("role"),
+    marcaId: formData.get("marcaId") || undefined,
     empresaId: formData.get("empresaId") || undefined,
     setorId: formData.get("setorId") || undefined,
   });
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
 
-  const { nome, username, email, telefone, role, empresaId, setorId } = parsed.data;
+  const { nome, username, email, telefone, role, marcaId, empresaId, setorId } = parsed.data;
   const passwordHash = await bcrypt.hash(senha, 10);
 
   try {
@@ -114,16 +130,22 @@ export async function createUsuario(_prev: ActionResult, formData: FormData): Pr
           setorId: setorId ?? null,
         },
       });
-      if (empresaId && ROLES_COM_EMPRESA.includes(role as (typeof ROLES_COM_EMPRESA)[number])) {
-        await tx.userEmpresa.create({
-          data: {
-            userId: user.id,
-            empresaId,
-            role,
-            setorId: setorId ?? null,
-            papelPrincipal: true,
-          },
-        });
+      if (ROLES_COM_EMPRESA.includes(role as (typeof ROLES_COM_EMPRESA)[number])) {
+        if (marcaId) {
+          // Acesso à marca inteira: um vínculo só, e os CNPJs saem dele a cada
+          // request. CNPJ novo na marca entra sozinho — ver UserMarca no schema.
+          await tx.userMarca.create({ data: { userId: user.id, marcaId, role } });
+        } else if (empresaId) {
+          await tx.userEmpresa.create({
+            data: {
+              userId: user.id,
+              empresaId,
+              role,
+              setorId: setorId ?? null,
+              papelPrincipal: true,
+            },
+          });
+        }
       }
       return user;
     });
@@ -133,7 +155,7 @@ export async function createUsuario(_prev: ActionResult, formData: FormData): Pr
       entidade: "User",
       entidadeId: result.id,
       resumo: `Criou usuário ${result.username} (${result.role})`,
-      detalhes: { nome: result.nome, email: result.email, role: result.role, empresaId, setorId },
+      detalhes: { nome: result.nome, email: result.email, role: result.role, marcaId, empresaId, setorId },
     });
 
     revalidatePath("/cadastros/usuarios");
@@ -358,11 +380,13 @@ export async function desativarVinculoUsuario(userId: string, empresaId: string)
   if (!vinculo) return { ok: false, error: "Vínculo não encontrado." };
 
   // Bloqueia desativar a única empresa ativa do user — equivaleria a "tirar
-  // o login" sem passar pela tela de exclusão do User.
-  const ativosRestantes = await prisma.userEmpresa.count({
-    where: { userId, ativo: true, NOT: { id: vinculo.id } },
-  });
-  if (ativosRestantes === 0) {
+  // o login" sem passar pela tela de exclusão do User. Vínculo por marca conta
+  // como acesso: quem tem a marca não fica sem nada ao perder um CNPJ solto.
+  const [empresasRestantes, marcasRestantes] = await Promise.all([
+    prisma.userEmpresa.count({ where: { userId, ativo: true, NOT: { id: vinculo.id } } }),
+    prisma.userMarca.count({ where: { userId, ativo: true } }),
+  ]);
+  if (empresasRestantes + marcasRestantes === 0) {
     return { ok: false, error: "Não é possível desativar a única empresa ativa do usuário." };
   }
 
@@ -402,6 +426,106 @@ export async function reativarVinculoUsuario(userId: string, empresaId: string):
     entidadeId: vinculo.id,
     empresaId,
     resumo: `Reativou vínculo do usuário ${userId} na empresa ${empresaId}`,
+  });
+
+  revalidatePath("/cadastros/usuarios");
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Vínculo por MARCA — dá acesso a todos os CNPJs dela, inclusive os que vierem
+// depois. Só RH_MANAGER: GESTOR_SETOR precisa de um CNPJ, porque setor pertence
+// a um CNPJ e não à marca.
+// ---------------------------------------------------------------------------
+
+const vincularMarcaSchema = z.object({
+  userId: z.string().trim().min(1),
+  marcaId: z.string().trim().min(1, "Selecione a marca"),
+  role: z.literal("RH_MANAGER"),
+});
+
+export async function vincularMarcaUsuario(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  await requireGestaoUsuarios();
+
+  const parsed = vincularMarcaSchema.safeParse({
+    userId: formData.get("userId"),
+    marcaId: formData.get("marcaId"),
+    role: formData.get("role"),
+  });
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
+
+  const { userId, marcaId, role } = parsed.data;
+
+  try {
+    // upsert e não create: revincular uma marca que já foi desativada deve
+    // reativar a linha, não estourar na unicidade (userId, marcaId).
+    const vinculo = await prisma.userMarca.upsert({
+      where: { userId_marcaId: { userId, marcaId } },
+      create: { userId, marcaId, role },
+      update: { ativo: true, role },
+    });
+
+    const marca = await prisma.marca.findUnique({ where: { id: marcaId }, select: { nome: true } });
+
+    await registrarAuditoria({
+      acao: "VINCULAR",
+      entidade: "UserMarca",
+      entidadeId: vinculo.id,
+      resumo: `Vinculou usuário ${userId} à marca ${marca?.nome ?? marcaId} (todos os CNPJs)`,
+    });
+
+    revalidatePath("/cadastros/usuarios");
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Erro ao vincular a marca." };
+  }
+}
+
+export async function desativarVinculoMarca(userId: string, marcaId: string): Promise<ActionResult> {
+  await requireGestaoUsuarios();
+
+  const vinculo = await prisma.userMarca.findUnique({
+    where: { userId_marcaId: { userId, marcaId } },
+  });
+  if (!vinculo) return { ok: false, error: "Vínculo não encontrado." };
+
+  // Mesma trava do vínculo por empresa: ninguém fica sem acesso nenhum por aqui.
+  const [empresasAtivas, marcasRestantes] = await Promise.all([
+    prisma.userEmpresa.count({ where: { userId, ativo: true } }),
+    prisma.userMarca.count({ where: { userId, ativo: true, NOT: { id: vinculo.id } } }),
+  ]);
+  if (empresasAtivas + marcasRestantes === 0) {
+    return { ok: false, error: "Não é possível remover o único acesso ativo do usuário." };
+  }
+
+  await prisma.userMarca.update({ where: { id: vinculo.id }, data: { ativo: false } });
+
+  await registrarAuditoria({
+    acao: "DESVINCULAR",
+    entidade: "UserMarca",
+    entidadeId: vinculo.id,
+    resumo: `Desvinculou usuário ${userId} da marca ${marcaId}`,
+  });
+
+  revalidatePath("/cadastros/usuarios");
+  return { ok: true };
+}
+
+export async function reativarVinculoMarca(userId: string, marcaId: string): Promise<ActionResult> {
+  await requireGestaoUsuarios();
+
+  const vinculo = await prisma.userMarca.findUnique({
+    where: { userId_marcaId: { userId, marcaId } },
+  });
+  if (!vinculo) return { ok: false, error: "Vínculo não encontrado." };
+
+  await prisma.userMarca.update({ where: { id: vinculo.id }, data: { ativo: true } });
+
+  await registrarAuditoria({
+    acao: "VINCULAR",
+    entidade: "UserMarca",
+    entidadeId: vinculo.id,
+    resumo: `Reativou vínculo do usuário ${userId} na marca ${marcaId}`,
   });
 
   revalidatePath("/cadastros/usuarios");
