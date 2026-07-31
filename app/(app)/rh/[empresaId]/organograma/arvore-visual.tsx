@@ -93,9 +93,12 @@ export function ArvoreVisual({
 
       {/* A árvore é mais larga que a tela em estrutura grande: rola na
           horizontal dentro da própria caixa, sem empurrar a página. */}
-      <div className="overflow-x-auto rounded-lg border bg-muted/20 p-6">
+      <div className="max-h-[75vh] overflow-auto rounded-lg border bg-muted/20 p-6">
+        {/* Alinhado à esquerda, não centralizado: centralizar num conteúdo mais
+            largo que a tela fazia a página abrir num pedaço qualquer do meio,
+            sem a raiz à vista. */}
         <div
-          className="inline-flex min-w-full origin-top-left justify-center gap-10"
+          className="flex origin-top-left flex-col items-start gap-8"
           style={{ zoom: `${zoom}%` }}
         >
           {arvores.map((raiz) => (
@@ -107,13 +110,22 @@ export function ArvoreVisual({
   );
 }
 
+// Acima disto, os filhos empilham na vertical em vez de ficar lado a lado.
+//
+// A hierarquia real é rasa e larga: um supervisor com 30 subordinados diretos
+// vira 30 caixas em linha, e a árvore passou de 34.000px — ninguém acha ninguém
+// rolando isso. Empilhar troca largura impossível por altura rolável, que é a
+// direção em que a tela já rola.
+const MAX_LADO_A_LADO = 4;
+
 function Ramo({ empresaId, no }: { empresaId: string; no: NoArvore }) {
   const [aberto, setAberto] = useState(true);
   const temFilhos = no.filhos.length > 0;
   const total = contar(no);
+  const empilhar = no.filhos.length > MAX_LADO_A_LADO;
 
   return (
-    <div className="flex flex-col items-center">
+    <div className={cn("flex flex-col", empilhar ? "items-start" : "items-center")}>
       <Caixa
         empresaId={empresaId}
         no={no}
@@ -122,7 +134,7 @@ function Ramo({ empresaId, no }: { empresaId: string; no: NoArvore }) {
         onAlternar={temFilhos ? () => setAberto((a) => !a) : undefined}
       />
 
-      {temFilhos && aberto && (
+      {temFilhos && aberto && !empilhar && (
         <>
           {/* Haste que desce da caixa até a barra horizontal dos filhos. */}
           <div className="h-5 w-px bg-border" />
@@ -151,6 +163,23 @@ function Ramo({ empresaId, no }: { empresaId: string; no: NoArvore }) {
             })}
           </div>
         </>
+      )}
+
+      {temFilhos && aberto && empilhar && (
+        // Coluna com um tronco à esquerda; cada filho pendura por um L. O
+        // tronco para no último filho (por isso a altura casa com o centro da
+        // última caixa) para não sobrar linha solta embaixo.
+        <div className="relative ml-6 pl-6">
+          {/* Tronco: começa no topo e morre na altura do último L, para não
+              sobrar linha solta abaixo do último filho. */}
+          <div className="absolute bottom-[3.25rem] left-0 top-0 w-px bg-border" />
+          {no.filhos.map((filho) => (
+            <div key={filho.id} className="relative py-1.5">
+              <div className="absolute left-[-1.5rem] top-[2.25rem] h-px w-6 bg-border" />
+              <Ramo empresaId={empresaId} no={filho} />
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
