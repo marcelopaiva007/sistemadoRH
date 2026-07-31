@@ -8,6 +8,7 @@ import {
   ChevronDown,
   ChevronRight,
   Network,
+  GitBranch,
   Pencil,
   Users,
   UserX,
@@ -16,6 +17,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ArvoreVisual } from "./arvore-visual";
 import { definirSupervisor } from "@/lib/actions/rh-colaboradores";
 import { cn } from "@/lib/utils";
 
@@ -183,6 +186,23 @@ export function OrganogramaView({ empresaId, colaboradores }: { empresaId: strin
             </div>
           </div>
 
+          <Tabs defaultValue="estrutura" className="space-y-4">
+            <TabsList>
+              <TabsTrigger value="estrutura">
+                <Network className="size-4" /> Estrutura
+              </TabsTrigger>
+              <TabsTrigger value="arvore">
+                <GitBranch className="size-4" /> Árvore
+              </TabsTrigger>
+            </TabsList>
+
+            {/* Desenho de cima para baixo: para ler e apresentar. Não repete os
+                controles de edição — quem monta a hierarquia usa a Estrutura. */}
+            <TabsContent value="arvore">
+              <ArvoreVisual empresaId={empresaId} arvores={arvores} />
+            </TabsContent>
+
+            <TabsContent value="estrutura" className="space-y-4">
           <Input
             placeholder="Buscar por nome..."
             value={busca}
@@ -293,6 +313,8 @@ export function OrganogramaView({ empresaId, colaboradores }: { empresaId: strin
               )}
             </CardContent>
           </Card>
+            </TabsContent>
+          </Tabs>
         </>
       )}
     </div>
