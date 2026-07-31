@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Check, ChevronDown, Building2 } from "lucide-react";
+import { useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { ChevronDown, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -10,6 +11,17 @@ import {
 } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+
+const PARAM = "empresas";
+
+// Lista de CNPJs marcados, lida da URL. Vazia = sem filtro = todas as marcas.
+function lerFiltro(searchParams: URLSearchParams | ReadonlyURLSearchParams): string[] {
+  const bruto = searchParams.get(PARAM);
+  if (!bruto) return [];
+  return bruto.split(",").filter(Boolean);
+}
+
+type ReadonlyURLSearchParams = ReturnType<typeof useSearchParams>;
 
 type Marca = {
   id: string;
@@ -31,31 +43,25 @@ export function FiltroEmpresas({
   empresas: Empresa[];
   usuarioEmpresas: string[]; // IDs das empresas que o usuário tem acesso
 }) {
-  const [filtroSelecionado, setFiltroSelecionado] = useState<string[]>([]);
   const [open, setOpen] = useState(false);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
-  // Carregar filtro do sessionStorage
-  useEffect(() => {
-    const saved = sessionStorage.getItem("rh_filtro_empresas");
-    if (saved) {
-      try {
-        setFiltroSelecionado(JSON.parse(saved));
-      } catch {
-        setFiltroSelecionado([]);
-      }
-    } else {
-      setFiltroSelecionado([]);
-    }
-  }, []);
+  // O filtro mora na URL, não em estado local nem em sessionStorage. Três
+  // motivos: o seletor fica no layout e as tabelas ficam nas páginas, sem
+  // canal entre eles; o seletor é renderizado duas vezes (desktop e celular),
+  // que precisam concordar; e sessionStorage não avisa ninguém quando muda.
+  // useSearchParams é reativo, então marcar um CNPJ re-renderiza as listas.
+  const filtroSelecionado = lerFiltro(searchParams);
 
-  // Salvar filtro no sessionStorage
   const salvarFiltro = (novoFiltro: string[]) => {
-    setFiltroSelecionado(novoFiltro);
-    if (novoFiltro.length === 0) {
-      sessionStorage.removeItem("rh_filtro_empresas");
-    } else {
-      sessionStorage.setItem("rh_filtro_empresas", JSON.stringify(novoFiltro));
-    }
+    const params = new URLSearchParams(searchParams.toString());
+    if (novoFiltro.length === 0) params.delete(PARAM);
+    else params.set(PARAM, novoFiltro.join(","));
+    const query = params.toString();
+    // replace e não push: filtrar não é navegação, não deve encher o histórico.
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   };
 
   // Obter empresas disponíveis para o usuário (apenas as que ele tem acesso)
@@ -191,25 +197,16 @@ export function FiltroEmpresas({
 }
 
 /**
- * Hook para obter as empresas filtradas na tela atual.
- * Use em qualquer componente que precisa respeitar o filtro.
+ * Empresas que a tela atual deve mostrar. Sem filtro na URL, devolve tudo que
+ * o usuário enxerga — a visão consolidada é o padrão.
+ *
+ * Lê da URL, não de sessionStorage: a versão anterior lia uma vez na montagem
+ * e nunca mais, então marcar um CNPJ não mexia na lista até dar F5.
  */
 export function useFiltroEmpresas(usuarioEmpresas: string[]) {
-  const [empresasFiltradas, setEmpresasFiltradas] = useState<string[]>([]);
-
-  useEffect(() => {
-    const saved = sessionStorage.getItem("rh_filtro_empresas");
-    if (saved) {
-      try {
-        const filtro = JSON.parse(saved);
-        setEmpresasFiltradas(filtro);
-      } catch {
-        setEmpresasFiltradas(usuarioEmpresas);
-      }
-    } else {
-      setEmpresasFiltradas(usuarioEmpresas);
-    }
-  }, [usuarioEmpresas]);
-
-  return empresasFiltradas;
+  const searchParams = useSearchParams();
+  const filtro = lerFiltro(searchParams);
+  if (filtro.length === 0) return usuarioEmpresas;
+  // Interseção: um CNPJ na URL que o usuário não enxerga não vira acesso.
+  return filtro.filter((id) => usuarioEmpresas.includes(id));
 }
