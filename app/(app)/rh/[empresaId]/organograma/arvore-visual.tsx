@@ -116,11 +116,10 @@ export function ArvoreVisual({
 // pessoas. Com todos em linha a árvore passava de 34.000px — ninguém acha
 // ninguém rolando isso.
 //
-// O 3 não é gosto: medindo a distribuição real de subordinados diretos
-// ([1,1,2,2,2,2,3,3,3,4,4,6,6,7,8,52,57]), é o maior limite que mantém o
-// desenho dentro da largura da tela (1072px), acabando com a rolagem
-// horizontal. Subir para 4 custa 1304px e economiza 6 linhas; 6 custa 2184px
-// e economiza 11. Nenhum dos dois paga.
+// O 3 não é gosto: vem da distribuição real de subordinados diretos
+// ([1,1,2,2,2,2,3,3,3,4,4,6,6,7,8,52,57]). Medido, 3 dá 1.072px de largura
+// contra 1.304px do 4 (que economiza só 6 linhas) e 2.184px do 6 (11 linhas).
+// 5 é idêntico a 4, porque ninguém tem exatamente 5 subordinados.
 const MAX_LADO_A_LADO = 3;
 
 // Grupo grande de FOLHAS vira grade em vez de coluna única.
@@ -178,10 +177,11 @@ function Ramo({ empresaId, no }: { empresaId: string; no: NoArvore }) {
       )}
 
       {temFilhos && aberto && empilhar && (
-        // Coluna com um tronco à esquerda; cada filho pendura por um L. O
-        // tronco para no último filho (por isso a altura casa com o centro da
-        // última caixa) para não sobrar linha solta embaixo.
-        <div className="relative ml-6 pl-6">
+        // Coluna com um tronco à esquerda; cada filho pendura por um L.
+        //
+        // Recuo curto de propósito: a 48px por nível, a indentação sozinha
+        // somava 1.077px na hierarquia real — mais que a largura da caixa.
+        <div className="relative ml-3 pl-3">
           {/* Tronco: começa no topo e morre na altura do último L, para não
               sobrar linha solta abaixo do último filho. */}
           <div className="absolute bottom-[3.25rem] left-0 top-0 w-px bg-border" />
@@ -192,7 +192,7 @@ function Ramo({ empresaId, no }: { empresaId: string; no: NoArvore }) {
             .filter((f) => f.filhos.length > 0)
             .map((filho) => (
               <div key={filho.id} className="relative py-1.5">
-                <div className="absolute left-[-1.5rem] top-[2.25rem] h-px w-6 bg-border" />
+                <div className="absolute left-[-0.75rem] top-[2.25rem] h-px w-3 bg-border" />
                 <Ramo empresaId={empresaId} no={filho} />
               </div>
             ))}
@@ -203,7 +203,7 @@ function Ramo({ empresaId, no }: { empresaId: string; no: NoArvore }) {
             if (folhas.length === 0) return null;
             return (
               <div className="relative py-1.5">
-                <div className="absolute left-[-1.5rem] top-[2.25rem] h-px w-6 bg-border" />
+                <div className="absolute left-[-0.75rem] top-[2.25rem] h-px w-3 bg-border" />
                 <div
                   className="grid gap-2"
                   // 13rem é a largura da caixa (w-52). Coluna fluida brigaria
