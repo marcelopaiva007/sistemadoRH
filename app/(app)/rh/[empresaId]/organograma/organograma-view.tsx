@@ -31,6 +31,7 @@ type Colaborador = {
   supervisorId: string | null;
   setor: { nome: string };
   posicao: { nome: string };
+  empresa: { nome: string };
 };
 
 type No = Colaborador & { filhos: No[] };
@@ -68,7 +69,17 @@ function combina(no: No, termo: string): boolean {
   return no.filhos.some((f) => combina(f, termo));
 }
 
-export function OrganogramaView({ empresaId, colaboradores }: { empresaId: string; colaboradores: Colaborador[] }) {
+export function OrganogramaView({
+  empresaId,
+  colaboradores,
+  marcaNome,
+  totalCnpjs,
+}: {
+  empresaId: string;
+  colaboradores: Colaborador[];
+  marcaNome: string;
+  totalCnpjs: number;
+}) {
   const [busca, setBusca] = useState("");
 
   const { arvores, orfaos, gruposSemLider, naEstrutura } = useMemo(() => {
@@ -137,8 +148,9 @@ export function OrganogramaView({ empresaId, colaboradores }: { empresaId: strin
       <div>
         <h2 className="text-xl font-semibold tracking-tight">Organograma</h2>
         <p className="text-sm text-muted-foreground">
-          Montado a partir de quem reporta a quem — atualiza sozinho quando uma movimentação troca
-          o líder de alguém.
+          Marca <strong>{marcaNome}</strong> — {totalCnpjs} CNPJ{totalCnpjs > 1 ? "s" : ""}, todos na
+          mesma árvore. Montado a partir de quem reporta a quem, e atualiza sozinho quando uma
+          movimentação troca o líder de alguém.
         </p>
       </div>
 

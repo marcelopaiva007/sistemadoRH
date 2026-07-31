@@ -19,6 +19,7 @@ export type NoArvore = {
   nome: string;
   setor: { nome: string };
   posicao: { nome: string };
+  empresa: { nome: string };
   filhos: NoArvore[];
 };
 
@@ -255,6 +256,11 @@ function Caixa({
           </p>
           <p className="truncate text-[11px] text-muted-foreground/80" title={no.setor.nome}>
             {no.setor.nome}
+          </p>
+          {/* Com varios CNPJs na mesma arvore, de qual empresa a pessoa e
+              deixa de ser detalhe e vira informacao. */}
+          <p className="truncate text-[11px] text-muted-foreground/60" title={no.empresa.nome}>
+            {no.empresa.nome}
           </p>
         </div>
       </div>
