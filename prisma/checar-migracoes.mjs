@@ -50,6 +50,21 @@ if (!process.env.DATABASE_URL) {
   process.exit(0);
 }
 
+// Host e nome do banco no log — nunca usuário nem senha. Existe porque em
+// 30/07/2026 a produção barrou por migration "pendente" que ESTAVA aplicada:
+// aplicada no banco do .env local, enquanto o build olhava outro DATABASE_URL.
+// Dois ambientes discordando sobre qual banco é "o banco" só se diagnostica
+// com o host na cara.
+function ondeEstouOlhando() {
+  try {
+    const u = new URL(process.env.DATABASE_URL);
+    return `${u.hostname}${u.pathname}`;
+  } catch {
+    return "(DATABASE_URL nao e uma URL valida)";
+  }
+}
+console.log(`· checar-migracoes: banco deste ambiente -> ${ondeEstouOlhando()}`);
+
 // Mas se a variável EXISTE e mesmo assim não dá para checar, isso é defeito de
 // configuração e derruba o build. A primeira versão desta checagem avisava e
 // passava aqui — e um `DATABASE_URL` de Preview malformado (host `base`,
