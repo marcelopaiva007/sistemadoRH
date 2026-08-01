@@ -7,6 +7,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { gerarCsv } from "@/lib/csv";
 import { hojeUTC } from "@/lib/datas";
+import { empresasDaMesmaMarca } from "@/lib/escopo-marca";
 import {
   absenteismoPorSetor,
   calcularTurnover,
@@ -29,24 +30,26 @@ export async function GET(
     user.role === "ADMIN" || user.empresas.some((e) => e.empresaId === empresaId && e.ativo);
   if (!autorizado) return NextResponse.json({ error: "Sem acesso a esta empresa." }, { status: 403 });
 
+  const empresaIds = await empresasDaMesmaMarca(empresaId);
   const hoje = hojeUTC();
 
+  // Marca da empresa da rota, não CNPJ isolado — mesmo escopo da tela.
   const [empresa, ativos, todosOsVinculos, ausenciasRecentes, beneficiosVigentes] = await Promise.all([
-    prisma.empresa.findUnique({ where: { id: empresaId }, select: { nome: true } }),
+    prisma.empresa.findUnique({ where: { id: empresaId }, select: { marca: { select: { nome: true } } } }),
     prisma.colaborador.findMany({
-      where: { empresaId, ativo: true },
+      where: { empresaId: { in: empresaIds }, ativo: true },
       select: { setor: { select: { nome: true } }, salarioBase: true },
     }),
     prisma.colaborador.findMany({
-      where: { empresaId },
+      where: { empresaId: { in: empresaIds } },
       select: { dataAdmissao: true, dataDesligamento: true },
     }),
     prisma.ausencia.findMany({
-      where: { empresaId, dataInicio: { gte: new Date(hoje.getTime() - 40 * 86_400_000) } },
+      where: { empresaId: { in: empresaIds }, dataInicio: { gte: new Date(hoje.getTime() - 40 * 86_400_000) } },
       select: { dias: true, abonada: true, dataInicio: true, colaborador: { select: { setor: { select: { nome: true } } } } },
     }),
     prisma.beneficioColaborador.findMany({
-      where: { empresaId, OR: [{ dataFim: null }, { dataFim: { gte: hoje } }], colaborador: { ativo: true } },
+      where: { empresaId: { in: empresaIds }, OR: [{ dataFim: null }, { dataFim: { gte: hoje } }], colaborador: { ativo: true } },
       select: { valorEmpresa: true, colaborador: { select: { setor: { select: { nome: true } } } } },
     }),
   ]);
@@ -95,7 +98,7 @@ export async function GET(
   // Um CSV só, com as duas tabelas separadas por linha em branco — mais
   // simples de abrir no Excel do que dois arquivos.
   const corpo = resumo.replace(/\r\n$/, "") + "\r\n\r\n" + porSetor.replace(/^﻿/, "");
-  const nomeArquivo = `indicadores-${(empresa?.nome ?? "empresa").toLowerCase().replace(/[^a-z0-9]+/g, "-")}.csv`;
+  const nomeArquivo = `indicadores-${(empresa?.marca.nome ?? "empresa").toLowerCase().replace(/[^a-z0-9]+/g, "-")}.csv`;
 
   return new NextResponse(corpo, {
     headers: {

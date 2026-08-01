@@ -24,6 +24,7 @@ import { Indicador } from "@/components/indicador";
 
 export function IndicadoresView({
   empresaId,
+  qtdEmpresas,
   headcount,
   totalAtivos,
   totalHistorico,
@@ -34,6 +35,7 @@ export function IndicadoresView({
   comSalarioPreenchido,
 }: {
   empresaId: string;
+  qtdEmpresas: number;
   headcount: LinhaHeadcount[];
   totalAtivos: number;
   totalHistorico: number;
@@ -56,6 +58,7 @@ export function IndicadoresView({
           <p className="text-sm text-muted-foreground">
             Headcount, turnover, absenteísmo e custo de pessoal — calculados na hora a partir da ficha,
             das ausências e dos benefícios já cadastrados.
+            {qtdEmpresas > 1 && ` Consolidado com os ${qtdEmpresas} CNPJs da marca.`}
           </p>
         </div>
         <Button
