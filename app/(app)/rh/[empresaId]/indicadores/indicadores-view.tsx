@@ -12,9 +12,10 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, FileDown } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatarReais } from "@/lib/constants-beneficios";
@@ -22,6 +23,7 @@ import type { LinhaAbsenteismo, LinhaCusto, LinhaHeadcount, ResultadoTurnover } 
 import { Indicador } from "@/components/indicador";
 
 export function IndicadoresView({
+  empresaId,
   headcount,
   totalAtivos,
   totalHistorico,
@@ -31,6 +33,7 @@ export function IndicadoresView({
   custo,
   comSalarioPreenchido,
 }: {
+  empresaId: string;
   headcount: LinhaHeadcount[];
   totalAtivos: number;
   totalHistorico: number;
@@ -47,12 +50,22 @@ export function IndicadoresView({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-semibold tracking-tight">Indicadores</h2>
-        <p className="text-sm text-muted-foreground">
-          Headcount, turnover, absenteísmo e custo de pessoal — calculados na hora a partir da ficha,
-          das ausências e dos benefícios já cadastrados.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-semibold tracking-tight">Indicadores</h2>
+          <p className="text-sm text-muted-foreground">
+            Headcount, turnover, absenteísmo e custo de pessoal — calculados na hora a partir da ficha,
+            das ausências e dos benefícios já cadastrados.
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          render={<a href={`/api/rh/${empresaId}/indicadores/csv`} />}
+        >
+          <FileDown className="size-4" />
+          Exportar CSV
+        </Button>
       </div>
 
       {comSalarioPreenchido < totalAtivos && (

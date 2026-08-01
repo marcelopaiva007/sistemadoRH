@@ -62,6 +62,7 @@ export default async function IndicadoresPage({
 
   return (
     <IndicadoresView
+      empresaId={empresaId}
       headcount={headcount}
       totalAtivos={ativos.length}
       totalHistorico={totalColaboradoresHistorico}
