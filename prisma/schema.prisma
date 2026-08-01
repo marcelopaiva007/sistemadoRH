@@ -50,6 +50,11 @@ model User {
   // só volta na URL uma vez, no e-mail.
   conviteExpiraEm  DateTime?
   conviteTokenHash String?
+  // "Esqueci minha senha" — mesmo padrão do convite: só o hash do token fica
+  // no banco, o valor em claro vai uma vez só no e-mail. Um token ativo por
+  // vez (pedir de novo invalida o anterior).
+  recuperacaoSenhaExpiraEm  DateTime?
+  recuperacaoSenhaTokenHash String?
   ultimoAcessoEm   DateTime?
   createdAt        DateTime  @default(now())
 

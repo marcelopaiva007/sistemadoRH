@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -71,6 +72,12 @@ export function LoginForm() {
             {isPending ? "Entrando..." : "Entrar"}
           </Button>
         </form>
+        <Link
+          href="/esqueci-senha"
+          className="mt-4 block text-center text-sm text-muted-foreground hover:underline"
+        >
+          Esqueci minha senha
+        </Link>
       </CardContent>
     </Card>
   );
