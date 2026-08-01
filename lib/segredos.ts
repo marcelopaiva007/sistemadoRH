@@ -3,6 +3,19 @@ import { decifrar } from "@/lib/cripto";
 
 export const CHAVE_ANTHROPIC = "ANTHROPIC_API_KEY";
 
+/**
+ * Quem pode cadastrar credencial pela tela. Vive aqui, e não no arquivo de
+ * actions, porque um módulo "use server" só pode exportar função assíncrona —
+ * uma constante exportada de lá quebra o build.
+ *
+ * Os mesmos dois papéis da gestão de usuários, pelo mesmo motivo registrado em
+ * `requireGestaoUsuarios`: a diretoria já pode criar um ADMIN e com isso se
+ * promover, então exigir ADMIN não seria barreira. O que a lista de fato
+ * guarda é o gasto na conta da Anthropic do grupo — RH_MANAGER e GESTOR_SETOR
+ * ficam de fora.
+ */
+export const PAPEIS_QUE_CONFIGURAM: readonly string[] = ["ADMIN", "DIRETORIA"];
+
 export type OrigemSegredo = "ambiente" | "sistema";
 
 export type StatusSegredo = {

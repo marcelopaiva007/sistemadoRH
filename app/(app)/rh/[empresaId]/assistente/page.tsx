@@ -1,5 +1,5 @@
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
-import { CHAVE_ANTHROPIC, statusDoSegredo } from "@/lib/segredos";
+import { CHAVE_ANTHROPIC, PAPEIS_QUE_CONFIGURAM, statusDoSegredo } from "@/lib/segredos";
 import { AssistenteView } from "./assistente-view";
 
 // Assistente de RH: pergunta em linguagem natural sobre os dados da empresa.
@@ -26,9 +26,9 @@ export default async function AssistentePage({
       dica={status.dica}
       atualizadoPor={status.atualizadoPor}
       // Quem grava a chave passa a poder gastar na conta da Anthropic do
-      // grupo — por isso o formulário só existe para o ADMIN. A server action
-      // confere de novo; isto aqui é só para não mostrar o que não adianta.
-      podeConfigurar={user.role === "ADMIN"}
+      // grupo. A server action confere de novo; isto aqui é só para não
+      // mostrar formulário a quem levaria uma recusa ao salvar.
+      podeConfigurar={PAPEIS_QUE_CONFIGURAM.includes(user.role as string)}
     />
   );
 }

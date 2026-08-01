@@ -6,30 +6,41 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-guard";
 import { registrarAuditoria } from "@/lib/audit";
 import { cifrar, dicaDe } from "@/lib/cripto";
-import { CHAVE_ANTHROPIC } from "@/lib/segredos";
+import { CHAVE_ANTHROPIC, PAPEIS_QUE_CONFIGURAM } from "@/lib/segredos";
 import type { ActionResult } from "@/lib/constants";
 
 /**
  * Cadastro da chave da Anthropic pela tela.
  *
- * Só ADMIN, e por um motivo concreto: quem grava a chave passa a poder gastar
- * na conta da Anthropic do grupo. Guarda própria em vez de `requireAdmin` para
- * a tela receber a recusa como mensagem, em vez de um redirect silencioso no
- * meio de um formulário.
+ * ADMIN e DIRETORIA, os mesmos dois papéis da gestão de usuários — e pelo
+ * mesmo motivo que está em `requireGestaoUsuarios`: a diretoria já pode criar
+ * um ADMIN e com isso se promover, então exigir ADMIN aqui não seria uma
+ * barreira, só um desvio. Na primeira versão desta tela era só ADMIN, e o
+ * efeito prático foi deixar o dono do sistema — que é DIRETORIA — sem
+ * conseguir ligar o recurso que pediu.
+ *
+ * O que a restrição de fato guarda: quem grava a chave passa a poder gastar na
+ * conta da Anthropic do grupo. RH_MANAGER e GESTOR_SETOR ficam de fora.
+ *
+ * Guarda própria em vez de `requireGestaoUsuarios` para a tela receber a
+ * recusa como mensagem, em vez de um redirect silencioso no meio do
+ * formulário.
  *
  * A chave entra, nunca sai: nenhuma action deste arquivo devolve o valor, e o
  * banco guarda a versão cifrada (lib/cripto.ts).
  */
-async function exigirAdmin(): Promise<{ ok: true; user: { id: string; nome?: string | null } } | { ok: false; error: string }> {
+async function exigirPapel(): Promise<
+  { ok: true; user: { id: string; nome?: string | null } } | { ok: false; error: string }
+> {
   const user = await requireUser();
-  if (user.role !== "ADMIN") {
-    return { ok: false, error: "Só um administrador pode alterar a chave da API." };
+  if (!PAPEIS_QUE_CONFIGURAM.includes(user.role as string)) {
+    return { ok: false, error: "Só a administração ou a diretoria pode alterar a chave da API." };
   }
   return { ok: true, user };
 }
 
 export async function salvarChaveAnthropic(empresaId: string, chave: string): Promise<ActionResult> {
-  const permissao = await exigirAdmin();
+  const permissao = await exigirPapel();
   if (!permissao.ok) return permissao;
 
   // Colar de um e-mail ou do console traz espaço e quebra de linha junto, e o
@@ -83,7 +94,7 @@ export async function salvarChaveAnthropic(empresaId: string, chave: string): Pr
 }
 
 export async function removerChaveAnthropic(empresaId: string): Promise<ActionResult> {
-  const permissao = await exigirAdmin();
+  const permissao = await exigirPapel();
   if (!permissao.ok) return permissao;
 
   const existente = await prisma.segredoApp.findUnique({
