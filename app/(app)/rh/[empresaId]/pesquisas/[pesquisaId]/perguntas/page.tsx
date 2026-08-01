@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
-import { empresasDaMesmaMarca } from "@/lib/escopo-marca";
+import { marcaDaEmpresa } from "@/lib/escopo-marca";
 import { PerguntasView } from "../perguntas-view";
 
 export default async function PerguntasPage({
@@ -13,7 +13,7 @@ export default async function PerguntasPage({
   await requireEmpresaAccess(empresaId);
 
   const pesquisa = await prisma.pesquisa.findFirst({
-    where: { id: pesquisaId, empresaId: { in: await empresasDaMesmaMarca(empresaId) } },
+    where: { id: pesquisaId, marcaId: await marcaDaEmpresa(empresaId) },
     select: {
       id: true,
       titulo: true,

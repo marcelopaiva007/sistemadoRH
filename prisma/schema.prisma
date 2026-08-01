@@ -129,7 +129,8 @@ model Marca {
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
 
-  empresas Empresa[]
+  empresas  Empresa[]
+  pesquisas Pesquisa[]
   usuarios UserMarca[]
 
   @@schema("rh")
@@ -1374,6 +1375,15 @@ model AuditLog {
 
 model Pesquisa {
   id          String    @id @default(cuid())
+  // A pesquisa é da MARCA, não do CNPJ: uma de clima é aplicada ao grupo
+  // inteiro, e qual CNPJ assina a carteira de quem responde não muda nada para
+  // quem conduz. Enquanto o vínculo era só `empresaId`, uma pesquisa criada na
+  // RSM sumia para os outros quatro CNPJs da LM Telecom — sem avisar que estava
+  // escondendo — e criar "uma por CNPJ" enchia a lista de duplicatas.
+  marcaId     String
+  marca       Marca     @relation(fields: [marcaId], references: [id])
+  // Mantido: registra em qual CNPJ a pesquisa nasceu e ainda é lido por telas
+  // e relatórios antigos. Sai numa limpeza posterior, quando ninguém mais usar.
   empresaId   String
   empresa     Empresa   @relation(fields: [empresaId], references: [id])
   titulo      String
@@ -1395,6 +1405,9 @@ model Pesquisa {
   tokens    SurveyToken[]
   respostas Resposta[]
 
+  // A listagem passou a filtrar por marca; o índice acompanha. O de empresaId
+  // fica enquanto as telas antigas ainda leem por CNPJ.
+  @@index([marcaId, status])
   @@index([empresaId, status])
   @@index([criadoPorId])
   @@schema("rh")

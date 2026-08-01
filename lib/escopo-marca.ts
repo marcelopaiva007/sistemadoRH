@@ -12,6 +12,22 @@ import { prisma } from "@/lib/prisma";
  * Devolve sempre pelo menos o próprio id, para o caso de uma empresa sem marca
  * ou desativada não zerar a tela.
  */
+/**
+ * A marca de um CNPJ.
+ *
+ * Para o que já é modelado por marca — hoje `Pesquisa.marcaId` — filtrar direto
+ * por `marcaId` é mais barato e mais claro do que expandir para a lista de
+ * CNPJs irmãos: é uma coluna indexada em vez de um `IN` que cresce junto com o
+ * grupo.
+ */
+export async function marcaDaEmpresa(empresaId: string): Promise<string> {
+  const empresa = await prisma.empresa.findUniqueOrThrow({
+    where: { id: empresaId },
+    select: { marcaId: true },
+  });
+  return empresa.marcaId;
+}
+
 export async function empresasDaMesmaMarca(empresaId: string): Promise<string[]> {
   const empresa = await prisma.empresa.findUnique({
     where: { id: empresaId },

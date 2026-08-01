@@ -5,6 +5,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { marcaDaEmpresa } from "@/lib/escopo-marca";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { enviarUmConvite, enviosRestantesHoje, LIMITE_DIARIO_ENVIOS } from "@/lib/convites";
 import { vinculoTelegramQuebrado, MSG_AGUARDANDO_NOVO_VINCULO } from "@/lib/pesquisa-numeros";
@@ -82,6 +83,9 @@ export async function createPesquisa(
 
   const pesquisa = await prisma.pesquisa.create({
     data: {
+      // A pesquisa nasce vinculada a MARCA — e ao CNPJ so como registro de
+      // onde foi criada. Ver o comentario de `marcaId` no schema.
+      marcaId: await marcaDaEmpresa(empresaId),
       empresaId,
       titulo: parsed.data.titulo,
       descricao: parsed.data.descricao || null,
@@ -105,6 +109,9 @@ export async function criarPesquisaNR01(empresaId: string): Promise<ActionResult
   const ano = new Date().getFullYear();
   const pesquisa = await prisma.pesquisa.create({
     data: {
+      // A pesquisa nasce vinculada a MARCA — e ao CNPJ so como registro de
+      // onde foi criada. Ver o comentario de `marcaId` no schema.
+      marcaId: await marcaDaEmpresa(empresaId),
       empresaId,
       titulo: `${TITULO_PESQUISA_NR01} — ${ano}`,
       descricao: DESCRICAO_PESQUISA_NR01,

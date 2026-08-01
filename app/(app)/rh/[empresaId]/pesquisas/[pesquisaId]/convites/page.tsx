@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
-import { empresasDaMesmaMarca } from "@/lib/escopo-marca";
+import { marcaDaEmpresa } from "@/lib/escopo-marca";
 import { ConvitesView } from "../convites-view";
 
 // A lista de convidados. É a tela pesada da pesquisa (uma linha por pessoa),
@@ -16,7 +16,7 @@ export default async function ConvitesPage({
   await requireEmpresaAccess(empresaId);
 
   const pesquisa = await prisma.pesquisa.findFirst({
-    where: { id: pesquisaId, empresaId: { in: await empresasDaMesmaMarca(empresaId) } },
+    where: { id: pesquisaId, marcaId: await marcaDaEmpresa(empresaId) },
     select: { id: true, titulo: true, descricao: true, anonima: true, status: true, modelo: true },
   });
   if (!pesquisa) notFound();

@@ -8,7 +8,13 @@ type DimensaoGPTW = "CREDIBILIDADE" | "RESPEITO" | "IMPARCIALIDADE" | "ORGULHO" 
 
 export type TipoCiclo = "ANUAL" | "PULSO";
 
+// O ciclo é por MARCA. Antes era por CNPJ, e o cron criava um rascunho para
+// cada empresa: a LM Telecom, com cinco CNPJs, ganhava cinco "Pulso de Clima"
+// idênticos a cada trimestre. `empresaId` continua aqui só para registrar em
+// qual empresa da marca a pesquisa nasce.
 export type CicloCandidato = {
+  marcaId: string;
+  marcaNome: string;
   empresaId: string;
   empresaNome: string;
   tipo: TipoCiclo;
@@ -64,11 +70,13 @@ export function precisaCriarCiclo(
   });
 }
 
-// Coleta candidatos para criação de ciclo em todas as empresas
+// Coleta candidatos para criação de ciclo — uma pesquisa por MARCA, não por
+// CNPJ. A pesquisa de clima é do grupo: rodar uma por empresa multiplicava o
+// mesmo questionário e obrigava o RH a consolidar cinco resultados à mão.
 export async function coletarCandidatos(): Promise<CicloCandidato[]> {
-  const empresas = await prisma.empresa.findMany({
+  const marcas = await prisma.marca.findMany({
     where: { ativo: true },
-    select: { id: true, nome: true },
+    select: { id: true, nome: true, empresas: { where: { ativo: true }, select: { id: true, nome: true } } },
   });
 
   const candidatos: CicloCandidato[] = [];
@@ -76,9 +84,14 @@ export async function coletarCandidatos(): Promise<CicloCandidato[]> {
   const ano = agora.getFullYear();
   const tri = trimestreAtual(agora);
 
-  for (const e of empresas) {
+  for (const marca of marcas) {
+    // Marca sem CNPJ ativo não tem a quem aplicar pesquisa.
+    const empresa = marca.empresas[0];
+    if (!empresa) continue;
+    const e = { id: empresa.id, nome: empresa.nome, marcaId: marca.id, marcaNome: marca.nome };
+
     const pesquisas = await prisma.pesquisa.findMany({
-      where: { empresaId: e.id, modelo: "CLIMA" },
+      where: { marcaId: marca.id, modelo: "CLIMA" },
       select: { id: true, titulo: true, status: true, createdAt: true },
     });
 
@@ -92,6 +105,8 @@ export async function coletarCandidatos(): Promise<CicloCandidato[]> {
         (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
       )[0];
       candidatos.push({
+        marcaId: e.marcaId,
+        marcaNome: e.marcaNome,
         empresaId: e.id,
         empresaNome: e.nome,
         tipo: "ANUAL",
@@ -103,6 +118,8 @@ export async function coletarCandidatos(): Promise<CicloCandidato[]> {
     // PULSO
     if (precisaCriarCiclo(pesquisas, "PULSO", agora)) {
       candidatos.push({
+        marcaId: e.marcaId,
+        marcaNome: e.marcaNome,
         empresaId: e.id,
         empresaNome: e.nome,
         tipo: "PULSO",
@@ -139,6 +156,7 @@ export async function criarCicloRascunho(cand: CicloCandidato): Promise<{ pesqui
   return await prisma.$transaction(async (tx) => {
     const pesquisa = await tx.pesquisa.create({
       data: {
+        marcaId: cand.marcaId,
         empresaId: cand.empresaId,
         titulo,
         descricao,

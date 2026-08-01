@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
-import { empresasDaMesmaMarca } from "@/lib/escopo-marca";
+import { marcaDaEmpresa } from "@/lib/escopo-marca";
 import { CONVITES_NA_PESQUISA, participacaoPct } from "@/lib/pesquisa-numeros";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DadosPesquisaForm } from "./dados-pesquisa-form";
@@ -17,7 +17,7 @@ export default async function PesquisaVisaoGeralPage({
   await requireEmpresaAccess(empresaId);
 
   const pesquisa = await prisma.pesquisa.findFirst({
-    where: { id: pesquisaId, empresaId: { in: await empresasDaMesmaMarca(empresaId) } },
+    where: { id: pesquisaId, marcaId: await marcaDaEmpresa(empresaId) },
     select: {
       id: true,
       titulo: true,
