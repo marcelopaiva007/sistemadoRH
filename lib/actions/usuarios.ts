@@ -668,6 +668,9 @@ export async function criarConviteUsuario(_prev: ActionResult, formData: FormDat
       subject: "Convite para acessar o sistema de RH",
       html,
       text: `Acesse ${link} para definir sua senha. O link expira em ${CONVITE_EXPIRA_EM_DIAS} dias.`,
+      // Protege contra duplo clique no botão de convidar. Reenvio legítimo
+      // (a pessoa perdeu o e-mail) volta a passar no dia seguinte.
+      chave: `convite-usuario:${email.trim().toLowerCase()}`,
     });
     if (!envio.ok) {
       return { ok: false, error: `Convite criado, mas e-mail falhou: ${envio.error}` };

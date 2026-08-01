@@ -6,7 +6,7 @@
 import "dotenv/config";
 import { PrismaClient } from "../app/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { inicioDoDiaSaoPaulo } from "../lib/convites";
+import { inicioDoDiaSaoPaulo } from "../lib/email";
 import { LIMITE_DIARIO_ENVIOS } from "../lib/constants-rh";
 
 const prisma = new PrismaClient({
@@ -19,10 +19,11 @@ const emSaoPaulo = (d: Date) =>
 async function main() {
   const inicio = inicioDoDiaSaoPaulo();
 
-  // Conta por enviadoEm (não por status): é o que o provedor realmente
-  // contabilizou. Status vira RESPONDED quando a pessoa responde.
-  const enviadosHoje = await prisma.surveyToken.count({
-    where: { enviadoEm: { gte: inicio } },
+  // Fonte: EmailEnviado, o registro de TUDO que sai por lib/email.ts. Antes
+  // isto contava SurveyToken e enxergava só os convites de pesquisa — a
+  // campanha do portal e os lembretes gastavam a mesma cota invisivelmente.
+  const enviadosHoje = await prisma.emailEnviado.count({
+    where: { ok: true, enviadoEm: { gte: inicio } },
   });
   const restante = Math.max(0, LIMITE_DIARIO_ENVIOS - enviadosHoje);
 
@@ -30,6 +31,34 @@ async function main() {
   console.log(`Dia (Brasília) começou em: ${emSaoPaulo(inicio)}`);
   console.log(`Enviados hoje:  ${enviadosHoje} de ${LIMITE_DIARIO_ENVIOS}`);
   console.log(`Ainda cabem:    ${restante}`);
+
+  // Quem consumiu a cota, por tipo de envio (o prefixo da chave de dedupe).
+  const doDia = await prisma.emailEnviado.findMany({
+    where: { enviadoEm: { gte: inicio } },
+    select: { chave: true, ok: true },
+  });
+  if (doDia.length > 0) {
+    const porTipo = new Map<string, { ok: number; falha: number }>();
+    for (const e of doDia) {
+      const tipo = e.chave?.split(":")[0] ?? "(sem chave)";
+      const acc = porTipo.get(tipo) ?? { ok: 0, falha: 0 };
+      if (e.ok) acc.ok++;
+      else acc.falha++;
+      porTipo.set(tipo, acc);
+    }
+    console.log("\n=== Cota do dia por tipo de envio ===");
+    for (const [tipo, c] of [...porTipo].sort((a, b) => b[1].ok - a[1].ok)) {
+      console.log(`${tipo.padEnd(18)} ${String(c.ok).padStart(3)} enviado(s), ${c.falha} falha(s)`);
+    }
+  }
+
+  const suprimidos = await prisma.emailSuprimido.findMany({
+    select: { email: true, motivo: true },
+    orderBy: { criadoEm: "desc" },
+  });
+  console.log("\n=== Endereços suprimidos (nunca recebem) ===");
+  if (suprimidos.length === 0) console.log("(nenhum)");
+  for (const s of suprimidos) console.log(`${s.email} — ${s.motivo}`);
 
   const porCanalStatus = await prisma.surveyToken.groupBy({
     by: ["canal", "status"],

@@ -9,12 +9,16 @@
 //  - O cron envia por SETOR: completa setores inteiros enquanto o orçamento do
 //    dia permitir (menores primeiro), e usa o restante para avançar num setor
 //    grande — em poucos dias todos os convites saem sem estourar o limite.
+//
+// O teto em si não mora mais aqui: quem conta e recusa é lib/email.ts, o único
+// ponto por onde todo envio passa. O orçamento consultado abaixo serve para
+// dimensionar o lote antes de começar; a garantia dura é a de lá.
 import { prisma } from "@/lib/prisma";
 import { sendTelegramMessage } from "@/lib/telegram";
-import { sendEmail } from "@/lib/email";
+import { sendEmail, orcamentoRestanteHoje, inicioDoDiaSaoPaulo } from "@/lib/email";
 import { LIMITE_DIARIO_ENVIOS } from "@/lib/constants-rh";
 
-export { LIMITE_DIARIO_ENVIOS };
+export { LIMITE_DIARIO_ENVIOS, inicioDoDiaSaoPaulo };
 
 export type TokenParaEnvio = {
   id: string;
@@ -23,39 +27,29 @@ export type TokenParaEnvio = {
   pesquisa: { titulo: string; anonima: boolean };
 };
 
-// Início do dia corrente no fuso de Brasília (o servidor roda em UTC).
-export function inicioDoDiaSaoPaulo(agora = new Date()): Date {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Sao_Paulo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(agora);
-  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value);
-  // 00:00 em São Paulo = 03:00 UTC (UTC-3, sem horário de verão desde 2019).
-  return new Date(Date.UTC(get("year"), get("month") - 1, get("day"), 3, 0, 0));
-}
-
+// Quanto ainda cabe hoje. Até 01/08/2026 isto contava SurveyToken com
+// canal='EMAIL' — e enxergava só os convites de pesquisa. A campanha do portal,
+// os lembretes e as notificações de ciclo gastavam a mesma cota sem aparecer
+// aqui, então o contador dizia "100 livres" depois de 60 já terem saído.
+// Agora a fonte é o registro de tudo que sai (lib/email.ts).
 export async function enviosRestantesHoje(): Promise<number> {
   // Limite só conta para e-mail. Telegram não tem limite.
-  const enviadosEmailHoje = await prisma.surveyToken.count({
-    where: {
-      canal: "EMAIL",
-      enviadoEm: { gte: inicioDoDiaSaoPaulo() }
-    },
-  });
-  return Math.max(0, LIMITE_DIARIO_ENVIOS - enviadosEmailHoje);
+  return orcamentoRestanteHoje();
 }
 
-export async function enviarUmConvite(
-  token: TokenParaEnvio,
-): Promise<{ ok: true } | { ok: false; error: string }> {
+export type ResultadoConvite =
+  | { ok: true }
+  // `semCota` avisa quem chama que a parada é do dia, não do convite: o laço
+  // de envio deve parar em vez de queimar as tentativas restantes uma a uma.
+  | { ok: false; error: string; semCota?: boolean };
+
+export async function enviarUmConvite(token: TokenParaEnvio): Promise<ResultadoConvite> {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
   const link = `${baseUrl}/responder/${token.token}`;
   const primeiroNome = token.colaborador.nome.split(" ")[0];
   const texto = `Olá, ${primeiroNome}! Você foi convidado a responder a pesquisa "${token.pesquisa.titulo}". Acesse: ${link}`;
 
-  let resultado: { ok: true } | { ok: false; error: string };
+  let resultado: { ok: true } | { ok: false; error: string; motivo?: string };
   let canal: "TELEGRAM" | "EMAIL";
   if (token.colaborador.telegramChatId) {
     canal = "TELEGRAM";
@@ -73,6 +67,10 @@ export async function enviarUmConvite(
           : "") +
         `<p><a href="${link}" style="display:inline-block;padding:10px 18px;background:#2563eb;color:#fff;border-radius:6px;text-decoration:none">Responder pesquisa</a></p>` +
         `<p>Ou copie o link: ${link}</p>`,
+      // Um convite por pessoa por dia. O id do token já é único por
+      // (pesquisa, colaborador) — é o que impede o reenvio manual pela tela de
+      // duplicar o que o cron mandou de manhã.
+      chave: `convite:${token.id}`,
     });
   } else {
     // Sem canal não é falha, é espera: FAILED nunca é retentado pelo envio
@@ -85,13 +83,26 @@ export async function enviarUmConvite(
     return { ok: false, error: erro };
   }
 
+  // Cota estourada não é falha do convite — é fim de expediente. Marcar FAILED
+  // aqui aposentaria o convite para sempre (FAILED não é retentado pelo envio
+  // automático), e o teto é justamente uma condição que passa sozinha à
+  // meia-noite. Fica PENDING, com o motivo à vista, e sai amanhã.
+  const semCota = !resultado.ok && resultado.motivo === "COTA";
+  if (semCota) {
+    await prisma.surveyToken.update({
+      where: { id: token.id },
+      data: { erro: (resultado as { error: string }).error },
+    });
+    return { ok: false, error: (resultado as { error: string }).error, semCota: true };
+  }
+
   await prisma.surveyToken.update({
     where: { id: token.id },
     data: resultado.ok
       ? { status: "SENT", canal, enviadoEm: new Date(), erro: null }
       : { status: "FAILED", canal, erro: resultado.error },
   });
-  return resultado;
+  return resultado.ok ? { ok: true } : { ok: false, error: resultado.error };
 }
 
 export type ResumoEnvioAutomatico = {
@@ -105,7 +116,7 @@ export type ResumoEnvioAutomatico = {
 // de uma única empresa — envios nunca misturam empresas) e envia convites
 // PENDENTES com prioridade:
 // 1. Telegram: sem limite (tudo de uma vez)
-// 2. E-mail: respeitando o orçamento diário (máximo 100/dia)
+// 2. E-mail: respeitando o orçamento diário (ver LIMITE_DIARIO_ENVIOS)
 //
 // Convites FAILED não são retentados automaticamente (ficam para revisão/reenvio
 // manual na tela), para uma falha permanente não consumir o orçamento todo dia.
@@ -204,6 +215,13 @@ export async function rodadaEnvioAutomatico(): Promise<{
           enviados++;
           restanteEmail--;
         } else {
+          // Teto batido no meio da rodada (outro caminho gastou cota enquanto
+          // esta rodava): para tudo. Continuar só produziria uma recusa por
+          // pessoa restante, inflando "falhas" com um problema que não é delas.
+          if (resultado.semCota) {
+            restanteEmail = 0;
+            break;
+          }
           falhas++;
         }
       }

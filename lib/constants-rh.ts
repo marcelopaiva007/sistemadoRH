@@ -41,5 +41,13 @@ export const statusTokenLabel = (v: string) => STATUS_TOKEN.find((s) => s.value 
 
 export const AMOSTRA_MINIMA_ANONIMATO = 3;
 
-// Limite diário só para e-mail (100/dia). Telegram sem limite.
-export const LIMITE_DIARIO_ENVIOS = 100;
+// Teto diário de e-mail. Telegram não tem limite e não passa por aqui.
+//
+// O plano gratuito do Resend dá 100/dia, mas a cota é DA CONTA — e a conta é
+// dividida com o lm-bonificacao (mesmo domínio verificado, chaves diferentes).
+// A folga de 15 é o que impede um sistema de deixar o outro sem nada, e absorve
+// o descompasso entre o nosso contador e o do provedor.
+//
+// Ajustável sem deploy por LIMITE_DIARIO_EMAIL; ao trocar de plano, é só subir
+// a env var.
+export const LIMITE_DIARIO_ENVIOS = Number(process.env.LIMITE_DIARIO_EMAIL) || 85;

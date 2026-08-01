@@ -1515,3 +1515,45 @@ model RespostaItem {
   @@index([opcaoId])
   @@schema("rh")
 }
+
+// ---------------------------------------------------------------------------
+// Orçamento de e-mail
+//
+// Toda saída de e-mail do sistema passa por lib/email.ts e é registrada aqui —
+// convite de pesquisa, lembrete, campanha do portal, notificação de ciclo e
+// convite de usuário. Antes só os convites de pesquisa eram contados (via
+// SurveyToken), e os outros quatro caminhos gastavam cota invisivelmente: em
+// 28/07/2026 saíram 118+ e-mails num dia com teto de 100, porque a campanha do
+// portal disparou ~60 sem aparecer para o contador.
+//
+// A conta do Resend é COMPARTILHADA com o lm-bonificacao e o teto de 100/dia é
+// da conta, não da chave — por isso o orçamento aqui é deliberadamente menor.
+model EmailEnviado {
+  id        String   @id @default(cuid())
+  // Sempre normalizado (trim + minúsculas) para o dedupe não vazar por
+  // diferença de caixa.
+  para      String
+  assunto   String
+  // Chave de deduplicação do dia. Duas tentativas com a mesma chave no mesmo
+  // dia-calendário de Brasília só gastam cota uma vez — é o que impede o
+  // reenvio manual pela tela de duplicar o que o cron já mandou.
+  chave     String?
+  ok        Boolean
+  erro      String?
+  enviadoEm DateTime @default(now())
+
+  @@index([enviadoEm])
+  @@index([chave, enviadoEm])
+  @@schema("rh")
+}
+
+// Endereços que não devem mais receber nada. Bounce repetido queima cota todo
+// dia e derruba a reputação do domínio `envios.assinelm.com.br` — que é o mesmo
+// usado pelo lm-bonificacao.
+model EmailSuprimido {
+  email    String   @id
+  motivo   String
+  criadoEm DateTime @default(now())
+
+  @@schema("rh")
+}

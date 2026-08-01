@@ -92,8 +92,14 @@ export async function GET(req: NextRequest) {
         subject: `Lembrete: pesquisa de clima`,
         text: msg,
         html: `<p>${msg}</p>`,
+        // Este cron roda duas vezes por dia (13h e 19h UTC). Sem a chave, quem
+        // não respondeu levava o mesmo lembrete duas vezes e pagava dobrado na
+        // cota — e ainda contava como 2 dos 3 lembretes a que tem direito.
+        chave: `lembrete:${token.id}`,
       });
       ok = r.ok;
+      // Sem cota, o resto da fila só geraria recusa; volta amanhã.
+      if (!r.ok && r.motivo === "COTA") break;
     }
 
     if (ok) {
