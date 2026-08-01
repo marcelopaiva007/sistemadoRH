@@ -51,34 +51,39 @@ export default async function RelatoriosPage({
   }));
 
   // Nível geral das avaliações NR-01 (só quando há amostra suficiente).
-  const niveisPorPesquisa = new Map<string, { nivel: keyof typeof NIVEIS_RISCO; indice: number } | null>();
-  for (const p of pesquisas) {
-    if (p.modelo !== "NR01" || p._count.respostas === 0) {
-      niveisPorPesquisa.set(p.id, null);
-      continue;
-    }
-    const [perguntas, respostas] = await Promise.all([
-      prisma.pergunta.findMany({
-        where: { pesquisaId: p.id },
-        select: { id: true, codigo: true, enunciado: true, dimensao: true, invertida: true },
-      }),
-      prisma.resposta.findMany({
-        where: { pesquisaId: p.id },
-        select: {
-          setorNomeSnapshot: true,
-          posicaoNomeSnapshot: true,
-          itens: { select: { perguntaId: true, valorNumerico: true } },
-        },
-      }),
-    ]);
-    const resultado = calcularNR01(perguntas, respostas);
-    niveisPorPesquisa.set(
-      p.id,
-      resultado.geral.amostraInsuficiente
-        ? null
-        : { nivel: resultado.geral.nivelGeral, indice: Math.round(resultado.geral.indiceGeral100) },
-    );
-  }
+  // As pesquisas são calculadas em paralelo — sequencial aqui significa
+  // multiplicar o tempo de carregamento pelo número de pesquisas NR-01 da empresa.
+  const niveisEntries = await Promise.all(
+    pesquisas.map(async (p) => {
+      if (p.modelo !== "NR01" || p._count.respostas === 0) {
+        return [p.id, null] as const;
+      }
+      const [perguntas, respostas] = await Promise.all([
+        prisma.pergunta.findMany({
+          where: { pesquisaId: p.id },
+          select: { id: true, codigo: true, enunciado: true, dimensao: true, invertida: true },
+        }),
+        prisma.resposta.findMany({
+          where: { pesquisaId: p.id },
+          select: {
+            setorNomeSnapshot: true,
+            posicaoNomeSnapshot: true,
+            itens: { select: { perguntaId: true, valorNumerico: true } },
+          },
+        }),
+      ]);
+      const resultado = calcularNR01(perguntas, respostas);
+      return [
+        p.id,
+        resultado.geral.amostraInsuficiente
+          ? null
+          : { nivel: resultado.geral.nivelGeral, indice: Math.round(resultado.geral.indiceGeral100) },
+      ] as const;
+    }),
+  );
+  const niveisPorPesquisa = new Map<string, { nivel: keyof typeof NIVEIS_RISCO; indice: number } | null>(
+    niveisEntries,
+  );
 
   return (
     <Card>
