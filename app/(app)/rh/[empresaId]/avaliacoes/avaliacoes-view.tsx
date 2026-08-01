@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useActionState, useState } from "react";
 import { toast } from "sonner";
-import { Plus } from "lucide-react";
+import { Plus, LayoutDashboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -43,15 +43,23 @@ export function AvaliacoesView({ empresaId, ciclos }: { empresaId: string; ciclo
             competências e nine-box.
           </p>
         </div>
-        <Dialog open={criarAberto} onOpenChange={setCriarAberto}>
-          <DialogTrigger render={<Button />}>
-            <Plus className="size-4" />
-            Novo ciclo
-          </DialogTrigger>
-          <DialogContent>
-            <NovoCicloForm empresaId={empresaId} onSuccess={() => setCriarAberto(false)} />
-          </DialogContent>
-        </Dialog>
+        <div className="flex gap-2">
+          <Link href={`/rh/${empresaId}/avaliacoes/painel`}>
+            <Button variant="outline">
+              <LayoutDashboard className="size-4" />
+              Painel
+            </Button>
+          </Link>
+          <Dialog open={criarAberto} onOpenChange={setCriarAberto}>
+            <DialogTrigger render={<Button />}>
+              <Plus className="size-4" />
+              Novo ciclo
+            </DialogTrigger>
+            <DialogContent>
+              <NovoCicloForm empresaId={empresaId} onSuccess={() => setCriarAberto(false)} />
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {ciclos.length === 0 ? (
