@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { useActionState, useMemo, useState } from "react";
 import { Plus, ShieldAlert, Trash2 } from "lucide-react";
+import { useFiltroEmpresas } from "../filtro-empresas";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,6 +40,8 @@ type Pesquisa = {
   anonima: boolean;
   modelo: string;
   createdAt: Date;
+  empresaId: string;
+  empresa: { id: string; nome: string };
   _count: { perguntas: number; tokens: number; respostas: number };
 };
 
@@ -46,14 +49,25 @@ const initialState: ActionResult = { ok: true };
 
 export function PesquisasTable({
   empresaId,
+  empresasDoUsuario,
   pesquisas,
   colaboradoresAtivos,
 }: {
   empresaId: string;
+  empresasDoUsuario: string[];
   pesquisas: Pesquisa[];
-  /** Colaboradores ativos da empresa hoje — o universo que a pesquisa deveria cobrir. */
-  colaboradoresAtivos: number;
+  /** Colaboradores ativos hoje por CNPJ — o universo que cada pesquisa deveria cobrir. */
+  colaboradoresAtivos: Record<string, number>;
 }) {
+  const empresasSelecionadas = useFiltroEmpresas(empresasDoUsuario);
+  const visiveis = useMemo(
+    () => pesquisas.filter((p) => empresasSelecionadas.includes(p.empresaId)),
+    [pesquisas, empresasSelecionadas],
+  );
+  // A coluna de CNPJ só aparece quando há mais de um na lista. Filtrado num
+  // CNPJ só, ela repetiria o mesmo nome em todas as linhas dizendo nada.
+  const mostrarEmpresa = new Set(visiveis.map((p) => p.empresaId)).size > 1;
+
   const [createOpen, setCreateOpen] = useState(false);
   const [criandoNR01, setCriandoNR01] = useState(false);
 
@@ -91,6 +105,7 @@ export function PesquisasTable({
           <TableHeader>
             <TableRow>
               <TableHead>Título</TableHead>
+              {mostrarEmpresa && <TableHead>CNPJ</TableHead>}
               <TableHead>Status</TableHead>
               <TableHead>Anônima</TableHead>
               <TableHead>Perguntas</TableHead>
@@ -101,17 +116,23 @@ export function PesquisasTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {pesquisas.length === 0 && (
+            {visiveis.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
+                <TableCell
+                  colSpan={mostrarEmpresa ? 9 : 8}
+                  className="py-8 text-center text-muted-foreground"
+                >
                   Nenhuma pesquisa cadastrada ainda.
                 </TableCell>
               </TableRow>
             )}
-            {pesquisas.map((p) => (
+            {visiveis.map((p) => (
               <TableRow key={p.id}>
                 <TableCell className="font-medium">
-                  <Link href={`/rh/${empresaId}/pesquisas/${p.id}`} className="hover:underline">
+                  {/* O caminho leva o CNPJ da própria pesquisa, não o da URL:
+                      a lista consolidada mistura empresas, e apontar para o
+                      CNPJ da tela daria "pesquisa não encontrada". */}
+                  <Link href={`/rh/${p.empresaId}/pesquisas/${p.id}`} className="hover:underline">
                     {p.titulo}
                   </Link>
                   {p.modelo === "NR01" && (
@@ -120,15 +141,20 @@ export function PesquisasTable({
                     </Badge>
                   )}
                 </TableCell>
+                {mostrarEmpresa && (
+                  <TableCell className="text-muted-foreground">{p.empresa.nome}</TableCell>
+                )}
                 <TableCell>
                   <Badge variant="secondary">{statusPesquisaLabel(p.status)}</Badge>
                 </TableCell>
                 <TableCell>{p.anonima ? "Sim" : "Não"}</TableCell>
                 <TableCell>{p._count.perguntas}</TableCell>
-                {/* Cadastrados é da EMPRESA, não da pesquisa: repete em toda
-                    linha de propósito, porque é a referência contra a qual os
-                    outros dois números se leem. */}
-                <TableCell className="text-muted-foreground">{colaboradoresAtivos}</TableCell>
+                {/* Cadastrados é da EMPRESA da pesquisa, não da pesquisa em si:
+                    repete em toda linha do mesmo CNPJ de propósito, porque é a
+                    referência contra a qual os outros dois números se leem. */}
+                <TableCell className="text-muted-foreground">
+                  {colaboradoresAtivos[p.empresaId] ?? 0}
+                </TableCell>
                 <TableCell>{p._count.tokens}</TableCell>
                 <TableCell>
                   {p._count.respostas}
@@ -140,7 +166,7 @@ export function PesquisasTable({
                 </TableCell>
                 <TableCell className="text-right">
                   <ExcluirPesquisaButton
-                    empresaId={empresaId}
+                    empresaId={p.empresaId}
                     pesquisaId={p.id}
                     titulo={p.titulo}
                     respostas={p._count.respostas}
