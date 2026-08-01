@@ -5,18 +5,23 @@ import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { registrarAuditoria } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { FERRAMENTAS, contextoTemporal, executarFerramenta } from "@/lib/assistente/ferramentas";
+import { CHAVE_ANTHROPIC, segredo } from "@/lib/segredos";
 
 const MODELO = "claude-sonnet-5";
 // Teto de idas e voltas com o modelo. Sem isso, uma pergunta ambígua pode
 // virar um laço de chamadas de ferramenta e queimar crédito à toa.
 const MAX_RODADAS = 6;
+// No Sonnet 5 o raciocínio vem ligado por padrão e é cobrado dentro do mesmo
+// teto da resposta. Com 1500 uma pergunta que exige pensar um pouco gastava o
+// orçamento raciocinando e devolvia texto cortado no meio.
+const MAX_TOKENS = 8000;
 
 export type RespostaAssistente =
   | { ok: true; resposta: string; ferramentasUsadas: string[] }
   | { ok: false; erro: string };
 
 export async function assistenteDesligado(): Promise<boolean> {
-  return !process.env.ANTHROPIC_API_KEY;
+  return !(await segredo(CHAVE_ANTHROPIC));
 }
 
 export async function perguntarAoAssistente(
@@ -25,11 +30,12 @@ export async function perguntarAoAssistente(
 ): Promise<RespostaAssistente> {
   await requireEmpresaAccess(empresaId);
 
-  const chave = process.env.ANTHROPIC_API_KEY;
+  // Ambiente ou banco — quem decide a precedência é lib/segredos.ts.
+  const chave = await segredo(CHAVE_ANTHROPIC);
   if (!chave) {
     return {
       ok: false,
-      erro: "O assistente está desligado: falta a variável ANTHROPIC_API_KEY. Veja o README, seção Assistente de RH.",
+      erro: "O assistente está desligado: falta cadastrar a chave da API da Anthropic. Um administrador cadastra aqui mesmo, nesta tela.",
     };
   }
 
@@ -60,11 +66,28 @@ export async function perguntarAoAssistente(
     for (let rodada = 0; rodada < MAX_RODADAS; rodada++) {
       const resposta = await anthropic.messages.create({
         model: MODELO,
-        max_tokens: 1500,
+        max_tokens: MAX_TOKENS,
+        // Explícito de propósito. O assistente vive de escolher ferramenta, e
+        // com o raciocínio desligado o Sonnet 5 chama ferramenta bem menos —
+        // responderia de cabeça justamente onde não pode inventar nada.
+        thinking: { type: "adaptive" },
+        // As perguntas são de consulta e as ferramentas já entregam o dado
+        // pronto; o padrão do modelo (high) só custaria tempo e token aqui.
+        output_config: { effort: "medium" },
         system: sistema,
         tools: FERRAMENTAS,
         messages: mensagens,
       });
+
+      // Os classificadores do Sonnet 5 podem recusar a pergunta. Vem HTTP 200
+      // com conteúdo vazio — sem esta checagem viraria o "não consegui montar
+      // uma resposta" genérico lá embaixo, e ninguém saberia o motivo.
+      if (resposta.stop_reason === "refusal") {
+        return {
+          ok: false,
+          erro: "O modelo recusou responder a essa pergunta. Reescreva focando no dado de RH que você precisa.",
+        };
+      }
 
       const chamadas = resposta.content.filter((c) => c.type === "tool_use");
 
@@ -87,7 +110,14 @@ export async function perguntarAoAssistente(
 
         return {
           ok: true,
-          resposta: final || "Não consegui montar uma resposta para essa pergunta.",
+          // Resposta cortada no teto sai avisada. Sem o aviso, uma tabela que
+          // parou na metade parece a lista inteira — e quem lê age em cima de
+          // um dado incompleto sem desconfiar.
+          resposta:
+            (final || "Não consegui montar uma resposta para essa pergunta.") +
+            (resposta.stop_reason === "max_tokens"
+              ? "\n\n_(resposta interrompida por tamanho — peça um recorte menor, por setor ou por período)_"
+              : ""),
           ferramentasUsadas: [...new Set(ferramentasUsadas)],
         };
       }

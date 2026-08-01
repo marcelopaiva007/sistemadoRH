@@ -48,7 +48,7 @@ Abra http://localhost:3000 — a raiz redireciona para `/login`.
 | `TELEGRAM_BOT_TOKEN` | canal preferido de convite + webhook que vincula o `chat_id` do colaborador |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `EMAIL_FROM` | fallback de convite por e-mail (Resend) |
 | `CRON_SECRET` | protege `/api/cron/enviar-convites` |
-| `ANTHROPIC_API_KEY` | **opcional** — liga o Assistente de RH. Sem ela o recurso fica desligado e a tela avisa; nada quebra e nada é cobrado |
+| `ANTHROPIC_API_KEY` | **opcional** — liga o Assistente de RH. Também dá para cadastrar a chave pela própria tela do assistente; a variável tem preferência sobre o que estiver gravado |
 | `SEED_*` | usuários/senhas fixos no seed (opcional; sem eles o seed gera senha aleatória) |
 
 ## Separação do lm-bonificacao
@@ -196,10 +196,24 @@ completo fica para uma fase futura, se for necessário.
 
 `/rh/<empresa>/assistente` — pergunta em português sobre os dados da empresa.
 
-- **Precisa de `ANTHROPIC_API_KEY`.** Sem a variável o recurso fica desligado
-  e a tela avisa; nada quebra e nada é cobrado. Para ligar: criar a chave em
-  console.anthropic.com, adicionar nas variáveis do projeto na Vercel e
-  refazer o deploy. Nenhuma mudança de código é necessária.
+- **Ligar: o ADMIN cola a chave da Anthropic na própria tela.** Não precisa de
+  acesso à Vercel nem de deploy novo — o campo aparece em
+  `/rh/<empresa>/assistente` só para quem é ADMIN, porque quem grava a chave
+  passa a poder gastar na conta da Anthropic do grupo. A chave é testada
+  contra a API antes de gravar (chave errada ou revogada falha ali, não na
+  primeira pergunta) e vai para `rh.SegredoApp` cifrada em AES-256-GCM
+  (`lib/cripto.ts`), com a chave de cifra derivada do `AUTH_SECRET` — que vive
+  só no ambiente. Consequências que valem saber:
+  - Um dump do banco (o backup diário incluído) leva texto cifrado e nada mais.
+  - **Trocar o `AUTH_SECRET` torna a chave gravada ilegível** e ela precisa ser
+    cadastrada de novo. Não se perde nada de verdade: a credencial existe do
+    lado da Anthropic.
+  - A chave entra e não sai: nenhuma rota deste app devolve o valor. A tela
+    mostra só os quatro últimos dígitos, para dizer QUAL chave está valendo.
+  - A variável de ambiente `ANTHROPIC_API_KEY`, se existir, **tem preferência**
+    sobre o que estiver gravado — a tela avisa quando é o caso, para ninguém
+    cadastrar uma chave nova e ficar sem entender por que a antiga continua
+    valendo.
 - **O modelo não recebe acesso ao banco.** Ele escolhe entre as ferramentas de
   leitura em `lib/assistente/ferramentas.ts` e passa parâmetros simples. Três
   consequências que valem entender antes de mexer:

@@ -1557,3 +1557,24 @@ model EmailSuprimido {
 
   @@schema("rh")
 }
+
+// Credenciais que o ADMIN cadastra pela tela, em vez de exigir acesso à Vercel
+// e um deploy novo a cada troca.
+//
+// `valor` é AES-256-GCM (lib/cripto.ts) com chave derivada do AUTH_SECRET —
+// que vive só no ambiente. Um dump do banco (o backup diário inclusive) leva
+// texto cifrado e nada mais. Em troca: TROCAR O AUTH_SECRET INVALIDA TUDO
+// AQUI, e a credencial precisa ser cadastrada de novo.
+//
+// `dica` guarda os últimos caracteres em claro, e só isso. A tela precisa
+// mostrar QUAL chave está gravada sem nunca devolver a chave — nenhuma rota
+// deste app lê `valor` para fora do servidor.
+model SegredoApp {
+  chave           String   @id
+  valor           String
+  dica            String
+  atualizadoEm    DateTime @default(now()) @updatedAt
+  atualizadoPor   String?
+
+  @@schema("rh")
+}
