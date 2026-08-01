@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useActionState, useMemo, useState } from "react";
-import { Plus, ShieldAlert, Trash2 } from "lucide-react";
+import { Plus, RefreshCw, ShieldAlert, Trash2 } from "lucide-react";
 import { useFiltroEmpresas } from "../filtro-empresas";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { createPesquisa, criarPesquisaNR01, deletePesquisa } from "@/lib/actions/pesquisas";
+import { createPesquisa, criarPesquisaNR01, deletePesquisa, executarGestaoCicloAgora } from "@/lib/actions/pesquisas";
 import { statusPesquisaLabel } from "@/lib/constants-rh";
 import { participacaoPct } from "@/lib/pesquisa-numeros";
 import type { ActionResult } from "@/lib/constants";
@@ -79,10 +79,37 @@ export function PesquisasTable({
 
   const [createOpen, setCreateOpen] = useState(false);
   const [criandoNR01, setCriandoNR01] = useState(false);
+  const [executandoCiclo, setExecutandoCiclo] = useState(false);
 
   return (
     <div className="space-y-4">
       <div className="flex justify-end gap-2">
+        <Button
+          variant="outline"
+          disabled={executandoCiclo}
+          title="Cria o Pulso/Anual das marcas sem pesquisa ativa e encerra as vencidas — o mesmo que o cron diário faz. Use quando uma marca ficou de fora da janela automática (meses 1/4/7/10)."
+          onClick={async () => {
+            setExecutandoCiclo(true);
+            const result = await executarGestaoCicloAgora();
+            setExecutandoCiclo(false);
+            if (!result.ok) {
+              toast.error(result.error);
+              return;
+            }
+            const { criados, encerrados, erros } = result.resumo;
+            if (criados === 0 && encerrados === 0) {
+              toast.info("Nada para fazer — todas as marcas já têm pesquisa ativa em dia.");
+            } else {
+              toast.success(
+                `${criados} pesquisa(s) criada(s), ${encerrados} encerrada(s)` +
+                  (erros.length > 0 ? ` — ${erros.length} erro(s), veja o console` : ""),
+              );
+            }
+          }}
+        >
+          <RefreshCw className="size-4" />
+          {executandoCiclo ? "Executando..." : "Rodar gestão de ciclo"}
+        </Button>
         <Button
           variant="outline"
           disabled={criandoNR01}

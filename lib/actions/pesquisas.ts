@@ -6,7 +6,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { marcaDaEmpresa } from "@/lib/escopo-marca";
-import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
+import { requireEmpresaAccess, requireRHAccess } from "@/lib/rh-auth-guard";
+import { executarGestaoCiclo } from "@/lib/pesquisa-ciclo";
 import { enviarUmConvite, enviosRestantesHoje, LIMITE_DIARIO_ENVIOS } from "@/lib/convites";
 import { vinculoTelegramQuebrado, MSG_AGUARDANDO_NOVO_VINCULO } from "@/lib/pesquisa-numeros";
 import {
@@ -732,4 +733,54 @@ export async function enviarConvites(
 
   revalidatePath(`/rh/${empresaId}/pesquisas/${pesquisaId}`);
   return { ok: falhas === 0, enviados, falhas, restantes, error: ultimoErro };
+}
+
+export type ResumoGestaoCiclo = {
+  criados: number;
+  encerrados: number;
+  erros: string[];
+};
+
+/**
+ * O mesmo motor do cron diário (app/api/cron/gestao-ciclo-pesquisas), botão
+ * na mão do RH em vez de request com CRON_SECRET. Existe para o caso que o
+ * cron não cobre: a janela automática do Pulso trimestral é só nos meses
+ * 1/4/7/10 (ver `precisaCriarCiclo` em lib/pesquisa-ciclo.ts) — uma marca sem
+ * CNPJ ativo na janela, ou criada fora dela, fica sem Pulso até o próximo
+ * trimestre a menos que alguém rode isto manualmente.
+ *
+ * Guard é `requireRHAccess`, não `requireEmpresaAccess`: a ação não é de uma
+ * empresa, é do grupo inteiro — mesmo critério de lib/actions/rh-estrutura.ts
+ * para configuração de marcas e CNPJs.
+ */
+export async function executarGestaoCicloAgora(): Promise<
+  { ok: true; resumo: ResumoGestaoCiclo } | { ok: false; error: string }
+> {
+  await requireRHAccess();
+
+  const resultado = await executarGestaoCiclo();
+
+  await registrarAuditoria({
+    acao: "CRIAR",
+    entidade: "Pesquisa",
+    resumo:
+      `Gestão de ciclo executada manualmente: ${resultado.criados.length} pesquisa(s) criada(s), ` +
+      `${resultado.encerrados.length} encerrada(s), ${resultado.erros.length} erro(s)`,
+    detalhes: {
+      criados: resultado.criados.map((c) => ({ empresaId: c.empresaId, titulo: c.titulo, tipo: c.tipo })),
+      encerrados: resultado.encerrados.map((e) => ({ titulo: e.titulo, motivo: e.motivo })),
+      erros: resultado.erros,
+    },
+  });
+
+  revalidatePath("/", "layout");
+
+  if (resultado.erros.length > 0 && resultado.criados.length === 0 && resultado.encerrados.length === 0) {
+    return { ok: false, error: resultado.erros[0] };
+  }
+
+  return {
+    ok: true,
+    resumo: { criados: resultado.criados.length, encerrados: resultado.encerrados.length, erros: resultado.erros },
+  };
 }

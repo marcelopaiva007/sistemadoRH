@@ -3,6 +3,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { TEMPLATE_CLIMA_COMPLETO, TEMPLATE_CLIMA_PULSO } from "@/lib/pesquisa-templates";
+import { notificarCiclo } from "@/lib/pesquisa-notificacoes";
 
 type DimensaoGPTW = "CREDIBILIDADE" | "RESPEITO" | "IMPARCIALIDADE" | "ORGULHO" | "CAMARADAGEM" | "GERAL";
 
@@ -261,4 +262,71 @@ export async function ativarAgendadas(): Promise<Array<{ pesquisaId: string; tit
   // Como o modelo não tem campo "agendarInicio", esta função fica como
   // placeholder — RH ativa manualmente. Mantida para evolução futura.
   return [];
+}
+
+// Os quatro passos do ciclo, na ordem em que o cron os executa. Extraído para
+// cá para ter um único dono: a rota de cron (app/api/cron/gestao-ciclo-pesquisas)
+// e o botão manual da tela de Pesquisas (lib/actions/pesquisas.ts) chamam a
+// mesma função — sem isso, o botão manual reimplementaria a orquestração por
+// conta própria e as duas versões divergiriam na primeira mudança.
+//
+// A janela automática do PULSO é só nos meses 1/4/7/10 (ver
+// `precisaCriarCiclo`): uma marca sem CNPJ ativo em todo o trimestre, ou
+// criada fora da janela, fica sem Pulso até o próximo trimestre — a menos que
+// alguém rode isto manualmente. É esse o caso que o botão cobre.
+export async function executarGestaoCiclo(): Promise<ResultadoGestaoCiclo> {
+  const resultado: ResultadoGestaoCiclo = {
+    criados: [],
+    encerrados: [],
+    ativados: [],
+    jaNotificados: [],
+    erros: [],
+  };
+
+  const candidatos = await coletarCandidatos();
+
+  for (const cand of candidatos) {
+    try {
+      const { pesquisaId, titulo } = await criarCicloRascunho(cand);
+      resultado.criados.push({ empresaId: cand.empresaId, pesquisaId, tipo: cand.tipo, titulo });
+
+      await notificarCiclo({
+        empresaId: cand.empresaId,
+        pesquisaId,
+        titulo,
+        tipo: "CRIADA",
+      });
+    } catch (e) {
+      resultado.erros.push(
+        `criar ${cand.empresaNome} ${cand.tipo}: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+  }
+
+  resultado.encerrados = await encerrarVencidas();
+
+  for (const enc of resultado.encerrados) {
+    try {
+      const pesquisa = await prisma.pesquisa.findUnique({
+        where: { id: enc.pesquisaId },
+        select: { empresaId: true },
+      });
+      if (pesquisa) {
+        await notificarCiclo({
+          empresaId: pesquisa.empresaId,
+          pesquisaId: enc.pesquisaId,
+          titulo: enc.titulo,
+          tipo: "ENCERRADA",
+        });
+      }
+    } catch (e) {
+      resultado.erros.push(
+        `notificar encerramento ${enc.titulo}: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+  }
+
+  resultado.ativados = await ativarAgendadas();
+
+  return resultado;
 }
