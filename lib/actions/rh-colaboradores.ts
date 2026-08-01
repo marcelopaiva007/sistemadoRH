@@ -7,6 +7,7 @@ import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { proximaMatricula } from "@/lib/matricula";
 import { registrarAuditoria } from "@/lib/audit";
 import { criariCiclo } from "@/lib/organograma";
+import { empresasDaMesmaMarca } from "@/lib/escopo-marca";
 import type { ActionResult } from "@/lib/constants";
 
 const colaboradorSchema = z.object({
@@ -30,6 +31,12 @@ const colaboradorSchema = z.object({
  * "Reporta a" — usada tanto na criação quanto na edição, com o `idExcluido`
  * só fazendo sentido na edição (ninguém pode liderar a si mesmo, mas na
  * criação o colaborador ainda nem tem id).
+ *
+ * O líder vale para a MARCA inteira, não para o CNPJ da URL: um supervisor da
+ * RSM tem gente da BRNET embaixo, e o organograma já mostra os CNPJs irmãos na
+ * mesma árvore. Validando por empresaId, o nome aparecia na lista mas o Salvar
+ * respondia "Líder inválido para essa empresa" — a tela oferecia uma escolha
+ * que o servidor recusava.
  */
 async function validarSupervisor(
   empresaId: string,
@@ -38,9 +45,9 @@ async function validarSupervisor(
 ): Promise<string | null> {
   if (supervisorId === idExcluido) return "Alguém não pode liderar a si mesmo.";
   const supervisor = await prisma.colaborador.findFirst({
-    where: { id: supervisorId, empresaId, ativo: true },
+    where: { id: supervisorId, empresaId: { in: await empresasDaMesmaMarca(empresaId) }, ativo: true },
   });
-  if (!supervisor) return "Líder inválido para essa empresa.";
+  if (!supervisor) return "Líder inválido para essa marca.";
   // Na criação não há ciclo possível: um colaborador novo não lidera ninguém
   // ainda, então não pode aparecer na própria cadeia de liderança.
   if (idExcluido && (await criariCiclo(idExcluido, supervisorId))) {
@@ -228,6 +235,11 @@ export async function toggleColaboradorAtivo(empresaId: string, id: string, ativ
  * Só o "Reporta a" — para editar direto no Organograma sem abrir o formulário
  * inteiro do colaborador (que pede nome/setor/posição também). `supervisorId
  * null` remove o líder.
+ *
+ * Escopo de MARCA nos dois lados: o organograma desenha os CNPJs irmãos na
+ * mesma árvore, então o lápis também aparece para quem é de outro CNPJ da
+ * marca. Procurando por empresaId, esses cliques morriam em "Colaborador não
+ * encontrado" — a pessoa estava na tela, só não na empresa da URL.
  */
 export async function definirSupervisor(
   empresaId: string,
@@ -237,7 +249,7 @@ export async function definirSupervisor(
   await requireEmpresaAccess(empresaId);
 
   const colaborador = await prisma.colaborador.findFirst({
-    where: { id, empresaId },
+    where: { id, empresaId: { in: await empresasDaMesmaMarca(empresaId) } },
     select: { nome: true, supervisorId: true },
   });
   if (!colaborador) return { ok: false, error: "Colaborador não encontrado." };
@@ -251,7 +263,7 @@ export async function definirSupervisor(
   }
 
   try {
-    await prisma.colaborador.update({ where: { id, empresaId }, data: { supervisorId } });
+    await prisma.colaborador.update({ where: { id }, data: { supervisorId } });
   } catch (e) {
     console.error("definirSupervisor:", e);
     return { ok: false, error: "Não foi possível salvar o líder. Tente de novo." };

@@ -157,7 +157,7 @@ export function OrganogramaView({
       {colaboradores.length === 0 ? (
         <Card>
           <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            Nenhum colaborador ativo nesta empresa.
+            Nenhum colaborador ativo nesta marca.
           </CardContent>
         </Card>
       ) : (
@@ -393,8 +393,10 @@ function Nodo({
               </Badge>
             )}
           </div>
+          {/* O CNPJ entra na linha porque a árvore é da marca inteira: sem
+              ele, um time com gente de três empresas parece um time só. */}
           <p className="truncate text-xs text-muted-foreground">
-            {no.posicao.nome} · {no.setor.nome}
+            {no.posicao.nome} · {no.setor.nome} · {no.empresa.nome}
           </p>
         </div>
         {!editando && (
@@ -501,7 +503,9 @@ function PessoaSemLider({
           >
             {nomeExibicao(pessoa.nome)}
           </Link>
-          <p className="truncate text-xs text-muted-foreground">{pessoa.posicao.nome}</p>
+          <p className="truncate text-xs text-muted-foreground">
+            {pessoa.posicao.nome} · {pessoa.empresa.nome}
+          </p>
         </div>
         {!editando && (
           <Button
@@ -558,7 +562,8 @@ function EditorDeLider({
   const [salvando, setSalvando] = useState(false);
 
   // Nem a própria pessoa, nem quem ela já lidera (ciclo óbvio) — o servidor
-  // confere o resto (ciclo mais longo, líder de outra empresa).
+  // confere o resto (ciclo mais longo, líder fora da marca). Os CNPJs irmãos
+  // ficam na lista de propósito: liderança no grupo atravessa CNPJ.
   const bloqueados = useMemo(() => new Set([no.id, ...idsDescendentes(no)]), [no]);
   const opcoes = todos
     .filter((c) => !bloqueados.has(c.id))
@@ -592,9 +597,12 @@ function EditorDeLider({
         className={cn(classeSelect, "max-w-64")}
       >
         <option value="">Sem líder</option>
+        {/* O CNPJ vai no rótulo porque a lista mistura as empresas da marca:
+            sem ele, dois nomes parecidos de CNPJs diferentes ficam
+            indistinguíveis na hora de escolher o líder. */}
         {opcoes.map((c) => (
           <option key={c.id} value={c.id}>
-            {nomeExibicao(c.nome)}
+            {nomeExibicao(c.nome)} — {c.empresa.nome}
           </option>
         ))}
       </select>
