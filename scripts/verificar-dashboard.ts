@@ -15,7 +15,9 @@ async function main() {
   const empresas = await prisma.empresa.findMany({ where: { ativo: true }, select: { id: true, nome: true } });
   for (const e of empresas) {
     console.log(`\n${e.nome}`);
-    const r = await resumoDaEmpresa(e.id);
+    // A assinatura passou a receber a lista de CNPJs da marca; aqui o teste
+    // confere empresa a empresa, entao a lista tem um elemento so.
+    const r = await resumoDaEmpresa([e.id]);
 
     const ativosReal = await prisma.colaborador.count({ where: { empresaId: e.id, ativo: true } });
     ok(r.ativos === ativosReal, `ativos: ${r.ativos} (independente: ${ativosReal})`);

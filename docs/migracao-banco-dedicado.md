@@ -4,7 +4,22 @@ Roteiro para tirar o Sistema do RH do banco Neon compartilhado com o
 lm-bonificacao e o vapt, passando-o para o banco dedicado
 (`sistemado_rh-db`, já provisionado na Vercel).
 
-Escrito em 01/08/2026. **Ainda não executado.**
+Escrito em 01/08/2026. **Executado em 01/08/2026** — a virada aconteceu entre
+13:19 e 14:21 UTC; o banco de destino acabou sendo o projeto Neon `SOFTrh`
+(host `ep-solitary-lake…-pooler`), não o `sistemado_rh-db` planejado abaixo.
+
+Conferência pós-virada (01/08, ~16:30 UTC): 48 tabelas comparadas linha a
+linha contra a origem — cópia íntegra; divergências eram só a produção viva no
+destino e a limpeza deliberada de 3 rascunhos triplicados de pesquisa. As 38
+migrations vieram. Os 2 triggers vieram. **Uma CHECK constraint não veio**
+(`Meta_colaborador_xor_setor_check` — ver aviso abaixo) e foi recriada à mão
+com a definição extraída da origem. Bateria de 25 smokes/testes passou.
+
+> **Aviso a quem repetir o processo:** confira as CHECK constraints depois do
+> `pg_restore`. No nosso caso o restore trouxe tabelas, dados, índices e
+> triggers, mas deixou essa constraint para trás — e o banco aceita a escrita
+> inválida em silêncio até alguém rodar o smoke que a exercita. A comparação é
+> uma consulta em `pg_constraint (contype='c')` nos dois lados.
 
 ## Por que
 
