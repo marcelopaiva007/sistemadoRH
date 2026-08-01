@@ -76,10 +76,10 @@ const ROTULO_LACUNA: Record<string, string> = {
   telegram: "sem Telegram vinculado",
 };
 
-function temLacuna(c: { salarioBase: unknown | null; dataAdmissao: unknown; cpf: string | null; telegramChatId: string | null; setor: { nome: string } }, chave: string): boolean {
+function temLacuna(c: { semSalario: boolean; semAdmissao: boolean; cpf: string | null; telegramChatId: string | null; setor: { nome: string } }, chave: string): boolean {
   switch (chave) {
-    case "salario": return c.salarioBase === null || c.salarioBase === undefined;
-    case "admissao": return !c.dataAdmissao;
+    case "salario": return c.semSalario;
+    case "admissao": return c.semAdmissao;
     case "cpf": return !c.cpf;
     case "telegram": return !c.telegramChatId;
     case "setor": return c.setor.nome.trim().toLowerCase() === "não definido";
@@ -87,9 +87,12 @@ function temLacuna(c: { salarioBase: unknown | null; dataAdmissao: unknown; cpf:
   }
 }
 
-type Empresa = { id: string; nome: string };
 type Setor = { id: string; nome: string; empresaId: string };
 type Posicao = { id: string; nome: string; empresaId: string };
+// Só o que esta tela realmente usa. A página monta este objeto com `select`
+// explícito: nada de salário, dados bancários, PIX, RG ou endereço trafega até
+// aqui — este componente roda no navegador, e tudo que chega nele vai junto no
+// HTML, visível para quem abrir a página.
 type Colaborador = {
   id: string;
   nome: string;
@@ -98,17 +101,17 @@ type Colaborador = {
   telefone: string | null;
   telegramChatId: string | null;
   supervisorId: string | null;
-  // Usados pelo filtro ?lacuna=; vêm do include da página.
-  salarioBase: unknown | null;
-  dataAdmissao: Date | string | null;
+  // O filtro ?lacuna= só precisa saber SE falta, não o valor. O salário fica no
+  // servidor; vem apenas o booleano.
+  semSalario: boolean;
+  semAdmissao: boolean;
   gerente: boolean;
   ativo: boolean;
   empresaId: string;
-  empresa: Empresa;
   setorId: string;
-  setor: Setor;
+  setor: { nome: string };
   posicaoId: string;
-  posicao: Posicao;
+  posicao: { nome: string };
 };
 
 const initialState: ActionResult = { ok: true };
