@@ -289,11 +289,17 @@ export async function salvarPerguntas(
 export async function gerarConvites(empresaId: string, pesquisaId: string): Promise<ResultadoComMensagem> {
   await requireEmpresaAccess(empresaId);
 
-  const pesquisa = await prisma.pesquisa.findFirst({ where: { id: pesquisaId, empresaId } });
+  const pesquisa = await prisma.pesquisa.findFirst({
+    where: { id: pesquisaId, marcaId: await marcaDaEmpresa(empresaId) },
+  });
   if (!pesquisa) return { ok: false, error: "Pesquisa não encontrada." };
 
+  // Convida a MARCA inteira, não o CNPJ onde a pesquisa nasceu. Era o que
+  // faltava para a pesquisa ser da marca de fato: ela já aparecia para os
+  // cinco CNPJs da LM Telecom, mas o convite só saía para quem estava no
+  // CNPJ de criação — os outros quatro viam a pesquisa e nunca a recebiam.
   const colaboradores = await prisma.colaborador.findMany({
-    where: { empresaId, ativo: true },
+    where: { empresa: { marcaId: pesquisa.marcaId }, ativo: true },
     select: { id: true },
   });
 
@@ -453,8 +459,10 @@ async function apagarExcluidos(
   empresaId: string,
   where: { pesquisaId: string } | { id: string },
 ): Promise<{ apagados: number; pesquisaId: string | null; nomes: string[] }> {
+  const marcaId = await marcaDaEmpresa(empresaId);
+
   const tokens = await prisma.surveyToken.findMany({
-    where: { ...where, status: "EXCLUIDO", pesquisa: { empresaId } },
+    where: { ...where, status: "EXCLUIDO", pesquisa: { marcaId } },
     select: {
       id: true,
       pesquisaId: true,
@@ -468,8 +476,12 @@ async function apagarExcluidos(
   const colaboradorIds = tokens.map((t) => t.colaboradorId);
 
   await prisma.$transaction([
+    // Desativa por MARCA: agora que o convite alcança os CNPJs irmãos, o
+    // excluído pode ser da BRNET numa pesquisa criada na RSM. Preso ao CNPJ,
+    // o updateMany não pegaria ninguém e a pessoa voltaria no próximo "Gerar
+    // convites" — o retorno que este trecho existe justamente para impedir.
     prisma.colaborador.updateMany({
-      where: { id: { in: colaboradorIds }, empresaId, ativo: true },
+      where: { id: { in: colaboradorIds }, empresa: { marcaId }, ativo: true },
       data: { ativo: false },
     }),
     prisma.surveyToken.deleteMany({ where: { id: { in: ids } } }),
@@ -543,8 +555,10 @@ async function limparVinculo(
   empresaId: string,
   where: { pesquisaId: string } | { id: string },
 ): Promise<{ limpos: number; pesquisaId: string | null; nomes: string[] }> {
+  const marcaId = await marcaDaEmpresa(empresaId);
+
   const tokens = await prisma.surveyToken.findMany({
-    where: { ...where, pesquisa: { empresaId } },
+    where: { ...where, pesquisa: { marcaId } },
     select: {
       id: true,
       pesquisaId: true,
@@ -562,8 +576,11 @@ async function limparVinculo(
   const colaboradorIds = [...new Set(quebrados.map((t) => t.colaboradorId))];
 
   await prisma.$transaction([
+    // Por MARCA, pelo mesmo motivo de apagarExcluidos: o chat_id quebrado pode
+    // ser de alguém de um CNPJ irmão. Preso ao CNPJ, o botão diria "limpo" e
+    // o vínculo continuaria lá, com a pessoa parada em FAILED para sempre.
     prisma.colaborador.updateMany({
-      where: { id: { in: colaboradorIds }, empresaId },
+      where: { id: { in: colaboradorIds }, empresa: { marcaId } },
       data: { telegramChatId: null },
     }),
     prisma.surveyToken.updateMany({

@@ -18,21 +18,29 @@ export default async function PesquisasPage({ params }: { params: Promise<{ empr
   // findMany: a contagem de relação com `where` é o tipo de coisa que passa no
   // type-check e devolve o total cru se algo mudar por baixo. Aqui a condição
   // está na consulta, onde dá para conferir.
-  const [ativosPorEmpresa, pesquisas, convitesPorPesquisa] = await Promise.all([
-    // Quantos colaboradores existem hoje, por CNPJ. É o número que dá sentido
-    // aos outros dois: 205 convites sobre 208 cadastrados diz que a lista está
-    // em dia; sobre 260, diz que falta gerar convite para muita gente. Por
-    // empresa, porque cada linha da tabela pode ser de um CNPJ diferente.
+  const [empresas, ativosPorEmpresa, pesquisas, convitesPorPesquisa] = await Promise.all([
+    // A marca de cada CNPJ visível. É o que deixa o filtro da lateral — que
+    // seleciona CNPJs — recortar uma lista cujo assunto é marca.
+    prisma.empresa.findMany({
+      where: { id: { in: empresasDoUsuario } },
+      select: { id: true, marcaId: true },
+    }),
+    // Quantos colaboradores existem hoje, por CNPJ — somados por marca logo
+    // abaixo. É o número que dá sentido aos outros dois: 205 convites sobre
+    // 208 cadastrados diz que a lista está em dia; sobre 260, diz que falta
+    // gerar convite para muita gente.
     prisma.colaborador.groupBy({
       by: ["empresaId"],
       where: { empresaId: { in: empresasDoUsuario }, ativo: true },
       _count: { _all: true },
     }),
+    // Por marca, e não pelos CNPJs: a pesquisa pertence à marca, e uma criada
+    // na RSM tem que aparecer para quem entrou por qualquer CNPJ da LM Telecom.
     prisma.pesquisa.findMany({
-      where: { empresaId: { in: empresasDoUsuario } },
+      where: { empresa: { id: { in: empresasDoUsuario } } },
       orderBy: { createdAt: "desc" },
       include: {
-        empresa: { select: { id: true, nome: true } },
+        marca: { select: { nome: true } },
         _count: { select: { perguntas: true, respostas: true } },
       },
     }),
@@ -44,17 +52,23 @@ export default async function PesquisasPage({ params }: { params: Promise<{ empr
   ]);
 
   const convites = new Map(convitesPorPesquisa.map((g) => [g.pesquisaId, g._count._all]));
-  const colaboradoresAtivos = Object.fromEntries(
-    ativosPorEmpresa.map((g) => [g.empresaId, g._count._all]),
-  );
+
+  const marcaDoCnpj = Object.fromEntries(empresas.map((e) => [e.id, e.marcaId]));
+  const colaboradoresAtivos: Record<string, number> = {};
+  for (const g of ativosPorEmpresa) {
+    const marcaId = marcaDoCnpj[g.empresaId];
+    if (marcaId) colaboradoresAtivos[marcaId] = (colaboradoresAtivos[marcaId] ?? 0) + g._count._all;
+  }
 
   return (
     <PesquisasTable
       empresaId={empresaId}
       empresasDoUsuario={empresasDoUsuario}
+      marcaDoCnpj={marcaDoCnpj}
       colaboradoresAtivos={colaboradoresAtivos}
       pesquisas={pesquisas.map((p) => ({
         ...p,
+        marcaNome: p.marca.nome,
         _count: { ...p._count, tokens: convites.get(p.id) ?? 0 },
       }))}
     />

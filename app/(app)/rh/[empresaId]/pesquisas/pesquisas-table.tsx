@@ -41,7 +41,8 @@ type Pesquisa = {
   modelo: string;
   createdAt: Date;
   empresaId: string;
-  empresa: { id: string; nome: string };
+  marcaId: string;
+  marcaNome: string;
   _count: { perguntas: number; tokens: number; respostas: number };
 };
 
@@ -50,23 +51,31 @@ const initialState: ActionResult = { ok: true };
 export function PesquisasTable({
   empresaId,
   empresasDoUsuario,
+  marcaDoCnpj,
   pesquisas,
   colaboradoresAtivos,
 }: {
   empresaId: string;
   empresasDoUsuario: string[];
+  /** CNPJ -> marca. O filtro da lateral seleciona CNPJs; a pesquisa é da marca. */
+  marcaDoCnpj: Record<string, string>;
   pesquisas: Pesquisa[];
-  /** Colaboradores ativos hoje por CNPJ — o universo que cada pesquisa deveria cobrir. */
+  /** Colaboradores ativos hoje por MARCA — o universo que cada pesquisa cobre. */
   colaboradoresAtivos: Record<string, number>;
 }) {
   const empresasSelecionadas = useFiltroEmpresas(empresasDoUsuario);
-  const visiveis = useMemo(
-    () => pesquisas.filter((p) => empresasSelecionadas.includes(p.empresaId)),
-    [pesquisas, empresasSelecionadas],
-  );
-  // A coluna de CNPJ só aparece quando há mais de um na lista. Filtrado num
-  // CNPJ só, ela repetiria o mesmo nome em todas as linhas dizendo nada.
-  const mostrarEmpresa = new Set(visiveis.map((p) => p.empresaId)).size > 1;
+
+  // O recorte é por MARCA: a pesquisa da LM Telecom mora no CNPJ da RSM, e
+  // filtrar por ME TELECOM devolvia tabela vazia — como se a marca não
+  // tivesse pesquisa nenhuma.
+  const visiveis = useMemo(() => {
+    const marcas = new Set(empresasSelecionadas.map((id) => marcaDoCnpj[id]).filter(Boolean));
+    return pesquisas.filter((p) => marcas.has(p.marcaId));
+  }, [pesquisas, empresasSelecionadas, marcaDoCnpj]);
+
+  // A coluna de marca só aparece quando há mais de uma na lista. Filtrado numa
+  // marca só, ela repetiria o mesmo nome em todas as linhas dizendo nada.
+  const mostrarMarca = new Set(visiveis.map((p) => p.marcaId)).size > 1;
 
   const [createOpen, setCreateOpen] = useState(false);
   const [criandoNR01, setCriandoNR01] = useState(false);
@@ -105,7 +114,7 @@ export function PesquisasTable({
           <TableHeader>
             <TableRow>
               <TableHead>Título</TableHead>
-              {mostrarEmpresa && <TableHead>CNPJ</TableHead>}
+              {mostrarMarca && <TableHead>Marca</TableHead>}
               <TableHead>Status</TableHead>
               <TableHead>Anônima</TableHead>
               <TableHead>Perguntas</TableHead>
@@ -119,7 +128,7 @@ export function PesquisasTable({
             {visiveis.length === 0 && (
               <TableRow>
                 <TableCell
-                  colSpan={mostrarEmpresa ? 9 : 8}
+                  colSpan={mostrarMarca ? 9 : 8}
                   className="py-8 text-center text-muted-foreground"
                 >
                   Nenhuma pesquisa cadastrada ainda.
@@ -141,19 +150,20 @@ export function PesquisasTable({
                     </Badge>
                   )}
                 </TableCell>
-                {mostrarEmpresa && (
-                  <TableCell className="text-muted-foreground">{p.empresa.nome}</TableCell>
+                {mostrarMarca && (
+                  <TableCell className="text-muted-foreground">{p.marcaNome}</TableCell>
                 )}
                 <TableCell>
                   <Badge variant="secondary">{statusPesquisaLabel(p.status)}</Badge>
                 </TableCell>
                 <TableCell>{p.anonima ? "Sim" : "Não"}</TableCell>
                 <TableCell>{p._count.perguntas}</TableCell>
-                {/* Cadastrados é da EMPRESA da pesquisa, não da pesquisa em si:
-                    repete em toda linha do mesmo CNPJ de propósito, porque é a
-                    referência contra a qual os outros dois números se leem. */}
+                {/* Cadastrados é da MARCA, não da pesquisa: repete em toda
+                    linha da mesma marca de propósito, porque é a referência
+                    contra a qual os outros dois números se leem — e é o mesmo
+                    universo que "Gerar convites" percorre. */}
                 <TableCell className="text-muted-foreground">
-                  {colaboradoresAtivos[p.empresaId] ?? 0}
+                  {colaboradoresAtivos[p.marcaId] ?? 0}
                 </TableCell>
                 <TableCell>{p._count.tokens}</TableCell>
                 <TableCell>
