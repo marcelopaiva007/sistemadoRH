@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { AlertTriangle, Briefcase, Building2, CheckCircle2, CircleDashed, Rocket, Users } from "lucide-react";
 import { requireUser } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
-import { pendenciasDaEmpresa, totalPendencias } from "@/lib/pendencias";
+import { pendenciasPorEmpresa, totalPendencias, zeradas } from "@/lib/pendencias";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Indicador } from "@/components/indicador";
@@ -34,19 +34,44 @@ export default async function HomePage() {
     select: { id: true, nome: true, marca: { select: { id: true, nome: true } } },
   });
 
-  const resumos = await Promise.all(
-    empresas.map(async (empresa) => {
-      const [ativos, vagasAbertas, integracoesAbertas, pendencias] = await Promise.all([
-        prisma.colaborador.count({ where: { empresaId: empresa.id, ativo: true } }),
-        prisma.vaga.count({ where: { empresaId: empresa.id, status: "ABERTA" } }),
-        prisma.checklistIntegracao.count({
-          where: { empresaId: empresa.id, concluido: false, colaborador: { ativo: true } },
-        }),
-        pendenciasDaEmpresa([empresa.id]),
-      ]);
-      return { empresa, ativos, vagasAbertas, integracoesAbertas, pendencias };
+  // Tudo agregado de uma vez, não uma rodada de queries por empresa: são 11
+  // idas ao banco no total (3 aqui + 8 em pendenciasPorEmpresa), quantas
+  // empresas forem. O laço anterior fazia 11 POR empresa — com os 11 CNPJs do
+  // grupo passava de 120, e esta é a primeira tela depois do login.
+  const ids = empresas.map((e) => e.id);
+  const [ativosPorEmpresa, vagasPorEmpresa, integracoesPorEmpresa, pendenciasPorId] = await Promise.all([
+    prisma.colaborador.groupBy({
+      by: ["empresaId"],
+      _count: { _all: true },
+      where: { empresaId: { in: ids }, ativo: true },
     }),
-  );
+    prisma.vaga.groupBy({
+      by: ["empresaId"],
+      _count: { _all: true },
+      where: { empresaId: { in: ids }, status: "ABERTA" },
+    }),
+    prisma.checklistIntegracao.groupBy({
+      by: ["empresaId"],
+      _count: { _all: true },
+      where: { empresaId: { in: ids }, concluido: false, colaborador: { ativo: true } },
+    }),
+    pendenciasPorEmpresa(ids),
+  ]);
+
+  // Empresa sem registro nenhum não volta no groupBy — daí o `?? 0`.
+  const contagem = (linhas: { empresaId: string; _count?: { _all?: number } }[]) =>
+    new Map(linhas.map((l) => [l.empresaId, l._count?._all ?? 0]));
+  const ativosPorId = contagem(ativosPorEmpresa);
+  const vagasPorId = contagem(vagasPorEmpresa);
+  const integracoesPorId = contagem(integracoesPorEmpresa);
+
+  const resumos = empresas.map((empresa) => ({
+    empresa,
+    ativos: ativosPorId.get(empresa.id) ?? 0,
+    vagasAbertas: vagasPorId.get(empresa.id) ?? 0,
+    integracoesAbertas: integracoesPorId.get(empresa.id) ?? 0,
+    pendencias: pendenciasPorId.get(empresa.id) ?? zeradas(),
+  }));
 
   // Os números somam por MARCA, não por CNPJ: é assim que a diretoria pensa o
   // grupo. O CNPJ continua sendo onde o dado vive (e de onde a folha sai), mas
