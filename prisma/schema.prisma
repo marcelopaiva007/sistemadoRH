@@ -35,28 +35,28 @@ datasource db {
 // tabela — o cadastro nasceu de uma cópia, mas evolui separado (criar usuário
 // ou trocar senha aqui não muda nada no lm-bonificacao, e vice-versa).
 model User {
-  id               String    @id @default(cuid())
-  nome             String
-  username         String    @unique
-  passwordHash     String
-  role             String
-  ativo            Boolean   @default(true)
-  email            String?   @unique
-  telefone         String?
-  avatarUrl        String?
+  id                        String    @id @default(cuid())
+  nome                      String
+  username                  String    @unique
+  passwordHash              String
+  role                      String
+  ativo                     Boolean   @default(true)
+  email                     String?   @unique
+  telefone                  String?
+  avatarUrl                 String?
   // Definidos quando o usuário é criado via convite e ainda não aceitou:
   // `conviteExpiraEm` bloqueia o `aceitarConviteUsuario` se passou do prazo,
   // e `conviteTokenHash` guarda só o hash SHA-256 do token — o valor em claro
   // só volta na URL uma vez, no e-mail.
-  conviteExpiraEm  DateTime?
-  conviteTokenHash String?
+  conviteExpiraEm           DateTime?
+  conviteTokenHash          String?
   // "Esqueci minha senha" — mesmo padrão do convite: só o hash do token fica
   // no banco, o valor em claro vai uma vez só no e-mail. Um token ativo por
   // vez (pedir de novo invalida o anterior).
   recuperacaoSenhaExpiraEm  DateTime?
   recuperacaoSenhaTokenHash String?
-  ultimoAcessoEm   DateTime?
-  createdAt        DateTime  @default(now())
+  ultimoAcessoEm            DateTime?
+  createdAt                 DateTime  @default(now())
 
   // Escopo do módulo de RH: preenchido apenas para RH_MANAGER (empresaId) e
   // GESTOR_SETOR (empresaId + setorId). ADMIN/DIRETORIA ficam nulos.
@@ -136,7 +136,7 @@ model Marca {
 
   empresas  Empresa[]
   pesquisas Pesquisa[]
-  usuarios UserMarca[]
+  usuarios  UserMarca[]
 
   @@schema("rh")
 }
@@ -196,6 +196,7 @@ model Empresa {
   colaboradores Colaborador[]
   pesquisas     Pesquisa[]
   userEmpresas  UserEmpresa[]
+  planosAcao    PlanoAcao[]
 
   @@index([marcaId])
   @@schema("rh")
@@ -213,6 +214,7 @@ model Setor {
   metas         Meta[]
   vagas         Vaga[]
   userEmpresas  UserEmpresa[]
+  planosAcao    PlanoAcao[]
 
   @@unique([empresaId, nome])
   @@index([empresaId])
@@ -1406,15 +1408,62 @@ model Pesquisa {
   iniciadaEm  DateTime?
   encerradaEm DateTime?
 
-  perguntas Pergunta[]
-  tokens    SurveyToken[]
-  respostas Resposta[]
+  perguntas  Pergunta[]
+  tokens     SurveyToken[]
+  respostas  Resposta[]
+  planosAcao PlanoAcao[]
 
   // A listagem passou a filtrar por marca; o índice acompanha. O de empresaId
   // fica enquanto as telas antigas ainda leem por CNPJ.
   @@index([marcaId, status])
   @@index([empresaId, status])
   @@index([criadoPorId])
+  @@schema("rh")
+}
+
+// Ação corretiva rastreável nascida de uma pesquisa (RD-001 seed, fase 2 do
+// roadmap de 02/08/2026: catálogo de tipos + plano de ação). Hoje esse "plano"
+// é só texto estático dentro do PDF do NR-01 (`PLANO_ACAO_NR01`) — sem dono,
+// prazo nem status, então não dá pra saber se foi feito. Isto substitui esse
+// texto por registro de verdade.
+//
+// RACI do seed: quem ELABORA e EXECUTA é o gestor da área, quem APROVA é a
+// diretoria — por isso `responsavelId/Nome` segue o mesmo padrão solto de
+// `ChecklistDesligamento`/`EntrevistaDesligamento` (texto livre, não FK
+// obrigatória pra User: nem todo responsável de ação é usuário do sistema).
+//
+// "Vencido" (alerta AL09 do seed, meta `planos_acao_no_prazo_pct`) é
+// DERIVADO (`prazo < hoje && status not in [CONCLUIDO, CANCELADO]`), não um
+// status gravado — evita placar desatualizado se ninguém abrir a tela.
+model PlanoAcao {
+  id              String    @id @default(cuid())
+  empresaId       String
+  empresa         Empresa   @relation(fields: [empresaId], references: [id])
+  pesquisaId      String?
+  pesquisa        Pesquisa? @relation(fields: [pesquisaId], references: [id], onDelete: SetNull)
+  setorId         String?
+  setor           Setor?    @relation(fields: [setorId], references: [id], onDelete: SetNull)
+  // Vocabulário de dimensão varia por tipo de pesquisa (A-H no NR-01,
+  // dimensões GPTW no Clima) — texto livre, cada tipo do catálogo define o
+  // seu (ver lib/pesquisas-catalogo.ts), não uma FK fixa.
+  dimensaoCodigo  String?
+  titulo          String
+  descricao       String?
+  responsavelId   String?
+  responsavelNome String?
+  prazo           DateTime
+  status          String    @default("ABERTO") // ABERTO | EM_ANDAMENTO | CONCLUIDO | CANCELADO
+  concluidoEm     DateTime?
+  // Preenchido só em CANCELADO — por que a ação não vai mais acontecer.
+  motivoDecisao   String?
+  criadoPorId     String?
+  criadoPorNome   String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([empresaId, status])
+  @@index([pesquisaId])
+  @@index([setorId, status])
   @@schema("rh")
 }
 
@@ -1575,11 +1624,11 @@ model EmailSuprimido {
 // mostrar QUAL chave está gravada sem nunca devolver a chave — nenhuma rota
 // deste app lê `valor` para fora do servidor.
 model SegredoApp {
-  chave           String   @id
-  valor           String
-  dica            String
-  atualizadoEm    DateTime @default(now()) @updatedAt
-  atualizadoPor   String?
+  chave         String   @id
+  valor         String
+  dica          String
+  atualizadoEm  DateTime @default(now()) @updatedAt
+  atualizadoPor String?
 
   @@schema("rh")
 }

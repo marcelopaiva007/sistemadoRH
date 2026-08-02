@@ -301,9 +301,10 @@ export async function gerarConvites(empresaId: string, pesquisaId: string): Prom
   // cinco CNPJs da LM Telecom, mas o convite só saía para quem estava no
   // CNPJ de criação — os outros quatro viam a pesquisa e nunca a recebiam.
   //
-  // Vínculo ativo (RD-001): quem está com INSS/licença-maternidade/suspensão
-  // vigente não entra aqui, mesmo com o cadastro ativo — ver lib/pesquisa-vinculo.ts.
-  const colaboradores = await filtrarElegiveisPorVinculo(prisma, pesquisa.marcaId);
+  // Vínculo ativo (RD-001): elegibilidade lida do catálogo por tipo de
+  // pesquisa (lib/pesquisas-catalogo.ts) — quem está com INSS/licença-
+  // maternidade/suspensão vigente nunca entra, mesmo com o cadastro ativo.
+  const colaboradores = await filtrarElegiveisPorVinculo(prisma, pesquisa.marcaId, pesquisa.modelo);
 
   // `skipDuplicates` sobre a unique [pesquisaId, colaboradorId] é o que torna
   // este botão seguro de clicar de novo: quem já tem convite não ganha outro,

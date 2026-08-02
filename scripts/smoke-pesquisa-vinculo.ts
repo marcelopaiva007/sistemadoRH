@@ -8,6 +8,7 @@ import "dotenv/config";
 import { PrismaClient, Prisma } from "../app/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { filtrarElegiveisPorVinculo, invalidarConvitesDeDesligados } from "../lib/pesquisa-vinculo";
+import { CATALOGO_PESQUISAS } from "../lib/pesquisas-catalogo";
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
@@ -85,17 +86,25 @@ async function main() {
       },
     });
 
-    const elegiveis = new Set((await filtrarElegiveisPorVinculo(tx, marca.id, HOJE)).map((c) => c.id));
+    const elegiveis = new Set((await filtrarElegiveisPorVinculo(tx, marca.id, "CLIMA", HOJE)).map((c) => c.id));
 
-    ok(elegiveis.has(ativo.id), "ativo, sem afastamento: elegível");
-    ok(!elegiveis.has(desligado.id), "desligado (ativo=false): fora da medição");
+    ok(elegiveis.has(ativo.id), "ativo, sem afastamento: elegível (CLIMA)");
+    ok(!elegiveis.has(desligado.id), "desligado (ativo=false): fora da medição (CLIMA)");
     ok(elegiveis.has(experiencia.id), "contrato de experiência: continua elegível (matriz Clima/NR-1)");
-    ok(!elegiveis.has(inss.id), "afastamento INSS aprovado e vigente: fora da medição");
-    ok(!elegiveis.has(licenca.id), "licença-maternidade aprovada e vigente: fora da medição");
-    ok(!elegiveis.has(suspenso.id), "suspensão aprovada e vigente: fora da medição");
+    ok(!elegiveis.has(inss.id), "afastamento INSS aprovado e vigente: fora da medição, universal");
+    ok(!elegiveis.has(licenca.id), "licença-maternidade aprovada e vigente: fora da medição, universal");
+    ok(!elegiveis.has(suspenso.id), "suspensão aprovada e vigente: fora da medição, universal");
     ok(elegiveis.has(inssPendente.id), "afastamento só solicitado (PENDENTE), ainda não aprovado: elegível");
     ok(elegiveis.has(inssEncerrado.id), "afastamento já encerrado (dataFim no passado): elegível de novo");
     ok(elegiveis.has(deFerias.id), "férias aprovada e vigente: continua elegível (matriz Clima/NR-1)");
+
+    console.log("\n  -- catálogo por tipo: P08-STAY (só \"ativo\" puro, sem férias/experiência) --");
+    ok(CATALOGO_PESQUISAS["P08-STAY"]?.elegibilidadeVinculo.length === 1, "P08-STAY existe no catálogo com elegibilidade estrita");
+    const elegiveisStay = new Set((await filtrarElegiveisPorVinculo(tx, marca.id, "P08-STAY", HOJE)).map((c) => c.id));
+    ok(elegiveisStay.has(ativo.id), "ativo puro: elegível pra P08-STAY");
+    ok(!elegiveisStay.has(experiencia.id), "contrato de experiência: FORA de P08-STAY (catálogo não inclui \"experiencia\")");
+    ok(!elegiveisStay.has(deFerias.id), "férias vigente: FORA de P08-STAY (catálogo não inclui \"ferias\")");
+    ok(!elegiveisStay.has(desligado.id), "desligado: fora também de P08-STAY");
 
     throw new RollbackProposital();
   });
@@ -141,6 +150,50 @@ async function main() {
     ok(pendenteDepois.status === "EXCLUIDO", "PENDING vira EXCLUIDO no desligamento");
     ok(enviadoDepois.status === "EXCLUIDO", "SENT vira EXCLUIDO no desligamento");
     ok(respondidoDepois.status === "RESPONDED", "RESPONDED não é tocado — resposta anônima já contada");
+
+    throw new RollbackProposital();
+  });
+
+  console.log("\nPlanoAcao (fase 2) — status default, prazo, relação com pesquisa/setor\n");
+
+  await rodarComRollback(async (tx) => {
+    const marca = await tx.marca.create({ data: { nome: `__smoke_vinculo_marca3_${Date.now()}` } });
+    const empresa = await tx.empresa.create({ data: { nome: `__smoke_vinculo_empresa3_${Date.now()}`, marcaId: marca.id } });
+    const setor = await tx.setor.create({ data: { nome: "__smoke_setor", empresaId: empresa.id } });
+    const posicao = await tx.posicao.create({ data: { nome: "__smoke_cargo", empresaId: empresa.id } });
+    const pesquisa = await tx.pesquisa.create({
+      data: { marcaId: marca.id, empresaId: empresa.id, titulo: "__smoke pesquisa nr01", modelo: "NR01", status: "ENCERRADA" },
+    });
+
+    const plano = await tx.planoAcao.create({
+      data: {
+        empresaId: empresa.id,
+        pesquisaId: pesquisa.id,
+        setorId: setor.id,
+        dimensaoCodigo: "A",
+        titulo: "__smoke reduzir sobrecarga do setor",
+        responsavelNome: "Gestor de Teste",
+        prazo: AMANHA,
+      },
+    });
+    ok(plano.status === "ABERTO", "nasce com status ABERTO por padrão");
+    ok(plano.pesquisaId === pesquisa.id && plano.setorId === setor.id, "relação com pesquisa e setor gravada");
+
+    const concluido = await tx.planoAcao.update({
+      where: { id: plano.id },
+      data: { status: "CONCLUIDO", concluidoEm: HOJE },
+    });
+    ok(concluido.status === "CONCLUIDO" && concluido.concluidoEm !== null, "conclusão grava status e data");
+
+    // "Vencido" é derivado (prazo no passado + não concluído/cancelado), não
+    // um status gravado — outro plano, ainda ABERTO, com prazo em ontem.
+    const vencido = await tx.planoAcao.create({
+      data: { empresaId: empresa.id, titulo: "__smoke vencido", prazo: ONTEM },
+    });
+    const abertosVencidos = await tx.planoAcao.count({
+      where: { empresaId: empresa.id, status: { notIn: ["CONCLUIDO", "CANCELADO"] }, prazo: { lt: HOJE } },
+    });
+    ok(abertosVencidos === 1 && vencido.status === "ABERTO", "vencido é consulta por data, não status gravado");
 
     throw new RollbackProposital();
   });
