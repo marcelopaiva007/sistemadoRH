@@ -62,6 +62,16 @@ export function PlanosAcaoView({
 }) {
   const [criarAberto, setCriarAberto] = useState(false);
 
+  // R7 do seed ("Status de Planos de Ação", mensal p/ direção) — resumo em
+  // vez de relatório agendado à parte: com a lista já na tela, um digest
+  // mensal por e-mail duplicaria o que AL09 já avisa em tempo real.
+  const abertos = planos.filter((p) => p.status !== "CONCLUIDO" && p.status !== "CANCELADO");
+  const vencidos = planos.filter(vencido);
+  const concluidos = planos.filter((p) => p.status === "CONCLUIDO");
+  const concluidosNoPrazo = concluidos.filter((p) => p.concluidoEm && p.concluidoEm <= p.prazo);
+  // meta_ano1.planos_acao_no_prazo_pct do seed: % dos concluídos que terminaram até o prazo.
+  const pctNoPrazo = concluidos.length > 0 ? Math.round((concluidosNoPrazo.length / concluidos.length) * 100) : null;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -82,6 +92,37 @@ export function PlanosAcaoView({
           </DialogContent>
         </Dialog>
       </div>
+
+      {planos.length > 0 && (
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <Card>
+            <CardContent className="py-4">
+              <div className="text-xs text-muted-foreground">Em aberto</div>
+              <div className="text-2xl font-semibold">{abertos.length}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="py-4">
+              <div className="text-xs text-muted-foreground">Vencidos</div>
+              <div className={"text-2xl font-semibold" + (vencidos.length > 0 ? " text-destructive" : "")}>
+                {vencidos.length}
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="py-4">
+              <div className="text-xs text-muted-foreground">Concluídos</div>
+              <div className="text-2xl font-semibold">{concluidos.length}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="py-4">
+              <div className="text-xs text-muted-foreground">Concluídos no prazo</div>
+              <div className="text-2xl font-semibold">{pctNoPrazo === null ? "—" : `${pctNoPrazo}%`}</div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {planos.length === 0 ? (
         <Card>
