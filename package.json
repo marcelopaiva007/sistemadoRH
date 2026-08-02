@@ -1,6 +1,6 @@
 {
   "name": "sistema-rh",
-  "version": "1.23.0",
+  "version": "1.24.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -36,6 +36,7 @@
     "smoke:pesquisa-enps": "tsx scripts/smoke-pesquisa-enps.ts",
     "smoke:pesquisa-onboarding": "tsx scripts/smoke-pesquisa-onboarding.ts",
     "smoke:regua-cobranca": "tsx scripts/smoke-regua-cobranca.ts",
+    "test:pesquisa-enps-resultado": "tsx scripts/test-pesquisa-enps-resultado.ts",
     "smoke:avaliacao": "tsx scripts/smoke-avaliacao.ts",
     "smoke:metas": "tsx scripts/smoke-metas.ts",
     "smoke:treinamentos": "tsx scripts/smoke-treinamentos.ts",
