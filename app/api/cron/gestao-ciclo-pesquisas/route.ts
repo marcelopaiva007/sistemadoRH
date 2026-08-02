@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { executarGestaoCiclo } from "@/lib/pesquisa-ciclo";
 import { executarCicloEnps } from "@/lib/pesquisa-enps";
+import { executarCicloOnboarding } from "@/lib/pesquisa-onboarding";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -33,17 +34,20 @@ export async function GET(req: NextRequest) {
     // `criarCicloRascunho` porque aqueles são tipados pra CLIMA (anual/pulso
     // trimestral); generalizar isso é fase 5, não vale ainda com só 1 tipo novo.
     const enps = await executarCicloEnps();
+    const onboarding = await executarCicloOnboarding();
 
     console.log(
       `cron gestao-ciclo: ${resultado.criados.length} criado(s), ${resultado.encerrados.length} encerrado(s), ` +
-        `${enps.criados.length} eNPS criado(s), ${resultado.erros.length + enps.erros.length} erro(s).`,
+        `${enps.criados.length} eNPS criado(s), ${onboarding.convidados.length} onboarding D+30 convidado(s), ` +
+        `${resultado.erros.length + enps.erros.length + onboarding.erros.length} erro(s).`,
     );
 
     return NextResponse.json({
-      ok: resultado.erros.length === 0 && enps.erros.length === 0,
+      ok: resultado.erros.length === 0 && enps.erros.length === 0 && onboarding.erros.length === 0,
       ...resultado,
       enpsCriados: enps.criados,
-      erros: [...resultado.erros, ...enps.erros],
+      onboardingConvidados: onboarding.convidados,
+      erros: [...resultado.erros, ...enps.erros, ...onboarding.erros],
     });
   } catch (e) {
     console.error("cron gestao-ciclo:", e);
