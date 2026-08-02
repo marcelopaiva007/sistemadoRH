@@ -2,10 +2,12 @@
 //
 //   npx tsx scripts/aplicar-migracao.ts 20260724230000_fase1_departamento_pessoal [--dry]
 //
-// Por que não `prisma migrate deploy`: os apps do grupo dividem o mesmo banco
-// Neon e a mesma tabela `_prisma_migrations`, e parte do histórico foi aplicada
-// fora do fluxo do Prisma (ver README, "Notas sobre o banco"). Rodar o deploy
-// aqui tentaria reaplicar migrations de outro app.
+// Desde 01/08/2026 o banco (SOFTrh) é dedicado a este app e `prisma migrate
+// deploy` funciona normalmente — use este script só para o caso raro de um
+// `migration.sql` que precise rodar fora do fluxo padrão do Prisma (ver
+// README, "Notas sobre o banco", e o cabeçalho de
+// 20260721120000_sync_funcionario_contato_e_elleven_relatorio, aplicada assim
+// quando o banco ainda era compartilhado).
 //
 // Depois de aplicar, registre a migration para o Prisma não tentar de novo:
 //   npx prisma migrate resolve --applied <nome-da-migration>

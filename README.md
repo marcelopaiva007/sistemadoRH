@@ -21,11 +21,11 @@ Stack: Next.js 16 (App Router) · React 19 · Prisma 7 + PostgreSQL · NextAuth 
 > bonificação de vendas). Esse módulo foi removido em 23/07/2026 e o app passou
 > a ser exclusivamente o Sistema do RH. Em 25/07/2026 o último vínculo com o
 > lm-bonificacao — a tabela de login `shared.User`, que as duas aplicações
-> dividiam — foi desfeito: o RH passou a ter o seu próprio `rh.User`. Os dois
-> apps ainda moram no mesmo banco Neon, mas em schemas separados, e **nenhum
-> objeto do schema `rh` referencia objeto de fora dele**. Como o cadastro de
-> usuários nasceu de uma cópia, criar usuário ou trocar senha aqui não muda
-> nada no outro sistema — e vice-versa.
+> dividiam — foi desfeito: o RH passou a ter o seu próprio `rh.User`. Em
+> 01/08/2026 o banco também foi separado de vez: o RH migrou para um projeto
+> Neon **dedicado** (`SOFTrh`, São Paulo), sem nenhuma tabela, schema ou
+> `_prisma_migrations` em comum com `lm-bonificacao`/`vapt`/`shared`. O banco
+> antigo (compartilhado) continua intacto, sem uso, como rollback.
 
 ## Rodando local
 
@@ -73,10 +73,10 @@ Consequência do cadastro separado: criar usuário ou trocar senha aqui não mud
 nada no lm-bonificacao, e vice-versa. As senhas do momento do corte continuam
 valendo nos dois (os hashes foram copiados), mas evoluem em separado.
 
-O que ainda é comum: o mesmo banco Neon (schemas distintos), a tabela
-`_prisma_migrations` (bookkeeping do Prisma, sem dado de negócio) e o bot do
-Telegram. Separar em bancos distintos, se um dia for preciso, é um
-`pg_dump --schema=rh` — não há mais nenhuma amarra de dados a desfazer.
+O que ainda é comum, mesmo após a separação do banco em 01/08/2026: só o bot
+do Telegram (mesmo `TELEGRAM_BOT_TOKEN`, usado tanto pro convite de pesquisa
+quanto pro portal do colaborador). Banco, schema e `_prisma_migrations` já são
+inteiramente próprios deste app.
 
 `npm run test:desacoplamento` confere tudo isso contra o banco.
 
@@ -577,26 +577,24 @@ Prisma (ver o cabeçalho de
 `prisma/migrations/20260721120000_sync_funcionario_contato_e_elleven_relatorio`).
 Ao rodar `prisma migrate` contra produção, confira o diff antes de aplicar.
 
-O banco Neon é compartilhado com outras aplicações do grupo, cada uma no seu
-schema: `rh` (este app), `bonificacao` (lm-bonificacao), `vapt` (painel de
-postos) e `shared` (o antigo login comum, hoje usado só pelo lm-bonificacao).
-**Este app enxerga apenas o schema `rh`** — é o que o `datasource` declara, e
-não há nenhuma FK saindo dele. Isso mantém a separação em bancos distintos a um
-`pg_dump --schema=rh` de distância, se um dia for preciso.
+**Desde 01/08/2026 o banco (`SOFTrh`, projeto Neon dedicado em São Paulo) não é
+mais compartilhado** com `lm-bonificacao`/`vapt`/`shared` — nem schema, nem a
+tabela `_prisma_migrations`. `npx prisma migrate deploy` volta a funcionar
+normalmente contra produção, sem risco de reaplicar migration de outro app
+(`npx prisma migrate status` confirma: banco em dia com as 42 migrations do
+repo). O script manual continua disponível para o caso raro de precisar rodar
+um `migration.sql` fora do fluxo do Prisma:
+`npx tsx scripts/aplicar-migracao.ts <nome>` + `npx prisma migrate resolve --applied <nome>`.
 
-Aplicar migration aqui não usa `prisma migrate deploy`: os apps dividem a
-tabela `_prisma_migrations`, então o deploy tentaria reaplicar migrations dos
-outros. Use `npx tsx scripts/aplicar-migracao.ts <nome>` (roda em transação) e
-depois `npx prisma migrate resolve --applied <nome>`.
-
-Como aplicar é passo manual, é fácil esquecer — e em 30/07/2026 o código subiu
-sem a migration do pivô `UserEmpresa`: as telas responderam 404 e lista vazia, e
-passou-se o dia achando que o banco tinha zerado (não tinha). Por isso todo
-`npm run build` roda antes o `prisma/checar-migracoes.mjs`, que compara as pastas
-de `prisma/migrations/` com o que está registrado no banco e **barra o deploy**
-se faltar alguma. Se ele não conseguir checar (sem `DATABASE_URL`, banco fora do
-ar), avisa e deixa passar — derrubar deploy por defeito da ferramenta foi o que
-fez a checagem ser desligada da primeira vez.
+Independente de como a migration é aplicada, é fácil esquecer o passo — e em
+30/07/2026 o código subiu sem a migration do pivô `UserEmpresa`: as telas
+responderam 404 e lista vazia, e passou-se o dia achando que o banco tinha
+zerado (não tinha). Por isso todo `npm run build` roda antes o
+`prisma/checar-migracoes.mjs`, que compara as pastas de `prisma/migrations/`
+com o que está registrado no banco e **barra o deploy** se faltar alguma. Se
+ele não conseguir checar (sem `DATABASE_URL`, banco fora do ar), avisa e deixa
+passar — derrubar deploy por defeito da ferramenta foi o que fez a checagem
+ser desligada da primeira vez.
 
 O checador mora em `prisma/`, não em `scripts/`, porque o `.vercelignore` exclui
 `scripts` inteiro: qualquer coisa que o `build` execute e viva ali some no deploy
