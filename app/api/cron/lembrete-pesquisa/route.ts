@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { sendTelegramMessage } from "@/lib/telegram";
 import { sendEmail } from "@/lib/email";
 import { CONVITES_NA_PESQUISA } from "@/lib/pesquisa-numeros";
+import { idsComAfastamentoVigente } from "@/lib/pesquisa-vinculo";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -41,6 +42,9 @@ export async function GET(req: NextRequest) {
       status: "SENT",
       enviadoEm: { lt: limiteMaisDe },
       respondidoEm: null,
+      // RD-001: quem foi desligado depois de receber o convite não recebe
+      // mais lembrete — ver lib/pesquisa-vinculo.ts.
+      colaborador: { ativo: true },
     },
     include: {
       pesquisa: { select: { id: true, titulo: true, anonima: true, encerradaEm: true } },
@@ -58,8 +62,19 @@ export async function GET(req: NextRequest) {
   let falhas = 0;
   let ignorados = 0;
 
+  // RD-001: INSS/licença-maternidade/suspensão vigente pausa o lembrete,
+  // mesmo com cadastro ativo — retoma sozinho quando o afastamento acabar.
+  const afastados = await idsComAfastamentoVigente(
+    prisma,
+    tokens.map((t) => t.colaboradorId),
+  );
+
   for (const token of tokens) {
     if (token.pesquisa.encerradaEm) {
+      ignorados++;
+      continue;
+    }
+    if (afastados.has(token.colaboradorId)) {
       ignorados++;
       continue;
     }

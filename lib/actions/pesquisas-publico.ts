@@ -46,6 +46,11 @@ export async function responderPesquisa(token: string, _prev: ActionResult, form
   if (surveyToken.status === "EXCLUIDO") {
     return { ok: false, error: "Este convite não está mais válido." };
   }
+  // RD-001: o convite pode ter sido enviado antes do desligamento — revalida
+  // o vínculo na hora de responder, não só na hora de enviar.
+  if (!surveyToken.colaborador.ativo) {
+    return { ok: false, error: "Este convite não está mais válido." };
+  }
 
   let itensRaw: unknown;
   try {

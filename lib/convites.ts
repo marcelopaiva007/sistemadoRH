@@ -17,6 +17,7 @@ import { prisma } from "@/lib/prisma";
 import { sendTelegramMessage } from "@/lib/telegram";
 import { sendEmail, orcamentoRestanteHoje, inicioDoDiaSaoPaulo } from "@/lib/email";
 import { LIMITE_DIARIO_ENVIOS } from "@/lib/constants-rh";
+import { idsComAfastamentoVigente } from "@/lib/pesquisa-vinculo";
 
 export { LIMITE_DIARIO_ENVIOS, inicioDoDiaSaoPaulo };
 
@@ -151,6 +152,7 @@ export async function rodadaEnvioAutomatico(): Promise<{
       select: {
         id: true,
         token: true,
+        colaboradorId: true,
         colaborador: {
           select: {
             nome: true,
@@ -163,6 +165,16 @@ export async function rodadaEnvioAutomatico(): Promise<{
     });
     if (pendentes.length === 0) continue;
 
+    // RD-001: INSS/licença-maternidade/suspensão vigente pausa o envio, mesmo
+    // com cadastro ativo — a pessoa volta a ser convocada quando o afastamento
+    // acabar, sem precisar de nenhuma ação manual.
+    const afastados = await idsComAfastamentoVigente(
+      prisma,
+      pendentes.map((p) => p.colaboradorId),
+    );
+    const elegiveis = afastados.size === 0 ? pendentes : pendentes.filter((p) => !afastados.has(p.colaboradorId));
+    if (elegiveis.length === 0) continue;
+
     const resumoPesquisa: ResumoEnvioAutomatico = {
       pesquisaId: pesquisa.id,
       pesquisaTitulo: pesquisa.titulo,
@@ -171,8 +183,8 @@ export async function rodadaEnvioAutomatico(): Promise<{
     };
 
     // Prioriza Telegram (sem limite), depois e-mail (com limite)
-    const porTelegram = pendentes.filter(t => t.colaborador.telegramChatId);
-    const porEmail = pendentes.filter(t => !t.colaborador.telegramChatId && t.colaborador.email);
+    const porTelegram = elegiveis.filter(t => t.colaborador.telegramChatId);
+    const porEmail = elegiveis.filter(t => !t.colaborador.telegramChatId && t.colaborador.email);
 
     const todasAsPrioridades = [...porTelegram, ...porEmail];
 

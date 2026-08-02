@@ -8,6 +8,7 @@ import { proximaMatricula } from "@/lib/matricula";
 import { registrarAuditoria } from "@/lib/audit";
 import { criariCiclo } from "@/lib/organograma";
 import { empresasDaMesmaMarca } from "@/lib/escopo-marca";
+import { invalidarConvitesDeDesligados } from "@/lib/pesquisa-vinculo";
 import type { ActionResult } from "@/lib/constants";
 
 const colaboradorSchema = z.object({
@@ -182,20 +183,30 @@ export async function updateColaborador(
     if (erroSupervisor) return { ok: false, error: erroSupervisor };
   }
 
+  const atual = await prisma.colaborador.findFirst({ where: { id, empresaId }, select: { ativo: true } });
+  if (!atual) return { ok: false, error: "Colaborador não encontrado." };
+
   try {
-    await prisma.colaborador.update({
-      where: { id, empresaId },
-      data: {
-        nome: parsed.data.nome,
-        cpf: parsed.data.cpf || null,
-        email: parsed.data.email || null,
-        setorId: parsed.data.setorId,
-        posicaoId: parsed.data.posicaoId,
-        telegramChatId: parsed.data.telegramChatId || null,
-        supervisorId: parsed.data.supervisorId || null,
-        gerente: parsed.data.gerente,
-        ativo: parsed.data.ativo,
-      },
+    await prisma.$transaction(async (tx) => {
+      await tx.colaborador.update({
+        where: { id, empresaId },
+        data: {
+          nome: parsed.data.nome,
+          cpf: parsed.data.cpf || null,
+          email: parsed.data.email || null,
+          setorId: parsed.data.setorId,
+          posicaoId: parsed.data.posicaoId,
+          telegramChatId: parsed.data.telegramChatId || null,
+          supervisorId: parsed.data.supervisorId || null,
+          gerente: parsed.data.gerente,
+          ativo: parsed.data.ativo,
+        },
+      });
+      // RD-001: transição true→false é o momento do desligamento — expira os
+      // convites de pesquisa em aberto (ver lib/pesquisa-vinculo.ts).
+      if (atual.ativo && !parsed.data.ativo) {
+        await invalidarConvitesDeDesligados(tx, id);
+      }
     });
   } catch {
     return { ok: false, error: "Já existe um colaborador com esse CPF ou chat_id do Telegram." };
@@ -209,11 +220,17 @@ export async function toggleColaboradorAtivo(empresaId: string, id: string, ativ
 
   const colaborador = await prisma.colaborador.findFirst({
     where: { id, empresaId },
-    select: { nome: true },
+    select: { nome: true, ativo: true },
   });
   if (!colaborador) return { ok: false, error: "Colaborador não encontrado." };
 
-  await prisma.colaborador.update({ where: { id, empresaId }, data: { ativo } });
+  await prisma.$transaction(async (tx) => {
+    await tx.colaborador.update({ where: { id, empresaId }, data: { ativo } });
+    // RD-001: mesma regra do formulário de edição — ver acima.
+    if (colaborador.ativo && !ativo) {
+      await invalidarConvitesDeDesligados(tx, id);
+    }
+  });
 
   await registrarAuditoria({
     empresaId,

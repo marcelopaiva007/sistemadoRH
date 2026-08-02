@@ -31,6 +31,7 @@
     "test:escala": "tsx scripts/test-escala.ts",
     "smoke:escala": "tsx scripts/smoke-escala.ts",
     "smoke:offboarding": "tsx scripts/smoke-offboarding.ts",
+    "smoke:pesquisa-vinculo": "tsx scripts/smoke-pesquisa-vinculo.ts",
     "smoke:avaliacao": "tsx scripts/smoke-avaliacao.ts",
     "smoke:metas": "tsx scripts/smoke-metas.ts",
     "smoke:treinamentos": "tsx scripts/smoke-treinamentos.ts",

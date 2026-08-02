@@ -10,6 +10,7 @@ import { requireEmpresaAccess, requireRHAccess } from "@/lib/rh-auth-guard";
 import { executarGestaoCiclo } from "@/lib/pesquisa-ciclo";
 import { enviarUmConvite, enviosRestantesHoje, LIMITE_DIARIO_ENVIOS } from "@/lib/convites";
 import { vinculoTelegramQuebrado, MSG_AGUARDANDO_NOVO_VINCULO } from "@/lib/pesquisa-numeros";
+import { filtrarElegiveisPorVinculo, invalidarConvitesDeDesligados } from "@/lib/pesquisa-vinculo";
 import {
   PERGUNTAS_NR01,
   TITULO_PESQUISA_NR01,
@@ -299,10 +300,10 @@ export async function gerarConvites(empresaId: string, pesquisaId: string): Prom
   // faltava para a pesquisa ser da marca de fato: ela já aparecia para os
   // cinco CNPJs da LM Telecom, mas o convite só saía para quem estava no
   // CNPJ de criação — os outros quatro viam a pesquisa e nunca a recebiam.
-  const colaboradores = await prisma.colaborador.findMany({
-    where: { empresa: { marcaId: pesquisa.marcaId }, ativo: true },
-    select: { id: true },
-  });
+  //
+  // Vínculo ativo (RD-001): quem está com INSS/licença-maternidade/suspensão
+  // vigente não entra aqui, mesmo com o cadastro ativo — ver lib/pesquisa-vinculo.ts.
+  const colaboradores = await filtrarElegiveisPorVinculo(prisma, pesquisa.marcaId);
 
   // `skipDuplicates` sobre a unique [pesquisaId, colaboradorId] é o que torna
   // este botão seguro de clicar de novo: quem já tem convite não ganha outro,
@@ -369,8 +370,9 @@ export async function excluirDaPesquisa(
 
   const desativouCadastro = token.colaborador.ativo;
 
-  // As duas escritas na mesma transação: cadastro desativado com convite ainda
-  // pendente é justamente o estado meio-termo que esta ação existe para evitar.
+  // As três escritas na mesma transação: cadastro desativado com convite ainda
+  // pendente (aqui ou em outra pesquisa) é justamente o estado meio-termo que
+  // esta ação existe para evitar.
   await prisma.$transaction(async (tx) => {
     await tx.surveyToken.update({
       where: { id: tokenId },
@@ -378,6 +380,9 @@ export async function excluirDaPesquisa(
     });
     if (desativouCadastro) {
       await tx.colaborador.update({ where: { id: token.colaborador.id }, data: { ativo: false } });
+      // RD-001: desativar o cadastro aqui é um desligamento — expira também os
+      // convites em aberto que essa pessoa tenha em QUALQUER outra pesquisa.
+      await invalidarConvitesDeDesligados(tx, token.colaborador.id);
     }
   });
 
