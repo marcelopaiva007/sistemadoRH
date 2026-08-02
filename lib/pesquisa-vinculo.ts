@@ -22,11 +22,8 @@
 // schema — só existe `dataDesligamento` única, sem separar aviso da data
 // efetiva. Nenhum colaborador cai nesse estado hoje; é limitação conhecida,
 // documentada no próprio RD-001, não um bug deste módulo.
-import { prisma } from "@/lib/prisma";
-import type { Prisma } from "@/app/generated/prisma/client";
+import type { Cliente } from "@/lib/prisma";
 import { definicaoPesquisa, type ElegibilidadeVinculo } from "@/lib/pesquisas-catalogo";
-
-type Cliente = typeof prisma | Prisma.TransactionClient;
 
 const TIPOS_AFASTAMENTO_EXCLUEM_MEDICAO = ["AFASTAMENTO_INSS", "LICENCA_MATERNIDADE", "SUSPENSAO"] as const;
 

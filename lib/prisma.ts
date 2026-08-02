@@ -1,5 +1,12 @@
-import { PrismaClient } from "@/app/generated/prisma/client";
+import { PrismaClient, type Prisma } from "@/app/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+
+// Client normal OU `tx` de dentro de `prisma.$transaction(async (tx) => ...)`
+// — mesma interface pra quem só precisa ler/escrever, sem se importar se tá
+// dentro de uma transação. Usado por qualquer módulo que precise ser
+// testável em transação com rollback (ver scripts/smoke-*.ts) sem duplicar
+// a assinatura em cada arquivo.
+export type Cliente = PrismaClient | Prisma.TransactionClient;
 
 declare global {
   var prismaGlobal: PrismaClient | undefined;
