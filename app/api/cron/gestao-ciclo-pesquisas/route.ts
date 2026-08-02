@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { executarGestaoCiclo } from "@/lib/pesquisa-ciclo";
 import { executarCicloEnps } from "@/lib/pesquisa-enps";
 import { executarCicloOnboarding } from "@/lib/pesquisa-onboarding";
+import { executarReguaCobranca } from "@/lib/regua-cobranca";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -32,21 +33,27 @@ export async function GET(req: NextRequest) {
     const resultado = await executarGestaoCiclo();
     // eNPS mensal (fase 4) — não passa pelo mesmo `coletarCandidatos`/
     // `criarCicloRascunho` porque aqueles são tipados pra CLIMA (anual/pulso
-    // trimestral); generalizar isso é fase 5, não vale ainda com só 1 tipo novo.
+    // trimestral).
     const enps = await executarCicloEnps();
     const onboarding = await executarCicloOnboarding();
+    // Régua de cobrança (fase 5) — lembretes/encerramento de NR01 e P05-ENPS.
+    // CLIMA fica de fora por ora (ver lib/regua-cobranca.ts) e continua só
+    // no cron lembrete-pesquisa + no `encerrarVencidas` acima.
+    const regua = await executarReguaCobranca();
 
     console.log(
       `cron gestao-ciclo: ${resultado.criados.length} criado(s), ${resultado.encerrados.length} encerrado(s), ` +
         `${enps.criados.length} eNPS criado(s), ${onboarding.convidados.length} onboarding D+30 convidado(s), ` +
-        `${resultado.erros.length + enps.erros.length + onboarding.erros.length} erro(s).`,
+        `régua: ${regua.lembretesEnviados} lembrete(s), ${regua.encerradas} encerrada(s), ` +
+        `${resultado.erros.length + enps.erros.length + onboarding.erros.length + regua.erros} erro(s).`,
     );
 
     return NextResponse.json({
-      ok: resultado.erros.length === 0 && enps.erros.length === 0 && onboarding.erros.length === 0,
+      ok: resultado.erros.length === 0 && enps.erros.length === 0 && onboarding.erros.length === 0 && regua.erros === 0,
       ...resultado,
       enpsCriados: enps.criados,
       onboardingConvidados: onboarding.convidados,
+      regua,
       erros: [...resultado.erros, ...enps.erros, ...onboarding.erros],
     });
   } catch (e) {

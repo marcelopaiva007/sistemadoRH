@@ -9,6 +9,7 @@ import { sendTelegramMessage } from "@/lib/telegram";
 import { sendEmail } from "@/lib/email";
 import { CONVITES_NA_PESQUISA } from "@/lib/pesquisa-numeros";
 import { idsComAfastamentoVigente } from "@/lib/pesquisa-vinculo";
+import { MODELOS_COM_REGUA_NOVA } from "@/lib/regua-cobranca";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -45,6 +46,10 @@ export async function GET(req: NextRequest) {
       // RD-001: quem foi desligado depois de receber o convite não recebe
       // mais lembrete — ver lib/pesquisa-vinculo.ts.
       colaborador: { ativo: true },
+      // Fase 5: NR01/P05-ENPS saíram daqui pra régua de cobrança própria
+      // (lib/regua-cobranca.ts, dias 3/7/13 fixos com placar) — sem esta
+      // exclusão a pessoa levaria lembrete duplicado dos dois crons.
+      pesquisa: { modelo: { notIn: MODELOS_COM_REGUA_NOVA } },
     },
     include: {
       pesquisa: { select: { id: true, titulo: true, anonima: true, encerradaEm: true } },
