@@ -599,3 +599,19 @@ ser desligada da primeira vez.
 O checador mora em `prisma/`, não em `scripts/`, porque o `.vercelignore` exclui
 `scripts` inteiro: qualquer coisa que o `build` execute e viva ali some no deploy
 com `Cannot find module`.
+
+## Vulnerabilidades de dependências
+
+`npm audit` em 01/08/2026 apontou 10 vulnerabilidades. Resolvidas 8: quatro por
+`npm audit fix` (todas em ferramenta de dev — CLI do Prisma e do shadcn, nunca
+rodam no app publicado) e o `sharp` (usado de verdade pelo `next/image`) via
+`overrides` no `package.json`, já que o Next carrega sua própria cópia interna
+e ignora o que está na raiz sem isso.
+
+Aceito como risco, sem fix disponível: o `postcss@8.4.31` que o próprio Next
+16.2.12 empacota dentro de `node_modules/next/node_modules/postcss` para o
+pipeline interno de CSS do build. As três falhas (XSS no stringify, leitura de
+arquivo via `sourceMappingURL`) exigem CSS malicioso passando por esse
+pipeline — que só processa o CSS do próprio repositório em tempo de build,
+nunca entrada de usuário em produção. Sem patch do Next disponível para essa
+versão; revisar de novo no próximo `npm audit` (ou ao atualizar o Next).
