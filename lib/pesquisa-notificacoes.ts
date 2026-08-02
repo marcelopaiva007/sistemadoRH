@@ -73,7 +73,7 @@ export async function notificarCiclo(notif: NotificacaoCiclo): Promise<{
     if (!d.email) continue;
     const result = await sendEmail({
       to: d.email,
-      subject: `[RH] ${notif.tipo === "CRIADA" ? "Nova pesquisa de clima" : notif.tipo === "ENCERRADA" ? "Pesquisa encerrada" : "Relatório disponível"}`,
+      subject: `[RH] ${notif.tipo === "CRIADA" ? `Nova pesquisa: ${notif.titulo}` : notif.tipo === "ENCERRADA" ? "Pesquisa encerrada" : "Relatório disponível"}`,
       text: msg,
       html: `<p>${msg}</p>`,
       // O mesmo evento de ciclo pode ser reprocessado no dia; o gestor só

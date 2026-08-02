@@ -6,6 +6,7 @@
 // disparo manual/diagnóstico aceita ?secret=$CRON_SECRET.
 import { NextRequest, NextResponse } from "next/server";
 import { executarGestaoCiclo } from "@/lib/pesquisa-ciclo";
+import { executarCicloEnps } from "@/lib/pesquisa-enps";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -28,12 +29,22 @@ export async function GET(req: NextRequest) {
     // tela de Pesquisas (lib/actions/pesquisas.ts) chama a mesma função, para
     // não ter duas versões da mesma lógica divergindo com o tempo.
     const resultado = await executarGestaoCiclo();
+    // eNPS mensal (fase 4) — não passa pelo mesmo `coletarCandidatos`/
+    // `criarCicloRascunho` porque aqueles são tipados pra CLIMA (anual/pulso
+    // trimestral); generalizar isso é fase 5, não vale ainda com só 1 tipo novo.
+    const enps = await executarCicloEnps();
 
     console.log(
-      `cron gestao-ciclo: ${resultado.criados.length} criado(s), ${resultado.encerrados.length} encerrado(s), ${resultado.erros.length} erro(s).`,
+      `cron gestao-ciclo: ${resultado.criados.length} criado(s), ${resultado.encerrados.length} encerrado(s), ` +
+        `${enps.criados.length} eNPS criado(s), ${resultado.erros.length + enps.erros.length} erro(s).`,
     );
 
-    return NextResponse.json({ ok: resultado.erros.length === 0, ...resultado });
+    return NextResponse.json({
+      ok: resultado.erros.length === 0 && enps.erros.length === 0,
+      ...resultado,
+      enpsCriados: enps.criados,
+      erros: [...resultado.erros, ...enps.erros],
+    });
   } catch (e) {
     console.error("cron gestao-ciclo:", e);
     return NextResponse.json(
