@@ -13,6 +13,7 @@ import {
   CalendarDays,
   CheckSquare,
   ClipboardCheck,
+  ClipboardList,
   CreditCard,
   FileBarChart,
   FileUp,
@@ -69,6 +70,7 @@ const GRUPOS = [
       { slug: "treinamentos", label: "Treinamentos", icon: GraduationCap },
       { slug: "reconhecimento", label: "Reconhecimento", icon: Award },
       { slug: "pesquisas", label: "Pesquisas de clima", icon: Activity },
+      { slug: "planos-acao", label: "Planos de ação", icon: ClipboardList },
     ],
   },
   {

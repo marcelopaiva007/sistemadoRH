@@ -22,6 +22,13 @@ export const DIMENSOES_GPTW = [
   { value: "GERAL", label: "Geral" },
 ] as const;
 
+export const STATUS_PLANO_ACAO = [
+  { value: "ABERTO", label: "Aberto" },
+  { value: "EM_ANDAMENTO", label: "Em andamento" },
+  { value: "CONCLUIDO", label: "Concluído" },
+  { value: "CANCELADO", label: "Cancelado" },
+] as const;
+
 export const STATUS_TOKEN = [
   { value: "PENDING", label: "Pendente" },
   { value: "SENT", label: "Enviado" },
@@ -38,6 +45,7 @@ export const statusPesquisaLabel = (v: string) => STATUS_PESQUISA.find((s) => s.
 export const tipoPerguntaLabel = (v: string) => TIPOS_PERGUNTA.find((t) => t.value === v)?.label ?? v;
 export const dimensaoGPTWLabel = (v: string) => DIMENSOES_GPTW.find((d) => d.value === v)?.label ?? v;
 export const statusTokenLabel = (v: string) => STATUS_TOKEN.find((s) => s.value === v)?.label ?? v;
+export const statusPlanoAcaoLabel = (v: string) => STATUS_PLANO_ACAO.find((s) => s.value === v)?.label ?? v;
 
 export const AMOSTRA_MINIMA_ANONIMATO = 3;
 
