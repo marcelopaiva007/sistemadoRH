@@ -3,6 +3,11 @@
 /**
  * Valida variáveis de ambiente obrigatórias antes do build.
  * Corre durante `npm run build` pra falhar claro se algo tá faltando.
+ *
+ * NÃO mover para scripts/: o .vercelignore exclui aquela pasta inteira do
+ * deploy (comentário lá explica o porquê — foi o que derrubou três deploys
+ * em 30/07/2026 com o checador de migrations, pelo mesmo motivo). Qualquer
+ * arquivo que `npm run build` execute tem que morar fora de scripts/.
  */
 
 const required = ['DATABASE_URL', 'AUTH_SECRET', 'NEXTAUTH_URL'];

@@ -1,10 +1,10 @@
 {
   "name": "sistema-rh",
-  "version": "1.27.0",
+  "version": "1.27.1",
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/validate-env.js && node prisma/checar-migracoes.mjs && next build",
+    "build": "node validate-env.js && node prisma/checar-migracoes.mjs && next build",
     "check:migracoes": "node prisma/checar-migracoes.mjs",
     "start": "next start",
     "lint": "eslint",
