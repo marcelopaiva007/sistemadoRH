@@ -38,6 +38,24 @@ npm run dev
 
 Abra http://localhost:3000 — a raiz redireciona para `/login`.
 
+## Banco de Dados
+
+O build falha se `DATABASE_URL` não estiver configurada. Escolha uma opção:
+
+| Ambiente | Opção | Como | Quando |
+|---|---|---|---|
+| **Desenvolvimento** | Neon dev | Criar projeto Neon `sistemado_rh-db`; copiar URL | Recomendado |
+| **Desenvolvimento** | Docker local | `docker run ... postgres:15` | Sem acesso à internet |
+| **Testes** | SQLite | `file:./prisma/dev.db` | Build/validação rápida (não roda `npm run dev`) |
+| **Produção** | Neon `SOFTrh` | Vercel Settings → Environment Variables | CI/CD na Vercel |
+
+1. Copie `.env.example` → `.env` e escolha UMA opção acima
+2. Execute: `npm run db:migrate && npm run dev`
+
+**Se o build falhar com "variáveis faltando"**, o script `scripts/validate-env.js` lista todos os valores esperados.
+
+Documentação completa: `sistemadorh-banco-ambientes.md` (no projeto).
+
 ## Variáveis de ambiente
 
 | Variável | Para quê |

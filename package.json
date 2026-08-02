@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node prisma/checar-migracoes.mjs && next build",
+    "build": "node scripts/validate-env.js && node prisma/checar-migracoes.mjs && next build",
     "check:migracoes": "node prisma/checar-migracoes.mjs",
     "start": "next start",
     "lint": "eslint",
