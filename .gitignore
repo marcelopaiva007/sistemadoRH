@@ -31,7 +31,9 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # env files (can opt-in for committing if needed)
-.env*
+.env
+.env.local
+.env.*.local
 
 # vercel
 .vercel
@@ -47,7 +49,9 @@ next-env.d.ts
 /prisma/*.db-journal
 
 .vercel
-.env*
+.env
+.env.local
+.env.*.local
 
 # local-only Claude Code settings and unrelated scratch files
 .claude/settings.local.json
