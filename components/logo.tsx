@@ -4,9 +4,12 @@ import { cn } from "@/lib/utils";
 /**
  * Logo oficial da L&M Telecom (arquivos originais, baixados de assinelm.com).
  *
- * - `lm-telecom-logo.png`        → versão colorida (fundo claro)
- * - `lm-telecom-logo-branca.png` → versão de letras brancas (fundo escuro)
- * - `lm-telecom-icon.png`        → logo horizontal (usada como fallback do ícone)
+ * - `lm-telecom-logo.png`          → versão colorida (fundo claro)
+ * - `lm-telecom-logo-branca.png`   → versão de letras brancas (fundo escuro)
+ * - `lm-telecom-icon.png`          → logo horizontal (usada como fallback do ícone)
+ * - `lm-telecom-logo-vertical.png` → arte oficial nova (01/08/2026, direto de
+ *   quem cuida da identidade visual), símbolo empilhado sobre "L&M Telecom",
+ *   sem o slogan — usada em `LogoVertical` onde o recorte abaixo não se aplica.
  *
  * No dark mode a versão branca é exibida automaticamente.
  *
@@ -27,6 +30,7 @@ import { cn } from "@/lib/utils";
  */
 const LOGO_COLOR = "/lm-telecom-logo.png";
 const LOGO_WHITE = "/lm-telecom-logo-branca.png";
+const LOGO_VERTICAL = "/lm-telecom-logo-vertical.png";
 
 /** 1024x190 é o arquivo; 170 é onde a arte colorida termina. */
 const RECORTE_CLARO = "aspect-[1024/170] object-cover object-top";
@@ -65,6 +69,35 @@ export function Logo({
         className={cn("hidden object-contain dark:block", className)}
       />
     </>
+  );
+}
+
+/**
+ * Símbolo empilhado sobre o wordmark, sem slogan — a arte oficial pra fundo
+ * claro. Usada nas telas públicas centralizadas (login, esqueci a senha,
+ * redefinir senha) no lugar do recorte de `Logo`.
+ */
+export function LogoVertical({
+  className,
+  width = 280,
+  height = 155,
+  alt = "L&M Telecom",
+}: {
+  className?: string;
+  width?: number;
+  height?: number;
+  alt?: string;
+}) {
+  return (
+    <Image
+      src={LOGO_VERTICAL}
+      alt={alt}
+      width={width}
+      height={height}
+      priority
+      unoptimized
+      className={cn("object-contain", className)}
+    />
   );
 }
 
