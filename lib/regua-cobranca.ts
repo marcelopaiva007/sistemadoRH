@@ -16,19 +16,20 @@
 // (lib/alertas.ts). Canais mural/whatsapp/reunião não existem neste sistema
 // (só Telegram e e-mail).
 //
-// MODELOS_COM_REGUA_NOVA fica sem CLIMA de propósito: CLIMA já tem
-// lembrete/encerramento próprios rodando em produção (lembrete-pesquisa: 3
-// lembretes a cada 5 dias; encerrarVencidas: fecha em 30 dias) — migrar pra
-// este timing mais curto (dia 15 fecha, sem checar resposta recente) muda o
-// comportamento de campanhas que podem estar no ar agora, e isso é decisão do
-// Marcelo, não default de código. NR01 e P05-ENPS nunca tiveram
-// lembrete/encerramento automático nenhum — pra esses dois é ganho puro.
+// CLIMA migrou pra cá em 02/08/2026 (aprovado pelo Marcelo): antes tinha
+// lembrete/encerramento próprios (lembrete-pesquisa: 3 lembretes a cada 5
+// dias; `encerrarVencidas` em lib/pesquisa-ciclo.ts: fechava em 30 dias,
+// condicional a resposta recente). Isso muda o timing pra campanhas que
+// estejam no ar — dia 15 fecha incondicionalmente, mais cedo que os 30 dias
+// de antes. `encerrarVencidas` fica no código mas vira inerte pra CLIMA: uma
+// pesquisa nunca mais chega aos 30 dias ainda ACTIVE, porque a régua já
+// fechou no dia 15.
 import { prisma, type Cliente } from "@/lib/prisma";
 import { sendEmail } from "@/lib/email";
 import { sendTelegramMessage } from "@/lib/telegram";
 import { CONVITES_NA_PESQUISA, participacaoPct } from "@/lib/pesquisa-numeros";
 
-export const MODELOS_COM_REGUA_NOVA = ["NR01", "P05-ENPS"];
+export const MODELOS_COM_REGUA_NOVA = ["NR01", "P05-ENPS", "CLIMA"];
 
 type AcaoRegua = "LEMBRETE_1" | "LEMBRETE_2" | "ULTIMO_AVISO";
 

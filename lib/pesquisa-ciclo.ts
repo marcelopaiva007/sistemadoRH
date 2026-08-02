@@ -200,6 +200,12 @@ export async function criarCicloRascunho(cand: CicloCandidato): Promise<{ pesqui
 
 // Encerra pesquisas ACTIVE cujo prazo venceu (campo descritivo ou convenção)
 // Por convenção: ACTIVE há mais de 30 dias e sem respostas há 7 dias
+//
+// Desde que CLIMA migrou pra régua de cobrança (lib/regua-cobranca.ts, fecha
+// no dia 15), esta função fica de fato inerte: nenhuma pesquisa CLIMA chega
+// mais aos 30 dias ainda ACTIVE. Mantida — é barata e inofensiva — em vez de
+// removida, pra não arrastar mudança no tipo de retorno de
+// `executarGestaoCiclo`/`ResumoGestaoCiclo` só por limpeza.
 export async function encerrarVencidas(): Promise<Array<{ pesquisaId: string; titulo: string; motivo: string }>> {
   const limiteAtiva = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // 30 dias
   const limiteResposta = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // 7 dias

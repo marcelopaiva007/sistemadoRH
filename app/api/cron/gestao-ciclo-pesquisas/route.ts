@@ -36,9 +36,10 @@ export async function GET(req: NextRequest) {
     // trimestral).
     const enps = await executarCicloEnps();
     const onboarding = await executarCicloOnboarding();
-    // Régua de cobrança (fase 5) — lembretes/encerramento de NR01 e P05-ENPS.
-    // CLIMA fica de fora por ora (ver lib/regua-cobranca.ts) e continua só
-    // no cron lembrete-pesquisa + no `encerrarVencidas` acima.
+    // Régua de cobrança (fase 5) — lembretes/encerramento de NR01, P05-ENPS
+    // e CLIMA (migrado 02/08/2026, ver lib/regua-cobranca.ts). O
+    // `encerrarVencidas` do executarGestaoCiclo acima fica no código mas é
+    // inerte pra CLIMA agora — nada mais chega aos 30 dias ainda ACTIVE.
     const regua = await executarReguaCobranca();
 
     console.log(

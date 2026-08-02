@@ -1,7 +1,7 @@
-// Fumaça da régua de cobrança (fase 5, lib/regua-cobranca.ts — NR01/P05-ENPS)
-// contra o banco de verdade. Em transação com rollback proposital: marca/
-// empresa/setor/posição/colaboradores/pesquisas próprios do teste. Nada fica
-// gravado.
+// Fumaça da régua de cobrança (fase 5, lib/regua-cobranca.ts — NR01/P05-ENPS/
+// CLIMA) contra o banco de verdade. Em transação com rollback proposital:
+// marca/empresa/setor/posição/colaboradores/pesquisas próprios do teste.
+// Nada fica gravado.
 //
 // SMTP não configurado neste ambiente é esperado — os asserts checam a
 // DETECÇÃO do passo certo (`lembretesEnviados` conta tentativa, não sucesso
@@ -43,7 +43,7 @@ const D_MENOS_4 = new Date(HOJE.getTime() - 4 * 24 * 3600 * 1000); // não bate 
 const D_MENOS_16 = new Date(HOJE.getTime() - 16 * 24 * 3600 * 1000); // já passou do encerramento
 
 async function main() {
-  console.log("Régua de cobrança — NR01/P05-ENPS\n");
+  console.log("Régua de cobrança — NR01/P05-ENPS/CLIMA\n");
 
   await rodarComRollback(async (tx) => {
     const marca = await tx.marca.create({ data: { nome: `__smoke_regua_marca_${Date.now()}` } });
@@ -78,12 +78,12 @@ async function main() {
     const vencida = await criarPesquisa("NR01", D_MENOS_16);
     await criarColaboradorComToken(vencida.id, 4);
 
-    // CLIMA não entra na régua nova, mesmo no dia 3 — fica pro cron antigo.
+    // CLIMA migrou pra régua nova em 02/08/2026 — também entra, mesmo no dia 3.
     const climaNoDia3 = await criarPesquisa("CLIMA", D_MENOS_3);
     await criarColaboradorComToken(climaNoDia3.id, 5);
 
     const resultado = await executarReguaCobranca(tx, HOJE);
-    ok(resultado.avaliadas === 4, `avalia só NR01/P05-ENPS ACTIVE — 4 pesquisas, CLIMA fora (achou ${resultado.avaliadas})`);
+    ok(resultado.avaliadas === 5, `avalia NR01/P05-ENPS/CLIMA ACTIVE — 5 pesquisas (achou ${resultado.avaliadas})`);
     ok(resultado.encerradas === 1, `encerra a pesquisa além do dia 15 (achou ${resultado.encerradas})`);
 
     const noDia3Depois = await tx.pesquisa.findUniqueOrThrow({ where: { id: noDia3.id } });
@@ -95,11 +95,11 @@ async function main() {
     ok(vencidaDepois.status === "FINISHED" && vencidaDepois.encerradaEm !== null, "pesquisa vencida vira FINISHED com data de encerramento");
 
     const climaDepois = await tx.pesquisa.findUniqueOrThrow({ where: { id: climaNoDia3.id } });
-    ok(climaDepois.status === "ACTIVE", "CLIMA não é tocado pela régua nova, mesmo no dia 3");
+    ok(climaDepois.status === "ACTIVE", "CLIMA no dia 3 continua ACTIVE (lembrete não fecha, também vale pra CLIMA agora)");
 
     // Rodar de novo no mesmo dia não fecha de novo nem duplica (idempotente).
     const segunda = await executarReguaCobranca(tx, HOJE);
-    ok(segunda.avaliadas === 3, `2ª rodada só vê as 3 ainda ACTIVE (achou ${segunda.avaliadas})`);
+    ok(segunda.avaliadas === 4, `2ª rodada só vê as 4 ainda ACTIVE (achou ${segunda.avaliadas})`);
 
     throw new RollbackProposital();
   });

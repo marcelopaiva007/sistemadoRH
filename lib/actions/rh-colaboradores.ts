@@ -7,8 +7,9 @@ import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { proximaMatricula } from "@/lib/matricula";
 import { registrarAuditoria } from "@/lib/audit";
 import { criariCiclo } from "@/lib/organograma";
-import { empresasDaMesmaMarca } from "@/lib/escopo-marca";
+import { empresasDaMesmaMarca, marcaDaEmpresa } from "@/lib/escopo-marca";
 import { invalidarConvitesDeDesligados } from "@/lib/pesquisa-vinculo";
+import { convidarParaPesquisaDesligamento } from "@/lib/pesquisa-desligamento";
 import type { ActionResult } from "@/lib/constants";
 
 const colaboradorSchema = z.object({
@@ -203,9 +204,11 @@ export async function updateColaborador(
         },
       });
       // RD-001: transição true→false é o momento do desligamento — expira os
-      // convites de pesquisa em aberto (ver lib/pesquisa-vinculo.ts).
+      // convites de pesquisa em aberto (ver lib/pesquisa-vinculo.ts) e
+      // convida pra pesquisa de desligamento (fase 4, P09-OFF).
       if (atual.ativo && !parsed.data.ativo) {
         await invalidarConvitesDeDesligados(tx, id);
+        await convidarParaPesquisaDesligamento(tx, id, empresaId, await marcaDaEmpresa(empresaId));
       }
     });
   } catch {
@@ -226,9 +229,10 @@ export async function toggleColaboradorAtivo(empresaId: string, id: string, ativ
 
   await prisma.$transaction(async (tx) => {
     await tx.colaborador.update({ where: { id, empresaId }, data: { ativo } });
-    // RD-001: mesma regra do formulário de edição — ver acima.
+    // RD-001 + fase 4 (P09-OFF): mesma regra do formulário de edição — ver acima.
     if (colaborador.ativo && !ativo) {
       await invalidarConvitesDeDesligados(tx, id);
+      await convidarParaPesquisaDesligamento(tx, id, empresaId, await marcaDaEmpresa(empresaId));
     }
   });
 

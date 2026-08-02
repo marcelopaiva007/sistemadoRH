@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { definicaoPesquisa } from "@/lib/pesquisas-catalogo";
 import type { ActionResult } from "@/lib/constants";
 
 const respostaItemSchema = z.object({
@@ -47,8 +48,11 @@ export async function responderPesquisa(token: string, _prev: ActionResult, form
     return { ok: false, error: "Este convite não está mais válido." };
   }
   // RD-001: o convite pode ter sido enviado antes do desligamento — revalida
-  // o vínculo na hora de responder, não só na hora de enviar.
-  if (!surveyToken.colaborador.ativo) {
+  // o vínculo na hora de responder, não só na hora de enviar. Exceto pra
+  // tipos cujo catálogo aceita "desligado" (P09-OFF é literalmente pra quem
+  // já saiu) — aí o bloqueio faria a própria pesquisa nunca ser respondida.
+  const aceitaDesligado = definicaoPesquisa(surveyToken.pesquisa.modelo).elegibilidadeVinculo.includes("desligado");
+  if (!surveyToken.colaborador.ativo && !aceitaDesligado) {
     return { ok: false, error: "Este convite não está mais válido." };
   }
 
