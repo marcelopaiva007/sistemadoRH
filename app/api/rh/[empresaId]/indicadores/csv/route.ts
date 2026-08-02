@@ -75,7 +75,7 @@ export async function GET(
   const resumo = gerarCsv(
     ["Indicador", "Valor"],
     [
-      ["Headcount ativo", String(ativos.length)],
+      ["Colaboradores ativos", String(ativos.length)],
       ["Turnover (12 meses)", `${numero(turnover.taxaPct)}%`],
       ["Absenteísmo médio (30 dias)", `${numero(absenteismoGeral)}%`],
       ["Custo de pessoal/mês", numero(custoTotal)],
@@ -86,7 +86,7 @@ export async function GET(
   const custoPorNome = new Map(custo.map((c) => [c.setor, c.total]));
 
   const porSetor = gerarCsv(
-    ["Setor", "Headcount", "Absenteismo (%)", "Custo total"],
+    ["Setor", "Colaboradores", "Absenteismo (%)", "Custo total"],
     headcount.map((h) => [
       h.setor,
       String(h.total),

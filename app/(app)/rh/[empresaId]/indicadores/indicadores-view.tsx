@@ -56,7 +56,7 @@ export function IndicadoresView({
         <div>
           <h2 className="text-xl font-semibold tracking-tight">Indicadores</h2>
           <p className="text-sm text-muted-foreground">
-            Headcount, turnover, absenteísmo e custo de pessoal — calculados na hora a partir da ficha,
+            Colaboradores ativos, turnover, absenteísmo e custo de pessoal — calculados na hora a partir da ficha,
             das ausências e dos benefícios já cadastrados.
             {qtdEmpresas > 1 && ` Consolidado com os ${qtdEmpresas} CNPJs da marca.`}
           </p>
@@ -83,7 +83,7 @@ export function IndicadoresView({
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Indicador variante="cartao"
-          rotulo="Headcount ativo"
+          rotulo="Colaboradores ativos"
           valor={`${totalAtivos}`}
           complemento={`${totalHistorico} já passaram pela empresa`}
         />
@@ -105,7 +105,7 @@ export function IndicadoresView({
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Headcount por setor</CardTitle>
+            <CardTitle className="text-base">Colaboradores por setor</CardTitle>
           </CardHeader>
           <CardContent className="h-72">
             {headcount.length === 0 ? (
