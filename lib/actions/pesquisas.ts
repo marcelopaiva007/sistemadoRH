@@ -18,6 +18,7 @@ import {
 } from "@/lib/nr01-modelo";
 import { registrarAuditoria } from "@/lib/audit";
 import { violouUnique } from "@/lib/prisma-erros";
+import { gravarCacheNR01 } from "@/lib/nr01-cache";
 import type { ActionResult } from "@/lib/constants";
 
 // Título é único por marca ENQUANTO RASCUNHO (índice parcial
@@ -247,8 +248,15 @@ export async function alterarStatusPesquisa(
     },
   });
 
+  // Última vez que o resultado NR-01 pode mudar — grava o cache que
+  // /relatorios vai ler daqui em diante em vez de recalcular.
+  if (novoStatus === "FINISHED" && pesquisa.modelo === "NR01") {
+    await gravarCacheNR01(id);
+  }
+
   revalidatePath(`/rh/${empresaId}/pesquisas`);
   revalidatePath(`/rh/${empresaId}/pesquisas/${id}`);
+  revalidatePath(`/rh/${empresaId}/relatorios`);
   return { ok: true };
 }
 

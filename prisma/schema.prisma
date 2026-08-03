@@ -1408,6 +1408,14 @@ model Pesquisa {
   iniciadaEm  DateTime?
   encerradaEm DateTime?
 
+  // Cache do resultado NR-01 (lib/nr01.ts, resultado.geral), preenchido só no
+  // instante em que a pesquisa vira FINISHED (lib/actions/pesquisas.ts). Uma
+  // pesquisa encerrada não recebe resposta nova — recalcular a cada visita de
+  // /relatorios era refazer sempre a mesma conta. Ambos nulos para pesquisa
+  // CLIMA (o modelo não tem esse índice) ou NR01 ainda ACTIVE/DRAFT.
+  nivelGeralCache  String?
+  indiceGeralCache Int?
+
   perguntas  Pergunta[]
   tokens     SurveyToken[]
   respostas  Resposta[]
