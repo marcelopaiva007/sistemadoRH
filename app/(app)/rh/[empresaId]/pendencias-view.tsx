@@ -5,7 +5,6 @@ import { useState } from "react";
 import {
   AlertOctagon,
   FileCheck,
-  CalendarDays,
   CheckCircle2,
   CheckSquare,
   Download,
@@ -13,18 +12,7 @@ import {
   Rocket,
   ShieldCheck,
   Briefcase,
-  Clock,
-  LogOut,
-  BookOpen,
-  TrendingDown,
-  User,
-  LogIn,
-  MessageSquare,
-  RefreshCw,
-  Users,
   FileText,
-  Clock4,
-  Zap,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -38,19 +26,9 @@ type Pendencias = {
   catPendente: number;
   integracoesAtrasadas: number;
   epiVencido: number;
-  feriasVencidas: number;
-  avisoPrevio: number;
   desligamentosIncompletos: number;
-  treinamentosObrigatorios: number;
-  avaliacoesAtrasadas: number;
-  contratosTemporariosVencidos: number;
-  onboardingIncompleto: number;
-  pesquisaClimaRespostasAtrasadas: number;
-  dadosCadastraisDesatualizados: number;
-  beneficiariosSemAtualizacao: number;
   movimentacoesAdministrativas: number;
   atestadosMedicosSemRegistro: number;
-  horasExtrasSemAprovacao: number;
 };
 
 export function PendenciasView({
@@ -89,37 +67,12 @@ export function PendenciasView({
     icon: LucideIcon;
     urgente?: boolean;
   }[] = [
-    // Críticas
     {
       chave: "catPendente",
       titulo: "CAT sem emitir",
       descricao: "Prazo legal de 1 dia útil ao INSS — imediato se for fatal.",
       href: `/rh/${empresaId}/acidentes`,
       icon: AlertOctagon,
-      urgente: true,
-    },
-    {
-      chave: "feriasVencidas",
-      titulo: "Férias vencidas",
-      descricao: "Colaboradores com saldo de férias não gozadas há 12+ meses.",
-      href: `/rh/${empresaId}/ferias`,
-      icon: CalendarDays,
-      urgente: true,
-    },
-    {
-      chave: "avisoPrevio",
-      titulo: "Aviso prévio",
-      descricao: "Colaboradores em período de aviso prévio com data de saída próxima.",
-      href: `/rh/${empresaId}/desligamentos`,
-      icon: Clock,
-      urgente: true,
-    },
-    {
-      chave: "desligamentosIncompletos",
-      titulo: "Desligamentos incompletos",
-      descricao: "Processos de desligamento ainda sem acertos finalizados.",
-      href: `/rh/${empresaId}/desligamentos`,
-      icon: LogOut,
       urgente: true,
     },
     {
@@ -130,7 +83,14 @@ export function PendenciasView({
       icon: HardHat,
       urgente: true,
     },
-    // Altas
+    {
+      chave: "desligamentosIncompletos",
+      titulo: "Desligamentos incompletos",
+      descricao: "Processos de desligamento ainda sem acertos finalizados.",
+      href: `/rh/${empresaId}/desligamentos`,
+      icon: AlertOctagon,
+      urgente: true,
+    },
     {
       chave: "aprovacoes",
       titulo: "Aguardando aprovação",
@@ -160,61 +120,11 @@ export function PendenciasView({
       icon: Briefcase,
     },
     {
-      chave: "treinamentosObrigatorios",
-      titulo: "Treinamentos vencidos",
-      descricao: "Cursos obrigatórios (NR, saúde, segurança) com validade expirada.",
-      href: `/rh/${empresaId}/treinamentos`,
-      icon: BookOpen,
-    },
-    {
-      chave: "avaliacoesAtrasadas",
-      titulo: "Avaliações atrasadas",
-      descricao: "Ciclos de desempenho vencidos sem avaliação realizada.",
-      href: `/rh/${empresaId}/avaliacoes`,
-      icon: TrendingDown,
-    },
-    {
-      chave: "contratosTemporariosVencidos",
-      titulo: "Contratos temporários vencendo",
-      descricao: "Contratos próximos ao vencimento que precisam ser renovados ou encerrados.",
-      href: `/rh/${empresaId}/colaboradores`,
-      icon: Clock4,
-    },
-    {
-      chave: "onboardingIncompleto",
-      titulo: "Onboarding incompleto",
-      descricao: "Novos contratados com documentação e trilha não finalizadas.",
-      href: `/rh/${empresaId}/integracoes`,
-      icon: LogIn,
-    },
-    {
       chave: "integracoesAtrasadas",
       titulo: "Integração atrasada",
       descricao: "Item da trilha de quem entrou passou do prazo.",
       href: `/rh/${empresaId}/integracoes`,
       icon: Rocket,
-    },
-    // Médias
-    {
-      chave: "pesquisaClimaRespostasAtrasadas",
-      titulo: "Pesquisa de clima não respondida",
-      descricao: "Colaboradores que não preencheram pesquisa de engajamento.",
-      href: `/rh/${empresaId}/pesquisas`,
-      icon: MessageSquare,
-    },
-    {
-      chave: "dadosCadastraisDesatualizados",
-      titulo: "Dados cadastrais desatualizados",
-      descricao: "Registros com mais de 6 meses sem revisão (email, telefone, endereço).",
-      href: `/rh/${empresaId}/colaboradores`,
-      icon: RefreshCw,
-    },
-    {
-      chave: "beneficiariosSemAtualizacao",
-      titulo: "Beneficiários desatualizados",
-      descricao: "Dependentes e beneficiários sem atualização há 12+ meses.",
-      href: `/rh/${empresaId}/beneficios`,
-      icon: Users,
     },
     {
       chave: "movimentacoesAdministrativas",
@@ -229,13 +139,6 @@ export function PendenciasView({
       descricao: "Comunicações de afastamento não lançadas no sistema.",
       href: `/rh/${empresaId}/vencimentos`,
       icon: FileText,
-    },
-    {
-      chave: "horasExtrasSemAprovacao",
-      titulo: "Horas extras sem aprovação",
-      descricao: "Horas adicionais pendentes de validação do gestor há mais de 7 dias.",
-      href: `/rh/${empresaId}/escalas`,
-      icon: Zap,
     },
   ];
 
