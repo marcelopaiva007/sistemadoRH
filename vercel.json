@@ -1,7 +1,7 @@
 {
   "crons": [
     { "path": "/api/cron/backup-db", "schedule": "0 6 * * *" },
-    { "path": "/api/cron/gestao-ciclo-pesquisas", "schedule": "0 9 * * *" },
+    { "path": "/api/cron/gestao-ciclo-pesquisas", "schedule": "45 11 * * *" },
     { "path": "/api/cron/alertas-rh", "schedule": "0 10 * * *" },
     { "path": "/api/cron/enviar-convites", "schedule": "0 12 * * *" },
     { "path": "/api/cron/lembrete-pesquisa", "schedule": "0 13 * * *" },
