@@ -10,6 +10,15 @@
  * arquivo que `npm run build` execute tem que morar fora de scripts/.
  */
 
+// Local, as variáveis moram no .env — e Node não o carrega sozinho. Sem isto
+// o validador rodava cego fora da Vercel e reprovava TODO build local, mesmo
+// com o .env completo do lado. Na Vercel o import falha (dotenv é
+// devDependency e pode nem estar lá) e seguimos com o process.env real, que é
+// o que interessa.
+if (!process.env.DATABASE_URL) {
+  try { require('dotenv/config'); } catch { /* sem dotenv: segue o ambiente */ }
+}
+
 const required = ['DATABASE_URL', 'AUTH_SECRET', 'NEXTAUTH_URL'];
 const missing = required.filter(v => !process.env[v]);
 
