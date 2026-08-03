@@ -116,10 +116,8 @@ type Colaborador = {
 
 const initialState: ActionResult = { ok: true };
 
-// 50 linhas com a tabela compacta ocupam menos que as 25 antigas ocupavam no
-// tamanho normal: 188 ativos passam de 8 páginas para 4. Menos troca de página
-// para conferir a base inteira, que é o que o RH faz aqui.
-const POR_PAGINA = 50;
+// 20 linhas por página — melhor navegabilidade sem muito scroll.
+const POR_PAGINA = 20;
 
 const classeFiltro =
   "h-9 rounded-md border border-input bg-transparent px-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
