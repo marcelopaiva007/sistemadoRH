@@ -10,6 +10,22 @@ export type Pendencias = {
   catPendente: number;
   integracoesAtrasadas: number;
   epiVencido: number;
+  // Críticas
+  feriasVencidas: number;
+  avisoPrevio: number;
+  desligamentosIncompletos: number;
+  // Altas
+  treinamentosObrigatorios: number;
+  avaliacoesAtrasadas: number;
+  contratosTemporariosVencidos: number;
+  onboardingIncompleto: number;
+  // Médias
+  pesquisaClimaRespostasAtrasadas: number;
+  dadosCadastraisDesatualizados: number;
+  beneficiariosSemAtualizacao: number;
+  movimentacoesAdministrativas: number;
+  atestadosMedicosSemRegistro: number;
+  horasExtrasSemAprovacao: number;
 };
 
 export const totalPendencias = (p: Pendencias) => Object.values(p).reduce((s, n) => s + n, 0);
@@ -22,6 +38,19 @@ export const zeradas = (): Pendencias => ({
   catPendente: 0,
   integracoesAtrasadas: 0,
   epiVencido: 0,
+  feriasVencidas: 0,
+  avisoPrevio: 0,
+  desligamentosIncompletos: 0,
+  treinamentosObrigatorios: 0,
+  avaliacoesAtrasadas: 0,
+  contratosTemporariosVencidos: 0,
+  onboardingIncompleto: 0,
+  pesquisaClimaRespostasAtrasadas: 0,
+  dadosCadastraisDesatualizados: 0,
+  beneficiariosSemAtualizacao: 0,
+  movimentacoesAdministrativas: 0,
+  atestadosMedicosSemRegistro: 0,
+  horasExtrasSemAprovacao: 0,
 });
 
 type LinhaAgrupada = { empresaId: string; _count?: { _all?: number } };
@@ -48,11 +77,10 @@ export async function pendenciasPorEmpresa(empresaIds: string[]): Promise<Map<st
   const por = ["empresaId"] as const;
   const contar = { _all: true } as const;
 
-  const [feriasPendentes, ausenciasPendentes, documentosAConferir, asoVencendo, certificadosVencendo, catPendente, integracoesAtrasadas, epiVencido] =
+  const [feriasPendentes, ausenciasPendentes, documentosAConferir, asoVencendo, certificadosVencendo, catPendente, integracoesAtrasadas, epiVencido, feriasVencidas, avisoPrevio, desligamentosIncompletos, treinamentosObrigatorios, avaliacoesAtrasadas, contratosTemporariosVencidos, onboardingIncompleto, pesquisaClimaRespostasAtrasadas, dadosCadastraisDesatualizados, beneficiariosSemAtualizacao, movimentacoesAdministrativas, atestadosMedicosSemRegistro, horasExtrasSemAprovacao] =
     await Promise.all([
       prisma.solicitacaoFerias.groupBy({ by: [...por], _count: contar, where: { empresaId, status: "PENDENTE" } }),
       prisma.ausencia.groupBy({ by: [...por], _count: contar, where: { empresaId, status: "PENDENTE" } }),
-      // Enviado pelo colaborador no portal e ainda não conferido pelo RH.
       prisma.documentoColaborador.groupBy({
         by: [...por],
         _count: contar,
@@ -79,6 +107,84 @@ export async function pendenciasPorEmpresa(empresaIds: string[]): Promise<Map<st
         _count: contar,
         where: { empresaId, validoAte: { not: null, lt: hoje }, colaborador: { ativo: true } },
       }),
+      // Férias vencidas (12+ meses sem gozar)
+      prisma.colaborador.groupBy({
+        by: [...por],
+        _count: contar,
+        where: { empresaId, ativo: true, ultimasFerias: { lt: somarDiasUTC(hoje, -365) } },
+      }),
+      // Aviso prévio (data de saída próxima - 7 dias)
+      prisma.colaborador.groupBy({
+        by: [...por],
+        _count: contar,
+        where: { empresaId, ativo: true, dataSaida: { gte: hoje, lte: somarDiasUTC(hoje, 7) } },
+      }),
+      // Desligamentos incompletos (saído mas sem acertos finalizados)
+      prisma.colaborador.groupBy({
+        by: [...por],
+        _count: contar,
+        where: { empresaId, ativo: false, acertosFinalizadoEm: null },
+      }),
+      // Treinamentos obrigatórios vencidos
+      prisma.treinamento.groupBy({
+        by: [...por],
+        _count: contar,
+        where: { empresaId, obrigatorio: true, validoAte: { lt: hoje }, colaborador: { ativo: true } },
+      }),
+      // Avaliações atrasadas (ciclo vencido sem avaliação)
+      prisma.cicloAvaliacao.groupBy({
+        by: [...por],
+        _count: contar,
+        where: { empresaId, dataFim: { lt: hoje }, avisoEnviado: false },
+      }),
+      // Contratos temporários vencendo (próximos 30 dias)
+      prisma.colaborador.groupBy({
+        by: [...por],
+        _count: contar,
+        where: { empresaId, ativo: true, tipoContrato: "TEMPORÁRIO", dataVencimentoContrato: { gte: hoje, lte: somarDiasUTC(hoje, 30) } },
+      }),
+      // Onboarding incompleto (novos contratados - 30 dias)
+      prisma.colaborador.groupBy({
+        by: [...por],
+        _count: contar,
+        where: { empresaId, ativo: true, dataAdmissao: { gte: somarDiasUTC(hoje, -30), lte: hoje }, onboardingConcluido: false },
+      }),
+      // Pesquisa de clima não respondida (ciclo aberto)
+      prisma.pesquisaClima.groupBy({
+        by: [...por],
+        _count: contar,
+        where: { empresaId, status: "ATIVA", respondente: { none: { respondidoEm: { not: null } } } },
+      }),
+      // Dados cadastrais desatualizados (6+ meses)
+      prisma.colaborador.groupBy({
+        by: [...por],
+        _count: contar,
+        where: { empresaId, ativo: true, atualizadoEm: { lt: somarDiasUTC(hoje, -180) } },
+      }),
+      // Beneficiários sem atualização (12+ meses)
+      prisma.beneficiarioDependente.groupBy({
+        by: [...por],
+        _count: contar,
+        where: { empresaId, atualizadoEm: { lt: somarDiasUTC(hoje, -365) } },
+      }),
+      // Movimentações administrativas pendentes (não processadas)
+      prisma.movimentacao.groupBy({
+        by: [...por],
+        _count: contar,
+        where: { empresaId, status: "PENDENTE" },
+      }),
+      // Atestados médicos sem registro (comunicações não lançadas)
+      prisma.ausencia.groupBy({
+        by: [...por],
+        _count: contar,
+        where: { empresaId, tipoAusencia: "ATESTADO_MÉDICO", registradoEm: null },
+      }),
+      // Horas extras sem aprovação
+      prisma.horaExtra.groupBy({
+        by: [...por],
+        _count: contar,
+        where: { empresaId, aprovadoEm: null, solicitadoEm: { lt: somarDiasUTC(hoje, -7) } },
+      }),
     ]);
 
   const somar = (linhas: LinhaAgrupada[], aplicar: (p: Pendencias, n: number) => void) => {
@@ -97,6 +203,19 @@ export async function pendenciasPorEmpresa(empresaIds: string[]): Promise<Map<st
   somar(catPendente, (p, n) => (p.catPendente = n));
   somar(integracoesAtrasadas, (p, n) => (p.integracoesAtrasadas = n));
   somar(epiVencido, (p, n) => (p.epiVencido = n));
+  somar(feriasVencidas, (p, n) => (p.feriasVencidas = n));
+  somar(avisoPrevio, (p, n) => (p.avisoPrevio = n));
+  somar(desligamentosIncompletos, (p, n) => (p.desligamentosIncompletos = n));
+  somar(treinamentosObrigatorios, (p, n) => (p.treinamentosObrigatorios = n));
+  somar(avaliacoesAtrasadas, (p, n) => (p.avaliacoesAtrasadas = n));
+  somar(contratosTemporariosVencidos, (p, n) => (p.contratosTemporariosVencidos = n));
+  somar(onboardingIncompleto, (p, n) => (p.onboardingIncompleto = n));
+  somar(pesquisaClimaRespostasAtrasadas, (p, n) => (p.pesquisaClimaRespostasAtrasadas = n));
+  somar(dadosCadastraisDesatualizados, (p, n) => (p.dadosCadastraisDesatualizados = n));
+  somar(beneficiariosSemAtualizacao, (p, n) => (p.beneficiariosSemAtualizacao = n));
+  somar(movimentacoesAdministrativas, (p, n) => (p.movimentacoesAdministrativas = n));
+  somar(atestadosMedicosSemRegistro, (p, n) => (p.atestadosMedicosSemRegistro = n));
+  somar(horasExtrasSemAprovacao, (p, n) => (p.horasExtrasSemAprovacao = n));
 
   return mapa;
 }
@@ -120,6 +239,19 @@ export async function pendenciasDaEmpresa(empresaIds: string[]): Promise<Pendenc
     total.catPendente += p.catPendente;
     total.integracoesAtrasadas += p.integracoesAtrasadas;
     total.epiVencido += p.epiVencido;
+    total.feriasVencidas += p.feriasVencidas;
+    total.avisoPrevio += p.avisoPrevio;
+    total.desligamentosIncompletos += p.desligamentosIncompletos;
+    total.treinamentosObrigatorios += p.treinamentosObrigatorios;
+    total.avaliacoesAtrasadas += p.avaliacoesAtrasadas;
+    total.contratosTemporariosVencidos += p.contratosTemporariosVencidos;
+    total.onboardingIncompleto += p.onboardingIncompleto;
+    total.pesquisaClimaRespostasAtrasadas += p.pesquisaClimaRespostasAtrasadas;
+    total.dadosCadastraisDesatualizados += p.dadosCadastraisDesatualizados;
+    total.beneficiariosSemAtualizacao += p.beneficiariosSemAtualizacao;
+    total.movimentacoesAdministrativas += p.movimentacoesAdministrativas;
+    total.atestadosMedicosSemRegistro += p.atestadosMedicosSemRegistro;
+    total.horasExtrasSemAprovacao += p.horasExtrasSemAprovacao;
   }
   return total;
 }
