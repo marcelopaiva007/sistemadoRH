@@ -133,8 +133,20 @@ export async function coletarCandidatos(): Promise<CicloCandidato[]> {
   return candidatos;
 }
 
-// Cria pesquisa em DRAFT (nunca em ACTIVE) — RH precisa aprovar
-export async function criarCicloRascunho(cand: CicloCandidato): Promise<{ pesquisaId: string; titulo: string }> {
+// Cria pesquisa em DRAFT (nunca em ACTIVE) — RH precisa aprovar.
+//
+// Idempotente por (marca, título): chamada repetida — cron e botão manual da
+// tela de Pesquisas no mesmo instante, reexecução — devolve a pesquisa já
+// criada (`jaExistia: true`) em vez de duplicar. A checagem de
+// coletarCandidatos acontece FORA da transação, então sozinha ela é
+// check-then-create sem trava: em 31/07/2026 uma execução criou "Pulso de
+// Clima 2026 T3" para cada CNPJ e o RH apagou os excedentes à mão. O laço por
+// CNPJ morreu com a pesquisa por marca; a trava abaixo fecha a janela que
+// sobrou. O índice único parcial Pesquisa_marcaId_titulo_key (só rascunhos —
+// ver o comentário no schema) é a rede de segurança no banco.
+export async function criarCicloRascunho(
+  cand: CicloCandidato,
+): Promise<{ pesquisaId: string; titulo: string; jaExistia: boolean }> {
   const titulo =
     cand.tipo === "ANUAL"
       ? `Pesquisa de Clima Organizacional ${cand.ano}`
@@ -154,48 +166,68 @@ export async function criarCicloRascunho(cand: CicloCandidato): Promise<{ pesqui
           d.enunciados.map((enunciado) => ({ dimensao: d.dimensao as DimensaoGPTW, enunciado })),
         );
 
-  return await prisma.$transaction(async (tx) => {
-    const pesquisa = await tx.pesquisa.create({
-      data: {
-        marcaId: cand.marcaId,
-        empresaId: cand.empresaId,
-        titulo,
-        descricao,
-        modelo: "CLIMA",
-        // "tipo" não é coluna — vai no título. Marcamos PULSO no título.
-        anonima: true,
-        status: "DRAFT",
-      },
-    });
+  return await prisma.$transaction(
+    async (tx) => {
+      // Trava consultiva por marca+título: a segunda invocação espera a
+      // primeira commitar e a re-checagem logo abaixo a faz devolver a
+      // pesquisa existente. hashtext() é int4 — cabe no advisory lock. O cast
+      // ::text existe porque a função retorna void e o Prisma não desserializa
+      // coluna void.
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`pesquisa-ciclo:${cand.marcaId}:${titulo}`}))::text`;
 
-    let ordem = 0;
-    for (const p of perguntas) {
+      const existente = await tx.pesquisa.findFirst({
+        where: { marcaId: cand.marcaId, titulo },
+        select: { id: true },
+      });
+      if (existente) {
+        return { pesquisaId: existente.id, titulo, jaExistia: true };
+      }
+
+      const pesquisa = await tx.pesquisa.create({
+        data: {
+          marcaId: cand.marcaId,
+          empresaId: cand.empresaId,
+          titulo,
+          descricao,
+          modelo: "CLIMA",
+          // "tipo" não é coluna — vai no título. Marcamos PULSO no título.
+          anonima: true,
+          status: "DRAFT",
+        },
+      });
+
+      let ordem = 0;
+      for (const p of perguntas) {
+        await tx.pergunta.create({
+          data: {
+            pesquisaId: pesquisa.id,
+            ordem: ordem++,
+            enunciado: p.enunciado,
+            tipo: "LIKERT_5",
+            dimensaoGPTW: p.dimensao,
+            obrigatoria: true,
+          },
+        });
+      }
+
       await tx.pergunta.create({
         data: {
           pesquisaId: pesquisa.id,
           ordem: ordem++,
-          enunciado: p.enunciado,
-          tipo: "LIKERT_5",
-          dimensaoGPTW: p.dimensao as any,
+          enunciado:
+            "Qual é a probabilidade de você recomendar a empresa como um bom lugar para trabalhar? (0 = não recomenda, 10 = recomenda fortemente)",
+          tipo: "NPS_10",
+          dimensaoGPTW: "GERAL",
           obrigatoria: true,
         },
       });
-    }
 
-    await tx.pergunta.create({
-      data: {
-        pesquisaId: pesquisa.id,
-        ordem: ordem++,
-        enunciado:
-          "Qual é a probabilidade de você recomendar a empresa como um bom lugar para trabalhar? (0 = não recomenda, 10 = recomenda fortemente)",
-        tipo: "NPS_10",
-        dimensaoGPTW: "GERAL",
-        obrigatoria: true,
-      },
-    });
-
-    return { pesquisaId: pesquisa.id, titulo };
-  });
+      return { pesquisaId: pesquisa.id, titulo, jaExistia: false };
+    },
+    // Espera da trava + 21 inserts serial: o teto default de 5s da transação
+    // interativa é apertado com o Neon acordando de hibernação.
+    { maxWait: 10_000, timeout: 30_000 },
+  );
 }
 
 // Encerra pesquisas ACTIVE cujo prazo venceu (campo descritivo ou convenção)
@@ -293,7 +325,15 @@ export async function executarGestaoCiclo(): Promise<ResultadoGestaoCiclo> {
 
   for (const cand of candidatos) {
     try {
-      const { pesquisaId, titulo } = await criarCicloRascunho(cand);
+      const { pesquisaId, titulo, jaExistia } = await criarCicloRascunho(cand);
+
+      // Criação idempotente: se outra invocação (cron × botão manual) já
+      // criou este ciclo, não conta como criado nem notifica de novo.
+      if (jaExistia) {
+        resultado.jaNotificados.push(titulo);
+        continue;
+      }
+
       resultado.criados.push({ empresaId: cand.empresaId, pesquisaId, tipo: cand.tipo, titulo });
 
       await notificarCiclo({

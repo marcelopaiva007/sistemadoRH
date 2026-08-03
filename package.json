@@ -1,6 +1,6 @@
 {
   "name": "sistema-rh",
-  "version": "1.27.2",
+  "version": "1.28.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -24,6 +24,7 @@
     "smoke:beneficios": "tsx scripts/smoke-beneficios.ts",
     "test:reconhecimento": "tsx scripts/test-reconhecimento.ts",
     "smoke:reconhecimento": "tsx scripts/smoke-reconhecimento.ts",
+    "smoke:ciclo": "tsx scripts/smoke-ciclo-pesquisa.ts",
     "test:bi": "tsx scripts/test-bi.ts",
     "verificar:bi": "tsx scripts/verificar-bi.ts",
     "smoke:epi": "tsx scripts/smoke-epi.ts",

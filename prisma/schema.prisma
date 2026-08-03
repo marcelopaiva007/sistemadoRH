@@ -1413,6 +1413,18 @@ model Pesquisa {
   respostas  Resposta[]
   planosAcao PlanoAcao[]
 
+  // FORA DO PRISMA: índice único parcial Pesquisa_marcaId_titulo_key —
+  // UNIQUE (marcaId, titulo) WHERE status = 'DRAFT' (migração
+  // 20260802150000). Rede de segurança contra rascunho de ciclo duplicado:
+  // em 31/07/2026 uma execução do cron criou um "Pulso de Clima 2026 T3" por
+  // CNPJ e o RH apagou os excedentes à mão. Parcial de propósito: as
+  // campanhas permanentes por evento (P06-ONB30, P09-OFF) nascem ACTIVE com
+  // título fixo e são recriadas legitimamente com o mesmo título quando a
+  // anterior encerra — um UNIQUE cheio quebraria essa recriação. Não é
+  // @@unique porque o Prisma não representa índice parcial; o cron re-checa
+  // antes de criar (lib/pesquisa-ciclo.ts) e as ações de criação/renomeio
+  // traduzem a violação em mensagem amigável (lib/actions/pesquisas.ts).
+
   // A listagem passou a filtrar por marca; o índice acompanha. O de empresaId
   // fica enquanto as telas antigas ainda leem por CNPJ.
   @@index([marcaId, status])

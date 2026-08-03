@@ -17,7 +17,15 @@ import {
   DESCRICAO_PESQUISA_NR01,
 } from "@/lib/nr01-modelo";
 import { registrarAuditoria } from "@/lib/audit";
+import { violouUnique } from "@/lib/prisma-erros";
 import type { ActionResult } from "@/lib/constants";
+
+// Título é único por marca ENQUANTO RASCUNHO (índice parcial
+// Pesquisa_marcaId_titulo_key — ver o comentário no schema) — a rede de
+// segurança contra rascunhos duplicados do cron. Aqui a violação vira mensagem
+// para a tela em vez de 500.
+const ERRO_TITULO_DUPLICADO =
+  "Já existe um rascunho de pesquisa com este título nesta marca. Use outro título — ou reaproveite o rascunho existente.";
 
 /**
  * Igual ao ActionResult, mas com um texto de sucesso para a tela. Serve para as
@@ -83,18 +91,26 @@ export async function createPesquisa(
   });
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
 
-  const pesquisa = await prisma.pesquisa.create({
-    data: {
-      // A pesquisa nasce vinculada a MARCA — e ao CNPJ so como registro de
-      // onde foi criada. Ver o comentario de `marcaId` no schema.
-      marcaId: await marcaDaEmpresa(empresaId),
-      empresaId,
-      titulo: parsed.data.titulo,
-      descricao: parsed.data.descricao || null,
-      anonima: parsed.data.anonima,
-      criadoPorId: user?.id ?? null,
-    },
-  });
+  let pesquisa;
+  try {
+    pesquisa = await prisma.pesquisa.create({
+      data: {
+        // A pesquisa nasce vinculada a MARCA — e ao CNPJ so como registro de
+        // onde foi criada. Ver o comentario de `marcaId` no schema.
+        marcaId: await marcaDaEmpresa(empresaId),
+        empresaId,
+        titulo: parsed.data.titulo,
+        descricao: parsed.data.descricao || null,
+        anonima: parsed.data.anonima,
+        criadoPorId: user?.id ?? null,
+      },
+    });
+  } catch (e) {
+    if (violouUnique(e, "Pesquisa_marcaId_titulo_key")) {
+      return { ok: false, error: ERRO_TITULO_DUPLICADO };
+    }
+    throw e;
+  }
 
   revalidatePath(`/rh/${empresaId}/pesquisas`);
   redirect(`/rh/${empresaId}/pesquisas/${pesquisa.id}`);
@@ -109,30 +125,41 @@ export async function criarPesquisaNR01(empresaId: string): Promise<ActionResult
   const user = await requireEmpresaAccess(empresaId);
 
   const ano = new Date().getFullYear();
-  const pesquisa = await prisma.pesquisa.create({
-    data: {
-      // A pesquisa nasce vinculada a MARCA — e ao CNPJ so como registro de
-      // onde foi criada. Ver o comentario de `marcaId` no schema.
-      marcaId: await marcaDaEmpresa(empresaId),
-      empresaId,
-      titulo: `${TITULO_PESQUISA_NR01} — ${ano}`,
-      descricao: DESCRICAO_PESQUISA_NR01,
-      modelo: "NR01",
-      anonima: true,
-      criadoPorId: user?.id ?? null,
-      perguntas: {
-        create: PERGUNTAS_NR01.map((p, index) => ({
-          ordem: index,
-          enunciado: p.enunciado,
-          tipo: "FREQ_0_4",
-          codigo: p.codigo,
-          dimensao: p.dimensao,
-          invertida: p.invertida,
-          obrigatoria: true,
-        })),
+  let pesquisa;
+  try {
+    pesquisa = await prisma.pesquisa.create({
+      data: {
+        // A pesquisa nasce vinculada a MARCA — e ao CNPJ so como registro de
+        // onde foi criada. Ver o comentario de `marcaId` no schema.
+        marcaId: await marcaDaEmpresa(empresaId),
+        empresaId,
+        titulo: `${TITULO_PESQUISA_NR01} — ${ano}`,
+        descricao: DESCRICAO_PESQUISA_NR01,
+        modelo: "NR01",
+        anonima: true,
+        criadoPorId: user?.id ?? null,
+        perguntas: {
+          create: PERGUNTAS_NR01.map((p, index) => ({
+            ordem: index,
+            enunciado: p.enunciado,
+            tipo: "FREQ_0_4",
+            codigo: p.codigo,
+            dimensao: p.dimensao,
+            invertida: p.invertida,
+            obrigatoria: true,
+          })),
+        },
       },
-    },
-  });
+    });
+  } catch (e) {
+    if (violouUnique(e, "Pesquisa_marcaId_titulo_key")) {
+      return {
+        ok: false,
+        error: `A Avaliação NR-01 de ${ano} já está em rascunho nesta marca — ative ou exclua o rascunho existente.`,
+      };
+    }
+    throw e;
+  }
 
   revalidatePath(`/rh/${empresaId}/pesquisas`);
   redirect(`/rh/${empresaId}/pesquisas/${pesquisa.id}`);
@@ -173,13 +200,20 @@ export async function updatePesquisa(
   });
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
 
-  await prisma.pesquisa.update({
-    where: { id, empresaId },
-    data: {
-      titulo: parsed.data.titulo,
-      descricao: parsed.data.descricao || null,
-    },
-  });
+  try {
+    await prisma.pesquisa.update({
+      where: { id, empresaId },
+      data: {
+        titulo: parsed.data.titulo,
+        descricao: parsed.data.descricao || null,
+      },
+    });
+  } catch (e) {
+    if (violouUnique(e, "Pesquisa_marcaId_titulo_key")) {
+      return { ok: false, error: ERRO_TITULO_DUPLICADO };
+    }
+    throw e;
+  }
 
   revalidatePath(`/rh/${empresaId}/pesquisas`);
   revalidatePath(`/rh/${empresaId}/pesquisas/${id}`);
