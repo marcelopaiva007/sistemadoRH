@@ -41,7 +41,7 @@ export function PendenciasView({
   const exportarPDF = async () => {
     setExportando(true);
     try {
-      const html2pdf = (await import("html2pdf")).default;
+      const html2pdf = (await import("html2pdf.js")).default;
       const element = document.getElementById("pendencias-content");
       if (!element) return;
       html2pdf()
