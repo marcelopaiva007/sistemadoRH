@@ -21,10 +21,10 @@ import { salvarPerguntas } from "@/lib/actions/pesquisas";
 import { DIMENSOES_NR01, type DimensaoNR01 } from "@/lib/nr01-modelo";
 import {
   TIPOS_PERGUNTA,
-  DIMENSOES_GPTW,
   tipoPerguntaLabel,
   dimensaoGPTWLabel,
 } from "@/lib/constants-rh";
+import type { OpcaoCatalogo } from "@/lib/catalogos";
 import type { ActionResult } from "@/lib/constants";
 import type { Pergunta, PesquisaBase } from "./tipos";
 
@@ -40,12 +40,14 @@ const initialState: ActionResult = { ok: true };
 export function PerguntasView({
   empresaId,
   pesquisa,
+  dimensoesDisponiveis,
 }: {
   empresaId: string;
   pesquisa: PesquisaBase & { perguntas: Pergunta[] };
+  dimensoesDisponiveis: OpcaoCatalogo[];
 }) {
   if (pesquisa.status === "DRAFT" && pesquisa.modelo !== "NR01") {
-    return <PerguntasBuilder empresaId={empresaId} pesquisa={pesquisa} />;
+    return <PerguntasBuilder empresaId={empresaId} pesquisa={pesquisa} dimensoesDisponiveis={dimensoesDisponiveis} />;
   }
   return <PerguntasSomenteLeitura perguntas={pesquisa.perguntas} />;
 }
@@ -99,9 +101,11 @@ function perguntaParaRascunho(p: Pergunta): PerguntaRascunho {
 function PerguntasBuilder({
   empresaId,
   pesquisa,
+  dimensoesDisponiveis,
 }: {
   empresaId: string;
   pesquisa: PesquisaBase & { perguntas: Pergunta[] };
+  dimensoesDisponiveis: OpcaoCatalogo[];
 }) {
   const [perguntas, setPerguntas] = useState<PerguntaRascunho[]>(
     pesquisa.perguntas.length > 0
@@ -188,13 +192,13 @@ function PerguntasBuilder({
                   <Select
                     value={p.dimensaoGPTW}
                     onValueChange={(v) => atualizarPergunta(index, { dimensaoGPTW: v ?? "" })}
-                    items={Object.fromEntries(DIMENSOES_GPTW.map((d) => [d.value, d.label]))}
+                    items={Object.fromEntries(dimensoesDisponiveis.map((d) => [d.value, d.label]))}
                   >
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Nenhuma" />
                     </SelectTrigger>
                     <SelectContent>
-                      {DIMENSOES_GPTW.map((d) => (
+                      {dimensoesDisponiveis.map((d) => (
                         <SelectItem key={d.value} value={d.value}>
                           {d.label}
                         </SelectItem>

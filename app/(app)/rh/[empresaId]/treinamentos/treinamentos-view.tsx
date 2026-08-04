@@ -13,7 +13,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { criarTreinamento, alternarTreinamentoAtivo } from "@/lib/actions/rh-treinamentos";
-import { COMPETENCIAS, competenciaLabel } from "@/lib/constants-avaliacao";
+import { competenciaLabel } from "@/lib/constants-avaliacao";
+import type { OpcaoCatalogo } from "@/lib/catalogos";
 import type { ActionResult } from "@/lib/constants";
 
 const initialState: ActionResult = { ok: true };
@@ -35,10 +36,12 @@ export function TreinamentosView({
   empresaId,
   treinamentos,
   matriz,
+  competenciasDisponiveis,
 }: {
   empresaId: string;
   treinamentos: Treinamento[];
   matriz: LinhaMatriz[];
+  competenciasDisponiveis: OpcaoCatalogo[];
 }) {
   const [criarAberto, setCriarAberto] = useState(false);
 
@@ -58,7 +61,11 @@ export function TreinamentosView({
             Novo treinamento
           </DialogTrigger>
           <DialogContent>
-            <NovoTreinamentoForm empresaId={empresaId} onSuccess={() => setCriarAberto(false)} />
+            <NovoTreinamentoForm
+              empresaId={empresaId}
+              competenciasDisponiveis={competenciasDisponiveis}
+              onSuccess={() => setCriarAberto(false)}
+            />
           </DialogContent>
         </Dialog>
       </div>
@@ -140,7 +147,7 @@ export function TreinamentosView({
                 <TableHeader>
                   <TableRow>
                     <TableHead>Colaborador</TableHead>
-                    {COMPETENCIAS.map((c) => (
+                    {competenciasDisponiveis.map((c) => (
                       <TableHead key={c.value} className="text-center">
                         {c.label}
                       </TableHead>
@@ -151,7 +158,7 @@ export function TreinamentosView({
                   {matriz.map((linha) => (
                     <TableRow key={linha.colaboradorId}>
                       <TableCell className="font-medium whitespace-nowrap">{linha.nome}</TableCell>
-                      {COMPETENCIAS.map((c) => (
+                      {competenciasDisponiveis.map((c) => (
                         <TableCell key={c.value} className="text-center">
                           {linha.competencias.includes(c.value) && <Check className="mx-auto size-4 text-success" />}
                         </TableCell>
@@ -168,7 +175,15 @@ export function TreinamentosView({
   );
 }
 
-function NovoTreinamentoForm({ empresaId, onSuccess }: { empresaId: string; onSuccess: () => void }) {
+function NovoTreinamentoForm({
+  empresaId,
+  competenciasDisponiveis,
+  onSuccess,
+}: {
+  empresaId: string;
+  competenciasDisponiveis: OpcaoCatalogo[];
+  onSuccess: () => void;
+}) {
   const [state, formAction, isPending] = useActionState(async (prev: ActionResult, fd: FormData) => {
     const result = await criarTreinamento(empresaId, prev, fd);
     if (result.ok) {
@@ -204,7 +219,7 @@ function NovoTreinamentoForm({ empresaId, onSuccess }: { empresaId: string; onSu
       <div className="space-y-1.5">
         <Label className="text-xs font-medium text-muted-foreground">Competências desenvolvidas</Label>
         <div className="grid grid-cols-2 gap-2">
-          {COMPETENCIAS.map((c) => (
+          {competenciasDisponiveis.map((c) => (
             <label key={c.value} className="flex items-center gap-2 text-sm">
               <input type="checkbox" name="competencias" value={c.value} className="size-4 rounded border-input accent-primary" />
               {c.label}

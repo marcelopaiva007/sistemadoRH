@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { lerSessaoPortal } from "@/lib/portal-auth";
 import { registrarAuditoria } from "@/lib/audit";
-import { COMPETENCIAS, tipoAvaliadorLabel } from "@/lib/constants-avaliacao";
+import { tipoAvaliadorLabel } from "@/lib/constants-avaliacao";
+import { opcoesDoCatalogo } from "@/lib/catalogos";
 import type { ActionResult } from "@/lib/constants";
 
 // Resposta da avaliação de desempenho pelo próprio avaliador, no portal.
@@ -167,8 +168,9 @@ export async function salvarMinhaAvaliacao(
   });
   if (!avaliador) return { ok: false, error: "Cadastro não encontrado. Procure o RH." };
 
+  const competencias = await opcoesDoCatalogo(avaliacao.empresaId, "COMPETENCIA");
   const notas: { competencia: string; nota: number }[] = [];
-  for (const c of COMPETENCIAS) {
+  for (const c of competencias) {
     const bruto = String(formData.get(`nota_${c.value}`) ?? "").trim();
     if (!bruto) return { ok: false, error: `Falta a nota de "${c.label}".` };
     const nota = Number.parseInt(bruto, 10);

@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { lerSessaoPortal } from "@/lib/portal-auth";
 import { calcularFerias } from "@/lib/ferias";
+import { opcoesDoCatalogo } from "@/lib/catalogos";
 import { PortalSemSessao } from "./sem-sessao";
 import { ConfirmarCpf } from "./confirmar-cpf";
 import { PortalInicio } from "./portal-inicio";
@@ -145,6 +146,18 @@ export default async function PortalPage() {
       ])
     : [null, []];
 
+  // Quem é gerente pode avaliar gente de outra empresa do grupo (a chefia
+  // cruza CNPJ) — as competências são por empresa DA PESSOA AVALIADA, então
+  // buscamos uma lista por empresaId distinto em vez de assumir a do gerente.
+  const empresaIdsDasAvaliacoes = [...new Set(avaliacoes.map((a) => a.empresaId))];
+  const competenciasPorEmpresa = new Map(
+    await Promise.all(
+      empresaIdsDasAvaliacoes.map(
+        async (id) => [id, await opcoesDoCatalogo(id, "COMPETENCIA")] as const,
+      ),
+    ),
+  );
+
   const resumoFerias = colaborador.dataAdmissao
     ? calcularFerias(
         colaborador.dataAdmissao,
@@ -188,6 +201,7 @@ export default async function PortalPage() {
         souEu: a.colaboradorId === colaborador.id,
         ciclo: a.ciclo,
         notas: a.notas,
+        competenciasDisponiveis: competenciasPorEmpresa.get(a.empresaId) ?? [],
       }))}
     />
   );

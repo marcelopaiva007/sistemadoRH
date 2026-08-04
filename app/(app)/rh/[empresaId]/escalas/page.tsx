@@ -2,6 +2,7 @@ import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
 import { dataDoFormulario, hojeUTC, paraInputDate, somarDiasUTC } from "@/lib/datas";
 import { diasDaSemana, inicioDaSemanaUTC } from "@/lib/escala";
+import { opcoesDoCatalogo } from "@/lib/catalogos";
 import { EscalasView } from "./escalas-view";
 
 // Grade semanal de plantão/turno por setor. Sem cálculo de hora extra ou
@@ -23,7 +24,7 @@ export default async function EscalasPage({
   const dias = diasDaSemana(inicioSemana);
   const fimSemana = dias[6];
 
-  const [setores, colaboradores, escalas] = await Promise.all([
+  const [setores, colaboradores, escalas, turnosDisponiveis] = await Promise.all([
     prisma.setor.findMany({ where: { empresaId, ativo: true }, orderBy: { nome: "asc" } }),
     prisma.colaborador.findMany({
       where: { empresaId, ativo: true, ...(setorId ? { setorId } : {}) },
@@ -34,6 +35,7 @@ export default async function EscalasPage({
       where: { empresaId, data: { gte: inicioSemana, lte: fimSemana } },
       select: { colaboradorId: true, data: true, turno: true },
     }),
+    opcoesDoCatalogo(empresaId, "TIPO_TURNO"),
   ]);
 
   const turnoPorCelula = new Map<string, string>();
@@ -51,6 +53,7 @@ export default async function EscalasPage({
       setorSelecionado={setorId ?? ""}
       colaboradores={colaboradores.map((c) => ({ id: c.id, nome: c.nome, setorNome: c.setor.nome }))}
       turnoPorCelula={Object.fromEntries(turnoPorCelula)}
+      turnosDisponiveis={turnosDisponiveis}
     />
   );
 }

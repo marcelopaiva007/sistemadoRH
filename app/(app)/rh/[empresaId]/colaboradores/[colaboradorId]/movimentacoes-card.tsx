@@ -10,7 +10,8 @@ import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle }
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { registrarMovimentacao, excluirMovimentacao } from "@/lib/actions/rh-movimentacoes";
-import { TIPOS_MOVIMENTACAO, tipoMovimentacaoLabel } from "@/lib/constants-movimentacao";
+import { tipoMovimentacaoLabel } from "@/lib/constants-movimentacao";
+import type { OpcaoCatalogo } from "@/lib/catalogos";
 import { formatarData } from "@/lib/datas";
 import { Campo, CampoData, CampoSelect, CampoTexto, FormularioAction } from "./campos";
 import { BotaoExcluir } from "./dependentes-card";
@@ -43,6 +44,7 @@ export function MovimentacoesCard({
   posicoes,
   candidatosSupervisor,
   movimentacoes,
+  tiposMovimentacaoDisponiveis,
 }: {
   empresaId: string;
   colaboradorId: string;
@@ -53,6 +55,7 @@ export function MovimentacoesCard({
   posicoes: { id: string; nome: string }[];
   candidatosSupervisor: { id: string; nome: string }[];
   movimentacoes: Movimentacao[];
+  tiposMovimentacaoDisponiveis: OpcaoCatalogo[];
 }) {
   const [aberto, setAberto] = useState(false);
 
@@ -111,7 +114,7 @@ export function MovimentacoesCard({
                     <CampoSelect
                       name="tipo"
                       label="Tipo"
-                      opcoes={TIPOS_MOVIMENTACAO.map((t) => ({ value: t.value, label: t.label }))}
+                      opcoes={tiposMovimentacaoDisponiveis.map((t) => ({ value: t.value, label: t.label }))}
                       required
                     />
                     <CampoData name="dataEfetiva" label="Data efetiva" />

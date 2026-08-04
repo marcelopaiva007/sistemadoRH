@@ -11,7 +11,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { adicionarPessoaParaAvaliar, salvarMinhaAvaliacao } from "@/lib/actions/portal-avaliacao";
-import { COMPETENCIAS, NIVEIS_POTENCIAL } from "@/lib/constants-avaliacao";
+import { NIVEIS_POTENCIAL } from "@/lib/constants-avaliacao";
+import type { OpcaoCatalogo } from "@/lib/catalogos";
 import type { ActionResult } from "@/lib/constants";
 
 const inicial: ActionResult = { ok: true };
@@ -39,6 +40,7 @@ export type MinhaAvaliacao = {
   souEu: boolean;
   ciclo: { nome: string; dataFim: Date };
   notas: { competencia: string; nota: number }[];
+  competenciasDisponiveis: OpcaoCatalogo[];
 };
 
 export type EquipeDoGerente = {
@@ -272,7 +274,7 @@ function FormularioAvaliacao({
       </p>
 
       <div className="space-y-4">
-        {COMPETENCIAS.map((c) => (
+        {avaliacao.competenciasDisponiveis.map((c) => (
           <div key={c.value} className="space-y-1.5">
             <Label className="text-sm font-medium">{c.label}</Label>
             <div className="flex gap-1.5">

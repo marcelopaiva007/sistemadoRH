@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { calcularFerias } from "@/lib/ferias";
 import { conformidadeDoColaborador, situacaoDoExame } from "@/lib/conformidade";
 import { pendenciasDaAdmissao } from "@/lib/admissao";
+import { opcoesDoCatalogo } from "@/lib/catalogos";
 import { ColaboradorDetalhe } from "./colaborador-detalhe";
 
 // Ficha completa do colaborador: dados cadastrais, dependentes, dossiê digital,
@@ -290,6 +291,22 @@ export default async function ColaboradorPage({
     select: { nome: true },
   });
 
+  const [
+    tiposEpiDisponiveis,
+    motivosEntregaDisponiveis,
+    tiposAcidenteDisponiveis,
+    tiposMovimentacaoDisponiveis,
+    statusMetaDisponiveis,
+    competenciasDisponiveis,
+  ] = await Promise.all([
+    opcoesDoCatalogo(empresaId, "TIPO_EPI"),
+    opcoesDoCatalogo(empresaId, "MOTIVO_ENTREGA_EPI"),
+    opcoesDoCatalogo(empresaId, "TIPO_ACIDENTE"),
+    opcoesDoCatalogo(empresaId, "TIPO_MOVIMENTACAO"),
+    opcoesDoCatalogo(empresaId, "STATUS_META"),
+    opcoesDoCatalogo(empresaId, "COMPETENCIA"),
+  ]);
+
   const admissao = candidaturaDeOrigem
     ? {
         vaga: candidaturaDeOrigem.vaga,
@@ -329,6 +346,11 @@ export default async function ColaboradorPage({
         movimentacoes={movimentacoes}
         beneficios={beneficios}
         tiposBeneficioCustom={tiposBeneficioCustom.map((t) => t.nome)}
+        tiposEpiDisponiveis={tiposEpiDisponiveis}
+        motivosEntregaDisponiveis={motivosEntregaDisponiveis}
+        tiposAcidenteDisponiveis={tiposAcidenteDisponiveis}
+        tiposMovimentacaoDisponiveis={tiposMovimentacaoDisponiveis}
+        statusMetaDisponiveis={statusMetaDisponiveis}
         dependentesNoPlanoSaude={colaborador._count.dependentes}
         entregasEpi={entregasEpi}
         acidentes={acidentes}
@@ -336,6 +358,7 @@ export default async function ColaboradorPage({
         checklistDesligamento={checklistDesligamento}
         entrevistaDesligamento={entrevistaDesligamento}
         avaliacoes={avaliacoes}
+        competenciasDisponiveis={competenciasDisponiveis}
         metas={metas}
         pdi={pdi}
         participacoesTreinamento={participacoesTreinamento}

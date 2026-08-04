@@ -5,10 +5,9 @@ import { prisma } from "@/lib/prisma";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { registrarAuditoria } from "@/lib/audit";
 import { dataDoFormulario } from "@/lib/datas";
-import { STATUS_META, statusMetaLabel } from "@/lib/constants-metas";
+import { statusMetaLabel } from "@/lib/constants-metas";
+import { valoresValidosDoCatalogo } from "@/lib/catalogos";
 import type { ActionResult } from "@/lib/constants";
-
-const STATUS_VALIDOS = STATUS_META.map((s) => s.value);
 
 // Usada pela página consolidada de metas: o alvo (colaborador OU setor) vem
 // do próprio formulário, exatamente como a constraint CHECK do banco exige.
@@ -130,7 +129,8 @@ export async function atualizarMeta(
   if (!meta) return { ok: false, error: "Meta não encontrada nesta empresa." };
 
   const status = String(formData.get("status") ?? "");
-  if (!STATUS_VALIDOS.includes(status as (typeof STATUS_VALIDOS)[number])) {
+  const statusValidos = await valoresValidosDoCatalogo(empresaId, "STATUS_META");
+  if (!statusValidos.has(status)) {
     return { ok: false, error: "Status inválido." };
   }
 

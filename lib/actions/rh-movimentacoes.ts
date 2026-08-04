@@ -5,11 +5,10 @@ import { prisma } from "@/lib/prisma";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { registrarAuditoria } from "@/lib/audit";
 import { dataDoFormulario, formatarData } from "@/lib/datas";
-import { TIPOS_MOVIMENTACAO, tipoMovimentacaoLabel } from "@/lib/constants-movimentacao";
+import { tipoMovimentacaoLabel } from "@/lib/constants-movimentacao";
 import { criariCiclo } from "@/lib/organograma";
+import { valoresValidosDoCatalogo } from "@/lib/catalogos";
 import type { ActionResult } from "@/lib/constants";
-
-const TIPOS_VALIDOS = new Set<string>(TIPOS_MOVIMENTACAO.map((t) => t.value));
 
 // Sentinela do <select> para "tirar o líder atual" — distinto de campo vazio,
 // que em todos os três seletores (setor/posição/líder) significa "não mudar
@@ -32,7 +31,8 @@ export async function registrarMovimentacao(
   if (!colaborador) return { ok: false, error: "Colaborador não encontrado nesta empresa." };
 
   const tipo = String(formData.get("tipo") ?? "").trim();
-  if (!TIPOS_VALIDOS.has(tipo)) return { ok: false, error: "Selecione o tipo de movimentação." };
+  const tiposValidos = await valoresValidosDoCatalogo(empresaId, "TIPO_MOVIMENTACAO");
+  if (!tiposValidos.has(tipo)) return { ok: false, error: "Selecione o tipo de movimentação." };
 
   const dataEfetiva = dataDoFormulario(formData.get("dataEfetiva"));
   if (!dataEfetiva) return { ok: false, error: "Informe a data efetiva." };

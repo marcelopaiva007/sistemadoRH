@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
+import { opcoesDoCatalogo } from "@/lib/catalogos";
 import { CicloDetalhe } from "./ciclo-detalhe";
 
 export default async function CicloAvaliacaoPage({
@@ -42,5 +43,15 @@ export default async function CicloAvaliacaoPage({
     }),
   ]);
 
-  return <CicloDetalhe empresaId={empresaId} ciclo={ciclo} avaliacoes={avaliacoes} colaboradores={colaboradores} />;
+  const competenciasDisponiveis = await opcoesDoCatalogo(empresaId, "COMPETENCIA");
+
+  return (
+    <CicloDetalhe
+      empresaId={empresaId}
+      ciclo={ciclo}
+      avaliacoes={avaliacoes}
+      colaboradores={colaboradores}
+      competenciasDisponiveis={competenciasDisponiveis}
+    />
+  );
 }
