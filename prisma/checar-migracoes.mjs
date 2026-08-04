@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * Falha o build quando o repo tem migration que o banco ainda não recebeu.
+ * Aplica no banco de produção, no próprio build, as migrations que o repo tem
+ * e o banco ainda não recebeu — via `prisma migrate deploy`.
  *
  *   npm run check:migracoes
  *
@@ -9,10 +10,15 @@
  * achando que o banco tinha zerado. O build passava porque `next build` não
  * conversa com o banco. Este script conversa.
  *
- * Ele NÃO aplica nada — aplicar é `scripts/aplicar-migracao.ts`, à mão. Aqui só
- * barramos o deploy de código que o banco ainda não sustenta. `prisma migrate
- * deploy` continua fora de cogitação: o Neon é dividido com os outros apps do
- * grupo e `_prisma_migrations` é comum (ver aplicar-migracao.ts).
+ * Até 04/08/2026 este script só detectava e barrava — aplicar era
+ * `scripts/aplicar-migracao.ts`, à mão, porque o Neon era dividido com os
+ * outros apps do grupo e `_prisma_migrations` era comum: `prisma migrate
+ * deploy` arriscava reaplicar migration de outro app. Desde 01/08/2026 o banco
+ * (`SOFTrh`) é um projeto Neon dedicado — nem schema nem `_prisma_migrations`
+ * são mais compartilhados (ver README, "Notas sobre o banco") — então o passo
+ * manual saiu e este script chama `prisma migrate deploy` diretamente. O
+ * script manual continua existindo para o caso raro de um `migration.sql` que
+ * precise rodar fora do fluxo do Prisma.
  *
  * POR QUE NÃO MORA EM `scripts/`: o `.vercelignore` exclui `scripts` inteiro,
  * então um checador ali não chega ao build — `Cannot find module`, três deploys
@@ -158,17 +164,30 @@ if (pendentes.length === 0) {
   process.exit(0);
 }
 
-console.error(
-  `\n✖ ${pendentes.length} migration(s) no repo que o banco ainda não recebeu:\n` +
-    pendentes.map((m) => `    ${m}`).join("\n") +
-    `\n\n  Aplique cada uma e registre, antes de subir:\n` +
-    pendentes
-      .map(
-        (m) =>
-          `    npx tsx scripts/aplicar-migracao.ts ${m}\n` +
-          `    npx prisma migrate resolve --applied ${m}`,
-      )
-      .join("\n") +
-    `\n`,
+console.log(
+  `· checar-migracoes: ${pendentes.length} migration(s) pendente(s) — aplicando com ` +
+    `"prisma migrate deploy":\n` +
+    pendentes.map((m) => `    ${m}`).join("\n"),
 );
-process.exit(1);
+
+// shell:true porque no Windows `npx` é um .cmd — spawnSync sem shell falha com
+// ENOENT. Args são fixos (não vêm de input externo), sem risco de injeção.
+const { spawnSync } = await import("node:child_process");
+const resultado = spawnSync("npx", ["prisma", "migrate", "deploy"], {
+  stdio: "inherit",
+  shell: true,
+});
+
+if (resultado.error) {
+  console.error(`\n✖ checar-migracoes: não consegui iniciar "npx prisma migrate deploy" (${resultado.error.message}).\n`);
+  process.exit(1);
+}
+if (resultado.status !== 0) {
+  console.error(
+    `\n✖ checar-migracoes: "prisma migrate deploy" falhou — build interrompido.\n`,
+  );
+  process.exit(resultado.status ?? 1);
+}
+
+console.log("· checar-migracoes: migrations aplicadas.");
+process.exit(0);

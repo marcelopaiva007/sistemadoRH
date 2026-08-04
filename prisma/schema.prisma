@@ -11,9 +11,10 @@ datasource db {
   // Este app usa APENAS o schema `rh` — inclusive o User. Até 25/07/2026 a
   // autenticação era a tabela `shared.User`, dividida com o lm-bonificacao;
   // hoje cada app tem a sua, e não existe mais nenhuma referência do RH a
-  // objeto de outro schema. Os schemas `bonificacao`, `shared` e `vapt`
-  // continuam no mesmo banco Neon, mas pertencem a outros apps e este aqui não
-  // os enxerga.
+  // objeto de outro schema. Desde 01/08/2026 o banco (`SOFTrh`) também é um
+  // projeto Neon dedicado — os schemas `bonificacao`, `shared` e `vapt` não
+  // existem mais aqui, moram no Neon dos outros apps (ver README, "Notas
+  // sobre o banco").
   schemas  = ["rh"]
 }
 

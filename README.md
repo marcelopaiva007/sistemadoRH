@@ -731,7 +731,7 @@ o mesmo que já rodava fixo antes desta tabela existir.
 | `npm run smoke:pendencias`                                  | fumaça da tela inicial — contrato vencido que não some, hora extra somada por pessoa, atestado sem dupla contagem, total = soma das 17 chaves, **sempre em rollback**           |
 | `npm run verificar:assistente`                              | confere as ferramentas do assistente contra o banco real, inclusive o isolamento entre empresas — **read-only**, não escreve nada                                               |
 | `npx tsx scripts/aplicar-migracao.ts <nome> [--dry]`        | aplica um `migration.sql` à mão, em transação (ver "Notas sobre o banco")                                                                                                       |
-| `npm run check:migracoes`                                   | lista migration do repo que o banco ainda não recebeu — **read-only**; roda sozinho antes de todo `npm run build`                                                               |
+| `npm run check:migracoes`                                   | aplica no banco, via `prisma migrate deploy`, as migrations do repo que faltam — roda sozinho antes de todo `npm run build`; **não é read-only** desde 04/08/2026               |
 | `npx tsx scripts/importar-colaboradores-elleven.ts [--dry]` | importa/atualiza colaboradores a partir das exportações do elleven (upsert idempotente por CPF → cód. elleven → nome)                                                           |
 | `npx tsx scripts/configurar-telegram-webhook.ts`            | registra o webhook do bot do Telegram                                                                                                                                           |
 | `npm run db:studio`                                         | Prisma Studio                                                                                                                                                                   |
@@ -747,9 +747,9 @@ Ao rodar `prisma migrate` contra produção, confira o diff antes de aplicar.
 mais compartilhado** com `lm-bonificacao`/`vapt`/`shared` — nem schema, nem a
 tabela `_prisma_migrations`. `npx prisma migrate deploy` volta a funcionar
 normalmente contra produção, sem risco de reaplicar migration de outro app
-(`npx prisma migrate status` confirma: banco em dia com as 42 migrations do
-repo). O script manual continua disponível para o caso raro de precisar rodar
-um `migration.sql` fora do fluxo do Prisma:
+(`npx prisma migrate status` confirma: banco em dia). O script manual continua
+disponível para o caso raro de precisar rodar um `migration.sql` fora do fluxo
+do Prisma:
 `npx tsx scripts/aplicar-migracao.ts <nome>` + `npx prisma migrate resolve --applied <nome>`.
 
 Independente de como a migration é aplicada, é fácil esquecer o passo — e em
@@ -757,10 +757,15 @@ Independente de como a migration é aplicada, é fácil esquecer o passo — e e
 responderam 404 e lista vazia, e passou-se o dia achando que o banco tinha
 zerado (não tinha). Por isso todo `npm run build` roda antes o
 `prisma/checar-migracoes.mjs`, que compara as pastas de `prisma/migrations/`
-com o que está registrado no banco e **barra o deploy** se faltar alguma. Se
-ele não conseguir checar (sem `DATABASE_URL`, banco fora do ar), avisa e deixa
-passar — derrubar deploy por defeito da ferramenta foi o que fez a checagem
-ser desligada da primeira vez.
+com o que está registrado no banco e — desde 04/08/2026, agora que o banco é
+dedicado — **aplica com `prisma migrate deploy`** o que faltar, em vez de só
+barrar e pedir passo manual. Se ele não conseguir checar (sem `DATABASE_URL`,
+banco fora do ar), avisa e deixa passar — derrubar deploy por defeito da
+ferramenta foi o que fez a checagem ser desligada da primeira vez. No GitHub
+Actions ele se reconhece (`GITHUB_ACTIONS=true`) e se pula: o banco de CI é
+efêmero e vazio, e replayar o histórico inteiro nele não funciona (migrations
+de quando o banco era compartilhado, ver `.github/workflows/ci.yml`) — quem
+responde "o banco de produção está em dia?" é o build da Vercel, no deploy.
 
 O checador mora em `prisma/`, não em `scripts/`, porque o `.vercelignore` exclui
 `scripts` inteiro: qualquer coisa que o `build` execute e viva ali some no deploy
