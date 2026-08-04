@@ -640,7 +640,7 @@ export function DashboardClimaView({
                 <div className="space-y-3">
                   {resultado.comentarios.map((c, i) => (
                     <div key={i} className="border-l-2 border-muted pl-3 italic text-sm">
-                      <p>"{c.texto}"</p>
+                      <p>&ldquo;{c.texto}&rdquo;</p>
                       <p className="text-xs text-muted-foreground mt-1">— {c.setor}</p>
                     </div>
                   ))}

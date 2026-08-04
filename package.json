@@ -11,7 +11,7 @@
     "format": "prettier --write .",
     "prepare": "husky",
     "// ━━━━━━━━━━━━━━━━ BUILD & VALIDAÇÃO ━━━━━━━━━━━━━━━━": "",
-    "build": "node validate-env.js && node prisma/checar-migracoes.mjs && next build",
+    "build": "node validate-env.mjs && node prisma/checar-migracoes.mjs && next build",
     "start": "next start",
     "check:migracoes": "node prisma/checar-migracoes.mjs",
     "// ━━━━━━━━━━━━━━━━ BANCO DE DADOS ━━━━━━━━━━━━━━━━": "",

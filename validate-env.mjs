@@ -15,8 +15,13 @@
 // com o .env completo do lado. Na Vercel o import falha (dotenv é
 // devDependency e pode nem estar lá) e seguimos com o process.env real, que é
 // o que interessa.
+//
+// .mjs e import() dinâmico, não require(): era .js com require() até
+// 04/08/2026, e isso reprovava o lint (@typescript-eslint/no-require-imports)
+// em toda PR baseada no master — inclusive as 7 do Dependabot, que não tinham
+// nada a ver com o problema. Mesmo padrão de prisma/checar-migracoes.mjs.
 if (!process.env.DATABASE_URL) {
-  try { require('dotenv/config'); } catch { /* sem dotenv: segue o ambiente */ }
+  try { await import('dotenv/config'); } catch { /* sem dotenv: segue o ambiente */ }
 }
 
 const required = ['DATABASE_URL', 'AUTH_SECRET', 'NEXTAUTH_URL'];
