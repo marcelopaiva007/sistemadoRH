@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useMemo, useState, useEffect } from "react";
+import { useActionState, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useFiltroEmpresas } from "../filtro-empresas";
@@ -313,21 +313,23 @@ export function ColaboradoresTable({
 }) {
   // Aplicar filtro de marcas/empresas selecionadas
   const empresasSelecionadas = useFiltroEmpresas(empresasDoUsuario);
-  const [colaboradoresFiltrados, setColaboradoresFiltrados] = useState(colaboradores);
-  const [setoresFiltrados, setSetoresFiltrados] = useState(setores);
-  const [posicoesFiltradas, setPosicoesFiltradas] = useState(posicoes);
-
-  useEffect(() => {
-    setColaboradoresFiltrados(
-      colaboradores.filter((c) => empresasSelecionadas.includes(c.empresaId))
-    );
-    setSetoresFiltrados(
-      setores.filter((s) => empresasSelecionadas.includes(s.empresaId))
-    );
-    setPosicoesFiltradas(
-      posicoes.filter((p) => empresasSelecionadas.includes(p.empresaId))
-    );
-  }, [colaboradores, setores, posicoes, empresasSelecionadas]);
+  // Estado DERIVADO do filtro: useMemo, não useState + useEffect.
+  // A forma anterior (setState dentro de effect) dispara render em cascata — o
+  // lint barra, e com razão: foi essa mesma forma que congelou esta tela em
+  // 31/07/2026, quando o retorno do hook mudava de identidade a cada render e
+  // realimentava o efeito.
+  const colaboradoresFiltrados = useMemo(
+    () => colaboradores.filter((c) => empresasSelecionadas.includes(c.empresaId)),
+    [colaboradores, empresasSelecionadas],
+  );
+  const setoresFiltrados = useMemo(
+    () => setores.filter((s) => empresasSelecionadas.includes(s.empresaId)),
+    [setores, empresasSelecionadas],
+  );
+  const posicoesFiltradas = useMemo(
+    () => posicoes.filter((p) => empresasSelecionadas.includes(p.empresaId)),
+    [posicoes, empresasSelecionadas],
+  );
   const [createOpen, setCreateOpen] = useState(false);
   const [editColaborador, setEditColaborador] = useState<Colaborador | null>(null);
   const [busca, setBusca] = useState("");
