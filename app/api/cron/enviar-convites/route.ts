@@ -11,20 +11,22 @@
 // manual/diagnóstico aceita ?secret=$CRON_SECRET.
 import { NextRequest, NextResponse } from "next/server";
 import { rodadaEnvioAutomatico, LIMITE_DIARIO_ENVIOS } from "@/lib/convites";
+import { deveRodarAgora, origemAutorizacao } from "@/lib/cron-horario";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-function isAuthorized(req: NextRequest): boolean {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return false;
-  if (req.headers.get("authorization") === `Bearer ${secret}`) return true;
-  return req.nextUrl.searchParams.get("secret") === secret;
-}
-
 export async function GET(req: NextRequest) {
-  if (!isAuthorized(req)) {
+  const origem = origemAutorizacao(req);
+  if (!origem) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // vercel.json chama esta rota a cada 15 min; só roda de fato perto do
+  // horário configurado em Configuração → Lembretes (padrão 12:00). Disparo
+  // manual (?secret=) ignora o horário de propósito — ver lib/cron-horario.ts.
+  if (origem === "cron" && !(await deveRodarAgora("enviar-convites"))) {
+    return NextResponse.json({ ok: true, pulado: true, motivo: "fora do horário configurado" });
   }
 
   try {

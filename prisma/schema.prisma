@@ -1652,3 +1652,28 @@ model SegredoApp {
 
   @@schema("rh")
 }
+
+// Horário dos crons "de comunicação" (alertas-rh, enviar-convites,
+// lembrete-pesquisa, lembrete-portal) — não inclui backup-db nem
+// gestao-ciclo-pesquisas, que são operacionais/internos, não avisos ao RH.
+//
+// vercel.json chama essas rotas a cada 15 min; cada uma decide, via
+// lib/cron-horario.ts, se a chamada de agora cai dentro da janela de algum
+// horário configurado aqui. Sem linha para uma `chave`, vale o horário
+// padrão embutido no código (LEMBRETES_CONFIGURAVEIS) — o mesmo que já
+// rodava fixo no vercel.json antes desta tabela existir.
+//
+// Uma `chave` pode ter mais de uma linha (lembrete-pesquisa roda 2×/dia hoje,
+// 13h e 19h) — RH edita, adiciona ou remove horário por horário.
+model ConfiguracaoLembrete {
+  id            String   @id @default(cuid())
+  chave         String
+  horario       String // "HH:mm", horário de Brasília
+  ativo         Boolean  @default(true)
+  atualizadoEm  DateTime @default(now()) @updatedAt
+  atualizadoPor String?
+
+  @@unique([chave, horario])
+  @@index([chave])
+  @@schema("rh")
+}

@@ -129,7 +129,8 @@ O sistema abre em `/rh`, onde se escolhe a empresa. Dentro dela, a navegação �
 um **menu lateral agrupado pelos 5 blocos do artefato de escopo** (Ciclo de
 vida · Departamento pessoal · Desempenho & desenvolvimento · Saúde & segurança
 · Gestão), mais um grupo **Configuração** no rodapé com o que se ajusta de vez
-em quando (Setores, Cargos, Marcas & CNPJs, Canais de envio, Auditoria).
+em quando (Setores, Cargos, Marcas & CNPJs, Canais de envio, Lembretes,
+Auditoria).
 
 - **A tela inicial da empresa é a central de pendências** (`/rh/<empresa>`),
   não um dashboard: mostra o que exige ação hoje — CAT sem emitir, aprovações
@@ -572,16 +573,42 @@ Decisões de segurança que valem lembrar antes de mexer:
 - Teto global de **90 envios por dia-calendário de Brasília**
   (`LIMITE_DIARIO_ENVIOS` em `lib/constants-rh.ts`) — margem sob o limite do
   plano do provedor de e-mail.
-- O cron `/api/cron/enviar-convites` roda **1×/dia às 13:00 UTC (10:00 BRT)**
-  (ver `vercel.json`) e envia **por setor**: completa os setores menores
-  primeiro e usa o resto do orçamento para avançar num setor grande. Em poucos
-  dias toda a base é coberta sem estourar o limite.
+- `/api/cron/enviar-convites` envia **por setor**: completa os setores
+  menores primeiro e usa o resto do orçamento para avançar num setor grande.
+  Em poucos dias toda a base é coberta sem estourar o limite.
 - Convites `FAILED` **não** são retentados automaticamente — reenvio é manual
   na tela.
 - `/responder/[token]` é **público**: quem responde entra pelo token, sem login.
 - Anonimato: agregados só aparecem com no mínimo **3 respostas**
   (`AMOSTRA_MINIMA_ANONIMATO`); em pesquisa anônima a `Resposta` nunca grava
   `colaboradorId`.
+
+## Horário dos lembretes
+
+Os 4 crons "de comunicação" — `alertas-rh`, `enviar-convites`,
+`lembrete-pesquisa`, `lembrete-portal` — têm horário configurável pela tela
+**Lembretes** (`/rh/[empresaId]/lembretes`, grupo "Configuração"), sem
+precisar de deploy. `backup-db` e `gestao-ciclo-pesquisas` ficam de fora de
+propósito: são operacionais/internos, não avisam ninguém.
+
+**Como funciona:** o `vercel.json` chama essas 4 rotas a cada 15 minutos
+(em vez do horário fixo de antes); cada rota consulta `ConfiguracaoLembrete`
+e só executa o trabalho de verdade se "agora" cair dentro de uma janela de
+±8 min de algum horário configurado (`lib/cron-horario.ts`). Sem nenhuma
+linha cadastrada para uma chave, vale o horário padrão embutido no código —
+o mesmo que já rodava fixo antes desta tabela existir.
+
+- **Disparo manual continua sem restrição de horário**: quem chama a rota com
+  `?secret=$CRON_SECRET` (teste/diagnóstico) roda na hora, ignorando a janela
+  configurada — só a chamada automática da Vercel Cron (header
+  `Authorization: Bearer`) respeita o horário.
+- **`lembrete-pesquisa` aceita mais de um horário** (hoje: 13:00 e 19:00,
+  editável independentemente) — os outros três normalmente têm um só.
+- Isso multiplica por ~16x a quantidade de invocações dessas 4 rotas por dia
+  (de ~6/dia total para ~384/dia) — inofensivo num plano Vercel Pro (cada
+  chamada fora da janela é um SELECT indexado e retorno imediato), mas exige
+  Pro ou superior; num plano Hobby a frequência de cron pode ser rejeitada no
+  deploy.
 
 ## Scripts
 

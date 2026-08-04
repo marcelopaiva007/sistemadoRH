@@ -10,6 +10,7 @@ import { sendEmail } from "@/lib/email";
 import { CONVITES_NA_PESQUISA } from "@/lib/pesquisa-numeros";
 import { idsComAfastamentoVigente } from "@/lib/pesquisa-vinculo";
 import { MODELOS_COM_REGUA_NOVA } from "@/lib/regua-cobranca";
+import { deveRodarAgora, origemAutorizacao } from "@/lib/cron-horario";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -17,21 +18,23 @@ export const maxDuration = 120;
 const DIAS_ENTRE_LEMBRETES = 5;
 const MAX_LEMBRETES = 3;
 
-function isAuthorized(req: NextRequest): boolean {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return false;
-  if (req.headers.get("authorization") === `Bearer ${secret}`) return true;
-  return req.nextUrl.searchParams.get("secret") === secret;
-}
-
 function contarLembretes(erro: string | null): number {
   const match = (erro ?? "").match(/\[L:(\d+)\]/);
   return match ? Number(match[1]) : 0;
 }
 
 export async function GET(req: NextRequest) {
-  if (!isAuthorized(req)) {
+  const origem = origemAutorizacao(req);
+  if (!origem) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // vercel.json chama esta rota a cada 15 min; só roda de fato perto de
+  // algum horário configurado em Configuração → Lembretes (padrão 13:00 e
+  // 19:00 — os dois disparos por dia que já existiam antes desta tabela).
+  // Disparo manual (?secret=) ignora o horário de propósito.
+  if (origem === "cron" && !(await deveRodarAgora("lembrete-pesquisa"))) {
+    return NextResponse.json({ ok: true, pulado: true, motivo: "fora do horário configurado" });
   }
 
   // Janela: tokens há pelo menos 3 dias e ainda não respondidos

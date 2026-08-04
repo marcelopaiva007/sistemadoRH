@@ -14,6 +14,7 @@ import {
   CheckSquare,
   ClipboardCheck,
   ClipboardList,
+  Clock,
   CreditCard,
   FileBarChart,
   FileUp,
@@ -99,6 +100,7 @@ const GRUPOS = [
       // aberta. Fica neste grupo mesmo assim porque é onde se procura por ela.
       { slug: "estrutura", label: "Marcas & CNPJs", icon: Building2 },
       { slug: "canais", label: "Canais de envio", icon: Send },
+      { slug: "lembretes", label: "Lembretes", icon: Clock },
       { slug: "importacoes", label: "Importações", icon: FileUp },
       { slug: "auditoria", label: "Auditoria", icon: History },
     ],
