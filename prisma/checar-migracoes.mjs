@@ -50,6 +50,27 @@ if (!process.env.DATABASE_URL) {
   process.exit(0);
 }
 
+// No GitHub Actions o banco é efêmero e descartável, criado só para o build
+// rodar. Comparar o repo com ELE não responde a pergunta que esta checagem
+// existe para responder — "o banco de produção já recebeu o que este código
+// precisa?" — e o banco de CI sempre pareceria atrasado.
+//
+// A alternativa tentada em 04/08/2026 foi reproduzir o histórico no banco de
+// CI com `prisma migrate deploy`. Não funciona: este histórico não é
+// reproduzível do zero. Ele carrega migrations de quando o banco era dividido
+// com o lm-bonificacao (schemas `shared` e `bonificacao`), migrations de
+// reconciliação que nunca foram feitas para executar, e trechos aplicados à
+// mão fora do fluxo do Prisma. O replay morria em cadeia — primeiro "column
+// email already exists", depois "schema shared does not exist" — e reprovava
+// toda PR, incluindo as 7 do Dependabot.
+//
+// GITHUB_ACTIONS e não CI: a Vercel também define CI=1, e lá a checagem
+// precisa valer — é justamente o deploy que ela protege.
+if (process.env.GITHUB_ACTIONS === "true") {
+  console.warn("· checar-migracoes: GitHub Actions — checagem pulada (o guardião é o deploy).");
+  process.exit(0);
+}
+
 // Host e nome do banco no log — nunca usuário nem senha. Existe porque em
 // 30/07/2026 a produção barrou por migration "pendente" que ESTAVA aplicada:
 // aplicada no banco do .env local, enquanto o build olhava outro DATABASE_URL.
