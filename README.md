@@ -437,6 +437,22 @@ aba **Desligamento** só aparece na ficha quando há data de desligamento;
   pode diferir do `motivoDesligamento` formal na ficha; a auditoria registra
   que a entrevista foi feita, não o conteúdo (dado sensível de opinião).
 
+## Dashboard executivo
+
+`/rh/<empresa>/painel` ("Dashboard", primeiro item do grupo Gestão): a visão
+de grupo em curvas — evolução do quadro em 12 meses, admissões × desligamentos,
+colaboradores por setor (top 8 + "Outros"), faixa etária e custo de pessoal
+por setor (folha + benefícios, empilhado). KPIs no topo: ativos, turnover,
+tempo médio de casa e custo/mês.
+
+Consolidado pela marca e calculado pelas MESMAS funções puras de `lib/bi.ts`
+que alimentam a tela de Indicadores — nenhum número diverge entre as duas
+telas, só a forma muda (curvas × tabelas). As funções novas
+(`headcountMensal`, `distribuicaoFaixaEtaria`, `tempoMedioDeCasaAnos`) seguem
+o contrato do arquivo: puras, sem Prisma, testáveis sem banco. Cores dos
+gráficos validadas contra daltonismo/contraste (pares registrados em
+`painel-view.tsx`).
+
 ## Indicadores — BI inicial (Fase 2)
 
 `/rh/<empresa>/indicadores` — headcount, turnover, absenteísmo e custo de

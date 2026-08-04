@@ -19,6 +19,7 @@ import {
   FileBarChart,
   FileUp,
   GraduationCap,
+  HeartPulse,
   History,
   LayoutDashboard,
   ListChecks,
@@ -86,7 +87,8 @@ const GRUPOS = [
   {
     titulo: "Gestão",
     itens: [
-      { slug: "dashboard", label: "Painel de clima", icon: LayoutDashboard },
+      { slug: "painel", label: "Dashboard", icon: LayoutDashboard },
+      { slug: "dashboard", label: "Painel de clima", icon: HeartPulse },
       { slug: "indicadores", label: "Indicadores", icon: BarChart3 },
       { slug: "relatorios", label: "Relatórios", icon: FileBarChart },
       { slug: "assistente", label: "Assistente", icon: Bot },
