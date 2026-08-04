@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { motivoDaFalhaDeLogin } from "@/lib/actions/login";
 
 // Sem classe de cor escrita à mão aqui de propósito. Este formulário já
 // carregou um tema escuro/neon inteiro (cartão em degradê slate-900, borda
@@ -36,7 +37,17 @@ export function LoginForm() {
       });
 
       if (result?.error) {
-        setError("Usuário ou senha inválidos.");
+        // O NextAuth devolve o mesmo erro para senha errada e para tentativa
+        // bloqueada. Quem sabe a diferença é o servidor — sem esta pergunta,
+        // quem está bloqueado leria "senha inválida" e ficaria redigitando a
+        // senha certa.
+        const usuario = String(formData.get("username") ?? "");
+        const motivo = await motivoDaFalhaDeLogin(usuario).catch(() => null);
+        setError(
+          motivo?.tipo === "bloqueado"
+            ? `Muitas tentativas seguidas. Tente de novo em ${motivo.minutos} minuto${motivo.minutos > 1 ? "s" : ""}.`
+            : "Usuário ou senha inválidos.",
+        );
         return;
       }
 

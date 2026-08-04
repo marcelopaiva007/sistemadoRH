@@ -1744,3 +1744,32 @@ model ConfiguracaoLembrete {
   @@index([chave])
   @@schema("rh")
 }
+
+// Tentativas de login que falharam — base do limite de 5 em 15 min
+// (lib/login-tentativas.ts). Uma linha por falha, não um contador na linha do
+// User, por três motivos: o usuário digitado pode não existir (e aí não há
+// linha para incrementar, mas é exatamente o caso que mais interessa barrar);
+// a janela é deslizante, o que exige saber QUANDO cada falha aconteceu, não
+// só quantas foram; e um contador em `User` seria escrita concorrente na
+// mesma linha a cada tentativa — bom alvo de disputa justo no caminho quente.
+//
+// Não há relação com User de propósito: `username` aqui é o texto digitado,
+// não uma chave estrangeira. Ele é normalizado (minúsculas, sem espaço nas
+// pontas) antes de gravar, para "Marcelo " e "marcelo" caírem no mesmo balde.
+//
+// As linhas com mais de 24h são apagadas oportunisticamente a cada falha
+// nova — sem cron próprio, porque a tabela só cresce quando alguém erra a
+// senha e o volume não justifica mais uma rota agendada.
+model TentativaLogin {
+  id       String   @id @default(cuid())
+  username String
+  ip       String
+  criadoEm DateTime @default(now())
+
+  // A pergunta feita a cada login é "quantas falhas deste usuário, deste IP,
+  // nos últimos 15 minutos" — a forma exata deste índice.
+  @@index([username, ip, criadoEm])
+  // A faxina pergunta só pela idade, sem usuário nem IP.
+  @@index([criadoEm])
+  @@schema("rh")
+}

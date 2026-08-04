@@ -1,6 +1,6 @@
 {
   "name": "sistema-rh",
-  "version": "1.39.5",
+  "version": "1.40.0",
   "private": true,
   "scripts": {
     "// ━━━━━━━━━━━━━━━━ DESENVOLVIMENTO ━━━━━━━━━━━━━━━━": "",
@@ -29,6 +29,7 @@
     "verificar:dashboard": "tsx scripts/verificar-dashboard.ts",
     "verificar:bi": "tsx scripts/verificar-bi.ts",
     "// ━━━━━━━━━━━━━━━━ TESTES FUNCIONAIS ━━━━━━━━━━━━━━━━": "",
+    "test:login-tentativas": "tsx scripts/test-login-tentativas.ts",
     "test:ferias": "tsx scripts/test-ferias.ts",
     "test:portal": "tsx scripts/test-portal.ts",
     "test:desacoplamento": "tsx scripts/test-desacoplamento.ts",
@@ -61,7 +62,8 @@
     "smoke:ats": "tsx scripts/smoke-ats.ts",
     "smoke:onboarding": "tsx scripts/smoke-onboarding.ts",
     "smoke:folha": "tsx scripts/smoke-folha.ts",
-    "smoke:pendencias": "tsx scripts/smoke-pendencias.ts"
+    "smoke:pendencias": "tsx scripts/smoke-pendencias.ts",
+    "smoke:login": "tsx scripts/smoke-login.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",
