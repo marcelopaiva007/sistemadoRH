@@ -82,7 +82,10 @@ async function main() {
     const climaNoDia3 = await criarPesquisa("CLIMA", D_MENOS_3);
     await criarColaboradorComToken(climaNoDia3.id, 5);
 
-    const resultado = await executarReguaCobranca(tx, HOJE);
+    // Escopo restrito às pesquisas deste teste. Sem isso a régua varria a base
+    // inteira e disparava lembrete real para colaborador de verdade.
+    const doTeste = [noDia3.id, foraDoPasso.id, noDia7.id, vencida.id, climaNoDia3.id];
+    const resultado = await executarReguaCobranca(tx, HOJE, doTeste);
     ok(resultado.avaliadas === 5, `avalia NR01/P05-ENPS/CLIMA ACTIVE — 5 pesquisas (achou ${resultado.avaliadas})`);
     ok(resultado.encerradas === 1, `encerra a pesquisa além do dia 15 (achou ${resultado.encerradas})`);
 
@@ -98,7 +101,7 @@ async function main() {
     ok(climaDepois.status === "ACTIVE", "CLIMA no dia 3 continua ACTIVE (lembrete não fecha, também vale pra CLIMA agora)");
 
     // Rodar de novo no mesmo dia não fecha de novo nem duplica (idempotente).
-    const segunda = await executarReguaCobranca(tx, HOJE);
+    const segunda = await executarReguaCobranca(tx, HOJE, doTeste);
     ok(segunda.avaliadas === 4, `2ª rodada só vê as 4 ainda ACTIVE (achou ${segunda.avaliadas})`);
 
     throw new RollbackProposital();

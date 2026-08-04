@@ -92,6 +92,9 @@ async function main() {
       });
 
     // 3 desligamentos dentro da janela no mesmo setor — deve disparar.
+    // Linha de base ANTES de qualquer dado do teste — ver o comentário do delta.
+    const baseAl10 = await verificarDesligamentosConcentrados(tx, HOJE);
+
     await desligar(setorRisco.id, D_40, "__smoke d1");
     await desligar(setorRisco.id, D_40, "__smoke d2");
     await desligar(setorRisco.id, ONTEM, "__smoke d3");
@@ -102,7 +105,14 @@ async function main() {
     await desligar(setorCalmo.id, D_40, "__smoke c2");
 
     const resultado = await verificarDesligamentosConcentrados(tx, HOJE);
-    ok(resultado.avaliados === 2, `avalia os 2 setores com desligamento na janela (achou ${resultado.avaliados})`);
+    // Delta contra a linha de base, não o total: a função varre o banco
+    // INTEIRO, e a base de produção tem desligamentos reais na janela. Afirmar
+    // `=== 2` só funcionava com o banco vazio — quebrou assim que a base
+    // cresceu, sem que nada no código de alerta tivesse mudado.
+    ok(
+      resultado.avaliados - baseAl10.avaliados === 2,
+      `os 2 setores do teste entram na avaliação (delta ${resultado.avaliados - baseAl10.avaliados}, base ${baseAl10.avaliados})`,
+    );
 
     throw new RollbackProposital();
   });
@@ -129,6 +139,9 @@ async function main() {
         );
 
     // Setor baixo: 5 convites, 2 respondidos = 40% (< 60%, acima do n mínimo de 5) — deve disparar.
+    // Linha de base ANTES do dado do teste — mesma razão do AL10.
+    const baseAl08 = await verificarTaxaRespostaBaixa(tx);
+
     for (let i = 0; i < 2; i++) await criarColaboradorComToken(setorBaixo.id, "RESPONDED", i);
     for (let i = 2; i < 5; i++) await criarColaboradorComToken(setorBaixo.id, "SENT", i);
 
@@ -140,7 +153,10 @@ async function main() {
     for (let i = 0; i < 3; i++) await criarColaboradorComToken(setorPequeno.id, "SENT", i);
 
     const resultado = await verificarTaxaRespostaBaixa(tx);
-    ok(resultado.avaliados === 2, `avalia os 2 setores com amostra >= mínimo (achou ${resultado.avaliados})`);
+    ok(
+      resultado.avaliados - baseAl08.avaliados === 2,
+      `os 2 setores do teste com amostra >= mínimo entram (delta ${resultado.avaliados - baseAl08.avaliados}, base ${baseAl08.avaliados})`,
+    );
 
     throw new RollbackProposital();
   });

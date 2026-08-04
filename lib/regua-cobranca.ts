@@ -121,9 +121,25 @@ export type ResultadoRegua = { avaliadas: number; lembretesEnviados: number; enc
  * a partir do dia 15 — fechar é idempotente (checa `status: ACTIVE` de
  * novo), diferente do lembrete, que só faz sentido no dia exato.
  */
-export async function executarReguaCobranca(cliente: Cliente = prisma, hoje: Date = new Date()): Promise<ResultadoRegua> {
+/**
+ * @param apenas  Restringe a régua a estas pesquisas. Existe para o smoke:
+ *   sem isso ele chamava a função sobre a base inteira e MANDAVA LEMBRETE DE
+ *   VERDADE para colaborador real — 15 e-mails saíram assim em 04/08/2026,
+ *   antes da hora do cron, só porque alguém rodou o teste. Em produção o
+ *   parâmetro é omitido e o comportamento é o de sempre.
+ */
+export async function executarReguaCobranca(
+  cliente: Cliente = prisma,
+  hoje: Date = new Date(),
+  apenas?: string[],
+): Promise<ResultadoRegua> {
   const pesquisasAtivas = await cliente.pesquisa.findMany({
-    where: { status: "ACTIVE", modelo: { in: MODELOS_COM_REGUA_NOVA }, iniciadaEm: { not: null } },
+    where: {
+      status: "ACTIVE",
+      modelo: { in: MODELOS_COM_REGUA_NOVA },
+      iniciadaEm: { not: null },
+      ...(apenas ? { id: { in: apenas } } : {}),
+    },
     select: { id: true, titulo: true, iniciadaEm: true },
   });
 

@@ -54,11 +54,21 @@ async function main() {
 
   console.log("3. Tabela de usuários própria");
   const rhUsers = await client.query(`SELECT id, username, role, "passwordHash" FROM "rh"."User" ORDER BY username`);
-  const sharedUsers = await client.query(`SELECT id, username FROM "shared"."User" ORDER BY username`);
   ok(rhUsers.rowCount! > 0, `rh."User" tem ${rhUsers.rowCount} usuário(s)`);
+
+  // Até 01/08/2026 aqui se comparava rh."User" com shared."User" para provar
+  // que a cópia da migração de 25/07 tinha vindo inteira. Essa conferência
+  // deixou de fazer sentido — e de funcionar — quando o RH saiu para o banco
+  // dedicado SOFTrh: o schema `shared` mora no banco antigo e nem é visível
+  // daqui. O que resta a verificar é o oposto: que não existe nenhum vestígio
+  // dele neste banco.
+  const schemasEstranhos = await client.query(`
+    SELECT nspname FROM pg_namespace
+    WHERE nspname IN ('shared', 'bonificacao', 'vapt', 'contabil')
+  `);
   ok(
-    rhUsers.rowCount === sharedUsers.rowCount,
-    `a cópia bateu com a origem (${rhUsers.rowCount} x ${sharedUsers.rowCount})`,
+    schemasEstranhos.rowCount === 0,
+    `nenhum schema de outro app neste banco${schemasEstranhos.rowCount ? ` (achei: ${schemasEstranhos.rows.map((r) => r.nspname).join(", ")})` : ""}`,
   );
   ok(
     rhUsers.rows.every((u) => typeof u.passwordHash === "string" && u.passwordHash.startsWith("$2")),
@@ -86,20 +96,31 @@ async function main() {
   // Repete exatamente o que o authorize() de auth.ts faz — pelo Prisma, para
   // exercitar o mapeamento do multiSchema até rh."User", e não pelo pg cru.
   console.log("6. O caminho do login (authorize) resolve na tabela nova");
-  const senhaSeed = process.env.SEED_ADMIN_PASSWORD;
   const usuarioSeed = process.env.SEED_ADMIN_USERNAME;
-  if (senhaSeed && usuarioSeed) {
+  if (usuarioSeed) {
     const usuario = await prisma.user.findUnique({ where: { username: usuarioSeed } });
     ok(usuario !== null, `prisma.user.findUnique acha "${usuarioSeed}" (agora em rh."User")`);
     if (usuario) {
-      ok(await bcrypt.compare(senhaSeed, usuario.passwordHash), "a senha confere — ninguém precisa redefinir");
+      // O hash guardado é bcrypt e é o que o authorize() vai comparar.
       ok(
-        await bcrypt.compare("senha-errada-de-proposito", usuario.passwordHash) === false,
+        typeof usuario.passwordHash === "string" && usuario.passwordHash.startsWith("$2"),
+        "a senha está guardada como hash bcrypt, que é o que o authorize() compara",
+      );
+      ok(
+        (await bcrypt.compare("senha-errada-de-proposito", usuario.passwordHash)) === false,
         "senha errada continua sendo recusada",
       );
+
+      // Até 04/08/2026 aqui se comparava SEED_ADMIN_PASSWORD do .env com o
+      // hash em produção, afirmando "a senha confere — ninguém precisa
+      // redefinir". Isso passou a falhar quando a senha do admin foi trocada
+      // no sistema, o que é operação normal: o .env guarda a senha do seed,
+      // não a senha vigente. O teste existe para provar que o caminho do
+      // login resolve em rh."User" e que bcrypt funciona — e isso as três
+      // verificações acima cobrem sem depender de nenhuma senha real.
     }
   } else {
-    console.log("  – SEED_ADMIN_* não configurado, pulando");
+    console.log("  – SEED_ADMIN_USERNAME não configurado, pulando");
   }
 
   console.log("7. As telas do RH continuam lendo pelo Prisma");
