@@ -48,6 +48,14 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      # Único teste que roda aqui, e só porque não precisa de banco: as regras
+      # da janela do limite de login são puras de propósito (ver
+      # lib/login-tentativas.ts). Os smokes ficam de fora porque este job sobe
+      # um Postgres vazio e não aplica migrations — eles precisam de base com
+      # dado, não de tabela em branco.
+      - name: Regras do limite de login
+        run: npm run test:login-tentativas
+
       # Sem passo de migrations: este histórico NÃO é reproduzível do zero.
       # Ele carrega migrations de quando o banco era dividido com o
       # lm-bonificacao (schemas `shared` e `bonificacao`), migrations de
