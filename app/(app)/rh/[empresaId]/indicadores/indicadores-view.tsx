@@ -61,14 +61,24 @@ export function IndicadoresView({
             {qtdEmpresas > 1 && ` Consolidado com os ${qtdEmpresas} CNPJs da marca.`}
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          render={<a href={`/api/rh/${empresaId}/indicadores/csv`} />}
-        >
-          <FileDown className="size-4" />
-          Exportar CSV
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            render={<a href={`/api/rh/${empresaId}/indicadores/csv`} />}
+          >
+            <FileDown className="size-4" />
+            Exportar CSV
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            render={<a href={`/api/rh/${empresaId}/indicadores/relatorio-pdf`} target="_blank" rel="noreferrer" />}
+          >
+            <FileDown className="size-4" />
+            Exportar PDF
+          </Button>
+        </div>
       </div>
 
       {comSalarioPreenchido < totalAtivos && (

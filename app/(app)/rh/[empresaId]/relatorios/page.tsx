@@ -2,7 +2,8 @@ import Link from "next/link";
 import { FileDown, BarChart3 } from "lucide-react";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
-import { calcularNR01, NIVEIS_RISCO } from "@/lib/nr01";
+import { NIVEIS_RISCO } from "@/lib/nr01";
+import { nivelGeralComBackfill } from "@/lib/nr01-cache";
 import { CONVITES_NA_PESQUISA, participacaoPct } from "@/lib/pesquisa-numeros";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -51,34 +52,13 @@ export default async function RelatoriosPage({
   }));
 
   // Nível geral das avaliações NR-01 (só quando há amostra suficiente).
-  // As pesquisas são calculadas em paralelo — sequencial aqui significa
-  // multiplicar o tempo de carregamento pelo número de pesquisas NR-01 da empresa.
+  // Pesquisa FINISHED lê do cache gravado no encerramento (lib/nr01-cache.ts)
+  // em vez de recalcular — é o único estado em que o resultado não muda mais.
+  // ACTIVE/DRAFT seguem calculadas ao vivo, em paralelo entre pesquisas.
   const niveisEntries = await Promise.all(
     pesquisas.map(async (p) => {
-      if (p.modelo !== "NR01" || p._count.respostas === 0) {
-        return [p.id, null] as const;
-      }
-      const [perguntas, respostas] = await Promise.all([
-        prisma.pergunta.findMany({
-          where: { pesquisaId: p.id },
-          select: { id: true, codigo: true, enunciado: true, dimensao: true, invertida: true },
-        }),
-        prisma.resposta.findMany({
-          where: { pesquisaId: p.id },
-          select: {
-            setorNomeSnapshot: true,
-            posicaoNomeSnapshot: true,
-            itens: { select: { perguntaId: true, valorNumerico: true } },
-          },
-        }),
-      ]);
-      const resultado = calcularNR01(perguntas, respostas);
-      return [
-        p.id,
-        resultado.geral.amostraInsuficiente
-          ? null
-          : { nivel: resultado.geral.nivelGeral, indice: Math.round(resultado.geral.indiceGeral100) },
-      ] as const;
+      if (p._count.respostas === 0) return [p.id, null] as const;
+      return [p.id, await nivelGeralComBackfill(p)] as const;
     }),
   );
   const niveisPorPesquisa = new Map<string, { nivel: keyof typeof NIVEIS_RISCO; indice: number } | null>(

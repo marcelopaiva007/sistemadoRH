@@ -5,31 +5,26 @@ import { useState } from "react";
 import {
   AlertOctagon,
   FileCheck,
+  CalendarDays,
   CheckCircle2,
   CheckSquare,
   Download,
   HardHat,
   Rocket,
   ShieldCheck,
-  Briefcase,
-  FileText,
+  Plane,
+  DoorOpen,
+  ClipboardList,
+  Star,
+  MessagesSquare,
+  History,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-
-type Pendencias = {
-  aprovacoes: number;
-  documentosAConferir: number;
-  asoVencendo: number;
-  certificadosVencendo: number;
-  catPendente: number;
-  integracoesAtrasadas: number;
-  epiVencido: number;
-  desligamentosIncompletos: number;
-  movimentacoesAdministrativas: number;
-  atestadosMedicosSemRegistro: number;
-};
+// O tipo vem da lib, não de uma cópia local: a cópia divergiu quando as seis
+// situações novas entraram e o build caiu por isso.
+import type { Pendencias } from "@/lib/pendencias";
 
 export function PendenciasView({
   empresaId,
@@ -65,6 +60,7 @@ export function PendenciasView({
     descricao: string;
     href: string;
     icon: LucideIcon;
+    // Urgente = tem prazo legal ou já estourou. Muda a cor, não a ordem.
     urgente?: boolean;
   }[] = [
     {
@@ -72,22 +68,6 @@ export function PendenciasView({
       titulo: "CAT sem emitir",
       descricao: "Prazo legal de 1 dia útil ao INSS — imediato se for fatal.",
       href: `/rh/${empresaId}/acidentes`,
-      icon: AlertOctagon,
-      urgente: true,
-    },
-    {
-      chave: "epiVencido",
-      titulo: "EPI vencido",
-      descricao: "Equipamento de proteção fora da validade, com a pessoa em campo.",
-      href: `/rh/${empresaId}/vencimentos`,
-      icon: HardHat,
-      urgente: true,
-    },
-    {
-      chave: "desligamentosIncompletos",
-      titulo: "Desligamentos incompletos",
-      descricao: "Processos de desligamento ainda sem acertos finalizados.",
-      href: `/rh/${empresaId}/desligamentos`,
       icon: AlertOctagon,
       urgente: true,
     },
@@ -117,7 +97,15 @@ export function PendenciasView({
       titulo: "NR vencendo",
       descricao: `Certificados de norma no limite dos ${diasAlerta} dias.`,
       href: `/rh/${empresaId}/conformidade`,
-      icon: Briefcase,
+      icon: CalendarDays,
+    },
+    {
+      chave: "epiVencido",
+      titulo: "EPI vencido",
+      descricao: "Equipamento de proteção fora da validade, com a pessoa em campo.",
+      href: `/rh/${empresaId}/vencimentos`,
+      icon: HardHat,
+      urgente: true,
     },
     {
       chave: "integracoesAtrasadas",
@@ -127,18 +115,48 @@ export function PendenciasView({
       icon: Rocket,
     },
     {
-      chave: "movimentacoesAdministrativas",
-      titulo: "Movimentações administrativas pendentes",
-      descricao: "Mudanças de setor/cargo não processadas ainda.",
-      href: `/rh/${empresaId}/colaboradores`,
-      icon: Briefcase,
+      chave: "feriasVencidas",
+      titulo: "Férias vencidas",
+      descricao: "12+ meses de casa sem férias aprovadas no último ano — risco de dobra.",
+      href: `/rh/${empresaId}/ferias`,
+      icon: Plane,
+      urgente: true,
     },
     {
-      chave: "atestadosMedicosSemRegistro",
-      titulo: "Atestados médicos sem registro",
-      descricao: "Comunicações de afastamento não lançadas no sistema.",
-      href: `/rh/${empresaId}/vencimentos`,
-      icon: FileText,
+      chave: "avisoPrevio",
+      titulo: "Aviso prévio em curso",
+      descricao: "Saída registrada para os próximos 7 dias; o offboarding precisa andar.",
+      href: `/rh/${empresaId}/desligamentos`,
+      icon: DoorOpen,
+      urgente: true,
+    },
+    {
+      chave: "desligamentosIncompletos",
+      titulo: "Desligamento incompleto",
+      descricao: "Pessoa já saiu com item de offboarding em aberto (crachá, acesso, EPI…).",
+      href: `/rh/${empresaId}/desligamentos`,
+      icon: ClipboardList,
+    },
+    {
+      chave: "avaliacoesAtrasadas",
+      titulo: "Avaliação atrasada",
+      descricao: "Ciclo com janela encerrada e avaliações ainda pendentes.",
+      href: `/rh/${empresaId}/avaliacoes`,
+      icon: Star,
+    },
+    {
+      chave: "convitesSemResposta",
+      titulo: "Pesquisa sem resposta",
+      descricao: "Pessoas com convite de pesquisa ativa aguardando resposta.",
+      href: `/rh/${empresaId}/pesquisas`,
+      icon: MessagesSquare,
+    },
+    {
+      chave: "fichasDesatualizadas",
+      titulo: "Ficha sem atualização",
+      descricao: "Cadastro sem nenhuma gravação há mais de 6 meses.",
+      href: `/rh/${empresaId}/colaboradores`,
+      icon: History,
     },
   ];
 
