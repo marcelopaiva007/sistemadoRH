@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState, useEffect } from "react";
+import { useActionState, useState, useMemo } from "react";
 import { useFiltroEmpresas } from "../filtro-empresas";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2 } from "lucide-react";
@@ -50,13 +50,17 @@ export function SetoresTable({
   setores: Setor[];
 }) {
   const empresasSelecionadas = useFiltroEmpresas(empresasDoUsuario);
-  const [setoresFiltrados, setSetoresFiltrados] = useState(setores);
+  // Estado DERIVADO do filtro: useMemo, não useState + useEffect.
+  // A forma anterior (setState dentro de effect) dispara render em cascata — o
+  // lint barra, e com razão: foi essa mesma forma que congelou a tela de
+  // colaboradores em 31/07/2026, quando o retorno do hook mudava de identidade
+  // a cada render e realimentava o efeito.
+  const setoresFiltrados = useMemo(
+    () => setores.filter((s) => empresasSelecionadas.includes(s.empresaId)),
+    [setores, empresasSelecionadas],
+  );
   const [createOpen, setCreateOpen] = useState(false);
   const [editSetor, setEditSetor] = useState<Setor | null>(null);
-
-  useEffect(() => {
-    setSetoresFiltrados(setores.filter((s) => empresasSelecionadas.includes(s.empresaId)));
-  }, [setores, empresasSelecionadas]);
 
   return (
     <div className="space-y-4">
