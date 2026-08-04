@@ -50,6 +50,19 @@ em `.json`/`.md`/`.css` staged, automaticamente. Scripts relacionados:
 | `npm run lint` / `lint:fix` | ESLint, com ou sem autofix                                                                                                      |
 | `npm run format`            | Prettier no projeto inteiro                                                                                                     |
 
+### CI
+
+`.github/workflows/ci.yml` roda em todo push/PR pro `master`: sobe um
+Postgres descartável, aplica as migrations do zero (`prisma migrate deploy`),
+depois `type-check` → `lint` → `build`. Não faz deploy — a integração
+nativa Vercel↔GitHub já builda e publica a cada push no `master`
+independente do Actions; o CI só é o sinal vermelho/verde de que aquele
+push está num estado buildável antes/depois da Vercel fazer o dela.
+
+`.github/dependabot.yml` abre PR semanal (segunda) pra dependências npm e
+pras próprias Actions, ignorando major de `next`/`react`/`react-dom`/`prisma`
+(essas exigem teste manual, não é pra virar PR automático).
+
 ## Banco de Dados
 
 O build falha se `DATABASE_URL` não estiver configurada. Escolha uma opção:

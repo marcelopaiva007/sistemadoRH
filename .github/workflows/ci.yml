@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: sistemadorh
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/sistemadorh?schema=rh
+      AUTH_SECRET: ci-only-secret-nao-usar-em-producao
+      NEXTAUTH_URL: http://localhost:3000
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Type-check
+        run: npm run type-check
+
+      - name: Lint
+        run: npm run lint
+
+      # Aplica as migrations reais num banco vazio antes do build: além de
+      # validar que elas rodam do zero sem erro, popula `_prisma_migrations`
+      # para que `checar-migracoes.mjs` (chamado dentro de `npm run build`)
+      # tenha o que comparar — sem isso ele aborta porque a tabela não existe
+      # ainda num Postgres recém-criado (ver prisma/checar-migracoes.mjs).
+      - name: Aplicar migrations no banco de CI
+        run: npx prisma migrate deploy
+
+      - name: Build
+        run: npm run build
+
+  # Deploy é automático: a integração nativa Vercel↔GitHub builda e publica
+  # a cada push no master, sem precisar de step aqui. Este workflow só
+  # garante que o que está subindo passou por type-check/lint/migrations/
+  # build antes — não substitui nem duplica o deploy da Vercel.
