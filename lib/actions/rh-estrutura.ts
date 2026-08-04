@@ -62,18 +62,33 @@ async function resolverLogo(
   return { ok: true, logoUrl: envio.url };
 }
 
+const HEX_COR = /^#[0-9a-fA-F]{6}$/;
+
+/** null = campo vazio (usa o azul padrão do tema); string validada; erro se preenchido e inválido. */
+function lerCorPrimaria(fd: FormData): { ok: true; cor: string | null } | { ok: false; error: string } {
+  const bruto = texto(fd, "corPrimaria");
+  if (!bruto) return { ok: true, cor: null };
+  if (!HEX_COR.test(bruto)) {
+    return { ok: false, error: "Cor inválida — use o seletor ou um hex tipo #2563EB." };
+  }
+  return { ok: true, cor: bruto.toUpperCase() };
+}
+
 export async function criarMarca(_prev: ActionResult, fd: FormData): Promise<ActionResult> {
   await requireRHAccess();
 
   const nome = texto(fd, "nome");
   if (!nome) return { ok: false, error: "Informe o nome da marca." };
 
+  const cor = lerCorPrimaria(fd);
+  if (!cor.ok) return cor;
+
   try {
     // Cria primeiro sem logo pra ter o id (o caminho no Blob é por marca);
     // o upload preenche em seguida. Se o upload falhar, a marca fica criada
     // sem logo e o erro aparece — melhor que perder o cadastro inteiro.
     const marca = await prisma.marca.create({
-      data: { nome, logoUrl: texto(fd, "logoUrl") },
+      data: { nome, logoUrl: texto(fd, "logoUrl"), corPrimaria: cor.cor },
     });
 
     const logo = await resolverLogo(fd, marca.id);
@@ -112,12 +127,16 @@ export async function editarMarca(
   const logo = await resolverLogo(fd, marcaId);
   if (!logo.ok) return logo;
 
+  const cor = lerCorPrimaria(fd);
+  if (!cor.ok) return cor;
+
   try {
     await prisma.marca.update({
       where: { id: marcaId },
       data: {
         nome,
         logoUrl: logo.logoUrl,
+        corPrimaria: cor.cor,
         ativo: fd.get("ativo") === "true",
       },
     });

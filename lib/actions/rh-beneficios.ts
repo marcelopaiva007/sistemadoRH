@@ -8,7 +8,23 @@ import { dataDoFormulario, formatarData, hojeUTC } from "@/lib/datas";
 import { TIPOS_BENEFICIO, lerValorMonetario, tipoBeneficioLabel } from "@/lib/constants-beneficios";
 import type { ActionResult } from "@/lib/constants";
 
-const TIPOS_VALIDOS = new Set<string>(TIPOS_BENEFICIO.map((t) => t.value));
+const TIPOS_FIXOS = new Set<string>(TIPOS_BENEFICIO.map((t) => t.value));
+
+/**
+ * Válido = está no catálogo fixo OU é um TipoBeneficio ativo desta empresa
+ * (lib/actions/rh-tipos-beneficio.ts — catálogo aditivo). Consulta ao banco
+ * em vez de confiar no que o cliente mandou: um `<select>` reflete o que
+ * existe no momento em que a página carregou, e a tela podia estar aberta
+ * há horas quando alguém desativou o tipo.
+ */
+async function tipoValido(empresaId: string, tipo: string): Promise<boolean> {
+  if (TIPOS_FIXOS.has(tipo)) return true;
+  const custom = await prisma.tipoBeneficio.findFirst({
+    where: { empresaId, nome: tipo, ativo: true },
+    select: { id: true },
+  });
+  return custom !== null;
+}
 
 export async function concederBeneficio(
   empresaId: string,
@@ -25,7 +41,9 @@ export async function concederBeneficio(
   if (!colaborador) return { ok: false, error: "Colaborador não encontrado nesta empresa." };
 
   const tipo = String(formData.get("tipo") ?? "").trim();
-  if (!TIPOS_VALIDOS.has(tipo)) return { ok: false, error: "Selecione o tipo do benefício." };
+  if (!tipo || !(await tipoValido(empresaId, tipo))) {
+    return { ok: false, error: "Selecione o tipo do benefício." };
+  }
 
   const dataInicio = dataDoFormulario(formData.get("dataInicio"));
   if (!dataInicio) return { ok: false, error: "Informe a data de início." };

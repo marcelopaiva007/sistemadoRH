@@ -127,12 +127,17 @@ model UserEmpresa {
 // CNPJ porque é esse o vínculo empregatício, não à marca.
 
 model Marca {
-  id        String   @id @default(cuid())
-  nome      String   @unique
-  logoUrl   String?
-  ativo     Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt
+  id          String   @id @default(cuid())
+  nome        String   @unique
+  logoUrl     String?
+  // Hex "#RRGGBB", validado na action antes de gravar. Aplicado como override
+  // da variável CSS --primary no layout da empresa (server component) — só
+  // nesse subtree, não muda o tema global nem outras marcas. null = usa o
+  // azul padrão do tema.
+  corPrimaria String?
+  ativo       Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
 
   empresas  Empresa[]
   pesquisas Pesquisa[]
@@ -190,15 +195,36 @@ model Empresa {
   cidade            String?
   uf                String?
 
-  marca         Marca         @relation(fields: [marcaId], references: [id])
-  setores       Setor[]
-  posicoes      Posicao[]
-  colaboradores Colaborador[]
-  pesquisas     Pesquisa[]
-  userEmpresas  UserEmpresa[]
-  planosAcao    PlanoAcao[]
+  marca          Marca           @relation(fields: [marcaId], references: [id])
+  setores        Setor[]
+  posicoes       Posicao[]
+  colaboradores  Colaborador[]
+  pesquisas      Pesquisa[]
+  userEmpresas   UserEmpresa[]
+  planosAcao     PlanoAcao[]
+  tiposBeneficio TipoBeneficio[]
 
   @@index([marcaId])
+  @@schema("rh")
+}
+
+// Catálogo de benefícios ADITIVO: lib/constants-beneficios.ts continua tendo
+// os 11 tipos fixos que sempre existiram (VALE_TRANSPORTE, PLANO_SAUDE, ...) —
+// nenhum BeneficioColaborador antigo muda de significado. Esta tabela só
+// ACRESCENTA opções por empresa, pro RH cadastrar o que o catálogo fixo não
+// cobre (ex.: "Auxílio-home-office", específico de uma empresa) sem esperar
+// deploy. `BeneficioColaborador.tipo` continua String livre — aceita tanto um
+// value do catálogo fixo quanto o nome de uma linha daqui.
+model TipoBeneficio {
+  id        String   @id @default(cuid())
+  empresaId String
+  empresa   Empresa  @relation(fields: [empresaId], references: [id])
+  nome      String
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@unique([empresaId, nome])
+  @@index([empresaId])
   @@schema("rh")
 }
 

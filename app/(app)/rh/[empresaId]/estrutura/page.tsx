@@ -22,6 +22,7 @@ export default async function EstruturaPage({
       id: true,
       nome: true,
       logoUrl: true,
+      corPrimaria: true,
       ativo: true,
       empresas: {
         orderBy: { nome: "asc" },

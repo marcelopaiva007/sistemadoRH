@@ -4,6 +4,20 @@ import { prisma } from "@/lib/prisma";
 import { RHEmpresaNav } from "./rh-empresa-nav";
 import { ListaEmpresas } from "./lista-empresas";
 
+/**
+ * Branco em cima da cor da marca, ou quase-preto se a cor for clara demais
+ * pro branco ler bem (luminância relativa > 0.6, limiar comum de contraste).
+ * Sem isto, uma marca escolhendo amarelo ou branco deixaria o texto dos
+ * botões ilegível — validado só na hora de aplicar, não impede o cadastro.
+ */
+function corDeContraste(hex: string): string {
+  const r = parseInt(hex.slice(1, 3), 16) / 255;
+  const g = parseInt(hex.slice(3, 5), 16) / 255;
+  const b = parseInt(hex.slice(5, 7), 16) / 255;
+  const luminancia = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  return luminancia > 0.6 ? "#0a0a0a" : "#ffffff";
+}
+
 export default async function RHEmpresaLayout({
   children,
   params,
@@ -27,14 +41,25 @@ export default async function RHEmpresaLayout({
   const marcas = await prisma.marca.findMany({
     where: { id: { in: marcasIds } },
     orderBy: { nome: "asc" },
-    select: { id: true, nome: true },
+    select: { id: true, nome: true, corPrimaria: true },
   });
 
   const empresa = empresas.find((e) => e.id === empresaId);
   if (!empresa) notFound();
 
+  // Cor da marca sobrescreve --primary só neste subtree (o resto do app —
+  // topbar, telas fora de /rh/<empresa> — fica no azul padrão do tema).
+  // Sem Marca.corPrimaria, `estiloCor` fica undefined e nada muda.
+  const marcaAtiva = marcas.find((m) => m.id === empresa.marcaId);
+  const estiloCor = marcaAtiva?.corPrimaria
+    ? ({
+        "--primary": marcaAtiva.corPrimaria,
+        "--primary-foreground": corDeContraste(marcaAtiva.corPrimaria),
+      } as React.CSSProperties)
+    : undefined;
+
   return (
-    <div className="flex gap-6">
+    <div className="flex gap-6" style={estiloCor}>
       <aside className="sticky top-14 hidden h-[calc(100vh-3.5rem)] w-56 shrink-0 overflow-y-auto border-r pr-3 md:block">
         {/* A árvore É o filtro: marca mostra todos os CNPJs dela, CNPJ mostra
             só ele. Havia um painel de checkboxes aqui em cima fazendo o mesmo

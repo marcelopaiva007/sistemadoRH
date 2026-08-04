@@ -130,8 +130,9 @@ um **menu lateral agrupado pelos 5 blocos do artefato de escopo** (Ciclo de
 vida · Departamento pessoal · Desempenho & desenvolvimento · Saúde & segurança
 · Gestão), mais dois grupos no rodapé: **Configuração** (Visão geral —
 o hub `/rh/[empresaId]/configuracoes`, com um cartão de status por área —,
-Setores, Cargos, Marcas & CNPJs, Canais de envio, Lembretes) e
-**Administração** (Importações, Auditoria — ferramentas, não configuração).
+Setores, Cargos, Marcas & CNPJs, Canais de envio, Lembretes, Tipos de
+benefício) e **Administração** (Importações, Auditoria, Papéis e
+permissões — ferramentas e leitura, não configuração).
 
 - **A tela inicial da empresa é a central de pendências** (`/rh/<empresa>`),
   não um dashboard: mostra o que exige ação hoje — CAT sem emitir, aprovações
@@ -505,6 +506,37 @@ do período`. É uma aproximação (assume que ninguém foi reativado no meio do
   1. — o card de Benefícios só aponta a contagem, não duplica o dado.
 - Telas: aba **Benefícios** na ficha do colaborador; `/beneficios` — panorama
   por tipo (quantas pessoas, custo mensal para a empresa e desconto em folha).
+- **Tipos de benefício são aditivos** (`/tipos-beneficio`, grupo
+  Configuração): o catálogo fixo de `lib/constants-beneficios.ts` (11 tipos)
+  continua valendo sempre; a tela só deixa a empresa somar tipos próprios
+  (ex.: "Auxílio-home-office") sem esperar deploy. `BeneficioColaborador.tipo`
+  continua `String` livre — aceita valor do catálogo fixo ou nome cadastrado
+  aqui; a validação do servidor (`concederBeneficio`) confere as duas fontes.
+
+## Branding por marca
+
+- **Logo**: upload de arquivo (PNG/JPG/SVG/WebP, até 2 MB, Vercel Blob
+  público) ou URL colada — no formulário de Marca (`/estrutura`). Arquivo tem
+  prioridade; sem arquivo, vale a URL.
+- **Cor primária**: campo opcional (`Marca.corPrimaria`, hex) no mesmo
+  formulário. Aplicada em `[empresaId]/layout.tsx` como override escopado da
+  variável CSS `--primary` — só no subtree de quem está numa empresa daquela
+  marca, mesmo mecanismo que o antigo modo escuro do tema usava (indireção
+  `--color-primary: var(--primary)`). Cor de texto sobre o botão calculada por
+  luminância (branco ou quase-preto), para uma marca não escolher uma cor
+  clara e deixar o texto ilegível.
+
+## Papéis e permissões
+
+`/papeis` (grupo Administração) documenta, **sem editar nada**, o que os 4
+papéis fixos (`ADMIN`, `DIRETORIA`, `RH_MANAGER`, `GESTOR_SETOR`) podem fazer
+hoje — direto de `lib/auth-guard.ts` e `lib/rh-auth-guard.ts`, com contagem
+de usuários ativos por papel. Achado registrado na própria tela: o código
+comenta a intenção de `DIRETORIA` ser "só consulta", mas nenhuma guarda hoje
+distingue `DIRETORIA` de `ADMIN` para escrita no módulo de RH — na prática
+os dois têm o mesmo acesso de edição (só o CRUD de Empresa/CNPJ fica
+exclusivo de `ADMIN`). Não há papéis customizáveis nem permissão granular —
+mudar isso é redesenho de autorização, não configuração.
 
 ## Reconhecimento (Fase 2)
 

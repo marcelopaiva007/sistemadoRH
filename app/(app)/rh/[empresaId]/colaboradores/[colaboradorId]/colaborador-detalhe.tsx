@@ -52,6 +52,7 @@ export function ColaboradorDetalhe({
   candidatosSupervisor,
   movimentacoes,
   beneficios,
+  tiposBeneficioCustom,
   dependentesNoPlanoSaude,
   entregasEpi,
   acidentes,
@@ -82,6 +83,7 @@ export function ColaboradorDetalhe({
   candidatosSupervisor: Parameters<typeof MovimentacoesCard>[0]["candidatosSupervisor"];
   movimentacoes: Parameters<typeof MovimentacoesCard>[0]["movimentacoes"];
   beneficios: Parameters<typeof BeneficiosCard>[0]["beneficios"];
+  tiposBeneficioCustom: Parameters<typeof BeneficiosCard>[0]["tiposBeneficioCustom"];
   dependentesNoPlanoSaude: number;
   entregasEpi: Parameters<typeof EpisCard>[0]["entregas"];
   acidentes: Parameters<typeof AcidentesCard>[0]["acidentes"];
@@ -250,6 +252,7 @@ export function ColaboradorDetalhe({
             empresaId={empresaId}
             colaboradorId={colaborador.id}
             beneficios={beneficios}
+            tiposBeneficioCustom={tiposBeneficioCustom}
             temDependentesNoPlano={dependentesNoPlanoSaude}
           />
         </TabsContent>

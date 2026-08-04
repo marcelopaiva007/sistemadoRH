@@ -16,6 +16,7 @@ import {
   ClipboardList,
   Clock,
   CreditCard,
+  Tags,
   FileBarChart,
   FileUp,
   GraduationCap,
@@ -32,6 +33,7 @@ import {
   Send,
   Settings,
   ShieldCheck,
+  UserCog,
   Star,
   Target,
   Users,
@@ -107,6 +109,7 @@ const GRUPOS = [
       { slug: "estrutura", label: "Marcas & CNPJs", icon: Building2 },
       { slug: "canais", label: "Canais de envio", icon: Send },
       { slug: "lembretes", label: "Lembretes", icon: Clock },
+      { slug: "tipos-beneficio", label: "Tipos de benefício", icon: Tags },
     ],
   },
   {
@@ -117,6 +120,7 @@ const GRUPOS = [
     itens: [
       { slug: "importacoes", label: "Importações", icon: FileUp },
       { slug: "auditoria", label: "Auditoria", icon: History },
+      { slug: "papeis", label: "Papéis e permissões", icon: UserCog },
     ],
   },
 ] as const;

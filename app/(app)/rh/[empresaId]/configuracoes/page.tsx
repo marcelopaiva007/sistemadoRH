@@ -6,6 +6,7 @@ import {
   History,
   ListChecks,
   Send,
+  Tags,
   UsersRound,
 } from "lucide-react";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
@@ -25,15 +26,17 @@ export default async function ConfiguracoesPage({
   const { empresaId } = await params;
   await requireEmpresaAccess(empresaId);
 
-  const [setores, posicoes, marcas, empresas, telegram, smtp, lembretes] = await Promise.all([
-    prisma.setor.count({ where: { empresaId, ativo: true } }),
-    prisma.posicao.count({ where: { empresaId, ativo: true } }),
-    prisma.marca.count({ where: { ativo: true } }),
-    prisma.empresa.count({ where: { ativo: true } }),
-    statusDoSegredo(CHAVE_TELEGRAM),
-    statusDoSmtp(),
-    prisma.configuracaoLembrete.findMany({ select: { chave: true, ativo: true } }),
-  ]);
+  const [setores, posicoes, marcas, empresas, telegram, smtp, lembretes, tiposBeneficio] =
+    await Promise.all([
+      prisma.setor.count({ where: { empresaId, ativo: true } }),
+      prisma.posicao.count({ where: { empresaId, ativo: true } }),
+      prisma.marca.count({ where: { ativo: true } }),
+      prisma.empresa.count({ where: { ativo: true } }),
+      statusDoSegredo(CHAVE_TELEGRAM),
+      statusDoSmtp(),
+      prisma.configuracaoLembrete.findMany({ select: { chave: true, ativo: true } }),
+      prisma.tipoBeneficio.count({ where: { empresaId, ativo: true } }),
+    ]);
 
   const chavesComHorarioProprio = new Set(lembretes.map(l => l.chave));
   const totalLembretes = Object.keys(LEMBRETES_CONFIGURAVEIS).length;
@@ -93,6 +96,14 @@ export default async function ConfiguracoesPage({
           : `${ajustados} de ${totalLembretes} com horário ajustado`,
       alerta: false,
       icon: Clock,
+    },
+    {
+      slug: "tipos-beneficio",
+      titulo: "Tipos de benefício",
+      descricao: "Catálogo padrão + tipos próprios desta empresa.",
+      status: tiposBeneficio === 0 ? "Só o catálogo padrão" : `${tiposBeneficio} tipo(s) próprio(s)`,
+      alerta: false,
+      icon: Tags,
     },
     {
       slug: "auditoria",

@@ -280,6 +280,16 @@ export default async function ColaboradorPage({
   const conformidade = conformidadeDoColaborador(requisitos, certificados);
   const situacaoExame = situacaoDoExame(exames);
 
+  // Fora do Promise.all de cima de propósito: aquele array já tem 24
+  // posições — inserir no meio dele para uma busca nova é o tipo de mudança
+  // fácil de desalinhar sem notar. Esta é independente e mais barata que
+  // tudo ali (uma tabela pequena, sem relations).
+  const tiposBeneficioCustom = await prisma.tipoBeneficio.findMany({
+    where: { empresaId, ativo: true },
+    orderBy: { nome: "asc" },
+    select: { nome: true },
+  });
+
   const admissao = candidaturaDeOrigem
     ? {
         vaga: candidaturaDeOrigem.vaga,
@@ -318,6 +328,7 @@ export default async function ColaboradorPage({
         candidatosSupervisor={candidatosSupervisor}
         movimentacoes={movimentacoes}
         beneficios={beneficios}
+        tiposBeneficioCustom={tiposBeneficioCustom.map((t) => t.nome)}
         dependentesNoPlanoSaude={colaborador._count.dependentes}
         entregasEpi={entregasEpi}
         acidentes={acidentes}
