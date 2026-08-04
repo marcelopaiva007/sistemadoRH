@@ -24,7 +24,16 @@ if (!process.env.DATABASE_URL) {
   try { await import('dotenv/config'); } catch { /* sem dotenv: segue o ambiente */ }
 }
 
-const required = ['DATABASE_URL', 'AUTH_SECRET', 'NEXTAUTH_URL'];
+// NEXTAUTH_URL só é exigida onde a URL é fixa e conhecida: produção e local.
+// Em deploy de PREVIEW a URL nasce com o deploy (a Vercel entrega VERCEL_URL,
+// e o next-auth infere a partir dela), então cobrar a variável ali reprovava
+// TODO preview — foi o que manteve as 7 PRs do Dependabot vermelhas em
+// 04/08/2026, sem ter relação nenhuma com o conteúdo delas.
+const ehPreview = process.env.VERCEL_ENV === 'preview';
+
+const required = ['DATABASE_URL', 'AUTH_SECRET'];
+if (!ehPreview) required.push('NEXTAUTH_URL');
+
 const missing = required.filter(v => !process.env[v]);
 
 if (missing.length > 0) {
