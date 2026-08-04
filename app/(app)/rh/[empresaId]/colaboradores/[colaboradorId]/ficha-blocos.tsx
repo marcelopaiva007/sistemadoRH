@@ -9,7 +9,7 @@ import {
   TIPOS_CONTA_BANCARIA,
   TIPOS_CONTRATO,
 } from "@/lib/constants-dp";
-import { CampoData, CampoSelect, CampoTexto, FormularioAction } from "./campos";
+import { Campo, CampoData, CampoSelect, CampoTexto, FormularioAction } from "./campos";
 
 // A ficha é dividida em blocos e cada bloco posta só os seus campos — a action
 // grava apenas o que veio no FormData, então um bloco nunca apaga o outro.
@@ -58,7 +58,30 @@ type Colaborador = {
   tipoContrato: string | null;
   jornadaSemanal: number | null;
   salarioBase: number | null;
+  setorId: string;
+  posicaoId: string;
+  supervisorId: string | null;
+  setor: { id: string; nome: string };
+  posicao: { id: string; nome: string };
+  supervisor: { id: string; nome: string } | null;
 };
+
+const classeSelect =
+  "h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:bg-input/30";
+
+/**
+ * As listas de setor/cargo vêm filtradas por `ativo: true`. Se a pessoa está
+ * hoje num setor desativado, ele não estaria entre as opções e o <select>
+ * abriria mostrando outro setor — o RH salvaria uma mudança que não pediu.
+ * Garantir o atual na lista evita isso.
+ */
+function comAtual(
+  opcoes: { id: string; nome: string }[],
+  atual: { id: string; nome: string },
+): { value: string; label: string }[] {
+  const lista = opcoes.some((o) => o.id === atual.id) ? opcoes : [atual, ...opcoes];
+  return lista.map((o) => ({ value: o.id, label: o.nome }));
+}
 
 const SEXOS = [
   { value: "Masculino", label: "Masculino" },
@@ -98,15 +121,61 @@ function Bloco({
 export function FichaBlocos({
   empresaId,
   colaborador,
+  setores,
+  posicoes,
+  candidatosSupervisor,
 }: {
   empresaId: string;
   colaborador: Colaborador;
+  setores: { id: string; nome: string }[];
+  posicoes: { id: string; nome: string }[];
+  candidatosSupervisor: { id: string; nome: string }[];
 }) {
   const acao = atualizarFicha.bind(null, empresaId, colaborador.id);
   const c = colaborador;
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
+      <Bloco
+        titulo="Estrutura"
+        descricao="Onde a pessoa está hoje. Corrija aqui o cadastro; promoção ou transferência com histórico é na aba Carreira."
+        acao={acao}
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          <CampoSelect
+            name="setorId"
+            label="Setor"
+            opcoes={comAtual(setores, c.setor)}
+            defaultValue={c.setorId}
+            placeholder="Selecione o setor"
+            required
+          />
+          <CampoSelect
+            name="posicaoId"
+            label="Cargo"
+            opcoes={comAtual(posicoes, c.posicao)}
+            defaultValue={c.posicaoId}
+            placeholder="Selecione o cargo"
+            required
+          />
+          <Campo label="Reporta a" className="sm:col-span-2">
+            {/* Sem CampoSelect: aqui a opção vazia é um valor de verdade
+                ("sem líder"), não um placeholder a ser rejeitado. */}
+            <select name="supervisorId" defaultValue={c.supervisorId ?? ""} className={classeSelect}>
+              <option value="">Sem líder</option>
+              {(c.supervisor && !candidatosSupervisor.some((s) => s.id === c.supervisor!.id)
+                ? [c.supervisor, ...candidatosSupervisor]
+                : candidatosSupervisor
+              ).map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.nome}
+                </option>
+              ))}
+            </select>
+          </Campo>
+        </div>
+      </Bloco>
+
       <Bloco titulo="Identificação" acao={acao}>
         <div className="grid gap-4 sm:grid-cols-2">
           <CampoTexto name="nome" label="Nome completo" defaultValue={c.nome} required className="sm:col-span-2" />

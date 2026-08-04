@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { registrarAuditoria, diffCampos } from "@/lib/audit";
+import { criariCiclo } from "@/lib/organograma";
 import { dataDoFormulario } from "@/lib/datas";
 import type { ActionResult } from "@/lib/constants";
 
@@ -67,6 +68,12 @@ const CAMPOS: Record<string, Tipo> = {
 // completada aos poucos e travar demais só faz o RH desistir de preencher).
 const SO_DIGITOS = new Set(["cpf", "pis", "tituloEleitor", "cep"]);
 
+// Sentinela do <select> de líder: campo ausente = bloco não postou isso;
+// string vazia = "sem líder". Fora da tabela CAMPOS porque setor/cargo/líder
+// são chaves estrangeiras — precisam ser conferidas contra a empresa antes de
+// gravar, e um id inválido aqui é erro de escopo, não texto livre.
+const CAMPOS_ESTRUTURA = ["setorId", "posicaoId", "supervisorId"] as const;
+
 function lerCampo(formData: FormData, campo: string, tipo: Tipo): unknown | undefined {
   if (!formData.has(campo)) return undefined;
   const bruto = formData.get(campo);
@@ -86,6 +93,65 @@ function lerCampo(formData: FormData, campo: string, tipo: Tipo): unknown | unde
   return SO_DIGITOS.has(campo) ? texto.replace(/\D/g, "") : texto;
 }
 
+/**
+ * Confere setor/cargo/líder contra a empresa da rota e escreve em `data`.
+ * Devolve a mensagem de erro, ou null se está tudo certo.
+ *
+ * Setor e cargo são obrigatórios no banco (NOT NULL): a ficha corrige quem
+ * ficou em "Não definido" na importação, nunca esvazia. Líder é opcional e
+ * pode ser removido — vazio ali significa "sem líder".
+ *
+ * Aceita setor/cargo inativos: quem já está num setor desativado continua
+ * podendo ter o resto da estrutura corrigida sem ser forçado a mudar de setor
+ * na mesma tacada.
+ */
+async function validarEstrutura(
+  empresaId: string,
+  colaborador: { id: string; supervisorId: string | null },
+  formData: FormData,
+  data: Record<string, unknown>,
+): Promise<string | null> {
+  const colaboradorId = colaborador.id;
+
+  const setorId = String(formData.get("setorId") ?? "").trim();
+  if (formData.has("setorId")) {
+    if (!setorId) return "Selecione o setor.";
+    const setor = await prisma.setor.findFirst({ where: { id: setorId, empresaId }, select: { id: true } });
+    if (!setor) return "Setor inválido para esta empresa.";
+    data.setorId = setorId;
+  }
+
+  const posicaoId = String(formData.get("posicaoId") ?? "").trim();
+  if (formData.has("posicaoId")) {
+    if (!posicaoId) return "Selecione o cargo.";
+    const posicao = await prisma.posicao.findFirst({ where: { id: posicaoId, empresaId }, select: { id: true } });
+    if (!posicao) return "Cargo inválido para esta empresa.";
+    data.posicaoId = posicaoId;
+  }
+
+  if (formData.has("supervisorId")) {
+    const supervisorId = String(formData.get("supervisorId") ?? "").trim();
+    if (!supervisorId) {
+      data.supervisorId = null;
+    } else if (supervisorId !== colaborador.supervisorId) {
+      // Manter o líder atual nunca é rejeitado: ele pode ter sido desligado e
+      // ainda não substituído, e travar aqui impediria corrigir o setor.
+      if (supervisorId === colaboradorId) return "Alguém não pode liderar a si mesmo.";
+      const supervisor = await prisma.colaborador.findFirst({
+        where: { id: supervisorId, empresaId, ativo: true },
+        select: { id: true },
+      });
+      if (!supervisor) return "Líder inválido para esta empresa.";
+      if (await criariCiclo(colaboradorId, supervisorId)) {
+        return "Essa escolha criaria um ciclo de liderança (A lidera B que lidera A).";
+      }
+      data.supervisorId = supervisorId;
+    }
+  }
+
+  return null;
+}
+
 export async function atualizarFicha(
   empresaId: string,
   colaboradorId: string,
@@ -102,6 +168,14 @@ export async function atualizarFicha(
     const valor = lerCampo(formData, campo, tipo);
     if (valor !== undefined) data[campo] = valor;
   }
+
+  // Estrutura (setor/cargo/líder). Só entra se o bloco de estrutura postou —
+  // nenhum outro bloco da ficha manda esses campos.
+  if (CAMPOS_ESTRUTURA.some((c) => formData.has(c))) {
+    const erro = await validarEstrutura(empresaId, atual, formData, data);
+    if (erro) return { ok: false, error: erro };
+  }
+
   if (Object.keys(data).length === 0) return { ok: true };
 
   if (typeof data.nome === "string" && data.nome.length < 2) {
@@ -141,5 +215,14 @@ export async function atualizarFicha(
 
   revalidatePath(`/rh/${empresaId}/colaboradores/${colaboradorId}`);
   revalidatePath(`/rh/${empresaId}/colaboradores`);
+  // Mudança de estrutura sai do cadastro e reaparece em três telas: o
+  // organograma, os indicadores por setor e o bloco "Preenchimento da base" na
+  // tela inicial. Sem revalidar, o RH corrige o setor e o contador continua
+  // dizendo "2 sem setor definido".
+  if (data.setorId !== undefined || data.posicaoId !== undefined || data.supervisorId !== undefined) {
+    revalidatePath(`/rh/${empresaId}`);
+    revalidatePath(`/rh/${empresaId}/organograma`);
+    revalidatePath(`/rh/${empresaId}/indicadores`);
+  }
   return { ok: true };
 }

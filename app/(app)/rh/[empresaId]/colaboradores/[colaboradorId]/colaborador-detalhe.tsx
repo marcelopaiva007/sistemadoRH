@@ -30,9 +30,6 @@ import { IntegracaoCard } from "./integracao-card";
 type Colaborador = Parameters<typeof FichaBlocos>[0]["colaborador"] & {
   ativo: boolean;
   telegramChatId: string | null;
-  setor: { nome: string };
-  posicao: { nome: string };
-  supervisor: { id: string; nome: string } | null;
 };
 
 export function ColaboradorDetalhe({
@@ -204,7 +201,13 @@ export function ColaboradorDetalhe({
         </TabsList>
 
         <TabsContent value="ficha" className="pt-4">
-          <FichaBlocos empresaId={empresaId} colaborador={colaborador} />
+          <FichaBlocos
+            empresaId={empresaId}
+            colaborador={colaborador}
+            setores={setores}
+            posicoes={posicoes}
+            candidatosSupervisor={candidatosSupervisor}
+          />
         </TabsContent>
         <TabsContent value="dependentes" className="pt-4">
           <DependentesCard empresaId={empresaId} colaboradorId={colaborador.id} dependentes={dependentes} />
