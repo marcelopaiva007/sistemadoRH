@@ -38,9 +38,11 @@ export default async function RHEmpresaLayout({
       <aside className="sticky top-14 hidden h-[calc(100vh-3.5rem)] w-56 shrink-0 overflow-y-auto border-r pr-3 md:block">
         {/* A árvore É o filtro: marca mostra todos os CNPJs dela, CNPJ mostra
             só ele. Havia um painel de checkboxes aqui em cima fazendo o mesmo
-            papel — dois controles parecidos lado a lado. */}
+            papel — dois controles parecidos lado a lado.
+            Recolhido por padrão dentro do próprio componente (o resumo já diz
+            o que está filtrado) — sem isso a árvore sempre aberta empurrava a
+            navegação abaixo pra fora da tela. */}
         <div className="py-2">
-          <p className="text-xs font-medium text-muted-foreground px-2 py-2">Filtrar por marca/CNPJ</p>
           <ListaEmpresas marcas={marcas} empresas={empresas} empresaIdAtiva={empresaId} />
         </div>
 
@@ -52,7 +54,6 @@ export default async function RHEmpresaLayout({
             computador, mas a tela pequena não pode ficar sem navegação. */}
         <div className="mb-4 md:hidden space-y-2">
           <div className="px-4">
-            <p className="text-xs font-medium text-muted-foreground py-2">Filtrar por marca/CNPJ</p>
             <ListaEmpresas marcas={marcas} empresas={empresas} empresaIdAtiva={empresaId} />
           </div>
           <div className="mt-2 overflow-x-auto">
