@@ -128,9 +128,10 @@ inteiramente próprios deste app.
 O sistema abre em `/rh`, onde se escolhe a empresa. Dentro dela, a navegação é
 um **menu lateral agrupado pelos 5 blocos do artefato de escopo** (Ciclo de
 vida · Departamento pessoal · Desempenho & desenvolvimento · Saúde & segurança
-· Gestão), mais um grupo **Configuração** no rodapé com o que se ajusta de vez
-em quando (Setores, Cargos, Marcas & CNPJs, Canais de envio, Lembretes,
-Auditoria).
+· Gestão), mais dois grupos no rodapé: **Configuração** (Visão geral —
+o hub `/rh/[empresaId]/configuracoes`, com um cartão de status por área —,
+Setores, Cargos, Marcas & CNPJs, Canais de envio, Lembretes) e
+**Administração** (Importações, Auditoria — ferramentas, não configuração).
 
 - **A tela inicial da empresa é a central de pendências** (`/rh/<empresa>`),
   não um dashboard: mostra o que exige ação hoje — CAT sem emitir, aprovações

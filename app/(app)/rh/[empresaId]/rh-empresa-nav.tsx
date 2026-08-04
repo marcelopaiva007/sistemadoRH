@@ -29,6 +29,7 @@ import {
   Rocket,
   Search,
   Send,
+  Settings,
   ShieldCheck,
   Star,
   Target,
@@ -94,6 +95,9 @@ const GRUPOS = [
   {
     titulo: "Configuração",
     itens: [
+      // "Visão geral" é o hub: um cartão por área com o status real (canal
+      // ligado?, horário ajustado?) — o mapa de tudo que se configura.
+      { slug: "configuracoes", label: "Visão geral", icon: Settings },
       { slug: "setores", label: "Setores", icon: UsersRound },
       { slug: "posicoes", label: "Cargos", icon: ListChecks },
       // Estrutura é a única entrada aqui que configura o GRUPO, não a empresa
@@ -101,6 +105,14 @@ const GRUPOS = [
       { slug: "estrutura", label: "Marcas & CNPJs", icon: Building2 },
       { slug: "canais", label: "Canais de envio", icon: Send },
       { slug: "lembretes", label: "Lembretes", icon: Clock },
+    ],
+  },
+  {
+    // Importações e Auditoria moravam em "Configuração", mas não configuram
+    // nada: uma é ferramenta de carga de dados, a outra é trilha de leitura.
+    // Separadas para "Configuração" dizer só o que de fato se ajusta.
+    titulo: "Administração",
+    itens: [
       { slug: "importacoes", label: "Importações", icon: FileUp },
       { slug: "auditoria", label: "Auditoria", icon: History },
     ],
