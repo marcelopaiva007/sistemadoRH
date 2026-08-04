@@ -301,7 +301,19 @@ function MarcaForm({ marca, onSuccess }: { marca?: Marca; onSuccess: () => void 
         <Input id="nome" name="nome" defaultValue={marca?.nome} required autoFocus />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="logoUrl">Endereço do logo (opcional)</Label>
+        <Label htmlFor="logoArquivo">Logo (opcional)</Label>
+        <Input
+          id="logoArquivo"
+          name="logoArquivo"
+          type="file"
+          accept="image/png,image/jpeg,image/svg+xml,image/webp"
+        />
+        <p className="text-xs text-muted-foreground">
+          PNG, JPG, SVG ou WebP até 2 MB. O arquivo enviado substitui o endereço abaixo.
+        </p>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="logoUrl">Ou endereço do logo</Label>
         <Input id="logoUrl" name="logoUrl" defaultValue={marca?.logoUrl ?? ""} placeholder="https://..." />
       </div>
       {marca && (

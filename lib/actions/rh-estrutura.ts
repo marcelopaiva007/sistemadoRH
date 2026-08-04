@@ -6,6 +6,7 @@ import { requireRHAccess } from "@/lib/rh-auth-guard";
 import { registrarAuditoria } from "@/lib/audit";
 import { violouUnique } from "@/lib/prisma-erros";
 import { apenasDigitosCnpj, cnpjValido, ufValida } from "@/lib/cnpj";
+import { enviarLogoMarca } from "@/lib/blob";
 import type { ActionResult } from "@/lib/constants";
 
 // Estrutura do grupo: marcas e as pessoas jurídicas (CNPJs) de cada uma.
@@ -23,6 +24,44 @@ function texto(fd: FormData, campo: string): string | null {
 
 // ---------------------------------------------------------------- MARCAS
 
+// Teto generoso pra logo (a tela sugere PNG/SVG pequenos), mas abaixo do
+// limite de 5 MB do corpo de server action (next.config.ts) — estourar lá
+// vira erro genérico de rede; aqui vira mensagem que explica.
+const LOGO_MAX_BYTES = 2 * 1024 * 1024;
+const LOGO_TIPOS = ["image/png", "image/jpeg", "image/svg+xml", "image/webp"];
+
+/**
+ * Logo da marca: arquivo enviado tem prioridade sobre a URL colada. Sem
+ * arquivo, vale a URL (o caminho antigo continua funcionando — inclusive se o
+ * Blob não estiver configurado, o erro sai daqui com explicação, e nada mais
+ * do formulário é afetado).
+ */
+async function resolverLogo(
+  fd: FormData,
+  marcaId: string,
+): Promise<{ ok: true; logoUrl: string | null } | { ok: false; error: string }> {
+  const arquivo = fd.get("logoArquivo");
+  if (!(arquivo instanceof File) || arquivo.size === 0) {
+    return { ok: true, logoUrl: texto(fd, "logoUrl") };
+  }
+
+  if (!LOGO_TIPOS.includes(arquivo.type)) {
+    return { ok: false, error: "O logo precisa ser uma imagem PNG, JPG, SVG ou WebP." };
+  }
+  if (arquivo.size > LOGO_MAX_BYTES) {
+    return { ok: false, error: "O logo pode ter no máximo 2 MB." };
+  }
+
+  const envio = await enviarLogoMarca({
+    marcaId,
+    nome: arquivo.name || "logo",
+    mimeType: arquivo.type,
+    bytes: new Uint8Array(await arquivo.arrayBuffer()),
+  });
+  if (!envio.ok) return envio;
+  return { ok: true, logoUrl: envio.url };
+}
+
 export async function criarMarca(_prev: ActionResult, fd: FormData): Promise<ActionResult> {
   await requireRHAccess();
 
@@ -30,9 +69,19 @@ export async function criarMarca(_prev: ActionResult, fd: FormData): Promise<Act
   if (!nome) return { ok: false, error: "Informe o nome da marca." };
 
   try {
+    // Cria primeiro sem logo pra ter o id (o caminho no Blob é por marca);
+    // o upload preenche em seguida. Se o upload falhar, a marca fica criada
+    // sem logo e o erro aparece — melhor que perder o cadastro inteiro.
     const marca = await prisma.marca.create({
       data: { nome, logoUrl: texto(fd, "logoUrl") },
     });
+
+    const logo = await resolverLogo(fd, marca.id);
+    if (!logo.ok) return { ok: false, error: `Marca criada, mas o logo não subiu: ${logo.error}` };
+    if (logo.logoUrl !== marca.logoUrl) {
+      await prisma.marca.update({ where: { id: marca.id }, data: { logoUrl: logo.logoUrl } });
+    }
+
     await registrarAuditoria({
       acao: "CRIAR",
       entidade: "Marca",
@@ -60,12 +109,15 @@ export async function editarMarca(
   const nome = texto(fd, "nome");
   if (!nome) return { ok: false, error: "Informe o nome da marca." };
 
+  const logo = await resolverLogo(fd, marcaId);
+  if (!logo.ok) return logo;
+
   try {
     await prisma.marca.update({
       where: { id: marcaId },
       data: {
         nome,
-        logoUrl: texto(fd, "logoUrl"),
+        logoUrl: logo.logoUrl,
         ativo: fd.get("ativo") === "true",
       },
     });
