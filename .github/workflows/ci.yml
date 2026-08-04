@@ -48,14 +48,16 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      # Aplica as migrations reais num banco vazio antes do build: além de
-      # validar que elas rodam do zero sem erro, popula `_prisma_migrations`
-      # para que `checar-migracoes.mjs` (chamado dentro de `npm run build`)
-      # tenha o que comparar — sem isso ele aborta porque a tabela não existe
-      # ainda num Postgres recém-criado (ver prisma/checar-migracoes.mjs).
-      - name: Aplicar migrations no banco de CI
-        run: npx prisma migrate deploy
-
+      # Sem passo de migrations: este histórico NÃO é reproduzível do zero.
+      # Ele carrega migrations de quando o banco era dividido com o
+      # lm-bonificacao (schemas `shared` e `bonificacao`), migrations de
+      # reconciliação que nunca foram feitas para executar, e trechos aplicados
+      # à mão fora do fluxo do Prisma. Tentar `prisma migrate deploy` num banco
+      # vazio (04/08/2026) morreu em cadeia e reprovou toda PR aberta.
+      #
+      # O `checar-migracoes.mjs` dentro do build se reconhece no GitHub Actions
+      # e se pula — a pergunta dele é sobre o banco de PRODUÇÃO, e quem a
+      # responde é o build da Vercel, no deploy.
       - name: Build
         run: npm run build
 
