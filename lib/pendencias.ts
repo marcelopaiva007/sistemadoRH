@@ -277,58 +277,95 @@ export async function pendenciasPorEmpresa(
  * por falta de uso, exibidas sob um "Tudo em dia" verde. Para um prazo como o
  * da CAT (1 dia útil), dizer "em dia" sem base é pior do que não dizer nada.
  *
- * São existências (`findFirst` com um campo só), não contagens: a pergunta é
- * "existe alguma linha?", e o Postgres para na primeira que achar.
+ * Devolve por EMPRESA porque as duas telas fazem a mesma pergunta em escopos
+ * diferentes: a da empresa quer a marca inteira, a do grupo quer marca a marca.
  */
-export async function modulosSemRegistro(
+export async function empresasComRegistro(
   empresaIds: string[],
   cliente: Cliente = prisma,
-): Promise<Set<keyof Pendencias>> {
-  const vazios = new Set<keyof Pendencias>();
-  if (empresaIds.length === 0) return vazios;
+): Promise<Map<keyof Pendencias, Set<string>>> {
+  const mapa = new Map<keyof Pendencias, Set<string>>();
+  if (empresaIds.length === 0) return mapa;
 
   const empresaId = { in: empresaIds };
-  const so = { select: { id: true } } as const;
+  const por = ["empresaId"] as const;
+  const contar = { _all: true } as const;
 
-  // Cada entrada: a chave da pendência e como saber se o módulo dela já foi
-  // usado alguma vez. As que dependem só de Colaborador (férias vencidas, aviso
-  // prévio, ficha desatualizada) ficam de fora — sempre há base para calcular.
-  const checagens: [keyof Pendencias, Promise<{ id: string } | null>][] = [
-    ["asoVencendo", cliente.exameOcupacional.findFirst({ where: { empresaId }, ...so })],
-    ["certificadosVencendo", cliente.certificadoNR.findFirst({ where: { empresaId }, ...so })],
-    ["epiVencido", cliente.entregaEPI.findFirst({ where: { empresaId }, ...so })],
-    ["catPendente", cliente.acidenteTrabalho.findFirst({ where: { empresaId }, ...so })],
-    ["integracoesAtrasadas", cliente.checklistIntegracao.findFirst({ where: { empresaId }, ...so })],
-    [
-      "desligamentosIncompletos",
-      cliente.checklistDesligamento.findFirst({ where: { empresaId }, ...so }),
-    ],
-    ["documentosAConferir", cliente.documentoColaborador.findFirst({ where: { empresaId }, ...so })],
-    ["avaliacoesAtrasadas", cliente.avaliacaoDesempenho.findFirst({ where: { empresaId }, ...so })],
-    ["atestadosSemDocumento", cliente.ausencia.findFirst({ where: { empresaId }, ...so })],
-    ["horasExtrasExcedidas", cliente.eventoFolha.findFirst({ where: { empresaId }, ...so })],
-    [
-      "dependentesSemCpf",
-      cliente.dependente.findFirst({ where: { colaborador: { empresaId } }, ...so }),
-    ],
+  // As situações e onde ver se o módulo de cada uma já foi usado. As que
+  // dependem só de Colaborador (férias vencidas, aviso prévio, ficha
+  // desatualizada) ficam de fora — sempre há base para calcular.
+  //
+  // `groupBy` e não `findFirst`: a tela do grupo precisa saber isso por MARCA,
+  // e uma consulta por marca multiplicaria as idas ao banco na primeira tela
+  // depois do login. Assim são 12, quantas marcas forem.
+  //
+  // Chaves e consultas em duas listas paralelas, não numa lista de pares: o
+  // `groupBy` do Prisma infere o retorno a partir do argumento, e anotar o par
+  // como `[chave, Promise<LinhaAgrupada[]>]` faz o TypeScript exigir que o
+  // ARGUMENTO seja um LinhaAgrupada[] também. Compila assim, não com o par.
+  const chaves = [
+    "asoVencendo", "certificadosVencendo", "epiVencido", "catPendente",
+    "integracoesAtrasadas", "desligamentosIncompletos", "documentosAConferir",
+    "avaliacoesAtrasadas", "atestadosSemDocumento", "horasExtrasExcedidas",
+    "dependentesSemCpf", "contratosVencendo",
+  ] as const satisfies readonly (keyof Pendencias)[];
+
+  const achados = await Promise.all([
+    cliente.exameOcupacional.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
+    cliente.certificadoNR.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
+    cliente.entregaEPI.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
+    cliente.acidenteTrabalho.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
+    cliente.checklistIntegracao.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
+    cliente.checklistDesligamento.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
+    cliente.documentoColaborador.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
+    cliente.avaliacaoDesempenho.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
+    cliente.ausencia.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
+    cliente.eventoFolha.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
+    // Dependente não tem empresaId — só colaboradorId. A pergunta vira "quais
+    // empresas têm alguém com dependente".
+    cliente.colaborador.groupBy({
+      by: [...por],
+      _count: contar,
+      where: { empresaId, dependentes: { some: {} } },
+    }),
     // Contrato é diferente dos outros: a tabela é Colaborador, que nunca está
     // vazia. O que falta é a classificação — ninguém com contrato por prazo
     // marcado significa que o RH ainda não preencheu `tipoContrato`, e a
     // pendência não tem como existir.
-    [
-      "contratosVencendo",
-      cliente.colaborador.findFirst({
-        where: { empresaId, ativo: true, tipoContrato: { in: [...CONTRATOS_POR_PRAZO] } },
-        ...so,
-      }),
-    ],
-  ];
+    cliente.colaborador.groupBy({
+      by: [...por],
+      _count: contar,
+      where: { empresaId, ativo: true, tipoContrato: { in: [...CONTRATOS_POR_PRAZO] } },
+    }),
+  ]);
 
-  const achados = await Promise.all(checagens.map(([, p]) => p));
-  achados.forEach((linha, i) => {
-    if (linha === null) vazios.add(checagens[i][0]);
+  achados.forEach((linhas: LinhaAgrupada[], i) => {
+    mapa.set(chaves[i], new Set(linhas.map((l) => l.empresaId)));
   });
+  return mapa;
+}
+
+/**
+ * As situações que, num escopo, não têm NENHUM registro — a leitura de
+ * `empresasComRegistro` para um conjunto de CNPJs.
+ */
+export function semRegistroNoEscopo(
+  comRegistro: Map<keyof Pendencias, Set<string>>,
+  empresaIds: string[],
+): Set<keyof Pendencias> {
+  const vazios = new Set<keyof Pendencias>();
+  for (const [chave, empresas] of comRegistro) {
+    if (!empresaIds.some((id) => empresas.has(id))) vazios.add(chave);
+  }
   return vazios;
+}
+
+export async function modulosSemRegistro(
+  empresaIds: string[],
+  cliente: Cliente = prisma,
+): Promise<Set<keyof Pendencias>> {
+  if (empresaIds.length === 0) return new Set();
+  return semRegistroNoEscopo(await empresasComRegistro(empresaIds, cliente), empresaIds);
 }
 
 /**

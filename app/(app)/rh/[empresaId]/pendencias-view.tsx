@@ -216,7 +216,7 @@ export function PendenciasView({
           <h2 className="text-xl font-semibold tracking-tight">Pendências</h2>
           <p className="text-sm text-muted-foreground">
             {total === 0
-              ? "Nada esperando ação no momento."
+              ? `Nenhum item aberto — ${emDia.length} de ${cartoes.length} situações puderam ser avaliadas.`
               : `${total} ${total === 1 ? "item precisa" : "itens precisam"} de atenção.`}
           </p>
         </div>

@@ -3,7 +3,13 @@ import { redirect } from "next/navigation";
 import { AlertTriangle, Briefcase, Building2, CheckCircle2, CircleDashed, Rocket, Users } from "lucide-react";
 import { requireUser } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
-import { pendenciasPorEmpresa, totalPendencias, zeradas } from "@/lib/pendencias";
+import {
+  pendenciasPorEmpresa,
+  empresasComRegistro,
+  semRegistroNoEscopo,
+  totalPendencias,
+  zeradas,
+} from "@/lib/pendencias";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Indicador } from "@/components/indicador";
@@ -34,29 +40,35 @@ export default async function HomePage() {
     select: { id: true, nome: true, marca: { select: { id: true, nome: true } } },
   });
 
-  // Tudo agregado de uma vez, não uma rodada de queries por empresa: são 11
-  // idas ao banco no total (3 aqui + 8 em pendenciasPorEmpresa), quantas
-  // empresas forem. O laço anterior fazia 11 POR empresa — com os 11 CNPJs do
-  // grupo passava de 120, e esta é a primeira tela depois do login.
+  // Tudo agregado de uma vez, não uma rodada de queries por empresa: são 33
+  // idas ao banco no total (3 aqui + 18 em pendenciasPorEmpresa + 12 em
+  // empresasComRegistro), quantas empresas forem. O laço anterior fazia 11 POR
+  // empresa — com os 11 CNPJs do grupo passava de 120, e esta é a primeira
+  // tela depois do login.
   const ids = empresas.map((e) => e.id);
-  const [ativosPorEmpresa, vagasPorEmpresa, integracoesPorEmpresa, pendenciasPorId] = await Promise.all([
-    prisma.colaborador.groupBy({
-      by: ["empresaId"],
-      _count: { _all: true },
-      where: { empresaId: { in: ids }, ativo: true },
-    }),
-    prisma.vaga.groupBy({
-      by: ["empresaId"],
-      _count: { _all: true },
-      where: { empresaId: { in: ids }, status: "ABERTA" },
-    }),
-    prisma.checklistIntegracao.groupBy({
-      by: ["empresaId"],
-      _count: { _all: true },
-      where: { empresaId: { in: ids }, concluido: false, colaborador: { ativo: true } },
-    }),
-    pendenciasPorEmpresa(ids),
-  ]);
+  const [ativosPorEmpresa, vagasPorEmpresa, integracoesPorEmpresa, pendenciasPorId, comRegistro] =
+    await Promise.all([
+      prisma.colaborador.groupBy({
+        by: ["empresaId"],
+        _count: { _all: true },
+        where: { empresaId: { in: ids }, ativo: true },
+      }),
+      prisma.vaga.groupBy({
+        by: ["empresaId"],
+        _count: { _all: true },
+        where: { empresaId: { in: ids }, status: "ABERTA" },
+      }),
+      prisma.checklistIntegracao.groupBy({
+        by: ["empresaId"],
+        _count: { _all: true },
+        where: { empresaId: { in: ids }, concluido: false, colaborador: { ativo: true } },
+      }),
+      pendenciasPorEmpresa(ids),
+      // Para a etiqueta da marca não dizer "em dia" sobre módulo que ninguém
+      // abriu — mesmo engano que a tela da empresa tinha, só que aqui é a
+      // primeira coisa que se vê depois do login.
+      empresasComRegistro(ids),
+    ]);
 
   // Empresa sem registro nenhum não volta no groupBy — daí o `?? 0`.
   const contagem = (linhas: { empresaId: string; _count?: { _all?: number } }[]) =>
@@ -126,6 +138,14 @@ export default async function HomePage() {
           // primeira é justamente o engano que faz uma empresa vazia passar
           // despercebida.
           const semCadastro = ativos === 0;
+          // O terceiro caso, que faltava: gente cadastrada, pendência zero, e
+          // os módulos que gerariam pendência sem nenhum registro. A Mobility
+          // Tech em 04/08/2026 era exatamente isto — 4 pessoas, 12 das 17
+          // situações sem base, e um tique verde escrito "em dia" por cima.
+          const semBase = semRegistroNoEscopo(
+            comRegistro,
+            marca.itens.map((r) => r.empresa.id),
+          ).size;
 
           const corpo = (
             <Card className="h-full transition-colors hover:bg-accent/40">
@@ -140,6 +160,15 @@ export default async function HomePage() {
                   <Badge variant="outline" className="gap-1 text-muted-foreground font-normal">
                     <CircleDashed className="size-3" />
                     sem cadastro
+                  </Badge>
+                ) : semBase > 0 ? (
+                  <Badge
+                    variant="outline"
+                    className="gap-1 font-normal text-muted-foreground"
+                    title={`${semBase} das situações acompanhadas não têm nenhum registro — o zero não é conformidade.`}
+                  >
+                    <CircleDashed className="size-3" />
+                    {semBase} sem base
                   </Badge>
                 ) : (
                   <Badge variant="secondary" className="gap-1">

@@ -14,7 +14,14 @@
 import "dotenv/config";
 import { PrismaClient } from "../app/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { pendenciasDaEmpresa, modulosSemRegistro, totalPendencias, zeradas } from "../lib/pendencias";
+import {
+  pendenciasDaEmpresa,
+  modulosSemRegistro,
+  empresasComRegistro,
+  semRegistroNoEscopo,
+  totalPendencias,
+  zeradas,
+} from "../lib/pendencias";
 import type { Pendencias } from "../lib/pendencias";
 import { hojeUTC, somarDiasUTC } from "../lib/datas";
 import { LIMITE_HORAS_EXTRAS_MES } from "../lib/constants-folha";
@@ -53,6 +60,14 @@ async function main() {
 
   const hoje = hojeUTC();
   const escopo = [empresa.id];
+
+  // Uma segunda empresa qualquer, só para provar que o escopo não vaza entre
+  // CNPJs. Se só existir uma cadastrada, a asserção que depende dela é PULADA —
+  // comparar a empresa com ela mesma acusaria falha onde não há.
+  const vizinha = await prisma.empresa.findFirst({
+    where: { id: { not: empresa.id }, ativo: true },
+    select: { id: true },
+  });
 
   try {
     await prisma.$transaction(
@@ -196,6 +211,24 @@ async function main() {
           (await modulosSemRegistro([], tx)).size === 0,
           "sem empresa nenhuma no escopo, não afirma vazio sobre nada",
         );
+
+        // O que a tela do grupo usa: uma consulta só, lida por marca. Um
+        // módulo usado NESTA empresa não pode contar como usado numa empresa
+        // que não o abriu — se o escopo vazasse, a etiqueta da marca vizinha
+        // viraria "em dia" de graça.
+        if (vizinha) {
+          const comRegistro = await empresasComRegistro([empresa.id, vizinha.id], tx);
+          ok(
+            comRegistro.get("atestadosSemDocumento")?.has(empresa.id) === true,
+            "empresasComRegistro aponta a empresa que tem a ausência",
+          );
+          ok(
+            semRegistroNoEscopo(comRegistro, [vizinha.id]).has("atestadosSemDocumento"),
+            "e a vizinha continua sem base — o escopo não vaza entre CNPJs",
+          );
+        } else {
+          console.log("  – só há uma empresa cadastrada, pulando a prova de escopo");
+        }
 
         console.log("6. O total soma TODOS os contadores");
         // Regressão dirigida: a soma escrita à mão já esqueceu campos e
