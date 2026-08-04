@@ -139,7 +139,7 @@ async function main() {
             ordem: numeroTotal - 1,
             enunciado,
             tipo: "LIKERT_5",
-            dimensaoGPTW: secao.dimensao as any,
+            dimensaoGPTW: secao.dimensao,
             obrigatoria: true,
           },
         });
