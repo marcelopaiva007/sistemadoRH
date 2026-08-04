@@ -42,6 +42,37 @@ const nextConfig: NextConfig = {
     // limite de corpo de requisição da Vercel (4,5 MB + overhead).
     serverActions: { bodySizeLimit: "5mb" },
   },
+  // Headers de segurança aplicados a toda resposta. Colocados aqui (não em
+  // proxy.ts) de propósito: por doc do Next 16, `headers` do next.config
+  // roda ANTES do proxy na cadeia de execução, então isto nunca disputa com
+  // nem depende da lógica de autenticação do NextAuth em proxy.ts — os dois
+  // arquivos ficam independentes um do outro.
+  //
+  // NÃO criar middleware.ts para isto: nesta versão o Next renomeou o
+  // arquivo para proxy.ts (ver AGENTS.md) e middleware.ts é simplesmente
+  // ignorado — foi tentado e descartado nesta mesma leva de mudanças.
+  //
+  // Sem CSP de propósito: a stack usa estilo inline do Tailwind/shadcn e
+  // scripts de terceiros (Vercel Analytics, etc.) — uma CSP escrita sem
+  // testar contra cada rota quebraria renderização em produção. Fica como
+  // trabalho futuro, testado caso a caso.
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "X-XSS-Protection", value: "1; mode=block" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          {
+            key: "Permissions-Policy",
+            value: "camera=(), microphone=(), geolocation=(self), payment=()",
+          },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;
