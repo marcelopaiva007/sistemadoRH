@@ -390,6 +390,11 @@ model Colaborador {
   dataDesligamento   DateTime?
   motivoDesligamento String?
   tipoContrato       String?
+  // Fim do prazo, para os contratos que têm prazo (EXPERIENCIA, TEMPORARIO,
+  // ESTAGIO — ver CONTRATOS_POR_PRAZO em lib/constants-dp.ts). Deixar vencer
+  // sem ação transforma o contrato em indeterminado (CLT art. 445 e 451): é o
+  // vencimento mais caro do RH e era o único que o sistema não enxergava.
+  dataFimContrato    DateTime?
   jornadaSemanal     Int?
   salarioBase        Float?
 
@@ -432,6 +437,7 @@ model Colaborador {
   @@index([setorId])
   @@index([posicaoId])
   @@index([empresaId, dataAdmissao])
+  @@index([empresaId, dataFimContrato])
   @@index([supervisorId])
   @@index([empresaId, gerente])
   @@schema("rh")

@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { conformidadeDoColaborador } from "@/lib/conformidade";
-import { pendenciasDaEmpresa } from "@/lib/pendencias";
+import { pendenciasDaEmpresa, modulosSemRegistro } from "@/lib/pendencias";
 import { hojeUTC, somarDiasUTC, formatarData } from "@/lib/datas";
 
 // Ferramentas de LEITURA que o assistente pode chamar.
@@ -267,8 +267,25 @@ export async function executarFerramenta(
       return { totalIrregulares: irregulares.length, irregulares };
     }
 
-    case "pendencias_da_empresa":
-      return { ...(await pendenciasDaEmpresa([empresaId])) };
+    case "pendencias_da_empresa": {
+      // Vai junto o que NÃO pôde ser avaliado. Sem isso o assistente lê
+      // `catPendente: 0` e responde "nenhuma CAT em aberto", quando a verdade é
+      // que o módulo de acidentes nunca foi usado — mesma armadilha que a tela
+      // de pendências tinha até 04/08/2026, e aqui é pior, porque a resposta
+      // sai em prosa afirmativa.
+      const [contagens, vazios] = await Promise.all([
+        pendenciasDaEmpresa([empresaId]),
+        modulosSemRegistro([empresaId]),
+      ]);
+      return {
+        ...contagens,
+        semRegistroNenhum: [...vazios],
+        aviso:
+          vazios.size > 0
+            ? "Os itens listados em semRegistroNenhum estão zerados por falta de qualquer registro no módulo, não por estarem em dia. Não afirme conformidade sobre eles."
+            : undefined,
+      };
+    }
 
     case "vagas_e_candidatos": {
       const vagas = await prisma.vaga.findMany({

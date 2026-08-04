@@ -56,6 +56,7 @@ type Colaborador = {
   dataDesligamento: Date | null;
   motivoDesligamento: string | null;
   tipoContrato: string | null;
+  dataFimContrato: Date | null;
   jornadaSemanal: number | null;
   salarioBase: number | null;
   setorId: string;
@@ -233,12 +234,17 @@ export function FichaBlocos({
 
       <Bloco
         titulo="Vínculo"
-        descricao="A data de admissão é o que abre o controle de férias — sem ela, o colaborador não entra na programação."
+        descricao="A data de admissão é o que abre o controle de férias — sem ela, o colaborador não entra na programação. Em contrato de experiência, temporário ou estágio, preencha também o fim do prazo: deixar vencer transforma o contrato em indeterminado."
         acao={acao}
       >
         <div className="grid gap-4 sm:grid-cols-2">
           <CampoData name="dataAdmissao" label="Admissão" defaultValue={c.dataAdmissao} />
           <CampoSelect name="tipoContrato" label="Tipo de contrato" opcoes={TIPOS_CONTRATO} defaultValue={c.tipoContrato} />
+          <CampoData
+            name="dataFimContrato"
+            label="Fim do contrato (prazo determinado)"
+            defaultValue={c.dataFimContrato}
+          />
           <CampoTexto
             name="jornadaSemanal"
             label="Jornada semanal (horas)"
