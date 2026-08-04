@@ -10,9 +10,17 @@ export type Pendencias = {
   catPendente: number;
   integracoesAtrasadas: number;
   epiVencido: number;
+  // Situações adicionadas em 03/08/2026 — a primeira versão desta leva
+  // referenciava campos que não existiam e derrubou o deploy; estas seis são
+  // as que têm base real no schema. As demais da ideia original (contrato
+  // temporário vencendo, horas extras, beneficiários) dependem de colunas e
+  // tabelas que ainda não existem.
+  feriasVencidas: number;
+  avisoPrevio: number;
   desligamentosIncompletos: number;
-  movimentacoesAdministrativas: number;
-  atestadosMedicosSemRegistro: number;
+  avaliacoesAtrasadas: number;
+  convitesSemResposta: number;
+  fichasDesatualizadas: number;
 };
 
 export const totalPendencias = (p: Pendencias) => Object.values(p).reduce((s, n) => s + n, 0);
@@ -25,9 +33,12 @@ export const zeradas = (): Pendencias => ({
   catPendente: 0,
   integracoesAtrasadas: 0,
   epiVencido: 0,
+  feriasVencidas: 0,
+  avisoPrevio: 0,
   desligamentosIncompletos: 0,
-  movimentacoesAdministrativas: 0,
-  atestadosMedicosSemRegistro: 0,
+  avaliacoesAtrasadas: 0,
+  convitesSemResposta: 0,
+  fichasDesatualizadas: 0,
 });
 
 type LinhaAgrupada = { empresaId: string; _count?: { _all?: number } };
@@ -54,10 +65,19 @@ export async function pendenciasPorEmpresa(empresaIds: string[]): Promise<Map<st
   const por = ["empresaId"] as const;
   const contar = { _all: true } as const;
 
-  const [feriasPendentes, ausenciasPendentes, documentosAConferir, asoVencendo, certificadosVencendo, catPendente, integracoesAtrasadas, epiVencido, desligamentosIncompletos, movimentacoesAdministrativas, atestadosMedicosSemRegistro] =
+  const umAnoAtras = somarDiasUTC(hoje, -365);
+  const seisMesesAtras = somarDiasUTC(hoje, -180);
+
+  const [
+    feriasPendentes, ausenciasPendentes, documentosAConferir, asoVencendo,
+    certificadosVencendo, catPendente, integracoesAtrasadas, epiVencido,
+    feriasVencidas, avisoPrevio, desligamentosIncompletos, avaliacoesAtrasadas,
+    convitesSemResposta, fichasDesatualizadas,
+  ] =
     await Promise.all([
       prisma.solicitacaoFerias.groupBy({ by: [...por], _count: contar, where: { empresaId, status: "PENDENTE" } }),
       prisma.ausencia.groupBy({ by: [...por], _count: contar, where: { empresaId, status: "PENDENTE" } }),
+      // Enviado pelo colaborador no portal e ainda não conferido pelo RH.
       prisma.documentoColaborador.groupBy({
         by: [...por],
         _count: contar,
@@ -84,23 +104,56 @@ export async function pendenciasPorEmpresa(empresaIds: string[]): Promise<Map<st
         _count: contar,
         where: { empresaId, validoAte: { not: null, lt: hoje }, colaborador: { ativo: true } },
       }),
-      // Desligamentos incompletos (desligado mas ainda com dados ativos)
+      // Férias vencidas: 12+ meses de casa sem NENHUMA férias aprovada que
+      // tenha começado no último ano. Sem dataAdmissao a pessoa fica de fora —
+      // preenchê-la é lacuna da tela inicial, não pendência daqui.
       prisma.colaborador.groupBy({
         by: [...por],
         _count: contar,
-        where: { empresaId, ativo: false, dataDesligamento: { not: null } },
+        where: {
+          empresaId,
+          ativo: true,
+          dataAdmissao: { not: null, lt: umAnoAtras },
+          ferias: { none: { status: "APROVADA", dataInicio: { gte: umAnoAtras } } },
+        },
       }),
-      // Movimentações administrativas pendentes
-      prisma.movimentacao.groupBy({
+      // Aviso prévio: desligamento registrado para os próximos 7 dias e a
+      // pessoa ainda ativa — a saída está marcada, o processo tem que andar.
+      prisma.colaborador.groupBy({
         by: [...por],
         _count: contar,
-        where: { empresaId, status: "PENDENTE" },
+        where: { empresaId, ativo: true, dataDesligamento: { gte: hoje, lte: somarDiasUTC(hoje, 7) } },
       }),
-      // Atestados médicos sem registro
-      prisma.ausencia.groupBy({
+      // Desligado com item de offboarding em aberto (crachá, notebook, acesso…).
+      prisma.checklistDesligamento.groupBy({
         by: [...por],
         _count: contar,
-        where: { empresaId, tipoAusencia: "ATESTADO_MÉDICO" },
+        where: { empresaId, concluido: false, colaborador: { ativo: false } },
+      }),
+      // Avaliação pendente de ciclo cuja janela já fechou e ninguém encerrou.
+      prisma.avaliacaoDesempenho.groupBy({
+        by: [...por],
+        _count: contar,
+        where: { empresaId, status: "PENDENTE", ciclo: { dataFim: { lt: hoje }, encerrado: false } },
+      }),
+      // Pessoas (não tokens) com convite de pesquisa ATIVA ainda sem resposta.
+      prisma.colaborador.groupBy({
+        by: [...por],
+        _count: contar,
+        where: {
+          empresaId,
+          ativo: true,
+          tokens: {
+            some: { status: { in: ["PENDING", "SENT", "DELIVERED"] }, pesquisa: { status: "ACTIVE" } },
+          },
+        },
+      }),
+      // Ficha sem NENHUMA gravação há 6+ meses. updatedAt é proxy — qualquer
+      // edição conta — mas é o campo que existe.
+      prisma.colaborador.groupBy({
+        by: [...por],
+        _count: contar,
+        where: { empresaId, ativo: true, updatedAt: { lt: seisMesesAtras } },
       }),
     ]);
 
@@ -120,9 +173,12 @@ export async function pendenciasPorEmpresa(empresaIds: string[]): Promise<Map<st
   somar(catPendente, (p, n) => (p.catPendente = n));
   somar(integracoesAtrasadas, (p, n) => (p.integracoesAtrasadas = n));
   somar(epiVencido, (p, n) => (p.epiVencido = n));
+  somar(feriasVencidas, (p, n) => (p.feriasVencidas = n));
+  somar(avisoPrevio, (p, n) => (p.avisoPrevio = n));
   somar(desligamentosIncompletos, (p, n) => (p.desligamentosIncompletos = n));
-  somar(movimentacoesAdministrativas, (p, n) => (p.movimentacoesAdministrativas = n));
-  somar(atestadosMedicosSemRegistro, (p, n) => (p.atestadosMedicosSemRegistro = n));
+  somar(avaliacoesAtrasadas, (p, n) => (p.avaliacoesAtrasadas = n));
+  somar(convitesSemResposta, (p, n) => (p.convitesSemResposta = n));
+  somar(fichasDesatualizadas, (p, n) => (p.fichasDesatualizadas = n));
 
   return mapa;
 }
@@ -138,17 +194,12 @@ export async function pendenciasDaEmpresa(empresaIds: string[]): Promise<Pendenc
   const porEmpresa = await pendenciasPorEmpresa(empresaIds);
 
   const total = zeradas();
+  // Soma genérica: com 13 contadores, esquecer um campo aqui viraria um número
+  // silenciosamente menor na tela — foi assim com os 7 originais escritos à mão.
   for (const p of porEmpresa.values()) {
-    total.aprovacoes += p.aprovacoes;
-    total.documentosAConferir += p.documentosAConferir;
-    total.asoVencendo += p.asoVencendo;
-    total.certificadosVencendo += p.certificadosVencendo;
-    total.catPendente += p.catPendente;
-    total.integracoesAtrasadas += p.integracoesAtrasadas;
-    total.epiVencido += p.epiVencido;
-    total.desligamentosIncompletos += p.desligamentosIncompletos;
-    total.movimentacoesAdministrativas += p.movimentacoesAdministrativas;
-    total.atestadosMedicosSemRegistro += p.atestadosMedicosSemRegistro;
+    for (const chave of Object.keys(total) as (keyof Pendencias)[]) {
+      total[chave] += p[chave];
+    }
   }
   return total;
 }
