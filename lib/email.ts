@@ -1,6 +1,8 @@
-// Envio de e-mail via SMTP (nodemailer). Config nas env vars:
-//   SMTP_HOST, SMTP_PORT (587 STARTTLS ou 465 TLS), SMTP_USER, SMTP_PASS,
-//   EMAIL_FROM (ex.: "RH LM Telecom <rh@assinelm.com.br>").
+// Envio de e-mail via SMTP (nodemailer). Config em SMTP_HOST, SMTP_PORT (587
+// STARTTLS ou 465 TLS), SMTP_USER, SMTP_PASS, EMAIL_FROM (ex.: "RH LM Telecom
+// <rh@assinelm.com.br>") — como env var ou, na ausência dela, cadastrada pela
+// tela de Canais de envio (lib/segredos.ts, mesmo mecanismo cifrado da chave
+// da Anthropic).
 // Sem configuração, retorna erro claro (mesmo contrato de lib/telegram.ts) —
 // o convite fica FAILED com o motivo visível na tela da pesquisa.
 //
@@ -16,6 +18,7 @@
 import nodemailer, { type Transporter } from "nodemailer";
 import { prisma } from "@/lib/prisma";
 import { LIMITE_DIARIO_ENVIOS } from "@/lib/constants-rh";
+import { CHAVE_EMAIL_FROM, CHAVE_SMTP_HOST, CHAVE_SMTP_PASS, CHAVE_SMTP_PORT, CHAVE_SMTP_USER, segredo } from "@/lib/segredos";
 
 // Por que a falha importa para quem chamou: um convite recusado por COTA volta
 // amanhã e NÃO pode ser marcado FAILED (FAILED nunca é retentado pelo envio
@@ -101,11 +104,14 @@ export async function sendEmail(params: {
    */
   chave?: string;
 }): Promise<ResultadoEnvio> {
-  const host = process.env.SMTP_HOST;
-  const port = Number(process.env.SMTP_PORT || 587);
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
-  const from = process.env.EMAIL_FROM || user;
+  const [host, portRaw, user, pass, fromRaw] = await Promise.all([
+    segredo(CHAVE_SMTP_HOST),
+    segredo(CHAVE_SMTP_PORT),
+    segredo(CHAVE_SMTP_USER),
+    segredo(CHAVE_SMTP_PASS),
+    segredo(CHAVE_EMAIL_FROM),
+  ]);
+  const port = Number(portRaw || 587);
 
   if (!host || !user || !pass) {
     return {
@@ -114,6 +120,7 @@ export async function sendEmail(params: {
       error: "SMTP não configurado (defina SMTP_HOST, SMTP_USER e SMTP_PASS).",
     };
   }
+  const from = fromRaw || user;
 
   const para = normalizarEmail(params.to);
   if (!FORMATO_EMAIL.test(para)) {

@@ -83,16 +83,16 @@ Documentação completa: `sistemadorh-banco-ambientes.md` (no projeto).
 
 ## Variáveis de ambiente
 
-| Variável                                                             | Para quê                                                                                                                                                                                                    |
-| -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`                                                       | Postgres (Prisma)                                                                                                                                                                                           |
-| `AUTH_SECRET`                                                        | assinatura de sessão do NextAuth v5. **Precisa ser diferente do valor usado pelo lm-bonificacao** — dois apps com o mesmo segredo aceitam o token de sessão um do outro (ver "Separação do lm-bonificacao") |
-| `NEXT_PUBLIC_APP_URL`                                                | URL pública — monta o link do convite (`/responder/<token>`)                                                                                                                                                |
-| `TELEGRAM_BOT_TOKEN`                                                 | canal preferido de convite + webhook que vincula o `chat_id` do colaborador                                                                                                                                 |
-| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `EMAIL_FROM` | fallback de convite por e-mail (Resend)                                                                                                                                                                     |
-| `CRON_SECRET`                                                        | protege `/api/cron/enviar-convites`                                                                                                                                                                         |
-| `ANTHROPIC_API_KEY`                                                  | **opcional** — liga o Assistente de RH. Também dá para cadastrar a chave pela própria tela do assistente; a variável tem preferência sobre o que estiver gravado                                            |
-| `SEED_*`                                                             | usuários/senhas fixos no seed (opcional; sem eles o seed gera senha aleatória)                                                                                                                              |
+| Variável                                                             | Para quê                                                                                                                                                                                                                              |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                                                       | Postgres (Prisma)                                                                                                                                                                                                                     |
+| `AUTH_SECRET`                                                        | assinatura de sessão do NextAuth v5. **Precisa ser diferente do valor usado pelo lm-bonificacao** — dois apps com o mesmo segredo aceitam o token de sessão um do outro (ver "Separação do lm-bonificacao")                           |
+| `NEXT_PUBLIC_APP_URL`                                                | URL pública — monta o link do convite (`/responder/<token>`)                                                                                                                                                                          |
+| `TELEGRAM_BOT_TOKEN`                                                 | **opcional** — canal preferido de convite + webhook que vincula o `chat_id` do colaborador. Também dá para cadastrar pela tela **Canais de envio** (`/rh/[empresaId]/canais`); a variável tem preferência sobre o que estiver gravado |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `EMAIL_FROM` | **opcional** — fallback de convite por e-mail. Mesma regra do Telegram: dá pra cadastrar pela tela **Canais de envio**, com a variável tendo preferência                                                                              |
+| `CRON_SECRET`                                                        | protege `/api/cron/enviar-convites`                                                                                                                                                                                                   |
+| `ANTHROPIC_API_KEY`                                                  | **opcional** — liga o Assistente de RH. Também dá para cadastrar a chave pela própria tela do assistente; a variável tem preferência sobre o que estiver gravado                                                                      |
+| `SEED_*`                                                             | usuários/senhas fixos no seed (opcional; sem eles o seed gera senha aleatória)                                                                                                                                                        |
 
 ## Separação do lm-bonificacao
 
@@ -129,7 +129,7 @@ O sistema abre em `/rh`, onde se escolhe a empresa. Dentro dela, a navegação �
 um **menu lateral agrupado pelos 5 blocos do artefato de escopo** (Ciclo de
 vida · Departamento pessoal · Desempenho & desenvolvimento · Saúde & segurança
 · Gestão), mais um grupo **Configuração** no rodapé com o que se ajusta de vez
-em quando (Setores, Cargos, Auditoria).
+em quando (Setores, Cargos, Marcas & CNPJs, Canais de envio, Auditoria).
 
 - **A tela inicial da empresa é a central de pendências** (`/rh/<empresa>`),
   não um dashboard: mostra o que exige ação hoje — CAT sem emitir, aprovações
@@ -564,6 +564,11 @@ Decisões de segurança que valem lembrar antes de mexer:
 
 - Canal preferido **Telegram** (quando o colaborador tem `telegramChatId`
   vinculado pelo webhook); **fallback e-mail**.
+- Token do bot e SMTP: variável de ambiente ou tela **Canais de envio**
+  (`/rh/[empresaId]/canais`, grupo "Configuração" do menu) — ADMIN/DIRETORIA
+  cadastram sem precisar de acesso à Vercel. Mesmo mecanismo cifrado da chave
+  do Assistente de RH (`lib/segredos.ts`); a variável de ambiente, quando
+  existe, sempre tem prioridade sobre o que foi cadastrado pela tela.
 - Teto global de **90 envios por dia-calendário de Brasília**
   (`LIMITE_DIARIO_ENVIOS` em `lib/constants-rh.ts`) — margem sob o limite do
   plano do provedor de e-mail.

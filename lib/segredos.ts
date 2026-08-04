@@ -1,7 +1,19 @@
 import { prisma } from "@/lib/prisma";
-import { decifrar } from "@/lib/cripto";
+import { cifrar, decifrar } from "@/lib/cripto";
 
 export const CHAVE_ANTHROPIC = "ANTHROPIC_API_KEY";
+export const CHAVE_TELEGRAM = "TELEGRAM_BOT_TOKEN";
+
+// SMTP é multi-campo — cinco linhas em SegredoApp em vez de uma. Host, porta,
+// usuário e remetente não são segredo de verdade (aparecem em qualquer
+// cabeçalho de e-mail recebido); só a senha é. Cifrar as cinco do mesmo jeito
+// mesmo assim, por uniformidade — o custo é zero e evita duas classes de
+// campo na mesma tabela.
+export const CHAVE_SMTP_HOST = "SMTP_HOST";
+export const CHAVE_SMTP_PORT = "SMTP_PORT";
+export const CHAVE_SMTP_USER = "SMTP_USER";
+export const CHAVE_SMTP_PASS = "SMTP_PASS";
+export const CHAVE_EMAIL_FROM = "EMAIL_FROM";
 
 /**
  * Quem pode cadastrar credencial pela tela. Vive aqui, e não no arquivo de
@@ -74,5 +86,69 @@ export async function statusDoSegredo(nome: string): Promise<StatusSegredo> {
     dica: linha.dica,
     atualizadoEm: linha.atualizadoEm,
     atualizadoPor: linha.atualizadoPor,
+  };
+}
+
+/**
+ * Grava uma credencial cifrada. Extraído do que já era o meio de
+ * `salvarChaveAnthropic` (lib/actions/rh-segredos.ts) para as actions de
+ * Telegram/SMTP reaproveitarem sem repetir o upsert — a action da Anthropic
+ * continua com o próprio upsert inline, sem necessidade de tocar nela.
+ */
+export async function gravarSegredo(
+  chave: string,
+  valorClaro: string,
+  dica: string,
+  atualizadoPor: string,
+): Promise<void> {
+  await prisma.segredoApp.upsert({
+    where: { chave },
+    create: { chave, valor: cifrar(valorClaro), dica, atualizadoPor },
+    update: { valor: cifrar(valorClaro), dica, atualizadoPor },
+  });
+}
+
+export type StatusSmtp = {
+  ligado: boolean;
+  origem: OrigemSegredo | null;
+  host: string | null;
+  port: string | null;
+  user: string | null;
+  from: string | null;
+  /** Só da senha — os outros quatro campos não são segredo (ver comentário nas chaves). */
+  dicaSenha: string | null;
+  atualizadoEm: Date | null;
+  atualizadoPor: string | null;
+};
+
+/**
+ * Status combinado das 5 chaves do SMTP numa forma só, para a tela não
+ * orquestrar 5 chamadas. "ligado" exige host+user+senha — porta e remetente
+ * têm valor padrão no `lib/email.ts` se ausentes.
+ */
+export async function statusDoSmtp(): Promise<StatusSmtp> {
+  const [host, port, user, pass, from] = await Promise.all([
+    statusDoSegredo(CHAVE_SMTP_HOST),
+    statusDoSegredo(CHAVE_SMTP_PORT),
+    statusDoSegredo(CHAVE_SMTP_USER),
+    statusDoSegredo(CHAVE_SMTP_PASS),
+    statusDoSegredo(CHAVE_EMAIL_FROM),
+  ]);
+
+  return {
+    ligado: host.ligado && user.ligado && pass.ligado,
+    // Se qualquer um dos cinco veio do ambiente, a origem mostrada é
+    // "ambiente" — é o cenário mais comum (todo o bloco SMTP configurado de
+    // uma vez na Vercel) e evita a tela mostrar uma mistura confusa.
+    origem: [host, port, user, pass, from].some((s) => s.origem === "ambiente")
+      ? "ambiente"
+      : pass.origem,
+    host: host.dica,
+    port: port.dica,
+    user: user.dica,
+    from: from.dica,
+    dicaSenha: pass.dica,
+    atualizadoEm: pass.atualizadoEm,
+    atualizadoPor: pass.atualizadoPor,
   };
 }

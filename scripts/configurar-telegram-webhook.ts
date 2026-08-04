@@ -11,12 +11,16 @@
 //      npx tsx scripts/configurar-telegram-webhook.ts --off    (remove o webhook)
 import "dotenv/config";
 import { telegramWebhookSecret } from "@/lib/telegram";
+import { CHAVE_TELEGRAM, segredo } from "@/lib/segredos";
 
 const URL_PADRAO = "https://sistemado-rh-two.vercel.app";
 
 async function api(metodo: string, body?: Record<string, unknown>) {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  if (!token) throw new Error("TELEGRAM_BOT_TOKEN não configurado no .env");
+  // Cai para o banco se não houver TELEGRAM_BOT_TOKEN no .env local — o token
+  // real pode estar cadastrado só pela tela de Canais de envio, e este script
+  // roda com o mesmo DATABASE_URL do ambiente que se está inspecionando.
+  const token = await segredo(CHAVE_TELEGRAM);
+  if (!token) throw new Error("Token do Telegram não configurado (nem no .env, nem pela tela de Canais de envio)");
   const res = await fetch(`https://api.telegram.org/bot${token}/${metodo}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -37,8 +41,8 @@ async function main() {
   if (arg !== "--info") {
     const base = (arg || URL_PADRAO).replace(/\/$/, "");
     const url = `${base}/api/telegram/webhook`;
-    const secret = telegramWebhookSecret();
-    if (!secret) throw new Error("TELEGRAM_BOT_TOKEN não configurado no .env");
+    const secret = await telegramWebhookSecret();
+    if (!secret) throw new Error("Token do Telegram não configurado (nem no .env, nem pela tela de Canais de envio)");
     console.log(`Registrando webhook: ${url}`);
     const resultado = await api("setWebhook", {
       url,
