@@ -20,7 +20,8 @@ import {
   alternarItemPDI,
   excluirItemPDI,
 } from "@/lib/actions/rh-metas";
-import { STATUS_META, statusMetaLabel } from "@/lib/constants-metas";
+import { statusMetaLabel } from "@/lib/constants-metas";
+import type { OpcaoCatalogo } from "@/lib/catalogos";
 import { formatarData } from "@/lib/datas";
 import type { ActionResult } from "@/lib/constants";
 import { BotaoExcluir } from "./dependentes-card";
@@ -60,11 +61,13 @@ export function MetasPdiCard({
   colaboradorId,
   metas,
   pdi,
+  statusMetaDisponiveis,
 }: {
   empresaId: string;
   colaboradorId: string;
   metas: Meta[];
   pdi: ItemPDI[];
+  statusMetaDisponiveis: OpcaoCatalogo[];
 }) {
   const [novaMetaAberto, setNovaMetaAberto] = useState(false);
   const [editarMeta, setEditarMeta] = useState<Meta | null>(null);
@@ -176,6 +179,7 @@ export function MetasPdiCard({
             <EditarMetaForm
               empresaId={empresaId}
               meta={editarMeta}
+              statusDisponiveis={statusMetaDisponiveis}
               onSuccess={() => setEditarMeta(null)}
             />
           )}
@@ -240,7 +244,17 @@ function NovaMetaForm({
   );
 }
 
-function EditarMetaForm({ empresaId, meta, onSuccess }: { empresaId: string; meta: Meta; onSuccess: () => void }) {
+function EditarMetaForm({
+  empresaId,
+  meta,
+  statusDisponiveis,
+  onSuccess,
+}: {
+  empresaId: string;
+  meta: Meta;
+  statusDisponiveis: OpcaoCatalogo[];
+  onSuccess: () => void;
+}) {
   const [state, formAction, isPending] = useActionState(async (prev: ActionResult, fd: FormData) => {
     const result = await atualizarMeta(empresaId, meta.id, prev, fd);
     if (result.ok) {
@@ -259,7 +273,7 @@ function EditarMetaForm({ empresaId, meta, onSuccess }: { empresaId: string; met
         <div className="space-y-2">
           <Label htmlFor="status">Status</Label>
           <select id="status" name="status" defaultValue={meta.status} className={classeSelect}>
-            {STATUS_META.map((s) => (
+            {statusDisponiveis.map((s) => (
               <option key={s.value} value={s.value}>
                 {s.label}
               </option>

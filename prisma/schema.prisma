@@ -203,8 +203,42 @@ model Empresa {
   userEmpresas   UserEmpresa[]
   planosAcao     PlanoAcao[]
   tiposBeneficio TipoBeneficio[]
+  catalogoItens  CatalogoItem[]
 
   @@index([marcaId])
+  @@schema("rh")
+}
+
+// Catálogo genérico ADITIVO — mesmo raciocínio de TipoBeneficio, mas cobrindo
+// de uma vez os 9 catálogos fixos que o levantamento de 04/08/2026 confirmou
+// serem SÓ RÓTULO (nenhum código compara valor exato pra decidir
+// comportamento): dimensão GPTW, tipo de turno, competência, status de meta,
+// origem de candidato, tipo de acidente, tipo de EPI, motivo de entrega de
+// EPI, tipo de movimentação. `categoria` é o discriminador — ver
+// lib/catalogos.ts pra lista completa e os catálogos fixos de cada uma.
+//
+// Os DEMAIS catálogos fixos do sistema (status de pesquisa, tipo de
+// documento, etapa de funil, ...) FICAM DE FORA de propósito: têm código que
+// compara contra o value exato pra decidir fluxo (ex.: "CONTRATADO" cria
+// colaborador, "ADMISSIONAL" muda regra de vencimento) — deixar o RH
+// cadastrar um valor novo ali quebraria esse fluxo, porque nenhum código
+// saberia lidar com o valor desconhecido.
+//
+// `cor` e `validadeMeses` são opcionais e usados só por TIPO_TURNO e
+// TIPO_EPI respectivamente — os outros 7 catálogos deixam null.
+model CatalogoItem {
+  id            String   @id @default(cuid())
+  empresaId     String
+  empresa       Empresa  @relation(fields: [empresaId], references: [id])
+  categoria     String
+  nome          String
+  cor           String?
+  validadeMeses Int?
+  ativo         Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  @@unique([empresaId, categoria, nome])
+  @@index([empresaId, categoria])
   @@schema("rh")
 }
 

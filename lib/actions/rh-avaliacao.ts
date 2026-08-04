@@ -5,8 +5,9 @@ import { prisma } from "@/lib/prisma";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { registrarAuditoria } from "@/lib/audit";
 import { dataDoFormulario, formatarData } from "@/lib/datas";
-import { AVALIADORES_AUTOMATICOS, COMPETENCIAS, tipoAvaliadorLabel, tipoCicloLabel } from "@/lib/constants-avaliacao";
+import { AVALIADORES_AUTOMATICOS, tipoAvaliadorLabel, tipoCicloLabel } from "@/lib/constants-avaliacao";
 import { sendTelegramMessage } from "@/lib/telegram";
+import { opcoesDoCatalogo } from "@/lib/catalogos";
 import type { ActionResult } from "@/lib/constants";
 
 export async function criarCiclo(
@@ -352,8 +353,9 @@ export async function salvarNotasAvaliacao(
   });
   if (!avaliacao) return { ok: false, error: "Avaliação não encontrada nesta empresa." };
 
+  const competencias = await opcoesDoCatalogo(empresaId, "COMPETENCIA");
   const notas: { competencia: string; nota: number }[] = [];
-  for (const c of COMPETENCIAS) {
+  for (const c of competencias) {
     const bruto = String(formData.get(`nota_${c.value}`) ?? "").trim();
     if (!bruto) return { ok: false, error: `Falta a nota de "${c.label}".` };
     const nota = Number.parseInt(bruto, 10);

@@ -21,7 +21,6 @@ import {
   excluirAvaliacao,
 } from "@/lib/actions/rh-avaliacao";
 import {
-  COMPETENCIAS,
   NIVEIS_POTENCIAL,
   faixaDesempenho,
   potencialLabel,
@@ -29,6 +28,7 @@ import {
   tipoCicloLabel,
 } from "@/lib/constants-avaliacao";
 import { formatarData } from "@/lib/datas";
+import type { OpcaoCatalogo } from "@/lib/catalogos";
 import type { ActionResult } from "@/lib/constants";
 
 const initialState: ActionResult = { ok: true };
@@ -67,11 +67,13 @@ export function CicloDetalhe({
   ciclo,
   avaliacoes,
   colaboradores,
+  competenciasDisponiveis,
 }: {
   empresaId: string;
   ciclo: Ciclo;
   avaliacoes: Avaliacao[];
   colaboradores: { id: string; nome: string }[];
+  competenciasDisponiveis: OpcaoCatalogo[];
 }) {
   const [gerando, setGerando] = useState(false);
   const [encerrando, setEncerrando] = useState(false);
@@ -281,6 +283,7 @@ export function CicloDetalhe({
             <PreencherAvaliacaoForm
               empresaId={empresaId}
               avaliacao={preencher}
+              competenciasDisponiveis={competenciasDisponiveis}
               onSuccess={() => setPreencher(null)}
             />
           )}
@@ -436,10 +439,12 @@ function AdicionarAvaliadorForm({
 function PreencherAvaliacaoForm({
   empresaId,
   avaliacao,
+  competenciasDisponiveis,
   onSuccess,
 }: {
   empresaId: string;
   avaliacao: Avaliacao;
+  competenciasDisponiveis: OpcaoCatalogo[];
   onSuccess: () => void;
 }) {
   const [state, formAction, isPending] = useActionState(async (prev: ActionResult, fd: FormData) => {
@@ -462,7 +467,7 @@ function PreencherAvaliacaoForm({
       </DialogHeader>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        {COMPETENCIAS.map((c) => (
+        {competenciasDisponiveis.map((c) => (
           <div key={c.value} className="space-y-1.5">
             <Label className="text-xs font-medium text-muted-foreground">{c.label}</Label>
             <select name={`nota_${c.value}`} required defaultValue={notaDe(c.value)} className={classeSelect}>

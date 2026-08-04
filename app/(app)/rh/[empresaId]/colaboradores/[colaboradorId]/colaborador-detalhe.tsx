@@ -52,12 +52,18 @@ export function ColaboradorDetalhe({
   tiposBeneficioCustom,
   dependentesNoPlanoSaude,
   entregasEpi,
+  tiposEpiDisponiveis,
+  motivosEntregaDisponiveis,
   acidentes,
   ausenciasElegiveisAcidente,
+  tiposAcidenteDisponiveis,
+  tiposMovimentacaoDisponiveis,
   checklistDesligamento,
   entrevistaDesligamento,
   avaliacoes,
+  competenciasDisponiveis,
   metas,
+  statusMetaDisponiveis,
   pdi,
   participacoesTreinamento,
   treinamentosAtivos,
@@ -83,12 +89,18 @@ export function ColaboradorDetalhe({
   tiposBeneficioCustom: Parameters<typeof BeneficiosCard>[0]["tiposBeneficioCustom"];
   dependentesNoPlanoSaude: number;
   entregasEpi: Parameters<typeof EpisCard>[0]["entregas"];
+  tiposEpiDisponiveis: Parameters<typeof EpisCard>[0]["tiposEpiDisponiveis"];
+  motivosEntregaDisponiveis: Parameters<typeof EpisCard>[0]["motivosEntregaDisponiveis"];
   acidentes: Parameters<typeof AcidentesCard>[0]["acidentes"];
   ausenciasElegiveisAcidente: Parameters<typeof AcidentesCard>[0]["ausenciasElegiveis"];
+  tiposAcidenteDisponiveis: Parameters<typeof AcidentesCard>[0]["tiposAcidenteDisponiveis"];
+  tiposMovimentacaoDisponiveis: Parameters<typeof MovimentacoesCard>[0]["tiposMovimentacaoDisponiveis"];
   checklistDesligamento: Parameters<typeof OffboardingCard>[0]["checklist"];
   entrevistaDesligamento: Parameters<typeof OffboardingCard>[0]["entrevista"];
   avaliacoes: Parameters<typeof DesempenhoCard>[0]["avaliacoes"];
+  competenciasDisponiveis: Parameters<typeof DesempenhoCard>[0]["competenciasDisponiveis"];
   metas: Parameters<typeof MetasPdiCard>[0]["metas"];
+  statusMetaDisponiveis: Parameters<typeof MetasPdiCard>[0]["statusMetaDisponiveis"];
   pdi: Parameters<typeof MetasPdiCard>[0]["pdi"];
   participacoesTreinamento: Parameters<typeof TreinamentosCard>[0]["participacoes"];
   treinamentosAtivos: Parameters<typeof TreinamentosCard>[0]["treinamentosAtivos"];
@@ -248,6 +260,7 @@ export function ColaboradorDetalhe({
             posicoes={posicoes}
             candidatosSupervisor={candidatosSupervisor}
             movimentacoes={movimentacoes}
+            tiposMovimentacaoDisponiveis={tiposMovimentacaoDisponiveis}
           />
         </TabsContent>
         <TabsContent value="beneficios" className="pt-4">
@@ -260,7 +273,13 @@ export function ColaboradorDetalhe({
           />
         </TabsContent>
         <TabsContent value="epis" className="pt-4">
-          <EpisCard empresaId={empresaId} colaboradorId={colaborador.id} entregas={entregasEpi} />
+          <EpisCard
+            empresaId={empresaId}
+            colaboradorId={colaborador.id}
+            entregas={entregasEpi}
+            tiposEpiDisponiveis={tiposEpiDisponiveis}
+            motivosEntregaDisponiveis={motivosEntregaDisponiveis}
+          />
         </TabsContent>
         <TabsContent value="acidentes" className="pt-4">
           <AcidentesCard
@@ -268,13 +287,25 @@ export function ColaboradorDetalhe({
             colaboradorId={colaborador.id}
             acidentes={acidentes}
             ausenciasElegiveis={ausenciasElegiveisAcidente}
+            tiposAcidenteDisponiveis={tiposAcidenteDisponiveis}
           />
         </TabsContent>
         <TabsContent value="desempenho" className="pt-4">
-          <DesempenhoCard empresaId={empresaId} colaboradorId={colaborador.id} avaliacoes={avaliacoes} />
+          <DesempenhoCard
+            empresaId={empresaId}
+            colaboradorId={colaborador.id}
+            avaliacoes={avaliacoes}
+            competenciasDisponiveis={competenciasDisponiveis}
+          />
         </TabsContent>
         <TabsContent value="metas-pdi" className="pt-4">
-          <MetasPdiCard empresaId={empresaId} colaboradorId={colaborador.id} metas={metas} pdi={pdi} />
+          <MetasPdiCard
+            empresaId={empresaId}
+            colaboradorId={colaborador.id}
+            metas={metas}
+            pdi={pdi}
+            statusMetaDisponiveis={statusMetaDisponiveis}
+          />
         </TabsContent>
         <TabsContent value="treinamentos" className="pt-4">
           <TreinamentosCard

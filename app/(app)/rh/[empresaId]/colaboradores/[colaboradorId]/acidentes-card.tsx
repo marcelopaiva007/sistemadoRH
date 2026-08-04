@@ -12,7 +12,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { registrarAcidente, marcarCatEmitida, concluirAcidente, excluirAcidente } from "@/lib/actions/rh-cat";
 import { MIMES_ANEXO_ACEITOS } from "@/lib/constants-dp";
-import { TIPOS_ACIDENTE, situacaoAcidenteLabel, tipoAcidenteLabel } from "@/lib/constants-cat";
+import { situacaoAcidenteLabel, tipoAcidenteLabel } from "@/lib/constants-cat";
+import type { OpcaoCatalogo } from "@/lib/catalogos";
 import { formatarDataHoraBrasilia } from "@/lib/datas";
 import { Campo, CampoCheckbox, CampoData, CampoSelect, CampoTexto, FormularioAction } from "./campos";
 import { BotaoExcluir } from "./dependentes-card";
@@ -38,11 +39,13 @@ export function AcidentesCard({
   colaboradorId,
   acidentes,
   ausenciasElegiveis,
+  tiposAcidenteDisponiveis,
 }: {
   empresaId: string;
   colaboradorId: string;
   acidentes: Acidente[];
   ausenciasElegiveis: AusenciaElegivel[];
+  tiposAcidenteDisponiveis: OpcaoCatalogo[];
 }) {
   const [aberto, setAberto] = useState(false);
   const abertos = acidentes.filter((a) => a.situacao !== "CONCLUIDO");
@@ -83,7 +86,7 @@ export function AcidentesCard({
                 <CampoSelect
                   name="tipo"
                   label="Tipo"
-                  opcoes={TIPOS_ACIDENTE.map((t) => ({ value: t.value, label: t.label }))}
+                  opcoes={tiposAcidenteDisponiveis.map((t) => ({ value: t.value, label: t.label }))}
                   required
                 />
                 <div className="grid gap-4 sm:grid-cols-2">

@@ -13,11 +13,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { salvarNotasAvaliacao } from "@/lib/actions/rh-avaliacao";
 import {
-  COMPETENCIAS,
   NIVEIS_POTENCIAL,
   tipoAvaliadorLabel,
   tipoCicloLabel,
 } from "@/lib/constants-avaliacao";
+import type { OpcaoCatalogo } from "@/lib/catalogos";
 import type { ActionResult } from "@/lib/constants";
 
 const initialState: ActionResult = { ok: true };
@@ -43,10 +43,12 @@ export function DesempenhoCard({
   empresaId,
   colaboradorId,
   avaliacoes,
+  competenciasDisponiveis,
 }: {
   empresaId: string;
   colaboradorId: string;
   avaliacoes: Avaliacao[];
+  competenciasDisponiveis: OpcaoCatalogo[];
 }) {
   const [preencher, setPreencher] = useState<Avaliacao | null>(null);
 
@@ -120,6 +122,7 @@ export function DesempenhoCard({
               empresaId={empresaId}
               colaboradorId={colaboradorId}
               avaliacao={preencher}
+              competenciasDisponiveis={competenciasDisponiveis}
               onSuccess={() => setPreencher(null)}
             />
           )}
@@ -132,11 +135,13 @@ export function DesempenhoCard({
 function PreencherForm({
   empresaId,
   avaliacao,
+  competenciasDisponiveis,
   onSuccess,
 }: {
   empresaId: string;
   colaboradorId: string;
   avaliacao: Avaliacao;
+  competenciasDisponiveis: OpcaoCatalogo[];
   onSuccess: () => void;
 }) {
   const [state, formAction, isPending] = useActionState(async (prev: ActionResult, fd: FormData) => {
@@ -159,7 +164,7 @@ function PreencherForm({
       </DialogHeader>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        {COMPETENCIAS.map((c) => (
+        {competenciasDisponiveis.map((c) => (
           <div key={c.value} className="space-y-1.5">
             <Label className="text-xs font-medium text-muted-foreground">{c.label}</Label>
             <select name={`nota_${c.value}`} required defaultValue={notaDe(c.value)} className={classeSelect}>

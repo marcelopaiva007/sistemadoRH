@@ -7,13 +7,12 @@ import { registrarAuditoria } from "@/lib/audit";
 import { lerAnexo } from "@/lib/anexos";
 import { violouUnique } from "@/lib/prisma-erros";
 import { dataDoFormulario } from "@/lib/datas";
-import { COMPETENCIAS } from "@/lib/constants-avaliacao";
+import { valoresValidosDoCatalogo } from "@/lib/catalogos";
 import type { ActionResult } from "@/lib/constants";
 
-const COMPETENCIAS_VALIDAS = new Set<string>(COMPETENCIAS.map((c) => c.value));
-
-function lerCompetencias(formData: FormData): string[] {
-  return formData.getAll("competencias").map(String).filter((c) => COMPETENCIAS_VALIDAS.has(c));
+async function lerCompetencias(empresaId: string, formData: FormData): Promise<string[]> {
+  const validas = await valoresValidosDoCatalogo(empresaId, "COMPETENCIA");
+  return formData.getAll("competencias").map(String).filter((c) => validas.has(c));
 }
 
 export async function criarTreinamento(
@@ -40,7 +39,7 @@ export async function criarTreinamento(
         descricao: String(formData.get("descricao") ?? "").trim() || null,
         categoria: String(formData.get("categoria") ?? "").trim() || null,
         cargaHoraria,
-        competencias: lerCompetencias(formData),
+        competencias: await lerCompetencias(empresaId, formData),
       },
     });
 

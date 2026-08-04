@@ -131,7 +131,7 @@ vida · Departamento pessoal · Desempenho & desenvolvimento · Saúde & seguran
 · Gestão), mais dois grupos no rodapé: **Configuração** (Visão geral —
 o hub `/rh/[empresaId]/configuracoes`, com um cartão de status por área —,
 Setores, Cargos, Marcas & CNPJs, Canais de envio, Lembretes, Tipos de
-benefício) e **Administração** (Importações, Auditoria, Papéis e
+benefício, Catálogos) e **Administração** (Importações, Auditoria, Papéis e
 permissões — ferramentas e leitura, não configuração).
 
 - **A tela inicial da empresa é a central de pendências** (`/rh/<empresa>`),
@@ -537,6 +537,36 @@ distingue `DIRETORIA` de `ADMIN` para escrita no módulo de RH — na prática
 os dois têm o mesmo acesso de edição (só o CRUD de Empresa/CNPJ fica
 exclusivo de `ADMIN`). Não há papéis customizáveis nem permissão granular —
 mudar isso é redesenho de autorização, não configuração.
+
+## Catálogos configuráveis
+
+`/rh/<empresa>/catalogos` (grupo Configuração) — mesma ideia aditiva dos
+"Tipos de benefício", generalizada para **9 taxonomias** que antes eram só
+constante fixa no código: dimensões GPTW, tipos de turno, competências de
+avaliação, status de meta, origens de candidato, tipos de acidente, tipos de
+EPI, motivos de entrega de EPI e tipos de movimentação.
+
+- **Um único modelo genérico** (`rh.CatalogoItem`, discriminado por
+  `categoria`) guarda os itens customizados de todas as 9 taxonomias — em vez
+  de nove tabelas quase idênticas. `lib/catalogos.ts` centraliza a mescla: os
+  itens fixos de cada `lib/constants-*.ts` **continuam valendo sempre**
+  (nunca somem, nem para quem não usa a tela); a empresa só soma itens
+  próprios, sem esperar deploy.
+- **Toda validação de servidor confere as duas fontes** — fixa e customizada
+  (`valoresValidosDoCatalogo`) — nunca só a lista fixa. Um valor cadastrado
+  pela tela e recusado pela action seria pior do que a tela não existir.
+- **Cor e validade são específicas de duas categorias**: tipo de turno carrega
+  cor (usada na grade de escalas) e tipo de EPI carrega validade em meses
+  (usada como sugestão ao lançar uma entrega) — as outras sete categorias são
+  só rótulo.
+- **Origem de candidato é a única cadastrável sem um formulário que a
+  consuma**: `Candidato.origem` é atribuído pelo próprio sistema conforme o
+  caminho de entrada (RH, público, indicação), nunca escolhido num dropdown —
+  por isso essa categoria existe no catálogo (para o RH pré-cadastrar nomes)
+  mas não aparece em nenhum `<select>`.
+- **Pausar, não excluir** — mesmo padrão dos demais catálogos aditivos: um
+  item customizado desativado some das telas novas mas continua legível em
+  registros antigos que já o usam.
 
 ## Reconhecimento (Fase 2)
 

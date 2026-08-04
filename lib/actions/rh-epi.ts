@@ -7,11 +7,9 @@ import { registrarAuditoria } from "@/lib/audit";
 import { lerAnexo } from "@/lib/anexos";
 import { dataDoFormulario, formatarData } from "@/lib/datas";
 import { calcularValidade } from "@/lib/conformidade";
-import { MOTIVOS_ENTREGA_EPI, TIPOS_EPI, tipoEpiLabel, validadePadraoDoEpi } from "@/lib/constants-epi";
+import { tipoEpiLabel } from "@/lib/constants-epi";
+import { opcoesDoCatalogo, valoresValidosDoCatalogo } from "@/lib/catalogos";
 import type { ActionResult } from "@/lib/constants";
-
-const TIPOS_VALIDOS = new Set<string>(TIPOS_EPI.map((t) => t.value));
-const MOTIVOS_VALIDOS = new Set<string>(MOTIVOS_ENTREGA_EPI.map((m) => m.value));
 
 function lerInteiro(valor: FormDataEntryValue | null): number | null {
   const texto = typeof valor === "string" ? valor.trim() : "";
@@ -35,16 +33,19 @@ export async function registrarEntregaEpi(
   if (!colaborador) return { ok: false, error: "Colaborador não encontrado nesta empresa." };
 
   const tipo = String(formData.get("tipo") ?? "").trim();
-  if (!TIPOS_VALIDOS.has(tipo)) return { ok: false, error: "Selecione o tipo de EPI." };
+  const tiposDisponiveis = await opcoesDoCatalogo(empresaId, "TIPO_EPI");
+  const opcaoTipo = tiposDisponiveis.find((t) => t.value === tipo);
+  if (!opcaoTipo) return { ok: false, error: "Selecione o tipo de EPI." };
 
   const motivo = String(formData.get("motivo") ?? "PRIMEIRA_ENTREGA").trim();
-  if (!MOTIVOS_VALIDOS.has(motivo)) return { ok: false, error: "Motivo da entrega inválido." };
+  const motivosValidos = await valoresValidosDoCatalogo(empresaId, "MOTIVO_ENTREGA_EPI");
+  if (!motivosValidos.has(motivo)) return { ok: false, error: "Motivo da entrega inválido." };
 
   const dataEntrega = dataDoFormulario(formData.get("dataEntrega"));
   if (!dataEntrega) return { ok: false, error: "Informe a data da entrega." };
 
   const validadeInformada = lerInteiro(formData.get("validadeMeses"));
-  const validadeMeses = validadeInformada ?? validadePadraoDoEpi(tipo);
+  const validadeMeses = validadeInformada ?? opcaoTipo.validadeMeses ?? null;
   const validoAte = dataDoFormulario(formData.get("validoAte")) ?? calcularValidade(dataEntrega, validadeMeses);
   if (validoAte && validoAte < dataEntrega) {
     return { ok: false, error: "A validade não pode ser anterior à entrega." };

@@ -11,6 +11,7 @@ import { executarGestaoCiclo } from "@/lib/pesquisa-ciclo";
 import { enviarUmConvite, enviosRestantesHoje, LIMITE_DIARIO_ENVIOS } from "@/lib/convites";
 import { vinculoTelegramQuebrado, MSG_AGUARDANDO_NOVO_VINCULO } from "@/lib/pesquisa-numeros";
 import { filtrarElegiveisPorVinculo, invalidarConvitesDeDesligados } from "@/lib/pesquisa-vinculo";
+import { valoresValidosDoCatalogo } from "@/lib/catalogos";
 import {
   PERGUNTAS_NR01,
   TITULO_PESQUISA_NR01,
@@ -55,14 +56,6 @@ function revalidarNumerosDaPesquisa(empresaId: string, pesquisaId: string) {
 
 const STATUSES = ["DRAFT", "ACTIVE", "FINISHED", "ARCHIVED"] as const;
 const TIPOS_PERGUNTA = ["LIKERT_5", "FREQ_0_4", "NPS_10", "MULTIPLE_CHOICE", "TEXT"] as const;
-const DIMENSOES_GPTW = [
-  "CREDIBILIDADE",
-  "RESPEITO",
-  "IMPARCIALIDADE",
-  "ORGULHO",
-  "CAMARADAGEM",
-  "GERAL",
-] as const;
 
 const pesquisaSchema = z.object({
   titulo: z.string().trim().min(3, "Informe o título da pesquisa"),
@@ -267,7 +260,12 @@ const opcaoSchema = z.object({
 const perguntaSchema = z.object({
   enunciado: z.string().trim().min(3, "Informe o enunciado da pergunta"),
   tipo: z.enum(TIPOS_PERGUNTA),
-  dimensaoGPTW: z.enum(DIMENSOES_GPTW).optional().nullable(),
+  // String livre aqui (não z.enum(DIMENSOES_GPTW) como antes): a dimensão
+  // aceita as 6 fixas OU uma customizada pelo catálogo aditivo (Configuração
+  // → Catálogos). A checagem contra o conjunto válido de verdade acontece
+  // depois do parse, em salvarPerguntas — precisa do empresaId, que o schema
+  // não tem acesso.
+  dimensaoGPTW: z.string().trim().min(1).optional().nullable(),
   obrigatoria: z.boolean().default(true),
   opcoes: z.array(opcaoSchema).default([]),
 });
@@ -305,6 +303,13 @@ export async function salvarPerguntas(
   }
   const parsed = perguntasArraySchema.safeParse(perguntasRaw);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
+
+  const dimensoesValidas = await valoresValidosDoCatalogo(empresaId, "DIMENSAO_GPTW");
+  for (const pergunta of parsed.data) {
+    if (pergunta.dimensaoGPTW && !dimensoesValidas.has(pergunta.dimensaoGPTW)) {
+      return { ok: false, error: `Dimensão inválida em "${pergunta.enunciado}".` };
+    }
+  }
 
   await prisma.$transaction(async (tx) => {
     await tx.pergunta.deleteMany({ where: { pesquisaId } });

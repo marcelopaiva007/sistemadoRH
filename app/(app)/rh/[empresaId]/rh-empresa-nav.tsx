@@ -16,6 +16,7 @@ import {
   ClipboardList,
   Clock,
   CreditCard,
+  LibraryBig,
   Tags,
   FileBarChart,
   FileUp,
@@ -110,6 +111,7 @@ const GRUPOS = [
       { slug: "canais", label: "Canais de envio", icon: Send },
       { slug: "lembretes", label: "Lembretes", icon: Clock },
       { slug: "tipos-beneficio", label: "Tipos de benefício", icon: Tags },
+      { slug: "catalogos", label: "Catálogos", icon: LibraryBig },
     ],
   },
   {

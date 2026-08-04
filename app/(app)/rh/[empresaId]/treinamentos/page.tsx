@@ -1,5 +1,6 @@
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
+import { opcoesDoCatalogo } from "@/lib/catalogos";
 import { TreinamentosView } from "./treinamentos-view";
 
 // Catálogo de treinamentos (não-NR — a capacitação obrigatória de segurança
@@ -49,5 +50,14 @@ export default async function TreinamentosPage({
     .map(([colaboradorId, v]) => ({ colaboradorId, nome: v.nome, competencias: [...v.competencias] }))
     .sort((a, b) => a.nome.localeCompare(b.nome));
 
-  return <TreinamentosView empresaId={empresaId} treinamentos={treinamentos} matriz={linhasMatriz} />;
+  const competenciasDisponiveis = await opcoesDoCatalogo(empresaId, "COMPETENCIA");
+
+  return (
+    <TreinamentosView
+      empresaId={empresaId}
+      treinamentos={treinamentos}
+      matriz={linhasMatriz}
+      competenciasDisponiveis={competenciasDisponiveis}
+    />
+  );
 }
