@@ -60,7 +60,8 @@
     "smoke:treinamentos": "tsx scripts/smoke-treinamentos.ts",
     "smoke:ats": "tsx scripts/smoke-ats.ts",
     "smoke:onboarding": "tsx scripts/smoke-onboarding.ts",
-    "smoke:folha": "tsx scripts/smoke-folha.ts"
+    "smoke:folha": "tsx scripts/smoke-folha.ts",
+    "smoke:pendencias": "tsx scripts/smoke-pendencias.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",

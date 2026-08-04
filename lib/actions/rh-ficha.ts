@@ -60,6 +60,7 @@ const CAMPOS: Record<string, Tipo> = {
   dataDesligamento: "data",
   motivoDesligamento: "texto",
   tipoContrato: "texto",
+  dataFimContrato: "data",
   jornadaSemanal: "inteiro",
   salarioBase: "decimal",
 };

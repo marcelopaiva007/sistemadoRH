@@ -33,6 +33,17 @@ export const RUBRICAS = [
 
 export type Rubrica = (typeof RUBRICAS)[number]["value"];
 
+// Rubricas que somam como hora extra para o teto legal. Adicional noturno e
+// sobreaviso também são horas, mas não são jornada extraordinária — entrar com
+// eles aqui acusaria excesso onde não há.
+export const RUBRICAS_HORA_EXTRA = ["HORA_EXTRA_50", "HORA_EXTRA_100"] as const;
+
+// Teto mensal de horas extras: a CLT (art. 59) limita a 2 horas por dia, o que
+// dá 44h num mês de 22 dias úteis. Não é um número exato do mês corrente — é o
+// ponto a partir do qual a jornada extraordinária deixou de ser exceção e o RH
+// precisa olhar. Passar disso é risco de autuação e de horas impagáveis.
+export const LIMITE_HORAS_EXTRAS_MES = 44;
+
 export const rubricaLabel = (v: string) => RUBRICAS.find((r) => r.value === v)?.label ?? v;
 export const rubricaUnidade = (v: string): UnidadeRubrica =>
   RUBRICAS.find((r) => r.value === v)?.unidade ?? "VALOR";

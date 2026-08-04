@@ -18,6 +18,11 @@ import {
   Star,
   MessagesSquare,
   History,
+  FileSignature,
+  Timer,
+  Users,
+  Stethoscope,
+  CircleDashed,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -29,10 +34,14 @@ import type { Pendencias } from "@/lib/pendencias";
 export function PendenciasView({
   empresaId,
   pendencias,
+  semRegistro,
   diasAlerta,
 }: {
   empresaId: string;
   pendencias: Pendencias;
+  // Módulos sem NENHUM registro nesta marca. Chega como array, não Set: o que
+  // atravessa de Server para Client Component tem que ser serializável.
+  semRegistro: (keyof Pendencias)[];
   diasAlerta: number;
 }) {
   const [exportando, setExportando] = useState(false);
@@ -158,9 +167,46 @@ export function PendenciasView({
       href: `/rh/${empresaId}/colaboradores`,
       icon: History,
     },
+    {
+      chave: "contratosVencendo",
+      titulo: "Contrato vencendo",
+      descricao: `Experiência, temporário ou estágio terminando em ${diasAlerta} dias — passar do prazo torna o contrato indeterminado.`,
+      href: `/rh/${empresaId}/colaboradores`,
+      icon: FileSignature,
+      urgente: true,
+    },
+    {
+      chave: "horasExtrasExcedidas",
+      titulo: "Hora extra acima do limite",
+      descricao: "Passou de 44h no mês aberto — o limite da CLT é 2h por dia.",
+      href: `/rh/${empresaId}/folha`,
+      icon: Timer,
+      urgente: true,
+    },
+    {
+      chave: "atestadosSemDocumento",
+      titulo: "Atestado sem documento",
+      descricao: "Falta já abonada sem o atestado anexado — nada sustenta o abono numa fiscalização.",
+      href: `/rh/${empresaId}/aprovacoes`,
+      icon: Stethoscope,
+    },
+    {
+      chave: "dependentesSemCpf",
+      titulo: "Dependente sem CPF",
+      descricao: "Declarado para IRRF sem CPF; a Receita exige em qualquer idade.",
+      href: `/rh/${empresaId}/colaboradores`,
+      icon: Users,
+    },
   ];
 
+  const vazio = new Set(semRegistro);
   const comPendencia = cartoes.filter((c) => pendencias[c.chave] > 0);
+  // Zero com registro é "está em dia"; zero sem registro nenhum é "ninguém
+  // usou este módulo". Separar os dois é o ponto: até 04/08/2026 os dois caíam
+  // no mesmo "Tudo em dia" verde, e seis áreas nunca abertas — entre elas CAT,
+  // que tem prazo legal de 1 dia útil — apareciam como conformidade.
+  const semBase = cartoes.filter((c) => pendencias[c.chave] === 0 && vazio.has(c.chave));
+  const emDia = cartoes.filter((c) => pendencias[c.chave] === 0 && !vazio.has(c.chave));
   const total = Object.values(pendencias).reduce((s, n) => s + n, 0);
 
   return (
@@ -188,15 +234,20 @@ export function PendenciasView({
         )}
       </div>
 
-      <div id="pendencias-content">
+      <div id="pendencias-content" className="space-y-4">
         {comPendencia.length === 0 ? (
           <Card>
             <CardContent className="flex flex-col items-center gap-2 py-12 text-center">
               <CheckCircle2 className="size-8 text-success" />
-              <p className="font-medium">Tudo em dia</p>
+              <p className="font-medium">
+                {emDia.length > 0 ? "Nada esperando ação" : "Nada a mostrar ainda"}
+              </p>
               <p className="max-w-md text-sm text-muted-foreground">
-                Nenhuma aprovação parada, nenhum documento vencendo, nenhuma CAT em aberto. Use o menu
-                ao lado para navegar pelos módulos.
+                {emDia.length > 0
+                  ? `${emDia.length} ${emDia.length === 1 ? "situação está" : "situações estão"} em dia.`
+                  : "Nenhum dos módulos acompanhados tem registro."}{" "}
+                {semBase.length > 0 &&
+                  `Outras ${semBase.length} não puderam ser avaliadas — veja abaixo.`}
               </p>
             </CardContent>
           </Card>
@@ -235,6 +286,36 @@ export function PendenciasView({
               );
             })}
           </div>
+        )}
+
+        {semBase.length > 0 && (
+          <Card className="border-dashed">
+            <CardContent className="space-y-3 py-4">
+              <div className="flex items-start gap-3">
+                <CircleDashed className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
+                <div>
+                  <p className="font-medium">
+                    {semBase.length} {semBase.length === 1 ? "situação" : "situações"} sem base para
+                    avaliar
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Estes módulos não têm nenhum registro, então o zero acima não quer dizer que
+                    esteja tudo certo — quer dizer que não há o que conferir. Começar a usá-los é o
+                    que liga a cobrança.
+                  </p>
+                </div>
+              </div>
+              <ul className="grid gap-x-6 gap-y-1 pl-8 text-sm text-muted-foreground sm:grid-cols-2">
+                {semBase.map((c) => (
+                  <li key={c.chave}>
+                    <Link href={c.href} className="hover:text-foreground hover:underline">
+                      {c.titulo}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
         )}
       </div>
     </div>

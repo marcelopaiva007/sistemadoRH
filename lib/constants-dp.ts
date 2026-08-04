@@ -55,6 +55,17 @@ export const TIPOS_CONTRATO = [
 // Só quem é CLT entra no controle de férias da CLT (art. 129 e seguintes).
 export const CONTRATOS_COM_FERIAS_CLT = ["CLT", "EXPERIENCIA", "APRENDIZ"] as const;
 
+// Contratos que acabam numa data — os que alimentam `dataFimContrato` e a
+// pendência de vencimento. PJ fica de fora de propósito: o contrato existe e
+// tem prazo, mas quem controla é o contrato civil, não o DP.
+//
+// Por que isto é a pendência mais cara do RH: passado o termo sem rescindir ou
+// renovar, o contrato de experiência vira por prazo indeterminado (CLT art.
+// 445 e 451) e a empresa herda aviso prévio, multa de 40% do FGTS e todo o
+// custo de uma demissão que ela achava que não teria. O prazo não avisa —
+// simplesmente passa.
+export const CONTRATOS_POR_PRAZO = ["EXPERIENCIA", "TEMPORARIO", "ESTAGIO"] as const;
+
 export const ESTADOS_CIVIS = [
   { value: "SOLTEIRO", label: "Solteiro(a)" },
   { value: "CASADO", label: "Casado(a)" },

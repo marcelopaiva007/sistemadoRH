@@ -138,7 +138,17 @@ permissões — ferramentas e leitura, não configuração).
   não um dashboard: mostra o que exige ação hoje — CAT sem emitir, aprovações
   paradas, ASO/NR vencendo, EPI vencido, integração atrasada — e cada cartão
   leva para onde a coisa se resolve. Item com prazo legal aparece primeiro e
-  em vermelho.
+  em vermelho. São 17 situações (`lib/pendencias.ts`), cobertas por
+  `npm run smoke:pendencias`.
+- **Zero de pendência e zero de registro são coisas diferentes, e a tela
+  separa as duas.** "Nenhuma CAT em aberto" tanto pode ser a empresa em dia
+  quanto o módulo de acidentes nunca ter sido usado — significados opostos com
+  a mesma aparência. `modulosSemRegistro()` identifica o segundo caso e ele vai
+  para um bloco à parte, "sem base para avaliar", em vez de entrar na conta do
+  que está em dia. Em 04/08/2026 eram 10 a 12 das 17 situações em cada marca,
+  todas exibidas até então sob um "Tudo em dia" verde. O assistente recebe a
+  mesma informação, pelo mesmo motivo — ali a resposta sai em prosa afirmativa,
+  o que é pior.
 - **A empresa continua na URL** (`/rh/<empresaId>/...`). O seletor no topo da
   lateral troca de empresa mantendo a seção: quem está em Colaboradores da LM
   Telecom cai em Colaboradores da Centrysol. **Sub-rota é descartada de
@@ -688,6 +698,7 @@ o mesmo que já rodava fixo antes desta tabela existir.
 | `npm run test:admissao`                                     | testes das pendências da admissão — documento faltando, salário zero, documento extra (não toca o banco)                                                                        |
 | `npm run smoke:onboarding`                                  | fumaça da trilha de integração — responsável sugerido, item personalizado com prazo, concluir/reabrir, gerar duas vezes sem duplicar, **sempre em rollback**                    |
 | `npm run smoke:folha`                                       | fumaça dos eventos variáveis — competência única por mês, recálculo preservando lançamento manual, falta abonada fora do desconto, fechamento, **sempre em rollback**           |
+| `npm run smoke:pendencias`                                  | fumaça da tela inicial — contrato vencido que não some, hora extra somada por pessoa, atestado sem dupla contagem, total = soma das 17 chaves, **sempre em rollback**           |
 | `npm run verificar:assistente`                              | confere as ferramentas do assistente contra o banco real, inclusive o isolamento entre empresas — **read-only**, não escreve nada                                               |
 | `npx tsx scripts/aplicar-migracao.ts <nome> [--dry]`        | aplica um `migration.sql` à mão, em transação (ver "Notas sobre o banco")                                                                                                       |
 | `npm run check:migracoes`                                   | lista migration do repo que o banco ainda não recebeu — **read-only**; roda sozinho antes de todo `npm run build`                                                               |
