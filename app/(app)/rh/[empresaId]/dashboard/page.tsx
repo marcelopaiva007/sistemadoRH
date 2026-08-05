@@ -38,7 +38,17 @@ export default async function DashboardPage({
     null;
 
   if (!selecionada) {
-    return <DashboardNR01View pesquisas={[]} resultado={null} pesquisaSelecionada={null} convites={0} empresaId={empresaId} />;
+    return (
+      <DashboardNR01View
+        pesquisas={[]}
+        resultado={null}
+        pesquisaSelecionada={null}
+        convites={0}
+        empresaId={empresaId}
+        setores={[]}
+        planosAbertos={[]}
+      />
+    );
   }
 
   // Se for Clima, redireciona para a página de Resultados da pesquisa
@@ -57,7 +67,11 @@ export default async function DashboardPage({
   }
 
   // Segue com NR01
-  const [convites, perguntas, respostas] = await Promise.all([
+  // Setores e planos abertos alimentam o bloco de ação por zona (ZONAS_IRP):
+  // o plano de ação valida que o setor pertence à empresa, então a tela precisa
+  // do ID da linha de Setor (nome repete entre CNPJs) — o heatmap só tem o nome
+  // canônico do snapshot, o cruzamento nome→id acontece na view.
+  const [convites, perguntas, respostas, setores, planosAbertos] = await Promise.all([
     prisma.surveyToken.count({
       where: { pesquisaId: selecionada.id, ...CONVITES_NA_PESQUISA },
     }),
@@ -73,6 +87,17 @@ export default async function DashboardPage({
         itens: { select: { perguntaId: true, valorNumerico: true } },
       },
     }),
+    prisma.setor.findMany({
+      where: { empresaId, ativo: true },
+      select: { id: true, nome: true },
+    }),
+    // "Aberto" = ainda exige trabalho (mesma leitura da tela planos-acao/):
+    // ABERTO ou EM_ANDAMENTO. Concluído/cancelado libera o botão de criar outro.
+    prisma.planoAcao.findMany({
+      where: { empresaId, setorId: { not: null }, status: { in: ["ABERTO", "EM_ANDAMENTO"] } },
+      orderBy: { prazo: "asc" },
+      select: { id: true, titulo: true, prazo: true, status: true, setorId: true },
+    }),
   ]);
 
   const resultado = calcularNR01(perguntas, respostas);
@@ -84,6 +109,8 @@ export default async function DashboardPage({
       pesquisaSelecionada={selecionada.id}
       convites={convites}
       resultado={resultado}
+      setores={setores}
+      planosAbertos={planosAbertos}
     />
   );
 }

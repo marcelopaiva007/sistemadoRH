@@ -7,6 +7,7 @@ import { calcularTurnover, tempoMedioDeCasaAnos } from "@/lib/bi";
 // duas telas discordando sobre quem é pequeno demais seria pior do que o valor
 // exato ser 15 ou 12.
 import { PISO_ATIVOS } from "@/lib/anomalias";
+import { medirQualidadeSalarial } from "@/lib/qualidade-salarial";
 import { normalizarTexto } from "@/lib/text";
 import { PlacarView } from "./placar-view";
 import type { ForaDoRecorte, LinhaPlacar, OpcaoSetor } from "./placar-view";
@@ -50,6 +51,10 @@ type Vinculo = {
   salarioBase: number | null;
   setorId: string | null;
   setor: { nome: string } | null;
+  posicao: { nome: string };
+  sexo: string | null;
+  tipoContrato: string | null;
+  jornadaSemanal: number | null;
 };
 
 export default async function PlacarPage({
@@ -89,7 +94,10 @@ export default async function PlacarPage({
     // `select` explícito: `salarioBase` é lido aqui só para virar soma e
     // contagem. Nenhum salário individual entra em `LinhaPlacar`, e portanto
     // nenhum é serializado no HTML que vai para o navegador — a matriz de papéis
-    // trata salário como dado de Diretoria/RH.
+    // trata salário como dado de Diretoria/RH. A exceção medida é a lista de
+    // abaixo do piso da seção de qualidade: o VALOR desce (é o diagnóstico),
+    // mas sem `nome` nem `id` — a lib nem aceita esses campos.
+    // `sexo`/`tipoContrato`/`jornadaSemanal` viram só contagem agregada.
     prisma.colaborador.findMany({
       where: { empresaId: { in: escopo } },
       select: {
@@ -100,6 +108,10 @@ export default async function PlacarPage({
         salarioBase: true,
         setorId: true,
         setor: { select: { nome: true } },
+        posicao: { select: { nome: true } },
+        sexo: true,
+        tipoContrato: true,
+        jornadaSemanal: true,
       },
     }),
   ]);
@@ -153,6 +165,11 @@ export default async function PlacarPage({
 
   const foraDoRecorte = montarForaDoRecorte(vinculos, empresasNoEscopo, linhas, inicioDaJanela);
 
+  // Mesmo recorte da tabela (escopo de empresas + filtro de setor), mas cargo
+  // agregado no GRUPO do recorte, não por CNPJ: política salarial é decisão de
+  // cargo, e fatiar por CNPJ deixaria quase toda linha abaixo do piso de amostra.
+  const qualidadeSalarial = medirQualidadeSalarial(vinculos.filter(v => v.ativo));
+
   return (
     <PlacarView
       empresaId={empresaId}
@@ -167,6 +184,7 @@ export default async function PlacarPage({
       empresasSelecionadas={escopo}
       mediaSimplesPct={mediaSimplesPct}
       pisoAtivos={PISO_ATIVOS}
+      qualidadeSalarial={qualidadeSalarial}
     />
   );
 }

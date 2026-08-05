@@ -12,6 +12,8 @@ import {
 } from "@/lib/bi";
 import { analisarDesligamentos, type Anomalia, type VinculoParaAnomalia } from "@/lib/anomalias";
 import { resumoTempoDeCasa, tempoDeCasaPorSetor } from "@/lib/tempo-de-casa";
+import { medirMalhaLideranca } from "@/lib/lideranca";
+import { montarNarrativa, type DesligamentoParaNarrativa, type SaldoEmpresaParaNarrativa } from "@/lib/narrativa";
 import { PainelView } from "./painel-view";
 import type { AbsenteismoNaTela, LinhaCustoNaTela } from "./painel-view";
 import type { AnomaliaNaTela, SaidaDoMes } from "./radar-desvio";
@@ -101,6 +103,7 @@ export default async function PainelPage({
     ausenciasRecentes,
     ausenciasNoEscopo,
     beneficiosVigentes,
+    ativosDoGrupoParaMalha,
   ] = await Promise.all([
     // Todas as visíveis, não só as do escopo: os seletores de marca e CNPJ
     // precisam oferecer o que está fora do filtro atual, senão filtrar em um
@@ -171,6 +174,23 @@ export default async function PainelPage({
         colaborador: { select: { setor: { select: { nome: true } } } },
       },
     }),
+    // Malha de liderança para a narrativa: SEMPRE o grupo inteiro (`visiveis`),
+    // nunca `escopo` — 88% dos liderados reportam a um líder de outro CNPJ
+    // (ver lib/lideranca.ts), então um recorte de marca/CNPJ trunca span e o
+    // fato de sobrecarga sai errado. A mesma consulta de lideranca/page.tsx.
+    prisma.colaborador.findMany({
+      where: { empresaId: { in: visiveis }, ativo: true },
+      select: {
+        id: true,
+        nome: true,
+        supervisorId: true,
+        gerente: true,
+        setor: { select: { nome: true } },
+        posicao: { select: { nome: true } },
+        empresa: { select: { nome: true } },
+        empresaId: true,
+      },
+    }),
   ]);
 
   const porEmpresa = new Map(empresas.map(e => [e.id, e]));
@@ -225,6 +245,54 @@ export default async function PainelPage({
     mesIncompleto: a.mesIncompleto,
     saidas: saidasDaAnomalia(vinculos, porEmpresa, a),
   }));
+
+  // --- Narrativa: "o que aconteceu", a abertura em prosa --------------------
+  //
+  // Mesmo recorte de CNPJs do radar (24 meses, `vinculosParaAnomalia`) para
+  // desligamentos — é o que dá a cobertura de setor de cada pico, e não bateria
+  // se viesse de outra janela. Malha é do grupo inteiro (ver a consulta acima).
+  const desligamentosParaNarrativa: DesligamentoParaNarrativa[] = vinculos.flatMap(v => {
+    const e = porEmpresa.get(v.empresaId);
+    if (!e || v.ativo || !v.dataDesligamento) return [];
+    const dentroDoRadar =
+      hoje.getTime() - v.dataDesligamento.getTime() <= MESES_DO_RADAR * 31 * 86_400_000;
+    if (!dentroDoRadar) return [];
+    return [
+      {
+        empresaId: e.id,
+        marcaId: e.marca.id,
+        mes: chaveDoMes(v.dataDesligamento),
+        setorNome: v.setor.nome,
+      },
+    ];
+  });
+
+  const saldosParaNarrativa: SaldoEmpresaParaNarrativa[] = escopo.flatMap(id => {
+    const e = porEmpresa.get(id);
+    if (!e) return [];
+    const vinculosDaEmpresa = vinculos.filter(v => v.empresaId === id);
+    const mov = movimentoMensal(vinculosDaEmpresa, hoje, janela);
+    return [
+      {
+        empresaId: id,
+        nome: e.nome,
+        ativos: vinculosDaEmpresa.filter(v => v.ativo).length,
+        admissoes: mov.reduce((t, m) => t + m.admissoes, 0),
+        desligamentos: mov.reduce((t, m) => t + m.desligamentos, 0),
+        desligadosSemData: vinculosDaEmpresa.filter(v => !v.ativo && !v.dataDesligamento).length,
+      },
+    ];
+  });
+
+  const malha = medirMalhaLideranca(ativosDoGrupoParaMalha);
+  const narrativa = montarNarrativa({
+    janelaMeses: janela,
+    anomalias: resultado.anomalias,
+    desligamentos: desligamentosParaNarrativa,
+    saldos: saldosParaNarrativa,
+    malha,
+    hoje,
+  });
 
   // --- Folha: soma só onde a cobertura sustenta ----------------------------
   const comSalario = ativos.filter(c => c.salarioBase != null).length;
@@ -316,6 +384,7 @@ export default async function PainelPage({
       tempo={tempo}
       tempoPorSetor={tempoPorSetor}
       absenteismo={absenteismo}
+      narrativa={narrativa}
       exportacaoSegueATela={exportacaoSegueATela}
     />
   );

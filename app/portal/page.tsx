@@ -1,10 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import { lerSessaoPortal } from "@/lib/portal-auth";
 import { calcularFerias } from "@/lib/ferias";
+import { montarMeuTime } from "@/lib/meu-time";
 import { opcoesDoCatalogo } from "@/lib/catalogos";
 import { PortalSemSessao } from "./sem-sessao";
 import { ConfirmarCpf } from "./confirmar-cpf";
 import { PortalInicio } from "./portal-inicio";
+import type { MeuTimePortal } from "./meu-time";
 
 // Portal do colaborador. Três estados possíveis, nessa ordem:
 //   1. sem sessão válida -> instrui a pedir /portal ao bot;
@@ -165,6 +167,99 @@ export default async function PortalPage() {
       )
     : null;
 
+  // A porta do gestor para "Meu time": o recorte é quem tem supervisorId
+  // apontando para a pessoa logada — o organograma real, não papel de sistema
+  // (não existe usuário GESTOR_SETOR, e User não tem vínculo com Colaborador;
+  // é por isso que a tela do gestor entra pelo portal). A conta é a MESMA da
+  // tela /rh/[empresaId]/time — lib/meu-time.ts — para gestor e RH nunca
+  // lerem números diferentes da mesma equipe.
+  const subordinados = await prisma.colaborador.findMany({
+    where: { supervisorId: colaborador.id, ativo: true },
+    orderBy: { nome: "asc" },
+    // `select` explícito: nada de salário, CPF ou documento da equipe — o
+    // gestor vê sinal de gestão (férias, avaliação, trilha), não ficha.
+    select: {
+      id: true,
+      nome: true,
+      empresaId: true,
+      dataAdmissao: true,
+      telegramChatId: true,
+      empresa: { select: { nome: true } },
+      setor: { select: { nome: true } },
+      posicao: { select: { nome: true } },
+      ferias: {
+        where: { status: { in: ["APROVADA", "PENDENTE"] } },
+        select: { periodoAquisitivoInicio: true, dias: true, diasAbono: true, status: true },
+      },
+      avaliacoesRecebidas: {
+        where: { ciclo: { encerrado: false } },
+        select: { status: true },
+      },
+      _count: { select: { sessoesPortal: true } },
+      checklistIntegracao: { select: { item: true, concluido: true, prazo: true } },
+    },
+  });
+
+  let meuTime: MeuTimePortal | null = null;
+  if (subordinados.length > 0) {
+    const ciclosAbertos = await prisma.cicloAvaliacao.findMany({
+      where: {
+        empresaId: { in: [...new Set(subordinados.map((s) => s.empresaId))] },
+        encerrado: false,
+      },
+      select: { empresaId: true },
+    });
+    const empresasComCiclo = new Set(ciclosAbertos.map((c) => c.empresaId));
+
+    const time = montarMeuTime(
+      subordinados.map((s) => ({
+        id: s.id,
+        nome: s.nome,
+        empresaId: s.empresaId,
+        empresa: s.empresa.nome,
+        setor: s.setor.nome,
+        cargo: s.posicao.nome,
+        dataAdmissao: s.dataAdmissao,
+        // Por construção do recorte, todo mundo aqui tem líder: a pessoa logada.
+        semLider: false,
+        // Presença de salário e de CPF é assunto do RH/DP, não do gestor — os
+        // campos nem são buscados para o portal. A lacuna que sobra é a que o
+        // gestor consegue empurrar: data de admissão, setor/cargo e o Telegram
+        // que destrava o acesso da pessoa ao portal.
+        semSalario: false,
+        semCpf: false,
+        semTelegram: !s.telegramChatId,
+        nuncaAcessouPortal: s._count.sessoesPortal === 0,
+        ferias: s.ferias,
+        temCicloAberto: empresasComCiclo.has(s.empresaId),
+        avaliacoesCicloAberto: s.avaliacoesRecebidas,
+        trilha: s.checklistIntegracao,
+      })),
+    );
+
+    // Campo a campo, e não o objeto da lib inteiro: o que atravessa a
+    // fronteira servidor → portal fica escrito. empresaId (id interno) e o
+    // resumo agregado ficam para trás — o gestor não precisa deles.
+    meuTime = {
+      linhas: time.linhas.map((l) => ({
+        id: l.id,
+        nome: l.nome,
+        setor: l.setor,
+        cargo: l.cargo,
+        empresa: l.empresa,
+        tempoDeCasa: l.tempoDeCasa,
+        diasDeCasa: l.diasDeCasa,
+        recemChegado: l.recemChegado,
+        ferias: l.ferias,
+        avaliacao: l.avaliacao,
+        lacunas: l.lacunas,
+        nuncaAcessouPortal: l.nuncaAcessouPortal,
+        trilha: l.trilha,
+      })),
+      avisos: time.avisos,
+    };
+  }
+
   return (
     <PortalInicio
       colaborador={colaborador}
@@ -172,6 +267,7 @@ export default async function PortalPage() {
       documentos={documentos}
       ausencias={ausencias}
       resumoFerias={resumoFerias}
+      meuTime={meuTime}
       equipe={
         colaborador.gerente
           ? {

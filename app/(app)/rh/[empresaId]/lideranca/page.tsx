@@ -1,6 +1,9 @@
 import { empresasVisiveis, requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
+import { hojeUTC } from "@/lib/datas";
 import { medirMalhaLideranca } from "@/lib/lideranca";
+import { medirBusFactor } from "@/lib/bus-factor";
+import { calcularPassivoFerias } from "@/lib/ferias-passivo";
 import { LiderancaView } from "./lideranca-view";
 
 // Malha de liderança: quantos diretos cada líder carrega, quem está fora de
@@ -42,6 +45,16 @@ export default async function LiderancaPage({
         setor: { select: { nome: true } },
         posicao: { select: { nome: true } },
         empresa: { select: { nome: true } },
+        empresaId: true,
+        // Para o bus factor: tempo de casa do ocupante único e, via motor de
+        // férias, se ele está com férias vencidas. Salário NÃO é buscado de
+        // propósito — esta tela só precisa de DIAS vencidos, e sem salário no
+        // recorte nenhum valor reversível a salário chega perto do cliente.
+        dataAdmissao: true,
+        ferias: {
+          where: { status: { in: ["APROVADA", "PENDENTE"] } },
+          select: { periodoAquisitivoInicio: true, dias: true, diasAbono: true, status: true },
+        },
       },
     }),
     prisma.empresa.findMany({
@@ -51,6 +64,26 @@ export default async function LiderancaPage({
   ]);
 
   const malha = medirMalhaLideranca(ativos);
+
+  // Bus factor: quem está com férias vencidas vem do MESMO motor da tela de
+  // Férias (calcularPassivoFerias), nunca de uma segunda regra. `salarioBase:
+  // null` é deliberado: o cálculo de dias não depende de salário, e assim o
+  // objeto inteiro nasce sem um real dentro — os avisos monetários do passivo
+  // não são usados aqui, só a lista de vencidos.
+  const hoje = hojeUTC();
+  const passivo = calcularPassivoFerias(
+    ativos.map(c => ({
+      colaboradorId: c.id,
+      nome: c.nome,
+      empresaId: c.empresaId,
+      empresaNome: c.empresa.nome,
+      dataAdmissao: c.dataAdmissao,
+      salarioBase: null,
+      solicitacoes: c.ferias,
+    })),
+    hoje
+  );
+  const busFactor = medirBusFactor(ativos, malha.lideres, passivo.vencido.lista, hoje);
 
   // Quantos ativos cada CNPJ tem. Não é ornamento: é o que permite ler "52
   // diretos em uma empresa de 18 pessoas" — o número que separa estrutura real
@@ -72,6 +105,7 @@ export default async function LiderancaPage({
     <LiderancaView
       empresaId={empresaId}
       malha={malha}
+      busFactor={busFactor}
       ativosPorEmpresa={ativosPorEmpresa}
       marcas={marcas}
     />

@@ -47,6 +47,8 @@ import {
 } from "@/lib/tempo-de-casa";
 import { useControleFiltro } from "../filtro-empresas";
 import { RadarDesvio, type RadarDeDesvio } from "./radar-desvio";
+import { NarrativaAbertura } from "./narrativa-abertura";
+import type { Narrativa } from "@/lib/narrativa";
 
 /**
  * Painel — a tela única de BI de RH.
@@ -135,6 +137,7 @@ export function PainelView({
   tempo,
   tempoPorSetor,
   absenteismo,
+  narrativa,
   exportacaoSegueATela,
 }: {
   empresaId: string;
@@ -157,6 +160,7 @@ export function PainelView({
   tempo: ResumoTempoDeCasa;
   tempoPorSetor: LinhaTempoDeCasaPorGrupo[];
   absenteismo: AbsenteismoNaTela;
+  narrativa: Narrativa;
   /** Falso quando o CSV/PDF sairia com escopo ou janela diferentes do que está na tela. */
   exportacaoSegueATela: boolean;
 }) {
@@ -297,8 +301,11 @@ export function PainelView({
         </Card>
       ) : (
         <>
-          {/* --- Radar de desvio, no topo ------------------------------------ */}
-          <RadarDesvio radar={radar} />
+          {/* --- "O que aconteceu", abertura em prosa ------------------------- */}
+          <NarrativaAbertura empresaId={empresaId} narrativa={narrativa} />
+
+          {/* --- Radar de desvio ---------------------------------------------- */}
+          <RadarDesvio radar={radar} hrefCentral={`/rh/${empresaId}/sinais`} />
 
           {/* --- KPIs -------------------------------------------------------- */}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

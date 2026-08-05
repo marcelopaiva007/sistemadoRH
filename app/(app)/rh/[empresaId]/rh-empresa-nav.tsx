@@ -6,6 +6,7 @@ import {
   Activity,
   AlertOctagon,
   Award,
+  BellRing,
   Bot,
   Briefcase,
   Building2,
@@ -14,6 +15,7 @@ import {
   ClipboardCheck,
   ClipboardList,
   Clock,
+  ContactRound,
   CreditCard,
   LibraryBig,
   Tags,
@@ -101,7 +103,15 @@ const GRUPOS = [
       // NR-01 é de risco psicossocial.
       { slug: "painel", label: "Painel executivo", icon: LayoutDashboard },
       { slug: "placar", label: "Placar do grupo", icon: Trophy },
+      // O que o radar de desvio e os detectores de lib/alertas.ts encontram
+      // vira cartão aqui, com dono e prazo — sem isso, alerta é ruído que o
+      // time aprende a ignorar em um mês.
+      { slug: "sinais", label: "Central de Sinais", icon: BellRing },
       { slug: "lideranca", label: "Malha de liderança", icon: Waypoints },
+      // A leitura de UMA equipe, pessoa a pessoa (a Malha acima é a estrutura
+      // inteira). Tem seletor de setor porque não existe papel de gestor de
+      // setor no sistema — o gestor real vê o próprio recorte pelo portal.
+      { slug: "time", label: "Meu time", icon: ContactRound },
       // A tela NÃO mostra clima: escolher uma pesquisa de clima nela não
       // renderiza nada, só devolve um link para Pesquisas. O nome antigo
       // ("Painel de clima") prometia o que ela não entrega — e clima e risco

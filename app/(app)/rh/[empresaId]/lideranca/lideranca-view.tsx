@@ -5,11 +5,13 @@ import Link from "next/link";
 import {
   AlertTriangle,
   Building2,
+  CheckCircle2,
   ChevronDown,
   ChevronRight,
   CircleDashed,
   Info,
   Network,
+  ShieldAlert,
   UserCog,
   Users,
   UserX,
@@ -31,6 +33,11 @@ import {
   type LinhaLider,
   type MalhaDeLideranca,
 } from "@/lib/lideranca";
+import {
+  ROTULO_SEVERIDADE,
+  type BusFactor,
+  type SeveridadeBusFactor,
+} from "@/lib/bus-factor";
 import { cn } from "@/lib/utils";
 
 // DUAS COLUNAS QUE ESTA TELA NÃO TEM, DE PROPÓSITO:
@@ -76,14 +83,39 @@ const ESTILO_FAIXA: Record<
   sobrecarga: { variante: "destructive" },
 };
 
+// Severidade do bus factor: crítica pede decisão agora (ponto único que também
+// carrega equipe), alta é conversa de sucessão, média e frágil são inventário.
+const ESTILO_SEVERIDADE: Record<
+  SeveridadeBusFactor,
+  { variante: "secondary" | "outline" | "destructive"; classe?: string }
+> = {
+  critica: { variante: "destructive" },
+  alta: { variante: "outline", classe: "border-warning/40 text-warning" },
+  media: { variante: "secondary" },
+  fragil: { variante: "outline" },
+};
+
+// Tempo de casa curto para caber em célula. Null vira "sem data" — nunca zero,
+// que leria como recém-contratado.
+function tempoDeCasaCurto(anos: number | null): string {
+  if (anos === null) return "sem data";
+  if (anos < 1) {
+    const meses = Math.round(anos * 12);
+    return meses <= 1 ? "1 mês" : `${meses} meses`;
+  }
+  return `${anos.toFixed(1).replace(".", ",")} anos`;
+}
+
 export function LiderancaView({
   empresaId,
   malha,
+  busFactor,
   ativosPorEmpresa,
   marcas,
 }: {
   empresaId: string;
   malha: MalhaDeLideranca;
+  busFactor: BusFactor;
   ativosPorEmpresa: { empresa: string; total: number }[];
   marcas: string[];
 }) {
@@ -359,6 +391,8 @@ export function LiderancaView({
         </CardContent>
       </Card>
 
+      <PontosUnicosDeFalha empresaId={empresaId} busFactor={busFactor} />
+
       <Card className="border-dashed">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
@@ -366,10 +400,10 @@ export function LiderancaView({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {/* Vindos da lib, não reescritos aqui: a tela e o assistente têm que
+          {/* Vindos das libs, não reescritos aqui: a tela e o assistente têm que
               dizer a mesma coisa sobre o mesmo dado. */}
           <ul className="space-y-1.5 text-sm text-muted-foreground">
-            {malha.avisos.map(aviso => (
+            {[...malha.avisos, ...busFactor.avisos].map(aviso => (
               <li key={aviso} className="flex gap-2">
                 <span aria-hidden className="text-muted-foreground/60">
                   —
@@ -381,6 +415,174 @@ export function LiderancaView({
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+/**
+ * Bus factor por função: cargo×CNPJ com um único ocupante. A tabela mostra só
+ * as severidades crítica e alta (liderança de nome ou de fato) — as funções
+ * comuns com um ocupante viram uma linha corrida, porque 20+ linhas de cargo
+ * de execução enterrariam os 15 que pedem plano de sucessão.
+ */
+function PontosUnicosDeFalha({
+  empresaId,
+  busFactor,
+}: {
+  empresaId: string;
+  busFactor: BusFactor;
+}) {
+  const { pontosUnicos, duplas } = busFactor.porCargoEmpresa;
+  const criticosEAltos = pontosUnicos.filter(l => l.severidade !== "media");
+  const comuns = pontosUnicos.filter(l => l.severidade === "media");
+  const duplasDeLideranca = duplas.filter(l => l.lideranca);
+  const unicosNoGrupo = busFactor.porCargoNoGrupo.pontosUnicos.length;
+  // Coluna de férias só quando há o que mostrar: uma coluna inteira de zeros
+  // ensinaria o leitor a ignorá-la. O caso "zerada" vira a frase verde abaixo.
+  const mostrarColunaFerias = busFactor.feriasVencidas.comVencidas.length > 0;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <ShieldAlert className="size-4" />
+          Pontos únicos de falha
+        </CardTitle>
+        <CardDescription>
+          Funções em que só UMA pessoa ativa ocupa o cargo no CNPJ — se ela sair, não há quem
+          assuma. A coluna &quot;no grupo&quot; separa o risco local (existe backup em outro CNPJ) do
+          risco absoluto (único no grupo inteiro). Cargos &quot;Não definido&quot; e
+          &quot;Inativo&quot; ficam fora: são bucket de cadastro, não função.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          Das <strong className="text-foreground">{busFactor.combosCargoEmpresa}</strong>{" "}
+          combinações cargo×CNPJ entre os {busFactor.avaliados} ativos avaliados,{" "}
+          <strong className="text-foreground">{pontosUnicos.length}</strong> têm um único ocupante
+          ({criticosEAltos.length} em função de liderança) e {duplas.length} têm apenas dois. No
+          grupo inteiro, {unicosNoGrupo} {unicosNoGrupo === 1 ? "cargo tem" : "cargos têm"} um
+          único ocupante.
+        </p>
+
+        {criticosEAltos.length === 0 ? (
+          <p className="py-2 text-sm text-muted-foreground">
+            Nenhuma função de liderança com ocupante único neste recorte.
+          </p>
+        ) : (
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Cargo</TableHead>
+                  <TableHead>Empresa</TableHead>
+                  <TableHead>Ocupante único</TableHead>
+                  <TableHead className="text-right">Tempo de casa</TableHead>
+                  <TableHead className="text-right">Diretos</TableHead>
+                  <TableHead className="text-right">No grupo</TableHead>
+                  {mostrarColunaFerias && (
+                    <TableHead className="text-right">Férias vencidas</TableHead>
+                  )}
+                  <TableHead>Severidade</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {criticosEAltos.map(l => {
+                  const o = l.ocupantes[0];
+                  return (
+                    <TableRow key={`${l.cargo}-${l.empresa}`}>
+                      <TableCell className="font-medium">{l.cargo}</TableCell>
+                      <TableCell className="text-muted-foreground">{l.empresa}</TableCell>
+                      <TableCell>
+                        <Link
+                          href={`/rh/${empresaId}/colaboradores/${o.id}`}
+                          className="hover:underline"
+                        >
+                          {nomeExibicao(o.nome)}
+                        </Link>
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums text-muted-foreground">
+                        {tempoDeCasaCurto(o.anosDeCasa)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {/* 0 sai como travessão: com 52 ativos sem supervisor,
+                            "0 diretos" leria como fato quando é campo em branco. */}
+                        {o.diretos > 0 ? o.diretos : "—"}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {l.ocupantesNoGrupo === 1 ? (
+                          <span className="font-medium text-destructive">só ele</span>
+                        ) : (
+                          l.ocupantesNoGrupo
+                        )}
+                      </TableCell>
+                      {mostrarColunaFerias && (
+                        <TableCell className="text-right tabular-nums">
+                          {o.feriasVencidasDias > 0 ? `${o.feriasVencidasDias} dias` : "—"}
+                        </TableCell>
+                      )}
+                      <TableCell>
+                        <Badge
+                          variant={ESTILO_SEVERIDADE[l.severidade].variante}
+                          className={ESTILO_SEVERIDADE[l.severidade].classe}
+                        >
+                          {ROTULO_SEVERIDADE[l.severidade]}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+
+        {busFactor.feriasVencidas.boaNoticia && (
+          // Coluna vazia que É resultado: o cruzamento com o motor de férias
+          // rodou e ninguém destes está vencido. Vale exibir — é a diferença
+          // entre "nada a mostrar" e "nada a temer".
+          <p className="flex items-start gap-2 text-sm text-muted-foreground">
+            <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success" />
+            <span>
+              Nenhum dos {busFactor.feriasVencidas.ocupantesUnicosDeLideranca} ocupantes únicos de
+              função de liderança está com férias vencidas — o risco de ponto único não se soma,
+              hoje, ao passivo do art. 137.
+            </span>
+          </p>
+        )}
+
+        {comuns.length > 0 && (
+          <p className="border-t pt-3 text-sm text-muted-foreground">
+            Fora da liderança, mais {comuns.length}{" "}
+            {comuns.length === 1 ? "função tem" : "funções têm"} ocupante único:{" "}
+            {comuns
+              .map(
+                l =>
+                  `${l.cargo} (${l.empresa}${l.ocupantesNoGrupo === 1 ? ", único no grupo" : ""})`
+              )
+              .join(" · ")}
+            .
+          </p>
+        )}
+
+        {duplas.length > 0 && (
+          <p className="text-sm text-muted-foreground">
+            Com apenas dois ocupantes ({duplas.length}{" "}
+            {duplas.length === 1 ? "função" : "funções"}):{" "}
+            {duplasDeLideranca.length > 0 ? (
+              <>
+                na liderança,{" "}
+                {duplasDeLideranca.map(l => `${l.cargo} (${l.empresa})`).join(" · ")}
+                {duplas.length > duplasDeLideranca.length &&
+                  ` — e mais ${duplas.length - duplasDeLideranca.length} fora dela`}
+                .
+              </>
+            ) : (
+              <>nenhuma de liderança.</>
+            )}
+          </p>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, ChevronRight, CircleCheck, Info, TriangleAlert } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, ChevronDown, ChevronRight, CircleCheck, Info, TriangleAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -65,7 +66,14 @@ export type RadarDeDesvio = {
   avisos: string[];
 };
 
-export function RadarDesvio({ radar }: { radar: RadarDeDesvio }) {
+export function RadarDesvio({
+  radar,
+  hrefCentral,
+}: {
+  radar: RadarDeDesvio;
+  /** Rota da Central de Sinais — onde as MESMAS anomalias viram cartão com dono, prazo e desfecho. */
+  hrefCentral?: string;
+}) {
   // Uma linha aberta por vez: duas listas nominais abertas empurram o painel
   // inteiro para baixo e a comparação entre as frases se perde.
   const [aberta, setAberta] = useState<string | null>(null);
@@ -87,6 +95,17 @@ export function RadarDesvio({ radar }: { radar: RadarDeDesvio }) {
             <Badge variant="destructive" className="font-normal">
               {radar.anomalias.length}
             </Badge>
+          )}
+          {/* O radar mostra; a Central cobra. O link existe mesmo sem alerta:
+              é lá que ficam os sinais antigos esperando desfecho. */}
+          {hrefCentral && (
+            <Link
+              href={hrefCentral}
+              className="ml-auto inline-flex items-center gap-1 text-xs font-normal text-primary hover:underline"
+            >
+              Abrir na Central de Sinais
+              <ArrowRight className="size-3" />
+            </Link>
           )}
         </CardTitle>
         <CardDescription>

@@ -1,12 +1,13 @@
 "use client";
 
-import { CalendarDays, FileText, LogOut, PencilLine, Star, Stethoscope, Upload, User } from "lucide-react";
+import { CalendarDays, FileText, LogOut, PencilLine, Star, Stethoscope, Upload, User, UsersRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MeuCadastro, EnviarDocumento } from "./meu-cadastro";
 import { MinhasAvaliacoes, type MinhaAvaliacao, type EquipeDoGerente } from "./minhas-avaliacoes";
+import { MeuTimeDoGestor, type MeuTimePortal } from "./meu-time";
 import { sairDoPortal } from "@/lib/actions/portal";
 import { formatarTamanho } from "@/lib/anexos";
 // Mesma máscara usada na listagem interna — o portal confirma identidade,
@@ -94,6 +95,7 @@ export function PortalInicio({
   resumoFerias,
   avaliacoes,
   equipe,
+  meuTime,
 }: {
   colaborador: Colaborador;
   ferias: Ferias[];
@@ -102,6 +104,8 @@ export function PortalInicio({
   resumoFerias: ResumoFerias | null;
   avaliacoes: MinhaAvaliacao[];
   equipe: EquipeDoGerente | null;
+  /** Só para quem tem gente com supervisorId apontando para si — a aba some para o resto. */
+  meuTime: MeuTimePortal | null;
 }) {
   const avaliacoesPendentes = avaliacoes.filter((a) => a.status !== "CONCLUIDA").length;
   // Gerente vê a aba mesmo sem nada na lista — é onde ele monta a lista.
@@ -159,6 +163,14 @@ export function PortalInicio({
               )}
             </TabsTrigger>
           )}
+          {/* A aba do gestor: quem tem equipe (supervisorId apontando para si)
+              vê o time — leitura, com a mesma conta da tela do RH. */}
+          {meuTime !== null && (
+            <TabsTrigger value="time">
+              <UsersRound />
+              Meu time
+            </TabsTrigger>
+          )}
           {/* "Atualizar" primeiro e como padrão: hoje o que o RH precisa de
               cada pessoa é a ficha completa, e a aba que abre é a que é usada.
               Férias fica por último — é consulta, não tarefa pendente. */}
@@ -187,6 +199,12 @@ export function PortalInicio({
         {temAvaliacao && (
           <TabsContent value="avaliacao" className="pt-4">
             <MinhasAvaliacoes avaliacoes={avaliacoes} equipe={equipe} />
+          </TabsContent>
+        )}
+
+        {meuTime !== null && (
+          <TabsContent value="time" className="pt-4">
+            <MeuTimeDoGestor time={meuTime} />
           </TabsContent>
         )}
 

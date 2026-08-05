@@ -1554,6 +1554,77 @@ model PlanoAcao {
   @@schema("rh")
 }
 
+// Central de Sinais: alerta COM ESTADO — dono, prazo e desfecho. Os detectores
+// (lib/alertas.ts, lib/anomalias.ts via lib/sinais-registro.ts) gravam aqui
+// 1×/dia pelo cron alertas-rh; a tela sinais/ é onde o humano responde com
+// "reconheci", "virou plano" ou "descartei, e o motivo é este".
+//
+// Referências SOFT de propósito (donoUserId/donoNome, planoAcaoId, unidadeId +
+// unidadeNome como snapshot), mesmo padrão de PlanoAcao.responsavel* e da
+// trilha de auditoria: um cargo/setor apagado dois anos depois não pode quebrar
+// o histórico de sinais nem reescrever o rótulo do que foi detectado.
+model Sinal {
+  id String @id @default(cuid())
+
+  // Qual detector falou: ANOMALIA_DESLIGAMENTO | PLANO_VENCIDO |
+  // DESLIGAMENTOS_CONCENTRADOS | TAXA_RESPOSTA_BAIXA (ver lib/sinais.ts).
+  tipo String
+
+  // Onde: grupo | marca | empresa | setor, com snapshot do nome.
+  nivelUnidade String
+  unidadeId    String
+  unidadeNome  String
+  // CNPJ para o recorte da tela (empresasVisiveis). Nulo em sinal de
+  // grupo/marca, que todo leitor da Central enxerga.
+  empresaId String?
+
+  // Identidade da ocorrência — o cron atualiza a linha existente em vez de
+  // criar outra (lib/sinais.ts::decidirRegistro). Índice simples, NÃO unique:
+  // a mesma chave volta a existir quando um descarte envelhece.
+  chaveDedupe String
+
+  // A frase do cartão + observado × esperado como texto pronto — cada detector
+  // tem unidade própria (%, dias, pessoas) e a tela não reformata número.
+  titulo    String
+  observado String
+  esperado  String
+  // O que ficou fora da conta, no rodapé do cartão. Honestidade de dado.
+  recorte   String?
+
+  gravidade String // critica | alta | atencao
+  status    String @default("ABERTO") // ABERTO | RECONHECIDO | EM_PLANO | DESCARTADO | SILENCIADO
+
+  // Preenchido só em DESCARTADO — descartar sem motivo escrito não existe.
+  motivoDescarte String?
+
+  // Dono é escolha MANUAL entre os usuários do sistema (soft ref + snapshot).
+  donoUserId String?
+  donoNome   String?
+  prazo      DateTime?
+
+  // Plano criado a partir deste sinal (status EM_PLANO), soft ref.
+  planoAcaoId String?
+
+  // Até quando este sinal nasceu calado (2+ descartes seguidos na unidade).
+  silenciadoAte DateTime?
+
+  detectadoEm  DateTime @default(now())
+  // Última vez que o detector confirmou que a situação continua de pé.
+  confirmadoEm DateTime @default(now())
+  // Quando o status atual foi definido — é daqui que se conta a validade de um
+  // descarte (SILENCIO_DIAS em lib/sinais.ts).
+  statusEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  // "Essa ocorrência já existe?" — a pergunta do cron a cada candidato.
+  @@index([chaveDedupe])
+  // "O que está aberto, por gravidade?" — a pergunta da tela.
+  @@index([status, gravidade])
+  // "Quantas vezes essa unidade já descartou esse tipo?" — a regra de silêncio.
+  @@index([tipo, unidadeId])
+  @@schema("rh")
+}
+
 model Pergunta {
   id           String   @id @default(cuid())
   pesquisaId   String

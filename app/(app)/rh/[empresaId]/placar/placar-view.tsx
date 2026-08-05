@@ -22,6 +22,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { formatarReais } from "@/lib/constants-beneficios";
+import { MINIMO_SALARIOS_POR_CARGO, PISO_NACIONAL } from "@/lib/qualidade-salarial";
+import type { QualidadeSalarial } from "@/lib/qualidade-salarial";
 import { cn } from "@/lib/utils";
 import { useControleFiltro } from "../filtro-empresas";
 
@@ -151,6 +153,7 @@ export function PlacarView({
   empresasSelecionadas,
   mediaSimplesPct,
   pisoAtivos,
+  qualidadeSalarial,
 }: {
   empresaId: string;
   linhas: LinhaPlacar[];
@@ -166,6 +169,8 @@ export function PlacarView({
   /** Média simples das linhas — mostrada só para explicar por que NÃO é usada. */
   mediaSimplesPct: number | null;
   pisoAtivos: number;
+  /** Do mesmo recorte da tabela (empresas + setor), agregado por cargo no grupo. */
+  qualidadeSalarial: QualidadeSalarial;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -498,6 +503,184 @@ export function PlacarView({
           </div>
         </CardContent>
       </Card>
+
+      <SecaoQualidadeSalarial qualidade={qualidadeSalarial} />
+    </div>
+  );
+}
+
+// --------------------------------------------------------------------------
+// Qualidade do dado salarial
+// --------------------------------------------------------------------------
+
+/**
+ * Diagnóstico de PREENCHIMENTO do salário, não análise de remuneração — a
+ * distinção é o produto. Medido em 05/08/2026: 135 dos 166 salários de ativos
+ * eram exatamente R$ 1.621 (o piso), 19 valores distintos na base inteira, e
+ * fora o CEO o teto era R$ 2.498 — gerência e diretoria não estão na base. A
+ * coluna "Folha-base importada" lá em cima é construída sobre isso; esta seção
+ * existe para ninguém ler aquela coluna como custo real sem passar por aqui.
+ */
+function SecaoQualidadeSalarial({ qualidade }: { qualidade: QualidadeSalarial }) {
+  const q = qualidade;
+  const pctModal = q.comSalario > 0 ? Math.round((q.noModal / q.comSalario) * 100) : null;
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3 className="text-lg font-semibold tracking-tight">Qualidade do dado salarial</h3>
+        <p className="max-w-3xl text-sm text-muted-foreground">
+          Não é análise de salário — é diagnóstico de preenchimento.
+          {q.valorModal !== null && pctModal !== null && (
+            <>
+              {" "}
+              {q.noModal} dos {q.comSalario} salários cadastrados ({pctModal}%) são exatamente{" "}
+              {formatarReais(q.valorModal)}: o campo registra o piso de contratação, e a
+              remuneração real (comissão, periculosidade, hora extra) não existe em campo nenhum
+              do sistema.
+            </>
+          )}
+        </p>
+      </div>
+
+      {q.comSalario === 0 ? (
+        <Card>
+          <CardContent className="py-6 text-sm text-muted-foreground">
+            Nenhum ativo com salário cadastrado no recorte — não há o que diagnosticar.
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          {/* --- Por cargo -------------------------------------------------- */}
+          <div className="overflow-x-auto rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Cargo</TableHead>
+                  <TableHead className="text-right">Com salário</TableHead>
+                  <TableHead className="text-right" title="Quantos valores diferentes existem entre os salários do cargo.">
+                    Valores distintos
+                  </TableHead>
+                  <TableHead className="text-right" title="% dos salários do cargo exatamente no valor mais frequente dele.">
+                    No valor modal
+                  </TableHead>
+                  <TableHead className="text-right" title="Maior salário do cargo menos o menor. R$ 0 = todo mundo ganha o mesmo no papel.">
+                    Amplitude
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {q.porCargo.map(l => (
+                  <TableRow key={l.cargo}>
+                    <TableCell className="font-medium">{l.cargo}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {l.comSalario} de {l.ativos}
+                    </TableCell>
+                    <TableCell
+                      className={cn("text-right tabular-nums", l.valoresDistintos === 1 && "text-warning")}
+                    >
+                      {l.valoresDistintos}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {Math.round(l.noModalPct)}% em {formatarReais(l.valorModal)}
+                    </TableCell>
+                    <TableCell className={cn("text-right tabular-nums", l.achatado && "text-warning")}>
+                      {l.achatado ? "R$ 0 — todos iguais" : formatarReais(l.amplitudeReais)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          {q.foraDaTabela.cargos > 0 && (
+            <p className="text-xs text-muted-foreground">
+              Fora da tabela: {q.foraDaTabela.cargos} cargos com menos de{" "}
+              {MINIMO_SALARIOS_POR_CARGO} salários cadastrados ({q.foraDaTabela.salarios} pessoas)
+              — abaixo disso, &ldquo;amplitude&rdquo; seria o salário de alguém com outro nome.
+            </p>
+          )}
+
+          {/* --- Abaixo do piso --------------------------------------------- */}
+          {q.abaixoDoPiso.length > 0 && (
+            <Card>
+              <CardContent className="space-y-3 py-4 text-sm">
+                <div>
+                  <p className="font-medium">
+                    Abaixo do piso nacional ({formatarReais(PISO_NACIONAL)})
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Salário mensal abaixo do mínimo só é regular com jornada parcial ou estágio —
+                    e com jornada semanal preenchida em {q.comJornada} de {q.ativos} ativos e tipo
+                    de contrato em {q.comTipoContrato} de {q.ativos}, o sistema não sabe dizer qual
+                    caso é qual. Por isso o rótulo é o do dado que falta, não uma acusação.
+                  </p>
+                </div>
+                <ul className="space-y-1.5">
+                  {q.abaixoDoPiso.map(f => (
+                    <li key={f.valor} className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span className="font-medium tabular-nums">{formatarReais(f.valor)}</span>
+                      <span className="text-muted-foreground">
+                        — {f.pessoas} {f.pessoas === 1 ? "pessoa" : "pessoas"} ·{" "}
+                        {listar(f.cargos)}
+                      </span>
+                      {f.comJornada < f.pessoas && (
+                        <Badge variant="outline" className="border-warning/50 font-normal text-warning">
+                          jornada não cadastrada
+                        </Badge>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* --- Gênero ----------------------------------------------------- */}
+          <Card>
+            <CardContent className="space-y-3 py-4 text-sm">
+              <div>
+                <p className="font-medium">Gênero — composição, não remuneração</p>
+                <p className="text-xs text-muted-foreground">
+                  {/* A frase de gap fica no card de limitações abaixo; aqui só o que o dado sustenta. */}
+                  O que este cadastro sustenta afirmar é quem ocupa cada cargo — não quanto cada
+                  lado ganha.
+                </p>
+              </div>
+              {q.genero.umLadoSo.length === 0 ? (
+                <p className="text-muted-foreground">
+                  Nenhum cargo do recorte tem composição de um lado só (entre os com sexo
+                  registrado suficiente para afirmar algo).
+                </p>
+              ) : (
+                <ul className="space-y-1.5">
+                  {q.genero.umLadoSo.map(c => (
+                    <li key={c.cargo} className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span className="font-medium">{c.cargo}</span>
+                      <span className="tabular-nums text-muted-foreground">
+                        — {c.homens} {c.homens === 1 ? "homem" : "homens"} · {c.mulheres}{" "}
+                        {c.mulheres === 1 ? "mulher" : "mulheres"}
+                        {c.semRegistro > 0 && ` (${c.semRegistro} sem registro de sexo)`}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* --- Limitações, nas palavras da lib ----------------------------- */}
+          <Card className="border-warning/40">
+            <CardContent className="space-y-2 py-4 text-sm">
+              {q.avisos.map(a => (
+                <div key={a} className="flex items-start gap-3">
+                  <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning" />
+                  <p className="text-muted-foreground">{a}</p>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </>
+      )}
     </div>
   );
 }
