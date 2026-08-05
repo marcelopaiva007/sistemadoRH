@@ -88,7 +88,7 @@ export async function resumoDaEmpresa(empresaIds: string[]): Promise<ResumoDashb
 
 export type LacunaDaBase = {
   /** Também é o valor de ?lacuna= na lista de colaboradores. */
-  chave: "salario" | "admissao" | "setor" | "cpf" | "telegram";
+  chave: "salario" | "admissao" | "setor" | "cargo" | "cpf" | "telegram";
   rotulo: string;
   faltando: number;
   /** O que deixa de funcionar enquanto este campo estiver vazio. */
@@ -114,7 +114,7 @@ export async function lacunasDaBase(empresaIds: string[]): Promise<{
   lacunas: LacunaDaBase[];
 }> {
   const base = { empresaId: { in: empresaIds }, ativo: true };
-  const [ativos, semSalario, semAdmissao, semCpf, semTelegram, semSetor] = await Promise.all([
+  const [ativos, semSalario, semAdmissao, semCpf, semTelegram, semSetor, semCargo] = await Promise.all([
     prisma.colaborador.count({ where: base }),
     prisma.colaborador.count({ where: { ...base, salarioBase: null } }),
     prisma.colaborador.count({ where: { ...base, dataAdmissao: null } }),
@@ -122,6 +122,9 @@ export async function lacunasDaBase(empresaIds: string[]): Promise<{
     prisma.colaborador.count({ where: { ...base, telegramChatId: null } }),
     prisma.colaborador.count({
       where: { ...base, setor: { nome: { equals: "Não definido", mode: "insensitive" } } },
+    }),
+    prisma.colaborador.count({
+      where: { ...base, posicao: { nome: { equals: "Não definido", mode: "insensitive" } } },
     }),
   ]);
 
@@ -143,6 +146,12 @@ export async function lacunasDaBase(empresaIds: string[]): Promise<{
       rotulo: "sem setor definido",
       faltando: semSetor,
       consequencia: "não entram no organograma nem nos indicadores por setor",
+    },
+    {
+      chave: "cargo",
+      rotulo: "sem cargo definido",
+      faltando: semCargo,
+      consequencia: "não entram nos indicadores por cargo nem no plano de cargos",
     },
     {
       chave: "cpf",

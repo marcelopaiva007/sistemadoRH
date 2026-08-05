@@ -1773,3 +1773,84 @@ model TentativaLogin {
   @@index([criadoEm])
   @@schema("rh")
 }
+
+// Foto mensal: o histórico que o sistema não tinha.
+//
+// Todo "últimos 12 meses" que o Painel desenha hoje é RECONSTRUÍDO a partir de
+// campos que o RH edita todo dia — lib/bi.ts::calcularTurnover deduz o
+// headcount do início do período de trás para frente, justamente porque não
+// existia snapshot. O efeito colateral é que o passado muda: corrigir três
+// datas de desligamento na semana que vem reescreve o pico de junho/2026, e o
+// cartão que a Diretoria viu na segunda não bate mais na sexta. Alerta que não
+// se reproduz custa mais confiança do que falso positivo.
+//
+// Esta tabela é a memória. Uma linha por (competência × CNPJ × setor × cargo),
+// GRAVADA UMA VEZ E NUNCA REESCRITA — a unicidade abaixo é o que torna o cron
+// idempotente: rodar duas vezes no mesmo mês não duplica nem sobrescreve
+// (lib/foto-mensal.ts usa `createMany({ skipDuplicates: true })`).
+//
+// REFERÊNCIAS SOFT (id + nome, sem @relation), o mesmo padrão da trilha de
+// auditoria deste schema: um snapshot que muda quando o RH renomeia um setor
+// ou apaga um cargo não é snapshot. O nome gravado aqui é o nome que aquele
+// setor tinha NAQUELE mês; o id serve para reagrupar quando ele ainda existe.
+// `marcaId`/`marcaNome` vêm junto pelo mesmo motivo — a tela filtra por marca
+// (lib/escopo-marca.ts) e um CNPJ que trocar de marca não pode reescrever a
+// série da marca antiga.
+//
+// Sobre dinheiro: `folhaSalarial` é `null`, NUNCA 0, quando ninguém do balde
+// tem salário cadastrado — 49 dos 215 ativos não têm (Centrysol, VAPT,
+// Mobility), e "R$ 0" ali seria mentira. `comSalario`/`semSalario` dizem de
+// quantas pessoas a soma foi feita, para a tela poder marcar "parcial".
+// PRIVACIDADE: num balde de 1 pessoa a folha É o salário dela — quem montar a
+// tela trata esta coluna como salário (Diretoria/RH), não como agregado.
+model FotoMensal {
+  id          String @id @default(cuid())
+  // "AAAA-MM" — o mês FECHADO a que a foto se refere, não o dia da captura.
+  competencia String
+
+  empresaId   String
+  empresaNome String
+  marcaId     String
+  marcaNome   String
+  setorId     String
+  setorNome   String
+  posicaoId   String
+  posicaoNome String
+
+  // Estoque: pessoas ativas no último dia da competência.
+  headcount     Int
+  // Fluxo do mês. Atribuídos ao setor/cargo/CNPJ que a pessoa tinha na hora da
+  // captura — o cadastro não guarda o setor de origem de uma movimentação.
+  admissoes     Int
+  desligamentos Int
+
+  // O que ficou de fora, gravado junto para nenhuma série nascer muda sobre o
+  // próprio buraco. `headcountSemDataAdmissao`: ativos que nunca entram em
+  // `admissoes` porque não têm data. `desligadosSemDataAcumulado`: desligados
+  // deste balde sem data de desligamento (137 desligados, 31 sem data no
+  // levantamento de 04/08/2026) — é SALDO ACUMULADO, não fluxo do mês; a
+  // mesma pessoa reaparece em toda competência seguinte. NUNCA SOME ESSA
+  // COLUNA AO LONGO DOS MESES: o nome é comprido de propósito.
+  headcountSemDataAdmissao   Int
+  desligadosSemDataAcumulado Int
+
+  folhaSalarial Float?
+  comSalario    Int
+  semSalario    Int
+
+  // Auditoria da própria foto: quando foi tirada e por qual versão do código.
+  // A distância entre `capturadoEm` e o fim da `competencia` é o que denuncia
+  // uma captura atrasada (cron que não rodou, recuperado à mão depois).
+  capturadoEm DateTime @default(now())
+  versaoApp   String
+
+  // O contrato de idempotência do cron. Todas as quatro colunas são NOT NULL
+  // de propósito: em Postgres, NULL não colide com NULL, e uma delas opcional
+  // transformaria a trava em sugestão.
+  @@unique([competencia, empresaId, setorId, posicaoId])
+  // "a série inteira do grupo neste mês" e "a série deste CNPJ ao longo do
+  // tempo" — as duas perguntas que a tela vai fazer.
+  @@index([competencia])
+  @@index([empresaId, competencia])
+  @@schema("rh")
+}

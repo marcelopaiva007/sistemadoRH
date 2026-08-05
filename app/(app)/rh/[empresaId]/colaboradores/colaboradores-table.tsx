@@ -72,17 +72,19 @@ const ROTULO_LACUNA: Record<string, string> = {
   salario: "sem salário na ficha",
   admissao: "sem data de admissão",
   setor: "sem setor definido",
+  cargo: "sem cargo definido",
   cpf: "sem CPF",
   telegram: "sem Telegram vinculado",
 };
 
-function temLacuna(c: { semSalario: boolean; semAdmissao: boolean; cpf: string | null; telegramChatId: string | null; setor: { nome: string } }, chave: string): boolean {
+function temLacuna(c: { semSalario: boolean; semAdmissao: boolean; cpf: string | null; telegramChatId: string | null; setor: { nome: string }; posicao: { nome: string } }, chave: string): boolean {
   switch (chave) {
     case "salario": return c.semSalario;
     case "admissao": return c.semAdmissao;
     case "cpf": return !c.cpf;
     case "telegram": return !c.telegramChatId;
     case "setor": return c.setor.nome.trim().toLowerCase() === "não definido";
+    case "cargo": return c.posicao.nome.trim().toLowerCase() === "não definido";
     default: return true;
   }
 }

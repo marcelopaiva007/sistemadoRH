@@ -6,7 +6,6 @@ import {
   Activity,
   AlertOctagon,
   Award,
-  BarChart3,
   Bot,
   Briefcase,
   Building2,
@@ -21,7 +20,6 @@ import {
   FileBarChart,
   FileUp,
   GraduationCap,
-  HeartPulse,
   History,
   LayoutDashboard,
   ListChecks,
@@ -33,12 +31,15 @@ import {
   Search,
   Send,
   Settings,
+  ShieldAlert,
   ShieldCheck,
+  Trophy,
   UserCog,
   Star,
   Target,
   Users,
   UsersRound,
+  Waypoints,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -77,7 +78,11 @@ const GRUPOS = [
       { slug: "treinamentos", label: "Treinamentos", icon: GraduationCap },
       { slug: "reconhecimento", label: "Reconhecimento", icon: Award },
       { slug: "pesquisas", label: "Pesquisas de clima", icon: Activity },
-      { slug: "planos-acao", label: "Planos de ação", icon: ClipboardList },
+      // "Planos de ação" saiu daqui para "Gestão": ele deixou de ser o destino
+      // do que sai de uma avaliação e virou o destino de tudo — anomalia de
+      // desligamento, span sobrecarregado, férias vencidas. Enquanto morava em
+      // "Desempenho", quem chegava pelo Placar ou pela Liderança não achava
+      // onde registrar a decisão.
     ],
   },
   {
@@ -90,9 +95,20 @@ const GRUPOS = [
   {
     titulo: "Gestão",
     itens: [
-      { slug: "painel", label: "Dashboard", icon: LayoutDashboard },
-      { slug: "dashboard", label: "Painel de clima", icon: HeartPulse },
-      { slug: "indicadores", label: "Indicadores", icon: BarChart3 },
+      // "Dashboard" e "Painel de clima" eram dois nomes genéricos ao lado do
+      // slug `dashboard`, que é OUTRA tela — ninguém acertava qual link abria
+      // o quê. Agora cada rótulo diz o recorte: o executivo é do grupo, o de
+      // NR-01 é de risco psicossocial.
+      { slug: "painel", label: "Painel executivo", icon: LayoutDashboard },
+      { slug: "placar", label: "Placar do grupo", icon: Trophy },
+      { slug: "lideranca", label: "Malha de liderança", icon: Waypoints },
+      // A tela NÃO mostra clima: escolher uma pesquisa de clima nela não
+      // renderiza nada, só devolve um link para Pesquisas. O nome antigo
+      // ("Painel de clima") prometia o que ela não entrega — e clima e risco
+      // psicossocial são instrumentos diferentes, com obrigação legal
+      // diferente. O rótulo passa a ser o da norma.
+      { slug: "dashboard", label: "Risco psicossocial (NR-01)", icon: ShieldAlert },
+      { slug: "planos-acao", label: "Planos de ação", icon: ClipboardList },
       { slug: "relatorios", label: "Relatórios", icon: FileBarChart },
       { slug: "assistente", label: "Assistente", icon: Bot },
     ],

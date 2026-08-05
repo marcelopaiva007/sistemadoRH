@@ -18,9 +18,11 @@ import {
 } from "@/components/ui/table";
 import { statusPesquisaLabel } from "@/lib/constants-rh";
 
-// Central de relatórios da empresa: uma linha por pesquisa, com participação e
-// (para avaliações NR-01) o nível de risco geral + acesso ao dashboard e ao
-// relatório técnico em PDF. Sempre escopado à empresa da rota.
+// Central de relatórios da empresa, em dois blocos separados de propósito:
+// pesquisas de gestão (clima, eNPS…) e avaliações NR-01. A NR-01 é obrigação
+// legal de SST com relatório técnico próprio; misturá-la com as pesquisas de
+// gestão numa tabela só fazia o risco psicossocial parecer só mais uma métrica
+// de engajamento — e vice-versa. Sempre escopado à empresa da rota.
 export default async function RelatoriosPage({
   params,
 }: {
@@ -51,12 +53,15 @@ export default async function RelatoriosPage({
     _count: { ...p._count, tokens: convitesPorId.get(p.id) ?? 0 },
   }));
 
-  // Nível geral das avaliações NR-01 (só quando há amostra suficiente).
+  const pesquisasNr01 = pesquisas.filter((p) => p.modelo === "NR01");
+  const pesquisasGestao = pesquisas.filter((p) => p.modelo !== "NR01");
+
+  // Nível geral só existe para NR-01 (e só quando há amostra suficiente).
   // Pesquisa FINISHED lê do cache gravado no encerramento (lib/nr01-cache.ts)
   // em vez de recalcular — é o único estado em que o resultado não muda mais.
   // ACTIVE/DRAFT seguem calculadas ao vivo, em paralelo entre pesquisas.
   const niveisEntries = await Promise.all(
-    pesquisas.map(async (p) => {
+    pesquisasNr01.map(async (p) => {
       if (p._count.respostas === 0) return [p.id, null] as const;
       return [p.id, await nivelGeralComBackfill(p)] as const;
     }),
@@ -66,66 +71,124 @@ export default async function RelatoriosPage({
   );
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Relatórios — {empresa?.nome}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Pesquisa</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-center">Convites</TableHead>
-              <TableHead className="text-center">Respostas</TableHead>
-              <TableHead className="text-center">Participação</TableHead>
-              <TableHead className="text-center">Risco geral (NR-01)</TableHead>
-              <TableHead className="text-right">Relatórios</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {pesquisas.length === 0 && (
+    <div className="flex flex-col gap-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Pesquisas de gestão — {empresa?.nome}</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Clima, eNPS e demais pesquisas de apoio à gestão. Não entram aqui as
+            avaliações NR-01 — essas são conformidade legal e ficam no bloco abaixo.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
-                  Nenhuma pesquisa nesta empresa ainda.
-                </TableCell>
+                <TableHead>Pesquisa</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-center">Convites</TableHead>
+                <TableHead className="text-center">Respostas</TableHead>
+                <TableHead className="text-center">Participação</TableHead>
               </TableRow>
-            )}
-            {pesquisas.map((p) => {
-              const nivel = niveisPorPesquisa.get(p.id) ?? null;
-              const participacao = participacaoPct(p._count.respostas, p._count.tokens);
-              return (
-                <TableRow key={p.id}>
-                  <TableCell className="font-medium">
-                    <Link href={`/rh/${empresaId}/pesquisas/${p.id}`} className="hover:underline">
-                      {p.titulo}
-                    </Link>
-                    {p.modelo === "NR01" && (
+            </TableHeader>
+            <TableBody>
+              {pesquisasGestao.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                    Nenhuma pesquisa de gestão nesta empresa ainda.
+                  </TableCell>
+                </TableRow>
+              )}
+              {pesquisasGestao.map((p) => {
+                const participacao = participacaoPct(p._count.respostas, p._count.tokens);
+                return (
+                  <TableRow key={p.id}>
+                    <TableCell className="font-medium">
+                      <Link href={`/rh/${empresaId}/pesquisas/${p.id}`} className="hover:underline">
+                        {p.titulo}
+                      </Link>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="secondary">{statusPesquisaLabel(p.status)}</Badge>
+                    </TableCell>
+                    <TableCell className="text-center">{p._count.tokens}</TableCell>
+                    <TableCell className="text-center">{p._count.respostas}</TableCell>
+                    <TableCell className="text-center">
+                      {p._count.tokens > 0 ? `${participacao}%` : "—"}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">
+            Conformidade NR-01 — avaliação de riscos psicossociais
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Obrigação legal de SST. O resultado alimenta o PGR e o relatório técnico
+            em PDF — não é indicador de gestão de pessoas.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Avaliação</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-center">Convites</TableHead>
+                <TableHead className="text-center">Respostas</TableHead>
+                <TableHead className="text-center">Participação</TableHead>
+                <TableHead className="text-center">Risco geral</TableHead>
+                <TableHead className="text-right">Relatórios</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {pesquisasNr01.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
+                    Nenhuma avaliação NR-01 nesta empresa ainda.
+                  </TableCell>
+                </TableRow>
+              )}
+              {pesquisasNr01.map((p) => {
+                const nivel = niveisPorPesquisa.get(p.id) ?? null;
+                const participacao = participacaoPct(p._count.respostas, p._count.tokens);
+                return (
+                  <TableRow key={p.id}>
+                    <TableCell className="font-medium">
+                      <Link href={`/rh/${empresaId}/pesquisas/${p.id}`} className="hover:underline">
+                        {p.titulo}
+                      </Link>
                       <Badge variant="outline" className="ml-2">
                         NR-01
                       </Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="secondary">{statusPesquisaLabel(p.status)}</Badge>
-                  </TableCell>
-                  <TableCell className="text-center">{p._count.tokens}</TableCell>
-                  <TableCell className="text-center">{p._count.respostas}</TableCell>
-                  <TableCell className="text-center">{p._count.tokens > 0 ? `${participacao}%` : "—"}</TableCell>
-                  <TableCell className="text-center">
-                    {nivel ? (
-                      <span
-                        className="inline-block rounded-full px-2 py-0.5 text-xs font-semibold"
-                        style={{ backgroundColor: NIVEIS_RISCO[nivel.nivel].corBg, color: "#1f2937" }}
-                      >
-                        {NIVEIS_RISCO[nivel.nivel].label} ({nivel.indice}/100)
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {p.modelo === "NR01" && (
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="secondary">{statusPesquisaLabel(p.status)}</Badge>
+                    </TableCell>
+                    <TableCell className="text-center">{p._count.tokens}</TableCell>
+                    <TableCell className="text-center">{p._count.respostas}</TableCell>
+                    <TableCell className="text-center">
+                      {p._count.tokens > 0 ? `${participacao}%` : "—"}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {nivel ? (
+                        <span
+                          className="inline-block rounded-full px-2 py-0.5 text-xs font-semibold"
+                          style={{ backgroundColor: NIVEIS_RISCO[nivel.nivel].corBg, color: "#1f2937" }}
+                        >
+                          {NIVEIS_RISCO[nivel.nivel].label} ({nivel.indice}/100)
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
                         <Button
                           variant="ghost"
@@ -150,14 +213,14 @@ export default async function RelatoriosPage({
                           PDF
                         </Button>
                       </div>
-                    )}
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
