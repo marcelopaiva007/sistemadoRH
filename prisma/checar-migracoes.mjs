@@ -20,6 +20,12 @@
  * script manual continua existindo para o caso raro de um `migration.sql` que
  * precise rodar fora do fluxo do Prisma.
  *
+ * Aplicar sozinho só em Production: em Preview (`VERCEL_ENV === "preview"`)
+ * a checagem volta a só barrar, nunca aplicar — Preview builda PR não
+ * revisada, e aplicar migration ali equivaleria a deixar qualquer PR (Dependabot
+ * inclusive) escrever no banco sem revisão, se um dia Preview e Production
+ * apontarem pro mesmo lugar.
+ *
  * POR QUE NÃO MORA EM `scripts/`: o `.vercelignore` exclui `scripts` inteiro,
  * então um checador ali não chega ao build — `Cannot find module`, três deploys
  * seguidos, até a checagem ser desligada. Aqui ele viaja junto de
@@ -162,6 +168,22 @@ try {
 if (pendentes.length === 0) {
   console.log(`· checar-migracoes: banco em dia (${noRepo.length} migrations).`);
   process.exit(0);
+}
+
+// Preview builda a partir de branch/PR não revisada — inclusive Dependabot,
+// sozinho. Se o DATABASE_URL de Preview algum dia apontar pro mesmo banco de
+// Production (é o que a Vercel tem hoje, malformado, mas com essa intenção),
+// aplicar migration sozinho ali significa que abrir uma PR já basta pra
+// mudar produção, sem revisão nenhuma. Aqui a checagem volta a só barrar,
+// como sempre fez, e quem aplica continua sendo Production.
+if (process.env.VERCEL_ENV === "preview") {
+  console.error(
+    `\n✖ ${pendentes.length} migration(s) no repo que o banco (Preview) ainda não recebeu:\n` +
+      pendentes.map((m) => `    ${m}`).join("\n") +
+      `\n\n  Preview não aplica sozinho de propósito (ver comentário no código) —` +
+      `\n  quem aplica é o build de Production, no merge pro master.\n`,
+  );
+  process.exit(1);
 }
 
 console.log(
