@@ -1,10 +1,10 @@
 "use client";
 
-import { CalendarClock, CheckCircle2, Info, MessagesSquare } from "lucide-react";
+import { CalendarClock, CheckCircle2, FileWarning, Info, MessagesSquare } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatarData } from "@/lib/datas";
-import type { AvaliacaoDaLinha, FeriasDaLinha, MarcoConversa, TrilhaDaLinha } from "@/lib/meu-time";
+import type { AvaliacaoDaLinha, FeriasDaLinha, JanelaContrato, MarcoConversa, TrilhaDaLinha } from "@/lib/meu-time";
 
 // A aba "Meu time" do portal: o gestor real (52/215 ativos têm supervisor
 // definido apontando para alguém) vê a própria equipe com a MESMA conta da
@@ -30,6 +30,7 @@ export type LinhaTimePortal = {
   lacunas: string[];
   nuncaAcessouPortal: boolean;
   trilha: TrilhaDaLinha | null;
+  janelaContrato: JanelaContrato;
 };
 
 export type MeuTimePortal = {
@@ -108,6 +109,7 @@ export function MeuTimeDoGestor({ time }: { time: MeuTimePortal }) {
                 <div className="flex flex-wrap gap-1.5">
                   <BadgeFerias ferias={l.ferias} />
                   <BadgeAvaliacao avaliacao={l.avaliacao} />
+                  <BadgeContrato janela={l.janelaContrato} />
                   {l.lacunas.length > 0 && (
                     <Badge variant="outline" title={l.lacunas.join(", ")}>
                       ficha incompleta ({l.lacunas.length})
@@ -225,4 +227,19 @@ function BadgeAvaliacao({ avaliacao }: { avaliacao: AvaliacaoDaLinha }) {
     case "CONCLUIDA":
       return <Badge variant="default">avaliação concluída</Badge>;
   }
+}
+
+/** Só aparece dentro da janela de decisão — fora dela, silêncio (nada a decidir ainda). */
+function BadgeContrato({ janela }: { janela: JanelaContrato }) {
+  if (janela.urgencia === null || janela.diasAteFim === null) return null;
+  const texto =
+    janela.diasAteFim < 0
+      ? `contrato vencido há ${Math.abs(janela.diasAteFim)} d`
+      : `contrato vence em ${janela.diasAteFim} d`;
+  return (
+    <Badge variant={janela.urgencia === "critica" ? "destructive" : "secondary"} className={janela.urgencia === "atencao" ? "text-warning" : undefined}>
+      <FileWarning className="size-3" />
+      {texto}
+    </Badge>
+  );
 }

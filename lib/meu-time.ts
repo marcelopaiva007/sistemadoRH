@@ -23,6 +23,7 @@ import { calcularFerias, type SolicitacaoParaCalculo } from "@/lib/ferias";
 import { semHistoricoDeFerias } from "@/lib/ferias-passivo";
 import { anosDeCasa } from "@/lib/tempo-de-casa";
 import { DIAS_DO_MARCO, itemOnboardingLabel } from "@/lib/constants-onboarding";
+import { CONTRATOS_POR_PRAZO } from "@/lib/constants-dp";
 import { normalizarTexto } from "@/lib/text";
 
 /**
@@ -43,6 +44,8 @@ export type ColaboradorParaTime = {
   setor: string;
   cargo: string;
   dataAdmissao: Date | null;
+  tipoContrato: string | null;
+  dataFimContrato: Date | null;
   semLider: boolean;
   // Presença de campo, nunca o valor: o caller converte no servidor (mesmo
   // padrão de colaboradores/page.tsx) e nada sensível atravessa este tipo.
@@ -205,6 +208,46 @@ function trilhaDaLinha(
 }
 
 // ---------------------------------------------------------------
+// Janela de decisão do contrato de experiência
+// ---------------------------------------------------------------
+
+/**
+ * "O vencimento mais caro do RH" (CLT art. 445/451, ver lib/constants-dp.ts):
+ * passado o prazo sem rescindir ou renovar, o contrato vira indeterminado —
+ * aviso prévio e 40% do FGTS que a empresa não esperava. O prazo não avisa,
+ * simplesmente passa; este bloco é o aviso que faltava.
+ *
+ * Só se aplica a CONTRATOS_POR_PRAZO com `dataFimContrato` preenchida —
+ * CLT indeterminado não tem data de fim, e um contrato por prazo SEM data
+ * preenchida é lacuna de cadastro (ver `lacunasDaLinha`), não janela.
+ */
+export type UrgenciaContrato = "critica" | "atencao" | null;
+
+export type JanelaContrato = {
+  aplicavel: boolean;
+  /** Negativo = prazo já vencido. */
+  diasAteFim: number | null;
+  /** "critica" a 45 dias ou menos, "atencao" até 90, null fora da janela. */
+  urgencia: UrgenciaContrato;
+};
+
+function janelaContratoDaLinha(
+  tipoContrato: string | null,
+  dataFimContrato: Date | null,
+  hoje: Date,
+): JanelaContrato {
+  const porPrazo =
+    tipoContrato !== null &&
+    CONTRATOS_POR_PRAZO.includes(tipoContrato as (typeof CONTRATOS_POR_PRAZO)[number]);
+  if (!porPrazo || !dataFimContrato) {
+    return { aplicavel: false, diasAteFim: null, urgencia: null };
+  }
+  const diasAteFim = Math.round((dataFimContrato.getTime() - hoje.getTime()) / 86_400_000);
+  const urgencia: UrgenciaContrato = diasAteFim <= 45 ? "critica" : diasAteFim <= 90 ? "atencao" : null;
+  return { aplicavel: true, diasAteFim, urgencia };
+}
+
+// ---------------------------------------------------------------
 // Linha e montagem
 // ---------------------------------------------------------------
 
@@ -230,6 +273,7 @@ export type LinhaTime = {
   semLider: boolean;
   /** Só preenchida para recém-chegado — é onde a trilha é acionável. */
   trilha: TrilhaDaLinha | null;
+  janelaContrato: JanelaContrato;
 };
 
 export type ResumoTime = {
@@ -243,6 +287,8 @@ export type ResumoTime = {
   semAvaliacaoNoCiclo: number;
   comCicloAberto: number;
   semDataAdmissao: number;
+  /** "critica" ou "atencao" — soma as duas, o card interno separa por chip. */
+  contratosNaJanela: number;
 };
 
 export type MeuTime = {
@@ -299,6 +345,7 @@ export function montarMeuTime(
       nuncaAcessouPortal: c.nuncaAcessouPortal,
       semLider: c.semLider,
       trilha: recemChegado ? trilhaDaLinha(c.trilha, c.dataAdmissao, hoje) : null,
+      janelaContrato: janelaContratoDaLinha(c.tipoContrato, c.dataFimContrato, hoje),
     };
   });
 
@@ -321,6 +368,7 @@ export function montarMeuTime(
     semAvaliacaoNoCiclo: linhas.filter((l) => l.avaliacao.situacao === "SEM_AVALIACAO").length,
     comCicloAberto,
     semDataAdmissao,
+    contratosNaJanela: linhas.filter((l) => l.janelaContrato.urgencia !== null).length,
   };
 
   const avisos: string[] = [];

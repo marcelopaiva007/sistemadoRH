@@ -196,6 +196,25 @@ export async function atualizarFicha(
     return { ok: false, error: "O desligamento não pode ser anterior à admissão." };
   }
 
+  // Motivo obrigatório só no MOMENTO do desligamento (data nova ou mudou) —
+  // não em toda edição de quem já está desligado, senão corrigir um salário
+  // de um ex-colaborador de 2024 fica bloqueado pelo motivo que ninguém
+  // registrou na época. É essa distinção que faz 137 desligados sem motivo
+  // (ver seção 3.1 do estudo de Gestão) não voltarem a se repetir daqui pra
+  // frente sem travar o cadastro existente.
+  const desligamentoMudou =
+    data.dataDesligamento instanceof Date &&
+    (!(atual.dataDesligamento instanceof Date) ||
+      data.dataDesligamento.getTime() !== atual.dataDesligamento.getTime());
+  if (desligamentoMudou) {
+    const motivo = typeof data.motivoDesligamento === "string" ? data.motivoDesligamento : atual.motivoDesligamento;
+    if (!motivo) return { ok: false, error: "Informe o motivo do desligamento." };
+    const admissao = data.dataAdmissao instanceof Date ? data.dataAdmissao : atual.dataAdmissao;
+    if (!(admissao instanceof Date)) {
+      return { ok: false, error: "Informe a data de admissão antes de registrar o desligamento." };
+    }
+  }
+
   try {
     await prisma.colaborador.update({ where: { id: colaboradorId, empresaId }, data });
   } catch {

@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import {
   CalendarClock,
   CheckCircle2,
+  FileWarning,
   Info,
   MessagesSquare,
   UserX,
@@ -46,6 +47,7 @@ const SINAIS = [
   { chave: "FICHA", rotulo: "Ficha incompleta" },
   { chave: "SEM_PORTAL", rotulo: "Nunca acessou o portal" },
   { chave: "SEM_LIDER", rotulo: "Sem líder definido" },
+  { chave: "CONTRATO", rotulo: "Contrato de experiência vencendo" },
 ] as const;
 
 type Sinal = (typeof SINAIS)[number]["chave"];
@@ -66,6 +68,8 @@ function casaSinal(l: LinhaTime, sinal: Sinal): boolean {
       return l.nuncaAcessouPortal;
     case "SEM_LIDER":
       return l.semLider;
+    case "CONTRATO":
+      return l.janelaContrato.urgencia !== null;
   }
 }
 
@@ -130,6 +134,20 @@ export function TimeView({
     [recemChegados, setor],
   );
 
+  // Mesma lógica dos recém-chegados: lista de trabalho, respeita setor,
+  // ignora busca/sinal. Ordenada por urgência — quem vence primeiro no topo.
+  const contratoNaJanela = useMemo(
+    () =>
+      linhas
+        .filter(
+          (l) =>
+            l.janelaContrato.urgencia !== null &&
+            (setor === TODOS_OS_SETORES || normalizarTexto(l.setor) === setor),
+        )
+        .sort((a, b) => (a.janelaContrato.diasAteFim ?? 0) - (b.janelaContrato.diasAteFim ?? 0)),
+    [linhas, setor],
+  );
+
   return (
     <div className="space-y-6">
       <div>
@@ -141,7 +159,7 @@ export function TimeView({
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-7">
         <Indicador rotulo="Pessoas no recorte" valor={resumo.total} />
         <Indicador
           rotulo="Recém-chegados"
@@ -167,9 +185,15 @@ export function TimeView({
           atencao={resumo.nuncaAcessouPortal > 0}
         />
         <Indicador rotulo="Sem líder definido" valor={resumo.semLider} atencao={resumo.semLider > 0} />
+        <Indicador
+          rotulo="Contrato vencendo"
+          valor={resumo.contratosNaJanela}
+          alerta={resumo.contratosNaJanela > 0}
+        />
       </div>
 
       <PrimeirosNoventaDias linhas={recemNoSetor} />
+      <JanelaDeContrato linhas={contratoNaJanela} />
 
       <Card>
         <CardHeader>
@@ -354,6 +378,68 @@ function PrimeirosNoventaDias({ linhas }: { linhas: LinhaTime[] }) {
                   </div>
                 </div>
                 {l.trilha && <TrilhaDoRecemChegado linha={l} />}
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------
+// Janela de decisão do contrato de experiência
+// ---------------------------------------------------------------
+
+// Mesmo raciocínio do bloco de 90 dias: mora aqui dentro, não numa rota
+// própria — é lista curta (18 ativos medidos entre 60-100 dias de casa na
+// base de 05/08/2026), e uma tela dedicada para isso nasceria vazia na
+// maioria dos dias. "O vencimento mais caro do RH" (CLT art. 445/451):
+// decidir no dia 89 custa zero; decidir no dia 91 custa aviso prévio e 40%
+// do FGTS. O prazo não avisa — este bloco é o aviso que faltava.
+function JanelaDeContrato({ linhas }: { linhas: LinhaTime[] }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <FileWarning className="size-4" />
+          Contrato de experiência vencendo
+          {linhas.length > 0 && <Badge variant="destructive">{linhas.length}</Badge>}
+        </CardTitle>
+        <CardDescription>
+          Contrato por prazo (experiência, temporário, estágio) a 90 dias ou menos do fim.
+          Rescindir ou renovar antes do prazo é decisão de custo zero; deixar passar vira contrato
+          indeterminado por força de lei.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {linhas.length === 0 ? (
+          <p className="py-4 text-center text-sm text-muted-foreground">
+            Nenhum contrato por prazo dentro da janela de 90 dias neste recorte.
+          </p>
+        ) : (
+          <ul className="divide-y">
+            {linhas.map((l) => (
+              <li key={l.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                <div className="min-w-48">
+                  <Link
+                    href={`/rh/${l.empresaId}/colaboradores/${l.id}`}
+                    className="font-medium hover:underline"
+                  >
+                    {l.nome}
+                  </Link>
+                  <div className="text-xs text-muted-foreground">
+                    {l.setor} · {l.cargo} · {l.empresa}
+                  </div>
+                </div>
+                <Badge
+                  variant={l.janelaContrato.urgencia === "critica" ? "destructive" : "secondary"}
+                  className={l.janelaContrato.urgencia === "atencao" ? "text-warning" : undefined}
+                >
+                  {(l.janelaContrato.diasAteFim ?? 0) < 0
+                    ? `vencido há ${Math.abs(l.janelaContrato.diasAteFim ?? 0)} d`
+                    : `vence em ${l.janelaContrato.diasAteFim} d`}
+                </Badge>
               </li>
             ))}
           </ul>

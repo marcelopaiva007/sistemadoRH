@@ -116,6 +116,7 @@ export const MOTIVOS_DESLIGAMENTO = [
   { value: "ACORDO", label: "Acordo (art. 484-A)" },
   { value: "APOSENTADORIA", label: "Aposentadoria" },
   { value: "FALECIMENTO", label: "Falecimento" },
+  { value: "ABANDONO", label: "Abandono de emprego" },
 ] as const;
 
 const rotulo = <T extends readonly { value: string; label: string }[]>(lista: T) =>

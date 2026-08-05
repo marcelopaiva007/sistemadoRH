@@ -1,11 +1,12 @@
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { DIAS_ALERTA_VENCIMENTO } from "@/lib/constants-dp";
 import { pendenciasDaEmpresa, modulosSemRegistro } from "@/lib/pendencias";
-import { resumoDaEmpresa, lacunasDaBase } from "@/lib/dashboard";
+import { resumoDaEmpresa, lacunasDaBase, lacunasDosDesligados } from "@/lib/dashboard";
 import { empresasDaMesmaMarca } from "@/lib/escopo-marca";
 import { DashboardEmpresa } from "./dashboard-empresa";
 import { PendenciasView } from "./pendencias-view";
 import { LacunasView } from "./lacunas-view";
+import { LacunasDosDesligadosView } from "./lacunas-desligados-view";
 
 // Tela inicial da empresa: os números no topo (o retrato) e logo abaixo o que
 // exige ação hoje (a lista de tarefas). Nessa ordem de propósito — quem abre
@@ -26,7 +27,7 @@ export default async function InicioDaEmpresaPage({
   // quando o grupo tinha 93.
   const empresas = await empresasDaMesmaMarca(empresaId);
 
-  const [resumo, pendencias, base, semRegistro] = await Promise.all([
+  const [resumo, pendencias, base, semRegistro, baseDesligados] = await Promise.all([
     resumoDaEmpresa(empresas),
     pendenciasDaEmpresa(empresas),
     lacunasDaBase(empresas),
@@ -34,6 +35,7 @@ export default async function InicioDaEmpresaPage({
     // opostos — a view precisa dos dois para não chamar de "em dia" um módulo
     // que ninguém abriu.
     modulosSemRegistro(empresas),
+    lacunasDosDesligados(empresas),
   ]);
 
   return (
@@ -52,6 +54,12 @@ export default async function InicioDaEmpresaPage({
         empresasDaMarca={empresas}
         ativos={base.ativos}
         lacunas={base.lacunas}
+      />
+      <LacunasDosDesligadosView
+        empresaId={empresaId}
+        empresasDaMarca={empresas}
+        desligados={baseDesligados.desligados}
+        lacunas={baseDesligados.lacunas}
       />
     </div>
   );

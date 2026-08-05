@@ -1,7 +1,9 @@
-import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
+import { requireEmpresaAccess, empresasVisiveis } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
 import { conformidadeDoColaborador, situacaoDoExame } from "@/lib/conformidade";
+import { exposicaoSstPorEmpresa } from "@/lib/conformidade-grupo";
 import { ConformidadeView } from "./conformidade-view";
+import { ExposicaoSstView } from "./exposicao-sst-view";
 
 // Painel de conformidade SST: a matriz de NRs por função (o que se exige) e o
 // retrato de quem está regular, vencendo ou irregular (o que se comprovou).
@@ -13,9 +15,10 @@ export default async function ConformidadePage({
   params: Promise<{ empresaId: string }>;
 }) {
   const { empresaId } = await params;
-  await requireEmpresaAccess(empresaId);
+  const usuario = await requireEmpresaAccess(empresaId);
+  const visiveis = await empresasVisiveis(usuario);
 
-  const [posicoes, colaboradores] = await Promise.all([
+  const [posicoes, colaboradores, exposicao] = await Promise.all([
     prisma.posicao.findMany({
       where: { empresaId, ativo: true },
       orderBy: { nome: "asc" },
@@ -36,6 +39,7 @@ export default async function ConformidadePage({
         },
       },
     }),
+    exposicaoSstPorEmpresa(visiveis),
   ]);
 
   const requisitosPorPosicao = new Map(posicoes.map((p) => [p.id, p.requisitosNR]));
@@ -60,17 +64,22 @@ export default async function ConformidadePage({
   const examesEmDia = linhas.filter((l) => l.situacaoExame.situacao === "EM_DIA" || l.situacaoExame.situacao === "VENCENDO").length;
 
   return (
-    <ConformidadeView
-      empresaId={empresaId}
-      posicoes={posicoes}
-      linhas={linhas}
-      resumo={{
-        totalColaboradores: colaboradores.length,
-        totalComRequisito: totalComRequisito.length,
-        regularesNR,
-        totalComExameExigivel,
-        examesEmDia,
-      }}
-    />
+    <div className="space-y-6">
+      {exposicao.length > 1 && (
+        <ExposicaoSstView empresaIdAtual={empresaId} exposicao={exposicao} />
+      )}
+      <ConformidadeView
+        empresaId={empresaId}
+        posicoes={posicoes}
+        linhas={linhas}
+        resumo={{
+          totalColaboradores: colaboradores.length,
+          totalComRequisito: totalComRequisito.length,
+          regularesNR,
+          totalComExameExigivel,
+          examesEmDia,
+        }}
+      />
+    </div>
   );
 }

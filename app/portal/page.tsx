@@ -183,6 +183,8 @@ export default async function PortalPage() {
       nome: true,
       empresaId: true,
       dataAdmissao: true,
+      tipoContrato: true,
+      dataFimContrato: true,
       telegramChatId: true,
       empresa: { select: { nome: true } },
       setor: { select: { nome: true } },
@@ -220,6 +222,8 @@ export default async function PortalPage() {
         setor: s.setor.nome,
         cargo: s.posicao.nome,
         dataAdmissao: s.dataAdmissao,
+        tipoContrato: s.tipoContrato,
+        dataFimContrato: s.dataFimContrato,
         // Por construção do recorte, todo mundo aqui tem líder: a pessoa logada.
         semLider: false,
         // Presença de salário e de CPF é assunto do RH/DP, não do gestor — os
@@ -255,6 +259,7 @@ export default async function PortalPage() {
         lacunas: l.lacunas,
         nuncaAcessouPortal: l.nuncaAcessouPortal,
         trilha: l.trilha,
+        janelaContrato: l.janelaContrato,
       })),
       avisos: time.avisos,
     };

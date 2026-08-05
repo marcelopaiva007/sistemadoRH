@@ -64,6 +64,7 @@ import { AlertaDuplicados } from "./alerta-duplicados";
 import { ConferirCpfs } from "./conferir-cpfs";
 import { formatarCpf, mascararCpf } from "@/lib/cpf";
 import type { ActionResult } from "@/lib/constants";
+import { TIPOS_CONTRATO, CONTRATOS_POR_PRAZO } from "@/lib/constants-dp";
 import { cn } from "@/lib/utils";
 
 // Rótulos das lacunas — os mesmos textos do bloco na tela inicial, para quem
@@ -75,9 +76,23 @@ const ROTULO_LACUNA: Record<string, string> = {
   cargo: "sem cargo definido",
   cpf: "sem CPF",
   telegram: "sem Telegram vinculado",
+  desligamento_data: "sem data de desligamento",
+  desligamento_motivo: "sem motivo de desligamento",
 };
 
-function temLacuna(c: { semSalario: boolean; semAdmissao: boolean; cpf: string | null; telegramChatId: string | null; setor: { nome: string }; posicao: { nome: string } }, chave: string): boolean {
+function temLacuna(
+  c: {
+    semSalario: boolean;
+    semAdmissao: boolean;
+    cpf: string | null;
+    telegramChatId: string | null;
+    setor: { nome: string };
+    posicao: { nome: string };
+    semDataDesligamento?: boolean;
+    semMotivoDesligamento?: boolean;
+  },
+  chave: string,
+): boolean {
   switch (chave) {
     case "salario": return c.semSalario;
     case "admissao": return c.semAdmissao;
@@ -85,6 +100,11 @@ function temLacuna(c: { semSalario: boolean; semAdmissao: boolean; cpf: string |
     case "telegram": return !c.telegramChatId;
     case "setor": return c.setor.nome.trim().toLowerCase() === "não definido";
     case "cargo": return c.posicao.nome.trim().toLowerCase() === "não definido";
+    // Só fazem sentido dentro de `?status=inativos` — todo ativo "não tem"
+    // data/motivo de desligamento por definição, e sem o filtro de status a
+    // lista inteira apareceria como lacuna.
+    case "desligamento_data": return Boolean(c.semDataDesligamento);
+    case "desligamento_motivo": return Boolean(c.semMotivoDesligamento);
     default: return true;
   }
 }
@@ -107,6 +127,8 @@ type Colaborador = {
   // servidor; vem apenas o booleano.
   semSalario: boolean;
   semAdmissao: boolean;
+  semDataDesligamento: boolean;
+  semMotivoDesligamento: boolean;
   gerente: boolean;
   ativo: boolean;
   empresaId: string;
@@ -337,7 +359,13 @@ export function ColaboradoresTable({
   const [busca, setBusca] = useState("");
   const [filtroSetor, setFiltroSetor] = useState("todos");
   const [filtroPosicao, setFiltroPosicao] = useState("todos");
-  const [filtroStatus, setFiltroStatus] = useState("ativos");
+  // ?status= vem do bloco "Lacunas dos desligados": sem ele, o filtro padrão
+  // "ativos" esconderia a lista inteira que o link prometeu abrir — todo
+  // desligado ficaria fora antes mesmo da lacuna entrar em jogo.
+  const statusDaUrl = useSearchParams().get("status");
+  const [filtroStatus, setFiltroStatus] = useState(
+    statusDaUrl === "inativos" ? "inativos" : "ativos",
+  );
 
   // ?lacuna= vem do bloco "Preenchimento da base" da tela inicial: o número
   // ali vira esta lista, já isolada em quem tem o campo vazio. Sem isto o
@@ -760,6 +788,15 @@ function ColaboradorForm({
   const [supervisorId, setSupervisorId] = useState(defaultValues?.supervisorId ?? "");
   const [gerente, setGerente] = useState(defaultValues?.gerente ?? false);
   const [ativo, setAtivo] = useState(defaultValues?.ativo ?? true);
+  // Só na criação — editar tipo/prazo de contrato de quem já existe continua
+  // pelo bloco "Vínculo" da ficha, que já tem os dois campos. Duplicar aqui
+  // faria o campo aparecer no dialog de edição sem `updateColaborador` gravar
+  // nada, e o RH acharia que salvou.
+  const [tipoContrato, setTipoContrato] = useState("");
+  const [dataFimContrato, setDataFimContrato] = useState("");
+  const contratoComPrazo = CONTRATOS_POR_PRAZO.includes(
+    tipoContrato as (typeof CONTRATOS_POR_PRAZO)[number],
+  );
 
   // Ativos, sem a própria pessoa (na edição) e sem quem já reporta a ela —
   // reportar ao próprio subordinado criaria um ciclo de dois na hora; o resto
@@ -771,6 +808,14 @@ function ColaboradorForm({
   const [state, formAction, isPending] = useActionState(async (prev: ActionResult, fd: FormData) => {
     fd.set("gerente", gerente ? "true" : "false");
     fd.set("ativo", ativo ? "true" : "false");
+    if (!defaultValues) {
+      if (!tipoContrato) return { ok: false, error: "Selecione o tipo de contrato." };
+      if (contratoComPrazo && !dataFimContrato) {
+        return { ok: false, error: "Informe a data de fim do contrato." };
+      }
+      fd.set("tipoContrato", tipoContrato);
+      if (dataFimContrato) fd.set("dataFimContrato", dataFimContrato);
+    }
     const result = await action(prev, fd);
     if (result.ok) {
       toast.success("Colaborador salvo com sucesso.");
@@ -857,6 +902,48 @@ function ColaboradorForm({
         </Select>
         <p className="text-xs text-muted-foreground">É o que monta o Organograma — some sozinho quando o líder muda.</p>
       </div>
+      {!defaultValues && (
+        <div className="space-y-2">
+          <Label>Tipo de contrato</Label>
+          <Select
+            value={tipoContrato}
+            onValueChange={(v) => {
+              setTipoContrato(v ?? "");
+              if (v && !CONTRATOS_POR_PRAZO.includes(v as (typeof CONTRATOS_POR_PRAZO)[number])) {
+                setDataFimContrato("");
+              }
+            }}
+            items={Object.fromEntries(TIPOS_CONTRATO.map((t) => [t.value, t.label]))}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Selecione o tipo de contrato" />
+            </SelectTrigger>
+            <SelectContent>
+              {TIPOS_CONTRATO.map((t) => (
+                <SelectItem key={t.value} value={t.value}>
+                  {t.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {contratoComPrazo && (
+            <div className="space-y-2 pt-1">
+              <Label htmlFor="dataFimContrato">Data de fim do contrato</Label>
+              <Input
+                id="dataFimContrato"
+                type="date"
+                value={dataFimContrato}
+                onChange={(e) => setDataFimContrato(e.target.value)}
+                required
+              />
+              <p className="text-xs text-muted-foreground">
+                Passado o prazo sem rescindir ou renovar, o contrato vira indeterminado (CLT art.
+                445 e 451) — aviso prévio e 40% do FGTS que a empresa não esperava.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
       <div className="space-y-2">
         <Label htmlFor="telegramChatId">Chat ID do Telegram (opcional)</Label>
         <Input

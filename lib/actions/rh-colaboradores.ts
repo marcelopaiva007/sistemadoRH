@@ -10,6 +10,8 @@ import { criariCiclo } from "@/lib/organograma";
 import { empresasDaMesmaMarca, marcaDaEmpresa } from "@/lib/escopo-marca";
 import { invalidarConvitesDeDesligados } from "@/lib/pesquisa-vinculo";
 import { convidarParaPesquisaDesligamento } from "@/lib/pesquisa-desligamento";
+import { hojeUTC } from "@/lib/datas";
+import { MOTIVOS_DESLIGAMENTO, TIPOS_CONTRATO, CONTRATOS_POR_PRAZO } from "@/lib/constants-dp";
 import type { ActionResult } from "@/lib/constants";
 
 const colaboradorSchema = z.object({
@@ -114,6 +116,25 @@ export async function createColaborador(
   const parsed = colaboradorSchema.safeParse(raw);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
 
+  // Tipo de contrato e data de fim — obrigatórios na admissão. É o único
+  // ponto de entrada de colaborador novo no sistema, e é o momento mais
+  // barato de capturar isto: preencher depois exige alguém lembrar que o
+  // campo ficou vazio. Ver seção 3.3 do estudo de Gestão — o schema já chama
+  // isto de "o vencimento mais caro do RH" (CLT art. 445/451).
+  const tipoContrato = formData.get("tipoContrato");
+  if (typeof tipoContrato !== "string" || !TIPOS_CONTRATO.some((t) => t.value === tipoContrato)) {
+    return { ok: false, error: "Selecione o tipo de contrato." };
+  }
+  const contratoComPrazo = CONTRATOS_POR_PRAZO.includes(
+    tipoContrato as (typeof CONTRATOS_POR_PRAZO)[number]
+  );
+  const dataFimBruta = formData.get("dataFimContrato");
+  const dataFimContrato =
+    typeof dataFimBruta === "string" && dataFimBruta ? new Date(`${dataFimBruta}T00:00:00Z`) : null;
+  if (contratoComPrazo && !dataFimContrato) {
+    return { ok: false, error: "Informe a data de fim do contrato." };
+  }
+
   const erroEscopo = await validarSetorEPosicaoDaEmpresa(empresaId, parsed.data.setorId, parsed.data.posicaoId);
   if (erroEscopo) return { ok: false, error: erroEscopo };
 
@@ -141,6 +162,8 @@ export async function createColaborador(
         supervisorId: parsed.data.supervisorId || null,
         gerente: parsed.data.gerente,
         ativo: parsed.data.ativo,
+        tipoContrato,
+        dataFimContrato,
       },
     });
   } catch {
@@ -218,19 +241,53 @@ export async function updateColaborador(
   return { ok: true };
 }
 
-export async function toggleColaboradorAtivo(empresaId: string, id: string, ativo: boolean): Promise<ActionResult> {
+/**
+ * Desativar é o momento real do desligamento na maioria dos casos — o botão
+ * está na lista e na ficha, é um clique, e é por isso que 31 dos 137
+ * desligados de hoje não têm `dataDesligamento` nem `motivoDesligamento`: o
+ * bloco "Vínculo" da ficha pede os dois, mas ninguém é obrigado a passar por
+ * ele para desativar. `motivoDesligamento` fica obrigatório só nesta
+ * transição (true→false); reativar não pede nada, e desativar quem já estava
+ * inativo (chamada redundante) também não.
+ */
+export async function toggleColaboradorAtivo(
+  empresaId: string,
+  id: string,
+  ativo: boolean,
+  motivoDesligamento?: string
+): Promise<ActionResult> {
   await requireEmpresaAccess(empresaId);
 
   const colaborador = await prisma.colaborador.findFirst({
     where: { id, empresaId },
-    select: { nome: true, ativo: true },
+    select: { nome: true, ativo: true, dataDesligamento: true },
   });
   if (!colaborador) return { ok: false, error: "Colaborador não encontrado." };
 
+  const estaDesligando = colaborador.ativo && !ativo;
+  if (estaDesligando) {
+    if (!motivoDesligamento || !MOTIVOS_DESLIGAMENTO.some((m) => m.value === motivoDesligamento)) {
+      return { ok: false, error: "Selecione o motivo do desligamento." };
+    }
+  }
+
   await prisma.$transaction(async (tx) => {
-    await tx.colaborador.update({ where: { id, empresaId }, data: { ativo } });
+    await tx.colaborador.update({
+      where: { id, empresaId },
+      data: {
+        ativo,
+        ...(estaDesligando
+          ? {
+              // Não sobrescreve uma data já registrada por outro caminho (o
+              // bloco "Vínculo" pode ter sido preenchido antes do clique).
+              dataDesligamento: colaborador.dataDesligamento ?? hojeUTC(),
+              motivoDesligamento,
+            }
+          : {}),
+      },
+    });
     // RD-001 + fase 4 (P09-OFF): mesma regra do formulário de edição — ver acima.
-    if (colaborador.ativo && !ativo) {
+    if (estaDesligando) {
       await invalidarConvitesDeDesligados(tx, id);
       await convidarParaPesquisaDesligamento(tx, id, empresaId, await marcaDaEmpresa(empresaId));
     }

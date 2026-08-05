@@ -37,6 +37,8 @@ export default async function ColaboradoresPage({ params }: { params: Promise<{ 
         // Lidos só para derivar os booleanos abaixo — não seguem para o cliente.
         salarioBase: true,
         dataAdmissao: true,
+        dataDesligamento: true,
+        motivoDesligamento: true,
       },
     }),
     prisma.setor.findMany({ where: { empresaId: { in: empresasDoUsuario }, ativo: true }, orderBy: { nome: "asc" } }),
@@ -46,10 +48,12 @@ export default async function ColaboradoresPage({ params }: { params: Promise<{ 
   // O filtro "?lacuna=salario|admissao" só precisa saber SE o campo está vazio.
   // Trocar o valor pelo booleano aqui mantém salário e data de admissão dentro
   // do servidor sem perder o filtro.
-  const colaboradores = linhas.map(({ salarioBase, dataAdmissao, ...c }) => ({
+  const colaboradores = linhas.map(({ salarioBase, dataAdmissao, dataDesligamento, motivoDesligamento, ...c }) => ({
     ...c,
     semSalario: salarioBase === null || salarioBase === undefined,
     semAdmissao: !dataAdmissao,
+    semDataDesligamento: !dataDesligamento,
+    semMotivoDesligamento: !motivoDesligamento,
   }));
 
   return (

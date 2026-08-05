@@ -171,3 +171,55 @@ export async function lacunasDaBase(empresaIds: string[]): Promise<{
   // informa nada e ainda esconde o que importa.
   return { ativos, lacunas: lacunas.filter((l) => l.faltando > 0).sort((a, b) => b.faltando - a.faltando) };
 }
+
+export type LacunaDeDesligado = {
+  /** Também é o valor de ?lacuna= — combinado com ?status=inativos, senão a lista mostraria todo ativo. */
+  chave: "desligamento_data" | "desligamento_motivo";
+  rotulo: string;
+  faltando: number;
+  consequencia: string;
+};
+
+/**
+ * O que falta na saída, não na entrada — irmã de `lacunasDaBase` e
+ * deliberadamente separada dela, não uma linha a mais na mesma lista.
+ *
+ * `lacunasDaBase` filtra `ativo: true` em toda contagem; um desligado nunca
+ * aparece ali. E o denominador é outro: "72% preenchido" de 215 ativos não diz
+ * nada sobre os 137 que já saíram. Duas listas, dois denominadores, dois
+ * links — nunca uma linha dentro da outra.
+ *
+ * Ver seção 3.1 do estudo de Gestão: motivo 0/137, data ausente em 31/137 —
+ * turnover de qualquer empresa aparece melhor do que é enquanto isto for zero.
+ */
+export async function lacunasDosDesligados(empresaIds: string[]): Promise<{
+  desligados: number;
+  lacunas: LacunaDeDesligado[];
+}> {
+  const base = { empresaId: { in: empresaIds }, ativo: false };
+  const [desligados, semData, semMotivo] = await Promise.all([
+    prisma.colaborador.count({ where: base }),
+    prisma.colaborador.count({ where: { ...base, dataDesligamento: null } }),
+    prisma.colaborador.count({ where: { ...base, motivoDesligamento: null } }),
+  ]);
+
+  const lacunas: LacunaDeDesligado[] = [
+    {
+      chave: "desligamento_data",
+      rotulo: "sem data de desligamento",
+      faltando: semData,
+      consequencia: "não entram no turnover nem em nenhuma série por mês",
+    },
+    {
+      chave: "desligamento_motivo",
+      rotulo: "sem motivo de desligamento",
+      faltando: semMotivo,
+      consequencia: "turnover não separa quem pediu demissão de quem foi desligado",
+    },
+  ];
+
+  return {
+    desligados,
+    lacunas: lacunas.filter((l) => l.faltando > 0).sort((a, b) => b.faltando - a.faltando),
+  };
+}
