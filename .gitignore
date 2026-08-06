@@ -59,3 +59,4 @@ relatorio_lm_movel.pdf
 
 # saida de testes locais (relatorios de teste)
 scripts/out/
+.env*

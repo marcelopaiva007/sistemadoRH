@@ -210,7 +210,10 @@ export function PendenciasView({
   const total = Object.values(pendencias).reduce((s, n) => s + n, 0);
 
   return (
-    <div className="space-y-6">
+    // id-alvo do link "Pendências" na tela do grupo e dos cards de marca — sem
+    // ele, o clique leva para o topo da página e a pessoa ainda precisa rolar
+    // até achar a seção.
+    <div id="pendencias" className="space-y-6 scroll-mt-4">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-semibold tracking-tight">Pendências</h2>

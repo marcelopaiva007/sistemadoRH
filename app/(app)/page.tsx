@@ -102,6 +102,35 @@ export default async function HomePage() {
   const totalIntegracoes = resumos.reduce((a, r) => a + r.integracoesAbertas, 0);
   const totalPend = resumos.reduce((a, r) => a + totalPendencias(r.pendencias), 0);
 
+  // Resumo por marca calculado uma vez só, fora do JSX: o card de cada marca e
+  // o link do indicador "Pendências" do topo precisam do mesmo número.
+  const marcasComResumo = marcas.map((marca) => {
+    const pend = marca.itens.reduce((a, r) => a + totalPendencias(r.pendencias), 0);
+    const semBase = semRegistroNoEscopo(
+      comRegistro,
+      marca.itens.map((r) => r.empresa.id),
+    ).size;
+    return {
+      marca,
+      ativos: marca.itens.reduce((a, r) => a + r.ativos, 0),
+      vagasAbertas: marca.itens.reduce((a, r) => a + r.vagasAbertas, 0),
+      integracoesAbertas: marca.itens.reduce((a, r) => a + r.integracoesAbertas, 0),
+      pend,
+      semCadastro: marca.itens.reduce((a, r) => a + r.ativos, 0) === 0,
+      semBase,
+      // Entrar por qualquer CNPJ da marca mostra a mesma tela — a página de
+      // empresa soma por marca (ver empresasDaMesmaMarca). Não existe "o CNPJ
+      // errado" para este link.
+      href: `/rh/${marca.itens[0].empresa.id}#pendencias`,
+    };
+  });
+
+  // Alvo do indicador "Pendências" do topo: a primeira marca com algo pendente.
+  // Não existe hoje uma tela que junte pendência de todas as marcas numa lista
+  // só, então o clique leva para onde já há o que resolver, em vez de não levar
+  // a lugar nenhum.
+  const primeiraComPendencia = marcasComResumo.find((m) => m.pend > 0);
+
   return (
     <div className="space-y-6">
       <div>
@@ -115,139 +144,136 @@ export default async function HomePage() {
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Indicador variante="cartao" icone={<Users className="size-4" />} rotulo="Colaboradores ativos" valor={totalColaboradores} />
-        <Indicador variante="cartao"
-          icone={<AlertTriangle className="size-4" />}
-          rotulo="Pendências"
-          valor={totalPend}
-          alerta={totalPend > 0}
-        />
+        {primeiraComPendencia ? (
+          <Link href={primeiraComPendencia.href} className="block">
+            <Indicador
+              variante="cartao"
+              icone={<AlertTriangle className="size-4" />}
+              rotulo="Pendências"
+              valor={totalPend}
+              alerta={totalPend > 0}
+              className="h-full transition-colors hover:bg-accent/40"
+            />
+          </Link>
+        ) : (
+          <Indicador
+            variante="cartao"
+            icone={<AlertTriangle className="size-4" />}
+            rotulo="Pendências"
+            valor={totalPend}
+            alerta={totalPend > 0}
+          />
+        )}
         <Indicador variante="cartao" icone={<Briefcase className="size-4" />} rotulo="Vagas abertas" valor={totalVagas} />
         <Indicador variante="cartao" icone={<Rocket className="size-4" />} rotulo="Integrações em aberto" valor={totalIntegracoes} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        {marcas.map((marca) => {
-          const ativos = marca.itens.reduce((a, r) => a + r.ativos, 0);
-          const vagasAbertas = marca.itens.reduce((a, r) => a + r.vagasAbertas, 0);
-          const integracoesAbertas = marca.itens.reduce((a, r) => a + r.integracoesAbertas, 0);
-          const pend = marca.itens.reduce((a, r) => a + totalPendencias(r.pendencias), 0);
-          const varios = marca.itens.length > 1;
-          // "Em dia" e "não tem ninguém cadastrado" davam a MESMA etiqueta
-          // verde. Uma diz que o RH está com tudo em ordem; a outra, que a
-          // empresa nem começou a ser alimentada — e ler a segunda como a
-          // primeira é justamente o engano que faz uma empresa vazia passar
-          // despercebida.
-          const semCadastro = ativos === 0;
-          // O terceiro caso, que faltava: gente cadastrada, pendência zero, e
-          // os módulos que gerariam pendência sem nenhum registro. A Mobility
-          // Tech em 04/08/2026 era exatamente isto — 4 pessoas, 12 das 17
-          // situações sem base, e um tique verde escrito "em dia" por cima.
-          const semBase = semRegistroNoEscopo(
-            comRegistro,
-            marca.itens.map((r) => r.empresa.id),
-          ).size;
+        {marcasComResumo.map(
+          ({ marca, ativos, vagasAbertas, integracoesAbertas, pend, semCadastro, semBase, href }) => {
+            const varios = marca.itens.length > 1;
 
-          const corpo = (
-            <Card className="h-full transition-colors hover:bg-accent/40">
-              <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Building2 className="size-4 text-muted-foreground" />
-                  {marca.nome}
-                </CardTitle>
-                {pend > 0 ? (
-                  <Badge variant="destructive">{pend} pendência(s)</Badge>
-                ) : semCadastro ? (
-                  <Badge variant="outline" className="gap-1 text-muted-foreground font-normal">
-                    <CircleDashed className="size-3" />
-                    sem cadastro
-                  </Badge>
-                ) : semBase > 0 ? (
-                  <Badge
-                    variant="outline"
-                    className="gap-1 font-normal text-muted-foreground"
-                    title={`${semBase} das situações acompanhadas não têm nenhum registro — o zero não é conformidade.`}
-                  >
-                    <CircleDashed className="size-3" />
-                    {semBase} sem base
-                  </Badge>
-                ) : (
-                  <Badge variant="secondary" className="gap-1">
-                    <CheckCircle2 className="size-3" />
-                    em dia
-                  </Badge>
-                )}
-              </CardHeader>
-              <CardContent>
-                <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                  <dt className="text-muted-foreground">Colaboradores</dt>
-                  <dd className="text-right font-medium tabular-nums">{ativos}</dd>
-                  <dt className="text-muted-foreground">Vagas abertas</dt>
-                  <dd className="text-right font-medium tabular-nums">{vagasAbertas}</dd>
-                  <dt className="text-muted-foreground">Integrações em aberto</dt>
-                  <dd className="text-right font-medium tabular-nums">{integracoesAbertas}</dd>
-                </dl>
-
-                {/* Só abre por CNPJ quando há mais de um. Com um só, a quebra
-                    repetiria o número de cima e não informaria nada. */}
-                {varios && (
-                  <div className="mt-3 space-y-1 border-t pt-3">
-                    <p className="text-xs text-muted-foreground">
-                      {marca.itens.length} CNPJs nesta marca:
-                    </p>
-                    {marca.itens.map((r) => (
-                      <Link
-                        key={r.empresa.id}
-                        href={`/rh/${r.empresa.id}`}
-                        className="flex items-baseline justify-between rounded px-1 py-0.5 text-sm hover:bg-accent"
+            // O cartão inteiro é um link — inclusive quando há vários CNPJs.
+            // Antes, com vários, só as linhas de CNPJ dentro do cartão eram
+            // clicáveis, e para qualquer coisa fora delas (o cabeçalho, o
+            // resumo, o "pend :" de baixo) o clique não ia a lugar nenhum; a
+            // pessoa reportou isso como bug. Entrar por qualquer CNPJ da marca
+            // mostra a mesma tela (soma por marca, não por CNPJ — ver
+            // empresasDaMesmaMarca), então não existe "CNPJ errado" para
+            // linkar, e as linhas de baixo não precisam mais ser links à
+            // parte — um <a> dentro de outro <a> nem seria HTML válido.
+            return (
+              <Link key={marca.nome} href={href} className="block h-full">
+                <Card className="h-full transition-colors hover:bg-accent/40">
+                  <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <Building2 className="size-4 text-muted-foreground" />
+                      {marca.nome}
+                    </CardTitle>
+                    {pend > 0 ? (
+                      <Badge variant="destructive">{pend} pendência(s)</Badge>
+                    ) : semCadastro ? (
+                      <Badge variant="outline" className="gap-1 text-muted-foreground font-normal">
+                        <CircleDashed className="size-3" />
+                        sem cadastro
+                      </Badge>
+                    ) : semBase > 0 ? (
+                      <Badge
+                        variant="outline"
+                        className="gap-1 font-normal text-muted-foreground"
+                        title={`${semBase} das situações acompanhadas não têm nenhum registro — o zero não é conformidade.`}
                       >
-                        <span>{r.empresa.nome}</span>
-                        <span className="tabular-nums text-muted-foreground">
-                          {r.ativos}
-                          {totalPendencias(r.pendencias) > 0 && (
-                            <span className="text-destructive">
-                              {" "}
-                              · {totalPendencias(r.pendencias)} pend.
+                        <CircleDashed className="size-3" />
+                        {semBase} sem base
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary" className="gap-1">
+                        <CheckCircle2 className="size-3" />
+                        em dia
+                      </Badge>
+                    )}
+                  </CardHeader>
+                  <CardContent>
+                    <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                      <dt className="text-muted-foreground">Colaboradores</dt>
+                      <dd className="text-right font-medium tabular-nums">{ativos}</dd>
+                      <dt className="text-muted-foreground">Vagas abertas</dt>
+                      <dd className="text-right font-medium tabular-nums">{vagasAbertas}</dd>
+                      <dt className="text-muted-foreground">Integrações em aberto</dt>
+                      <dd className="text-right font-medium tabular-nums">{integracoesAbertas}</dd>
+                    </dl>
+
+                    {/* Só abre por CNPJ quando há mais de um. Com um só, a quebra
+                        repetiria o número de cima e não informaria nada. */}
+                    {varios && (
+                      <div className="mt-3 space-y-1 border-t pt-3">
+                        <p className="text-xs text-muted-foreground">
+                          {marca.itens.length} CNPJs nesta marca:
+                        </p>
+                        {marca.itens.map((r) => (
+                          <div
+                            key={r.empresa.id}
+                            className="flex items-baseline justify-between px-1 py-0.5 text-sm"
+                          >
+                            <span>{r.empresa.nome}</span>
+                            <span className="tabular-nums text-muted-foreground">
+                              {r.ativos}
+                              {totalPendencias(r.pendencias) > 0 && (
+                                <span className="text-destructive">
+                                  {" "}
+                                  · {totalPendencias(r.pendencias)} pend.
+                                </span>
+                              )}
                             </span>
-                          )}
-                        </span>
-                      </Link>
-                    ))}
-                  </div>
-                )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
 
-                {pend > 0 && (
-                  <p className="mt-3 text-xs text-muted-foreground">
-                    {(() => {
-                      const soma = (campo: keyof (typeof marca.itens)[0]["pendencias"]) =>
-                        marca.itens.reduce((a, r) => a + (r.pendencias[campo] as number), 0);
-                      return [
-                        soma("catPendente") > 0 && `${soma("catPendente")} CAT sem emitir`,
-                        soma("aprovacoes") > 0 && `${soma("aprovacoes")} aguardando aprovação`,
-                        soma("epiVencido") > 0 && `${soma("epiVencido")} EPI vencido`,
-                        soma("asoVencendo") > 0 && `${soma("asoVencendo")} ASO vencendo`,
-                        soma("certificadosVencendo") > 0 && `${soma("certificadosVencendo")} NR vencendo`,
-                        soma("integracoesAtrasadas") > 0 && `${soma("integracoesAtrasadas")} integração atrasada`,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ");
-                    })()}
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          );
-
-          // Com um CNPJ só, o cartão inteiro entra na empresa — é o gesto que
-          // já existia. Com vários, entrar "na marca" não significa nada: a
-          // navegação passa a ser por CNPJ, na lista de dentro.
-          return varios ? (
-            <div key={marca.nome}>{corpo}</div>
-          ) : (
-            <Link key={marca.nome} href={`/rh/${marca.itens[0].empresa.id}`}>
-              {corpo}
-            </Link>
-          );
-        })}
+                    {pend > 0 && (
+                      <p className="mt-3 text-xs text-muted-foreground">
+                        {(() => {
+                          const soma = (campo: keyof (typeof marca.itens)[0]["pendencias"]) =>
+                            marca.itens.reduce((a, r) => a + (r.pendencias[campo] as number), 0);
+                          return [
+                            soma("catPendente") > 0 && `${soma("catPendente")} CAT sem emitir`,
+                            soma("aprovacoes") > 0 && `${soma("aprovacoes")} aguardando aprovação`,
+                            soma("epiVencido") > 0 && `${soma("epiVencido")} EPI vencido`,
+                            soma("asoVencendo") > 0 && `${soma("asoVencendo")} ASO vencendo`,
+                            soma("certificadosVencendo") > 0 && `${soma("certificadosVencendo")} NR vencendo`,
+                            soma("integracoesAtrasadas") > 0 && `${soma("integracoesAtrasadas")} integração atrasada`,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ");
+                        })()}
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              </Link>
+            );
+          },
+        )}
       </div>
     </div>
   );
