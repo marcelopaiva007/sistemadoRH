@@ -1,4 +1,4 @@
-import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
+import { empresasVisiveis, requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
 import { DesligamentosView } from "./desligamentos-view";
 
@@ -8,18 +8,30 @@ import { DesligamentosView } from "./desligamentos-view";
 // — o motivo formal em si já mora lá (Fase 1).
 export default async function DesligamentosPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ empresaId: string }>;
+  searchParams: Promise<{ empresas?: string }>;
 }) {
   const { empresaId } = await params;
-  await requireEmpresaAccess(empresaId);
+  const { empresas: empresasParam } = await searchParams;
+  const usuario = await requireEmpresaAccess(empresaId);
+
+  const visiveis = await empresasVisiveis(usuario);
+  // Mesma regra de filtro-empresas.tsx::useFiltroEmpresas: sem filtro na URL,
+  // tudo que o usuário enxerga; com filtro, a INTERSEÇÃO — id digitado à mão não
+  // vira acesso.
+  const pedidas = (empresasParam ?? "").split(",").filter(Boolean);
+  const escopo = pedidas.length === 0 ? visiveis : pedidas.filter((id) => visiveis.includes(id));
 
   const colaboradores = await prisma.colaborador.findMany({
-    where: { empresaId, dataDesligamento: { not: null } },
+    where: { empresaId: { in: escopo }, dataDesligamento: { not: null } },
     orderBy: { dataDesligamento: "desc" },
     select: {
       id: true,
       nome: true,
+      empresaId: true,
+      empresa: { select: { nome: true } },
       dataDesligamento: true,
       motivoDesligamento: true,
       setor: { select: { nome: true } },
@@ -31,6 +43,8 @@ export default async function DesligamentosPage({
   const desligamentos = colaboradores.map((c) => ({
     id: c.id,
     nome: c.nome,
+    empresaId: c.empresaId,
+    empresaNome: c.empresa.nome,
     dataDesligamento: c.dataDesligamento!,
     motivoDesligamento: c.motivoDesligamento,
     setorNome: c.setor.nome,
@@ -47,7 +61,6 @@ export default async function DesligamentosPage({
 
   return (
     <DesligamentosView
-      empresaId={empresaId}
       desligamentos={desligamentos}
       resumo={{ total: desligamentos.length, semChecklist, checklistPendente, semEntrevista }}
     />

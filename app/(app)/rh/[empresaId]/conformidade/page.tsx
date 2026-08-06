@@ -11,25 +11,36 @@ import { ExposicaoSstView } from "./exposicao-sst-view";
 // — não existe coluna "situação" persistida.
 export default async function ConformidadePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ empresaId: string }>;
+  searchParams: Promise<{ empresas?: string }>;
 }) {
   const { empresaId } = await params;
+  const { empresas: empresasParam } = await searchParams;
   const usuario = await requireEmpresaAccess(empresaId);
   const visiveis = await empresasVisiveis(usuario);
 
+  // Mesma regra de `filtro-empresas.tsx::useFiltroEmpresas`: sem filtro na URL,
+  // tudo que o usuário enxerga; com filtro, a INTERSEÇÃO — id digitado à mão não
+  // vira acesso.
+  const pedidas = (empresasParam ?? "").split(",").filter(Boolean);
+  const escopo = pedidas.length === 0 ? visiveis : pedidas.filter((id) => visiveis.includes(id));
+
   const [posicoes, colaboradores, exposicao] = await Promise.all([
     prisma.posicao.findMany({
-      where: { empresaId, ativo: true },
+      where: { empresaId: { in: escopo }, ativo: true },
       orderBy: { nome: "asc" },
       include: { requisitosNR: { orderBy: { norma: "asc" } } },
     }),
     prisma.colaborador.findMany({
-      where: { empresaId, ativo: true },
+      where: { empresaId: { in: escopo }, ativo: true },
       orderBy: { nome: "asc" },
       select: {
         id: true,
         nome: true,
+        empresaId: true,
+        empresa: { select: { nome: true } },
         posicaoId: true,
         posicao: { select: { nome: true } },
         setor: { select: { nome: true } },
@@ -51,6 +62,8 @@ export default async function ConformidadePage({
     return {
       id: c.id,
       nome: c.nome,
+      empresaId: c.empresaId,
+      empresaNome: c.empresa.nome,
       posicaoNome: c.posicao.nome,
       setorNome: c.setor.nome,
       conformidade,

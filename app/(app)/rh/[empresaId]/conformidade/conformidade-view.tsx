@@ -26,6 +26,8 @@ type Posicao = {
 type Linha = {
   id: string;
   nome: string;
+  empresaId: string;
+  empresaNome: string;
   posicaoNome: string;
   setorNome: string;
   conformidade: ConformidadeColaborador;
@@ -159,6 +161,7 @@ export function ConformidadeView({
                 <TableHeader>
                   <TableRow>
                     <TableHead>Colaborador</TableHead>
+                    <TableHead>CNPJ</TableHead>
                     <TableHead>Setor / Função</TableHead>
                     <TableHead>NRs pendentes</TableHead>
                     <TableHead>ASO</TableHead>
@@ -168,10 +171,11 @@ export function ConformidadeView({
                   {linhasFiltradas.map((l) => (
                     <TableRow key={l.id}>
                       <TableCell>
-                        <Link href={`/rh/${empresaId}/colaboradores/${l.id}`} className="font-medium hover:underline">
+                        <Link href={`/rh/${l.empresaId}/colaboradores/${l.id}`} className="font-medium hover:underline">
                           {l.nome}
                         </Link>
                       </TableCell>
+                      <TableCell className="text-muted-foreground">{l.empresaNome}</TableCell>
                       <TableCell className="text-muted-foreground">
                         {l.setorNome} · {l.posicaoNome}
                       </TableCell>

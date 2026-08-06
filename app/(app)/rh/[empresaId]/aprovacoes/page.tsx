@@ -1,26 +1,33 @@
-import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
+import { empresasVisiveis, requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
-import { empresasDaMesmaMarca } from "@/lib/escopo-marca";
 import { AprovacoesView } from "./aprovacoes-view";
 
 // Central de aprovações: tudo que espera uma decisão do RH/gestor num lugar só
 // — férias programadas, ausências registradas e documentos que o colaborador
 // enviou pelo portal.
 //
-// Escopada à MARCA, não ao CNPJ da rota — mesmo critério da tela inicial
-// (lib/escopo-marca.ts): o cartão "Aguardando aprovação"/"Documentos a
-// conferir" da tela inicial já soma a marca inteira, e esta tela era a única
-// que ainda cortava por CNPJ — o RH via "16" lá e nada aqui sempre que o
-// pendente estivesse numa empresa irmã.
+// ESCOPO: `empresasVisiveis` + filtro `?empresas=` da barra lateral — mesmo
+// padrão do resto do módulo RH (ver app/(app)/rh/[empresaId]/ferias/page.tsx).
+// Antes usava `empresasDaMesmaMarca`, que ignorava permissão por usuário e o
+// filtro da lateral; a marca inteira sempre entrava, sem opção de restringir.
 export default async function AprovacoesPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ empresaId: string }>;
+  searchParams: Promise<{ empresas?: string }>;
 }) {
   const { empresaId } = await params;
-  await requireEmpresaAccess(empresaId);
-  const empresas = await empresasDaMesmaMarca(empresaId);
-  const escopo = { in: empresas };
+  const { empresas: empresasParam } = await searchParams;
+  const usuario = await requireEmpresaAccess(empresaId);
+
+  const visiveis = await empresasVisiveis(usuario);
+  // Mesma regra de filtro-empresas.tsx::useFiltroEmpresas: sem filtro na URL,
+  // tudo que o usuário enxerga; com filtro, a INTERSEÇÃO — id digitado à mão não
+  // vira acesso.
+  const pedidas = (empresasParam ?? "").split(",").filter(Boolean);
+  const escopoIds = pedidas.length === 0 ? visiveis : pedidas.filter((id) => visiveis.includes(id));
+  const escopo = { in: escopoIds };
 
   const [ferias, ausencias, documentos, decididasRecentes] = await Promise.all([
     prisma.solicitacaoFerias.findMany({
@@ -101,7 +108,6 @@ export default async function AprovacoesPage({
 
   return (
     <AprovacoesView
-      empresaId={empresaId}
       ferias={ferias}
       ausencias={ausencias}
       documentos={documentos}

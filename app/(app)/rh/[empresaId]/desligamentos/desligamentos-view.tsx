@@ -11,6 +11,8 @@ import { Indicador } from "@/components/indicador";
 type Desligamento = {
   id: string;
   nome: string;
+  empresaId: string;
+  empresaNome: string;
   dataDesligamento: Date;
   motivoDesligamento: string | null;
   setorNome: string;
@@ -20,11 +22,9 @@ type Desligamento = {
 };
 
 export function DesligamentosView({
-  empresaId,
   desligamentos,
   resumo,
 }: {
-  empresaId: string;
   desligamentos: Desligamento[];
   resumo: { total: number; semChecklist: number; checklistPendente: number; semEntrevista: number };
 }) {
@@ -64,6 +64,7 @@ export function DesligamentosView({
                 <TableHeader>
                   <TableRow>
                     <TableHead>Colaborador</TableHead>
+                    <TableHead>CNPJ</TableHead>
                     <TableHead>Setor</TableHead>
                     <TableHead>Desligado em</TableHead>
                     <TableHead>Motivo</TableHead>
@@ -76,12 +77,13 @@ export function DesligamentosView({
                     <TableRow key={d.id}>
                       <TableCell>
                         <Link
-                          href={`/rh/${empresaId}/colaboradores/${d.id}`}
+                          href={`/rh/${d.empresaId}/colaboradores/${d.id}`}
                           className="font-medium hover:underline"
                         >
                           {d.nome}
                         </Link>
                       </TableCell>
+                      <TableCell className="text-muted-foreground">{d.empresaNome}</TableCell>
                       <TableCell className="text-muted-foreground">{d.setorNome}</TableCell>
                       <TableCell className="tabular-nums whitespace-nowrap">
                         {formatarData(d.dataDesligamento)}

@@ -1,4 +1,4 @@
-import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
+import { empresasVisiveis, requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
 import { AcidentesView } from "./acidentes-view";
 
@@ -7,17 +7,28 @@ import { AcidentesView } from "./acidentes-view";
 // pega numa fiscalização quando fica para trás.
 export default async function AcidentesPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ empresaId: string }>;
+  searchParams: Promise<{ empresas?: string }>;
 }) {
   const { empresaId } = await params;
-  await requireEmpresaAccess(empresaId);
+  const { empresas: empresasParam } = await searchParams;
+  const usuario = await requireEmpresaAccess(empresaId);
+
+  const visiveis = await empresasVisiveis(usuario);
+  // Mesma regra de filtro-empresas.tsx::useFiltroEmpresas: sem filtro na URL,
+  // tudo que o usuário enxerga; com filtro, a INTERSEÇÃO — id digitado à mão não
+  // vira acesso.
+  const pedidas = (empresasParam ?? "").split(",").filter(Boolean);
+  const escopo = pedidas.length === 0 ? visiveis : pedidas.filter((id) => visiveis.includes(id));
 
   const acidentes = await prisma.acidenteTrabalho.findMany({
-    where: { empresaId },
+    where: { empresaId: { in: escopo } },
     orderBy: [{ catEmitida: "asc" }, { dataHora: "desc" }],
     select: {
       id: true,
+      empresaId: true,
       dataHora: true,
       tipo: true,
       descricao: true,
@@ -26,7 +37,9 @@ export default async function AcidentesPage({
       catNumero: true,
       situacao: true,
       colaboradorId: true,
-      colaborador: { select: { nome: true, setor: { select: { nome: true } } } },
+      colaborador: {
+        select: { nome: true, setor: { select: { nome: true } }, empresa: { select: { nome: true } } },
+      },
     },
   });
 
@@ -35,7 +48,6 @@ export default async function AcidentesPage({
 
   return (
     <AcidentesView
-      empresaId={empresaId}
       acidentes={acidentes}
       resumo={{ total: acidentes.length, catsPendentes, emInvestigacao }}
     />

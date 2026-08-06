@@ -18,6 +18,8 @@ type Pendente = {
 type Pessoa = {
   colaboradorId: string;
   nome: string;
+  empresaId: string;
+  empresaNome: string;
   setorNome: string;
   dataAdmissao: Date | null;
   total: number;
@@ -27,11 +29,9 @@ type Pessoa = {
 };
 
 export function IntegracoesView({
-  empresaId,
   emAberto,
   concluidas,
 }: {
-  empresaId: string;
   emAberto: Pessoa[];
   concluidas: number;
 }) {
@@ -66,7 +66,7 @@ export function IntegracoesView({
             <Card key={p.colaboradorId}>
               <CardHeader>
                 <CardTitle className="flex flex-wrap items-center gap-2 text-base">
-                  <Link href={`/rh/${empresaId}/colaboradores/${p.colaboradorId}`} className="hover:underline">
+                  <Link href={`/rh/${p.empresaId}/colaboradores/${p.colaboradorId}`} className="hover:underline">
                     {p.nome}
                   </Link>
                   <Badge variant={p.atrasados > 0 ? "destructive" : "secondary"}>
@@ -75,7 +75,7 @@ export function IntegracoesView({
                   {p.atrasados > 0 && <Badge variant="destructive">{p.atrasados} atrasado(s)</Badge>}
                 </CardTitle>
                 <CardDescription>
-                  {p.setorNome}
+                  {p.setorNome} · {p.empresaNome}
                   {p.dataAdmissao && ` · admitido em ${formatarData(p.dataAdmissao)}`}
                 </CardDescription>
               </CardHeader>

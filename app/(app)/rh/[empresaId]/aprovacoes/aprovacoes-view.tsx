@@ -104,13 +104,11 @@ function numeroDeclarado(d: Documento): string | null {
 }
 
 export function AprovacoesView({
-  empresaId,
   ferias,
   ausencias,
   documentos,
   decididasRecentes,
 }: {
-  empresaId: string;
   ferias: Ferias[];
   ausencias: Ausencia[];
   documentos: Documento[];
@@ -119,11 +117,11 @@ export function AprovacoesView({
   const router = useRouter();
   const total = ferias.length + ausencias.length + documentos.length;
 
-  // A lista é da marca (empresas irmãs do mesmo grupo), não só do CNPJ da
-  // rota — mostra o nome da empresa apenas quando o item não é da empresa que
-  // a pessoa está vendo, para não poluir o caso comum de marca com 1 CNPJ.
-  const empresaLabel = (itemEmpresaId: string, nomeEmpresa: string) =>
-    itemEmpresaId === empresaId ? "" : ` · ${nomeEmpresa}`;
+  // A lista pode misturar CNPJs (empresasVisiveis + filtro `?empresas=` da
+  // barra lateral, não só o CNPJ da rota) — mostra o nome da empresa sempre,
+  // sem condicional: o CNPJ "da rota" não é mais referência confiável do que
+  // "a pessoa está vendo", já que agora pode estar filtrado.
+  const empresaLabel = (nomeEmpresa: string) => ` · ${nomeEmpresa}`;
 
   return (
     <div className="space-y-6">
@@ -154,7 +152,7 @@ export function AprovacoesView({
               empresaId={f.empresaId}
               colaboradorId={f.colaboradorId}
               titulo={f.colaborador.nome}
-              subtitulo={`${f.colaborador.setor.nome}${empresaLabel(f.empresaId, f.colaborador.empresa.nome)}`}
+              subtitulo={`${f.colaborador.setor.nome}${empresaLabel(f.colaborador.empresa.nome)}`}
               linhas={[
                 `${formatarData(f.dataInicio)} a ${formatarData(f.dataFim)} · ${f.dias} dia(s)${f.diasAbono ? ` + ${f.diasAbono} de abono` : ""}`,
                 f.observacoes ?? "",
@@ -195,7 +193,7 @@ export function AprovacoesView({
               empresaId={d.empresaId}
               colaboradorId={d.colaboradorId}
               titulo={d.colaborador.nome}
-              subtitulo={`${d.colaborador.setor.nome} · ${tipoDocumentoLabel(d.tipo)}${empresaLabel(d.empresaId, d.colaborador.empresa.nome)}`}
+              subtitulo={`${d.colaborador.setor.nome} · ${tipoDocumentoLabel(d.tipo)}${empresaLabel(d.colaborador.empresa.nome)}`}
               linhas={[
                 // O número que a pessoa digitou, para bater com a foto.
                 numeroDeclarado(d) ?? "Sem número digitado para este documento.",
@@ -249,7 +247,7 @@ export function AprovacoesView({
               empresaId={a.empresaId}
               colaboradorId={a.colaboradorId}
               titulo={a.colaborador.nome}
-              subtitulo={`${a.colaborador.setor.nome}${empresaLabel(a.empresaId, a.colaborador.empresa.nome)}`}
+              subtitulo={`${a.colaborador.setor.nome}${empresaLabel(a.colaborador.empresa.nome)}`}
               etiqueta={tipoAusenciaLabel(a.tipo)}
               linhas={[
                 `${formatarData(a.dataInicio)} a ${formatarData(a.dataFim)} · ${a.dias} dia(s)${a.abonada ? " · abonada" : " · não abonada"}`,
