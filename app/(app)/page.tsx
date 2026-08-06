@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { AlertTriangle, Briefcase, Building2, CheckCircle2, CircleDashed, Rocket, Users } from "lucide-react";
+import { Briefcase, Building2, CheckCircle2, CircleDashed, Rocket, Users } from "lucide-react";
 import { requireUser } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import {
@@ -13,6 +13,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Indicador } from "@/components/indicador";
+import { PendenciasIndicador } from "./pendencias-indicador";
 
 // Tela inicial do grupo: quantas pessoas, o que está pendente e por onde
 // entrar. Até 25/07/2026 esta página era um painel de pesquisa de clima
@@ -125,11 +126,11 @@ export default async function HomePage() {
     };
   });
 
-  // Alvo do indicador "Pendências" do topo: a primeira marca com algo pendente.
-  // Não existe hoje uma tela que junte pendência de todas as marcas numa lista
-  // só, então o clique leva para onde já há o que resolver, em vez de não levar
-  // a lugar nenhum.
-  const primeiraComPendencia = marcasComResumo.find((m) => m.pend > 0);
+  // Itens do popover do indicador "Pendências" do topo: só as marcas que têm
+  // algo pendente, cada uma já com o link pronto pra tela de resolução.
+  const marcasComPendencia = marcasComResumo
+    .filter((m) => m.pend > 0)
+    .map((m) => ({ nome: m.marca.nome, pend: m.pend, href: m.href }));
 
   return (
     <div className="space-y-6">
@@ -144,26 +145,7 @@ export default async function HomePage() {
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Indicador variante="cartao" icone={<Users className="size-4" />} rotulo="Colaboradores ativos" valor={totalColaboradores} />
-        {primeiraComPendencia ? (
-          <Link href={primeiraComPendencia.href} className="block">
-            <Indicador
-              variante="cartao"
-              icone={<AlertTriangle className="size-4" />}
-              rotulo="Pendências"
-              valor={totalPend}
-              alerta={totalPend > 0}
-              className="h-full transition-colors hover:bg-accent/40"
-            />
-          </Link>
-        ) : (
-          <Indicador
-            variante="cartao"
-            icone={<AlertTriangle className="size-4" />}
-            rotulo="Pendências"
-            valor={totalPend}
-            alerta={totalPend > 0}
-          />
-        )}
+        <PendenciasIndicador total={totalPend} itens={marcasComPendencia} />
         <Indicador variante="cartao" icone={<Briefcase className="size-4" />} rotulo="Vagas abertas" valor={totalVagas} />
         <Indicador variante="cartao" icone={<Rocket className="size-4" />} rotulo="Integrações em aberto" valor={totalIntegracoes} />
       </div>
