@@ -49,6 +49,11 @@ type Colaborador = {
   ctpsSerie: string | null;
   ctpsUf: string | null;
   tituloEleitor: string | null;
+  bancoNome: string | null;
+  bancoAgencia: string | null;
+  bancoConta: string | null;
+  bancoTipoConta: string | null;
+  chavePix: string | null;
   setor: { nome: string };
   posicao: { nome: string };
 };
@@ -117,6 +122,7 @@ export function PortalInicio({
     colaborador.escolaridade, colaborador.nomeMae, colaborador.nacionalidade,
     colaborador.cep, colaborador.logradouro, colaborador.bairro,
     colaborador.emergenciaNome, colaborador.emergenciaTelefone,
+    colaborador.chavePix,
   ].filter((v) => !v).length;
 
   return (

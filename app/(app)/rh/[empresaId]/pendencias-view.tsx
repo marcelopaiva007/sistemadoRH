@@ -91,7 +91,7 @@ export function PendenciasView({
       chave: "documentosAConferir",
       titulo: "Documentos a conferir",
       descricao: "Cópias enviadas pelo colaborador no portal, esperando validação.",
-      href: `/rh/${empresaId}/colaboradores`,
+      href: `/rh/${empresaId}/aprovacoes`,
       icon: FileCheck,
     },
     {

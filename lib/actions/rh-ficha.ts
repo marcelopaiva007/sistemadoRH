@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { registrarAuditoria, diffCampos } from "@/lib/audit";
+import { violouUnique } from "@/lib/prisma-erros";
 import { criariCiclo } from "@/lib/organograma";
 import { dataDoFormulario } from "@/lib/datas";
 import type { ActionResult } from "@/lib/constants";
@@ -177,7 +178,14 @@ export async function atualizarFicha(
     if (erro) return { ok: false, error: erro };
   }
 
-  if (Object.keys(data).length === 0) return { ok: true };
+  if (Object.keys(data).length === 0) {
+    // Nenhum campo reconhecido veio no FormData. Hoje só acontece com um bloco
+    // vazio de propósito; se um `name` de campo um dia divergir de CAMPOS,
+    // é aqui que a tela mostraria "salvo" sem gravar nada — o log é a rede
+    // de segurança contra esse silêncio.
+    console.warn(`[rh-ficha] atualizarFicha(${colaboradorId}) sem nenhum campo reconhecido no FormData.`);
+    return { ok: true };
+  }
 
   if (typeof data.nome === "string" && data.nome.length < 2) {
     return { ok: false, error: "Informe o nome do colaborador." };
@@ -217,8 +225,15 @@ export async function atualizarFicha(
 
   try {
     await prisma.colaborador.update({ where: { id: colaboradorId, empresaId }, data });
-  } catch {
-    return { ok: false, error: "Já existe um colaborador com esse CPF nesta empresa." };
+  } catch (e) {
+    if (violouUnique(e, "Colaborador_empresaId_cpf_key")) {
+      return { ok: false, error: "Já existe um colaborador com esse CPF nesta empresa." };
+    }
+    // Qualquer outro erro aqui virava a mesma mensagem de CPF duplicado —
+    // uma falha real de escrita ficava disfarçada de erro de validação e
+    // ninguém saberia diferenciar os dois casos no log.
+    console.error(`[rh-ficha] falha ao gravar colaborador ${colaboradorId}:`, e);
+    throw e;
   }
 
   const mudancas = diffCampos(atual as unknown as Record<string, unknown>, data);
