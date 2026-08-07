@@ -10,7 +10,7 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 
 /**
  * O indicador "Pendências" do topo da tela do grupo.
@@ -31,18 +31,17 @@ export function PendenciasIndicador({
 }) {
   const cartao = (
     <Card
+      size="sm"
       className={
         itens.length > 0 ? "h-full cursor-pointer transition-colors hover:bg-accent/40" : "h-full"
       }
     >
-      <CardHeader className="pb-2">
-        <CardTitle className="flex items-center gap-2 text-sm font-normal text-muted-foreground">
-          <AlertTriangle className="size-4" />
-          Pendências
-        </CardTitle>
-      </CardHeader>
       <CardContent>
-        <p className={`text-2xl font-bold tabular-nums ${total > 0 ? "text-destructive" : ""}`}>
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <AlertTriangle aria-hidden className="size-4" />
+          Pendências
+        </div>
+        <p className={`text-2xl font-semibold tabular-nums ${total > 0 ? "text-destructive" : ""}`}>
           {total}
         </p>
       </CardContent>

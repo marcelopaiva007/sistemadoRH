@@ -49,7 +49,7 @@ export function IntegracoesView({
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Indicador rotulo="Integrações em aberto" valor={emAberto.length} />
-        <Indicador rotulo="Itens atrasados" valor={totalAtrasados} alerta={totalAtrasados > 0} />
+        <Indicador rotulo="Itens atrasados" valor={totalAtrasados} estado={totalAtrasados > 0 ? "alerta" : "padrao"} />
         <Indicador rotulo="Integrações concluídas" valor={concluidas} />
       </div>
 

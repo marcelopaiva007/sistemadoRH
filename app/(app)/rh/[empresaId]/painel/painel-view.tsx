@@ -324,7 +324,7 @@ export function PainelView({
               rotulo={`Turnover (${janela} meses)`}
               valor={turnover.headcountMedio > 0 ? `${turnover.taxaPct.toFixed(1)}%` : <SemDado />}
               complemento={`${turnover.desligados} saída(s) · ${turnover.admissoes} admissão(ões)`}
-              alerta={turnover.headcountMedio > 0 && turnover.taxaPct > 20}
+              estado={turnover.headcountMedio > 0 && turnover.taxaPct > 20 ? "alerta" : "padrao"}
             />
             <Indicador
               variante="cartao"

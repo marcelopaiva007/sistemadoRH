@@ -169,7 +169,7 @@ export function TimeView({
         <Indicador
           rotulo="Férias vencidas"
           valor={resumo.feriasVencidas}
-          alerta={resumo.feriasVencidas > 0}
+          estado={resumo.feriasVencidas > 0 ? "alerta" : "padrao"}
         />
         <Indicador
           rotulo="Sem avaliação no ciclo"
@@ -177,18 +177,18 @@ export function TimeView({
           complemento={
             resumo.comCicloAberto > 0 ? `de ${resumo.comCicloAberto} com ciclo aberto` : "sem ciclo aberto"
           }
-          atencao={resumo.comCicloAberto > 0 && resumo.semAvaliacaoNoCiclo > 0}
+          estado={resumo.comCicloAberto > 0 && resumo.semAvaliacaoNoCiclo > 0 ? "atencao" : "padrao"}
         />
         <Indicador
           rotulo="Nunca acessou o portal"
           valor={resumo.nuncaAcessouPortal}
-          atencao={resumo.nuncaAcessouPortal > 0}
+          estado={resumo.nuncaAcessouPortal > 0 ? "atencao" : "padrao"}
         />
-        <Indicador rotulo="Sem líder definido" valor={resumo.semLider} atencao={resumo.semLider > 0} />
+        <Indicador rotulo="Sem líder definido" valor={resumo.semLider} estado={resumo.semLider > 0 ? "atencao" : "padrao"} />
         <Indicador
           rotulo="Contrato vencendo"
           valor={resumo.contratosNaJanela}
-          alerta={resumo.contratosNaJanela > 0}
+          estado={resumo.contratosNaJanela > 0 ? "alerta" : "padrao"}
         />
       </div>
 
