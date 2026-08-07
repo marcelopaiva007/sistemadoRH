@@ -24,6 +24,14 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.55.1",
+    data: "07/08/2026",
+    titulo: "Ícone de alerta nos blocos clicáveis da Liderança",
+    itens: [
+      'Os blocos "Sem supervisor" e "Divergência de cadastro" da tela de Liderança agora mostram o triângulo ao lado do número em alerta, como os demais indicadores — a cor deixa de ser o único sinal.',
+    ],
+  },
+  {
     versao: "1.55.0",
     data: "07/08/2026",
     titulo: "Produtividade da equipe de RH",

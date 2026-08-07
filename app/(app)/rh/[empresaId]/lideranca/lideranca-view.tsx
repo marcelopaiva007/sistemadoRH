@@ -627,7 +627,9 @@ function BlocoClicavel({
       className="rounded-lg bg-card px-4 py-3 text-left ring-1 ring-foreground/10 transition-colors hover:bg-accent/40 focus-visible:ring-3 focus-visible:ring-ring/50"
     >
       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        {icone}
+        <span aria-hidden className="contents">
+          {icone}
+        </span>
         {rotulo}
         {aberto ? (
           <ChevronDown className="ml-auto size-3.5" />
@@ -635,10 +637,16 @@ function BlocoClicavel({
           <ChevronRight className="ml-auto size-3.5" />
         )}
       </div>
-      <div className={cn("text-2xl font-semibold tabular-nums", alerta && "text-destructive")}>
-        {valor}
-      </div>
-      <div className="text-xs text-muted-foreground">{complemento}</div>
+      <p className={cn("flex items-center gap-1.5 text-2xl font-semibold tabular-nums", alerta && "text-destructive")}>
+        <span>{valor}</span>
+        {alerta && (
+          <>
+            <AlertTriangle aria-hidden className="size-4 shrink-0" />
+            <span className="sr-only">exige ação</span>
+          </>
+        )}
+      </p>
+      <p className="text-xs text-muted-foreground">{complemento}</p>
     </button>
   );
 }
