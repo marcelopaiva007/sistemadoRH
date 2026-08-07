@@ -168,6 +168,11 @@ export async function deletePesquisa(empresaId: string, id: string): Promise<Act
   const pesquisa = await prisma.pesquisa.findFirst({ where: { id, empresaId } });
   if (!pesquisa) return { ok: false, error: "Pesquisa não encontrada." };
 
+  const [totalConvites, totalRespostas] = await Promise.all([
+    prisma.surveyToken.count({ where: { pesquisaId: id } }),
+    prisma.resposta.count({ where: { pesquisaId: id } }),
+  ]);
+
   await prisma.$transaction([
     prisma.respostaItem.deleteMany({ where: { resposta: { pesquisaId: id } } }),
     prisma.resposta.deleteMany({ where: { pesquisaId: id } }),
@@ -176,6 +181,14 @@ export async function deletePesquisa(empresaId: string, id: string): Promise<Act
     prisma.pergunta.deleteMany({ where: { pesquisaId: id } }),
     prisma.pesquisa.delete({ where: { id } }),
   ]);
+
+  await registrarAuditoria({
+    empresaId,
+    acao: "EXCLUIR",
+    entidade: "Pesquisa",
+    entidadeId: id,
+    resumo: `Pesquisa "${pesquisa.titulo}" foi excluída (${totalConvites} convite(s), ${totalRespostas} resposta(s) apagados).`,
+  });
 
   revalidatePath(`/rh/${empresaId}/pesquisas`);
   redirect(`/rh/${empresaId}/pesquisas`);
@@ -366,6 +379,16 @@ export async function gerarConvites(empresaId: string, pesquisaId: string): Prom
     })),
     skipDuplicates: true,
   });
+
+  if (count > 0) {
+    await registrarAuditoria({
+      empresaId,
+      acao: "CRIAR",
+      entidade: "SurveyToken",
+      entidadeId: pesquisaId,
+      resumo: `${count} convite(s) novo(s) gerado(s) para a pesquisa "${pesquisa.titulo}".`,
+    });
+  }
 
   revalidatePath(`/rh/${empresaId}/pesquisas/${pesquisaId}`);
   return { ok: true, message: count === 0 ? "Nenhum convite novo — a lista já está completa." : `${count} convite(s) novo(s) gerado(s).` };
@@ -714,6 +737,17 @@ export async function enviarConviteToken(empresaId: string, tokenId: string): Pr
   }
 
   const resultado = await enviarUmConvite(token);
+
+  await registrarAuditoria({
+    empresaId,
+    acao: "ENVIAR_CONVITE",
+    entidade: "SurveyToken",
+    entidadeId: tokenId,
+    resumo: resultado.ok
+      ? `Convite da pesquisa "${token.pesquisa.titulo}" enviado a ${token.colaborador.nome}.`
+      : `Falha ao enviar convite da pesquisa "${token.pesquisa.titulo}" a ${token.colaborador.nome}: ${resultado.error}`,
+  });
+
   revalidatePath(`/rh/${empresaId}/pesquisas/${token.pesquisaId}`);
   return resultado.ok ? { ok: true } : { ok: false, error: resultado.error };
 }
@@ -783,6 +817,16 @@ export async function enviarConvites(
   }
 
   const restantes = await prisma.surveyToken.count({ where: restantesQuery });
+
+  if (lote.length > 0) {
+    await registrarAuditoria({
+      empresaId,
+      acao: "ENVIAR_CONVITE",
+      entidade: "SurveyToken",
+      entidadeId: pesquisaId,
+      resumo: `Lote de convites da pesquisa "${lote[0].pesquisa.titulo}": ${enviados} enviado(s), ${falhas} falha(s).`,
+    });
+  }
 
   revalidatePath(`/rh/${empresaId}/pesquisas/${pesquisaId}`);
   return { ok: falhas === 0, enviados, falhas, restantes, error: ultimoErro };
