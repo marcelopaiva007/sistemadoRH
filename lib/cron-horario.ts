@@ -16,6 +16,7 @@ export const LEMBRETES_CONFIGURAVEIS = {
   "enviar-convites": { label: "Envio de convites de pesquisa", padroes: ["12:00"] },
   "lembrete-pesquisa": { label: "Lembrete de pesquisa não respondida", padroes: ["13:00", "19:00"] },
   "lembrete-portal": { label: "Lembrete de vínculo do portal", padroes: ["18:00"] },
+  "cobranca-rh-pendencias": { label: "Cobrança de pendências do RH", padroes: ["09:00"] },
 } as const;
 
 export type ChaveLembrete = keyof typeof LEMBRETES_CONFIGURAVEIS;

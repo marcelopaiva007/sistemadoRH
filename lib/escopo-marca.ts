@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import { prisma, type Cliente } from "@/lib/prisma";
 
 /**
  * Os CNPJs da mesma marca do CNPJ informado.
@@ -28,14 +28,17 @@ export async function marcaDaEmpresa(empresaId: string): Promise<string> {
   return empresa.marcaId;
 }
 
-export async function empresasDaMesmaMarca(empresaId: string): Promise<string[]> {
-  const empresa = await prisma.empresa.findUnique({
+// `cliente` existe para o smoke poder rodar dentro de uma transação com
+// rollback (mesmo padrão de lib/pendencias.ts) — produção nunca passa nada e
+// usa o prisma global.
+export async function empresasDaMesmaMarca(empresaId: string, cliente: Cliente = prisma): Promise<string[]> {
+  const empresa = await cliente.empresa.findUnique({
     where: { id: empresaId },
     select: { marcaId: true },
   });
   if (!empresa) return [empresaId];
 
-  const irmas = await prisma.empresa.findMany({
+  const irmas = await cliente.empresa.findMany({
     where: { marcaId: empresa.marcaId, ativo: true },
     select: { id: true },
   });

@@ -6,6 +6,7 @@
     { "path": "/api/cron/alertas-rh", "schedule": "*/15 * * * *" },
     { "path": "/api/cron/enviar-convites", "schedule": "*/15 * * * *" },
     { "path": "/api/cron/lembrete-pesquisa", "schedule": "*/15 * * * *" },
-    { "path": "/api/cron/lembrete-portal", "schedule": "*/15 * * * *" }
+    { "path": "/api/cron/lembrete-portal", "schedule": "*/15 * * * *" },
+    { "path": "/api/cron/cobranca-rh-pendencias", "schedule": "*/15 * * * *" }
   ]
 }
