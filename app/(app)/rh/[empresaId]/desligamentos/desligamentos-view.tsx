@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ChevronLeft, ChevronRight, Pencil } from "lucide-react";
+import { ChevronLeft, ChevronRight, IdCard, Pencil } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -94,7 +94,7 @@ export function DesligamentosView({
                     <TableHead>Motivo</TableHead>
                     <TableHead>Checklist</TableHead>
                     <TableHead>Entrevista</TableHead>
-                    <TableHead className="w-10" />
+                    <TableHead className="w-20" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -134,19 +134,33 @@ export function DesligamentosView({
                       <TableCell>
                         {d.temEntrevista ? (
                           <Badge variant="default">Registrada</Badge>
+                        ) : d.checklistDispensado ? (
+                          // A dispensa de desligamento antigo cobre a entrevista
+                          // também — mesma regra do contador em page.tsx.
+                          <Badge variant="outline">Dispensada</Badge>
                         ) : (
                           <Badge variant="outline">Pendente</Badge>
                         )}
                       </TableCell>
-                      <TableCell className="text-center">
-                        <button
-                          type="button"
-                          onClick={() => setEditando(d)}
-                          className="inline-block rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-                          title="Corrigir data e motivo da saída"
-                        >
-                          <Pencil className="size-4" />
-                        </button>
+                      <TableCell>
+                        <div className="flex items-center justify-center gap-1">
+                          <Link
+                            href={`/rh/${d.empresaId}/colaboradores/${d.id}?tab=desligamento`}
+                            className="inline-block rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                            title="Abrir ficha do colaborador"
+                            aria-label={`Abrir ficha de ${d.nome}`}
+                          >
+                            <IdCard className="size-4" />
+                          </Link>
+                          <button
+                            type="button"
+                            onClick={() => setEditando(d)}
+                            className="inline-block rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                            title="Corrigir data e motivo da saída"
+                          >
+                            <Pencil className="size-4" />
+                          </button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}

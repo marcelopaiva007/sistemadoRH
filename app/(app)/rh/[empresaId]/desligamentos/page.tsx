@@ -57,13 +57,17 @@ export default async function DesligamentosPage({
 
   // Dispensado não conta como pendência — é justamente o que resolve o "sem
   // como cobrar" de quem saiu antes do sistema existir (ver rh-offboarding.ts).
+  // A dispensa cobre o offboarding INTEIRO: entrevista de saída de quem já foi
+  // embora há meses também não existe para cobrar, então sai do contador junto.
   const semChecklist = desligamentos.filter(
     (d) => d.checklistTotal === 0 && !d.checklistDispensado,
   ).length;
   const checklistPendente = desligamentos.filter(
     (d) => d.checklistTotal > 0 && d.checklistConcluido < d.checklistTotal,
   ).length;
-  const semEntrevista = desligamentos.filter((d) => !d.temEntrevista).length;
+  const semEntrevista = desligamentos.filter(
+    (d) => !d.temEntrevista && !d.checklistDispensado,
+  ).length;
 
   return (
     <DesligamentosView

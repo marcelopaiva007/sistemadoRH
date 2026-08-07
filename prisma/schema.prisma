@@ -391,10 +391,14 @@ model Colaborador {
   dataDesligamento           DateTime?
   motivoDesligamento         String?
   // Desligamento anterior ao sistema, sem como cobrar devolução de crachá,
-  // notebook, EPI etc. de quem já saiu há tempo. Dispensa exige motivo + data
-  // preenchidos (lib/actions/rh-offboarding.ts) — não é geração automática do
-  // checklist com os 11 itens marcados como conferidos, que registraria uma
-  // devolução que não aconteceu.
+  // notebook, EPI — nem entrevista de saída — de quem já saiu há tempo. A
+  // dispensa tira a pessoa das pendências de checklist E de entrevista
+  // (desligamentos/page.tsx) e exige motivo + data preenchidos
+  // (lib/actions/rh-offboarding.ts) — não é geração automática do checklist
+  // com os 11 itens marcados como conferidos, que registraria uma devolução
+  // que não aconteceu. Além do botão na ficha, corrigirDadosDesligamento
+  // dispensa sozinho ao confirmar data+motivo de quem entrou no sistema já
+  // desligado (dataDesligamento < createdAt) — regra do CEO em 07/08/2026.
   checklistDispensado        Boolean   @default(false)
   checklistDispensadoEm      DateTime?
   checklistDispensadoPorId   String?

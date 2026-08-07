@@ -138,7 +138,7 @@ export function OffboardingCard({
                     title={
                       !motivoDesligamento
                         ? "Preencha o motivo do desligamento na aba Ficha para poder dispensar."
-                        : "Para desligamento antigo, sem como cobrar devolução de crachá/notebook/EPI de quem já saiu."
+                        : "Para desligamento antigo, sem como cobrar devolução de crachá/notebook/EPI de quem já saiu. A entrevista de desligamento também sai das pendências."
                     }
                     onClick={async () => {
                       setDispensando(true);
@@ -178,7 +178,7 @@ export function OffboardingCard({
           {checklistDispensado ? (
             <div className="space-y-3 py-6 text-center">
               <p className="text-sm text-muted-foreground">
-                Checklist dispensado (desligamento antigo)
+                Checklist e entrevista dispensados (desligamento antigo)
                 {checklistDispensadoEm && ` em ${formatarData(checklistDispensadoEm)}`}
                 {checklistDispensadoPorNome && ` por ${checklistDispensadoPorNome}`}.
               </p>
