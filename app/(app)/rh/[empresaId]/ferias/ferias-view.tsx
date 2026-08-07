@@ -45,6 +45,12 @@ import type { LinhaFerias, PassivoNaTela } from "./page";
 
 const FILTROS = [
   { chave: "TODOS", rotulo: "Todos" },
+  // A MESMA conta do cartão "Férias vencidas" da tela de Pendências: 12+
+  // meses de casa sem férias aprovada no último ano. O cartão navega pra cá
+  // com filtro=RISCO_DOBRA e a lista bate pessoa a pessoa com o número dele —
+  // é a soma de "vencidas confirmadas" + "sem histórico a conferir" + quem tem
+  // histórico antigo mas está há 1 ano+ sem gozar.
+  { chave: "RISCO_DOBRA", rotulo: "Risco de dobra" },
   { chave: "VENCIDO", rotulo: "Vencidas" },
   { chave: "VENCENDO", rotulo: "Vencendo" },
   { chave: "DISPONIVEL", rotulo: "Disponíveis" },
@@ -198,6 +204,7 @@ export function FeriasView({
     return linhas
       .filter((l) => {
         if (filtro === "SEM_HISTORICO") return l.semHistorico;
+        if (filtro === "RISCO_DOBRA") return l.riscoDobra;
         if (filtro !== "TODOS") return l.periodo?.status === filtro && !l.semHistorico;
         return true;
       })

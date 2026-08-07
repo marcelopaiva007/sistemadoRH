@@ -163,7 +163,11 @@ export function PendenciasView({
       chave: "feriasVencidas",
       titulo: "Férias vencidas",
       descricao: "12+ meses de casa sem férias aprovadas no último ano — risco de dobra.",
-      href: comFiltro(`/rh/${empresaId}/ferias`, "filtro=VENCIDO"),
+      // filtro=RISCO_DOBRA e não VENCIDO: "Vencidas" na tela de Férias são só
+      // as confirmadas com histórico, e o número deste cartão não batia com a
+      // lista. RISCO_DOBRA usa a mesma conta deste contador — bate pessoa a
+      // pessoa.
+      href: comFiltro(`/rh/${empresaId}/ferias`, "filtro=RISCO_DOBRA"),
       icon: Plane,
       urgente: true,
     },
