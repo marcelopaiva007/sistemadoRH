@@ -21,7 +21,15 @@ import type { OrigemHistorico, ProgramacaoFerias, ValorEmReais } from "@/lib/fer
 import { formatarReais } from "@/lib/constants-beneficios";
 import { formatarData } from "@/lib/datas";
 import { normalizarTexto } from "@/lib/text";
-import { CalendarOff, CheckCircle2, Info, Scale, TriangleAlert } from "lucide-react";
+import {
+  CalendarOff,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Info,
+  Scale,
+  TriangleAlert,
+} from "lucide-react";
 import type { LinhaFerias, PassivoNaTela } from "./page";
 
 // O QUE ESTA TELA NÃO MOSTRA, DE PROPÓSITO:
@@ -53,6 +61,10 @@ const ORDENS = [
 type Ordem = (typeof ORDENS)[number]["chave"];
 
 const TODOS_OS_SETORES = "__todos";
+
+// A lista de "Situação por colaborador" cobre a marca inteira — sem limite,
+// uma marca de 300+ pessoas virava uma tela só de rolagem de tabela.
+const ITENS_POR_PAGINA = 20;
 
 const VARIANTE: Record<StatusPeriodo, "default" | "secondary" | "destructive" | "outline"> = {
   EM_CURSO: "outline",
@@ -113,10 +125,30 @@ export function FeriasView({
   origem: OrigemHistorico;
   escopo: { cnpjs: number; marcas: string[] };
 }) {
-  const [filtro, setFiltro] = useState<Filtro>("TODOS");
-  const [setor, setSetor] = useState<string>(TODOS_OS_SETORES);
-  const [ordem, setOrdem] = useState<Ordem>("PRAZO");
-  const [busca, setBusca] = useState("");
+  const [filtro, setFiltroBruto] = useState<Filtro>("TODOS");
+  const [setor, setSetorBruto] = useState<string>(TODOS_OS_SETORES);
+  const [ordem, setOrdemBruto] = useState<Ordem>("PRAZO");
+  const [busca, setBuscaBruta] = useState("");
+  const [pagina, setPagina] = useState(1);
+
+  // Qualquer filtro/ordenação nova volta para a página 1 — senão dá pra
+  // sobrar numa página 4 vazia depois de estreitar a busca.
+  const setFiltro = (v: Filtro) => {
+    setFiltroBruto(v);
+    setPagina(1);
+  };
+  const setSetor = (v: string) => {
+    setSetorBruto(v);
+    setPagina(1);
+  };
+  const setOrdem = (v: Ordem) => {
+    setOrdemBruto(v);
+    setPagina(1);
+  };
+  const setBusca = (v: string) => {
+    setBuscaBruta(v);
+    setPagina(1);
+  };
 
   const contagem = useMemo(() => {
     const conta = (s: StatusPeriodo) =>
@@ -180,6 +212,13 @@ export function FeriasView({
         return da - db || a.nome.localeCompare(b.nome, "pt-BR");
       });
   }, [linhas, filtro, setor, ordem, busca]);
+
+  const totalPaginas = Math.max(1, Math.ceil(visiveis.length / ITENS_POR_PAGINA));
+  // Clampa em vez de useEffect: `linhas` pode encolher entre renders (troca de
+  // filtro de empresa na lateral) e a página não pode ficar presa além do fim.
+  const paginaAtual = Math.min(pagina, totalPaginas);
+  const inicioPagina = (paginaAtual - 1) * ITENS_POR_PAGINA;
+  const visiveisNaPagina = visiveis.slice(inicioPagina, inicioPagina + ITENS_POR_PAGINA);
 
   // Cobertura salarial do recorte inteiro: é ela que decide se o total do grupo
   // sai em R$ ou como "sem dado".
@@ -388,14 +427,14 @@ export function FeriasView({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {visiveis.length === 0 && (
+                      {visiveisNaPagina.length === 0 && (
                         <TableRow>
                           <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
                             Nenhum colaborador nesta situação.
                           </TableCell>
                         </TableRow>
                       )}
-                      {visiveis.map((l) => (
+                      {visiveisNaPagina.map((l) => (
                         <TableRow key={l.colaboradorId}>
                           <TableCell>
                             <Link
@@ -448,6 +487,40 @@ export function FeriasView({
                   </Table>
                 </div>
               </div>
+
+              {visiveis.length > 0 && (
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm text-muted-foreground">
+                    {inicioPagina + 1}–{Math.min(inicioPagina + ITENS_POR_PAGINA, visiveis.length)} de{" "}
+                    {visiveis.length}
+                  </p>
+                  {totalPaginas > 1 && (
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setPagina(paginaAtual - 1)}
+                        disabled={paginaAtual <= 1}
+                        className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+                      >
+                        <ChevronLeft className="size-4" />
+                        Anterior
+                      </button>
+                      <span className="text-sm text-muted-foreground tabular-nums">
+                        Página {paginaAtual} de {totalPaginas}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setPagina(paginaAtual + 1)}
+                        disabled={paginaAtual >= totalPaginas}
+                        className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+                      >
+                        Próxima
+                        <ChevronRight className="size-4" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
