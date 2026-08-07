@@ -148,8 +148,9 @@ export async function createColaborador(
     if (erroSupervisor) return { ok: false, error: erroSupervisor };
   }
 
+  let novoId: string;
   try {
-    await prisma.colaborador.create({
+    const criado = await prisma.colaborador.create({
       data: {
         empresaId,
         matricula: await proximaMatricula(),
@@ -165,10 +166,21 @@ export async function createColaborador(
         tipoContrato,
         dataFimContrato,
       },
+      select: { id: true },
     });
+    novoId = criado.id;
   } catch {
     return { ok: false, error: "Já existe um colaborador com esse CPF ou chat_id do Telegram." };
   }
+
+  await registrarAuditoria({
+    empresaId,
+    acao: "CRIAR",
+    entidade: "Colaborador",
+    entidadeId: novoId,
+    resumo: `${parsed.data.nome} foi cadastrado(a).`,
+  });
+
   revalidatePath(`/rh/${empresaId}/colaboradores`);
   return { ok: true };
 }
