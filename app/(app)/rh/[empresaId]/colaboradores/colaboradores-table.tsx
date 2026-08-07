@@ -375,6 +375,7 @@ export function ColaboradoresTable({
   // ali vira esta lista, já isolada em quem tem o campo vazio. Sem isto o
   // bloco apontava o problema e escondia quem era.
   const lacuna = useSearchParams().get("lacuna");
+  const empresasNaUrl = useSearchParams().get("empresas");
   const [ordem, setOrdem] = useState<{ campo: CampoOrdenavel; desc: boolean }>({
     campo: "nome",
     desc: false,
@@ -463,9 +464,17 @@ export function ColaboradoresTable({
               <Users className="size-5 text-primary" />
               Equipe
             </h2>
+            {/* "no recorte atual", nunca "na empresa atual": aberta pelo menu,
+                esta tela soma TUDO que o usuário enxerga (para ADMIN, o grupo
+                inteiro) — dizer "empresa" fazia o KPI de Telegram parecer
+                errado contra o painel da marca, quando só o universo mudou. */}
             <p className="text-sm text-muted-foreground">
               {totais.ativos} ativo{totais.ativos === 1 ? "" : "s"} de {totais.total} cadastrado
-              {totais.total === 1 ? "" : "s"} na empresa atual.
+              {totais.total === 1 ? "" : "s"} no recorte atual (
+              {empresasSelecionadas.length === 1
+                ? "1 CNPJ"
+                : `${empresasSelecionadas.length} CNPJs`}
+              ).
             </p>
           </div>
           <Dialog open={createOpen} onOpenChange={setCreateOpen}>
@@ -515,8 +524,15 @@ export function ColaboradoresTable({
             <span className="tabular-nums">{filtrados.length}</span>{" "}
             {filtrados.length === 1 ? "pessoa" : "pessoas"}.
           </span>
+          {/* Mantém o ?empresas= — "Ver todos" tira o filtro de LACUNA, não o
+              recorte de CNPJ; sem isso o clique também trocava o universo
+              (marca → tudo que o usuário enxerga) sem avisar. */}
           <Link
-            href={`/rh/${empresaId}/colaboradores`}
+            href={
+              empresasNaUrl
+                ? `/rh/${empresaId}/colaboradores?empresas=${empresasNaUrl}`
+                : `/rh/${empresaId}/colaboradores`
+            }
             className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
           >
             Ver todos

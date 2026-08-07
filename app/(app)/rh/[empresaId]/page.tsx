@@ -1,4 +1,4 @@
-import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
+import { empresasVisiveis, requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { DIAS_ALERTA_VENCIMENTO } from "@/lib/constants-dp";
 import {
   pendenciasDaEmpresa,
@@ -27,7 +27,7 @@ export default async function InicioDaEmpresaPage({
 }) {
   const { empresaId } = await params;
   const { empresas: empresasParam } = await searchParams;
-  await requireEmpresaAccess(empresaId);
+  const usuario = await requireEmpresaAccess(empresaId);
 
   // Padrão é a MARCA, como o organograma: contar só o CNPJ do endereço
   // mostrava um pedaço e escondia o resto sem avisar — 13 sem Telegram na RSM
@@ -35,9 +35,20 @@ export default async function InicioDaEmpresaPage({
   // filtro-empresas.tsx, já usado em Férias/Vencimentos/Aprovações/etc.)
   // deixa estreitar para um CNPJ específico quando é isso que a pessoa quer —
   // opção explícita, não o padrão silencioso.
-  const todasDaMarca = await empresasDaMesmaMarca(empresaId);
+  //
+  // ∩ empresasVisiveis: os links das lacunas abrem a lista de Colaboradores,
+  // que é escopada ao que o USUÁRIO enxerga — um RH com acesso a 1 CNPJ da
+  // marca via para "93 sem Telegram" aqui e uma lista de 13 lá
+  // (requireEmpresaAccess deixa entrar por marca, mas a lista não). Contar
+  // aqui o que a pessoa não consegue listar é fabricar número que não bate.
+  const [todasDaMarca, visiveis] = await Promise.all([
+    empresasDaMesmaMarca(empresaId),
+    empresasVisiveis(usuario),
+  ]);
+  const daMarcaVisiveis = todasDaMarca.filter((id) => visiveis.includes(id));
   const pedidas = (empresasParam ?? "").split(",").filter(Boolean);
-  const empresas = pedidas.length === 0 ? todasDaMarca : todasDaMarca.filter((id) => pedidas.includes(id));
+  const empresas =
+    pedidas.length === 0 ? daMarcaVisiveis : daMarcaVisiveis.filter((id) => pedidas.includes(id));
 
   const [resumo, pendencias, base, semRegistro, baseDesligados, pesquisasAbertas] =
     await Promise.all([
