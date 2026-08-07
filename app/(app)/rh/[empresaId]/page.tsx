@@ -20,16 +20,24 @@ import { LacunasDosDesligadosView } from "./lacunas-desligados-view";
 // a cada login e a cada troca de empresa.
 export default async function InicioDaEmpresaPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ empresaId: string }>;
+  searchParams: Promise<{ empresas?: string }>;
 }) {
   const { empresaId } = await params;
+  const { empresas: empresasParam } = await searchParams;
   await requireEmpresaAccess(empresaId);
 
-  // A tela é da MARCA, como o organograma: contar só o CNPJ do endereço
+  // Padrão é a MARCA, como o organograma: contar só o CNPJ do endereço
   // mostrava um pedaço e escondia o resto sem avisar — 13 sem Telegram na RSM
-  // quando o grupo tinha 93.
-  const empresas = await empresasDaMesmaMarca(empresaId);
+  // quando o grupo tinha 93. O filtro `?empresas=` (mesmo de
+  // filtro-empresas.tsx, já usado em Férias/Vencimentos/Aprovações/etc.)
+  // deixa estreitar para um CNPJ específico quando é isso que a pessoa quer —
+  // opção explícita, não o padrão silencioso.
+  const todasDaMarca = await empresasDaMesmaMarca(empresaId);
+  const pedidas = (empresasParam ?? "").split(",").filter(Boolean);
+  const empresas = pedidas.length === 0 ? todasDaMarca : todasDaMarca.filter((id) => pedidas.includes(id));
 
   const [resumo, pendencias, base, semRegistro, baseDesligados, pesquisasAbertas] =
     await Promise.all([

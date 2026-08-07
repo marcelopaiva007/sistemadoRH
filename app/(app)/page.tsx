@@ -119,9 +119,10 @@ export default async function HomePage() {
       pend,
       semCadastro: marca.itens.reduce((a, r) => a + r.ativos, 0) === 0,
       semBase,
-      // Entrar por qualquer CNPJ da marca mostra a mesma tela — a página de
-      // empresa soma por marca (ver empresasDaMesmaMarca). Não existe "o CNPJ
-      // errado" para este link.
+      // Visão consolidada da marca (mesmo padrão do organograma). Qualquer
+      // CNPJ serve de ponto de entrada — a tela de empresa soma por marca por
+      // padrão. Quem clica num CNPJ específico da lista abaixo (ver
+      // `hrefCnpj`) entra já filtrado só naquele CNPJ via `?empresas=`.
       href: `/rh/${marca.itens[0].empresa.id}#pendencias`,
     };
   });
@@ -155,18 +156,18 @@ export default async function HomePage() {
           ({ marca, ativos, vagasAbertas, integracoesAbertas, pend, semCadastro, semBase, href }) => {
             const varios = marca.itens.length > 1;
 
-            // O cartão inteiro é um link — inclusive quando há vários CNPJs.
-            // Antes, com vários, só as linhas de CNPJ dentro do cartão eram
-            // clicáveis, e para qualquer coisa fora delas (o cabeçalho, o
-            // resumo, o "pend :" de baixo) o clique não ia a lugar nenhum; a
-            // pessoa reportou isso como bug. Entrar por qualquer CNPJ da marca
-            // mostra a mesma tela (soma por marca, não por CNPJ — ver
-            // empresasDaMesmaMarca), então não existe "CNPJ errado" para
-            // linkar, e as linhas de baixo não precisam mais ser links à
-            // parte — um <a> dentro de outro <a> nem seria HTML válido.
+            // O card inteiro já foi um único <Link> (marca inteira), mas isso
+            // escondia o CNPJ atrás do primeiro da lista — quem clicava em
+            // "RSM TELECOM LTDA · 19 pend." caía numa tela somada com os
+            // outros CNPJs da marca, sem bater com o número que via aqui.
+            // Agora o cabeçalho/resumo continuam um Link só (visão da marca),
+            // e cada linha de CNPJ é o SEU PRÓPRIO Link, filtrado por
+            // `?empresas=` (mesmo filtro de Férias/Vencimentos/Aprovações) —
+            // não pode ficar aninhado dentro do Link de cima, então os dois
+            // são irmãos dentro do Card, não um dentro do outro.
             return (
-              <Link key={marca.nome} href={href} className="block h-full">
-                <Card className="h-full transition-colors hover:bg-accent/40">
+              <Card key={marca.nome} className="h-full">
+                <Link href={href} className="block transition-colors hover:bg-accent/40">
                   <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
                     <CardTitle className="flex items-center gap-2 text-base">
                       <Building2 className="size-4 text-muted-foreground" />
@@ -205,33 +206,6 @@ export default async function HomePage() {
                       <dd className="text-right font-medium tabular-nums">{integracoesAbertas}</dd>
                     </dl>
 
-                    {/* Só abre por CNPJ quando há mais de um. Com um só, a quebra
-                        repetiria o número de cima e não informaria nada. */}
-                    {varios && (
-                      <div className="mt-3 space-y-1 border-t pt-3">
-                        <p className="text-xs text-muted-foreground">
-                          {marca.itens.length} CNPJs nesta marca:
-                        </p>
-                        {marca.itens.map((r) => (
-                          <div
-                            key={r.empresa.id}
-                            className="flex items-baseline justify-between px-1 py-0.5 text-sm"
-                          >
-                            <span>{r.empresa.nome}</span>
-                            <span className="tabular-nums text-muted-foreground">
-                              {r.ativos}
-                              {totalPendencias(r.pendencias) > 0 && (
-                                <span className="text-destructive">
-                                  {" "}
-                                  · {totalPendencias(r.pendencias)} pend.
-                                </span>
-                              )}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
                     {pend > 0 && (
                       <p className="mt-3 text-xs text-muted-foreground">
                         {(() => {
@@ -251,8 +225,36 @@ export default async function HomePage() {
                       </p>
                     )}
                   </CardContent>
-                </Card>
-              </Link>
+                </Link>
+
+                {/* Só abre por CNPJ quando há mais de um. Com um só, a quebra
+                    repetiria o número de cima e não informaria nada. */}
+                {varios && (
+                  <CardContent className="space-y-1 border-t pt-3">
+                    <p className="text-xs text-muted-foreground">
+                      {marca.itens.length} CNPJs nesta marca:
+                    </p>
+                    {marca.itens.map((r) => (
+                      <Link
+                        key={r.empresa.id}
+                        href={`/rh/${r.empresa.id}?empresas=${r.empresa.id}#pendencias`}
+                        className="flex items-baseline justify-between rounded px-1 py-0.5 text-sm transition-colors hover:bg-accent/40"
+                      >
+                        <span>{r.empresa.nome}</span>
+                        <span className="tabular-nums text-muted-foreground">
+                          {r.ativos}
+                          {totalPendencias(r.pendencias) > 0 && (
+                            <span className="text-destructive">
+                              {" "}
+                              · {totalPendencias(r.pendencias)} pend.
+                            </span>
+                          )}
+                        </span>
+                      </Link>
+                    ))}
+                  </CardContent>
+                )}
+              </Card>
             );
           },
         )}
