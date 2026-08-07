@@ -40,6 +40,7 @@
     "test:escala": "tsx scripts/test-escala.ts",
     "test:admissao": "tsx scripts/test-admissao.ts",
     "test:pesquisa-enps-resultado": "tsx scripts/test-pesquisa-enps-resultado.ts",
+    "test:produtividade": "tsx scripts/test-produtividade.ts",
     "// ━━━━━━━━━━━━━━━━ SMOKE TESTS ━━━━━━━━━━━━━━━━": "",
     "smoke:dp": "tsx scripts/smoke-dp.ts",
     "smoke:sst": "tsx scripts/smoke-sst.ts",

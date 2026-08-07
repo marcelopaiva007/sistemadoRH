@@ -40,6 +40,33 @@ export type ResumoProdutividadePessoa = {
   reprovados: number;
 };
 
+export type ResumoProdutividadeComRanking = ResumoProdutividadePessoa & {
+  posicao: number;
+};
+
+/**
+ * Aplica o ranking de produtividade (1º, 2º, 3º...) baseado no total de ações.
+ * Empates no volume de ações compartilham a mesma posição.
+ */
+export function aplicarRanking(
+  resumo: ResumoProdutividadePessoa[],
+): ResumoProdutividadeComRanking[] {
+  const ordenado = [...resumo].sort(
+    (a, b) => b.totalAcoes - a.totalAcoes || a.usuarioNome.localeCompare(b.usuarioNome, "pt-BR"),
+  );
+
+  let rankAtual = 1;
+  return ordenado.map((item, idx, arr) => {
+    if (idx > 0 && item.totalAcoes < arr[idx - 1].totalAcoes) {
+      rankAtual = idx + 1;
+    }
+    return {
+      ...item,
+      posicao: rankAtual,
+    };
+  });
+}
+
 function diaBrasilia(d: Date): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(d);
 }
