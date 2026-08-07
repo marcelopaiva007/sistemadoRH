@@ -24,6 +24,14 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.55.2",
+    data: "07/08/2026",
+    titulo: "Filtro por empresa na Produtividade RH",
+    itens: [
+      "A tela Produtividade RH ganhou filtro por empresa/CNPJ, ao lado do filtro de período — sem seleção, mostra o grupo inteiro.",
+    ],
+  },
+  {
     versao: "1.55.1",
     data: "07/08/2026",
     titulo: "Ícone de alerta nos blocos clicáveis da Liderança",

@@ -13,7 +13,10 @@ import { cn } from "@/lib/utils";
 // de sistema (ADMIN/DIRETORIA/RH_MANAGER/GESTOR_SETOR) — ação do portal do
 // colaborador (que audita a própria pessoa, não uma conta) fica de fora por
 // causa do filtro de usuarioRole abaixo. Tela cross-empresa, por isso mora no
-// menu do topo (nav-config.ts) e não na lateral de dentro de uma empresa.
+// menu do topo (nav-config.ts) e não na lateral de dentro de uma empresa; o
+// filtro de empresa aqui é link simples (?empresa=id), não o hook client-side
+// de filtro-empresas.tsx — aquele existe pra trocar o segmento [empresaId] no
+// caminho de dentro de /rh, que esta rota nem tem.
 const PAPEIS_SISTEMA = ["ADMIN", "DIRETORIA", "RH_MANAGER", "GESTOR_SETOR"];
 
 const PERIODOS = {
@@ -23,19 +26,36 @@ const PERIODOS = {
 } as const;
 type PeriodoChave = keyof typeof PERIODOS;
 
+function hrefFiltro(periodo: PeriodoChave, empresaId: string | null) {
+  const params = new URLSearchParams({ periodo });
+  if (empresaId) params.set("empresa", empresaId);
+  return `?${params.toString()}`;
+}
+
 export default async function ProdutividadePage({
   searchParams,
 }: {
-  searchParams: Promise<{ periodo?: string }>;
+  searchParams: Promise<{ periodo?: string; empresa?: string }>;
 }) {
   await requireGestaoUsuarios();
-  const { periodo: periodoParam } = await searchParams;
+  const { periodo: periodoParam, empresa: empresaParam } = await searchParams;
   const periodo: PeriodoChave =
     periodoParam && periodoParam in PERIODOS ? (periodoParam as PeriodoChave) : "hoje";
   const desde = somarDiasUTC(inicioDoDiaSaoPaulo(), -PERIODOS[periodo].diasAntes);
 
+  const empresas = await prisma.empresa.findMany({
+    where: { ativo: true },
+    select: { id: true, nome: true },
+    orderBy: { nome: "asc" },
+  });
+  const empresaSelecionada = empresas.some((e) => e.id === empresaParam) ? (empresaParam ?? null) : null;
+
   const registros = await prisma.auditLog.findMany({
-    where: { createdAt: { gte: desde }, usuarioRole: { in: PAPEIS_SISTEMA } },
+    where: {
+      createdAt: { gte: desde },
+      usuarioRole: { in: PAPEIS_SISTEMA },
+      ...(empresaSelecionada ? { empresaId: empresaSelecionada } : {}),
+    },
     select: { usuarioId: true, usuarioNome: true, usuarioRole: true, entidade: true, createdAt: true },
   });
 
@@ -55,22 +75,54 @@ export default async function ProdutividadePage({
         </p>
       </div>
 
-      <div className="flex gap-4 text-sm">
-        {(Object.entries(PERIODOS) as [PeriodoChave, (typeof PERIODOS)[PeriodoChave]][]).map(
-          ([chave, info]) => (
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+        <div className="flex gap-1">
+          {(Object.entries(PERIODOS) as [PeriodoChave, (typeof PERIODOS)[PeriodoChave]][]).map(
+            ([chave, info]) => (
+              <a
+                key={chave}
+                href={hrefFiltro(chave, empresaSelecionada)}
+                className={cn(
+                  "rounded-md px-3 py-1.5",
+                  chave === periodo
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                )}
+              >
+                {info.label}
+              </a>
+            ),
+          )}
+        </div>
+
+        {empresas.length > 1 && (
+          <div className="flex flex-wrap gap-1">
             <a
-              key={chave}
-              href={`?periodo=${chave}`}
+              href={hrefFiltro(periodo, null)}
               className={cn(
                 "rounded-md px-3 py-1.5",
-                chave === periodo
+                empresaSelecionada === null
                   ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
               )}
             >
-              {info.label}
+              Todas as empresas
             </a>
-          ),
+            {empresas.map((e) => (
+              <a
+                key={e.id}
+                href={hrefFiltro(periodo, e.id)}
+                className={cn(
+                  "rounded-md px-3 py-1.5",
+                  empresaSelecionada === e.id
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                )}
+              >
+                {e.nome}
+              </a>
+            ))}
+          </div>
         )}
       </div>
 
@@ -86,8 +138,11 @@ export default async function ProdutividadePage({
         <CardHeader>
           <CardTitle>Por conta</CardTitle>
           <CardDescription>
-            {porUsuario.length} conta(s) com ação registrada no período. Ordenado da mais para a
-            menos ativa.
+            {porUsuario.length} conta(s) com ação registrada no período
+            {empresaSelecionada && (
+              <> em {empresas.find((e) => e.id === empresaSelecionada)?.nome}</>
+            )}
+            . Ordenado da mais para a menos ativa.
           </CardDescription>
         </CardHeader>
         <CardContent>
