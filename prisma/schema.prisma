@@ -415,6 +415,7 @@ model Colaborador {
   ausencias                Ausencia[]
   acessosPortal            PortalAcesso[]
   sessoesPortal            PortalSessao[]
+  mensagensPortal          MensagemPortal[]
   certificados             CertificadoNR[]
   exames                   ExameOcupacional[]
   movimentacoes            Movimentacao[]            @relation("MovimentacaoDoColaborador")
@@ -1401,6 +1402,27 @@ model PortalSessao {
   ultimoAcessoEm DateTime    @default(now())
 
   @@index([colaboradorId, encerradaEm])
+  @@schema("rh")
+}
+
+// Mensagem que o colaborador manda ao RH pelo portal — dúvida, pedido,
+// aviso. O RH responde pela tela Mensagens e a resposta volta a aparecer no
+// portal da pessoa. respondidaPorNome é denormalizado (como Sinal.donoNome):
+// User não tem vínculo com Colaborador e o nome de quem respondeu precisa
+// sobreviver a usuário renomeado ou removido.
+model MensagemPortal {
+  id                String      @id @default(cuid())
+  colaboradorId     String
+  colaborador       Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  empresaId         String
+  mensagem          String
+  resposta          String?
+  respondidaEm      DateTime?
+  respondidaPorNome String?
+  createdAt         DateTime    @default(now())
+
+  @@index([empresaId, respondidaEm])
+  @@index([colaboradorId])
   @@schema("rh")
 }
 

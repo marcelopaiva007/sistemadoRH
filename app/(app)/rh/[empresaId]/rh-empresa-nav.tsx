@@ -26,6 +26,7 @@ import {
   LayoutDashboard,
   ListChecks,
   LogOut,
+  MessageCircle,
   Network,
   Palmtree,
   Receipt,
@@ -65,6 +66,7 @@ const GRUPOS = [
     titulo: "Departamento pessoal",
     itens: [
       { slug: "aprovacoes", label: "Aprovações", icon: CheckSquare },
+      { slug: "mensagens", label: "Mensagens", icon: MessageCircle },
       { slug: "vencimentos", label: "Vencimentos", icon: CalendarDays },
       { slug: "ferias", label: "Férias", icon: Palmtree },
       { slug: "escalas", label: "Escalas", icon: ClipboardCheck },

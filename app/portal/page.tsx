@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma";
 import { lerSessaoPortal } from "@/lib/portal-auth";
-import { calcularFerias } from "@/lib/ferias";
 import { montarMeuTime } from "@/lib/meu-time";
 import { opcoesDoCatalogo } from "@/lib/catalogos";
 import { PortalSemSessao } from "./sem-sessao";
@@ -11,7 +10,12 @@ import type { MeuTimePortal } from "./meu-time";
 // Portal do colaborador. Três estados possíveis, nessa ordem:
 //   1. sem sessão válida -> instrui a pedir /portal ao bot;
 //   2. sessão válida mas primeira entrada -> pede a confirmação do CPF;
-//   3. verificado -> mostra dados, férias e documentos.
+//   3. verificado -> mostra dados, documentos e o canal Fale com o RH.
+//
+// Planejamento de férias (saldo, períodos, solicitações) não aparece aqui de
+// propósito — é informação restrita à área interna do RH (/rh/[empresaId]/
+// ferias), não ao autoatendimento. O colaborador que quiser saber seu saldo
+// fala com o RH ou o gestor.
 export default async function PortalPage() {
   const sessao = await lerSessaoPortal();
   if (!sessao) return <PortalSemSessao />;
@@ -68,20 +72,7 @@ export default async function PortalPage() {
     return <ConfirmarCpf primeiroNome={colaborador.nome.split(" ")[0]} />;
   }
 
-  const [ferias, documentos, ausencias, avaliacoes] = await Promise.all([
-    prisma.solicitacaoFerias.findMany({
-      where: { colaboradorId: colaborador.id },
-      orderBy: { dataInicio: "desc" },
-      select: {
-        id: true,
-        periodoAquisitivoInicio: true,
-        dataInicio: true,
-        dataFim: true,
-        dias: true,
-        diasAbono: true,
-        status: true,
-      },
-    }),
+  const [documentos, ausencias, mensagens, avaliacoes] = await Promise.all([
     prisma.documentoColaborador.findMany({
       where: { colaboradorId: colaborador.id, arquivoId: { not: null } },
       orderBy: { createdAt: "desc" },
@@ -100,6 +91,19 @@ export default async function PortalPage() {
       orderBy: { dataInicio: "desc" },
       take: 10,
       select: { id: true, tipo: true, dataInicio: true, dataFim: true, dias: true, status: true },
+    }),
+    prisma.mensagemPortal.findMany({
+      where: { colaboradorId: colaborador.id },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+      select: {
+        id: true,
+        mensagem: true,
+        resposta: true,
+        respondidaEm: true,
+        respondidaPorNome: true,
+        createdAt: true,
+      },
     }),
     // O que ESTA pessoa tem para responder: a própria autoavaliação e, se for
     // gestor (ou tiver sido escolhida como par/subordinado), as dos outros.
@@ -164,13 +168,6 @@ export default async function PortalPage() {
       ),
     ),
   );
-
-  const resumoFerias = colaborador.dataAdmissao
-    ? calcularFerias(
-        colaborador.dataAdmissao,
-        ferias.filter((f) => f.status === "APROVADA" || f.status === "PENDENTE"),
-      )
-    : null;
 
   // A porta do gestor para "Meu time": o recorte é quem tem supervisorId
   // apontando para a pessoa logada — o organograma real, não papel de sistema
@@ -273,10 +270,9 @@ export default async function PortalPage() {
   return (
     <PortalInicio
       colaborador={colaborador}
-      ferias={ferias}
       documentos={documentos}
       ausencias={ausencias}
-      resumoFerias={resumoFerias}
+      mensagens={mensagens}
       meuTime={meuTime}
       equipe={
         colaborador.gerente
