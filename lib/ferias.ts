@@ -42,6 +42,18 @@ export type SolicitacaoParaCalculo = {
   status: string;
 };
 
+/** Quanto do período aquisitivo em curso já se passou — só existe enquanto EM_CURSO. */
+export type ProgressoPeriodoEmCurso = {
+  /** Meses completos desde o início do período (0 a 11). */
+  meses: number;
+  /** Dias corridos desde o início do período até hoje. */
+  diasCorridos: number;
+  /** Dias corridos que faltam para completar os 12 meses. */
+  diasRestantes: number;
+  /** diasCorridos sobre a duração real do período (365 ou 366), 0 a 99. */
+  percentual: number;
+};
+
 export type PeriodoAquisitivo = {
   inicio: Date;
   fim: Date;
@@ -56,6 +68,8 @@ export type PeriodoAquisitivo = {
   status: StatusPeriodo;
   /** Dias até o limite concessivo (negativo = já venceu). */
   diasAteLimite: number;
+  /** Preenchido só quando status é EM_CURSO; caso contrário, null. */
+  progresso: ProgressoPeriodoEmCurso | null;
 };
 
 export type ResumoFerias = {
@@ -114,7 +128,33 @@ export function calcularFerias(
     else if (diasAteLimite <= DIAS_ALERTA_FERIAS) status = "VENCENDO";
     else status = "DISPONIVEL";
 
-    periodos.push({ inicio, fim, limiteConcessivo, diasUsados, diasReservados, saldo, status, diasAteLimite });
+    let progresso: ProgressoPeriodoEmCurso | null = null;
+    if (status === "EM_CURSO") {
+      const diasCorridos = diferencaEmDiasUTC(referencia, inicio);
+      const duracaoPeriodo = contarDiasCorridos(inicio, fim); // 365 ou 366 (ano bissexto)
+      let meses =
+        (referencia.getUTCFullYear() - inicio.getUTCFullYear()) * 12 +
+        (referencia.getUTCMonth() - inicio.getUTCMonth());
+      if (referencia.getUTCDate() < inicio.getUTCDate()) meses--;
+      progresso = {
+        meses: Math.min(11, Math.max(0, meses)),
+        diasCorridos,
+        diasRestantes: Math.max(0, diferencaEmDiasUTC(fim, referencia) + 1),
+        percentual: Math.min(99, Math.round((diasCorridos / duracaoPeriodo) * 100)),
+      };
+    }
+
+    periodos.push({
+      inicio,
+      fim,
+      limiteConcessivo,
+      diasUsados,
+      diasReservados,
+      saldo,
+      status,
+      diasAteLimite,
+      progresso,
+    });
   }
 
   const adquiridosComSaldo = periodos.filter((p) => p.status !== "EM_CURSO" && p.saldo > 0);

@@ -423,13 +423,14 @@ export function FeriasView({
                         <TableHead>Gozar até</TableHead>
                         <TableHead className="text-right">Saldo</TableHead>
                         <TableHead>Situação</TableHead>
+                        <TableHead>Próximo período</TableHead>
                         <TableHead className="w-10" />
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {visiveisNaPagina.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
+                          <TableCell colSpan={9} className="py-8 text-center text-muted-foreground">
                             Nenhum colaborador nesta situação.
                           </TableCell>
                         </TableRow>
@@ -470,6 +471,23 @@ export function FeriasView({
                               <Badge variant={VARIANTE[l.periodo.status]}>
                                 {STATUS_PERIODO_LABEL[l.periodo.status]}
                               </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {l.emCurso?.progresso ? (
+                              <div className="flex items-center gap-2">
+                                <div className="h-2 w-16 shrink-0 overflow-hidden rounded-full bg-secondary">
+                                  <div
+                                    className="h-full rounded-full bg-primary transition-[width]"
+                                    style={{ width: `${l.emCurso.progresso.percentual}%` }}
+                                  />
+                                </div>
+                                <span className="text-xs whitespace-nowrap tabular-nums text-muted-foreground">
+                                  {l.emCurso.progresso.meses}/12 meses
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
                             )}
                           </TableCell>
                           <TableCell className="text-center">

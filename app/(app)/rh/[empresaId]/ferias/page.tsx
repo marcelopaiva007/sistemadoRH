@@ -42,6 +42,8 @@ export type LinhaFerias = {
   setor: string;
   admissao: string;
   periodo: PeriodoAquisitivo | null;
+  /** Período aquisitivo corrente, ainda não fechado — traz `progresso` dos 12 meses. */
+  emCurso: PeriodoAquisitivo | null;
   saldoTotal: number;
   semHistorico: boolean;
 };
@@ -152,6 +154,7 @@ export default async function FeriasPage({
       setor: c.setor.nome,
       admissao: c.dataAdmissao.toISOString(),
       periodo: critico ?? null,
+      emCurso: resumo.periodos.find((p) => p.status === "EM_CURSO") ?? null,
       saldoTotal: resumo.saldoDisponivel,
       // Mais de um período adquirido e nenhuma férias registrada é quase sempre
       // buraco de cadastro, não alguém que nunca saiu de férias — a base nasceu

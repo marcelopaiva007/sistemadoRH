@@ -243,9 +243,22 @@ export function PortalInicio({
                       </div>
                       <div className="text-xs text-muted-foreground">
                         {p.status === "EM_CURSO"
-                          ? "Ainda completando 12 meses"
+                          ? `${p.progresso?.meses ?? 0} de 12 meses completos`
                           : `Tirar até ${formatarData(p.limiteConcessivo)}`}
                       </div>
+                      {p.status === "EM_CURSO" && p.progresso && (
+                        <div className="mt-1 flex items-center gap-2">
+                          <div className="h-1.5 w-24 overflow-hidden rounded-full bg-secondary">
+                            <div
+                              className="h-full rounded-full bg-primary transition-[width]"
+                              style={{ width: `${p.progresso.percentual}%` }}
+                            />
+                          </div>
+                          <span className="text-xs tabular-nums text-muted-foreground">
+                            faltam {p.progresso.diasRestantes} dias
+                          </span>
+                        </div>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-semibold tabular-nums">{p.saldo} dias</span>
