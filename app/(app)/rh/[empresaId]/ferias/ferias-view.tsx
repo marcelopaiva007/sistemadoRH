@@ -430,7 +430,7 @@ export function FeriasView({
 
               <div className="rounded-md border">
                 <div className="overflow-x-auto">
-                  <Table>
+                  <Table compacta>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Colaborador</TableHead>
