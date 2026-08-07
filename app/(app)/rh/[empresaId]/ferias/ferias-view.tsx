@@ -439,7 +439,7 @@ export function FeriasView({
                         <TableRow key={l.colaboradorId}>
                           <TableCell>
                             <Link
-                              href={`/rh/${l.empresaId}/colaboradores/${l.colaboradorId}`}
+                              href={`/rh/${l.empresaId}/colaboradores/${l.colaboradorId}?tab=ferias`}
                               className="font-medium hover:underline"
                             >
                               {l.nome}
@@ -492,7 +492,7 @@ export function FeriasView({
                           </TableCell>
                           <TableCell className="text-center">
                             <Link
-                              href={`/rh/${l.empresaId}/colaboradores/${l.colaboradorId}`}
+                              href={`/rh/${l.empresaId}/colaboradores/${l.colaboradorId}?tab=ferias`}
                               className="inline-block rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
                               title="Abrir ficha do colaborador para conferência e correção"
                             >
