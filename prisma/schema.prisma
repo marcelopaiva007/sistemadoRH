@@ -387,17 +387,26 @@ model Colaborador {
   // ---- Vínculo / contrato ----
   // dataAdmissao é a base do cálculo de períodos aquisitivos de férias
   // (lib/ferias.ts). Sem ela, o colaborador não entra no controle de férias.
-  dataAdmissao       DateTime?
-  dataDesligamento   DateTime?
-  motivoDesligamento String?
-  tipoContrato       String?
+  dataAdmissao               DateTime?
+  dataDesligamento           DateTime?
+  motivoDesligamento         String?
+  // Desligamento anterior ao sistema, sem como cobrar devolução de crachá,
+  // notebook, EPI etc. de quem já saiu há tempo. Dispensa exige motivo + data
+  // preenchidos (lib/actions/rh-offboarding.ts) — não é geração automática do
+  // checklist com os 11 itens marcados como conferidos, que registraria uma
+  // devolução que não aconteceu.
+  checklistDispensado        Boolean   @default(false)
+  checklistDispensadoEm      DateTime?
+  checklistDispensadoPorId   String?
+  checklistDispensadoPorNome String?
+  tipoContrato               String?
   // Fim do prazo, para os contratos que têm prazo (EXPERIENCIA, TEMPORARIO,
   // ESTAGIO — ver CONTRATOS_POR_PRAZO em lib/constants-dp.ts). Deixar vencer
   // sem ação transforma o contrato em indeterminado (CLT art. 445 e 451): é o
   // vencimento mais caro do RH e era o único que o sistema não enxergava.
-  dataFimContrato    DateTime?
-  jornadaSemanal     Int?
-  salarioBase        Float?
+  dataFimContrato            DateTime?
+  jornadaSemanal             Int?
+  salarioBase                Float?
 
   // Primeira entrada no portal do colaborador confirmada por CPF. O vínculo do
   // Telegram casa pelos últimos 8 dígitos do telefone importado do elleven —
@@ -1576,7 +1585,7 @@ model Sinal {
   unidadeNome  String
   // CNPJ para o recorte da tela (empresasVisiveis). Nulo em sinal de
   // grupo/marca, que todo leitor da Central enxerga.
-  empresaId String?
+  empresaId    String?
 
   // Identidade da ocorrência — o cron atualiza a linha existente em vez de
   // criar outra (lib/sinais.ts::decidirRegistro). Índice simples, NÃO unique:

@@ -30,6 +30,9 @@ import { IntegracaoCard } from "./integracao-card";
 type Colaborador = Parameters<typeof FichaBlocos>[0]["colaborador"] & {
   ativo: boolean;
   telegramChatId: string | null;
+  checklistDispensado: boolean;
+  checklistDispensadoEm: Date | null;
+  checklistDispensadoPorNome: string | null;
 };
 
 export function ColaboradorDetalhe({
@@ -331,6 +334,9 @@ export function ColaboradorDetalhe({
               colaboradorId={colaborador.id}
               dataDesligamento={colaborador.dataDesligamento}
               motivoDesligamento={colaborador.motivoDesligamento}
+              checklistDispensado={colaborador.checklistDispensado}
+              checklistDispensadoEm={colaborador.checklistDispensadoEm}
+              checklistDispensadoPorNome={colaborador.checklistDispensadoPorNome}
               checklist={checklistDesligamento}
               entrevista={entrevistaDesligamento}
             />

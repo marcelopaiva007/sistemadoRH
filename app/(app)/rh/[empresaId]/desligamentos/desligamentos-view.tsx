@@ -18,6 +18,7 @@ type Desligamento = {
   setorNome: string;
   checklistTotal: number;
   checklistConcluido: number;
+  checklistDispensado: boolean;
   temEntrevista: boolean;
 };
 
@@ -77,7 +78,7 @@ export function DesligamentosView({
                     <TableRow key={d.id}>
                       <TableCell>
                         <Link
-                          href={`/rh/${d.empresaId}/colaboradores/${d.id}`}
+                          href={`/rh/${d.empresaId}/colaboradores/${d.id}?tab=desligamento`}
                           className="font-medium hover:underline"
                         >
                           {d.nome}
@@ -92,7 +93,9 @@ export function DesligamentosView({
                         {d.motivoDesligamento ? motivoDesligamentoLabel(d.motivoDesligamento) : "—"}
                       </TableCell>
                       <TableCell>
-                        {d.checklistTotal === 0 ? (
+                        {d.checklistDispensado ? (
+                          <Badge variant="outline">Dispensado</Badge>
+                        ) : d.checklistTotal === 0 ? (
                           <Badge variant="destructive">Não gerado</Badge>
                         ) : d.checklistConcluido === d.checklistTotal ? (
                           <Badge variant="default">
