@@ -1026,7 +1026,7 @@ export async function executarFerramenta(
         }),
         prisma.solicitacaoFerias.findMany({
           where: { empresaId: { in: empresaIds } },
-          select: { dataInicio: true, observacoes: true, solicitadoPorId: true },
+          select: { dataInicio: true, status: true, observacoes: true, solicitadoPorId: true },
         }),
       ]);
 

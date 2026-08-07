@@ -120,12 +120,14 @@ const emReaisComSaldo = (dias: number, v: number | null) => (dias === 0 ? "—" 
 const plural = (n: number, um: string, muitos: string) => `${n} ${n === 1 ? um : muitos}`;
 
 export function FeriasView({
+  empresaId,
   linhas,
   passivo,
   programacao,
   origem,
   escopo,
 }: {
+  empresaId: string;
   linhas: LinhaFerias[];
   passivo: PassivoNaTela;
   programacao: ProgramacaoFerias;
@@ -734,9 +736,23 @@ export function FeriasView({
             </CardHeader>
             <CardContent className="grid gap-4 sm:grid-cols-2">
               <div className="rounded-lg border border-dashed p-4">
-                <div className="flex items-center gap-2 text-sm font-medium">
-                  <CalendarOff className="size-4 text-muted-foreground" />
-                  Férias programadas: {programacao.agendadas}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <CalendarOff className="size-4 text-muted-foreground" />
+                    Férias programadas: {programacao.agendadas}
+                  </div>
+                  {/* Chega já filtrado na janela: a lista que abre mostra
+                      exatamente as linhas que este número contou. O ?empresas=
+                      da lateral segue junto para o recorte não alargar. */}
+                  <Link
+                    href={`/rh/${empresaId}/ferias/programadas?filtro=NA_JANELA${
+                      searchParams.get("empresas") ? `&empresas=${searchParams.get("empresas")}` : ""
+                    }`}
+                    className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-primary hover:underline"
+                  >
+                    Ver todas
+                    <ChevronRight className="size-4" />
+                  </Link>
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">
                   {programacao.vazia ? (

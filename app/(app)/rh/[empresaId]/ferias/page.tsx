@@ -129,7 +129,9 @@ export default async function FeriasPage({
     // se o módulo é arquivo de importação ou ferramenta de programação.
     prisma.solicitacaoFerias.findMany({
       where: { empresaId: { in: escopo } },
-      select: { dataInicio: true, observacoes: true, solicitadoPorId: true },
+      // `status` porque a regra de "programada" (contaComoProgramada) descarta
+      // REPROVADA/CANCELADA — pedido morto não é agenda.
+      select: { dataInicio: true, status: true, observacoes: true, solicitadoPorId: true },
     }),
     prisma.empresa.findMany({
       where: { id: { in: escopo } },
@@ -219,6 +221,7 @@ export default async function FeriasPage({
 
   return (
     <FeriasView
+      empresaId={empresaId}
       linhas={linhas}
       passivo={passivoNaTela}
       programacao={programacao}

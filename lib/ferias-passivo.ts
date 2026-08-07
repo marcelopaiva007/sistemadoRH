@@ -480,6 +480,35 @@ export type ProgramacaoFerias = {
 };
 
 /**
+ * Status que contam como agenda: pedido vivo (aguardando decisão) ou já
+ * confirmado. REPROVADA/CANCELADA ficam de fora — mesmo recorte que o cálculo
+ * de saldo usa (`ferias/page.tsx` busca `status in [APROVADA, PENDENTE]`).
+ */
+export const STATUS_DE_AGENDA: readonly string[] = ["PENDENTE", "APROVADA"];
+
+/**
+ * A regra única de "férias programada": pedido vivo que começa de hoje até o
+ * fim da janela.
+ *
+ * Exportada porque o cartão "Férias programadas" (tela de Férias) e a lista
+ * de /ferias/programadas contam por ela — contador e lista têm que dar o
+ * mesmo número, e a única forma garantida é a regra morar num lugar só.
+ */
+export function contaComoProgramada(
+  s: { dataInicio: Date; status: string },
+  hoje: Date,
+  janelaMeses: number = JANELA_FILA_MESES,
+): boolean {
+  const referencia = inicioDoDiaUTC(hoje);
+  const inicio = inicioDoDiaUTC(s.dataInicio);
+  return (
+    STATUS_DE_AGENDA.includes(s.status) &&
+    inicio >= referencia &&
+    inicio <= somarMesesUTC(referencia, janelaMeses)
+  );
+}
+
+/**
  * O que está efetivamente AGENDADO para os próximos meses.
  *
  * Existe porque em 04/08/2026 a resposta era zero: nenhuma das 264 solicitações
@@ -489,16 +518,11 @@ export type ProgramacaoFerias = {
  * trabalhando sem parar — as duas leituras erradas pela mesma omissão.
  */
 export function resumirProgramacaoFerias(
-  solicitacoes: { dataInicio: Date }[],
+  solicitacoes: { dataInicio: Date; status: string }[],
   hoje: Date = hojeUTC(),
   janelaMeses: number = JANELA_FILA_MESES,
 ): ProgramacaoFerias {
-  const referencia = inicioDoDiaUTC(hoje);
-  const fim = somarMesesUTC(referencia, janelaMeses);
-
-  const agendadas = solicitacoes.filter(
-    (s) => inicioDoDiaUTC(s.dataInicio) >= referencia && inicioDoDiaUTC(s.dataInicio) <= fim,
-  ).length;
+  const agendadas = solicitacoes.filter((s) => contaComoProgramada(s, hoje, janelaMeses)).length;
 
   const ultimoInicioRegistrado = solicitacoes.reduce<Date | null>(
     (maior, s) => (maior === null || s.dataInicio > maior ? s.dataInicio : maior),

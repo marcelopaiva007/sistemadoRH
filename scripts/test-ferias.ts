@@ -8,6 +8,7 @@ import {
   type SolicitacaoParaCalculo,
 } from "@/lib/ferias";
 import { dataUTC, diferencaEmDiasUTC, formatarData, somarAnosUTC, tempoDeCasa } from "@/lib/datas";
+import { contaComoProgramada, resumirProgramacaoFerias } from "@/lib/ferias-passivo";
 
 let falhas = 0;
 function ok(cond: boolean, msg: string) {
@@ -148,6 +149,40 @@ const periodoEmCurso = validarSolicitacaoFerias({
   fracoesExistentes: [],
 });
 ok(!periodoEmCurso.ok, "não dá para gozar período aquisitivo ainda em curso");
+
+console.log("\n5. Programação (regra única do cartão e da tela /ferias/programadas)");
+{
+  const agenda = [
+    // Começa hoje: conta.
+    { dataInicio: HOJE, status: "APROVADA" },
+    // Dentro da janela de 6 meses: conta, mesmo pendente (pedido vivo).
+    { dataInicio: dataUTC(2026, 10, 1), status: "PENDENTE" },
+    // Exatamente no fim da janela (24/01/2027): conta — a borda é inclusiva.
+    { dataInicio: dataUTC(2027, 1, 24), status: "APROVADA" },
+    // Um dia depois da janela: não conta no cartão.
+    { dataInicio: dataUTC(2027, 1, 25), status: "APROVADA" },
+    // Futuras mas mortas: reprovada/cancelada não são agenda.
+    { dataInicio: dataUTC(2026, 10, 1), status: "REPROVADA" },
+    { dataInicio: dataUTC(2026, 10, 1), status: "CANCELADA" },
+    // Passado: é histórico, não programação.
+    { dataInicio: dataUTC(2026, 5, 1), status: "APROVADA" },
+  ];
+  ok(
+    agenda.filter((s) => contaComoProgramada(s, HOJE)).length === 3,
+    "contaComoProgramada: hoje + janela inclusiva contam; morta, fora da janela e passado não",
+  );
+  const prog = resumirProgramacaoFerias(agenda, HOJE);
+  ok(
+    prog.agendadas === agenda.filter((s) => contaComoProgramada(s, HOJE)).length,
+    "cartão (resumirProgramacaoFerias) e lista (contaComoProgramada) dão o mesmo número",
+  );
+  ok(prog.totalRegistros === 7 && !prog.vazia, "totalRegistros conta tudo; vazia=false com agenda");
+  const semNada = resumirProgramacaoFerias(
+    [{ dataInicio: dataUTC(2026, 5, 1), status: "APROVADA" }],
+    HOJE,
+  );
+  ok(semNada.vazia && semNada.aviso !== null, "só histórico ⇒ vazia, com aviso explicando");
+}
 
 console.log(falhas === 0 ? "\nTodos os testes passaram." : `\n${falhas} teste(s) falharam.`);
 process.exit(falhas === 0 ? 0 : 1);
