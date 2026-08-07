@@ -93,19 +93,18 @@ export function ConformidadeView({
         <Indicador
           rotulo="Colaboradores ativos"
           valor={`${resumo.totalColaboradores}`}
-          alerta={false}
         />
         <Indicador
           rotulo="Em dia com as NRs da função"
           valor={percentualNR === null ? "—" : `${percentualNR}%`}
           complemento={resumo.totalComRequisito > 0 ? `${resumo.regularesNR}/${resumo.totalComRequisito}` : "nenhuma NR exigida ainda"}
-          alerta={percentualNR !== null && percentualNR < 100}
+          estado={percentualNR !== null && percentualNR < 100 ? "alerta" : "padrao"}
         />
         <Indicador
           rotulo="ASO em dia"
           valor={percentualExame === null ? "—" : `${percentualExame}%`}
           complemento={`${resumo.examesEmDia}/${resumo.totalComExameExigivel}`}
-          alerta={percentualExame !== null && percentualExame < 100}
+          estado={percentualExame !== null && percentualExame < 100 ? "alerta" : "padrao"}
         />
       </div>
 

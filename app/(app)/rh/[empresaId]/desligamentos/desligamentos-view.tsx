@@ -67,7 +67,7 @@ export function DesligamentosView({
         <Indicador
           rotulo="Checklist não iniciado / pendente"
           valor={resumo.semChecklist + resumo.checklistPendente}
-          alerta={resumo.semChecklist + resumo.checklistPendente > 0}
+          estado={resumo.semChecklist + resumo.checklistPendente > 0 ? "alerta" : "padrao"}
         />
         <Indicador rotulo="Sem entrevista de desligamento" valor={resumo.semEntrevista} />
       </div>

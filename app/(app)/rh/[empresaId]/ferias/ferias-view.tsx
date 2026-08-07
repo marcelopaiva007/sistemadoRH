@@ -287,19 +287,19 @@ export function FeriasView({
                   ? `+${passivo.vencido.pessoasSemHistorico} com período vencido e sem histórico`
                   : "com histórico de gozo registrado"
               }
-              alerta={contagem.vencidas > 0}
+              estado={contagem.vencidas > 0 ? "alerta" : "padrao"}
             />
             <Indicador
               rotulo="Vencendo em 90 dias"
               valor={contagem.vencendo}
-              atencao={contagem.vencendo > 0}
+              estado={contagem.vencendo > 0 ? "atencao" : "padrao"}
             />
             <Indicador rotulo="Com saldo disponível" valor={contagem.disponiveis} />
             <Indicador
               rotulo="Sem histórico"
               valor={contagem.semHistorico}
               complemento="conferir antes de cobrar"
-              atencao={contagem.semHistorico > 0}
+              estado={contagem.semHistorico > 0 ? "atencao" : "padrao"}
             />
           </div>
 
@@ -603,7 +603,7 @@ export function FeriasView({
                       ? ` · ${passivo.vencido.pessoasSemHistorico} sem histórico a confirmar`
                       : ""
                   }`}
-                  alerta={passivo.vencido.dias > 0}
+                  estado={passivo.vencido.dias > 0 ? "alerta" : "padrao"}
                 />
                 <Indicador
                   rotulo="Exposição vencida"
@@ -619,7 +619,7 @@ export function FeriasView({
                               : ""
                           }`
                   }
-                  alerta={vencidoGrupo !== null && vencidoGrupo > 0}
+                  estado={vencidoGrupo !== null && vencidoGrupo > 0 ? "alerta" : "padrao"}
                 />
               </div>
 

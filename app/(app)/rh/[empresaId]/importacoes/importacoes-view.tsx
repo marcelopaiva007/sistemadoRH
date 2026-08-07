@@ -158,7 +158,7 @@ export function ImportacoesView({
               <Indicador
                 rotulo="Com problema (ficam de fora)"
                 valor={relatorio.problemas.length}
-                alerta={relatorio.problemas.length > 0}
+                estado={relatorio.problemas.length > 0 ? "alerta" : "padrao"}
               />
             </div>
 

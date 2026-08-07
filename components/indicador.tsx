@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
+import { TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 
 /**
  * O bloco de número que aparece no topo de quase toda tela do sistema.
@@ -13,25 +14,31 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
  * Aqui vira uma peça só. Ajustar respiro, tamanho do número ou cor de alerta
  * passa a ser uma linha, em vez de treze.
  *
- * `alerta` pinta o número de vermelho — reservado para o que exige ação
- * (CAT sem emitir, EPI vencido), nunca para destacar número grande.
- * `atencao` usa o âmbar de aviso, para o que vence em breve.
+ * `estado` é um valor único de propósito — substituiu os booleanos
+ * `alerta`/`atencao`, que aceitavam os dois ao mesmo tempo e resolviam o
+ * empate por precedência silenciosa. `"alerta"` pinta o número de vermelho,
+ * reservado para o que exige ação (CAT sem emitir, EPI vencido) — nunca para
+ * destacar número grande. `"atencao"` usa o âmbar de aviso, para o que vence
+ * em breve. Fora do `"padrao"`, o número ganha um triângulo ao lado e um
+ * texto só de leitor de tela: cor sozinha não comunica estado (WCAG 1.4.1)
+ * nem chega a quem não distingue o vermelho do cinza.
  *
  * Sobre as duas variantes: a auditoria de design registrou os treze como
  * "visualmente idênticos", mas não eram — onze usavam um bloco plano com
- * anel, e dois (tela do grupo e Indicadores) usavam Card, com borda e sombra.
- * Unificar a APARÊNCIA seria decisão de design tomada no escuro; unificar o
- * CÓDIGO não é. Então as duas formas convivem aqui, cada tela mantém o que
- * já tinha, e a escolha de ficar só com uma pode ser feita depois, de
- * propósito, olhando a tela.
+ * anel, e dois (tela do grupo e Indicadores) usavam Card. Unificar a
+ * APARÊNCIA seria decisão de design tomada no escuro; unificar o CÓDIGO não
+ * é. Hoje o miolo (tipografia, estrutura, estados) é idêntico nas duas e a
+ * diferença ficou só na moldura — anel plano vs Card `size="sm"`. Ficar com
+ * uma só continua sendo escolha a fazer depois, olhando a tela. Nas duas o
+ * fundo é `bg-card`; sobre um pai que já seja `bg-card`, quem delimita o
+ * bloco é o anel/moldura — é ele que impede o bloco de sumir.
  */
 export function Indicador({
   rotulo,
   valor,
   complemento,
   icone,
-  alerta,
-  atencao,
+  estado = "padrao",
   variante = "plano",
   className,
 }: {
@@ -39,47 +46,56 @@ export function Indicador({
   valor: ReactNode;
   /** Linha pequena abaixo do número — ex.: "de 208 fichas". */
   complemento?: ReactNode;
-  /** Ícone ao lado do rótulo. */
+  /** Ícone decorativo ao lado do rótulo (escondido de leitor de tela). */
   icone?: ReactNode;
-  /** Exige ação: número em vermelho. */
-  alerta?: boolean;
-  /** Vence em breve: número em âmbar. */
-  atencao?: boolean;
-  /** "plano" = bloco com anel (padrão); "cartao" = Card com borda e sombra. */
+  /** "alerta" = exige ação (vermelho); "atencao" = vence em breve (âmbar). */
+  estado?: "padrao" | "atencao" | "alerta";
+  /** "plano" = bloco com anel (padrão); "cartao" = Card com moldura de cartão. */
   variante?: "plano" | "cartao";
   className?: string;
 }) {
-  const corDoNumero = cn(
-    "tabular-nums",
-    alerta && "text-destructive",
-    !alerta && atencao && "text-warning",
+  const conteudo = (
+    <>
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        {icone && (
+          <span aria-hidden className="contents">
+            {icone}
+          </span>
+        )}
+        {rotulo}
+      </div>
+      <p
+        className={cn(
+          "flex items-center gap-1.5 text-2xl font-semibold tabular-nums",
+          estado === "alerta" && "text-destructive",
+          estado === "atencao" && "text-warning",
+        )}
+      >
+        <span>{valor}</span>
+        {estado !== "padrao" && (
+          <>
+            <TriangleAlert aria-hidden className="size-4 shrink-0" />
+            <span className="sr-only">
+              {estado === "alerta" ? "exige ação" : "requer atenção em breve"}
+            </span>
+          </>
+        )}
+      </p>
+      {complemento && <p className="text-xs text-muted-foreground">{complemento}</p>}
+    </>
   );
 
   if (variante === "cartao") {
     return (
-      <Card className={className}>
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-sm font-normal text-muted-foreground">
-            {icone}
-            {rotulo}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className={cn("text-2xl font-bold", corDoNumero)}>{valor}</p>
-          {complemento && <p className="text-xs text-muted-foreground">{complemento}</p>}
-        </CardContent>
+      <Card size="sm" className={className}>
+        <CardContent>{conteudo}</CardContent>
       </Card>
     );
   }
 
   return (
     <div className={cn("rounded-lg bg-card px-4 py-3 ring-1 ring-foreground/10", className)}>
-      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        {icone}
-        {rotulo}
-      </div>
-      <div className={cn("text-2xl font-semibold", corDoNumero)}>{valor}</div>
-      {complemento && <div className="text-xs text-muted-foreground">{complemento}</div>}
+      {conteudo}
     </div>
   );
 }
