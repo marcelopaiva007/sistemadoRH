@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { HeartHandshake, UserCog, LayoutDashboard } from "lucide-react";
+import { HeartHandshake, History, UserCog, LayoutDashboard } from "lucide-react";
 
 export type NavItem = {
   href: string;
@@ -11,15 +11,19 @@ export type NavItem = {
 // "RH — Clima Organizacional" e TODO o sistema pendurava dentro dele — nome de
 // quando o produto era só pesquisa de clima. O sistema É o RH, então a raiz já
 // é a lista de empresas e a navegação de verdade é a lateral dentro da
-// empresa. Módulo novo entra na lateral, não aqui.
+// empresa. Módulo novo de RH entra na lateral, não aqui — aqui só entra o que
+// não pertence a empresa nenhuma (administração do sistema em si, como
+// Usuários e Atualizações).
 const inicioItem: NavItem = { href: "/", label: "Início", icon: LayoutDashboard };
 const usuariosItem: NavItem = { href: "/usuarios", label: "Usuários", icon: UserCog };
+const atualizacoesItem: NavItem = { href: "/atualizacoes", label: "Atualizações", icon: History };
 const meuSetorItem: NavItem = { href: "/rh/meu-setor", label: "Meu Setor", icon: HeartHandshake };
 
-export const adminNav: NavItem[] = [inicioItem, usuariosItem];
+export const adminNav: NavItem[] = [inicioItem, usuariosItem, atualizacoesItem];
 // Diretoria também gere usuários desde 31/07/2026 — ver requireGestaoUsuarios
 // em lib/auth-guard.ts. Sem o item aqui a permissão existiria sem caminho.
-export const diretoriaNav: NavItem[] = [inicioItem, usuariosItem];
+// Atualizações segue o mesmo par de papéis da área (ADMIN + DIRETORIA).
+export const diretoriaNav: NavItem[] = [inicioItem, usuariosItem, atualizacoesItem];
 
 // Lookup por role — RH_MANAGER/GESTOR_SETOR têm navegação própria e enxuta.
 export const navByRole: Record<string, NavItem[]> = {

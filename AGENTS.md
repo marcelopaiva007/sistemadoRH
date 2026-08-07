@@ -59,6 +59,11 @@ tela de login) mostra `v<versão> · <commit>`, e é por ela que o RH responde
 não serve para conversa — ninguém decora sha. Se a versão não sobe, duas
 entregas diferentes aparecem com o mesmo número na tela.
 
+**Junto do bump, a entrega entra em `lib/atualizacoes.ts`** (no topo da
+lista, no mesmo commit): é o que alimenta a tela **Atualizações** da
+administração — versão, data e resumo do que mudou, em linguagem de quem usa
+o sistema. Versão que sobe sem entrada lá é changelog mentindo por omissão.
+
 # Armadilhas conhecidas (Next 16)
 
 Exemplos concretos do aviso lá em cima — cada um já custou tempo tentando o
