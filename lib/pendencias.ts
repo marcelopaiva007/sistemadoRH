@@ -41,6 +41,11 @@ export type Pendencias = {
   horasExtrasExcedidas: number;
   dependentesSemCpf: number;
   atestadosSemDocumento: number;
+  // Pedido do CEO em 07/08/2026: era só "preenchimento da base" (lacuna), mas
+  // sem o vínculo a pessoa não recebe convite de pesquisa, lembrete nem acesso
+  // ao portal — é cobrança do RH, não estatística. Mesma condição da lacuna e
+  // da lista (?lacuna=telegram): ativo com telegramChatId nulo OU vazio.
+  semTelegram: number;
 };
 
 export const totalPendencias = (p: Pendencias) => Object.values(p).reduce((s, n) => s + n, 0);
@@ -63,6 +68,7 @@ export const zeradas = (): Pendencias => ({
   horasExtrasExcedidas: 0,
   dependentesSemCpf: 0,
   atestadosSemDocumento: 0,
+  semTelegram: 0,
 });
 
 type LinhaAgrupada = { empresaId: string; _count?: { _all?: number } };
@@ -105,6 +111,7 @@ export async function pendenciasPorEmpresa(
     feriasVencidas, avisoPrevio, desligamentosIncompletos, avaliacoesAtrasadas,
     pesquisasAbertas, fichasDesatualizadas,
     contratosVencendo, dependentesSemCpf, atestadosSemDocumento, horasExtras,
+    semTelegram,
   ] =
     await Promise.all([
       cliente.solicitacaoFerias.groupBy({ by: [...por], _count: contar, where: { empresaId, status: "PENDENTE" } }),
@@ -232,6 +239,14 @@ export async function pendenciasPorEmpresa(
           competencia: { status: "ABERTA" },
         },
       }),
+      // Ativo sem Telegram vinculado — null OU "": mesma condição da lacuna
+      // (lib/dashboard.ts) e da lista (?lacuna=telegram), para os três números
+      // baterem sempre.
+      cliente.colaborador.groupBy({
+        by: [...por],
+        _count: contar,
+        where: { empresaId, ativo: true, OR: [{ telegramChatId: null }, { telegramChatId: "" }] },
+      }),
     ]);
 
   const somar = (linhas: LinhaAgrupada[], aplicar: (p: Pendencias, n: number) => void) => {
@@ -259,6 +274,7 @@ export async function pendenciasPorEmpresa(
   somar(contratosVencendo, (p, n) => (p.contratosVencendo = n));
   somar(dependentesSemCpf, (p, n) => (p.dependentesSemCpf = n));
   somar(atestadosSemDocumento, (p, n) => (p.atestadosSemDocumento = n));
+  somar(semTelegram, (p, n) => (p.semTelegram = n));
 
   // Uma linha por colaborador que lançou hora extra no mês aberto; conta quem
   // passou do teto. `_sum` volta null quando todas as quantidades da pessoa são

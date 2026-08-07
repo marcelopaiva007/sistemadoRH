@@ -20,6 +20,7 @@ import {
   MessagesSquare,
   History,
   FileSignature,
+  Send,
   Timer,
   Users,
   Stethoscope,
@@ -242,6 +243,14 @@ export function PendenciasView({
       descricao: "Declarado para IRRF sem CPF; a Receita exige em qualquer idade.",
       href: comFiltro(`/rh/${empresaId}/colaboradores`),
       icon: Users,
+    },
+    {
+      chave: "semTelegram",
+      titulo: "Sem Telegram vinculado",
+      descricao:
+        "Não recebem convite de pesquisa, lembrete nem acesso ao portal. A pessoa envia /start ao bot e compartilha o número.",
+      href: comFiltro(`/rh/${empresaId}/colaboradores`, "lacuna=telegram"),
+      icon: Send,
     },
   ];
 
