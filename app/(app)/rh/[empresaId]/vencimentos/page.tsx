@@ -145,11 +145,11 @@ export default async function VencimentosPage({
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-5">
-        <Indicador rotulo="Documentos vencidos" valor={vencidos} alerta={vencidos > 0} />
+        <Indicador rotulo="Documentos vencidos" valor={vencidos} estado={vencidos > 0 ? "alerta" : "padrao"} />
         <Indicador rotulo="Documentos a vencer" valor={documentos.length - vencidos} />
-        <Indicador rotulo="Treinamentos NR" valor={certificadosVigentes.length} complemento={`${nrVencidos} vencido(s)`} alerta={nrVencidos > 0} />
-        <Indicador rotulo="ASO / PCMSO" valor={examesVigentes.length} complemento={`${asoVencidos} vencido(s)`} alerta={asoVencidos > 0} />
-        <Indicador rotulo="EPIs para trocar" valor={episVigentes.length} complemento={`${epiVencidos} vencido(s)`} alerta={epiVencidos > 0} />
+        <Indicador rotulo="Treinamentos NR" valor={certificadosVigentes.length} complemento={`${nrVencidos} vencido(s)`} estado={nrVencidos > 0 ? "alerta" : "padrao"} />
+        <Indicador rotulo="ASO / PCMSO" valor={examesVigentes.length} complemento={`${asoVencidos} vencido(s)`} estado={asoVencidos > 0 ? "alerta" : "padrao"} />
+        <Indicador rotulo="EPIs para trocar" valor={episVigentes.length} complemento={`${epiVencidos} vencido(s)`} estado={epiVencidos > 0 ? "alerta" : "padrao"} />
       </div>
 
       <Card>

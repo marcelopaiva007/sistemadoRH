@@ -10,7 +10,7 @@ import {
   type PassivoFerias,
   type PessoaVencida,
 } from "@/lib/ferias-passivo";
-import { hojeUTC } from "@/lib/datas";
+import { hojeUTC, somarDiasUTC } from "@/lib/datas";
 import { FeriasView } from "./ferias-view";
 
 // Tela de Férias do Departamento Pessoal.
@@ -42,8 +42,17 @@ export type LinhaFerias = {
   setor: string;
   admissao: string;
   periodo: PeriodoAquisitivo | null;
+  /** Período aquisitivo corrente, ainda não fechado — traz `progresso` dos 12 meses. */
+  emCurso: PeriodoAquisitivo | null;
   saldoTotal: number;
   semHistorico: boolean;
+  /**
+   * MESMA regra do cartão "Férias vencidas" da tela de Pendências
+   * (lib/pendencias.ts): 12+ meses de casa e nenhuma férias APROVADA
+   * começando no último ano. O cartão navega para cá com filtro=RISCO_DOBRA,
+   * e a lista tem que bater com o número dele — pessoa a pessoa.
+   */
+  riscoDobra: boolean;
 };
 
 /** Passivo por pessoa SEM as colunas de dinheiro — ver nota de privacidade acima. */
@@ -102,7 +111,15 @@ export default async function FeriasPage({
         setor: { select: { nome: true } },
         ferias: {
           where: { status: { in: ["APROVADA", "PENDENTE"] } },
-          select: { periodoAquisitivoInicio: true, dias: true, diasAbono: true, status: true },
+          // dataInicio existe para `riscoDobra` — a mesma pergunta do cartão
+          // de Pendências: houve férias APROVADA começando no último ano?
+          select: {
+            periodoAquisitivoInicio: true,
+            dias: true,
+            diasAbono: true,
+            status: true,
+            dataInicio: true,
+          },
         },
       },
     }),
@@ -134,6 +151,12 @@ export default async function FeriasPage({
   const programacao = resumirProgramacaoFerias(solicitacoes, hoje);
   const origem = resumirOrigemDoHistorico(solicitacoes);
 
+  // Mesmo recorte de lib/pendencias.ts (feriasVencidas): o cartão de
+  // Pendências e o filtro "Risco de dobra" desta tela precisam contar as
+  // mesmas pessoas — se as janelas divergirem, o número do cartão volta a não
+  // bater com a lista que ele abre.
+  const umAnoAtras = somarDiasUTC(hoje, -365);
+
   const linhas: LinhaFerias[] = [];
   for (const c of colaboradores) {
     if (!c.dataAdmissao) continue;
@@ -152,6 +175,7 @@ export default async function FeriasPage({
       setor: c.setor.nome,
       admissao: c.dataAdmissao.toISOString(),
       periodo: critico ?? null,
+      emCurso: resumo.periodos.find((p) => p.status === "EM_CURSO") ?? null,
       saldoTotal: resumo.saldoDisponivel,
       // Mais de um período adquirido e nenhuma férias registrada é quase sempre
       // buraco de cadastro, não alguém que nunca saiu de férias — a base nasceu
@@ -159,6 +183,9 @@ export default async function FeriasPage({
       // "vencidas" não nascer inflado. A regra mora em lib/ferias-passivo.ts
       // para tela e consolidado nunca discordarem sobre quem é "sem histórico".
       semHistorico: semHistoricoDeFerias(c.ferias, resumo.periodos),
+      riscoDobra:
+        c.dataAdmissao < umAnoAtras &&
+        !c.ferias.some((f) => f.status === "APROVADA" && f.dataInicio >= umAnoAtras),
     });
   }
 

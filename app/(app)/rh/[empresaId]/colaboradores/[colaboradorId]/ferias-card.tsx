@@ -129,7 +129,23 @@ export function FeriasCard({
                     <TableCell className="tabular-nums">
                       {formatarData(p.inicio)} — {formatarData(p.fim)}
                     </TableCell>
-                    <TableCell className="tabular-nums">{formatarData(p.limiteConcessivo)}</TableCell>
+                    <TableCell className="tabular-nums">
+                      {p.status === "EM_CURSO" && p.progresso ? (
+                        <div className="flex items-center gap-2">
+                          <div className="h-2 w-16 shrink-0 overflow-hidden rounded-full bg-secondary">
+                            <div
+                              className="h-full rounded-full bg-primary transition-[width]"
+                              style={{ width: `${p.progresso.percentual}%` }}
+                            />
+                          </div>
+                          <span className="text-xs whitespace-nowrap text-muted-foreground">
+                            {p.progresso.meses}/12 meses ({p.progresso.diasCorridos} d)
+                          </span>
+                        </div>
+                      ) : (
+                        formatarData(p.limiteConcessivo)
+                      )}
+                    </TableCell>
                     <TableCell className="text-right tabular-nums">{p.diasUsados}</TableCell>
                     <TableCell className="text-right tabular-nums">{p.diasReservados}</TableCell>
                     <TableCell className="text-right font-medium tabular-nums">{p.saldo}</TableCell>

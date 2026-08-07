@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -44,6 +45,12 @@ import type { LinhaFerias, PassivoNaTela } from "./page";
 
 const FILTROS = [
   { chave: "TODOS", rotulo: "Todos" },
+  // A MESMA conta do cartão "Férias vencidas" da tela de Pendências: 12+
+  // meses de casa sem férias aprovada no último ano. O cartão navega pra cá
+  // com filtro=RISCO_DOBRA e a lista bate pessoa a pessoa com o número dele —
+  // é a soma de "vencidas confirmadas" + "sem histórico a conferir" + quem tem
+  // histórico antigo mas está há 1 ano+ sem gozar.
+  { chave: "RISCO_DOBRA", rotulo: "Risco de dobra" },
   { chave: "VENCIDO", rotulo: "Vencidas" },
   { chave: "VENCENDO", rotulo: "Vencendo" },
   { chave: "DISPONIVEL", rotulo: "Disponíveis" },
@@ -125,7 +132,14 @@ export function FeriasView({
   origem: OrigemHistorico;
   escopo: { cnpjs: number; marcas: string[] };
 }) {
-  const [filtro, setFiltroBruto] = useState<Filtro>("TODOS");
+  // ?filtro=VENCIDO abre direto na aba "Vencidas" — é como o cartão "Férias
+  // vencidas" da tela de Pendências chega aqui já listando quem ele contou.
+  const searchParams = useSearchParams();
+  const filtroDaUrl = searchParams.get("filtro");
+  const filtroInicial: Filtro = FILTROS.some((f) => f.chave === filtroDaUrl)
+    ? (filtroDaUrl as Filtro)
+    : "TODOS";
+  const [filtro, setFiltroBruto] = useState<Filtro>(filtroInicial);
   const [setor, setSetorBruto] = useState<string>(TODOS_OS_SETORES);
   const [ordem, setOrdemBruto] = useState<Ordem>("PRAZO");
   const [busca, setBuscaBruta] = useState("");
@@ -190,6 +204,7 @@ export function FeriasView({
     return linhas
       .filter((l) => {
         if (filtro === "SEM_HISTORICO") return l.semHistorico;
+        if (filtro === "RISCO_DOBRA") return l.riscoDobra;
         if (filtro !== "TODOS") return l.periodo?.status === filtro && !l.semHistorico;
         return true;
       })
@@ -272,19 +287,19 @@ export function FeriasView({
                   ? `+${passivo.vencido.pessoasSemHistorico} com período vencido e sem histórico`
                   : "com histórico de gozo registrado"
               }
-              alerta={contagem.vencidas > 0}
+              estado={contagem.vencidas > 0 ? "alerta" : "padrao"}
             />
             <Indicador
               rotulo="Vencendo em 90 dias"
               valor={contagem.vencendo}
-              atencao={contagem.vencendo > 0}
+              estado={contagem.vencendo > 0 ? "atencao" : "padrao"}
             />
             <Indicador rotulo="Com saldo disponível" valor={contagem.disponiveis} />
             <Indicador
               rotulo="Sem histórico"
               valor={contagem.semHistorico}
               complemento="conferir antes de cobrar"
-              atencao={contagem.semHistorico > 0}
+              estado={contagem.semHistorico > 0 ? "atencao" : "padrao"}
             />
           </div>
 
@@ -423,13 +438,14 @@ export function FeriasView({
                         <TableHead>Gozar até</TableHead>
                         <TableHead className="text-right">Saldo</TableHead>
                         <TableHead>Situação</TableHead>
+                        <TableHead>Próximo período</TableHead>
                         <TableHead className="w-10" />
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {visiveisNaPagina.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
+                          <TableCell colSpan={9} className="py-8 text-center text-muted-foreground">
                             Nenhum colaborador nesta situação.
                           </TableCell>
                         </TableRow>
@@ -438,7 +454,7 @@ export function FeriasView({
                         <TableRow key={l.colaboradorId}>
                           <TableCell>
                             <Link
-                              href={`/rh/${l.empresaId}/colaboradores/${l.colaboradorId}`}
+                              href={`/rh/${l.empresaId}/colaboradores/${l.colaboradorId}?tab=ferias`}
                               className="font-medium hover:underline"
                             >
                               {l.nome}
@@ -472,9 +488,26 @@ export function FeriasView({
                               </Badge>
                             )}
                           </TableCell>
+                          <TableCell>
+                            {l.emCurso?.progresso ? (
+                              <div className="flex items-center gap-2">
+                                <div className="h-2 w-16 shrink-0 overflow-hidden rounded-full bg-secondary">
+                                  <div
+                                    className="h-full rounded-full bg-primary transition-[width]"
+                                    style={{ width: `${l.emCurso.progresso.percentual}%` }}
+                                  />
+                                </div>
+                                <span className="text-xs whitespace-nowrap tabular-nums text-muted-foreground">
+                                  {l.emCurso.progresso.meses}/12 meses
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
                           <TableCell className="text-center">
                             <Link
-                              href={`/rh/${l.empresaId}/colaboradores/${l.colaboradorId}`}
+                              href={`/rh/${l.empresaId}/colaboradores/${l.colaboradorId}?tab=ferias`}
                               className="inline-block rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
                               title="Abrir ficha do colaborador para conferência e correção"
                             >
@@ -570,7 +603,7 @@ export function FeriasView({
                       ? ` · ${passivo.vencido.pessoasSemHistorico} sem histórico a confirmar`
                       : ""
                   }`}
-                  alerta={passivo.vencido.dias > 0}
+                  estado={passivo.vencido.dias > 0 ? "alerta" : "padrao"}
                 />
                 <Indicador
                   rotulo="Exposição vencida"
@@ -586,7 +619,7 @@ export function FeriasView({
                               : ""
                           }`
                   }
-                  alerta={vencidoGrupo !== null && vencidoGrupo > 0}
+                  estado={vencidoGrupo !== null && vencidoGrupo > 0 ? "alerta" : "padrao"}
                 />
               </div>
 

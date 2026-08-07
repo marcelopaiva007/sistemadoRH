@@ -1,4 +1,4 @@
-import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
+import { empresasVisiveis, requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { DIAS_ALERTA_VENCIMENTO } from "@/lib/constants-dp";
 import {
   pendenciasDaEmpresa,
@@ -20,16 +20,35 @@ import { LacunasDosDesligadosView } from "./lacunas-desligados-view";
 // a cada login e a cada troca de empresa.
 export default async function InicioDaEmpresaPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ empresaId: string }>;
+  searchParams: Promise<{ empresas?: string }>;
 }) {
   const { empresaId } = await params;
-  await requireEmpresaAccess(empresaId);
+  const { empresas: empresasParam } = await searchParams;
+  const usuario = await requireEmpresaAccess(empresaId);
 
-  // A tela é da MARCA, como o organograma: contar só o CNPJ do endereço
+  // Padrão é a MARCA, como o organograma: contar só o CNPJ do endereço
   // mostrava um pedaço e escondia o resto sem avisar — 13 sem Telegram na RSM
-  // quando o grupo tinha 93.
-  const empresas = await empresasDaMesmaMarca(empresaId);
+  // quando o grupo tinha 93. O filtro `?empresas=` (mesmo de
+  // filtro-empresas.tsx, já usado em Férias/Vencimentos/Aprovações/etc.)
+  // deixa estreitar para um CNPJ específico quando é isso que a pessoa quer —
+  // opção explícita, não o padrão silencioso.
+  //
+  // ∩ empresasVisiveis: os links das lacunas abrem a lista de Colaboradores,
+  // que é escopada ao que o USUÁRIO enxerga — um RH com acesso a 1 CNPJ da
+  // marca via para "93 sem Telegram" aqui e uma lista de 13 lá
+  // (requireEmpresaAccess deixa entrar por marca, mas a lista não). Contar
+  // aqui o que a pessoa não consegue listar é fabricar número que não bate.
+  const [todasDaMarca, visiveis] = await Promise.all([
+    empresasDaMesmaMarca(empresaId),
+    empresasVisiveis(usuario),
+  ]);
+  const daMarcaVisiveis = todasDaMarca.filter((id) => visiveis.includes(id));
+  const pedidas = (empresasParam ?? "").split(",").filter(Boolean);
+  const empresas =
+    pedidas.length === 0 ? daMarcaVisiveis : daMarcaVisiveis.filter((id) => pedidas.includes(id));
 
   const [resumo, pendencias, base, semRegistro, baseDesligados, pesquisasAbertas] =
     await Promise.all([
@@ -49,6 +68,7 @@ export default async function InicioDaEmpresaPage({
       <DashboardEmpresa empresaId={empresaId} resumo={resumo} />
       <PendenciasView
         empresaId={empresaId}
+        escopo={empresas}
         pendencias={pendencias}
         semRegistro={[...semRegistro]}
         diasAlerta={DIAS_ALERTA_VENCIMENTO}

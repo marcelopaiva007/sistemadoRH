@@ -43,7 +43,7 @@ export function AcidentesView({
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Indicador rotulo="Total registrado" valor={resumo.total} />
-        <Indicador rotulo="CAT pendente de emissão" valor={resumo.catsPendentes} alerta={resumo.catsPendentes > 0} />
+        <Indicador rotulo="CAT pendente de emissão" valor={resumo.catsPendentes} estado={resumo.catsPendentes > 0 ? "alerta" : "padrao"} />
         <Indicador rotulo="Em investigação" valor={resumo.emInvestigacao} />
       </div>
 

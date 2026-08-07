@@ -34,6 +34,7 @@ export default async function DesligamentosPage({
       empresa: { select: { nome: true } },
       dataDesligamento: true,
       motivoDesligamento: true,
+      checklistDispensado: true,
       setor: { select: { nome: true } },
       checklistDesligamento: { select: { concluido: true } },
       entrevistaDesligamento: { select: { id: true } },
@@ -50,10 +51,15 @@ export default async function DesligamentosPage({
     setorNome: c.setor.nome,
     checklistTotal: c.checklistDesligamento.length,
     checklistConcluido: c.checklistDesligamento.filter((i) => i.concluido).length,
+    checklistDispensado: c.checklistDispensado,
     temEntrevista: c.entrevistaDesligamento !== null,
   }));
 
-  const semChecklist = desligamentos.filter((d) => d.checklistTotal === 0).length;
+  // Dispensado não conta como pendência — é justamente o que resolve o "sem
+  // como cobrar" de quem saiu antes do sistema existir (ver rh-offboarding.ts).
+  const semChecklist = desligamentos.filter(
+    (d) => d.checklistTotal === 0 && !d.checklistDispensado,
+  ).length;
   const checklistPendente = desligamentos.filter(
     (d) => d.checklistTotal > 0 && d.checklistConcluido < d.checklistTotal,
   ).length;

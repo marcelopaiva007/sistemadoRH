@@ -124,7 +124,12 @@ export async function lacunasDaBase(empresaIds: string[]): Promise<{
       prisma.colaborador.count({ where: { ...base, salarioBase: null } }),
       prisma.colaborador.count({ where: { ...base, dataAdmissao: null } }),
       prisma.colaborador.count({ where: { ...base, cpf: null } }),
-      prisma.colaborador.count({ where: { ...base, telegramChatId: null } }),
+      // null OU "": as telas filtram com `!c.telegramChatId` (string vazia é
+      // "sem"), e este count usava só IS NULL — um único registro com "" já
+      // fazia o cartão e a lista divergirem em 1.
+      prisma.colaborador.count({
+        where: { ...base, OR: [{ telegramChatId: null }, { telegramChatId: "" }] },
+      }),
       prisma.colaborador.count({
         where: { ...base, setor: { nome: { equals: "Não definido", mode: "insensitive" } } },
       }),

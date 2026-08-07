@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import {
   AlertOctagon,
@@ -19,6 +20,7 @@ import {
   MessagesSquare,
   History,
   FileSignature,
+  Send,
   Timer,
   Users,
   Stethoscope,
@@ -33,12 +35,15 @@ import type { Pendencias, PesquisaAberta } from "@/lib/pendencias";
 
 export function PendenciasView({
   empresaId,
+  escopo,
   pendencias,
   semRegistro,
   diasAlerta,
   pesquisasAbertas,
 }: {
   empresaId: string;
+  /** CNPJs que os números desta tela somam (a marca, ou o filtro da URL). */
+  escopo: string[];
   pendencias: Pendencias;
   // Módulos sem NENHUM registro nesta marca. Chega como array, não Set: o que
   // atravessa de Server para Client Component tem que ser serializável.
@@ -49,6 +54,27 @@ export function PendenciasView({
   pesquisasAbertas: PesquisaAberta[];
 }) {
   const [exportando, setExportando] = useState(false);
+
+  // O recorte desta tela viaja junto no clique: quem estreitou para um CNPJ e
+  // clica em "14 Férias vencidas" precisa cair na tela de Férias DAQUELE CNPJ,
+  // e quem está na visão da marca precisa cair na tela DA MARCA. Sem filtro na
+  // URL o link leva o `escopo` (os CNPJs da marca) explícito — os números
+  // desta tela somam por marca, mas as telas de destino sem `?empresas=`
+  // abrem no grupo inteiro que o usuário enxerga, e o número do cartão não
+  // bateria com a lista. `extra` acrescenta o filtro da situação (ex.:
+  // filtro=RISCO_DOBRA) para a tela já abrir listando a pendência clicada.
+  const searchParams = useSearchParams();
+  const empresasParam = searchParams.get("empresas") ?? escopo.join(",");
+  const comFiltro = (path: string, extra?: string) => {
+    const params = new URLSearchParams();
+    if (empresasParam) params.set("empresas", empresasParam);
+    for (const par of extra?.split("&") ?? []) {
+      const [chave, valor] = par.split("=");
+      if (chave && valor) params.set(chave, valor);
+    }
+    const query = params.toString();
+    return query ? `${path}?${query}` : path;
+  };
 
   // "há 34 dias · 12 respostas" para cada pesquisa aberta, as três mais antigas
   // primeiro. O tempo aberto é o que orienta a decisão de encerrar; a contagem
@@ -93,7 +119,7 @@ export function PendenciasView({
       chave: "catPendente",
       titulo: "CAT sem emitir",
       descricao: "Prazo legal de 1 dia útil ao INSS — imediato se for fatal.",
-      href: `/rh/${empresaId}/acidentes`,
+      href: comFiltro(`/rh/${empresaId}/acidentes`),
       icon: AlertOctagon,
       urgente: true,
     },
@@ -101,35 +127,35 @@ export function PendenciasView({
       chave: "aprovacoes",
       titulo: "Aguardando aprovação",
       descricao: "Férias e ausências esperando decisão do RH.",
-      href: `/rh/${empresaId}/aprovacoes`,
+      href: comFiltro(`/rh/${empresaId}/aprovacoes`),
       icon: CheckSquare,
     },
     {
       chave: "documentosAConferir",
       titulo: "Documentos a conferir",
       descricao: "Cópias enviadas pelo colaborador no portal, esperando validação.",
-      href: `/rh/${empresaId}/aprovacoes`,
+      href: comFiltro(`/rh/${empresaId}/aprovacoes`),
       icon: FileCheck,
     },
     {
       chave: "asoVencendo",
       titulo: "ASO vencendo",
       descricao: `Exames ocupacionais no limite dos ${diasAlerta} dias.`,
-      href: `/rh/${empresaId}/conformidade`,
+      href: comFiltro(`/rh/${empresaId}/conformidade`),
       icon: ShieldCheck,
     },
     {
       chave: "certificadosVencendo",
       titulo: "NR vencendo",
       descricao: `Certificados de norma no limite dos ${diasAlerta} dias.`,
-      href: `/rh/${empresaId}/conformidade`,
+      href: comFiltro(`/rh/${empresaId}/conformidade`),
       icon: CalendarDays,
     },
     {
       chave: "epiVencido",
       titulo: "EPI vencido",
       descricao: "Equipamento de proteção fora da validade, com a pessoa em campo.",
-      href: `/rh/${empresaId}/vencimentos`,
+      href: comFiltro(`/rh/${empresaId}/vencimentos`),
       icon: HardHat,
       urgente: true,
     },
@@ -137,14 +163,18 @@ export function PendenciasView({
       chave: "integracoesAtrasadas",
       titulo: "Integração atrasada",
       descricao: "Item da trilha de quem entrou passou do prazo.",
-      href: `/rh/${empresaId}/integracoes`,
+      href: comFiltro(`/rh/${empresaId}/integracoes`),
       icon: Rocket,
     },
     {
       chave: "feriasVencidas",
       titulo: "Férias vencidas",
       descricao: "12+ meses de casa sem férias aprovadas no último ano — risco de dobra.",
-      href: `/rh/${empresaId}/ferias`,
+      // filtro=RISCO_DOBRA e não VENCIDO: "Vencidas" na tela de Férias são só
+      // as confirmadas com histórico, e o número deste cartão não batia com a
+      // lista. RISCO_DOBRA usa a mesma conta deste contador — bate pessoa a
+      // pessoa.
+      href: comFiltro(`/rh/${empresaId}/ferias`, "filtro=RISCO_DOBRA"),
       icon: Plane,
       urgente: true,
     },
@@ -152,7 +182,7 @@ export function PendenciasView({
       chave: "avisoPrevio",
       titulo: "Aviso prévio em curso",
       descricao: "Saída registrada para os próximos 7 dias; o offboarding precisa andar.",
-      href: `/rh/${empresaId}/desligamentos`,
+      href: comFiltro(`/rh/${empresaId}/desligamentos`),
       icon: DoorOpen,
       urgente: true,
     },
@@ -160,35 +190,35 @@ export function PendenciasView({
       chave: "desligamentosIncompletos",
       titulo: "Desligamento incompleto",
       descricao: "Pessoa já saiu com item de offboarding em aberto (crachá, acesso, EPI…).",
-      href: `/rh/${empresaId}/desligamentos`,
+      href: comFiltro(`/rh/${empresaId}/desligamentos`),
       icon: ClipboardList,
     },
     {
       chave: "avaliacoesAtrasadas",
       titulo: "Avaliação atrasada",
       descricao: "Ciclo com janela encerrada e avaliações ainda pendentes.",
-      href: `/rh/${empresaId}/avaliacoes`,
+      href: comFiltro(`/rh/${empresaId}/avaliacoes`),
       icon: Star,
     },
     {
       chave: "pesquisasAbertas",
       titulo: "Pesquisa a encerrar",
       descricao: descricaoPesquisas,
-      href: `/rh/${empresaId}/pesquisas`,
+      href: comFiltro(`/rh/${empresaId}/pesquisas`),
       icon: MessagesSquare,
     },
     {
       chave: "fichasDesatualizadas",
       titulo: "Ficha sem atualização",
       descricao: "Cadastro sem nenhuma gravação há mais de 6 meses.",
-      href: `/rh/${empresaId}/colaboradores`,
+      href: comFiltro(`/rh/${empresaId}/colaboradores`),
       icon: History,
     },
     {
       chave: "contratosVencendo",
       titulo: "Contrato vencendo",
       descricao: `Experiência, temporário ou estágio terminando em ${diasAlerta} dias — passar do prazo torna o contrato indeterminado.`,
-      href: `/rh/${empresaId}/colaboradores`,
+      href: comFiltro(`/rh/${empresaId}/colaboradores`),
       icon: FileSignature,
       urgente: true,
     },
@@ -196,7 +226,7 @@ export function PendenciasView({
       chave: "horasExtrasExcedidas",
       titulo: "Hora extra acima do limite",
       descricao: "Passou de 44h no mês aberto — o limite da CLT é 2h por dia.",
-      href: `/rh/${empresaId}/folha`,
+      href: comFiltro(`/rh/${empresaId}/folha`),
       icon: Timer,
       urgente: true,
     },
@@ -204,15 +234,23 @@ export function PendenciasView({
       chave: "atestadosSemDocumento",
       titulo: "Atestado sem documento",
       descricao: "Falta já abonada sem o atestado anexado — nada sustenta o abono numa fiscalização.",
-      href: `/rh/${empresaId}/aprovacoes`,
+      href: comFiltro(`/rh/${empresaId}/aprovacoes`),
       icon: Stethoscope,
     },
     {
       chave: "dependentesSemCpf",
       titulo: "Dependente sem CPF",
       descricao: "Declarado para IRRF sem CPF; a Receita exige em qualquer idade.",
-      href: `/rh/${empresaId}/colaboradores`,
+      href: comFiltro(`/rh/${empresaId}/colaboradores`),
       icon: Users,
+    },
+    {
+      chave: "semTelegram",
+      titulo: "Sem Telegram vinculado",
+      descricao:
+        "Não recebem convite de pesquisa, lembrete nem acesso ao portal. A pessoa envia /start ao bot e compartilha o número.",
+      href: comFiltro(`/rh/${empresaId}/colaboradores`, "lacuna=telegram"),
+      icon: Send,
     },
   ];
 
