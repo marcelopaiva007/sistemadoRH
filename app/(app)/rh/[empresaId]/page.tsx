@@ -57,6 +57,7 @@ export default async function InicioDaEmpresaPage({
       <DashboardEmpresa empresaId={empresaId} resumo={resumo} />
       <PendenciasView
         empresaId={empresaId}
+        escopo={empresas}
         pendencias={pendencias}
         semRegistro={[...semRegistro]}
         diasAlerta={DIAS_ALERTA_VENCIMENTO}

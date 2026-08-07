@@ -34,12 +34,15 @@ import type { Pendencias, PesquisaAberta } from "@/lib/pendencias";
 
 export function PendenciasView({
   empresaId,
+  escopo,
   pendencias,
   semRegistro,
   diasAlerta,
   pesquisasAbertas,
 }: {
   empresaId: string;
+  /** CNPJs que os números desta tela somam (a marca, ou o filtro da URL). */
+  escopo: string[];
   pendencias: Pendencias;
   // Módulos sem NENHUM registro nesta marca. Chega como array, não Set: o que
   // atravessa de Server para Client Component tem que ser serializável.
@@ -51,13 +54,16 @@ export function PendenciasView({
 }) {
   const [exportando, setExportando] = useState(false);
 
-  // O filtro de marca/CNPJ (?empresas=) viaja junto no clique: quem estreitou
-  // para um CNPJ e clica em "14 Férias vencidas" precisa cair na tela de
-  // Férias DAQUELE CNPJ — sem isso o destino abre no grupo inteiro e o número
-  // do cartão não bate com a tela. `extra` acrescenta o filtro da situação
-  // (ex.: filtro=VENCIDO) para a tela já abrir listando a pendência clicada.
+  // O recorte desta tela viaja junto no clique: quem estreitou para um CNPJ e
+  // clica em "14 Férias vencidas" precisa cair na tela de Férias DAQUELE CNPJ,
+  // e quem está na visão da marca precisa cair na tela DA MARCA. Sem filtro na
+  // URL o link leva o `escopo` (os CNPJs da marca) explícito — os números
+  // desta tela somam por marca, mas as telas de destino sem `?empresas=`
+  // abrem no grupo inteiro que o usuário enxerga, e o número do cartão não
+  // bateria com a lista. `extra` acrescenta o filtro da situação (ex.:
+  // filtro=RISCO_DOBRA) para a tela já abrir listando a pendência clicada.
   const searchParams = useSearchParams();
-  const empresasParam = searchParams.get("empresas");
+  const empresasParam = searchParams.get("empresas") ?? escopo.join(",");
   const comFiltro = (path: string, extra?: string) => {
     const params = new URLSearchParams();
     if (empresasParam) params.set("empresas", empresasParam);
