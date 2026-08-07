@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -125,7 +126,14 @@ export function FeriasView({
   origem: OrigemHistorico;
   escopo: { cnpjs: number; marcas: string[] };
 }) {
-  const [filtro, setFiltroBruto] = useState<Filtro>("TODOS");
+  // ?filtro=VENCIDO abre direto na aba "Vencidas" — é como o cartão "Férias
+  // vencidas" da tela de Pendências chega aqui já listando quem ele contou.
+  const searchParams = useSearchParams();
+  const filtroDaUrl = searchParams.get("filtro");
+  const filtroInicial: Filtro = FILTROS.some((f) => f.chave === filtroDaUrl)
+    ? (filtroDaUrl as Filtro)
+    : "TODOS";
+  const [filtro, setFiltroBruto] = useState<Filtro>(filtroInicial);
   const [setor, setSetorBruto] = useState<string>(TODOS_OS_SETORES);
   const [ordem, setOrdemBruto] = useState<Ordem>("PRAZO");
   const [busca, setBuscaBruta] = useState("");
