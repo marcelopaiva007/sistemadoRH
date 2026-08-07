@@ -6,6 +6,7 @@ import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { registrarAuditoria } from "@/lib/audit";
 import { dataDoFormulario, formatarData } from "@/lib/datas";
 import { ITENS_OFFBOARDING, itemOffboardingLabel } from "@/lib/constants-offboarding";
+import { MOTIVOS_DESLIGAMENTO, motivoDesligamentoLabel } from "@/lib/constants-dp";
 import type { ActionResult } from "@/lib/constants";
 
 const ITENS_CATALOGO = ITENS_OFFBOARDING.filter((i) => i.value !== "OUTRO").map((i) => i.value);
@@ -48,6 +49,56 @@ export async function gerarChecklistPadrao(
 
   revalidatePath(`/rh/${empresaId}/colaboradores/${colaboradorId}`);
   revalidatePath(`/rh/${empresaId}/desligamentos`);
+  return { ok: true };
+}
+
+/**
+ * Corrige data e motivo de um desligamento já registrado, direto da lista de
+ * Desligamentos — sem obrigar a abrir a ficha e achar o bloco "Vínculo". É o
+ * caminho curto para completar os desligamentos importados sem motivo.
+ * Só vale para quem JÁ tem desligamento: registrar um novo continua sendo na
+ * ficha, onde as consequências (desativar, expirar convites) acontecem.
+ */
+export async function corrigirDadosDesligamento(
+  empresaId: string,
+  colaboradorId: string,
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  await requireEmpresaAccess(empresaId);
+
+  const colaborador = await prisma.colaborador.findFirst({
+    where: { id: colaboradorId, empresaId },
+    select: { id: true, nome: true, dataDesligamento: true, motivoDesligamento: true },
+  });
+  if (!colaborador) return { ok: false, error: "Colaborador não encontrado nesta empresa." };
+  if (!colaborador.dataDesligamento) {
+    return { ok: false, error: "Esta pessoa não tem desligamento registrado — use a ficha para desligar." };
+  }
+
+  const dataDesligamento = dataDoFormulario(formData.get("dataDesligamento"));
+  if (!dataDesligamento) return { ok: false, error: "Informe a data de saída." };
+
+  const motivo = String(formData.get("motivoDesligamento") ?? "").trim();
+  if (!MOTIVOS_DESLIGAMENTO.some((m) => m.value === motivo)) {
+    return { ok: false, error: "Informe o motivo da saída." };
+  }
+
+  await prisma.colaborador.update({
+    where: { id: colaboradorId },
+    data: { dataDesligamento, motivoDesligamento: motivo },
+  });
+
+  await registrarAuditoria({
+    empresaId,
+    acao: "ATUALIZAR",
+    entidade: "Colaborador",
+    entidadeId: colaboradorId,
+    resumo: `Desligamento de ${colaborador.nome} corrigido: ${formatarData(dataDesligamento)}, ${motivoDesligamentoLabel(motivo)}.`,
+  });
+
+  revalidatePath(`/rh/${empresaId}/desligamentos`);
+  revalidatePath(`/rh/${empresaId}/colaboradores/${colaboradorId}`);
   return { ok: true };
 }
 

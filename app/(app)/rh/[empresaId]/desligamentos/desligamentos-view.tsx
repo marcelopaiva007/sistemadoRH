@@ -1,12 +1,22 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { ChevronLeft, ChevronRight, Pencil } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { motivoDesligamentoLabel } from "@/lib/constants-dp";
+import { MOTIVOS_DESLIGAMENTO, motivoDesligamentoLabel } from "@/lib/constants-dp";
+import { corrigirDadosDesligamento } from "@/lib/actions/rh-offboarding";
 import { formatarData } from "@/lib/datas";
 import { Indicador } from "@/components/indicador";
+import { CampoData, CampoSelect, FormularioAction } from "../colaboradores/[colaboradorId]/campos";
+
+// A lista cobre o recorte inteiro (105+ desligados) — sem paginação virava
+// rolagem infinita. Mesmo tamanho de página da tela de Férias.
+const ITENS_POR_PAGINA = 20;
 
 type Desligamento = {
   id: string;
@@ -29,6 +39,19 @@ export function DesligamentosView({
   desligamentos: Desligamento[];
   resumo: { total: number; semChecklist: number; checklistPendente: number; semEntrevista: number };
 }) {
+  const router = useRouter();
+  const [pagina, setPagina] = useState(1);
+  // Quem está sendo editado no diálogo de data/motivo — null fecha o diálogo.
+  const [editando, setEditando] = useState<Desligamento | null>(null);
+
+  const totalPaginas = Math.max(1, Math.ceil(desligamentos.length / ITENS_POR_PAGINA));
+  // Clampa em vez de useEffect — mesmo motivo da tela de Férias: a lista pode
+  // encolher entre renders (filtro de marca na lateral) e a página não pode
+  // ficar presa além do fim.
+  const paginaAtual = Math.min(pagina, totalPaginas);
+  const inicioPagina = (paginaAtual - 1) * ITENS_POR_PAGINA;
+  const visiveisNaPagina = desligamentos.slice(inicioPagina, inicioPagina + ITENS_POR_PAGINA);
+
   return (
     <div className="space-y-6">
       <div>
@@ -71,10 +94,11 @@ export function DesligamentosView({
                     <TableHead>Motivo</TableHead>
                     <TableHead>Checklist</TableHead>
                     <TableHead>Entrevista</TableHead>
+                    <TableHead className="w-10" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {desligamentos.map((d) => (
+                  {visiveisNaPagina.map((d) => (
                     <TableRow key={d.id}>
                       <TableCell>
                         <Link
@@ -114,14 +138,98 @@ export function DesligamentosView({
                           <Badge variant="outline">Pendente</Badge>
                         )}
                       </TableCell>
+                      <TableCell className="text-center">
+                        <button
+                          type="button"
+                          onClick={() => setEditando(d)}
+                          className="inline-block rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                          title="Corrigir data e motivo da saída"
+                        >
+                          <Pencil className="size-4" />
+                        </button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
             </div>
           )}
+
+          {desligamentos.length > 0 && (
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm text-muted-foreground">
+                {inicioPagina + 1}–{Math.min(inicioPagina + ITENS_POR_PAGINA, desligamentos.length)}{" "}
+                de {desligamentos.length}
+              </p>
+              {totalPaginas > 1 && (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPagina(paginaAtual - 1)}
+                    disabled={paginaAtual <= 1}
+                    className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+                  >
+                    <ChevronLeft className="size-4" />
+                    Anterior
+                  </button>
+                  <span className="text-sm text-muted-foreground tabular-nums">
+                    Página {paginaAtual} de {totalPaginas}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setPagina(paginaAtual + 1)}
+                    disabled={paginaAtual >= totalPaginas}
+                    className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+                  >
+                    Próxima
+                    <ChevronRight className="size-4" />
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      {/* Diálogo de correção: só data e motivo, direto da lista — completar os
+          desligamentos importados sem abrir 105 fichas. `key` remonta o
+          formulário a cada pessoa, senão o defaultValue da anterior vaza. */}
+      <Dialog open={editando !== null} onOpenChange={(aberto) => !aberto && setEditando(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Corrigir desligamento{editando && ` — ${editando.nome}`}</DialogTitle>
+          </DialogHeader>
+          {editando && (
+            <FormularioAction
+              key={editando.id}
+              // O CNPJ da LINHA, não o da rota: a lista soma vários CNPJs, e a
+              // action valida acesso + escopa a busca por essa empresa.
+              action={corrigirDadosDesligamento.bind(null, editando.empresaId, editando.id)}
+              textoBotao="Salvar"
+              mensagemSucesso="Desligamento corrigido."
+              onSuccess={() => {
+                setEditando(null);
+                // A action revalida o caminho do CNPJ da linha; quando a rota
+                // atual é de outro CNPJ, é este refresh que atualiza a tabela.
+                router.refresh();
+              }}
+            >
+              <CampoData
+                name="dataDesligamento"
+                label="Data de saída"
+                defaultValue={editando.dataDesligamento}
+              />
+              <CampoSelect
+                name="motivoDesligamento"
+                label="Motivo da saída"
+                opcoes={MOTIVOS_DESLIGAMENTO}
+                defaultValue={editando.motivoDesligamento}
+                required
+              />
+            </FormularioAction>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
