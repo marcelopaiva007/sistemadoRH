@@ -244,7 +244,7 @@ export function TimeView({
           </div>
 
           <div className="overflow-x-auto">
-            <Table>
+            <Table compacta>
               <TableHeader>
                 <TableRow>
                   <TableHead>Nome</TableHead>

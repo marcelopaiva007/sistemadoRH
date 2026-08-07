@@ -115,7 +115,7 @@ export function CandidatosView({
             </p>
           ) : (
             <div className="rounded-md border">
-              <Table>
+              <Table compacta>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Candidato</TableHead>

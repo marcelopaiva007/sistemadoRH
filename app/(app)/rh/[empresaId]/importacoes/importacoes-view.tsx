@@ -198,7 +198,7 @@ export function ImportacoesView({
 
             {relatorio.problemas.length > 0 && (
               <div className="rounded-md border">
-                <Table>
+                <Table compacta>
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-20">Linha</TableHead>

@@ -129,7 +129,7 @@ export function VagasView({
             <p className="py-6 text-center text-sm text-muted-foreground">Nenhuma vaga cadastrada ainda.</p>
           ) : (
             <div className="rounded-md border">
-              <Table>
+              <Table compacta>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Vaga</TableHead>

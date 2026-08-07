@@ -66,7 +66,7 @@ export default async function AuditoriaPage({
           </p>
         ) : (
           <div className="rounded-md border">
-            <Table>
+            <Table compacta>
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-44">Quando</TableHead>

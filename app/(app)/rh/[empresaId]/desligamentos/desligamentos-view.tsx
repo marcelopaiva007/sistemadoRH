@@ -84,7 +84,7 @@ export function DesligamentosView({
             </p>
           ) : (
             <div className="rounded-md border">
-              <Table>
+              <Table compacta>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Colaborador</TableHead>

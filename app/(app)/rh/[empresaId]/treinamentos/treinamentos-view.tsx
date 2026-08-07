@@ -143,7 +143,7 @@ export function TreinamentosView({
             </p>
           ) : (
             <div className="overflow-x-auto rounded-md border">
-              <Table>
+              <Table compacta>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Colaborador</TableHead>
