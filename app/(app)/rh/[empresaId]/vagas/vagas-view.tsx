@@ -19,6 +19,8 @@ import { TIPOS_CONTRATO } from "@/lib/constants-dp";
 import { formatarData } from "@/lib/datas";
 import type { ActionResult } from "@/lib/constants";
 import { Indicador } from "@/components/indicador";
+import { Paginacao } from "@/components/paginacao";
+import { usePaginacao } from "@/lib/use-paginacao";
 
 const initialState: ActionResult = { ok: true };
 const classeSelect =
@@ -57,6 +59,7 @@ export function VagasView({
   posicoes: { id: string; nome: string }[];
 }) {
   const [criarAberto, setCriarAberto] = useState(false);
+  const { itensDaPagina: vagasNaPagina, ...paginacao } = usePaginacao(vagas);
 
   const abertas = vagas.filter((v) => v.status === "ABERTA").length;
   const candidatosAtivos = vagas.reduce((s, v) => s + v.emAndamento, 0);
@@ -141,7 +144,7 @@ export function VagasView({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {vagas.map((v) => (
+                  {vagasNaPagina.map((v) => (
                     <TableRow key={v.id}>
                       <TableCell>
                         <Link href={`/rh/${empresaId}/vagas/${v.id}`} className="font-medium hover:underline">
@@ -176,6 +179,15 @@ export function VagasView({
               </Table>
             </div>
           )}
+          <div className="mt-4">
+            <Paginacao
+              total={paginacao.total}
+              porPagina={paginacao.porPagina}
+              paginaAtual={paginacao.paginaAtual}
+              totalPaginas={paginacao.totalPaginas}
+              onMudarPagina={paginacao.irPara}
+            />
+          </div>
         </CardContent>
       </Card>
     </div>

@@ -12,6 +12,8 @@ import { conferirPlanilha, confirmarImportacao } from "@/lib/actions/rh-importac
 import type { RelatorioConferencia, ResultadoImportacao } from "@/lib/actions/rh-importacao";
 import { formatarDataHoraBrasilia } from "@/lib/datas";
 import { Indicador } from "@/components/indicador";
+import { Paginacao } from "@/components/paginacao";
+import { usePaginacao } from "@/lib/use-paginacao";
 
 type ItemHistorico = {
   id: string;
@@ -73,6 +75,11 @@ export function ImportacoesView({
   );
 
   const totalOk = relatorio ? relatorio.criar.length + relatorio.atualizar.length : 0;
+  // Array estável mesmo com relatório nulo: hook não pode ser chamado dentro
+  // do `{relatorio && (...)}` — regra dos hooks exige topo incondicional.
+  const { itensDaPagina: problemasNaPagina, ...paginacaoProblemas } = usePaginacao(
+    relatorio?.problemas ?? [],
+  );
 
   return (
     <div className="space-y-6">
@@ -207,7 +214,7 @@ export function ImportacoesView({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {relatorio.problemas.map((p) => (
+                    {problemasNaPagina.map((p) => (
                       <TableRow key={p.numeroDaLinha}>
                         <TableCell className="tabular-nums">{p.numeroDaLinha}</TableCell>
                         <TableCell>{p.nome}</TableCell>
@@ -218,6 +225,15 @@ export function ImportacoesView({
                     ))}
                   </TableBody>
                 </Table>
+                <div className="border-t p-2">
+                  <Paginacao
+                    total={paginacaoProblemas.total}
+                    porPagina={paginacaoProblemas.porPagina}
+                    paginaAtual={paginacaoProblemas.paginaAtual}
+                    totalPaginas={paginacaoProblemas.totalPaginas}
+                    onMudarPagina={paginacaoProblemas.irPara}
+                  />
+                </div>
               </div>
             )}
 

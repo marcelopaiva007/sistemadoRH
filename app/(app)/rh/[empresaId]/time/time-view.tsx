@@ -27,6 +27,8 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Indicador } from "@/components/indicador";
+import { Paginacao } from "@/components/paginacao";
+import { usePaginacao } from "@/lib/use-paginacao";
 import { gerarTrilhaPadrao } from "@/lib/actions/rh-onboarding";
 import { formatarData } from "@/lib/datas";
 import { normalizarTexto } from "@/lib/text";
@@ -80,9 +82,9 @@ export function TimeView({
   time: MeuTime;
   escopo: { cnpjs: number; marcas: string[] };
 }) {
-  const [setor, setSetor] = useState<string>(TODOS_OS_SETORES);
-  const [sinal, setSinal] = useState<Sinal>("TODOS");
-  const [busca, setBusca] = useState("");
+  const [setor, setSetorBruto] = useState<string>(TODOS_OS_SETORES);
+  const [sinal, setSinalBruto] = useState<Sinal>("TODOS");
+  const [busca, setBuscaBruta] = useState("");
 
   const { linhas, recemChegados, resumo, avisos } = time;
 
@@ -122,6 +124,20 @@ export function TimeView({
           l.empresa.toLowerCase().includes(termo),
       );
   }, [linhas, setor, sinal, busca]);
+
+  const { itensDaPagina: visiveisNaPagina, resetar, ...paginacao } = usePaginacao(visiveis);
+  const setSetor = (v: string) => {
+    setSetorBruto(v);
+    resetar();
+  };
+  const setSinal = (v: Sinal) => {
+    setSinalBruto(v);
+    resetar();
+  };
+  const setBusca = (v: string) => {
+    setBuscaBruta(v);
+    resetar();
+  };
 
   // O bloco de recém-chegados respeita o recorte de setor (é "quem entrou NO
   // meu time"), mas ignora busca e sinal: ele é uma lista de trabalho, não um
@@ -256,7 +272,7 @@ export function TimeView({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {visiveis.map((l) => (
+                {visiveisNaPagina.map((l) => (
                   <TableRow key={l.id}>
                     <TableCell>
                       {/* Link com o empresaId da PESSOA, não o da URL: a ficha é
@@ -314,6 +330,14 @@ export function TimeView({
               </TableBody>
             </Table>
           </div>
+
+          <Paginacao
+            total={paginacao.total}
+            porPagina={paginacao.porPagina}
+            paginaAtual={paginacao.paginaAtual}
+            totalPaginas={paginacao.totalPaginas}
+            onMudarPagina={paginacao.irPara}
+          />
         </CardContent>
       </Card>
 

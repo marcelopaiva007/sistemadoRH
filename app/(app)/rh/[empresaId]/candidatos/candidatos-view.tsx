@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Paginacao } from "@/components/paginacao";
+import { usePaginacao } from "@/lib/use-paginacao";
 import { etapaFunilLabel, origemCandidatoLabel } from "@/lib/constants-ats";
 import { formatarData } from "@/lib/datas";
 
@@ -48,6 +50,7 @@ export function CandidatosView({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [termo, setTermo] = useState(busca);
+  const { itensDaPagina: candidatosNaPagina, resetar, ...paginacao } = usePaginacao(candidatos);
 
   function aplicar(novoTermo: string, disponivel: boolean) {
     const p = new URLSearchParams(searchParams.toString());
@@ -55,6 +58,7 @@ export function CandidatosView({
     else p.delete("q");
     if (disponivel) p.set("disponivel", "1");
     else p.delete("disponivel");
+    resetar();
     router.push(`/rh/${empresaId}/candidatos?${p.toString()}`);
   }
 
@@ -126,7 +130,7 @@ export function CandidatosView({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {candidatos.map((c) => (
+                  {candidatosNaPagina.map((c) => (
                     <TableRow key={c.id}>
                       <TableCell>
                         <div className="font-medium">{c.nome}</div>
@@ -193,6 +197,15 @@ export function CandidatosView({
               </Table>
             </div>
           )}
+          <div className="mt-4">
+            <Paginacao
+              total={paginacao.total}
+              porPagina={paginacao.porPagina}
+              paginaAtual={paginacao.paginaAtual}
+              totalPaginas={paginacao.totalPaginas}
+              onMudarPagina={paginacao.irPara}
+            />
+          </div>
         </CardContent>
       </Card>
     </div>

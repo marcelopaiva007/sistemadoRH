@@ -16,6 +16,8 @@ import { criarTreinamento, alternarTreinamentoAtivo } from "@/lib/actions/rh-tre
 import { competenciaLabel } from "@/lib/constants-avaliacao";
 import type { OpcaoCatalogo } from "@/lib/catalogos";
 import type { ActionResult } from "@/lib/constants";
+import { Paginacao } from "@/components/paginacao";
+import { usePaginacao } from "@/lib/use-paginacao";
 
 const initialState: ActionResult = { ok: true };
 
@@ -44,6 +46,7 @@ export function TreinamentosView({
   competenciasDisponiveis: OpcaoCatalogo[];
 }) {
   const [criarAberto, setCriarAberto] = useState(false);
+  const { itensDaPagina: matrizNaPagina, ...paginacaoMatriz } = usePaginacao(matriz);
 
   return (
     <div className="space-y-6">
@@ -155,7 +158,7 @@ export function TreinamentosView({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {matriz.map((linha) => (
+                  {matrizNaPagina.map((linha) => (
                     <TableRow key={linha.colaboradorId}>
                       <TableCell className="font-medium whitespace-nowrap">{linha.nome}</TableCell>
                       {competenciasDisponiveis.map((c) => (
@@ -169,6 +172,15 @@ export function TreinamentosView({
               </Table>
             </div>
           )}
+          <div className="mt-4">
+            <Paginacao
+              total={paginacaoMatriz.total}
+              porPagina={paginacaoMatriz.porPagina}
+              paginaAtual={paginacaoMatriz.paginaAtual}
+              totalPaginas={paginacaoMatriz.totalPaginas}
+              onMudarPagina={paginacaoMatriz.irPara}
+            />
+          </div>
         </CardContent>
       </Card>
     </div>

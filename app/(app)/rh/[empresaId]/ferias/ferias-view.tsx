@@ -17,20 +17,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Indicador } from "@/components/indicador";
+import { Paginacao } from "@/components/paginacao";
+import { usePaginacao } from "@/lib/use-paginacao";
 import { STATUS_PERIODO_LABEL, type StatusPeriodo } from "@/lib/ferias";
 import type { OrigemHistorico, ProgramacaoFerias, ValorEmReais } from "@/lib/ferias-passivo";
 import { formatarReais } from "@/lib/constants-beneficios";
 import { formatarData } from "@/lib/datas";
 import { normalizarTexto } from "@/lib/text";
-import {
-  CalendarOff,
-  CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
-  Info,
-  Scale,
-  TriangleAlert,
-} from "lucide-react";
+import { CalendarOff, CheckCircle2, ChevronRight, Info, Scale, TriangleAlert } from "lucide-react";
 import type { LinhaFerias, PassivoNaTela } from "./page";
 
 // O QUE ESTA TELA NÃO MOSTRA, DE PROPÓSITO:
@@ -68,10 +62,6 @@ const ORDENS = [
 type Ordem = (typeof ORDENS)[number]["chave"];
 
 const TODOS_OS_SETORES = "__todos";
-
-// A lista de "Situação por colaborador" cobre a marca inteira — sem limite,
-// uma marca de 300+ pessoas virava uma tela só de rolagem de tabela.
-const ITENS_POR_PAGINA = 20;
 
 const VARIANTE: Record<StatusPeriodo, "default" | "secondary" | "destructive" | "outline"> = {
   EM_CURSO: "outline",
@@ -141,30 +131,10 @@ export function FeriasView({
   const filtroInicial: Filtro = FILTROS.some((f) => f.chave === filtroDaUrl)
     ? (filtroDaUrl as Filtro)
     : "TODOS";
-  const [filtro, setFiltroBruto] = useState<Filtro>(filtroInicial);
-  const [setor, setSetorBruto] = useState<string>(TODOS_OS_SETORES);
-  const [ordem, setOrdemBruto] = useState<Ordem>("PRAZO");
-  const [busca, setBuscaBruta] = useState("");
-  const [pagina, setPagina] = useState(1);
-
-  // Qualquer filtro/ordenação nova volta para a página 1 — senão dá pra
-  // sobrar numa página 4 vazia depois de estreitar a busca.
-  const setFiltro = (v: Filtro) => {
-    setFiltroBruto(v);
-    setPagina(1);
-  };
-  const setSetor = (v: string) => {
-    setSetorBruto(v);
-    setPagina(1);
-  };
-  const setOrdem = (v: Ordem) => {
-    setOrdemBruto(v);
-    setPagina(1);
-  };
-  const setBusca = (v: string) => {
-    setBuscaBruta(v);
-    setPagina(1);
-  };
+  const [filtro, setFiltro] = useState<Filtro>(filtroInicial);
+  const [setor, setSetor] = useState<string>(TODOS_OS_SETORES);
+  const [ordem, setOrdem] = useState<Ordem>("PRAZO");
+  const [busca, setBusca] = useState("");
 
   const contagem = useMemo(() => {
     const conta = (s: StatusPeriodo) =>
@@ -230,12 +200,20 @@ export function FeriasView({
       });
   }, [linhas, filtro, setor, ordem, busca]);
 
-  const totalPaginas = Math.max(1, Math.ceil(visiveis.length / ITENS_POR_PAGINA));
-  // Clampa em vez de useEffect: `linhas` pode encolher entre renders (troca de
-  // filtro de empresa na lateral) e a página não pode ficar presa além do fim.
-  const paginaAtual = Math.min(pagina, totalPaginas);
-  const inicioPagina = (paginaAtual - 1) * ITENS_POR_PAGINA;
-  const visiveisNaPagina = visiveis.slice(inicioPagina, inicioPagina + ITENS_POR_PAGINA);
+  const { itensDaPagina: visiveisNaPagina, ...paginacao } = usePaginacao(visiveis);
+
+  // Qualquer filtro/busca/ordenação nova volta para a página 1 — senão dá pra
+  // sobrar numa página vazia depois de estreitar a lista.
+  const comReset =
+    <A,>(setter: (v: A) => void) =>
+    (v: A) => {
+      setter(v);
+      paginacao.resetar();
+    };
+  const mudarFiltro = comReset(setFiltro);
+  const mudarSetor = comReset(setSetor);
+  const mudarOrdem = comReset(setOrdem);
+  const mudarBusca = comReset(setBusca);
 
   // Cobertura salarial do recorte inteiro: é ela que decide se o total do grupo
   // sai em R$ ou como "sem dado".
@@ -371,12 +349,12 @@ export function FeriasView({
                 <Input
                   placeholder="Buscar por nome, setor ou CNPJ..."
                   value={busca}
-                  onChange={(e) => setBusca(e.target.value)}
+                  onChange={(e) => mudarBusca(e.target.value)}
                   className="max-w-xs"
                 />
                 <Select
                   value={setor}
-                  onValueChange={(v) => setSetor(!v ? TODOS_OS_SETORES : String(v))}
+                  onValueChange={(v) => mudarSetor(!v ? TODOS_OS_SETORES : String(v))}
                   items={Object.fromEntries([
                     [TODOS_OS_SETORES, "Todos os setores"],
                     ...setores.map((s) => [s.chave, `${s.rotulo} (${s.total})`] as const),
@@ -396,7 +374,7 @@ export function FeriasView({
                 </Select>
                 <Select
                   value={ordem}
-                  onValueChange={(v) => setOrdem((v as Ordem) ?? "PRAZO")}
+                  onValueChange={(v) => mudarOrdem((v as Ordem) ?? "PRAZO")}
                   items={Object.fromEntries(ORDENS.map((o) => [o.chave, `Ordenar: ${o.rotulo}`]))}
                 >
                   <SelectTrigger className="w-56">
@@ -415,7 +393,7 @@ export function FeriasView({
                     <button
                       key={f.chave}
                       type="button"
-                      onClick={() => setFiltro(f.chave)}
+                      onClick={() => mudarFiltro(f.chave)}
                       className={
                         filtro === f.chave
                           ? "rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"
@@ -523,39 +501,13 @@ export function FeriasView({
                 </div>
               </div>
 
-              {visiveis.length > 0 && (
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-sm text-muted-foreground">
-                    {inicioPagina + 1}–{Math.min(inicioPagina + ITENS_POR_PAGINA, visiveis.length)} de{" "}
-                    {visiveis.length}
-                  </p>
-                  {totalPaginas > 1 && (
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setPagina(paginaAtual - 1)}
-                        disabled={paginaAtual <= 1}
-                        className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
-                      >
-                        <ChevronLeft className="size-4" />
-                        Anterior
-                      </button>
-                      <span className="text-sm text-muted-foreground tabular-nums">
-                        Página {paginaAtual} de {totalPaginas}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setPagina(paginaAtual + 1)}
-                        disabled={paginaAtual >= totalPaginas}
-                        className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
-                      >
-                        Próxima
-                        <ChevronRight className="size-4" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
+              <Paginacao
+                total={paginacao.total}
+                porPagina={paginacao.porPagina}
+                paginaAtual={paginacao.paginaAtual}
+                totalPaginas={paginacao.totalPaginas}
+                onMudarPagina={paginacao.irPara}
+              />
             </CardContent>
           </Card>
         </TabsContent>
