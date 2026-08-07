@@ -192,7 +192,6 @@ export default async function FeriasPage({
 
   return (
     <FeriasView
-      empresaId={empresaId}
       linhas={linhas}
       passivo={passivoNaTela}
       programacao={programacao}

@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Indicador } from "@/components/indicador";
 import { STATUS_PERIODO_LABEL, type StatusPeriodo } from "@/lib/ferias";
@@ -100,14 +101,12 @@ const emReaisComSaldo = (dias: number, v: number | null) => (dias === 0 ? "—" 
 const plural = (n: number, um: string, muitos: string) => `${n} ${n === 1 ? um : muitos}`;
 
 export function FeriasView({
-  empresaId,
   linhas,
   passivo,
   programacao,
   origem,
   escopo,
 }: {
-  empresaId: string;
   linhas: LinhaFerias[];
   passivo: PassivoNaTela;
   programacao: ProgramacaoFerias;
@@ -212,472 +211,490 @@ export function FeriasView({
         </p>
       </div>
 
-      {/* --- Passivo ---------------------------------------------------------
-          Dias e reais em blocos separados de propósito: nem todo dia de saldo
-          vira real, e uma coluna só somaria os dois tipos de ignorância. */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Scale className="size-4" />
-            Passivo de férias
-          </CardTitle>
-          <CardDescription>
-            Saldo acumulado do recorte, em dias e em reais. Base de cálculo: dias × salário base ÷ 30
-            × 4/3 (1/3 constitucional) — <b>sem encargos patronais</b> (INSS, FGTS), então o
-            desembolso real é maior que o exibido.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      {/* Duas abas, não uma tela só: "Fila por colaborador" é o trabalho do
+          dia a dia (quem programar), "Passivo & panorama" é o relatório que
+          se consulta de vez em quando (quanto isso custa/expõe o grupo). Uma
+          tela só com os dois virou rolagem longa demais para achar qualquer
+          coisa — cada aba carrega metade da informação. */}
+      <Tabs defaultValue="fila">
+        <TabsList variant="line">
+          <TabsTrigger value="fila">Fila por colaborador ({linhas.length})</TabsTrigger>
+          <TabsTrigger value="passivo">Passivo &amp; panorama</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="fila" className="space-y-6 pt-4">
+          {/* --- Fila por pessoa -------------------------------------------- */}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Indicador
-              rotulo="Saldo total"
-              valor={`${passivo.diasTotais} dias`}
-              complemento={`em ${plural(passivo.ativosConsiderados, "ativo", "ativos")}`}
-            />
-            <Indicador
-              rotulo="Provisão (R$)"
-              valor={emReaisComSaldo(passivo.diasTotais, provisaoGrupo)}
+              rotulo="Vencidas confirmadas"
+              valor={contagem.vencidas}
               complemento={
-                passivo.diasTotais === 0
-                  ? "nenhum saldo a provisionar"
-                  : provisaoGrupo === null
-                    ? `salário cadastrado cobre ${passivo.provisao.total.diasValorados} dos ${passivo.diasTotais} dias — não dá para somar`
-                    : passivo.provisao.total.parcial
-                      ? `${passivo.provisao.total.diasValorados} de ${passivo.diasTotais} dias valorados — piso, não total`
-                      : `${passivo.provisao.total.diasValorados} dias valorados`
-              }
-            />
-            <Indicador
-              rotulo="Vencidas (art. 137)"
-              valor={`${passivo.vencido.dias} dias`}
-              complemento={`${plural(passivo.vencido.pessoas, "pessoa", "pessoas")}${
                 passivo.vencido.pessoasSemHistorico > 0
-                  ? ` · ${passivo.vencido.pessoasSemHistorico} sem histórico a confirmar`
-                  : ""
-              }`}
-              alerta={passivo.vencido.dias > 0}
+                  ? `+${passivo.vencido.pessoasSemHistorico} com período vencido e sem histórico`
+                  : "com histórico de gozo registrado"
+              }
+              alerta={contagem.vencidas > 0}
             />
             <Indicador
-              rotulo="Exposição vencida"
-              valor={emReaisComSaldo(passivo.vencido.dias, vencidoGrupo)}
-              complemento={
-                passivo.vencido.dias === 0
-                  ? "nenhuma férias vencida no recorte"
-                  : vencidoEmDobro === null
-                    ? "sem salário cadastrado para valorar estes dias"
-                    : `em dobro: ${formatarReais(vencidoEmDobro)}${
-                        passivo.vencido.valor.parcial
-                          ? ` · ${passivo.vencido.valor.diasSemValoracao} dias sem valoração`
-                          : ""
-                      }`
-              }
-              alerta={vencidoGrupo !== null && vencidoGrupo > 0}
+              rotulo="Vencendo em 90 dias"
+              valor={contagem.vencendo}
+              atencao={contagem.vencendo > 0}
+            />
+            <Indicador rotulo="Com saldo disponível" valor={contagem.disponiveis} />
+            <Indicador
+              rotulo="Sem histórico"
+              valor={contagem.semHistorico}
+              complemento="conferir antes de cobrar"
+              atencao={contagem.semHistorico > 0}
             />
           </div>
 
-          <div className="rounded-md border">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>CNPJ</TableHead>
-                    <TableHead className="text-right">Ativos</TableHead>
-                    <TableHead className="text-right">Saldo (dias)</TableHead>
-                    <TableHead className="text-right">Provisão (R$)</TableHead>
-                    <TableHead className="text-right">Vencidas (dias)</TableHead>
-                    <TableHead className="text-right">Exposição (R$)</TableHead>
-                    <TableHead className="text-right">Com salário</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {passivo.porEmpresa.map((e) => {
-                    const provisao = reaisOuSemDado(e.valor, e);
-                    const exposicao = reaisOuSemDado(e.valorVencido, e);
-                    return (
-                      <TableRow key={e.empresaId}>
-                        <TableCell className="font-medium">{e.empresa}</TableCell>
-                        <TableCell className="text-right tabular-nums">{e.ativos}</TableCell>
-                        <TableCell className="text-right tabular-nums">{e.dias}</TableCell>
-                        <TableCell
-                          className={
-                            provisao === null
-                              ? "text-right text-muted-foreground"
-                              : "text-right tabular-nums"
-                          }
-                        >
-                          {emReaisComSaldo(e.dias, provisao)}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {e.diasVencidos > 0 ? (
-                            <span className="text-destructive">{e.diasVencidos}</span>
-                          ) : (
-                            "0"
-                          )}
-                        </TableCell>
-                        <TableCell
-                          className={
-                            exposicao === null
-                              ? "text-right text-muted-foreground"
-                              : "text-right tabular-nums"
-                          }
-                        >
-                          {emReaisComSaldo(e.diasVencidos, exposicao)}
-                        </TableCell>
-                        <TableCell className="text-right text-muted-foreground tabular-nums">
-                          {e.ativos - e.semSalario} de {e.ativos}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          </div>
-
-          {/* A frase que impede a leitura "o grupo deve R$ X": a soma cobre parte
-              dos CNPJs, e é preciso dizer quais e por quê. */}
-          {totalSemSalario > 0 && (
+          {contagem.semHistorico > 0 && (
             <Alert>
               <TriangleAlert />
               <AlertDescription>
                 <b>
-                  {totalSemSalario} dos {coberturaGrupo.ativos} ativos não têm salário cadastrado
+                  {contagem.semHistorico} colaborador(es) não têm nenhuma férias registrada e já
+                  passaram do primeiro período aquisitivo
                 </b>{" "}
-                ({cnpjsSemSalario.map((e) => `${e.empresa} ${e.semSalario}`).join(", ")}).{" "}
-                {passivo.semValoracao.dias > 0 ? (
+                — carregam {passivo.semHistorico.dias} dos {passivo.diasTotais} dias de saldo do
+                recorte. Se de fato nunca gozaram, o passivo da aba ao lado é maior do que parece; se
+                o histórico não foi importado, está inflado. Não dá para saber pelo dado: a base foi
+                importada sem o histórico de gozo. Enquanto não forem conferidos, esses não entram na
+                conta de &quot;vencidas confirmadas&quot;. Para corrigir, abra a ficha da pessoa e
+                lance as férias já gozadas no cartão de Férias.
+                {passivo.semHistorico.semRegistroAlgum > contagem.semHistorico && (
                   <>
-                    Eles carregam {passivo.semValoracao.dias} dias de saldo que{" "}
-                    <b>não entram na conta em reais</b> — esses dias não valem R$ 0, valem um número
-                    que ninguém sabe.{" "}
-                    {cnpjsComValor === 0 ? (
-                      <>
-                        Nenhum CNPJ deste recorte tem cobertura salarial suficiente para somar
-                        reais: aqui a leitura é em <b>dias</b>, não em dinheiro.
-                      </>
-                    ) : (
-                      <>
-                        Os valores desta tela vêm dos{" "}
-                        {plural(cnpjsComValor, "CNPJ", "CNPJs")} com dado suficiente, e são{" "}
-                        <b>piso</b>, não total.
-                      </>
-                    )}
+                    {" "}
+                    No recorte inteiro são {passivo.semHistorico.semRegistroAlgum} ativos sem
+                    registro nenhum — os demais ainda não fecharam 12 meses de casa, então não têm
+                    período adquirido nem saldo.
                   </>
-                ) : (
-                  <>
-                    Hoje nenhum deles tem saldo acumulado, então nada ficou de fora da soma — mas
-                    assim que fecharem 12 meses de casa o valor desses CNPJs passa a ser
-                    desconhecido, e não zero.
-                  </>
-                )}{" "}
-                Coluna de dias e coluna de reais são separadas por isso.
+                )}
               </AlertDescription>
             </Alert>
           )}
-        </CardContent>
-      </Card>
 
-      {/* --- Programação ------------------------------------------------------ */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Programação dos próximos {programacao.janelaMeses} meses</CardTitle>
-          <CardDescription>
-            O que já está agendado, contra o que precisa ser agendado para não vencer.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
-          <div className="rounded-lg border border-dashed p-4">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <CalendarOff className="size-4 text-muted-foreground" />
-              Férias programadas: {programacao.agendadas}
-            </div>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {programacao.vazia ? (
-                <>
-                  Nada programado ainda — <b>as férias programadas aparecerão aqui</b> conforme o RH
-                  lançar os pedidos.{" "}
-                  {programacao.totalRegistros === 0 ? (
-                    <>Não há registro nenhum de férias neste recorte: nem histórico, nem agenda.</>
+          {origem.aviso && (
+            <Alert>
+              <Info />
+              <AlertDescription>
+                <b>O histórico de gozo é estimado.</b> {origem.aviso} Ou seja: o saldo em dias é
+                confiável, a linha do tempo não — não use as datas destes registros para reconstruir
+                quando alguém saiu de férias.
+                {origem.criadasNoSistema === 0 && (
+                  <> Nenhuma das solicitações nasceu de um pedido feito dentro do sistema.</>
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {passivo.ativosSemAdmissao > 0 && (
+            <Alert>
+              <Info />
+              <AlertDescription>
+                <b>{passivo.ativosSemAdmissao} colaborador(es) ativos estão sem data de admissão</b>{" "}
+                e por isso ficam de fora desta tela e do passivo — sem ela não há período aquisitivo
+                para derivar.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Situação por colaborador</CardTitle>
+              <CardDescription>
+                Ordenada pelo prazo legal: quem está mais perto do limite (ou já passou) aparece
+                primeiro. O período mostrado é o mais próximo do limite entre os que ainda têm
+                saldo. Clique no nome para abrir a ficha, programar férias ou lançar as que já foram
+                gozadas.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <Input
+                  placeholder="Buscar por nome, setor ou CNPJ..."
+                  value={busca}
+                  onChange={(e) => setBusca(e.target.value)}
+                  className="max-w-xs"
+                />
+                <Select
+                  value={setor}
+                  onValueChange={(v) => setSetor(!v ? TODOS_OS_SETORES : String(v))}
+                  items={Object.fromEntries([
+                    [TODOS_OS_SETORES, "Todos os setores"],
+                    ...setores.map((s) => [s.chave, `${s.rotulo} (${s.total})`] as const),
+                  ])}
+                >
+                  <SelectTrigger className="w-56">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={TODOS_OS_SETORES}>Todos os setores</SelectItem>
+                    {setores.map((s) => (
+                      <SelectItem key={s.chave} value={s.chave}>
+                        {s.rotulo} ({s.total})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={ordem}
+                  onValueChange={(v) => setOrdem((v as Ordem) ?? "PRAZO")}
+                  items={Object.fromEntries(ORDENS.map((o) => [o.chave, `Ordenar: ${o.rotulo}`]))}
+                >
+                  <SelectTrigger className="w-56">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ORDENS.map((o) => (
+                      <SelectItem key={o.chave} value={o.chave}>
+                        Ordenar: {o.rotulo}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="flex flex-wrap gap-1">
+                  {FILTROS.map((f) => (
+                    <button
+                      key={f.chave}
+                      type="button"
+                      onClick={() => setFiltro(f.chave)}
+                      className={
+                        filtro === f.chave
+                          ? "rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"
+                          : "rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+                      }
+                    >
+                      {f.rotulo}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-md border">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Colaborador</TableHead>
+                        <TableHead>CNPJ</TableHead>
+                        <TableHead>Setor</TableHead>
+                        <TableHead>Período aquisitivo</TableHead>
+                        <TableHead>Gozar até</TableHead>
+                        <TableHead className="text-right">Saldo</TableHead>
+                        <TableHead>Situação</TableHead>
+                        <TableHead className="w-10" />
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {visiveis.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
+                            Nenhum colaborador nesta situação.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                      {visiveis.map((l) => (
+                        <TableRow key={l.colaboradorId}>
+                          <TableCell>
+                            <Link
+                              href={`/rh/${l.empresaId}/colaboradores/${l.colaboradorId}`}
+                              className="font-medium hover:underline"
+                            >
+                              {l.nome}
+                            </Link>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">{l.empresa}</TableCell>
+                          <TableCell className="text-muted-foreground">{l.setor}</TableCell>
+                          <TableCell className="tabular-nums">
+                            {l.periodo
+                              ? `${formatarData(l.periodo.inicio)} — ${formatarData(l.periodo.fim)}`
+                              : "—"}
+                          </TableCell>
+                          <TableCell className="tabular-nums">
+                            {l.periodo ? formatarData(l.periodo.limiteConcessivo) : "—"}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">{l.saldoTotal}</TableCell>
+                          <TableCell>
+                            {l.semHistorico ? (
+                              <Badge variant="outline">Sem histórico</Badge>
+                            ) : !l.periodo ? (
+                              <Badge variant="outline">Em dia</Badge>
+                            ) : l.periodo.status === "VENCIDO" ? (
+                              <Badge variant="destructive">
+                                Vencida há {Math.abs(l.periodo.diasAteLimite)} d
+                              </Badge>
+                            ) : l.periodo.status === "VENCENDO" ? (
+                              <Badge variant="secondary">Vence em {l.periodo.diasAteLimite} d</Badge>
+                            ) : (
+                              <Badge variant={VARIANTE[l.periodo.status]}>
+                                {STATUS_PERIODO_LABEL[l.periodo.status]}
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Link
+                              href={`/rh/${l.empresaId}/colaboradores/${l.colaboradorId}`}
+                              className="inline-block rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                              title="Abrir ficha do colaborador para conferência e correção"
+                            >
+                              <CheckCircle2 className="size-4" />
+                            </Link>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="passivo" className="space-y-6 pt-4">
+          {/* --- Passivo -----------------------------------------------------
+              Dias e reais em blocos separados de propósito: nem todo dia de
+              saldo vira real, e uma coluna só somaria os dois tipos de
+              ignorância. */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Scale className="size-4" />
+                Passivo de férias
+              </CardTitle>
+              <CardDescription>
+                Saldo acumulado do recorte, em dias e em reais. Base de cálculo: dias × salário base
+                ÷ 30 × 4/3 (1/3 constitucional) — <b>sem encargos patronais</b> (INSS, FGTS), então
+                o desembolso real é maior que o exibido.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <Indicador
+                  rotulo="Saldo total"
+                  valor={`${passivo.diasTotais} dias`}
+                  complemento={`em ${plural(passivo.ativosConsiderados, "ativo", "ativos")}`}
+                />
+                <Indicador
+                  rotulo="Provisão (R$)"
+                  valor={emReaisComSaldo(passivo.diasTotais, provisaoGrupo)}
+                  complemento={
+                    passivo.diasTotais === 0
+                      ? "nenhum saldo a provisionar"
+                      : provisaoGrupo === null
+                        ? `salário cadastrado cobre ${passivo.provisao.total.diasValorados} dos ${passivo.diasTotais} dias — não dá para somar`
+                        : passivo.provisao.total.parcial
+                          ? `${passivo.provisao.total.diasValorados} de ${passivo.diasTotais} dias valorados — piso, não total`
+                          : `${passivo.provisao.total.diasValorados} dias valorados`
+                  }
+                />
+                <Indicador
+                  rotulo="Vencidas (art. 137)"
+                  valor={`${passivo.vencido.dias} dias`}
+                  complemento={`${plural(passivo.vencido.pessoas, "pessoa", "pessoas")}${
+                    passivo.vencido.pessoasSemHistorico > 0
+                      ? ` · ${passivo.vencido.pessoasSemHistorico} sem histórico a confirmar`
+                      : ""
+                  }`}
+                  alerta={passivo.vencido.dias > 0}
+                />
+                <Indicador
+                  rotulo="Exposição vencida"
+                  valor={emReaisComSaldo(passivo.vencido.dias, vencidoGrupo)}
+                  complemento={
+                    passivo.vencido.dias === 0
+                      ? "nenhuma férias vencida no recorte"
+                      : vencidoEmDobro === null
+                        ? "sem salário cadastrado para valorar estes dias"
+                        : `em dobro: ${formatarReais(vencidoEmDobro)}${
+                            passivo.vencido.valor.parcial
+                              ? ` · ${passivo.vencido.valor.diasSemValoracao} dias sem valoração`
+                              : ""
+                          }`
+                  }
+                  alerta={vencidoGrupo !== null && vencidoGrupo > 0}
+                />
+              </div>
+
+              <div className="rounded-md border">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>CNPJ</TableHead>
+                        <TableHead className="text-right">Ativos</TableHead>
+                        <TableHead className="text-right">Saldo (dias)</TableHead>
+                        <TableHead className="text-right">Provisão (R$)</TableHead>
+                        <TableHead className="text-right">Vencidas (dias)</TableHead>
+                        <TableHead className="text-right">Exposição (R$)</TableHead>
+                        <TableHead className="text-right">Com salário</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {passivo.porEmpresa.map((e) => {
+                        const provisao = reaisOuSemDado(e.valor, e);
+                        const exposicao = reaisOuSemDado(e.valorVencido, e);
+                        return (
+                          <TableRow key={e.empresaId}>
+                            <TableCell className="font-medium">{e.empresa}</TableCell>
+                            <TableCell className="text-right tabular-nums">{e.ativos}</TableCell>
+                            <TableCell className="text-right tabular-nums">{e.dias}</TableCell>
+                            <TableCell
+                              className={
+                                provisao === null
+                                  ? "text-right text-muted-foreground"
+                                  : "text-right tabular-nums"
+                              }
+                            >
+                              {emReaisComSaldo(e.dias, provisao)}
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums">
+                              {e.diasVencidos > 0 ? (
+                                <span className="text-destructive">{e.diasVencidos}</span>
+                              ) : (
+                                "0"
+                              )}
+                            </TableCell>
+                            <TableCell
+                              className={
+                                exposicao === null
+                                  ? "text-right text-muted-foreground"
+                                  : "text-right tabular-nums"
+                              }
+                            >
+                              {emReaisComSaldo(e.diasVencidos, exposicao)}
+                            </TableCell>
+                            <TableCell className="text-right text-muted-foreground tabular-nums">
+                              {e.ativos - e.semSalario} de {e.ativos}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+
+              {/* A frase que impede a leitura "o grupo deve R$ X": a soma cobre
+                  parte dos CNPJs, e é preciso dizer quais e por quê. */}
+              {totalSemSalario > 0 && (
+                <Alert>
+                  <TriangleAlert />
+                  <AlertDescription>
+                    <b>
+                      {totalSemSalario} dos {coberturaGrupo.ativos} ativos não têm salário cadastrado
+                    </b>{" "}
+                    ({cnpjsSemSalario.map((e) => `${e.empresa} ${e.semSalario}`).join(", ")}).{" "}
+                    {passivo.semValoracao.dias > 0 ? (
+                      <>
+                        Eles carregam {passivo.semValoracao.dias} dias de saldo que{" "}
+                        <b>não entram na conta em reais</b> — esses dias não valem R$ 0, valem um
+                        número que ninguém sabe.{" "}
+                        {cnpjsComValor === 0 ? (
+                          <>
+                            Nenhum CNPJ deste recorte tem cobertura salarial suficiente para somar
+                            reais: aqui a leitura é em <b>dias</b>, não em dinheiro.
+                          </>
+                        ) : (
+                          <>
+                            Os valores desta tela vêm dos{" "}
+                            {plural(cnpjsComValor, "CNPJ", "CNPJs")} com dado suficiente, e são{" "}
+                            <b>piso</b>, não total.
+                          </>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        Hoje nenhum deles tem saldo acumulado, então nada ficou de fora da soma — mas
+                        assim que fecharem 12 meses de casa o valor desses CNPJs passa a ser
+                        desconhecido, e não zero.
+                      </>
+                    )}{" "}
+                    Coluna de dias e coluna de reais são separadas por isso.
+                  </AlertDescription>
+                </Alert>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* --- Programação --------------------------------------------- */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Programação dos próximos {programacao.janelaMeses} meses</CardTitle>
+              <CardDescription>
+                O que já está agendado, contra o que precisa ser agendado para não vencer.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-2">
+              <div className="rounded-lg border border-dashed p-4">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <CalendarOff className="size-4 text-muted-foreground" />
+                  Férias programadas: {programacao.agendadas}
+                </div>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {programacao.vazia ? (
+                    <>
+                      Nada programado ainda — <b>as férias programadas aparecerão aqui</b> conforme
+                      o RH lançar os pedidos.{" "}
+                      {programacao.totalRegistros === 0 ? (
+                        <>Não há registro nenhum de férias neste recorte: nem histórico, nem agenda.</>
+                      ) : (
+                        <>
+                          Os {programacao.totalRegistros} registros existentes são histórico já
+                          gozado, não agenda
+                          {programacao.ultimoInicioRegistrado &&
+                            ` (o mais recente começa em ${formatarData(programacao.ultimoInicioRegistrado)})`}
+                          . O módulo hoje é arquivo do DP, não ferramenta de programação.
+                        </>
+                      )}
+                    </>
                   ) : (
                     <>
-                      Os {programacao.totalRegistros} registros existentes são histórico já gozado,
-                      não agenda
-                      {programacao.ultimoInicioRegistrado &&
-                        ` (o mais recente começa em ${formatarData(programacao.ultimoInicioRegistrado)})`}
-                      . O módulo hoje é arquivo do DP, não ferramenta de programação.
+                      {plural(programacao.agendadas, "período começa", "períodos começam")} nos
+                      próximos {programacao.janelaMeses} meses, de {programacao.totalRegistros}{" "}
+                      registros no histórico.
                     </>
                   )}
-                </>
-              ) : (
-                <>
-                  {plural(programacao.agendadas, "período começa", "períodos começam")} nos próximos{" "}
-                  {programacao.janelaMeses} meses, de {programacao.totalRegistros} registros no
-                  histórico.
-                </>
-              )}
-            </p>
-          </div>
+                </p>
+              </div>
 
-          <div className="rounded-lg border p-4">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <Info className="size-4 text-muted-foreground" />
-              Precisam sair em até {passivo.fila.janelaMeses} meses: {passivo.fila.dias} dias
-            </div>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {plural(passivo.fila.pessoas, "pessoa atinge", "pessoas atingem")} o limite legal
-              dentro da janela e ainda dá para agendar sem pagamento em dobro. Quem já venceu não
-              entra nesta conta — está no bloco de cima.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+              <div className="rounded-lg border p-4">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <Info className="size-4 text-muted-foreground" />
+                  Precisam sair em até {passivo.fila.janelaMeses} meses: {passivo.fila.dias} dias
+                </div>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {plural(passivo.fila.pessoas, "pessoa atinge", "pessoas atingem")} o limite legal
+                  dentro da janela e ainda dá para agendar sem pagamento em dobro. Quem já venceu não
+                  entra nesta conta — está no bloco de cima.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
 
-      {/* --- Fila por pessoa -------------------------------------------------- */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Indicador
-          rotulo="Vencidas confirmadas"
-          valor={contagem.vencidas}
-          complemento={
-            passivo.vencido.pessoasSemHistorico > 0
-              ? `+${passivo.vencido.pessoasSemHistorico} com período vencido e sem histórico`
-              : "com histórico de gozo registrado"
-          }
-          alerta={contagem.vencidas > 0}
-        />
-        <Indicador
-          rotulo="Vencendo em 90 dias"
-          valor={contagem.vencendo}
-          atencao={contagem.vencendo > 0}
-        />
-        <Indicador rotulo="Com saldo disponível" valor={contagem.disponiveis} />
-        <Indicador
-          rotulo="Sem histórico"
-          valor={contagem.semHistorico}
-          complemento="conferir antes de cobrar"
-          atencao={contagem.semHistorico > 0}
-        />
-      </div>
-
-      {contagem.semHistorico > 0 && (
-        <Alert>
-          <TriangleAlert />
-          <AlertDescription>
-            <b>
-              {contagem.semHistorico} colaborador(es) não têm nenhuma férias registrada e já passaram
-              do primeiro período aquisitivo
-            </b>{" "}
-            — carregam {passivo.semHistorico.dias} dos {passivo.diasTotais} dias de saldo do recorte.
-            Se de fato nunca gozaram, o passivo acima é maior do que parece; se o histórico não foi
-            importado, está inflado. Não dá para saber pelo dado: a base foi importada sem o
-            histórico de gozo. Enquanto não forem conferidos, esses não entram na conta de
-            &quot;vencidas confirmadas&quot;. Para corrigir, abra a ficha da pessoa e lance as férias
-            já gozadas no cartão de Férias.
-            {passivo.semHistorico.semRegistroAlgum > contagem.semHistorico && (
-              <>
-                {" "}
-                No recorte inteiro são {passivo.semHistorico.semRegistroAlgum} ativos sem registro
-                nenhum — os demais ainda não fecharam 12 meses de casa, então não têm período
-                adquirido nem saldo.
-              </>
-            )}
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {origem.aviso && (
-        <Alert>
-          <Info />
-          <AlertDescription>
-            <b>O histórico de gozo é estimado.</b> {origem.aviso} Ou seja: o saldo em dias é
-            confiável, a linha do tempo não — não use as datas destes registros para reconstruir
-            quando alguém saiu de férias.
-            {origem.criadasNoSistema === 0 && (
-              <> Nenhuma das solicitações nasceu de um pedido feito dentro do sistema.</>
-            )}
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {passivo.ativosSemAdmissao > 0 && (
-        <Alert>
-          <Info />
-          <AlertDescription>
-            <b>{passivo.ativosSemAdmissao} colaborador(es) ativos estão sem data de admissão</b> e
-            por isso ficam de fora desta tela e do passivo — sem ela não há período aquisitivo para
-            derivar.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Situação por colaborador</CardTitle>
-          <CardDescription>
-            Ordenada pelo prazo legal: quem está mais perto do limite (ou já passou) aparece
-            primeiro. O período mostrado é o mais próximo do limite entre os que ainda têm saldo.
-            Clique no nome para abrir a ficha, programar férias ou lançar as que já foram gozadas.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <Input
-              placeholder="Buscar por nome, setor ou CNPJ..."
-              value={busca}
-              onChange={(e) => setBusca(e.target.value)}
-              className="max-w-xs"
-            />
-            <Select
-              value={setor}
-              onValueChange={(v) => setSetor(!v ? TODOS_OS_SETORES : String(v))}
-              items={Object.fromEntries([
-                [TODOS_OS_SETORES, "Todos os setores"],
-                ...setores.map((s) => [s.chave, `${s.rotulo} (${s.total})`] as const),
-              ])}
-            >
-              <SelectTrigger className="w-56">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={TODOS_OS_SETORES}>Todos os setores</SelectItem>
-                {setores.map((s) => (
-                  <SelectItem key={s.chave} value={s.chave}>
-                    {s.rotulo} ({s.total})
-                  </SelectItem>
+          {/* Os avisos da lib são renderizados literalmente: tela e assistente
+              precisam dizer a mesma coisa sobre o mesmo número. Reescrever aqui
+              é como as duas versões começam a divergir. */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">O que estes números não cobrem</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                {passivo.avisos.map((aviso) => (
+                  <li key={aviso} className="flex gap-2">
+                    <span aria-hidden className="text-muted-foreground/60">
+                      •
+                    </span>
+                    <span>{aviso}</span>
+                  </li>
                 ))}
-              </SelectContent>
-            </Select>
-            <Select
-              value={ordem}
-              onValueChange={(v) => setOrdem((v as Ordem) ?? "PRAZO")}
-              items={Object.fromEntries(ORDENS.map((o) => [o.chave, `Ordenar: ${o.rotulo}`]))}
-            >
-              <SelectTrigger className="w-56">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {ORDENS.map((o) => (
-                  <SelectItem key={o.chave} value={o.chave}>
-                    Ordenar: {o.rotulo}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <div className="flex flex-wrap gap-1">
-              {FILTROS.map((f) => (
-                <button
-                  key={f.chave}
-                  type="button"
-                  onClick={() => setFiltro(f.chave)}
-                  className={
-                    filtro === f.chave
-                      ? "rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"
-                      : "rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
-                  }
-                >
-                  {f.rotulo}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-md border">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Colaborador</TableHead>
-                    <TableHead>CNPJ</TableHead>
-                    <TableHead>Setor</TableHead>
-                    <TableHead>Período aquisitivo</TableHead>
-                    <TableHead>Gozar até</TableHead>
-                    <TableHead className="text-right">Saldo</TableHead>
-                    <TableHead>Situação</TableHead>
-                    <TableHead className="w-10" />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {visiveis.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
-                        Nenhum colaborador nesta situação.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                  {visiveis.map((l) => (
-                    <TableRow key={l.colaboradorId}>
-                      <TableCell>
-                        <Link
-                          href={`/rh/${empresaId}/colaboradores/${l.colaboradorId}`}
-                          className="font-medium hover:underline"
-                        >
-                          {l.nome}
-                        </Link>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">{l.empresa}</TableCell>
-                      <TableCell className="text-muted-foreground">{l.setor}</TableCell>
-                      <TableCell className="tabular-nums">
-                        {l.periodo
-                          ? `${formatarData(l.periodo.inicio)} — ${formatarData(l.periodo.fim)}`
-                          : "—"}
-                      </TableCell>
-                      <TableCell className="tabular-nums">
-                        {l.periodo ? formatarData(l.periodo.limiteConcessivo) : "—"}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">{l.saldoTotal}</TableCell>
-                      <TableCell>
-                        {l.semHistorico ? (
-                          <Badge variant="outline">Sem histórico</Badge>
-                        ) : !l.periodo ? (
-                          <Badge variant="outline">Em dia</Badge>
-                        ) : l.periodo.status === "VENCIDO" ? (
-                          <Badge variant="destructive">
-                            Vencida há {Math.abs(l.periodo.diasAteLimite)} d
-                          </Badge>
-                        ) : l.periodo.status === "VENCENDO" ? (
-                          <Badge variant="secondary">Vence em {l.periodo.diasAteLimite} d</Badge>
-                        ) : (
-                          <Badge variant={VARIANTE[l.periodo.status]}>
-                            {STATUS_PERIODO_LABEL[l.periodo.status]}
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Link
-                          href={`/rh/${empresaId}/colaboradores/${l.colaboradorId}`}
-                          className="inline-block rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-                          title="Abrir ficha do colaborador para conferência e correção"
-                        >
-                          <CheckCircle2 className="size-4" />
-                        </Link>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Os avisos da lib são renderizados literalmente: tela e assistente
-          precisam dizer a mesma coisa sobre o mesmo número. Reescrever aqui é
-          como as duas versões começam a divergir. */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">O que estes números não cobrem</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ul className="space-y-2 text-sm text-muted-foreground">
-            {passivo.avisos.map((aviso) => (
-              <li key={aviso} className="flex gap-2">
-                <span aria-hidden className="text-muted-foreground/60">
-                  •
-                </span>
-                <span>{aviso}</span>
-              </li>
-            ))}
-          </ul>
-        </CardContent>
-      </Card>
+              </ul>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

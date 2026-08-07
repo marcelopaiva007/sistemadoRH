@@ -1,7 +1,7 @@
 import { prisma, type Cliente } from "@/lib/prisma";
 import { DIAS_ALERTA_VENCIMENTO, CONTRATOS_POR_PRAZO } from "@/lib/constants-dp";
 import { RUBRICAS_HORA_EXTRA, LIMITE_HORAS_EXTRAS_MES } from "@/lib/constants-folha";
-import { hojeUTC, somarDiasUTC } from "@/lib/datas";
+import { hojeUTC, somarDiasUTC, diferencaEmDiasUTC } from "@/lib/datas";
 
 export type Pendencias = {
   aprovacoes: number;
@@ -18,7 +18,14 @@ export type Pendencias = {
   avisoPrevio: number;
   desligamentosIncompletos: number;
   avaliacoesAtrasadas: number;
-  convitesSemResposta: number;
+  // Era `convitesSemResposta` (pessoa com convite de pesquisa ativa e ainda sem
+  // responder) até 06/08/2026. Responder pesquisa é OPCIONAL: parte do time
+  // nunca responde, por direito, e isso não é falha do RH nem tem ação do RH
+  // que resolva — o contador só inflava o total com algo que ninguém podia
+  // fechar. O que de fato espera o RH é ENCERRAR a pesquisa: enquanto ela fica
+  // ACTIVE o resultado não fecha (nivelGeralCache/indiceGeralCache só são
+  // gravados no encerramento) e o ciclo seguinte não começa.
+  pesquisasAbertas: number;
   fichasDesatualizadas: number;
   // Fechadas em 04/08/2026, completando a ideia original. Três saíram do que já
   // existia no schema; a de contrato exigiu a coluna `dataFimContrato`
@@ -50,7 +57,7 @@ export const zeradas = (): Pendencias => ({
   avisoPrevio: 0,
   desligamentosIncompletos: 0,
   avaliacoesAtrasadas: 0,
-  convitesSemResposta: 0,
+  pesquisasAbertas: 0,
   fichasDesatualizadas: 0,
   contratosVencendo: 0,
   horasExtrasExcedidas: 0,
@@ -96,7 +103,7 @@ export async function pendenciasPorEmpresa(
     feriasPendentes, ausenciasPendentes, documentosAConferir, asoVencendo,
     certificadosVencendo, catPendente, integracoesAtrasadas, epiVencido,
     feriasVencidas, avisoPrevio, desligamentosIncompletos, avaliacoesAtrasadas,
-    convitesSemResposta, fichasDesatualizadas,
+    pesquisasAbertas, fichasDesatualizadas,
     contratosVencendo, dependentesSemCpf, atestadosSemDocumento, horasExtras,
   ] =
     await Promise.all([
@@ -161,18 +168,15 @@ export async function pendenciasPorEmpresa(
         _count: contar,
         where: { empresaId, status: "PENDENTE", ciclo: { dataFim: { lt: hoje }, encerrado: false } },
       }),
-      // Pessoas (não tokens) com convite de pesquisa ATIVA ainda sem resposta.
-      cliente.colaborador.groupBy({
-        by: [...por],
-        _count: contar,
-        where: {
-          empresaId,
-          ativo: true,
-          tokens: {
-            some: { status: { in: ["PENDING", "SENT", "DELIVERED"] }, pesquisa: { status: "ACTIVE" } },
-          },
-        },
-      }),
+      // Pesquisa ainda ACTIVE — aberta para os colaboradores responderem e
+      // esperando o RH encerrar. Só ACTIVE: DRAFT não chegou a ninguém e
+      // FINISHED/ARCHIVED já foi fechada.
+      //
+      // Agrupa pelo `empresaId` da Pesquisa, que é o CNPJ onde ela nasceu (o
+      // vínculo real é com a MARCA, ver o model). Como quem chama passa os
+      // CNPJs da marca inteira, a pesquisa entra uma vez só no total — não
+      // multiplica por CNPJ irmão.
+      cliente.pesquisa.groupBy({ by: [...por], _count: contar, where: { empresaId, status: "ACTIVE" } }),
       // Ficha sem NENHUMA gravação há 6+ meses. updatedAt é proxy — qualquer
       // edição conta — mas é o campo que existe.
       cliente.colaborador.groupBy({
@@ -250,7 +254,7 @@ export async function pendenciasPorEmpresa(
   somar(avisoPrevio, (p, n) => (p.avisoPrevio = n));
   somar(desligamentosIncompletos, (p, n) => (p.desligamentosIncompletos = n));
   somar(avaliacoesAtrasadas, (p, n) => (p.avaliacoesAtrasadas = n));
-  somar(convitesSemResposta, (p, n) => (p.convitesSemResposta = n));
+  somar(pesquisasAbertas, (p, n) => (p.pesquisasAbertas = n));
   somar(fichasDesatualizadas, (p, n) => (p.fichasDesatualizadas = n));
   somar(contratosVencendo, (p, n) => (p.contratosVencendo = n));
   somar(dependentesSemCpf, (p, n) => (p.dependentesSemCpf = n));
@@ -265,6 +269,57 @@ export async function pendenciasPorEmpresa(
   }
 
   return mapa;
+}
+
+export type PesquisaAberta = {
+  id: string;
+  titulo: string;
+  /** Dias desde que abriu para os colaboradores responderem. */
+  diasAberta: number;
+  respostas: number;
+};
+
+/**
+ * As pesquisas ainda ACTIVE, com há quantos dias cada uma está aberta.
+ *
+ * O cartão de pendência mostra só a contagem; quem vai DECIDIR encerrar precisa
+ * do resto — uma pesquisa aberta há 5 dias ainda está colhendo resposta, uma há
+ * 60 foi esquecida. Como responder é opcional (foi por isso que "convite sem
+ * resposta" deixou de ser pendência em 06/08/2026), o que orienta a decisão é
+ * tempo aberto + quanta resposta já entrou, nunca quem falta responder.
+ */
+export async function pesquisasAbertasDaEmpresa(
+  empresaIds: string[],
+  cliente: Cliente = prisma,
+): Promise<PesquisaAberta[]> {
+  if (empresaIds.length === 0) return [];
+  const hoje = hojeUTC();
+
+  const abertas = await cliente.pesquisa.findMany({
+    where: { empresaId: { in: empresaIds }, status: "ACTIVE" },
+    select: {
+      id: true,
+      titulo: true,
+      iniciadaEm: true,
+      createdAt: true,
+      _count: { select: { respostas: true } },
+    },
+  });
+
+  return (
+    abertas
+      .map((p) => ({
+        id: p.id,
+        titulo: p.titulo,
+        // `iniciadaEm` é gravada ao ativar; `createdAt` é a rede de segurança
+        // para a pesquisa que já nasce ACTIVE — as campanhas por evento de
+        // lib/pesquisa-ciclo.ts fazem exatamente isso.
+        diasAberta: Math.max(0, diferencaEmDiasUTC(hoje, p.iniciadaEm ?? p.createdAt)),
+        respostas: p._count.respostas,
+      }))
+      // Mais tempo aberta primeiro: é a que o RH precisa decidir antes.
+      .sort((a, b) => b.diasAberta - a.diasAberta)
+  );
 }
 
 /**
@@ -307,7 +362,7 @@ export async function empresasComRegistro(
     "asoVencendo", "certificadosVencendo", "epiVencido", "catPendente",
     "integracoesAtrasadas", "desligamentosIncompletos", "documentosAConferir",
     "avaliacoesAtrasadas", "atestadosSemDocumento", "horasExtrasExcedidas",
-    "dependentesSemCpf", "contratosVencendo",
+    "dependentesSemCpf", "contratosVencendo", "pesquisasAbertas",
   ] as const satisfies readonly (keyof Pendencias)[];
 
   const achados = await Promise.all([
@@ -337,6 +392,10 @@ export async function empresasComRegistro(
       _count: contar,
       where: { empresaId, ativo: true, tipoContrato: { in: [...CONTRATOS_POR_PRAZO] } },
     }),
+    // Qualquer pesquisa, em qualquer status: quem nunca criou uma não está com
+    // as pesquisas "em dia", está sem o módulo. Sem isto, marca que nunca abriu
+    // pesquisa apareceria no verde junto de quem encerra tudo em prazo.
+    cliente.pesquisa.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
   ]);
 
   achados.forEach((linhas: LinhaAgrupada[], i) => {

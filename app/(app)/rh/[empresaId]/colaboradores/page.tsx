@@ -1,5 +1,6 @@
 import { requireEmpresaAccess, empresasVisiveis } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
+import { hojeUTC, somarAnosUTC } from "@/lib/datas";
 import { ColaboradoresTable } from "./colaboradores-table";
 
 export default async function ColaboradoresPage({ params }: { params: Promise<{ empresaId: string }> }) {
@@ -39,6 +40,7 @@ export default async function ColaboradoresPage({ params }: { params: Promise<{ 
         dataAdmissao: true,
         dataDesligamento: true,
         motivoDesligamento: true,
+        _count: { select: { ferias: true } },
       },
     }),
     prisma.setor.findMany({ where: { empresaId: { in: empresasDoUsuario }, ativo: true }, orderBy: { nome: "asc" } }),
@@ -48,13 +50,20 @@ export default async function ColaboradoresPage({ params }: { params: Promise<{ 
   // O filtro "?lacuna=salario|admissao" só precisa saber SE o campo está vazio.
   // Trocar o valor pelo booleano aqui mantém salário e data de admissão dentro
   // do servidor sem perder o filtro.
-  const colaboradores = linhas.map(({ salarioBase, dataAdmissao, dataDesligamento, motivoDesligamento, ...c }) => ({
-    ...c,
-    semSalario: salarioBase === null || salarioBase === undefined,
-    semAdmissao: !dataAdmissao,
-    semDataDesligamento: !dataDesligamento,
-    semMotivoDesligamento: !motivoDesligamento,
-  }));
+  const umAnoAtras = somarAnosUTC(hojeUTC(), -1);
+  const colaboradores = linhas.map(
+    ({ salarioBase, dataAdmissao, dataDesligamento, motivoDesligamento, _count, ...c }) => ({
+      ...c,
+      semSalario: salarioBase === null || salarioBase === undefined,
+      semAdmissao: !dataAdmissao,
+      // Mesma regra de lib/dashboard.ts::lacunasDaBase e
+      // lib/ferias-passivo.ts::semHistoricoDeFerias: 1+ ano de casa e nenhuma
+      // solicitação de férias registrada.
+      semFerias: Boolean(dataAdmissao && dataAdmissao < umAnoAtras && _count.ferias === 0),
+      semDataDesligamento: !dataDesligamento,
+      semMotivoDesligamento: !motivoDesligamento,
+    }),
+  );
 
   return (
     <ColaboradoresTable

@@ -76,6 +76,7 @@ const ROTULO_LACUNA: Record<string, string> = {
   cargo: "sem cargo definido",
   cpf: "sem CPF",
   telegram: "sem Telegram vinculado",
+  ferias: "sem nenhuma férias registrada",
   desligamento_data: "sem data de desligamento",
   desligamento_motivo: "sem motivo de desligamento",
 };
@@ -84,6 +85,7 @@ function temLacuna(
   c: {
     semSalario: boolean;
     semAdmissao: boolean;
+    semFerias: boolean;
     cpf: string | null;
     telegramChatId: string | null;
     setor: { nome: string };
@@ -96,6 +98,7 @@ function temLacuna(
   switch (chave) {
     case "salario": return c.semSalario;
     case "admissao": return c.semAdmissao;
+    case "ferias": return c.semFerias;
     case "cpf": return !c.cpf;
     case "telegram": return !c.telegramChatId;
     case "setor": return c.setor.nome.trim().toLowerCase() === "não definido";
@@ -127,6 +130,7 @@ type Colaborador = {
   // servidor; vem apenas o booleano.
   semSalario: boolean;
   semAdmissao: boolean;
+  semFerias: boolean;
   semDataDesligamento: boolean;
   semMotivoDesligamento: boolean;
   gerente: boolean;

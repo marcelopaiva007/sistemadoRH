@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { hojeUTC, somarDiasUTC, somarMesesUTC } from "@/lib/datas";
+import { hojeUTC, somarDiasUTC, somarMesesUTC, somarAnosUTC } from "@/lib/datas";
 
 export type ResumoDashboard = {
   ativos: number;
@@ -88,7 +88,7 @@ export async function resumoDaEmpresa(empresaIds: string[]): Promise<ResumoDashb
 
 export type LacunaDaBase = {
   /** Também é o valor de ?lacuna= na lista de colaboradores. */
-  chave: "salario" | "admissao" | "setor" | "cargo" | "cpf" | "telegram";
+  chave: "salario" | "admissao" | "setor" | "cargo" | "cpf" | "telegram" | "ferias";
   rotulo: string;
   faltando: number;
   /** O que deixa de funcionar enquanto este campo estiver vazio. */
@@ -114,19 +114,30 @@ export async function lacunasDaBase(empresaIds: string[]): Promise<{
   lacunas: LacunaDaBase[];
 }> {
   const base = { empresaId: { in: empresaIds }, ativo: true };
-  const [ativos, semSalario, semAdmissao, semCpf, semTelegram, semSetor, semCargo] = await Promise.all([
-    prisma.colaborador.count({ where: base }),
-    prisma.colaborador.count({ where: { ...base, salarioBase: null } }),
-    prisma.colaborador.count({ where: { ...base, dataAdmissao: null } }),
-    prisma.colaborador.count({ where: { ...base, cpf: null } }),
-    prisma.colaborador.count({ where: { ...base, telegramChatId: null } }),
-    prisma.colaborador.count({
-      where: { ...base, setor: { nome: { equals: "Não definido", mode: "insensitive" } } },
-    }),
-    prisma.colaborador.count({
-      where: { ...base, posicao: { nome: { equals: "Não definido", mode: "insensitive" } } },
-    }),
-  ]);
+  // Mesmo corte de "já teria período fechado" usado nas férias vencidas de
+  // lib/pendencias.ts — sem ele, quem admitiu semana passada entraria como
+  // lacuna por ainda não ter pedido férias, o que não é falha de ninguém.
+  const umAnoAtras = somarAnosUTC(hojeUTC(), -1);
+  const [ativos, semSalario, semAdmissao, semCpf, semTelegram, semSetor, semCargo, semFerias] =
+    await Promise.all([
+      prisma.colaborador.count({ where: base }),
+      prisma.colaborador.count({ where: { ...base, salarioBase: null } }),
+      prisma.colaborador.count({ where: { ...base, dataAdmissao: null } }),
+      prisma.colaborador.count({ where: { ...base, cpf: null } }),
+      prisma.colaborador.count({ where: { ...base, telegramChatId: null } }),
+      prisma.colaborador.count({
+        where: { ...base, setor: { nome: { equals: "Não definido", mode: "insensitive" } } },
+      }),
+      prisma.colaborador.count({
+        where: { ...base, posicao: { nome: { equals: "Não definido", mode: "insensitive" } } },
+      }),
+      // Mesma regra de lib/ferias-passivo.ts::semHistoricoDeFerias, em contagem:
+      // 1+ ano de casa (então já existe período aquisitivo fechado) e NENHUMA
+      // solicitação de férias registrada, aprovada ou não.
+      prisma.colaborador.count({
+        where: { ...base, dataAdmissao: { not: null, lt: umAnoAtras }, ferias: { none: {} } },
+      }),
+    ]);
 
   const lacunas: LacunaDaBase[] = [
     {
@@ -158,6 +169,12 @@ export async function lacunasDaBase(empresaIds: string[]): Promise<{
       rotulo: "sem CPF",
       faltando: semCpf,
       consequencia: "bloqueia admissão digital e conferência de documento",
+    },
+    {
+      chave: "ferias",
+      rotulo: "sem nenhuma férias registrada",
+      faltando: semFerias,
+      consequencia: "1+ ano de casa sem histórico — provável passivo não lançado, não período em dia",
     },
     {
       chave: "telegram",

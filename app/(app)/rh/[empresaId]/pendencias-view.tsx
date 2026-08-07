@@ -29,13 +29,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 // O tipo vem da lib, não de uma cópia local: a cópia divergiu quando as seis
 // situações novas entraram e o build caiu por isso.
-import type { Pendencias } from "@/lib/pendencias";
+import type { Pendencias, PesquisaAberta } from "@/lib/pendencias";
 
 export function PendenciasView({
   empresaId,
   pendencias,
   semRegistro,
   diasAlerta,
+  pesquisasAbertas,
 }: {
   empresaId: string;
   pendencias: Pendencias;
@@ -43,8 +44,24 @@ export function PendenciasView({
   // atravessa de Server para Client Component tem que ser serializável.
   semRegistro: (keyof Pendencias)[];
   diasAlerta: number;
+  // Detalhe do cartão "Pesquisa a encerrar": qual pesquisa e há quantos dias
+  // está aberta. O número sozinho não ajuda a decidir quando encerrar.
+  pesquisasAbertas: PesquisaAberta[];
 }) {
   const [exportando, setExportando] = useState(false);
+
+  // "há 34 dias · 12 respostas" para cada pesquisa aberta, as três mais antigas
+  // primeiro. O tempo aberto é o que orienta a decisão de encerrar; a contagem
+  // de respostas diz se ainda vale esperar mais.
+  const dias = (n: number) => (n === 0 ? "aberta hoje" : `há ${n} ${n === 1 ? "dia" : "dias"}`);
+  const descricaoPesquisas =
+    pesquisasAbertas.length === 0
+      ? "Aberta para os colaboradores; o resultado só fecha quando o RH encerra."
+      : pesquisasAbertas
+          .slice(0, 3)
+          .map((p) => `${p.titulo} — ${dias(p.diasAberta)}, ${p.respostas} resp.`)
+          .join(" · ") +
+        (pesquisasAbertas.length > 3 ? ` · +${pesquisasAbertas.length - 3}` : "");
 
   const exportarPDF = async () => {
     setExportando(true);
@@ -154,9 +171,9 @@ export function PendenciasView({
       icon: Star,
     },
     {
-      chave: "convitesSemResposta",
-      titulo: "Pesquisa sem resposta",
-      descricao: "Pessoas com convite de pesquisa ativa aguardando resposta.",
+      chave: "pesquisasAbertas",
+      titulo: "Pesquisa a encerrar",
+      descricao: descricaoPesquisas,
       href: `/rh/${empresaId}/pesquisas`,
       icon: MessagesSquare,
     },
