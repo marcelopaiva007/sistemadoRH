@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { HeartHandshake, History, UserCog, LayoutDashboard } from "lucide-react";
+import { Activity, HeartHandshake, History, UserCog, LayoutDashboard } from "lucide-react";
 
 export type NavItem = {
   href: string;
@@ -16,14 +16,15 @@ export type NavItem = {
 // Usuários e Atualizações).
 const inicioItem: NavItem = { href: "/", label: "Início", icon: LayoutDashboard };
 const usuariosItem: NavItem = { href: "/usuarios", label: "Usuários", icon: UserCog };
+const produtividadeItem: NavItem = { href: "/produtividade", label: "Produtividade RH", icon: Activity };
 const atualizacoesItem: NavItem = { href: "/atualizacoes", label: "Atualizações", icon: History };
 const meuSetorItem: NavItem = { href: "/rh/meu-setor", label: "Meu Setor", icon: HeartHandshake };
 
-export const adminNav: NavItem[] = [inicioItem, usuariosItem, atualizacoesItem];
+export const adminNav: NavItem[] = [inicioItem, usuariosItem, produtividadeItem, atualizacoesItem];
 // Diretoria também gere usuários desde 31/07/2026 — ver requireGestaoUsuarios
 // em lib/auth-guard.ts. Sem o item aqui a permissão existiria sem caminho.
-// Atualizações segue o mesmo par de papéis da área (ADMIN + DIRETORIA).
-export const diretoriaNav: NavItem[] = [inicioItem, usuariosItem, atualizacoesItem];
+// Atualizações e Produtividade RH seguem o mesmo par de papéis da área (ADMIN + DIRETORIA).
+export const diretoriaNav: NavItem[] = [inicioItem, usuariosItem, produtividadeItem, atualizacoesItem];
 
 // Lookup por role — RH_MANAGER/GESTOR_SETOR têm navegação própria e enxuta.
 export const navByRole: Record<string, NavItem[]> = {

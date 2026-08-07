@@ -1,6 +1,6 @@
 {
   "name": "sistema-rh",
-  "version": "1.54.0",
+  "version": "1.55.0",
   "private": true,
   "scripts": {
     "// ━━━━━━━━━━━━━━━━ DESENVOLVIMENTO ━━━━━━━━━━━━━━━━": "",
@@ -36,6 +36,7 @@
     "test:conformidade": "tsx scripts/test-conformidade.ts",
     "test:reconhecimento": "tsx scripts/test-reconhecimento.ts",
     "test:bi": "tsx scripts/test-bi.ts",
+    "test:produtividade": "tsx scripts/test-produtividade.ts",
     "test:escala": "tsx scripts/test-escala.ts",
     "test:admissao": "tsx scripts/test-admissao.ts",
     "test:pesquisa-enps-resultado": "tsx scripts/test-pesquisa-enps-resultado.ts",

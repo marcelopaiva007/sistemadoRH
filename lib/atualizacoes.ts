@@ -24,6 +24,15 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.55.0",
+    data: "07/08/2026",
+    titulo: "Produtividade da equipe de RH",
+    itens: [
+      "Nova tela (menu do topo, Administração e Diretoria) mostra quantas ações cada conta de sistema registrou hoje, nos últimos 7 ou nos últimos 30 dias, agrupadas em 6 categorias de processo.",
+      "É contagem de eventos da trilha de auditoria, não medida de esforço — serve para ver quem está atuando e em quê, não como avaliação isolada de desempenho.",
+    ],
+  },
+  {
     versao: "1.54.0",
     data: "07/08/2026",
     titulo: "Tela de Atualizações na administração",
