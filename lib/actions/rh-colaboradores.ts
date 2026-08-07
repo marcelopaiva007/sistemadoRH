@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { proximaMatricula } from "@/lib/matricula";
-import { registrarAuditoria } from "@/lib/audit";
+import { registrarAuditoria, diffCampos } from "@/lib/audit";
 import { criariCiclo } from "@/lib/organograma";
 import { empresasDaMesmaMarca, marcaDaEmpresa } from "@/lib/escopo-marca";
 import { invalidarConvitesDeDesligados } from "@/lib/pesquisa-vinculo";
@@ -219,24 +219,39 @@ export async function updateColaborador(
     if (erroSupervisor) return { ok: false, error: erroSupervisor };
   }
 
-  const atual = await prisma.colaborador.findFirst({ where: { id, empresaId }, select: { ativo: true } });
+  const atual = await prisma.colaborador.findFirst({
+    where: { id, empresaId },
+    select: {
+      nome: true,
+      cpf: true,
+      email: true,
+      setorId: true,
+      posicaoId: true,
+      telegramChatId: true,
+      supervisorId: true,
+      gerente: true,
+      ativo: true,
+    },
+  });
   if (!atual) return { ok: false, error: "Colaborador não encontrado." };
+
+  const novosDados = {
+    nome: parsed.data.nome,
+    cpf: parsed.data.cpf || null,
+    email: parsed.data.email || null,
+    setorId: parsed.data.setorId,
+    posicaoId: parsed.data.posicaoId,
+    telegramChatId: parsed.data.telegramChatId || null,
+    supervisorId: parsed.data.supervisorId || null,
+    gerente: parsed.data.gerente,
+    ativo: parsed.data.ativo,
+  };
 
   try {
     await prisma.$transaction(async (tx) => {
       await tx.colaborador.update({
         where: { id, empresaId },
-        data: {
-          nome: parsed.data.nome,
-          cpf: parsed.data.cpf || null,
-          email: parsed.data.email || null,
-          setorId: parsed.data.setorId,
-          posicaoId: parsed.data.posicaoId,
-          telegramChatId: parsed.data.telegramChatId || null,
-          supervisorId: parsed.data.supervisorId || null,
-          gerente: parsed.data.gerente,
-          ativo: parsed.data.ativo,
-        },
+        data: novosDados,
       });
       // RD-001: transição true→false é o momento do desligamento — expira os
       // convites de pesquisa em aberto (ver lib/pesquisa-vinculo.ts) e
@@ -249,6 +264,19 @@ export async function updateColaborador(
   } catch {
     return { ok: false, error: "Já existe um colaborador com esse CPF ou chat_id do Telegram." };
   }
+
+  const mudancas = diffCampos(atual as unknown as Record<string, unknown>, novosDados);
+  if (Object.keys(mudancas).length > 0) {
+    await registrarAuditoria({
+      empresaId,
+      acao: "ATUALIZAR",
+      entidade: "Colaborador",
+      entidadeId: id,
+      resumo: `Ficha de ${atual.nome} atualizada (${Object.keys(mudancas).join(", ")}).`,
+      detalhes: mudancas,
+    });
+  }
+
   revalidatePath(`/rh/${empresaId}/colaboradores`);
   return { ok: true };
 }
