@@ -126,12 +126,11 @@ export function SetoresTable({
   empresaId,
   empresasDoUsuario,
   setores,
-  empresas,
 }: {
   empresaId: string;
   empresasDoUsuario: string[];
   setores: Setor[];
-  empresas: Empresa[];
+  empresas?: Empresa[];
 }) {
   const empresasSelecionadas = useFiltroEmpresas(empresasDoUsuario);
   const [busca, setBusca] = useState("");

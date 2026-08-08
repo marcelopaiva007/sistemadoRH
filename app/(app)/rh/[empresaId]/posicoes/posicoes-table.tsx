@@ -16,7 +16,6 @@ import {
   UsersRound,
   Sparkles,
   GitMerge,
-  Layers,
   Wand2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -127,12 +126,11 @@ export function PosicoesTable({
   empresaId,
   empresasDoUsuario,
   posicoes,
-  empresas,
 }: {
   empresaId: string;
   empresasDoUsuario: string[];
   posicoes: Posicao[];
-  empresas: Empresa[];
+  empresas?: Empresa[];
 }) {
   const empresasSelecionadas = useFiltroEmpresas(empresasDoUsuario);
   const [busca, setBusca] = useState("");
