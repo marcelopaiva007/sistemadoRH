@@ -16,6 +16,8 @@ import {
   UsersRound,
   Sparkles,
   GitMerge,
+  Layers,
+  Wand2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,8 +54,10 @@ import {
   deletePosicao,
   togglePosicaoAtiva,
   unificarPosicoes,
+  unificarGrupoPosicoes,
   limparDuplicatasPosicoesAuto,
 } from "@/lib/actions/rh-posicoes";
+import { agruparCargosSemelhantes, type GrupoCargoSemelhante } from "@/lib/cargos-semelhantes";
 import type { ActionResult } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
@@ -136,6 +140,7 @@ export function PosicoesTable({
   const [createOpen, setCreateOpen] = useState(false);
   const [editPosicao, setEditPosicao] = useState<Posicao | null>(null);
   const [unificarPosicaoOrigem, setUnificarPosicaoOrigem] = useState<Posicao | null>(null);
+  const [painelSemelhantesAberto, setPainelSemelhantesAberto] = useState(false);
   const [isCleaning, setIsCleaning] = useState(false);
 
   const posicoesFiltradas = useMemo(() => {
@@ -152,7 +157,7 @@ export function PosicoesTable({
     });
   }, [posicoes, empresasSelecionadas, busca, filtroStatus]);
 
-  // Identificação de duplicatas por nome
+  // Identificação de duplicatas por nome idêntico (trim + lowercase)
   const contagemDuplicatas = useMemo(() => {
     const contagem = new Map<string, number>();
     for (const p of posicoesFiltradas) {
@@ -164,6 +169,18 @@ export function PosicoesTable({
       if (count > 1) duplicados += count - 1;
     }
     return duplicados;
+  }, [posicoesFiltradas]);
+
+  // Análise semântica de cargos com grafias/gênero/sinônimos parecidos
+  const gruposSemelhantes = useMemo(() => {
+    const formatadas = posicoesFiltradas.map((p) => ({
+      id: p.id,
+      nome: p.nome,
+      colaboradoresCount: p._count?.colaboradores ?? 0,
+      vagasCount: p._count?.vagas ?? 0,
+      ativo: p.ativo,
+    }));
+    return agruparCargosSemelhantes(formatadas);
   }, [posicoesFiltradas]);
 
   // Cálculos de KPIs
@@ -187,8 +204,6 @@ export function PosicoesTable({
       maiorPosicaoCount: maiorPosicao?._count?.colaboradores ?? 0,
     };
   }, [posicoesFiltradas]);
-
-  const exibeMultiEmpresa = empresas.length > 1;
 
   async function handleAutoLimpeza() {
     setIsCleaning(true);
@@ -224,6 +239,18 @@ export function PosicoesTable({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {gruposSemelhantes.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 border-violet-300 bg-violet-50 text-violet-900 hover:bg-violet-100 dark:border-violet-800 dark:bg-violet-950/50 dark:text-violet-200"
+              onClick={() => setPainelSemelhantesAberto(true)}
+            >
+              <Wand2 className="size-3.5 text-violet-600 dark:text-violet-400" />
+              Análise de Cargos Semelhantes ({gruposSemelhantes.length})
+            </Button>
+          )}
+
           {contagemDuplicatas > 0 && (
             <Button
               variant="secondary"
@@ -233,7 +260,7 @@ export function PosicoesTable({
               disabled={isCleaning}
             >
               <Sparkles className="size-3.5 text-amber-600 dark:text-amber-400" />
-              {isCleaning ? "Unificando..." : `Limpar ${contagemDuplicatas} Duplicatas`}
+              {isCleaning ? "Unificando..." : `Limpar ${contagemDuplicatas} Exatas`}
             </Button>
           )}
 
@@ -253,8 +280,6 @@ export function PosicoesTable({
               <PosicaoForm
                 action={createPosicao.bind(null, empresaId)}
                 title="Novo Cargo / Função"
-                empresas={empresas}
-                empresaIdDefault={empresaId}
                 onSuccess={() => setCreateOpen(false)}
               />
             </DialogContent>
@@ -319,10 +344,7 @@ export function PosicoesTable({
           <TableBody>
             {posicoesFiltradas.length === 0 ? (
               <TableRow>
-                <TableCell
-                  colSpan={5}
-                  className="py-8 text-center text-muted-foreground"
-                >
+                <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
                   Nenhum cargo/função encontrado com os filtros aplicados.
                 </TableCell>
               </TableRow>
@@ -441,8 +463,6 @@ export function PosicoesTable({
               action={updatePosicao.bind(null, empresaId, editPosicao.id)}
               title="Editar Cargo / Função"
               defaultNome={editPosicao.nome}
-              defaultEmpresaId={editPosicao.empresaId}
-              empresas={empresas}
               onSuccess={() => setEditPosicao(null)}
             />
           )}
@@ -462,6 +482,152 @@ export function PosicoesTable({
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Modal de Análise Semântica de Cargos Semelhantes */}
+      <Dialog open={painelSemelhantesAberto} onOpenChange={setPainelSemelhantesAberto}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Wand2 className="size-5 text-violet-600" />
+              Análise & Unificação Semântica de Cargos
+            </DialogTitle>
+          </DialogHeader>
+
+          <p className="text-xs text-muted-foreground">
+            O algoritmo identificou cargos com variação de gênero (ex: Vendedor / Vendedora),
+            abreviações (ex: Adm / Administrativo) ou nomes muito semelhantes. Selecione o nome final
+            para unificar cada grupo.
+          </p>
+
+          <div className="max-h-[60vh] space-y-4 overflow-y-auto pr-1">
+            {gruposSemelhantes.length === 0 ? (
+              <p className="py-6 text-center text-xs text-muted-foreground">
+                Nenhum grupo de cargos semelhantes encontrado! Todos os cargos estão padronizados.
+              </p>
+            ) : (
+              gruposSemelhantes.map((grupo, idx) => (
+                <GrupoSemelhanteCard
+                  key={grupo.chaveStem || idx}
+                  empresaId={empresaId}
+                  grupo={grupo}
+                />
+              ))
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setPainelSemelhantesAberto(false)}>
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function GrupoSemelhanteCard({
+  empresaId,
+  grupo,
+}: {
+  empresaId: string;
+  grupo: GrupoCargoSemelhante;
+}) {
+  const [destinoId, setDestinoId] = useState(grupo.posicoes[0]?.id ?? "");
+  const [nomeCustomizado, setNomeCustomizado] = useState(grupo.sugestaoNome);
+  const [isPending, setIsPending] = useState(false);
+
+  async function handleUnificarGrupo() {
+    if (!destinoId) {
+      toast.error("Selecione o cargo de destino.");
+      return;
+    }
+    setIsPending(true);
+    try {
+      const todosIds = grupo.posicoes.map((p) => p.id);
+      const res = await unificarGrupoPosicoes(empresaId, todosIds, destinoId, nomeCustomizado);
+      if (res.ok) {
+        toast.success(`Grupo unificado com sucesso para "${nomeCustomizado}"!`);
+      } else {
+        toast.error(res.error || "Erro ao unificar grupo.");
+      }
+    } catch {
+      toast.error("Erro inesperado ao unificar grupo.");
+    } finally {
+      setIsPending(false);
+    }
+  }
+
+  return (
+    <div className="space-y-3 rounded-lg border bg-card p-3.5 text-xs shadow-xs">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Badge variant="secondary" className="font-semibold text-violet-700 bg-violet-50 border-violet-200">
+            {grupo.posicoes.length} variações encontradas
+          </Badge>
+          <span className="text-muted-foreground font-medium">
+            ({grupo.totalColaboradores} colaboradores afetados)
+          </span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-1.5 rounded-md bg-muted/40 p-2.5">
+        {grupo.posicoes.map((p) => (
+          <div key={p.id} className="flex items-center justify-between font-medium">
+            <span className="flex items-center gap-1.5">
+              <span>• {p.nome}</span>
+              {p.id === destinoId && (
+                <Badge variant="outline" className="text-[10px] text-emerald-700 border-emerald-400 bg-emerald-50">
+                  Principal Escolhido
+                </Badge>
+              )}
+            </span>
+            <span className="text-muted-foreground tabular-nums">
+              {p.colaboradoresCount} colab(s)
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <div>
+          <Label className="text-[11px]">Cargo Principal (Receberá os dados)</Label>
+          <Select value={destinoId} onValueChange={(v) => setDestinoId(v ?? "")}>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {grupo.posicoes.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.nome} ({p.colaboradoresCount} colabs)
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div>
+          <Label className="text-[11px]">Nome Final Padronizado</Label>
+          <Input
+            className="h-8 text-xs"
+            value={nomeCustomizado}
+            onChange={(e) => setNomeCustomizado(e.target.value)}
+            placeholder="Ex: Vendedor(a)"
+          />
+        </div>
+      </div>
+
+      <div className="flex justify-end pt-1">
+        <Button
+          size="sm"
+          className="h-8 gap-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs"
+          onClick={handleUnificarGrupo}
+          disabled={isPending || !destinoId}
+        >
+          <GitMerge className="size-3.5" />
+          {isPending ? "Unificando..." : "Unificar este Grupo"}
+        </Button>
+      </div>
     </div>
   );
 }
@@ -470,17 +636,11 @@ function PosicaoForm({
   action,
   title,
   defaultNome = "",
-  defaultEmpresaId = "",
-  empresas,
-  empresaIdDefault = "",
   onSuccess,
 }: {
   action: (prev: ActionResult, formData: FormData) => Promise<ActionResult>;
   title: string;
   defaultNome?: string;
-  defaultEmpresaId?: string;
-  empresas: Empresa[];
-  empresaIdDefault?: string;
   onSuccess: () => void;
 }) {
   const [state, formAction, isPending] = useActionState(
@@ -494,8 +654,6 @@ function PosicaoForm({
     },
     initialState,
   );
-
-  const selecionada = defaultEmpresaId || empresaIdDefault || empresas[0]?.id;
 
   return (
     <form action={formAction} className="space-y-4">
