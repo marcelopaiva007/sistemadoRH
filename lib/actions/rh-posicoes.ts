@@ -225,3 +225,39 @@ export async function unificarGrupoPosicoes(
   revalidatePath(`/rh/${empresaId}/posicoes`);
   return { ok: true };
 }
+
+export async function removerPosicoesSemColaboradores(
+  empresaId: string,
+): Promise<{ ok: boolean; removidos: number; error?: string }> {
+  await requireEmpresaAccess(empresaId);
+
+  try {
+    const posicoesSemColab = await prisma.posicao.findMany({
+      where: {
+        empresaId,
+        colaboradores: { none: {} },
+      },
+      select: { id: true },
+    });
+
+    if (posicoesSemColab.length === 0) {
+      return { ok: true, removidos: 0 };
+    }
+
+    const ids = posicoesSemColab.map((p) => p.id);
+
+    await prisma.$transaction(async (tx) => {
+      // Limpa requisitos NR e vagas vinculadas a cargos vagos sem colaboradores
+      await tx.requisitoNR.deleteMany({ where: { posicaoId: { in: ids } } });
+      await tx.vaga.deleteMany({ where: { posicaoId: { in: ids } } });
+      await tx.posicao.deleteMany({ where: { id: { in: ids } } });
+    });
+
+    revalidatePath(`/rh/${empresaId}/posicoes`);
+    return { ok: true, removidos: ids.length };
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : "Erro ao remover cargos sem colaboradores.";
+    return { ok: false, removidos: 0, error: errorMsg };
+  }
+}
+

@@ -252,3 +252,40 @@ export async function unificarGrupoSetores(
   revalidatePath(`/rh/${empresaId}/setores`);
   return { ok: true };
 }
+
+export async function removerSetoresSemColaboradores(
+  empresaId: string,
+): Promise<{ ok: boolean; removidos: number; error?: string }> {
+  await requireEmpresaAccess(empresaId);
+
+  try {
+    const setoresSemColab = await prisma.setor.findMany({
+      where: {
+        empresaId,
+        colaboradores: { none: {} },
+      },
+      select: { id: true },
+    });
+
+    if (setoresSemColab.length === 0) {
+      return { ok: true, removidos: 0 };
+    }
+
+    const ids = setoresSemColab.map((s) => s.id);
+
+    await prisma.$transaction(async (tx) => {
+      await tx.meta.deleteMany({ where: { setorId: { in: ids } } });
+      await tx.vaga.deleteMany({ where: { setorId: { in: ids } } });
+      await tx.planoAcao.deleteMany({ where: { setorId: { in: ids } } });
+      await tx.userEmpresa.updateMany({ where: { setorId: { in: ids } }, data: { setorId: null } });
+      await tx.setor.deleteMany({ where: { id: { in: ids } } });
+    });
+
+    revalidatePath(`/rh/${empresaId}/setores`);
+    return { ok: true, removidos: ids.length };
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : "Erro ao remover setores sem colaboradores.";
+    return { ok: false, removidos: 0, error: errorMsg };
+  }
+}
+

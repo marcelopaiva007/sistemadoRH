@@ -55,6 +55,7 @@ import {
   unificarPosicoes,
   unificarGrupoPosicoes,
   limparDuplicatasPosicoesAuto,
+  removerPosicoesSemColaboradores,
 } from "@/lib/actions/rh-posicoes";
 import { agruparCargosSemelhantes, type GrupoCargoSemelhante } from "@/lib/cargos-semelhantes";
 import type { ActionResult } from "@/lib/constants";
@@ -140,6 +141,7 @@ export function PosicoesTable({
   const [unificarPosicaoOrigem, setUnificarPosicaoOrigem] = useState<Posicao | null>(null);
   const [painelSemelhantesAberto, setPainelSemelhantesAberto] = useState(false);
   const [isCleaning, setIsCleaning] = useState(false);
+  const [isRemovingSemColab, setIsRemovingSemColab] = useState(false);
 
   const posicoesFiltradas = useMemo(() => {
     return posicoes.filter((p) => {
@@ -203,6 +205,31 @@ export function PosicoesTable({
     };
   }, [posicoesFiltradas]);
 
+  // Contagem de cargos sem nenhum colaborador cadastrado
+  const cargosSemColabCount = useMemo(() => {
+    return posicoesFiltradas.filter((p) => (p._count?.colaboradores ?? 0) === 0).length;
+  }, [posicoesFiltradas]);
+
+  async function handleRemoverSemColaboradores() {
+    setIsRemovingSemColab(true);
+    try {
+      const res = await removerPosicoesSemColaboradores(empresaId);
+      if (res.ok) {
+        toast.success(
+          res.removidos > 0
+            ? `${res.removidos} cargo(s) sem colaboradores removido(s) com sucesso!`
+            : "Nenhum cargo sem colaboradores para remover.",
+        );
+      } else {
+        toast.error(res.error || "Erro ao remover cargos sem colaboradores.");
+      }
+    } catch {
+      toast.error("Erro inesperado ao remover cargos sem colaboradores.");
+    } finally {
+      setIsRemovingSemColab(false);
+    }
+  }
+
   async function handleAutoLimpeza() {
     setIsCleaning(true);
     try {
@@ -259,6 +286,19 @@ export function PosicoesTable({
             >
               <Sparkles className="size-3.5 text-amber-600 dark:text-amber-400" />
               {isCleaning ? "Unificando..." : `Limpar ${contagemDuplicatas} Exatas`}
+            </Button>
+          )}
+
+          {cargosSemColabCount > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 border-rose-300 bg-rose-50 text-rose-900 hover:bg-rose-100 dark:border-rose-800 dark:bg-rose-950/50 dark:text-rose-200"
+              onClick={handleRemoverSemColaboradores}
+              disabled={isRemovingSemColab}
+            >
+              <Trash2 className="size-3.5 text-rose-600 dark:text-rose-400" />
+              {isRemovingSemColab ? "Removendo..." : `Remover ${cargosSemColabCount} Sem Funcionários`}
             </Button>
           )}
 

@@ -55,6 +55,7 @@ import {
   unificarSetores,
   unificarGrupoSetores,
   limparDuplicatasSetoresAuto,
+  removerSetoresSemColaboradores,
 } from "@/lib/actions/rh-setores";
 import { agruparSetoresSemelhantes, type GrupoSetorSemelhante } from "@/lib/setores-semelhantes";
 import type { ActionResult } from "@/lib/constants";
@@ -140,6 +141,7 @@ export function SetoresTable({
   const [unificarSetorOrigem, setUnificarSetorOrigem] = useState<Setor | null>(null);
   const [painelSemelhantesAberto, setPainelSemelhantesAberto] = useState(false);
   const [isCleaning, setIsCleaning] = useState(false);
+  const [isRemovingSemColab, setIsRemovingSemColab] = useState(false);
 
   const setoresFiltrados = useMemo(() => {
     return setores.filter((s) => {
@@ -204,6 +206,30 @@ export function SetoresTable({
     };
   }, [setoresFiltrados]);
 
+  const setoresSemColabCount = useMemo(() => {
+    return setoresFiltrados.filter((s) => (s._count?.colaboradores ?? 0) === 0).length;
+  }, [setoresFiltrados]);
+
+  async function handleRemoverSemColaboradores() {
+    setIsRemovingSemColab(true);
+    try {
+      const res = await removerSetoresSemColaboradores(empresaId);
+      if (res.ok) {
+        toast.success(
+          res.removidos > 0
+            ? `${res.removidos} setor(es) sem colaboradores removido(s) com sucesso!`
+            : "Nenhum setor sem colaboradores para remover.",
+        );
+      } else {
+        toast.error(res.error || "Erro ao remover setores sem colaboradores.");
+      }
+    } catch {
+      toast.error("Erro inesperado ao remover setores sem colaboradores.");
+    } finally {
+      setIsRemovingSemColab(false);
+    }
+  }
+
   async function handleAutoLimpeza() {
     setIsCleaning(true);
     try {
@@ -260,6 +286,19 @@ export function SetoresTable({
             >
               <Sparkles className="size-3.5 text-amber-600 dark:text-amber-400" />
               {isCleaning ? "Unificando..." : `Limpar ${contagemDuplicatas} Exatas`}
+            </Button>
+          )}
+
+          {setoresSemColabCount > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 border-rose-300 bg-rose-50 text-rose-900 hover:bg-rose-100 dark:border-rose-800 dark:bg-rose-950/50 dark:text-rose-200"
+              onClick={handleRemoverSemColaboradores}
+              disabled={isRemovingSemColab}
+            >
+              <Trash2 className="size-3.5 text-rose-600 dark:text-rose-400" />
+              {isRemovingSemColab ? "Removendo..." : `Remover ${setoresSemColabCount} Sem Funcionários`}
             </Button>
           )}
 
