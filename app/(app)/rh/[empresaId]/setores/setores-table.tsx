@@ -16,6 +16,7 @@ import {
   Briefcase,
   Sparkles,
   GitMerge,
+  Wand2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,8 +53,10 @@ import {
   deleteSetor,
   toggleSetorAtivo,
   unificarSetores,
+  unificarGrupoSetores,
   limparDuplicatasSetoresAuto,
 } from "@/lib/actions/rh-setores";
+import { agruparSetoresSemelhantes, type GrupoSetorSemelhante } from "@/lib/setores-semelhantes";
 import type { ActionResult } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
@@ -136,6 +139,7 @@ export function SetoresTable({
   const [createOpen, setCreateOpen] = useState(false);
   const [editSetor, setEditSetor] = useState<Setor | null>(null);
   const [unificarSetorOrigem, setUnificarSetorOrigem] = useState<Setor | null>(null);
+  const [painelSemelhantesAberto, setPainelSemelhantesAberto] = useState(false);
   const [isCleaning, setIsCleaning] = useState(false);
 
   const setoresFiltrados = useMemo(() => {
@@ -152,7 +156,7 @@ export function SetoresTable({
     });
   }, [setores, empresasSelecionadas, busca, filtroStatus]);
 
-  // Identificação de duplicatas por nome (ignorando maiúsculas e espaços)
+  // Identificação de duplicatas por nome
   const contagemDuplicatas = useMemo(() => {
     const contagem = new Map<string, number>();
     for (const s of setoresFiltrados) {
@@ -164,6 +168,19 @@ export function SetoresTable({
       if (count > 1) duplicados += count - 1;
     }
     return duplicados;
+  }, [setoresFiltrados]);
+
+  // Análise semântica de setores semelhantes (ex: Vendas vs Comercial, TI vs Tecnologia)
+  const gruposSemelhantes = useMemo(() => {
+    const formatados = setoresFiltrados.map((s) => ({
+      id: s.id,
+      nome: s.nome,
+      colaboradoresCount: s._count?.colaboradores ?? 0,
+      vagasCount: s._count?.vagas ?? 0,
+      metasCount: s._count?.metas ?? 0,
+      ativo: s.ativo,
+    }));
+    return agruparSetoresSemelhantes(formatados);
   }, [setoresFiltrados]);
 
   // Cálculos de KPIs
@@ -187,8 +204,6 @@ export function SetoresTable({
       maiorSetorCount: maiorSetor?._count?.colaboradores ?? 0,
     };
   }, [setoresFiltrados]);
-
-  const exibeMultiEmpresa = empresas.length > 1;
 
   async function handleAutoLimpeza() {
     setIsCleaning(true);
@@ -224,6 +239,18 @@ export function SetoresTable({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {gruposSemelhantes.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 border-violet-300 bg-violet-50 text-violet-900 hover:bg-violet-100 dark:border-violet-800 dark:bg-violet-950/50 dark:text-violet-200"
+              onClick={() => setPainelSemelhantesAberto(true)}
+            >
+              <Wand2 className="size-3.5 text-violet-600 dark:text-violet-400" />
+              Análise de Setores Semelhantes ({gruposSemelhantes.length})
+            </Button>
+          )}
+
           {contagemDuplicatas > 0 && (
             <Button
               variant="secondary"
@@ -233,7 +260,7 @@ export function SetoresTable({
               disabled={isCleaning}
             >
               <Sparkles className="size-3.5 text-amber-600 dark:text-amber-400" />
-              {isCleaning ? "Unificando..." : `Limpar ${contagemDuplicatas} Duplicatas`}
+              {isCleaning ? "Unificando..." : `Limpar ${contagemDuplicatas} Exatas`}
             </Button>
           )}
 
@@ -253,8 +280,6 @@ export function SetoresTable({
               <SetorForm
                 action={createSetor.bind(null, empresaId)}
                 title="Novo Setor"
-                empresas={empresas}
-                empresaIdDefault={empresaId}
                 onSuccess={() => setCreateOpen(false)}
               />
             </DialogContent>
@@ -319,10 +344,7 @@ export function SetoresTable({
           <TableBody>
             {setoresFiltrados.length === 0 ? (
               <TableRow>
-                <TableCell
-                  colSpan={5}
-                  className="py-8 text-center text-muted-foreground"
-                >
+                <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
                   Nenhum setor encontrado com os filtros aplicados.
                 </TableCell>
               </TableRow>
@@ -447,8 +469,6 @@ export function SetoresTable({
               action={updateSetor.bind(null, empresaId, editSetor.id)}
               title="Editar Setor"
               defaultNome={editSetor.nome}
-              defaultEmpresaId={editSetor.empresaId}
-              empresas={empresas}
               onSuccess={() => setEditSetor(null)}
             />
           )}
@@ -468,6 +488,151 @@ export function SetoresTable({
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Modal de Análise Semântica de Setores Semelhantes */}
+      <Dialog open={painelSemelhantesAberto} onOpenChange={setPainelSemelhantesAberto}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Wand2 className="size-5 text-violet-600" />
+              Análise & Unificação Semântica de Setores
+            </DialogTitle>
+          </DialogHeader>
+
+          <p className="text-xs text-muted-foreground">
+            O algoritmo identificou setores equivalentes (ex: Comercial ↔ Vendas, RH ↔ Recursos Humanos).
+            Escolha o setor principal para consolidar os colaboradores, vagas e metas.
+          </p>
+
+          <div className="max-h-[60vh] space-y-4 overflow-y-auto pr-1">
+            {gruposSemelhantes.length === 0 ? (
+              <p className="py-6 text-center text-xs text-muted-foreground">
+                Nenhum grupo de setores semelhantes encontrado! Todos os setores estão padronizados.
+              </p>
+            ) : (
+              gruposSemelhantes.map((grupo, idx) => (
+                <GrupoSetorSemelhanteCard
+                  key={grupo.chaveStem || idx}
+                  empresaId={empresaId}
+                  grupo={grupo}
+                />
+              ))
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setPainelSemelhantesAberto(false)}>
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function GrupoSetorSemelhanteCard({
+  empresaId,
+  grupo,
+}: {
+  empresaId: string;
+  grupo: GrupoSetorSemelhante;
+}) {
+  const [destinoId, setDestinoId] = useState(grupo.setores[0]?.id ?? "");
+  const [nomeCustomizado, setNomeCustomizado] = useState(grupo.sugestaoNome);
+  const [isPending, setIsPending] = useState(false);
+
+  async function handleUnificarGrupo() {
+    if (!destinoId) {
+      toast.error("Selecione o setor de destino.");
+      return;
+    }
+    setIsPending(true);
+    try {
+      const todosIds = grupo.setores.map((s) => s.id);
+      const res = await unificarGrupoSetores(empresaId, todosIds, destinoId, nomeCustomizado);
+      if (res.ok) {
+        toast.success(`Setores unificados com sucesso para "${nomeCustomizado}"!`);
+      } else {
+        toast.error(res.error || "Erro ao unificar setores.");
+      }
+    } catch {
+      toast.error("Erro inesperado ao unificar setores.");
+    } finally {
+      setIsPending(false);
+    }
+  }
+
+  return (
+    <div className="space-y-3 rounded-lg border bg-card p-3.5 text-xs shadow-xs">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Badge variant="secondary" className="font-semibold text-violet-700 bg-violet-50 border-violet-200">
+            {grupo.setores.length} setores equivalentes encontrados
+          </Badge>
+          <span className="text-muted-foreground font-medium">
+            ({grupo.totalColaboradores} colaboradores afetados)
+          </span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-1.5 rounded-md bg-muted/40 p-2.5">
+        {grupo.setores.map((s) => (
+          <div key={s.id} className="flex items-center justify-between font-medium">
+            <span className="flex items-center gap-1.5">
+              <span>• {s.nome}</span>
+              {s.id === destinoId && (
+                <Badge variant="outline" className="text-[10px] text-emerald-700 border-emerald-400 bg-emerald-50">
+                  Principal Escolhido
+                </Badge>
+              )}
+            </span>
+            <span className="text-muted-foreground tabular-nums">
+              {s.colaboradoresCount} colab(s)
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <div>
+          <Label className="text-[11px]">Setor Principal (Receberá os dados)</Label>
+          <Select value={destinoId} onValueChange={(v) => setDestinoId(v ?? "")}>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {grupo.setores.map((s) => (
+                <SelectItem key={s.id} value={s.id}>
+                  {s.nome} ({s.colaboradoresCount} colabs)
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div>
+          <Label className="text-[11px]">Nome Final Padronizado</Label>
+          <Input
+            className="h-8 text-xs"
+            value={nomeCustomizado}
+            onChange={(e) => setNomeCustomizado(e.target.value)}
+            placeholder="Ex: Vendas"
+          />
+        </div>
+      </div>
+
+      <div className="flex justify-end pt-1">
+        <Button
+          size="sm"
+          className="h-8 gap-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs"
+          onClick={handleUnificarGrupo}
+          disabled={isPending || !destinoId}
+        >
+          <GitMerge className="size-3.5" />
+          {isPending ? "Unificando..." : "Unificar este Grupo"}
+        </Button>
+      </div>
     </div>
   );
 }
@@ -476,17 +641,11 @@ function SetorForm({
   action,
   title,
   defaultNome = "",
-  defaultEmpresaId = "",
-  empresas,
-  empresaIdDefault = "",
   onSuccess,
 }: {
   action: (prev: ActionResult, formData: FormData) => Promise<ActionResult>;
   title: string;
   defaultNome?: string;
-  defaultEmpresaId?: string;
-  empresas: Empresa[];
-  empresaIdDefault?: string;
   onSuccess: () => void;
 }) {
   const [state, formAction, isPending] = useActionState(
@@ -513,7 +672,7 @@ function SetorForm({
           id="nome"
           name="nome"
           defaultValue={defaultNome}
-          placeholder="Ex: Comercial, Financeiro, TI"
+          placeholder="Ex: Vendas, Financeiro, TI"
           required
           autoFocus
         />

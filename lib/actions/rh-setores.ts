@@ -197,3 +197,58 @@ export async function limparDuplicatasSetoresAuto(empresaId: string): Promise<{ 
   revalidatePath(`/rh/${empresaId}/setores`);
   return { ok: true, removidos };
 }
+
+export async function unificarGrupoSetores(
+  empresaId: string,
+  origemIds: string[],
+  destinoId: string,
+  novoNome?: string,
+): Promise<ActionResult> {
+  if (origemIds.length === 0) {
+    return { ok: false, error: "Nenhum setor selecionado para unificação." };
+  }
+  await requireEmpresaAccess(empresaId);
+
+  const destino = await prisma.setor.findUnique({ where: { id: destinoId } });
+  if (!destino) {
+    return { ok: false, error: "Setor de destino não encontrado." };
+  }
+
+  const idsParaMigrar = origemIds.filter((id) => id !== destinoId);
+
+  await prisma.$transaction(async (tx) => {
+    for (const id of idsParaMigrar) {
+      await tx.colaborador.updateMany({
+        where: { setorId: id },
+        data: { setorId: destinoId },
+      });
+      await tx.meta.updateMany({
+        where: { setorId: id },
+        data: { setorId: destinoId },
+      });
+      await tx.vaga.updateMany({
+        where: { setorId: id },
+        data: { setorId: destinoId },
+      });
+      await tx.userEmpresa.updateMany({
+        where: { setorId: id },
+        data: { setorId: destinoId },
+      });
+      await tx.planoAcao.updateMany({
+        where: { setorId: id },
+        data: { setorId: destinoId },
+      });
+      await tx.setor.delete({ where: { id } });
+    }
+
+    if (novoNome && novoNome.trim() !== "" && novoNome.trim() !== destino.nome) {
+      await tx.setor.update({
+        where: { id: destinoId },
+        data: { nome: novoNome.trim() },
+      });
+    }
+  });
+
+  revalidatePath(`/rh/${empresaId}/setores`);
+  return { ok: true };
+}
