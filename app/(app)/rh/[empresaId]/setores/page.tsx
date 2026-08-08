@@ -6,17 +6,30 @@ export default async function SetoresPage({ params }: { params: Promise<{ empres
   const { empresaId } = await params;
   const usuario = await requireEmpresaAccess(empresaId);
 
-  // Buscar de todas as empresas que o usuário tem acesso
   const empresasDoUsuario = await empresasVisiveis(usuario);
 
-  const setores = await prisma.setor.findMany({
-    where: { empresaId: { in: empresasDoUsuario } },
-    orderBy: [{ ativo: "desc" }, { empresaId: "asc" }, { nome: "asc" }],
-    include: {
-      _count: { select: { colaboradores: true } },
-      empresa: { select: { id: true, nome: true } },
-    },
-  });
+  const [setores, empresas] = await Promise.all([
+    prisma.setor.findMany({
+      where: { empresaId: { in: empresasDoUsuario } },
+      orderBy: [{ ativo: "desc" }, { empresaId: "asc" }, { nome: "asc" }],
+      include: {
+        _count: { select: { colaboradores: true, vagas: true, metas: true } },
+        empresa: { select: { id: true, nome: true } },
+      },
+    }),
+    prisma.empresa.findMany({
+      where: { id: { in: empresasDoUsuario } },
+      select: { id: true, nome: true },
+      orderBy: { nome: "asc" },
+    }),
+  ]);
 
-  return <SetoresTable empresaId={empresaId} empresasDoUsuario={empresasDoUsuario} setores={setores} />;
+  return (
+    <SetoresTable
+      empresaId={empresaId}
+      empresasDoUsuario={empresasDoUsuario}
+      setores={setores}
+      empresas={empresas}
+    />
+  );
 }

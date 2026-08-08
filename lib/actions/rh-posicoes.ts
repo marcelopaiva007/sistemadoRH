@@ -10,17 +10,22 @@ const posicaoSchema = z.object({
   nome: z.string().trim().min(2, "Informe o nome da posição"),
 });
 
-export async function createPosicao(empresaId: string, _prev: ActionResult, formData: FormData): Promise<ActionResult> {
-  await requireEmpresaAccess(empresaId);
+export async function createPosicao(
+  empresaIdDefault: string,
+  _prev: ActionResult,
+  formData: FormData
+): Promise<ActionResult> {
+  const targetEmpresaId = (formData.get("empresaId") as string) || empresaIdDefault;
+  await requireEmpresaAccess(targetEmpresaId);
   const parsed = posicaoSchema.safeParse({ nome: formData.get("nome") });
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
 
   try {
-    await prisma.posicao.create({ data: { empresaId, nome: parsed.data.nome } });
+    await prisma.posicao.create({ data: { empresaId: targetEmpresaId, nome: parsed.data.nome } });
   } catch {
     return { ok: false, error: "Já existe uma posição com esse nome nessa empresa." };
   }
-  revalidatePath(`/rh/${empresaId}/posicoes`);
+  revalidatePath(`/rh/${empresaIdDefault}/posicoes`);
   return { ok: true };
 }
 

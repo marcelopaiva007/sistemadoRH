@@ -10,17 +10,22 @@ const setorSchema = z.object({
   nome: z.string().trim().min(2, "Informe o nome do setor"),
 });
 
-export async function createSetor(empresaId: string, _prev: ActionResult, formData: FormData): Promise<ActionResult> {
-  await requireEmpresaAccess(empresaId);
+export async function createSetor(
+  empresaIdDefault: string,
+  _prev: ActionResult,
+  formData: FormData
+): Promise<ActionResult> {
+  const targetEmpresaId = (formData.get("empresaId") as string) || empresaIdDefault;
+  await requireEmpresaAccess(targetEmpresaId);
   const parsed = setorSchema.safeParse({ nome: formData.get("nome") });
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
 
   try {
-    await prisma.setor.create({ data: { empresaId, nome: parsed.data.nome } });
+    await prisma.setor.create({ data: { empresaId: targetEmpresaId, nome: parsed.data.nome } });
   } catch {
     return { ok: false, error: "Já existe um setor com esse nome nessa empresa." };
   }
-  revalidatePath(`/rh/${empresaId}/setores`);
+  revalidatePath(`/rh/${empresaIdDefault}/setores`);
   return { ok: true };
 }
 
