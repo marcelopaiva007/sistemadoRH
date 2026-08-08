@@ -19,6 +19,6 @@ export const config = {
   // Extensões listadas em vez de "qualquer coisa com ponto": é explícito
   // sobre o que se pretende liberar, e nenhuma rota do sistema tem ponto.
   matcher: [
-    "/((?!api|_next/static|_next/image|favicon.ico|login|.*\\.(?:png|jpg|jpeg|gif|svg|webp|ico|glb|woff|woff2|txt|xml)$).*)",
+    "/((?!api|_next/static|_next/image|favicon.ico|login|esqueci-senha|redefinir-senha|.*\\.(?:png|jpg|jpeg|gif|svg|webp|ico|glb|woff|woff2|txt|xml)$).*)",
   ],
 };

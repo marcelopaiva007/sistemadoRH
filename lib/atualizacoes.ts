@@ -6,16 +6,18 @@
 // lista, no mesmo commit. Se a versão sobe e a entrada não entra aqui, a
 // tela passa a mentir por omissão.
 //
-// A data é texto pronto (dd/mm/aaaa) de propósito: isto é registro editorial
-// mantido à mão, não dado de banco — sem fuso, sem parse, sem migration.
-// Entregas antigas anteriores à tela foram consolidadas por faixa de versão a
-// partir do histórico do git.
+// Data e horário são textos prontos (dd/mm/aaaa e HH:mm) de propósito: isto é
+// registro editorial mantido à mão, não dado de banco — sem fuso, parse ou
+// migration. Entregas antigas anteriores à tela foram consolidadas por faixa de
+// versão a partir do histórico do git.
 
 export type Atualizacao = {
   /** "1.54.0", ou faixa consolidada de entregas próximas ("1.49.0–1.51.1"). */
   versao: string;
   /** dd/mm/aaaa, texto pronto para exibição. */
   data: string;
+  /** HH:mm, horário da publicação. Pode faltar em entradas históricas consolidadas. */
+  horario?: string;
   /** Resumo de uma linha, em linguagem de quem usa o sistema. */
   titulo: string;
   /** O que mudou, item a item. */
@@ -24,8 +26,29 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.56.0",
+    data: "07/08/2026",
+    horario: "18:50",
+    titulo: "Recuperação de senha confiável",
+    itens: [
+      "O link “Esqueci minha senha” passou a ficar acessível mesmo quando a proteção de rotas está ativa.",
+      "Se o envio de e-mail falhar, a tela informa o problema de forma amigável e preserva tokens válidos anteriores.",
+      "Documentação e modelo de configuração (.env.example) atualizados com os requisitos de SMTP.",
+    ],
+  },
+  {
+    versao: "1.55.3",
+    data: "07/08/2026",
+    horario: "18:47",
+    titulo: "Horário em cada atualização",
+    itens: [
+      "A tela Atualizações agora mostra também o horário de publicação de cada versão, além da data.",
+    ],
+  },
+  {
     versao: "1.55.2",
     data: "07/08/2026",
+    horario: "18:38",
     titulo: "Filtro por empresa na Produtividade RH",
     itens: [
       "A tela Produtividade RH ganhou filtro por empresa/CNPJ, ao lado do filtro de período — sem seleção, mostra o grupo inteiro.",
@@ -34,6 +57,7 @@ export const ATUALIZACOES: Atualizacao[] = [
   {
     versao: "1.55.1",
     data: "07/08/2026",
+    horario: "17:10",
     titulo: "Ícone de alerta nos blocos clicáveis da Liderança",
     itens: [
       'Os blocos "Sem supervisor" e "Divergência de cadastro" da tela de Liderança agora mostram o triângulo ao lado do número em alerta, como os demais indicadores — a cor deixa de ser o único sinal.',
@@ -42,6 +66,7 @@ export const ATUALIZACOES: Atualizacao[] = [
   {
     versao: "1.55.0",
     data: "07/08/2026",
+    horario: "17:08",
     titulo: "Produtividade da equipe de RH",
     itens: [
       "Nova tela (menu do topo, Administração e Diretoria) mostra quantas ações cada conta de sistema registrou hoje, nos últimos 7 ou nos últimos 30 dias, agrupadas em 6 categorias de processo.",
@@ -51,6 +76,7 @@ export const ATUALIZACOES: Atualizacao[] = [
   {
     versao: "1.54.0",
     data: "07/08/2026",
+    horario: "15:21",
     titulo: "Tela de Atualizações na administração",
     itens: [
       "Histórico das versões publicadas — número, data e resumo do que mudou — visível para Administração e Diretoria.",
@@ -60,16 +86,18 @@ export const ATUALIZACOES: Atualizacao[] = [
   {
     versao: "1.53.0",
     data: "07/08/2026",
+    horario: "14:36",
     titulo: "Desligamentos antigos regularizados e férias programadas",
     itens: [
       "Desligamento importado (anterior ao sistema) com data e motivo preenchidos sai das pendências: checklist e entrevista são dispensados automaticamente — inclusive em massa para quem já estava preenchido.",
-      "Lista de Desligamentos ganhou a marcação \"Dispensada\" na entrevista e um botão para abrir a ficha do colaborador direto na aba Desligamento.",
+      'Lista de Desligamentos ganhou a marcação "Dispensada" na entrevista e um botão para abrir a ficha do colaborador direto na aba Desligamento.',
       "Tela nova de férias programadas: as férias aprovadas que ainda vão acontecer.",
     ],
   },
   {
     versao: "1.52.0",
     data: "07/08/2026",
+    horario: "14:30",
     titulo: "Canal Fale com o RH",
     itens: [
       "Colaborador fala com o RH pelo portal (no lugar do planejamento de férias, que saiu do portal).",
@@ -82,7 +110,7 @@ export const ATUALIZACOES: Atualizacao[] = [
     titulo: "Pendências que batem com as listas",
     itens: [
       "Cartão de pendência abre a lista com a mesma regra e o mesmo recorte de empresas que contou — números do cartão e da lista sempre iguais.",
-      "\"Sem Telegram vinculado\" virou pendência de cobrança, com contagem consistente em todas as telas.",
+      '"Sem Telegram vinculado" virou pendência de cobrança, com contagem consistente em todas as telas.',
       "Desligamentos: paginação de 20, edição rápida de data/motivo direto da lista e dispensa de checklist para desligamento antigo.",
       "Revisão visual dos indicadores (cartões de número).",
     ],

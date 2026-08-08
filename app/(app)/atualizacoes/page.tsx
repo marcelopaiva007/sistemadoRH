@@ -17,8 +17,8 @@ export default async function AtualizacoesPage() {
       <div>
         <h1 className="text-xl font-semibold tracking-tight">Atualizações do sistema</h1>
         <p className="text-sm text-muted-foreground">
-          Histórico das versões publicadas: número, data e o que mudou em cada uma. A versão no ar
-          é a mesma da etiqueta no topo da tela.
+          Histórico das versões publicadas: número, data, horário e o que mudou em cada uma. A
+          versão no ar é a mesma da etiqueta no topo da tela.
         </p>
       </div>
 
@@ -31,6 +31,7 @@ export default async function AtualizacoesPage() {
                 {a.versao === numero && <Badge>No ar</Badge>}
                 <span className="ml-auto text-sm font-normal text-muted-foreground tabular-nums">
                   {a.data}
+                  {a.horario && ` · ${a.horario}`}
                 </span>
               </CardTitle>
             </CardHeader>
