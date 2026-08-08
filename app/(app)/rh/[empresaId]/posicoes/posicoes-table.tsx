@@ -219,7 +219,7 @@ export function PosicoesTable({
             Cargos & Funções
           </h1>
           <p className="text-xs text-muted-foreground">
-            Matriz de cargos, funções e posições de trabalho ativas na empresa.
+            Matriz de cargos, funções e posições de trabalho da marca.
           </p>
         </div>
 
@@ -310,7 +310,6 @@ export function PosicoesTable({
           <TableHeader>
             <TableRow>
               <TableHead>Cargo / Função</TableHead>
-              {exibeMultiEmpresa && <TableHead>Empresa</TableHead>}
               <TableHead className="text-center">Colaboradores</TableHead>
               <TableHead className="text-center">Vagas Abertas</TableHead>
               <TableHead className="text-center">Status</TableHead>
@@ -321,7 +320,7 @@ export function PosicoesTable({
             {posicoesFiltradas.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={exibeMultiEmpresa ? 6 : 5}
+                  colSpan={5}
                   className="py-8 text-center text-muted-foreground"
                 >
                   Nenhum cargo/função encontrado com os filtros aplicados.
@@ -364,14 +363,6 @@ export function PosicoesTable({
                         </div>
                       </div>
                     </TableCell>
-
-                    {exibeMultiEmpresa && (
-                      <TableCell>
-                        <Badge variant="outline" className="text-[11px]">
-                          {p.empresa.nome}
-                        </Badge>
-                      </TableCell>
-                    )}
 
                     <TableCell className="text-center">
                       <div className="flex flex-col items-center gap-1">
@@ -511,24 +502,6 @@ function PosicaoForm({
       <DialogHeader>
         <DialogTitle>{title}</DialogTitle>
       </DialogHeader>
-
-      {empresas.length > 1 && (
-        <div className="space-y-2">
-          <Label htmlFor="empresaId">Empresa</Label>
-          <Select name="empresaId" defaultValue={selecionada}>
-            <SelectTrigger>
-              <SelectValue placeholder="Selecione a empresa" />
-            </SelectTrigger>
-            <SelectContent>
-              {empresas.map((e) => (
-                <SelectItem key={e.id} value={e.id}>
-                  {e.nome}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
 
       <div className="space-y-2">
         <Label htmlFor="nome">Nome do cargo / função</Label>

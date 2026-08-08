@@ -310,7 +310,6 @@ export function SetoresTable({
           <TableHeader>
             <TableRow>
               <TableHead>Setor</TableHead>
-              {exibeMultiEmpresa && <TableHead>Empresa</TableHead>}
               <TableHead className="text-center">Colaboradores</TableHead>
               <TableHead className="text-center">Vagas / Metas</TableHead>
               <TableHead className="text-center">Status</TableHead>
@@ -321,7 +320,7 @@ export function SetoresTable({
             {setoresFiltrados.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={exibeMultiEmpresa ? 6 : 5}
+                  colSpan={5}
                   className="py-8 text-center text-muted-foreground"
                 >
                   Nenhum setor encontrado com os filtros aplicados.
@@ -364,14 +363,6 @@ export function SetoresTable({
                         </div>
                       </div>
                     </TableCell>
-
-                    {exibeMultiEmpresa && (
-                      <TableCell>
-                        <Badge variant="outline" className="text-[11px]">
-                          {s.empresa.nome}
-                        </Badge>
-                      </TableCell>
-                    )}
 
                     <TableCell className="text-center">
                       <div className="flex flex-col items-center gap-1">
@@ -510,31 +501,11 @@ function SetorForm({
     initialState,
   );
 
-  const selecionada = defaultEmpresaId || empresaIdDefault || empresas[0]?.id;
-
   return (
     <form action={formAction} className="space-y-4">
       <DialogHeader>
         <DialogTitle>{title}</DialogTitle>
       </DialogHeader>
-
-      {empresas.length > 1 && (
-        <div className="space-y-2">
-          <Label htmlFor="empresaId">Empresa</Label>
-          <Select name="empresaId" defaultValue={selecionada}>
-            <SelectTrigger>
-              <SelectValue placeholder="Selecione a empresa" />
-            </SelectTrigger>
-            <SelectContent>
-              {empresas.map((e) => (
-                <SelectItem key={e.id} value={e.id}>
-                  {e.nome}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
 
       <div className="space-y-2">
         <Label htmlFor="nome">Nome do setor</Label>
