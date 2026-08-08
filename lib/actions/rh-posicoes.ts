@@ -65,3 +65,116 @@ export async function deletePosicao(empresaId: string, id: string): Promise<Acti
   revalidatePath(`/rh/${empresaId}/posicoes`);
   return { ok: true };
 }
+
+export async function unificarPosicoes(
+  empresaId: string,
+  origemId: string,
+  destinoId: string
+): Promise<ActionResult> {
+  if (origemId === destinoId) {
+    return { ok: false, error: "O cargo de origem e destino não podem ser os mesmos." };
+  }
+  await requireEmpresaAccess(empresaId);
+
+  const [origem, destino] = await Promise.all([
+    prisma.posicao.findUnique({ where: { id: origemId } }),
+    prisma.posicao.findUnique({ where: { id: destinoId } }),
+  ]);
+
+  if (!origem || !destino) {
+    return { ok: false, error: "Cargo de origem ou destino não encontrado." };
+  }
+
+  await prisma.$transaction(async (tx) => {
+    // 1. Reatribui colaboradores
+    await tx.colaborador.updateMany({
+      where: { posicaoId: origemId },
+      data: { posicaoId: destinoId },
+    });
+
+    // 2. Reatribui requisitos NR
+    await tx.requisitoNR.updateMany({
+      where: { posicaoId: origemId },
+      data: { posicaoId: destinoId },
+    });
+
+    // 3. Reatribui vagas
+    await tx.vaga.updateMany({
+      where: { posicaoId: origemId },
+      data: { posicaoId: destinoId },
+    });
+
+    // 4. Remove a posição duplicada
+    await tx.posicao.delete({ where: { id: origemId } });
+  });
+
+  revalidatePath(`/rh/${empresaId}/posicoes`);
+  return { ok: true };
+}
+
+export async function limparDuplicatasPosicoesAuto(empresaId: string): Promise<{ ok: boolean; removidos: number; error?: string }> {
+  await requireEmpresaAccess(empresaId);
+
+  const posicoes = await prisma.posicao.findMany({
+    where: { empresaId },
+    include: {
+      _count: { select: { colaboradores: true, vagas: true, requisitosNR: true } },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+
+  const porNome = new Map<string, typeof posicoes>();
+  for (const p of posicoes) {
+    const chave = p.nome.trim().toLowerCase();
+    const list = porNome.get(chave) ?? [];
+    list.push(p);
+    porNome.set(chave, list);
+  }
+
+  let removidos = 0;
+
+  for (const list of porNome.values()) {
+    if (list.length <= 1) continue;
+
+    // Escolhe o item principal: com mais colaboradores ou ativo mais antigo
+    const ordenados = [...list].sort((a, b) => {
+      const diffColabs = (b._count?.colaboradores ?? 0) - (a._count?.colaboradores ?? 0);
+      if (diffColabs !== 0) return diffColabs;
+      if (a.ativo !== b.ativo) return a.ativo ? -1 : 1;
+      return a.createdAt.getTime() - b.createdAt.getTime();
+    });
+
+    const mestre = ordenados[0];
+    const duplicadas = ordenados.slice(1);
+
+    for (const dup of duplicadas) {
+      await prisma.$transaction(async (tx) => {
+        await tx.colaborador.updateMany({
+          where: { posicaoId: dup.id },
+          data: { posicaoId: mestre.id },
+        });
+        await tx.requisitoNR.updateMany({
+          where: { posicaoId: dup.id },
+          data: { posicaoId: mestre.id },
+        });
+        await tx.vaga.updateMany({
+          where: { posicaoId: dup.id },
+          data: { posicaoId: mestre.id },
+        });
+        await tx.posicao.delete({ where: { id: dup.id } });
+      });
+      removidos++;
+    }
+
+    // Normaliza nome do mestre caso tenha espaço sobrando
+    if (mestre.nome !== mestre.nome.trim()) {
+      await prisma.posicao.update({
+        where: { id: mestre.id },
+        data: { nome: mestre.nome.trim() },
+      });
+    }
+  }
+
+  revalidatePath(`/rh/${empresaId}/posicoes`);
+  return { ok: true, removidos };
+}

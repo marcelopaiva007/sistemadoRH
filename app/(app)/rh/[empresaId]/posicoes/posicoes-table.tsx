@@ -14,6 +14,8 @@ import {
   Building2,
   Search,
   UsersRound,
+  Sparkles,
+  GitMerge,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,7 +46,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { createPosicao, updatePosicao, deletePosicao, togglePosicaoAtiva } from "@/lib/actions/rh-posicoes";
+import {
+  createPosicao,
+  updatePosicao,
+  deletePosicao,
+  togglePosicaoAtiva,
+  unificarPosicoes,
+  limparDuplicatasPosicoesAuto,
+} from "@/lib/actions/rh-posicoes";
 import type { ActionResult } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
@@ -126,6 +135,8 @@ export function PosicoesTable({
   const [filtroStatus, setFiltroStatus] = useState<"todos" | "ativos" | "inativos">("todos");
   const [createOpen, setCreateOpen] = useState(false);
   const [editPosicao, setEditPosicao] = useState<Posicao | null>(null);
+  const [unificarPosicaoOrigem, setUnificarPosicaoOrigem] = useState<Posicao | null>(null);
+  const [isCleaning, setIsCleaning] = useState(false);
 
   const posicoesFiltradas = useMemo(() => {
     return posicoes.filter((p) => {
@@ -140,6 +151,20 @@ export function PosicoesTable({
       return matchEmpresa && matchBusca && matchStatus;
     });
   }, [posicoes, empresasSelecionadas, busca, filtroStatus]);
+
+  // Identificação de duplicatas por nome
+  const contagemDuplicatas = useMemo(() => {
+    const contagem = new Map<string, number>();
+    for (const p of posicoesFiltradas) {
+      const chave = `${p.empresaId}:${p.nome.trim().toLowerCase()}`;
+      contagem.set(chave, (contagem.get(chave) ?? 0) + 1);
+    }
+    let duplicados = 0;
+    for (const count of contagem.values()) {
+      if (count > 1) duplicados += count - 1;
+    }
+    return duplicados;
+  }, [posicoesFiltradas]);
 
   // Cálculos de KPIs
   const kpis = useMemo(() => {
@@ -165,6 +190,26 @@ export function PosicoesTable({
 
   const exibeMultiEmpresa = empresas.length > 1;
 
+  async function handleAutoLimpeza() {
+    setIsCleaning(true);
+    try {
+      const res = await limparDuplicatasPosicoesAuto(empresaId);
+      if (res.ok) {
+        toast.success(
+          res.removidos > 0
+            ? `${res.removidos} cargo(s) duplicado(s) unificado(s) e limpos com sucesso!`
+            : "Nenhum cargo duplicado encontrado para limpeza automática.",
+        );
+      } else {
+        toast.error(res.error || "Erro ao realizar auto-limpeza.");
+      }
+    } catch {
+      toast.error("Erro inesperado ao unificar duplicatas.");
+    } finally {
+      setIsCleaning(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Cabeçalho da Página */}
@@ -178,7 +223,20 @@ export function PosicoesTable({
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {contagemDuplicatas > 0 && (
+            <Button
+              variant="secondary"
+              size="sm"
+              className="gap-1.5 border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-200"
+              onClick={handleAutoLimpeza}
+              disabled={isCleaning}
+            >
+              <Sparkles className="size-3.5 text-amber-600 dark:text-amber-400" />
+              {isCleaning ? "Unificando..." : `Limpar ${contagemDuplicatas} Duplicatas`}
+            </Button>
+          )}
+
           <Link href={`/rh/${empresaId}/setores`}>
             <Button variant="outline" size="sm" className="gap-1.5">
               <UsersRound className="size-3.5" />
@@ -256,7 +314,7 @@ export function PosicoesTable({
               <TableHead className="text-center">Colaboradores</TableHead>
               <TableHead className="text-center">Vagas Abertas</TableHead>
               <TableHead className="text-center">Status</TableHead>
-              <TableHead className="w-24 text-right">Ações</TableHead>
+              <TableHead className="w-28 text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -276,13 +334,30 @@ export function PosicoesTable({
                     ? Math.round(((p._count?.colaboradores ?? 0) / kpis.totalColaboradores) * 100)
                     : 0;
 
+                const temDuplicataNominal = posicoesFiltradas.some(
+                  (outro) =>
+                    outro.id !== p.id &&
+                    outro.empresaId === p.empresaId &&
+                    outro.nome.trim().toLowerCase() === p.nome.trim().toLowerCase(),
+                );
+
                 return (
                   <TableRow key={p.id} className={p.ativo ? "" : "opacity-60"}>
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2.5">
                         <PosicaoAvatar nome={p.nome} id={p.id} />
                         <div>
-                          <p className="font-semibold text-foreground">{p.nome}</p>
+                          <div className="flex items-center gap-1.5">
+                            <p className="font-semibold text-foreground">{p.nome}</p>
+                            {temDuplicataNominal && (
+                              <Badge
+                                variant="outline"
+                                className="border-amber-400 bg-amber-50 text-[10px] text-amber-700 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
+                              >
+                                Duplicado
+                              </Badge>
+                            )}
+                          </div>
                           <p className="text-[11px] text-muted-foreground">
                             ID: {p.id.slice(-6)}
                           </p>
@@ -343,6 +418,14 @@ export function PosicoesTable({
                         <Button
                           variant="ghost"
                           size="icon"
+                          onClick={() => setUnificarPosicaoOrigem(p)}
+                          title="Unificar / Mesclar com outro cargo"
+                        >
+                          <GitMerge className="size-4 text-muted-foreground hover:text-foreground" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           onClick={() => setEditPosicao(p)}
                           title="Editar cargo"
                         >
@@ -370,6 +453,20 @@ export function PosicoesTable({
               defaultEmpresaId={editPosicao.empresaId}
               empresas={empresas}
               onSuccess={() => setEditPosicao(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Unificação Manual */}
+      <Dialog open={!!unificarPosicaoOrigem} onOpenChange={(open) => !open && setUnificarPosicaoOrigem(null)}>
+        <DialogContent>
+          {unificarPosicaoOrigem && (
+            <UnificarPosicaoModal
+              empresaId={empresaId}
+              posicaoOrigem={unificarPosicaoOrigem}
+              todasPosicoes={posicoes}
+              onSuccess={() => setUnificarPosicaoOrigem(null)}
             />
           )}
         </DialogContent>
@@ -457,6 +554,87 @@ function PosicaoForm({
         </Button>
       </DialogFooter>
     </form>
+  );
+}
+
+function UnificarPosicaoModal({
+  empresaId,
+  posicaoOrigem,
+  todasPosicoes,
+  onSuccess,
+}: {
+  empresaId: string;
+  posicaoOrigem: Posicao;
+  todasPosicoes: Posicao[];
+  onSuccess: () => void;
+}) {
+  const [destinoId, setDestinoId] = useState("");
+  const [isPending, setIsPending] = useState(false);
+
+  const opcoesDestino = useMemo(() => {
+    return todasPosicoes.filter(
+      (p) => p.id !== posicaoOrigem.id && p.empresaId === posicaoOrigem.empresaId,
+    );
+  }, [todasPosicoes, posicaoOrigem]);
+
+  async function handleUnificar() {
+    if (!destinoId) {
+      toast.error("Selecione o cargo de destino.");
+      return;
+    }
+    setIsPending(true);
+    try {
+      const res = await unificarPosicoes(empresaId, posicaoOrigem.id, destinoId);
+      if (res.ok) {
+        toast.success("Cargos unificados com sucesso!");
+        onSuccess();
+      } else {
+        toast.error(res.error || "Erro ao unificar cargos.");
+      }
+    } catch {
+      toast.error("Erro inesperado ao unificar cargos.");
+    } finally {
+      setIsPending(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <DialogHeader>
+        <DialogTitle>Unificar Cargo / Função</DialogTitle>
+      </DialogHeader>
+
+      <p className="text-xs text-muted-foreground">
+        Migre todos os colaboradores, requisitos de NR e vagas de{" "}
+        <strong className="text-foreground font-semibold">{posicaoOrigem.nome}</strong> para o cargo
+        principal escolhido abaixo. O cargo de origem será excluído em seguida.
+      </p>
+
+      <div className="space-y-2">
+        <Label>Cargo Principal (Destino)</Label>
+        <Select value={destinoId} onValueChange={(val) => setDestinoId(val ?? "")}>
+          <SelectTrigger>
+            <SelectValue placeholder="Selecione o cargo de destino..." />
+          </SelectTrigger>
+          <SelectContent>
+            {opcoesDestino.map((p) => (
+              <SelectItem key={p.id} value={p.id}>
+                {p.nome} ({p._count?.colaboradores ?? 0} colaboradores)
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <DialogFooter>
+        <Button variant="ghost" onClick={onSuccess}>
+          Cancelar
+        </Button>
+        <Button onClick={handleUnificar} disabled={isPending || !destinoId}>
+          {isPending ? "Unificando..." : "Confirmar Unificação"}
+        </Button>
+      </DialogFooter>
+    </div>
   );
 }
 

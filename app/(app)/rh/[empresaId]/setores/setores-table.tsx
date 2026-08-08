@@ -14,6 +14,8 @@ import {
   Layers,
   Search,
   Briefcase,
+  Sparkles,
+  GitMerge,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,7 +46,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { createSetor, updateSetor, deleteSetor, toggleSetorAtivo } from "@/lib/actions/rh-setores";
+import {
+  createSetor,
+  updateSetor,
+  deleteSetor,
+  toggleSetorAtivo,
+  unificarSetores,
+  limparDuplicatasSetoresAuto,
+} from "@/lib/actions/rh-setores";
 import type { ActionResult } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
@@ -126,6 +135,8 @@ export function SetoresTable({
   const [filtroStatus, setFiltroStatus] = useState<"todos" | "ativos" | "inativos">("todos");
   const [createOpen, setCreateOpen] = useState(false);
   const [editSetor, setEditSetor] = useState<Setor | null>(null);
+  const [unificarSetorOrigem, setUnificarSetorOrigem] = useState<Setor | null>(null);
+  const [isCleaning, setIsCleaning] = useState(false);
 
   const setoresFiltrados = useMemo(() => {
     return setores.filter((s) => {
@@ -140,6 +151,20 @@ export function SetoresTable({
       return matchEmpresa && matchBusca && matchStatus;
     });
   }, [setores, empresasSelecionadas, busca, filtroStatus]);
+
+  // Identificação de duplicatas por nome (ignorando maiúsculas e espaços)
+  const contagemDuplicatas = useMemo(() => {
+    const contagem = new Map<string, number>();
+    for (const s of setoresFiltrados) {
+      const chave = `${s.empresaId}:${s.nome.trim().toLowerCase()}`;
+      contagem.set(chave, (contagem.get(chave) ?? 0) + 1);
+    }
+    let duplicados = 0;
+    for (const count of contagem.values()) {
+      if (count > 1) duplicados += count - 1;
+    }
+    return duplicados;
+  }, [setoresFiltrados]);
 
   // Cálculos de KPIs
   const kpis = useMemo(() => {
@@ -165,6 +190,26 @@ export function SetoresTable({
 
   const exibeMultiEmpresa = empresas.length > 1;
 
+  async function handleAutoLimpeza() {
+    setIsCleaning(true);
+    try {
+      const res = await limparDuplicatasSetoresAuto(empresaId);
+      if (res.ok) {
+        toast.success(
+          res.removidos > 0
+            ? `${res.removidos} setor(es) duplicado(s) unificado(s) e limpos com sucesso!`
+            : "Nenhum setor duplicado encontrado para limpeza automática.",
+        );
+      } else {
+        toast.error(res.error || "Erro ao realizar auto-limpeza.");
+      }
+    } catch {
+      toast.error("Erro inesperado ao unificar duplicatas.");
+    } finally {
+      setIsCleaning(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Cabeçalho da Página */}
@@ -178,7 +223,20 @@ export function SetoresTable({
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {contagemDuplicatas > 0 && (
+            <Button
+              variant="secondary"
+              size="sm"
+              className="gap-1.5 border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-200"
+              onClick={handleAutoLimpeza}
+              disabled={isCleaning}
+            >
+              <Sparkles className="size-3.5 text-amber-600 dark:text-amber-400" />
+              {isCleaning ? "Unificando..." : `Limpar ${contagemDuplicatas} Duplicatas`}
+            </Button>
+          )}
+
           <Link href={`/rh/${empresaId}/posicoes`}>
             <Button variant="outline" size="sm" className="gap-1.5">
               <Briefcase className="size-3.5" />
@@ -256,7 +314,7 @@ export function SetoresTable({
               <TableHead className="text-center">Colaboradores</TableHead>
               <TableHead className="text-center">Vagas / Metas</TableHead>
               <TableHead className="text-center">Status</TableHead>
-              <TableHead className="w-24 text-right">Ações</TableHead>
+              <TableHead className="w-28 text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -276,13 +334,30 @@ export function SetoresTable({
                     ? Math.round(((s._count?.colaboradores ?? 0) / kpis.totalColaboradores) * 100)
                     : 0;
 
+                const temDuplicataNominal = setoresFiltrados.some(
+                  (outro) =>
+                    outro.id !== s.id &&
+                    outro.empresaId === s.empresaId &&
+                    outro.nome.trim().toLowerCase() === s.nome.trim().toLowerCase(),
+                );
+
                 return (
                   <TableRow key={s.id} className={s.ativo ? "" : "opacity-60"}>
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2.5">
                         <SetorAvatar nome={s.nome} id={s.id} />
                         <div>
-                          <p className="font-semibold text-foreground">{s.nome}</p>
+                          <div className="flex items-center gap-1.5">
+                            <p className="font-semibold text-foreground">{s.nome}</p>
+                            {temDuplicataNominal && (
+                              <Badge
+                                variant="outline"
+                                className="border-amber-400 bg-amber-50 text-[10px] text-amber-700 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
+                              >
+                                Duplicado
+                              </Badge>
+                            )}
+                          </div>
                           <p className="text-[11px] text-muted-foreground">
                             ID: {s.id.slice(-6)}
                           </p>
@@ -349,6 +424,14 @@ export function SetoresTable({
                         <Button
                           variant="ghost"
                           size="icon"
+                          onClick={() => setUnificarSetorOrigem(s)}
+                          title="Unificar / Mesclar com outro setor"
+                        >
+                          <GitMerge className="size-4 text-muted-foreground hover:text-foreground" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           onClick={() => setEditSetor(s)}
                           title="Editar setor"
                         >
@@ -376,6 +459,20 @@ export function SetoresTable({
               defaultEmpresaId={editSetor.empresaId}
               empresas={empresas}
               onSuccess={() => setEditSetor(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Unificação Manual */}
+      <Dialog open={!!unificarSetorOrigem} onOpenChange={(open) => !open && setUnificarSetorOrigem(null)}>
+        <DialogContent>
+          {unificarSetorOrigem && (
+            <UnificarSetorModal
+              empresaId={empresaId}
+              setorOrigem={unificarSetorOrigem}
+              todosSetores={setores}
+              onSuccess={() => setUnificarSetorOrigem(null)}
             />
           )}
         </DialogContent>
@@ -463,6 +560,87 @@ function SetorForm({
         </Button>
       </DialogFooter>
     </form>
+  );
+}
+
+function UnificarSetorModal({
+  empresaId,
+  setorOrigem,
+  todosSetores,
+  onSuccess,
+}: {
+  empresaId: string;
+  setorOrigem: Setor;
+  todosSetores: Setor[];
+  onSuccess: () => void;
+}) {
+  const [destinoId, setDestinoId] = useState("");
+  const [isPending, setIsPending] = useState(false);
+
+  const opcoesDestino = useMemo(() => {
+    return todosSetores.filter(
+      (s) => s.id !== setorOrigem.id && s.empresaId === setorOrigem.empresaId,
+    );
+  }, [todosSetores, setorOrigem]);
+
+  async function handleUnificar() {
+    if (!destinoId) {
+      toast.error("Selecione o setor de destino.");
+      return;
+    }
+    setIsPending(true);
+    try {
+      const res = await unificarSetores(empresaId, setorOrigem.id, destinoId);
+      if (res.ok) {
+        toast.success("Setores unificados com sucesso!");
+        onSuccess();
+      } else {
+        toast.error(res.error || "Erro ao unificar setores.");
+      }
+    } catch {
+      toast.error("Erro inesperado ao unificar setores.");
+    } finally {
+      setIsPending(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <DialogHeader>
+        <DialogTitle>Unificar Setor</DialogTitle>
+      </DialogHeader>
+
+      <p className="text-xs text-muted-foreground">
+        Migre todos os colaboradores, vagas e metas de{" "}
+        <strong className="text-foreground font-semibold">{setorOrigem.nome}</strong> para o setor
+        principal escolhido abaixo. O setor de origem será excluído em seguida.
+      </p>
+
+      <div className="space-y-2">
+        <Label>Setor Principal (Destino)</Label>
+        <Select value={destinoId} onValueChange={(val) => setDestinoId(val ?? "")}>
+          <SelectTrigger>
+            <SelectValue placeholder="Selecione o setor de destino..." />
+          </SelectTrigger>
+          <SelectContent>
+            {opcoesDestino.map((s) => (
+              <SelectItem key={s.id} value={s.id}>
+                {s.nome} ({s._count?.colaboradores ?? 0} colaboradores)
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <DialogFooter>
+        <Button variant="ghost" onClick={onSuccess}>
+          Cancelar
+        </Button>
+        <Button onClick={handleUnificar} disabled={isPending || !destinoId}>
+          {isPending ? "Unificando..." : "Confirmar Unificação"}
+        </Button>
+      </DialogFooter>
+    </div>
   );
 }
 
