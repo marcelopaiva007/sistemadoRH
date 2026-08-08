@@ -4,13 +4,12 @@
 // Chrome/Edge instalado. Sempre escopado à empresa da rota (requireEmpresaAccess
 // + where empresaId) — relatórios nunca misturam empresas.
 import { NextRequest, NextResponse } from "next/server";
-import { type Browser } from "playwright-core";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { calcularNR01 } from "@/lib/nr01";
 import { CONVITES_NA_PESQUISA } from "@/lib/pesquisa-numeros";
 import { gerarHtmlRelatorioNR01 } from "@/lib/nr01-relatorio";
-import { launchChromium } from "@/lib/pdf-browser";
+import { responderComHtmlRelatorio } from "@/lib/pdf-browser";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -81,32 +80,5 @@ export async function GET(
     resultado,
   });
 
-  let browser: Browser | undefined;
-  try {
-    browser = await launchChromium();
-    const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: "load", timeout: 30_000 });
-    const pdf = await page.pdf({
-      format: "A4",
-      printBackground: true,
-      margin: { top: "12mm", bottom: "14mm", left: "10mm", right: "10mm" },
-    });
-
-    const nomeArquivo = `relatorio-nr01-${pesquisa.empresa.nome.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${new Date().toISOString().slice(0, 10)}.pdf`;
-    return new NextResponse(new Uint8Array(pdf), {
-      headers: {
-        "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${nomeArquivo}"`,
-        "Cache-Control": "no-store",
-      },
-    });
-  } catch (e) {
-    console.error("relatorio-pdf:", e);
-    return NextResponse.json(
-      { error: `Falha ao gerar o PDF: ${e instanceof Error ? e.message : String(e)}` },
-      { status: 500 },
-    );
-  } finally {
-    await browser?.close().catch(() => {});
-  }
+  return responderComHtmlRelatorio(html, `Relatório NR-01 - ${pesquisa.empresa.nome}`);
 }

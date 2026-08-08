@@ -1,13 +1,12 @@
 // Gera o Relatório de Clima Organizacional (GPTW) em PDF.
 // Mesmo padrão do relatorio-pdf de NR-01.
 import { NextRequest, NextResponse } from "next/server";
-import { type Browser } from "playwright-core";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { CONVITES_NA_PESQUISA } from "@/lib/pesquisa-numeros";
 import { gerarHtmlRelatorioClima } from "@/lib/clima-relatorio";
 import { calcularClima, compararCiclos, extrairEvolucao, gerarAnaliseExecutiva, type RespostaPrisma } from "@/lib/clima";
-import { launchChromium } from "@/lib/pdf-browser";
+import { responderComHtmlRelatorio } from "@/lib/pdf-browser";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -148,32 +147,5 @@ export async function GET(
     evolucao,
   });
 
-  let browser: Browser | undefined;
-  try {
-    browser = await launchChromium();
-    const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: "load", timeout: 30_000 });
-    const pdf = await page.pdf({
-      format: "A4",
-      printBackground: true,
-      margin: { top: "12mm", bottom: "14mm", left: "10mm", right: "10mm" },
-    });
-
-    const nomeArquivo = `relatorio-clima-${pesquisa.empresa.nome.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${new Date().toISOString().slice(0, 10)}.pdf`;
-    return new NextResponse(new Uint8Array(pdf), {
-      headers: {
-        "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${nomeArquivo}"`,
-        "Cache-Control": "no-store",
-      },
-    });
-  } catch (e) {
-    console.error("relatorio-clima-pdf:", e);
-    return NextResponse.json(
-      { error: `Falha ao gerar o PDF: ${e instanceof Error ? e.message : String(e)}` },
-      { status: 500 },
-    );
-  } finally {
-    await browser?.close().catch(() => {});
-  }
+  return responderComHtmlRelatorio(html, `Relatório Clima Organizacional - ${pesquisa.empresa.nome}`);
 }

@@ -2,13 +2,12 @@
 // campanha) em PDF. Mesmo padrão de relatorio-clima-pdf: HTML server-side
 // renderizado por Chromium headless.
 import { NextRequest, NextResponse } from "next/server";
-import { type Browser } from "playwright-core";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { empresasVisiveis } from "@/lib/rh-auth-guard";
 import { calcularPainelAvaliacao } from "@/lib/avaliacao-painel";
 import { gerarHtmlRelatorioAvaliacao } from "@/lib/avaliacao-relatorio";
-import { launchChromium } from "@/lib/pdf-browser";
+import { responderComHtmlRelatorio } from "@/lib/pdf-browser";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -68,32 +67,5 @@ export async function GET(
 
   const html = gerarHtmlRelatorioAvaliacao({ campanha, geradoEm: new Date(), dados });
 
-  let browser: Browser | undefined;
-  try {
-    browser = await launchChromium();
-    const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: "load", timeout: 30_000 });
-    const pdf = await page.pdf({
-      format: "A4",
-      printBackground: true,
-      margin: { top: "12mm", bottom: "14mm", left: "10mm", right: "10mm" },
-    });
-
-    const nomeArquivo = `relatorio-avaliacao-${campanha.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${new Date().toISOString().slice(0, 10)}.pdf`;
-    return new NextResponse(new Uint8Array(pdf), {
-      headers: {
-        "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${nomeArquivo}"`,
-        "Cache-Control": "no-store",
-      },
-    });
-  } catch (e) {
-    console.error("relatorio-avaliacao-pdf:", e);
-    return NextResponse.json(
-      { error: `Falha ao gerar o PDF: ${e instanceof Error ? e.message : String(e)}` },
-      { status: 500 },
-    );
-  } finally {
-    await browser?.close().catch(() => {});
-  }
+  return responderComHtmlRelatorio(html, `Relatório de Avaliação de Desempenho - ${campanha}`);
 }
