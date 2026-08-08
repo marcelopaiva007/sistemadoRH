@@ -26,6 +26,16 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.56.1",
+    data: "08/08/2026",
+    horario: "02:20",
+    titulo: "Notificação de pendências sem Telegram e correções",
+    itens: [
+      "Inclusão do indicador e rótulo 'Sem Telegram vinculado' no motor de cobrança automática de pendências do RH.",
+      "Auditoria completa de código e verificação de integridade antes do deploy em produção.",
+    ],
+  },
+  {
     versao: "1.56.0",
     data: "07/08/2026",
     horario: "18:50",
