@@ -1,11 +1,13 @@
 // Testes de produtividade e ranking da equipe de RH (lib/produtividade-rh.ts). Não toca o banco.
 //   npx tsx scripts/test-produtividade.ts
 import {
-  aplicarRanking,
   categoriaDaEntidade,
-  diasUteisNoIntervalo,
   produtividadePorCategoria,
   produtividadePorUsuario,
+} from "@/lib/produtividade";
+import {
+  aplicarRanking,
+  diasUteisNoIntervalo,
   type ResumoProdutividadePessoa,
 } from "@/lib/produtividade-rh";
 import { dataUTC } from "@/lib/datas";

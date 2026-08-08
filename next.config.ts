@@ -1,7 +1,17 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["@sparticuz/chromium", "playwright-core"],
+  serverExternalPackages: [
+    "@sparticuz/chromium",
+    "playwright-core",
+    "@prisma/adapter-pg",
+    "pg",
+    "pg-connection-string",
+    "pgpass",
+  ],
+  turbopack: {
+    root: __dirname,
+  },
   // O tracer não detecta os arquivos auxiliares do playwright/chromium
   // (browsers.json, binário) — inclui o pacote inteiro na função do relatório
   // PDF.
