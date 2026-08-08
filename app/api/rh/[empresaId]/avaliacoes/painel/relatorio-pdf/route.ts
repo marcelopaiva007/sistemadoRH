@@ -2,34 +2,16 @@
 // campanha) em PDF. Mesmo padrão de relatorio-clima-pdf: HTML server-side
 // renderizado por Chromium headless.
 import { NextRequest, NextResponse } from "next/server";
-import chromiumServerless from "@sparticuz/chromium";
-import { chromium, type Browser } from "playwright-core";
+import { type Browser } from "playwright-core";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { empresasVisiveis } from "@/lib/rh-auth-guard";
 import { calcularPainelAvaliacao } from "@/lib/avaliacao-painel";
 import { gerarHtmlRelatorioAvaliacao } from "@/lib/avaliacao-relatorio";
+import { launchChromium } from "@/lib/pdf-browser";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
-
-async function launchChromium(): Promise<Browser> {
-  if (process.platform === "linux") {
-    return chromium.launch({
-      args: chromiumServerless.args,
-      executablePath: await chromiumServerless.executablePath(),
-      headless: true,
-    });
-  }
-  for (const channel of ["chrome", "msedge"] as const) {
-    try {
-      return await chromium.launch({ headless: true, channel });
-    } catch {
-      /* tenta o próximo */
-    }
-  }
-  return chromium.launch({ headless: true });
-}
 
 export async function GET(
   req: NextRequest,

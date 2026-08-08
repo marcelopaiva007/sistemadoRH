@@ -52,17 +52,21 @@ try {
 
 // 2. Trava anti-vazamento de imports de banco em componentes de cliente ("use client")
 console.log("🛡️ Verificando segurança de bundling dos componentes de cliente...");
-const componentesCliente = execSync('grep -rnw "use client" app/ components/ | cut -d: -f1 | sort -u', { encoding: "utf-8" })
+const arquivos = execSync('grep -rnw "use client" app/ components/ | cut -d: -f1 | sort -u', { encoding: "utf-8" })
   .trim()
   .split("\n")
   .filter(Boolean);
 
 let violacoes = 0;
-for (const arquivo of componentesCliente) {
+for (const arquivo of arquivos) {
   const conteudo = readFileSync(arquivo, "utf8");
-  if (/import.*from.*(@\/lib\/prisma|lib\/prisma|pg|@prisma\/adapter-pg)/.test(conteudo)) {
-    console.error(`❌ ERRO: Componente de cliente ("use client") importando banco de dados: ${arquivo}`);
-    violacoes++;
+  // Só considera componente de cliente se "use client" estiver nas primeiras linhas (diretiva do React)
+  const primeiraLinha = conteudo.split("\n").slice(0, 5).join("\n");
+  if (/['"]use client['"]/.test(primeiraLinha)) {
+    if (/import.*from.*(@\/lib\/prisma|lib\/prisma|pg|@prisma\/adapter-pg)/.test(conteudo)) {
+      console.error(`❌ ERRO: Componente de cliente ("use client") importando banco de dados: ${arquivo}`);
+      violacoes++;
+    }
   }
 }
 

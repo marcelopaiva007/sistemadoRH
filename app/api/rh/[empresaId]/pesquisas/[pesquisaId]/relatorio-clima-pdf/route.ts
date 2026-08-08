@@ -1,34 +1,16 @@
 // Gera o Relatório de Clima Organizacional (GPTW) em PDF.
 // Mesmo padrão do relatorio-pdf de NR-01.
 import { NextRequest, NextResponse } from "next/server";
-import chromiumServerless from "@sparticuz/chromium";
-import { chromium, type Browser } from "playwright-core";
+import { type Browser } from "playwright-core";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { CONVITES_NA_PESQUISA } from "@/lib/pesquisa-numeros";
 import { gerarHtmlRelatorioClima } from "@/lib/clima-relatorio";
 import { calcularClima, compararCiclos, extrairEvolucao, gerarAnaliseExecutiva, type RespostaPrisma } from "@/lib/clima";
+import { launchChromium } from "@/lib/pdf-browser";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
-
-async function launchChromium(): Promise<Browser> {
-  if (process.platform === "linux") {
-    return chromium.launch({
-      args: chromiumServerless.args,
-      executablePath: await chromiumServerless.executablePath(),
-      headless: true,
-    });
-  }
-  for (const channel of ["chrome", "msedge"] as const) {
-    try {
-      return await chromium.launch({ headless: true, channel });
-    } catch {
-      /* tenta o próximo */
-    }
-  }
-  return chromium.launch({ headless: true });
-}
 
 export async function GET(
   _req: NextRequest,

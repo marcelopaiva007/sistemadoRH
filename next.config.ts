@@ -19,7 +19,7 @@ const nextConfig: NextConfig = {
   // escape, então usamos `**` no lugar dos segmentos dinâmicos. O sufixo importa
   // — sem ele, o Chromium entraria também na função de download de anexos.
   outputFileTracingIncludes: {
-    "/api/rh/**/relatorio-pdf": [
+    "/api/rh/**/relatorio*pdf": [
       "./node_modules/playwright-core/**/*",
       "./node_modules/@sparticuz/chromium/**/*",
     ],

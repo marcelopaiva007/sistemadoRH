@@ -4,34 +4,16 @@
 // Chrome/Edge instalado. Sempre escopado à empresa da rota (requireEmpresaAccess
 // + where empresaId) — relatórios nunca misturam empresas.
 import { NextRequest, NextResponse } from "next/server";
-import chromiumServerless from "@sparticuz/chromium";
-import { chromium, type Browser } from "playwright-core";
+import { type Browser } from "playwright-core";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { calcularNR01 } from "@/lib/nr01";
 import { CONVITES_NA_PESQUISA } from "@/lib/pesquisa-numeros";
 import { gerarHtmlRelatorioNR01 } from "@/lib/nr01-relatorio";
+import { launchChromium } from "@/lib/pdf-browser";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
-
-async function launchChromium(): Promise<Browser> {
-  if (process.platform === "linux") {
-    return chromium.launch({
-      args: chromiumServerless.args,
-      executablePath: await chromiumServerless.executablePath(),
-      headless: true,
-    });
-  }
-  for (const channel of ["chrome", "msedge"] as const) {
-    try {
-      return await chromium.launch({ headless: true, channel });
-    } catch {
-      /* tenta o próximo */
-    }
-  }
-  return chromium.launch({ headless: true });
-}
 
 export async function GET(
   _req: NextRequest,
@@ -52,7 +34,7 @@ export async function GET(
   }
 
   const pesquisa = await prisma.pesquisa.findFirst({
-    where: { id: pesquisaId, empresaId, modelo: "NR01" },
+    where: { id: pesquisaId, empresaId },
     include: {
       empresa: { select: { nome: true } },
       perguntas: {
@@ -62,8 +44,15 @@ export async function GET(
   });
   if (!pesquisa) {
     return NextResponse.json(
-      { error: "Avaliação NR-01 não encontrada nesta empresa." },
+      { error: "Pesquisa não encontrada nesta empresa." },
       { status: 404 },
+    );
+  }
+
+  // Redireciona automaticamente pesquisas de clima para a rota dedicada de clima PDF
+  if (pesquisa.modelo === "CLIMA") {
+    return NextResponse.redirect(
+      new URL(`/api/rh/${empresaId}/pesquisas/${pesquisaId}/relatorio-clima-pdf`, _req.url),
     );
   }
 
