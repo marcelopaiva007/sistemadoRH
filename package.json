@@ -1,6 +1,6 @@
 {
   "name": "sistema-rh",
-  "version": "1.56.2",
+  "version": "1.56.4",
   "private": true,
   "scripts": {
     "// ━━━━━━━━━━━━━━━━ DESENVOLVIMENTO ━━━━━━━━━━━━━━━━": "",
@@ -24,6 +24,7 @@
     "// ━━━━━━━━━━━━━━━━ RELEASE ━━━━━━━━━━━━━━━━": "",
     "release": "node scripts/release.mjs",
     "// ━━━━━━━━━━━━━━━━ DIAGNÓSTICOS ━━━━━━━━━━━━━━━━": "",
+    "verificar:deploy": "node --import tsx scripts/motor-verificacao-deploy.ts",
     "diag:envios": "tsx scripts/diag-envios.ts",
     "verificar:assistente": "tsx scripts/verificar-assistente.ts",
     "verificar:dashboard": "tsx scripts/verificar-dashboard.ts",
