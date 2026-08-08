@@ -9,7 +9,7 @@ import {
   aplicarRanking,
   diasUteisNoIntervalo,
   type ResumoProdutividadePessoa,
-} from "@/lib/produtividade-rh";
+} from "@/lib/produtividade-rh-utils";
 import { dataUTC } from "@/lib/datas";
 
 let falhas = 0;

@@ -47,7 +47,7 @@ if (diff.length === 0) {
   process.exit(1);
 }
 
-run("git add package.json");
+run("git add -A");
 run(`git commit -m "chore: bump version ${pkg.version.replace(proximo, "")} → ${proximo}"`);
 run("git push origin master");
 console.log(`\nDeploy disparado em ${proximo}.`);

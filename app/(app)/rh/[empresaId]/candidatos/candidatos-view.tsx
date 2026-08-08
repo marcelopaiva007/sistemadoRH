@@ -2,17 +2,65 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
-import { FileText, Search } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Award, Clock, FileText, Search, UserCheck, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Paginacao } from "@/components/paginacao";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { usePaginacao } from "@/lib/use-paginacao";
 import { etapaFunilLabel, origemCandidatoLabel } from "@/lib/constants-ats";
 import { formatarData } from "@/lib/datas";
+import { cn } from "@/lib/utils";
+
+function KpiCard({
+  rotulo,
+  valor,
+  icone: Icone,
+}: {
+  rotulo: string;
+  valor: number | string;
+  icone: React.ComponentType<{ className?: string }>;
+}) {
+  return (
+    <div className="flex items-center gap-3 rounded-lg border bg-card px-3.5 py-3 shadow-xs">
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary ring-1 ring-primary/20">
+        <Icone className="size-4.5" />
+      </span>
+      <div className="min-w-0 leading-tight">
+        <p className="truncate text-xs text-muted-foreground">{rotulo}</p>
+        <p className="text-lg font-semibold tabular-nums">{valor}</p>
+      </div>
+    </div>
+  );
+}
+
+function AvatarIniciais({ nome, id }: { nome: string; id: string }) {
+  const partes = nome.trim().split(/\s+/);
+  const iniciais = (partes[0]?.[0] ?? "") + (partes.length > 1 ? partes[partes.length - 1][0] : "");
+  const codigo = [...id].reduce((acc, ch) => (acc * 31 + ch.charCodeAt(0)) >>> 0, 7);
+  const cores = [
+    "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300",
+    "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+    "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300",
+    "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+    "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
+    "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300",
+    "bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300",
+    "bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/40 dark:text-fuchsia-300",
+  ];
+  const cor = cores[codigo % cores.length];
+  return (
+    <Avatar size="sm">
+      <AvatarFallback className={cn("text-[10px] font-semibold", cor)}>
+        {iniciais.toUpperCase()}
+      </AvatarFallback>
+    </Avatar>
+  );
+}
 
 type Candidatura = {
   id: string;
@@ -52,6 +100,14 @@ export function CandidatosView({
   const [termo, setTermo] = useState(busca);
   const { itensDaPagina: candidatosNaPagina, resetar, ...paginacao } = usePaginacao(candidatos);
 
+  const totais = useMemo(() => {
+    const total = candidatos.length;
+    const disponiveis = candidatos.filter((c) => !c.emProcesso && !c.jaContratado).length;
+    const emProcesso = candidatos.filter((c) => c.emProcesso).length;
+    const contratados = candidatos.filter((c) => c.jaContratado).length;
+    return { total, disponiveis, emProcesso, contratados };
+  }, [candidatos]);
+
   function aplicar(novoTermo: string, disponivel: boolean) {
     const p = new URLSearchParams(searchParams.toString());
     if (novoTermo.trim()) p.set("q", novoTermo.trim());
@@ -70,6 +126,13 @@ export function CandidatosView({
           Todo mundo que já se candidatou. Quem foi reprovado numa vaga continua aqui e pode ser
           chamado para outra sem recadastrar.
         </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <KpiCard rotulo="Total no banco" valor={totais.total} icone={Users} />
+        <KpiCard rotulo="Disponíveis" valor={totais.disponiveis} icone={UserCheck} />
+        <KpiCard rotulo="Em processo" valor={totais.emProcesso} icone={Clock} />
+        <KpiCard rotulo="Contratados" valor={totais.contratados} icone={Award} />
       </div>
 
       <form
@@ -133,28 +196,35 @@ export function CandidatosView({
                   {candidatosNaPagina.map((c) => (
                     <TableRow key={c.id}>
                       <TableCell>
-                        <div className="font-medium">{c.nome}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {c.cidade ?? "—"} · desde {formatarData(c.createdAt)}
+                        <div className="flex items-center gap-2.5">
+                          <AvatarIniciais nome={c.nome} id={c.id} />
+                          <div>
+                            <div className="font-medium">{c.nome}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {c.cidade ?? "—"} · desde {formatarData(c.createdAt)}
+                            </div>
+                            {c.arquivo && (
+                              <a
+                                href={`/api/rh/${empresaId}/arquivos/${c.arquivo.id}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="mt-0.5 inline-flex items-center gap-1 text-xs hover:underline text-primary"
+                              >
+                                <FileText className="size-3" />
+                                currículo
+                              </a>
+                            )}
+                          </div>
                         </div>
-                        {c.arquivo && (
-                          <a
-                            href={`/api/rh/${empresaId}/arquivos/${c.arquivo.id}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="mt-0.5 inline-flex items-center gap-1 text-xs hover:underline"
-                          >
-                            <FileText className="size-3" />
-                            currículo
-                          </a>
-                        )}
                       </TableCell>
                       <TableCell className="text-sm">
                         {c.telefone ?? "—"}
                         {c.email && <div className="text-xs text-muted-foreground">{c.email}</div>}
                       </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {origemCandidatoLabel(c.origem)}
+                      <TableCell>
+                        <Badge variant="outline" className="font-normal">
+                          {origemCandidatoLabel(c.origem)}
+                        </Badge>
                       </TableCell>
                       <TableCell>
                         {c.candidaturas.length === 0 ? (
@@ -184,11 +254,18 @@ export function CandidatosView({
                       </TableCell>
                       <TableCell>
                         {c.jaContratado ? (
-                          <Badge variant="default">Contratado</Badge>
+                          <Badge className="bg-emerald-600 hover:bg-emerald-600">Contratado</Badge>
                         ) : c.emProcesso ? (
-                          <Badge variant="secondary">Em processo</Badge>
+                          <Badge variant="secondary" className="text-sky-700 dark:text-sky-300">
+                            Em processo
+                          </Badge>
                         ) : (
-                          <Badge variant="outline">Disponível</Badge>
+                          <Badge
+                            variant="outline"
+                            className="border-emerald-200 text-emerald-700 dark:border-emerald-800 dark:text-emerald-300"
+                          >
+                            Disponível
+                          </Badge>
                         )}
                       </TableCell>
                     </TableRow>

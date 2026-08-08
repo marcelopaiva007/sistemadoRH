@@ -15,7 +15,7 @@ import {
   aplicarRanking,
   type LinhaProdutividadeDia,
   type ResumoProdutividadePessoa,
-} from "@/lib/produtividade-rh";
+} from "@/lib/produtividade-rh-utils";
 
 const JANELAS = [
   { dias: 7, rotulo: "7 dias" },

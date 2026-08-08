@@ -16,74 +16,12 @@
 // "Trilha" da mesma tela) fica de propósito por CNPJ — telas diferentes,
 // perguntas diferentes.
 import { prisma, type Cliente } from "@/lib/prisma";
+import type { LinhaProdutividadeDia, ResumoProdutividadePessoa } from "@/lib/produtividade-rh-utils";
 
-export type LinhaProdutividadeDia = {
-  usuarioId: string;
-  usuarioNome: string;
-  usuarioRole: string | null;
-  /** "YYYY-MM-DD" no fuso de Brasília — nunca UTC, ou a virada do dia mente. */
-  dia: string;
-  totalAcoes: number;
-  primeiraAcao: Date;
-  ultimaAcao: Date;
-  aprovados: number;
-  reprovados: number;
-};
-
-export type ResumoProdutividadePessoa = {
-  usuarioId: string;
-  usuarioNome: string;
-  usuarioRole: string | null;
-  diasComAtividade: number;
-  totalAcoes: number;
-  aprovados: number;
-  reprovados: number;
-};
-
-export type ResumoProdutividadeComRanking = ResumoProdutividadePessoa & {
-  posicao: number;
-};
-
-/**
- * Aplica o ranking de produtividade (1º, 2º, 3º...) baseado no total de ações.
- * Empates no volume de ações compartilham a mesma posição.
- */
-export function aplicarRanking(
-  resumo: ResumoProdutividadePessoa[],
-): ResumoProdutividadeComRanking[] {
-  const ordenado = [...resumo].sort(
-    (a, b) => b.totalAcoes - a.totalAcoes || a.usuarioNome.localeCompare(b.usuarioNome, "pt-BR"),
-  );
-
-  let rankAtual = 1;
-  return ordenado.map((item, idx, arr) => {
-    if (idx > 0 && item.totalAcoes < arr[idx - 1].totalAcoes) {
-      rankAtual = idx + 1;
-    }
-    return {
-      ...item,
-      posicao: rankAtual,
-    };
-  });
-}
+export type { LinhaProdutividadeDia, ResumoProdutividadePessoa } from "@/lib/produtividade-rh-utils";
 
 function diaBrasilia(d: Date): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(d);
-}
-
-/** Dias úteis (seg–sex) entre duas datas, incluindo as duas pontas. */
-export function diasUteisNoIntervalo(de: Date, ate: Date): number {
-  let contagem = 0;
-  const cursor = new Date(de);
-  cursor.setUTCHours(0, 0, 0, 0);
-  const fim = new Date(ate);
-  fim.setUTCHours(0, 0, 0, 0);
-  while (cursor <= fim) {
-    const diaSemana = cursor.getUTCDay();
-    if (diaSemana !== 0 && diaSemana !== 6) contagem++;
-    cursor.setUTCDate(cursor.getUTCDate() + 1);
-  }
-  return contagem;
 }
 
 /**
@@ -94,11 +32,12 @@ export async function produtividadePorDia(
   empresaIds: string[],
   de: Date,
   ate: Date,
-  cliente: Cliente = prisma,
+  cliente?: Cliente,
 ): Promise<LinhaProdutividadeDia[]> {
   if (empresaIds.length === 0) return [];
+  const db = cliente ?? (await import("@/lib/prisma")).prisma;
 
-  const registros = await cliente.auditLog.findMany({
+  const registros = await db.auditLog.findMany({
     where: { empresaId: { in: empresaIds }, createdAt: { gte: de, lte: ate }, usuarioId: { not: null } },
     select: { usuarioId: true, usuarioNome: true, usuarioRole: true, acao: true, createdAt: true },
     orderBy: { createdAt: "asc" },
@@ -148,13 +87,14 @@ export async function resumoProdutividade(
   empresaIds: string[],
   de: Date,
   ate: Date,
-  cliente: Cliente = prisma,
+  cliente?: Cliente,
 ): Promise<ResumoProdutividadePessoa[]> {
   if (empresaIds.length === 0) return [];
+  const db = cliente ?? (await import("@/lib/prisma")).prisma;
 
   const [linhas, vinculos] = await Promise.all([
-    produtividadePorDia(empresaIds, de, ate, cliente),
-    cliente.userEmpresa.findMany({
+    produtividadePorDia(empresaIds, de, ate, db),
+    db.userEmpresa.findMany({
       where: { empresaId: { in: empresaIds }, role: { in: ["RH_MANAGER", "GESTOR_SETOR"] }, ativo: true },
       select: { user: { select: { id: true, nome: true, role: true, ativo: true } } },
     }),

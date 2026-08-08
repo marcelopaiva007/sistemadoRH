@@ -6,7 +6,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatarDataHoraBrasilia } from "@/lib/datas";
 import { empresasDaMesmaMarca } from "@/lib/escopo-marca";
-import { produtividadePorDia, resumoProdutividade, diasUteisNoIntervalo } from "@/lib/produtividade-rh";
+import { produtividadePorDia, resumoProdutividade } from "@/lib/produtividade-rh";
+import { diasUteisNoIntervalo } from "@/lib/produtividade-rh-utils";
 import { ProdutividadeView } from "./produtividade-view";
 
 // Trilha de auditoria (LGPD): quem alterou ou baixou dado pessoal, quando e o
