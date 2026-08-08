@@ -39,6 +39,7 @@ export const ROTULOS_PENDENCIA: Record<keyof Pendencias, string> = {
   horasExtrasExcedidas: "Hora extra acima do limite",
   atestadosSemDocumento: "Atestado sem documento",
   dependentesSemCpf: "Dependente sem CPF",
+  semTelegram: "Sem Telegram vinculado",
 };
 
 export type ResultadoCobrancaRH = { avaliados: number; enviados: number; deduplicados: number; erros: number };
