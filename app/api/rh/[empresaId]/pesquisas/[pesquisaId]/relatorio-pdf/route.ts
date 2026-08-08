@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { calcularNR01 } from "@/lib/nr01";
 import { CONVITES_NA_PESQUISA } from "@/lib/pesquisa-numeros";
 import { gerarHtmlRelatorioNR01 } from "@/lib/nr01-relatorio";
+import { gerarHtmlRelatorioGeralPesquisa } from "@/lib/pesquisa-relatorio";
 import { responderComHtmlRelatorio } from "@/lib/pdf-browser";
 
 export const runtime = "nodejs";
@@ -20,9 +21,6 @@ export async function GET(
 ) {
   const { empresaId, pesquisaId } = await params;
 
-  // Numa rota de API devolvemos 401/403 explícitos (redirect() é para páginas).
-  // Mesma regra do requireEmpresaAccess: ADMIN acessa qualquer empresa;
-  // demais papéis precisam ter UserEmpresa ativo apontando para esta empresa.
   const session = await auth();
   const user = session?.user;
   if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
@@ -48,37 +46,57 @@ export async function GET(
     );
   }
 
-  // Redireciona automaticamente pesquisas de clima para a rota dedicada de clima PDF
   if (pesquisa.modelo === "CLIMA") {
     return NextResponse.redirect(
       new URL(`/api/rh/${empresaId}/pesquisas/${pesquisaId}/relatorio-clima-pdf`, _req.url),
     );
   }
 
-  // Convites sem os excluídos: o relatório do PGR vai para o engenheiro de SST
-  // e o "respostas/convites" precisa bater com o que a tela mostra.
   const [convites, respostas] = await Promise.all([
     prisma.surveyToken.count({ where: { pesquisaId, ...CONVITES_NA_PESQUISA } }),
     prisma.resposta.findMany({
       where: { pesquisaId },
-      select: {
-        setorNomeSnapshot: true,
-        posicaoNomeSnapshot: true,
-        itens: { select: { perguntaId: true, valorNumerico: true } },
+      include: {
+        itens: {
+          include: {
+            pergunta: {
+              select: { id: true, enunciado: true, tipo: true, dimensao: true, dimensaoGPTW: true },
+            },
+          },
+        },
       },
     }),
   ]);
 
-  const resultado = calcularNR01(pesquisa.perguntas, respostas);
-  const html = gerarHtmlRelatorioNR01({
-    empresaNome: pesquisa.empresa.nome,
-    pesquisaTitulo: pesquisa.titulo,
-    pesquisaStatus: pesquisa.status,
-    iniciadaEm: pesquisa.iniciadaEm,
-    encerradaEm: pesquisa.encerradaEm,
-    convites,
-    resultado,
-  });
+  let html = "";
+  if (pesquisa.modelo === "NR01") {
+    const respostasCalc = respostas.map((r) => ({
+      setorNomeSnapshot: r.setorNomeSnapshot,
+      posicaoNomeSnapshot: r.posicaoNomeSnapshot,
+      itens: r.itens.map((i) => ({ perguntaId: i.perguntaId, valorNumerico: i.valorNumerico })),
+    }));
+    const resultado = calcularNR01(pesquisa.perguntas, respostasCalc);
+    html = gerarHtmlRelatorioNR01({
+      empresaNome: pesquisa.empresa.nome,
+      pesquisaTitulo: pesquisa.titulo,
+      pesquisaStatus: pesquisa.status,
+      iniciadaEm: pesquisa.iniciadaEm,
+      encerradaEm: pesquisa.encerradaEm,
+      convites,
+      resultado,
+    });
+  } else {
+    html = gerarHtmlRelatorioGeralPesquisa({
+      empresaNome: pesquisa.empresa.nome,
+      pesquisaTitulo: pesquisa.titulo,
+      pesquisaModelo: pesquisa.modelo,
+      pesquisaStatus: pesquisa.status,
+      iniciadaEm: pesquisa.iniciadaEm,
+      encerradaEm: pesquisa.encerradaEm,
+      convites,
+      respostas,
+    });
+  }
 
-  return responderComHtmlRelatorio(html, `Relatório NR-01 - ${pesquisa.empresa.nome}`);
+  return responderComHtmlRelatorio(html, `Relatório - ${pesquisa.empresa.nome}`);
 }
