@@ -26,6 +26,15 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.59.1",
+    data: "09/08/2026",
+    horario: "16:00",
+    titulo: "Correção de migração do banco para o módulo de Ocorrências Disciplinares",
+    itens: [
+      "Inclusão da migração de banco (Prisma) para criação automática da tabela OcorrenciaDisciplinar em produção.",
+    ],
+  },
+  {
     versao: "1.59.0",
     data: "09/08/2026",
     horario: "15:45",
