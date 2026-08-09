@@ -105,11 +105,19 @@ type Vista = "graficos" | "tabelas";
 // Texto de rótulo/tooltip fica nos tokens de texto do tema, nunca na cor da
 // série — a cor mora só na marca do gráfico.
 const COR = {
-  primaria: "#2563eb",
-  admissoes: "#0d9488",
-  desligamentos: "#dc2626",
-  folha: "#2563eb",
-  beneficios: "#d97706",
+  primaria: "var(--chart-1)",
+  admissoes: "var(--chart-3)",
+  desligamentos: "var(--destructive)",
+  folha: "var(--chart-1)",
+  beneficios: "var(--chart-4)",
+} as const;
+
+const estiloTooltip = {
+  backgroundColor: "var(--card)",
+  borderColor: "var(--border)",
+  color: "var(--card-foreground)",
+  borderRadius: "var(--radius)",
+  boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
 } as const;
 
 const eixoTick = { fontSize: 11, fill: "var(--muted-foreground)" } as const;
@@ -391,7 +399,7 @@ export function PainelView({
                         axisLine={false}
                         domain={["dataMin - 2", "dataMax + 2"]}
                       />
-                      <Tooltip formatter={v => [`${v}`, "Ativos"]} />
+                      <Tooltip contentStyle={estiloTooltip} formatter={v => [`${v}`, "Ativos"]} />
                       <Area
                         type="monotone"
                         dataKey="total"
@@ -432,7 +440,7 @@ export function PainelView({
                         tickLine={false}
                         axisLine={false}
                       />
-                      <Tooltip />
+                      <Tooltip contentStyle={estiloTooltip} />
                       <Legend wrapperStyle={{ fontSize: 12 }} />
                       <Line
                         type="monotone"
@@ -516,7 +524,7 @@ export function PainelView({
                         tickLine={false}
                         axisLine={false}
                       />
-                      <Tooltip formatter={v => [`${v}`, "Colaboradores"]} />
+                      <Tooltip contentStyle={estiloTooltip} formatter={v => [`${v}`, "Colaboradores"]} />
                       <Bar
                         dataKey="total"
                         fill={COR.primaria}
@@ -562,7 +570,7 @@ export function PainelView({
                         tickLine={false}
                         axisLine={false}
                       />
-                      <Tooltip formatter={v => [`${v}`, "Colaboradores"]} />
+                      <Tooltip contentStyle={estiloTooltip} formatter={v => [`${v}`, "Colaboradores"]} />
                       <Bar
                         dataKey="total"
                         fill={COR.primaria}

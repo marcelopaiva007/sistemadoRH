@@ -4,6 +4,14 @@ import { ResponsiveContainer, BarChart, Bar, CartesianGrid, XAxis, YAxis, Toolti
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AMOSTRA_MINIMA_ANONIMATO } from "@/lib/constants-rh";
 
+const estiloTooltip = {
+  backgroundColor: "var(--card)",
+  borderColor: "var(--border)",
+  color: "var(--card-foreground)",
+  borderRadius: "var(--radius)",
+  boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+} as const;
+
 type Resultado = {
   id: string;
   titulo: string;
@@ -36,7 +44,7 @@ export function MeuSetorView({ resultados }: { resultados: Resultado[] }) {
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                     <XAxis dataKey="dimensao" tick={{ fontSize: 12 }} />
                     <YAxis tick={{ fontSize: 12 }} />
-                    <Tooltip formatter={(v) => Number(v).toFixed(2)} />
+                    <Tooltip contentStyle={estiloTooltip} formatter={(v) => Number(v).toFixed(2)} />
                     <Bar dataKey="media" name="Média" fill="var(--chart-2)" radius={4} />
                   </BarChart>
                 </ResponsiveContainer>

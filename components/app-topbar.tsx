@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { LogOut, KeyRound } from "lucide-react";
+import { LogOut, KeyRound, Sun, Moon, Laptop } from "lucide-react";
+import { useTheme } from "next-themes";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { navByRole, diretoriaNav } from "@/components/nav-config";
@@ -15,6 +17,34 @@ const ROLE_LABELS: Record<string, string> = {
   RH_MANAGER: "RH",
   GESTOR_SETOR: "Gestor de Setor",
 };
+
+function SeletorTema() {
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return <div className="size-8" />;
+  }
+
+  const proximoTema = theme === "dark" ? "light" : "dark";
+
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      className="size-8 text-muted-foreground hover:text-foreground"
+      title={`Alternar para modo ${proximoTema === "dark" ? "escuro" : "claro"}`}
+      onClick={() => setTheme(proximoTema)}
+    >
+      {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+      <span className="sr-only">Alternar tema</span>
+    </Button>
+  );
+}
 
 // Menu horizontal no topo (substitui a antiga sidebar) — libera a largura
 // inteira da tela para as tabelas do RH.
@@ -67,6 +97,7 @@ export function AppTopbar({
         </nav>
 
         <div className="flex shrink-0 items-center gap-1.5">
+          <SeletorTema />
           <Link
             href="/conta"
             className={cn(

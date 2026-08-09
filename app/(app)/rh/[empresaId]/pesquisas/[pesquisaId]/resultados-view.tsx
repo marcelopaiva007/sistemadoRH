@@ -13,6 +13,14 @@ import {
 import { participacaoPct } from "@/lib/pesquisa-numeros";
 import type { ResultadoEnps } from "@/lib/pesquisa-enps-resultado";
 
+const estiloTooltip = {
+  backgroundColor: "var(--card)",
+  borderColor: "var(--border)",
+  color: "var(--card-foreground)",
+  borderRadius: "var(--radius)",
+  boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+} as const;
+
 export function ResultadosView({
   totalRespostas,
   convites,
@@ -70,7 +78,7 @@ export function ResultadosView({
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                   <XAxis dataKey="dimensao" tick={{ fontSize: 12 }} />
                   <YAxis tick={{ fontSize: 12 }} />
-                  <Tooltip formatter={(v) => Number(v).toFixed(2)} />
+                  <Tooltip contentStyle={estiloTooltip} formatter={(v) => Number(v).toFixed(2)} />
                   <Bar dataKey="media" name="Média" fill="var(--chart-2)" radius={4} />
                 </BarChart>
               </ResponsiveContainer>
@@ -82,7 +90,7 @@ export function ResultadosView({
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                   <XAxis type="number" tick={{ fontSize: 12 }} />
                   <YAxis dataKey="setor" type="category" tick={{ fontSize: 12 }} width={100} />
-                  <Tooltip formatter={(v) => Number(v).toFixed(2)} />
+                  <Tooltip contentStyle={estiloTooltip} formatter={(v) => Number(v).toFixed(2)} />
                   <Bar dataKey="media" name="Média" fill="var(--chart-4)" radius={4} />
                 </BarChart>
               </ResponsiveContainer>

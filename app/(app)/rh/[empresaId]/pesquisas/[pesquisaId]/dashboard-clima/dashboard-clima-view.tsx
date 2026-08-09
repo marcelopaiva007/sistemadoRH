@@ -36,8 +36,21 @@ import {
 import { dimensaoGPTWLabel } from "@/lib/constants-rh";
 
 const CORES_DIM = [
-  "#3b82f6", "#8b5cf6", "#06b6d4", "#f59e0b", "#10b981", "#6b7280",
+  "var(--chart-1)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
+  "var(--chart-5)",
+  "var(--muted-foreground)",
 ];
+
+const estiloTooltip = {
+  backgroundColor: "var(--card)",
+  borderColor: "var(--border)",
+  color: "var(--card-foreground)",
+  borderRadius: "var(--radius)",
+  boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+} as const;
 
 const CORES_NIVEL: Record<string, string> = {
   critico: "#dc2626",

@@ -26,6 +26,18 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.58.0",
+    data: "09/08/2026",
+    horario: "15:00",
+    titulo: "Dark mode, modernização de gráficos, organograma e preenchimento de vagas",
+    itens: [
+      "Suporte nativo a Dark Mode com alternador na barra superior e tema Indigo/Slate moderno (WCAG AA).",
+      "Modernização de cores e suporte ao modo escuro nos gráficos Recharts em todas as telas.",
+      "Redesign da visualização da árvore do organograma com zoom suave, expansão por ramo e cartões estilizados.",
+      "Preenchimento automático de descrição e requisitos ao selecionar o cargo no cadastro de novas vagas.",
+    ],
+  },
+  {
     versao: "1.57.0",
     data: "09/08/2026",
     horario: "14:30",
