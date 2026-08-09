@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -64,29 +64,29 @@ export function DisciplinarCard({
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-start justify-between">
-        <div>
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <ShieldAlert className="size-5 text-destructive" />
-            Medidas Disciplinares &amp; Notificações
-          </CardTitle>
-          <CardDescription>
-            Histórico formal de advertências, suspensões, termos de recusa e avarias.
-          </CardDescription>
-        </div>
-        <Dialog open={modalAberto} onOpenChange={setModalAberto}>
-          <DialogTrigger render={<Button size="sm" variant="outline" />}>
-            <Plus className="size-4" />
-            Nova Ocorrência
-          </DialogTrigger>
-          <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-            <NovaOcorrenciaForm
-              empresaId={empresaId}
-              colaboradorId={colaboradorId}
-              onSuccess={() => setModalAberto(false)}
-            />
-          </DialogContent>
-        </Dialog>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-lg">
+          <ShieldAlert className="size-5 text-destructive" />
+          Medidas Disciplinares &amp; Notificações
+        </CardTitle>
+        <CardDescription>
+          Histórico formal de advertências, suspensões, termos de recusa e avarias.
+        </CardDescription>
+        <CardAction>
+          <Dialog open={modalAberto} onOpenChange={setModalAberto}>
+            <DialogTrigger render={<Button size="sm" variant="outline" />}>
+              <Plus className="size-4" />
+              Nova Ocorrência
+            </DialogTrigger>
+            <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+              <NovaOcorrenciaForm
+                empresaId={empresaId}
+                colaboradorId={colaboradorId}
+                onSuccess={() => setModalAberto(false)}
+              />
+            </DialogContent>
+          </Dialog>
+        </CardAction>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Resumo de Respeito à Gradação de Penas */}
