@@ -26,6 +26,15 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.59.5",
+    data: "09/08/2026",
+    horario: "17:15",
+    titulo: "Redesign estilo Pill Chips para as abas da ficha do colaborador",
+    itens: [
+      "Substituição do layout rígido por contêiner flexível de pílulas (Pill Chips em formato Shadcn default), com fundo sutil, espaçamento adequado e destaque elegante para a aba ativa no tema escuro e claro.",
+    ],
+  },
+  {
     versao: "1.59.4",
     data: "09/08/2026",
     horario: "17:00",
