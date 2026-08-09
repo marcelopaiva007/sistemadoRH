@@ -26,6 +26,15 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.59.4",
+    data: "09/08/2026",
+    horario: "17:00",
+    titulo: "Layout de abas em duas linhas simétricas na ficha do colaborador",
+    itens: [
+      "Reformatação das 16 abas em 2 linhas horizontais simétricas e equilibradas de igual largura (8 abas na linha superior e 8 na inferior), garantindo excelente legibilidade e estrutura visual alinhada.",
+    ],
+  },
+  {
     versao: "1.59.3",
     data: "09/08/2026",
     horario: "16:45",

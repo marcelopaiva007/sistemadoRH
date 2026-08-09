@@ -198,30 +198,67 @@ export function ColaboradorDetalhe({
       )}
 
       <Tabs defaultValue={abaPadrao} className="w-full">
-        <div className="w-full min-w-0 overflow-x-auto border-b scrollbar-none pb-1">
-          <TabsList variant="line" className="flex flex-nowrap w-max justify-start gap-1 bg-transparent p-0">
-            <TabsTrigger value="ficha">Ficha</TabsTrigger>
-            <TabsTrigger value="dependentes">Dependentes ({dependentes.length})</TabsTrigger>
-            <TabsTrigger value="dossie">Dossiê ({documentos.length})</TabsTrigger>
-            <TabsTrigger value="ferias">Férias</TabsTrigger>
-            <TabsTrigger value="ausencias">Ausências ({ausencias.length})</TabsTrigger>
-            <TabsTrigger value="seguranca">
-              Segurança {irregular && <Badge variant="destructive">!</Badge>}
+        <TabsList
+          variant="line"
+          className="w-full flex-col h-auto bg-muted/20 rounded-lg p-2 gap-2 border"
+        >
+          <div className="flex w-full items-center justify-between gap-1">
+            <TabsTrigger value="ficha" className="flex-1 justify-center text-xs py-1.5 px-1">
+              Ficha
             </TabsTrigger>
-            <TabsTrigger value="carreira">Carreira ({movimentacoes.length})</TabsTrigger>
-            <TabsTrigger value="beneficios">Benefícios ({beneficios.length})</TabsTrigger>
-            <TabsTrigger value="epis">EPIs ({entregasEpi.length})</TabsTrigger>
-            <TabsTrigger value="acidentes">Acidentes ({acidentes.length})</TabsTrigger>
-            <TabsTrigger value="desempenho">Desempenho ({avaliacoes.length})</TabsTrigger>
-            <TabsTrigger value="metas-pdi">Metas &amp; PDI</TabsTrigger>
-            <TabsTrigger value="treinamentos">Treinamentos ({participacoesTreinamento.length})</TabsTrigger>
-            <TabsTrigger value="disciplinar">
+            <TabsTrigger value="dependentes" className="flex-1 justify-center text-xs py-1.5 px-1">
+              Dependentes ({dependentes.length})
+            </TabsTrigger>
+            <TabsTrigger value="dossie" className="flex-1 justify-center text-xs py-1.5 px-1">
+              Dossiê ({documentos.length})
+            </TabsTrigger>
+            <TabsTrigger value="ferias" className="flex-1 justify-center text-xs py-1.5 px-1">
+              Férias
+            </TabsTrigger>
+            <TabsTrigger value="ausencias" className="flex-1 justify-center text-xs py-1.5 px-1">
+              Ausências ({ausencias.length})
+            </TabsTrigger>
+            <TabsTrigger value="seguranca" className="flex-1 justify-center text-xs py-1.5 px-1">
+              Segurança {irregular && <Badge variant="destructive" className="ml-1 px-1 py-0 text-[10px]">!</Badge>}
+            </TabsTrigger>
+            <TabsTrigger value="carreira" className="flex-1 justify-center text-xs py-1.5 px-1">
+              Carreira ({movimentacoes.length})
+            </TabsTrigger>
+            <TabsTrigger value="beneficios" className="flex-1 justify-center text-xs py-1.5 px-1">
+              Benefícios ({beneficios.length})
+            </TabsTrigger>
+          </div>
+          <div className="flex w-full items-center justify-between gap-1">
+            <TabsTrigger value="epis" className="flex-1 justify-center text-xs py-1.5 px-1">
+              EPIs ({entregasEpi.length})
+            </TabsTrigger>
+            <TabsTrigger value="acidentes" className="flex-1 justify-center text-xs py-1.5 px-1">
+              Acidentes ({acidentes.length})
+            </TabsTrigger>
+            <TabsTrigger value="desempenho" className="flex-1 justify-center text-xs py-1.5 px-1">
+              Desempenho ({avaliacoes.length})
+            </TabsTrigger>
+            <TabsTrigger value="metas-pdi" className="flex-1 justify-center text-xs py-1.5 px-1">
+              Metas &amp; PDI
+            </TabsTrigger>
+            <TabsTrigger value="treinamentos" className="flex-1 justify-center text-xs py-1.5 px-1">
+              Treinamentos ({participacoesTreinamento.length})
+            </TabsTrigger>
+            <TabsTrigger value="disciplinar" className="flex-1 justify-center text-xs py-1.5 px-1">
               Disciplinar ({ocorrenciasDisciplinares.length})
             </TabsTrigger>
-            {colaborador.ativo && <TabsTrigger value="integracao">Integração</TabsTrigger>}
-            {colaborador.dataDesligamento && <TabsTrigger value="desligamento">Desligamento</TabsTrigger>}
-          </TabsList>
-        </div>
+            {colaborador.ativo && (
+              <TabsTrigger value="integracao" className="flex-1 justify-center text-xs py-1.5 px-1">
+                Integração
+              </TabsTrigger>
+            )}
+            {colaborador.dataDesligamento && (
+              <TabsTrigger value="desligamento" className="flex-1 justify-center text-xs py-1.5 px-1">
+                Desligamento
+              </TabsTrigger>
+            )}
+          </div>
+        </TabsList>
 
         <TabsContent value="ficha" className="pt-4">
           <FichaBlocos
