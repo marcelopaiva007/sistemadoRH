@@ -198,7 +198,7 @@ export function ColaboradorDetalhe({
       )}
 
       <Tabs defaultValue={abaPadrao}>
-        <TabsList variant="line">
+        <TabsList variant="line" className="flex-wrap h-auto w-full justify-start gap-1.5 border-b pb-2">
           <TabsTrigger value="ficha">Ficha</TabsTrigger>
           <TabsTrigger value="dependentes">Dependentes ({dependentes.length})</TabsTrigger>
           <TabsTrigger value="dossie">Dossiê ({documentos.length})</TabsTrigger>

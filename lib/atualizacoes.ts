@@ -26,6 +26,15 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.59.2",
+    data: "09/08/2026",
+    horario: "16:30",
+    titulo: "Ajuste de responsividade da barra de abas na ficha do colaborador",
+    itens: [
+      "Quebra automática de linha (flex-wrap) na barra de navegação por abas da Ficha do Colaborador, permitindo a visualização de todas as abas (incluindo Disciplinar, Integração e Desligamento) sem corte de tela.",
+    ],
+  },
+  {
     versao: "1.59.1",
     data: "09/08/2026",
     horario: "16:00",
