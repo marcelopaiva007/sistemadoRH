@@ -65,6 +65,7 @@ const GRUPOS = [
   {
     titulo: "Departamento pessoal",
     itens: [
+      { slug: "ponto", label: "Ponto Eletrônico", icon: Clock },
       { slug: "aprovacoes", label: "Aprovações", icon: CheckSquare },
       { slug: "mensagens", label: "Mensagens", icon: MessageCircle },
       { slug: "vencimentos", label: "Vencimentos", icon: CalendarDays },

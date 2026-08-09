@@ -1,6 +1,8 @@
 "use client";
 
-import { FileText, LogOut, MessageCircle, PencilLine, Star, Stethoscope, Upload, User, UsersRound } from "lucide-react";
+import { Clock, FileText, LogOut, MessageCircle, PencilLine, Star, Stethoscope, Upload, User, UsersRound } from "lucide-react";
+import { BaterPontoCard } from "./bater-ponto-card";
+import { MeuBancoHorasCard } from "./meu-banco-horas-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -91,6 +93,7 @@ export function PortalInicio({
   avaliacoes,
   equipe,
   meuTime,
+  bancoHoras,
 }: {
   colaborador: Colaborador;
   documentos: Documento[];
@@ -98,8 +101,15 @@ export function PortalInicio({
   mensagens: MensagemDoPortal[];
   avaliacoes: MinhaAvaliacao[];
   equipe: EquipeDoGerente | null;
-  /** Só para quem tem gente com supervisorId apontando para si — a aba some para o resto. */
   meuTime: MeuTimePortal | null;
+  bancoHoras?: {
+    competencia: string;
+    saldoAnterior: number;
+    creditosMes: number;
+    debitosMes: number;
+    saldoAtual: number;
+    expiraEm: Date | null;
+  } | null;
 }) {
   const avaliacoesPendentes = avaliacoes.filter((a) => a.status !== "CONCLUIDA").length;
   // Gerente vê a aba mesmo sem nada na lista — é onde ele monta a lista.
@@ -122,6 +132,9 @@ export function PortalInicio({
           {colaborador.setor.nome} · {colaborador.posicao.nome}
         </p>
       </div>
+
+      {/* Card de Ponto Eletrônico PWA / Mobile */}
+      <BaterPontoCard />
 
       <div className="grid grid-cols-1 gap-3">
         <Destaque
@@ -164,6 +177,10 @@ export function PortalInicio({
           {/* "Atualizar" primeiro e como padrão: hoje o que o RH precisa de
               cada pessoa é a ficha completa, e a aba que abre é a que é usada.
               Atestados fica por último — é consulta, não tarefa pendente. */}
+          <TabsTrigger value="ponto">
+            <Clock />
+            Ponto Eletrônico
+          </TabsTrigger>
           <TabsTrigger value="atualizar">
             <PencilLine />
             Atualizar
@@ -189,6 +206,20 @@ export function PortalInicio({
             Atestados
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="ponto" className="space-y-4 pt-4">
+          <BaterPontoCard />
+          <MeuBancoHorasCard
+            dados={{
+              competencia: bancoHoras?.competencia || new Date().toLocaleDateString("pt-BR", { month: "2-digit", year: "numeric" }),
+              saldoAnteriorMin: bancoHoras?.saldoAnterior || 0,
+              creditosMesMin: bancoHoras?.creditosMes || 0,
+              debitosMesMin: bancoHoras?.debitosMes || 0,
+              saldoAtualMin: bancoHoras?.saldoAtual || 0,
+              historicoMensal: [],
+            }}
+          />
+        </TabsContent>
 
         {temAvaliacao && (
           <TabsContent value="avaliacao" className="pt-4">

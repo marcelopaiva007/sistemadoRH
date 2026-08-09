@@ -206,6 +206,7 @@ model Empresa {
   tiposBeneficio         TipoBeneficio[]
   catalogoItens          CatalogoItem[]
   ocorrenciasDisciplinares OcorrenciaDisciplinar[]
+  configuracaoPonto      ConfiguracaoPontoEmpresa?
 
   @@index([marcaId])
   @@schema("rh")
@@ -447,6 +448,9 @@ model Colaborador {
   pdi                      PlanoDesenvolvimento[]
   participacoesTreinamento ParticipacaoTreinamento[]
   ocorrenciasDisciplinares OcorrenciaDisciplinar[]
+  registrosPonto           RegistroPonto[]
+  tratamentosPonto         TratamentoPonto[]
+  bancosHoras              BancoHoras[]
 
   @@unique([empresaId, cpf])
   @@unique([telegramChatId])
@@ -515,6 +519,7 @@ model Arquivo {
   acidente                AcidenteTrabalho?
   participacaoTreinamento ParticipacaoTreinamento?
   curriculo               Candidato?
+  tratamentoPonto         TratamentoPonto?
 
   @@index([empresaId])
   @@schema("rh")
@@ -2001,3 +2006,120 @@ model FotoMensal {
   @@index([empresaId, competencia])
   @@schema("rh")
 }
+
+// ---------------------------------------------------------------------------
+// PONTO ELETRÔNICO & GESTÃO DE JORNADA (REP-P / Portaria MTP 671/2021)
+// ---------------------------------------------------------------------------
+
+// Cadastro da escala / jornada contratual de trabalho
+model JornadaTrabalho {
+  id              String   @id @default(cuid())
+  empresaId       String
+  nome            String   // Ex: "Administrativo 08h às 18h", "Turno 12x36"
+  entrada1        String   // "08:00"
+  saida1          String   // "12:00"
+  entrada2        String?  // "13:00"
+  saida2          String?  // "17:00"
+  cargaDiariaMin  Int      @default(480) // Carga diária contratual em minutos (ex: 480 min = 8h)
+  toleranciaMin   Int      @default(10)  // Tolerância diária em minutos (Art. 58 § 1º CLT)
+  sabadoUtil      Boolean  @default(false)
+  domingoUtil     Boolean  @default(false)
+  ativo           Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([empresaId, ativo])
+  @@schema("rh")
+}
+
+// Registro inalterável da batida de ponto (REP-P / Append-Only Log)
+// Proibido UPDATE ou DELETE nas colunas de marcação original por exigência fiscal MTE.
+model RegistroPonto {
+  id               String      @id @default(cuid())
+  empresaId        String
+  colaboradorId    String
+  colaborador      Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  dataHora         DateTime    // Instante exato oficial (NTP/UTC-3)
+  tipo             String      // "ENTRADA_1" | "SAIDA_1" | "ENTRADA_2" | "SAIDA_2"
+  nsr              BigInt      // Número Sequencial de Registro (crescente por empresa)
+  ipOrigem         String?     // Endereço IP público do batimento
+  ipValido         Boolean     @default(true)
+  latitude         Float?      // Coordenada GPS
+  longitude        Float?      // Coordenada GPS
+  precisaoGps      Float?      // Precisão em metros
+  gpsValido        Boolean     @default(true)
+  fotoUrl          String?     // URL do Blob da foto tirada no momento (opcional)
+  hashSHA256       String      // Criptografia e integridade da marcação
+  dispositivoInfo  String?     // User-agent / Navegador / SO
+  createdAt        DateTime    @default(now())
+
+  tratamentos      TratamentoPonto[]
+
+  @@index([empresaId, dataHora])
+  @@index([colaboradorId, dataHora])
+  @@index([empresaId, nsr])
+  @@schema("rh")
+}
+
+// Tratamento de Inconsistências (PTRP - Programa de Tratamento de Registro de Ponto)
+model TratamentoPonto {
+  id               String         @id @default(cuid())
+  empresaId        String
+  colaboradorId    String
+  colaborador      Colaborador    @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  registroPontoId  String?
+  registroPonto    RegistroPonto? @relation(fields: [registroPontoId], references: [id], onDelete: SetNull)
+  dataFato         DateTime       // Dia a que se refere a ocorrência
+  tipo             String         // "INCLUSAO_MANUAL" | "ABONO" | "JUSTIFICATIVA_ATESTADO" | "DESCONTO"
+  motivo           String         // Texto justificando a alteração
+  arquivoId        String?        @unique
+  arquivo          Arquivo?       @relation(fields: [arquivoId], references: [id], onDelete: SetNull)
+  status           String         @default("PENDENTE") // "PENDENTE" | "APROVADO" | "REJEITADO"
+  aprovadoPorId    String?
+  aprovadoPorNome  String?
+  aprovadoEm       DateTime?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@index([empresaId, dataFato])
+  @@index([colaboradorId, dataFato])
+  @@schema("rh")
+}
+
+// Extrato & Saldo de Banco de Horas
+model BancoHoras {
+  id             String      @id @default(cuid())
+  empresaId      String
+  colaboradorId  String
+  colaborador    Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  competencia    String      // "AAAA-MM"
+  saldoAnterior  Int         @default(0) // Saldo acumulado em minutos
+  creditosMes    Int         @default(0) // Horas extras enviadas ao banco no mês (minutos)
+  debitosMes     Int         @default(0) // Faltas/atrasos/folgas compensadas no mês (minutos)
+  saldoAtual     Int         @default(0) // Saldo final do mês (minutos)
+  expiraEm       DateTime?   // Prazo limite para compensação (6 a 12 meses)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@unique([colaboradorId, competencia])
+  @@index([empresaId, competencia])
+  @@schema("rh")
+}
+
+// Configurações de Trava de Ponto da Empresa (IP, GPS, Cercos)
+model ConfiguracaoPontoEmpresa {
+  id                String   @id @default(cuid())
+  empresaId         String   @unique
+  empresa           Empresa  @relation(fields: [empresaId], references: [id])
+  ipsAutorizados    String?  // Lista de IPs públicos separados por vírgula
+  exigirIp          Boolean  @default(false)
+  latitudeEmpresa   Float?   // Latitude da sede/unidade
+  longitudeEmpresa  Float?   // Longitude da sede/unidade
+  raioPermitidoMtrs Int      @default(200) // Raio do cerco em metros
+  exigirGps         Boolean  @default(true)
+  exigirFoto        Boolean  @default(false)
+  updatedAt         DateTime @updatedAt
+
+  @@schema("rh")
+}
+

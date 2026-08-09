@@ -26,6 +26,54 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.63.0",
+    data: "09/08/2026",
+    horario: "21:00",
+    titulo: "Fase 4 e 5: Finalização do Módulo Ponto Eletrônico (Exportadores AFD/AEJ e Dashboard C-Level)",
+    itens: [
+      "Gerador e exportador dos arquivos fiscais regulatórios AFD (Arquivo Fonte de Dados) e AEJ (Arquivo Eletrônico de Jornada) para download direto em formato .txt.",
+      "Assinatura digital e vinculo de Hash SHA-256 por registro para conformidade total com a Portaria MTP nº 671/2021 (REP-P).",
+      "Dashboard C-Level Executivo de Ponto com estimativa de custo de Horas Extras, valoração de passivo de Banco de Horas e auditoria de riscos CLT (Art. 59 e Art. 71).",
+    ],
+  },
+  {
+    versao: "1.62.0",
+    data: "09/08/2026",
+    horario: "20:30",
+    titulo: "Fase 3: Central de Tratamento de Ponto (PTRP) e Gestão no RH",
+    itens: [
+      "Painel administrativo do RH para Ponto Eletrônico (/rh/[empresaId]/ponto) com 5 abas integradas.",
+      "Monitor de Presença em Tempo Real com contadores visuais (Presentes, Em Intervalo, Atrasados e Ausentes).",
+      "Central de Tratamento de Ponto (PTRP - Portaria MTP 671/2021) com justificativa obrigatória e auditoria por gestor.",
+      "Cadastro de Jornadas e Escalas de Trabalho contratuais (tolerâncias CLT e carga diária).",
+      "Vínculo do módulo Ponto Eletrônico na barra lateral de navegação do RH em Departamento Pessoal.",
+    ],
+  },
+  {
+    versao: "1.61.0",
+    data: "09/08/2026",
+    horario: "20:00",
+    titulo: "Fase 2: Interface de Marcação de Ponto PWA e Banco de Horas no Portal",
+    itens: [
+      "Componente responsivo PWA p/ registro de ponto (1ª Entrada, 1ª Saída Almoço, 2ª Entrada e 2ª Saída Fim de Turno) com Relógio Brasília.",
+      "Validação em tempo real de Geofencing GPS (latitude/longitude), IP de Rede Autorizado e Geração de Hash SHA-256 de imutabilidade.",
+      "Emissão automática de Comprovante de Registro de Ponto Eletrônico instantâneo (com NSR e Hash SHA-256) no Portal do Colaborador.",
+      "Cartão 'Meu Banco de Horas' com extrato mensal de créditos (H.E.), débitos (atrasos) e histórico de competências.",
+    ],
+  },
+  {
+    versao: "1.60.0",
+    data: "09/08/2026",
+    horario: "19:45",
+    titulo: "Fase 1: Módulo de Ponto Eletrônico & Gestão de Jornada (REP-P / Portaria MTP 671/2021)",
+    itens: [
+      "Implantação dos modelos de dados Prisma no schema 'rh' (JornadaTrabalho, RegistroPonto append-only, TratamentoPonto PTRP, BancoHoras e ConfiguracaoPontoEmpresa).",
+      "Motor de cálculo de regras trabalhistas CLT (Art. 58 tolerâncias de 10 min/dia, Art. 73 hora noturna ficta 52m30s, Art. 71 supressão de intervalo e reflexo no DSR Lei 605/49).",
+      "Motor de segurança e integridade (Gerador de Hash SHA-256 por batida, validação de IP e geolocalização com Geofencing GPS).",
+      "Gerador de arquivos fiscais regulatórios AFD (Arquivo Fonte de Dados) conforme Portaria MTP nº 671/2021.",
+    ],
+  },
+  {
     versao: "1.59.5",
     data: "09/08/2026",
     horario: "17:15",

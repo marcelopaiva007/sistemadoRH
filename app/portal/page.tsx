@@ -72,7 +72,7 @@ export default async function PortalPage() {
     return <ConfirmarCpf primeiroNome={colaborador.nome.split(" ")[0]} />;
   }
 
-  const [documentos, ausencias, mensagens, avaliacoes] = await Promise.all([
+  const [documentos, ausencias, mensagens, avaliacoes, bancoHoras] = await Promise.all([
     prisma.documentoColaborador.findMany({
       where: { colaboradorId: colaborador.id, arquivoId: { not: null } },
       orderBy: { createdAt: "desc" },
@@ -105,14 +105,8 @@ export default async function PortalPage() {
         createdAt: true,
       },
     }),
-    // O que ESTA pessoa tem para responder: a própria autoavaliação e, se for
-    // gestor (ou tiver sido escolhida como par/subordinado), as dos outros.
-    // Filtra por `avaliadorId` — nunca por colaboradorId, que traria de volta o
-    // que o chefe escreveu sobre ela.
     prisma.avaliacaoDesempenho.findMany({
       where: { avaliadorId: colaborador.id, ciclo: { encerrado: false } },
-      // Ordem de exibição é decidida na tela (pendente, depois a própria, depois
-      // por nome); aqui só um critério estável para a lista não dançar.
       orderBy: { createdAt: "asc" },
       select: {
         id: true,
@@ -127,6 +121,19 @@ export default async function PortalPage() {
         colaborador: { select: { nome: true } },
         ciclo: { select: { nome: true, dataFim: true } },
         notas: { select: { competencia: true, nota: true } },
+      },
+    }),
+    prisma.bancoHoras.findMany({
+      where: { colaboradorId: colaborador.id },
+      orderBy: { competencia: "desc" },
+      take: 6,
+      select: {
+        competencia: true,
+        saldoAnterior: true,
+        creditosMes: true,
+        debitosMes: true,
+        saldoAtual: true,
+        expiraEm: true,
       },
     }),
   ]);
@@ -305,6 +312,7 @@ export default async function PortalPage() {
         notas: a.notas,
         competenciasDisponiveis: competenciasPorEmpresa.get(a.empresaId) ?? [],
       }))}
+      bancoHoras={bancoHoras.length > 0 ? bancoHoras[0] : null}
     />
   );
 }
