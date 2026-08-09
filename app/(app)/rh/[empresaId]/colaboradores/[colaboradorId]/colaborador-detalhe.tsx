@@ -197,29 +197,31 @@ export function ColaboradorDetalhe({
         </Alert>
       )}
 
-      <Tabs defaultValue={abaPadrao}>
-        <TabsList variant="line" className="flex-wrap h-auto w-full justify-start gap-1.5 border-b pb-2">
-          <TabsTrigger value="ficha">Ficha</TabsTrigger>
-          <TabsTrigger value="dependentes">Dependentes ({dependentes.length})</TabsTrigger>
-          <TabsTrigger value="dossie">Dossiê ({documentos.length})</TabsTrigger>
-          <TabsTrigger value="ferias">Férias</TabsTrigger>
-          <TabsTrigger value="ausencias">Ausências ({ausencias.length})</TabsTrigger>
-          <TabsTrigger value="seguranca">
-            Segurança {irregular && <Badge variant="destructive">!</Badge>}
-          </TabsTrigger>
-          <TabsTrigger value="carreira">Carreira ({movimentacoes.length})</TabsTrigger>
-          <TabsTrigger value="beneficios">Benefícios ({beneficios.length})</TabsTrigger>
-          <TabsTrigger value="epis">EPIs ({entregasEpi.length})</TabsTrigger>
-          <TabsTrigger value="acidentes">Acidentes ({acidentes.length})</TabsTrigger>
-          <TabsTrigger value="desempenho">Desempenho ({avaliacoes.length})</TabsTrigger>
-          <TabsTrigger value="metas-pdi">Metas &amp; PDI</TabsTrigger>
-          <TabsTrigger value="treinamentos">Treinamentos ({participacoesTreinamento.length})</TabsTrigger>
-          <TabsTrigger value="disciplinar">
-            Disciplinar ({ocorrenciasDisciplinares.length})
-          </TabsTrigger>
-          {colaborador.ativo && <TabsTrigger value="integracao">Integração</TabsTrigger>}
-          {colaborador.dataDesligamento && <TabsTrigger value="desligamento">Desligamento</TabsTrigger>}
-        </TabsList>
+      <Tabs defaultValue={abaPadrao} className="w-full">
+        <div className="w-full min-w-0 overflow-x-auto border-b scrollbar-none pb-1">
+          <TabsList variant="line" className="flex flex-nowrap w-max justify-start gap-1 bg-transparent p-0">
+            <TabsTrigger value="ficha">Ficha</TabsTrigger>
+            <TabsTrigger value="dependentes">Dependentes ({dependentes.length})</TabsTrigger>
+            <TabsTrigger value="dossie">Dossiê ({documentos.length})</TabsTrigger>
+            <TabsTrigger value="ferias">Férias</TabsTrigger>
+            <TabsTrigger value="ausencias">Ausências ({ausencias.length})</TabsTrigger>
+            <TabsTrigger value="seguranca">
+              Segurança {irregular && <Badge variant="destructive">!</Badge>}
+            </TabsTrigger>
+            <TabsTrigger value="carreira">Carreira ({movimentacoes.length})</TabsTrigger>
+            <TabsTrigger value="beneficios">Benefícios ({beneficios.length})</TabsTrigger>
+            <TabsTrigger value="epis">EPIs ({entregasEpi.length})</TabsTrigger>
+            <TabsTrigger value="acidentes">Acidentes ({acidentes.length})</TabsTrigger>
+            <TabsTrigger value="desempenho">Desempenho ({avaliacoes.length})</TabsTrigger>
+            <TabsTrigger value="metas-pdi">Metas &amp; PDI</TabsTrigger>
+            <TabsTrigger value="treinamentos">Treinamentos ({participacoesTreinamento.length})</TabsTrigger>
+            <TabsTrigger value="disciplinar">
+              Disciplinar ({ocorrenciasDisciplinares.length})
+            </TabsTrigger>
+            {colaborador.ativo && <TabsTrigger value="integracao">Integração</TabsTrigger>}
+            {colaborador.dataDesligamento && <TabsTrigger value="desligamento">Desligamento</TabsTrigger>}
+          </TabsList>
+        </div>
 
         <TabsContent value="ficha" className="pt-4">
           <FichaBlocos

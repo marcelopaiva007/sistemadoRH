@@ -26,6 +26,15 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.59.3",
+    data: "09/08/2026",
+    horario: "16:45",
+    titulo: "Redesign da barra de abas da ficha do colaborador com rolagem horizontal suave",
+    itens: [
+      "Substituição da quebra em múltiplas linhas por uma barra única de navegação com rolagem horizontal suave (horizontal scroll track), preservando a elegância visual e a estrutura padronizada da plataforma.",
+    ],
+  },
+  {
     versao: "1.59.2",
     data: "09/08/2026",
     horario: "16:30",
