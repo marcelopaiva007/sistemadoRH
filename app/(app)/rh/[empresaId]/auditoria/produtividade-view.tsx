@@ -11,9 +11,9 @@ import { Paginacao } from "@/components/paginacao";
 import { usePaginacao } from "@/lib/use-paginacao";
 import { ROLE_LABEL } from "@/lib/constants";
 import { formatarData } from "@/lib/datas";
+import type { LinhaProdutividadeDia } from "@/lib/produtividade-rh";
 import {
   aplicarRanking,
-  type LinhaProdutividadeDia,
   type ResumoProdutividadePessoa,
 } from "@/lib/produtividade-rh-utils";
 

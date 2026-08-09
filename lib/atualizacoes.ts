@@ -26,6 +26,16 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.57.0",
+    data: "09/08/2026",
+    horario: "14:30",
+    titulo: "Refatoração do ranking de produtividade e melhorias visuais na topbar",
+    itens: [
+      "Modularização do cálculo de ranking de produtividade para execução segura em servidor e cliente.",
+      "Ajustes visuais na barra superior (AppTopbar), cartões e indicadores com suporte a desfoque de fundo e bordas suavizadas.",
+    ],
+  },
+  {
     versao: "1.56.23",
     data: "09/08/2026",
     horario: "03:45",
