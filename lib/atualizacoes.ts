@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.59.0",
+    data: "09/08/2026",
+    horario: "15:45",
+    titulo: "Módulo de Medidas Disciplinares e Notificações com Registro de Recusa",
+    itens: [
+      "Novo módulo de Ocorrências Disciplinares com suporte a Advertência Verbal, Advertência Escrita, Suspensão, Justa Causa, Abandono de Emprego, Uso de EPI, Dano Patrimonial e Recusa a Exames.",
+      "Aba Disciplinar na Ficha do Colaborador com contadores visuais de gradação de penas (CLT Art. 482) e alertas de reincidência.",
+      "Fluxo de assinatura digital/física com registro formal de Certidão de Recusa presenciada por 2 testemunhas.",
+    ],
+  },
+  {
     versao: "1.58.0",
     data: "09/08/2026",
     horario: "15:00",

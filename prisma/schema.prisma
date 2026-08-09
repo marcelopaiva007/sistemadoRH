@@ -197,14 +197,15 @@ model Empresa {
   uf                String?
 
   marca          Marca           @relation(fields: [marcaId], references: [id])
-  setores        Setor[]
-  posicoes       Posicao[]
-  colaboradores  Colaborador[]
-  pesquisas      Pesquisa[]
-  userEmpresas   UserEmpresa[]
-  planosAcao     PlanoAcao[]
-  tiposBeneficio TipoBeneficio[]
-  catalogoItens  CatalogoItem[]
+  setores                Setor[]
+  posicoes               Posicao[]
+  colaboradores          Colaborador[]
+  pesquisas              Pesquisa[]
+  userEmpresas           UserEmpresa[]
+  planosAcao             PlanoAcao[]
+  tiposBeneficio         TipoBeneficio[]
+  catalogoItens          CatalogoItem[]
+  ocorrenciasDisciplinares OcorrenciaDisciplinar[]
 
   @@index([marcaId])
   @@schema("rh")
@@ -445,6 +446,7 @@ model Colaborador {
   metas                    Meta[]
   pdi                      PlanoDesenvolvimento[]
   participacoesTreinamento ParticipacaoTreinamento[]
+  ocorrenciasDisciplinares OcorrenciaDisciplinar[]
 
   @@unique([empresaId, cpf])
   @@unique([telegramChatId])
@@ -1372,6 +1374,45 @@ model EventoCandidatura {
   createdAt         DateTime    @default(now())
 
   @@index([candidaturaId, createdAt])
+  @@schema("rh")
+}
+
+// Módulo de Medidas Disciplinares e Ocorrências em desfavor do colaborador
+model OcorrenciaDisciplinar {
+  id                String   @id @default(cuid())
+  empresaId         String
+  colaboradorId     String
+  emitidoPorId      String?
+  emitidoPorNome    String?
+
+  // ADVERTENCIA_VERBAL | ADVERTENCIA_ESCRITA | SUSPENSAO | JUSTA_CAUSA |
+  // ABANDONO_EMPREGO | USO_INDEVIDO_EPI | DANO_PATRIMONIAL | RECUSA_EXAME
+  tipo              String
+  motivo            String
+  detalhes          String?
+  dataFato          DateTime
+
+  diasSuspensao     Int?
+  valorDesconto     Float?
+
+  // PENDENTE | ASSINADO | RECUSADO_COM_TESTEMUNHAS
+  statusAssinatura  String   @default("PENDENTE")
+  dataAssinatura    DateTime?
+
+  testemunha1Nome   String?
+  testemunha1Cpf    String?
+  testemunha2Nome   String?
+  testemunha2Cpf    String?
+
+  documentoUrl      String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  empresa     Empresa     @relation(fields: [empresaId], references: [id])
+  colaborador Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+
+  @@index([empresaId, tipo])
+  @@index([colaboradorId])
   @@schema("rh")
 }
 

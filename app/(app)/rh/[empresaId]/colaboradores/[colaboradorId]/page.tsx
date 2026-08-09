@@ -298,6 +298,7 @@ export default async function ColaboradorPage({
     tiposMovimentacaoDisponiveis,
     statusMetaDisponiveis,
     competenciasDisponiveis,
+    ocorrenciasDisciplinares,
   ] = await Promise.all([
     opcoesDoCatalogo(empresaId, "TIPO_EPI"),
     opcoesDoCatalogo(empresaId, "MOTIVO_ENTREGA_EPI"),
@@ -305,6 +306,10 @@ export default async function ColaboradorPage({
     opcoesDoCatalogo(empresaId, "TIPO_MOVIMENTACAO"),
     opcoesDoCatalogo(empresaId, "STATUS_META"),
     opcoesDoCatalogo(empresaId, "COMPETENCIA"),
+    prisma.ocorrenciaDisciplinar.findMany({
+      where: { colaboradorId },
+      orderBy: [{ dataFato: "desc" }],
+    }),
   ]);
 
   const admissao = candidaturaDeOrigem
@@ -365,6 +370,7 @@ export default async function ColaboradorPage({
         treinamentosAtivos={treinamentosAtivos}
         admissao={admissao}
         checklistIntegracao={checklistIntegracao}
+        ocorrenciasDisciplinares={ocorrenciasDisciplinares}
       />
     </div>
   );

@@ -26,6 +26,7 @@ import { DesempenhoCard } from "./desempenho-card";
 import { MetasPdiCard } from "./metas-pdi-card";
 import { TreinamentosCard } from "./treinamentos-card";
 import { IntegracaoCard } from "./integracao-card";
+import { DisciplinarCard } from "./disciplinar-card";
 
 type Colaborador = Parameters<typeof FichaBlocos>[0]["colaborador"] & {
   ativo: boolean;
@@ -72,6 +73,7 @@ export function ColaboradorDetalhe({
   treinamentosAtivos,
   admissao,
   checklistIntegracao,
+  ocorrenciasDisciplinares,
 }: {
   empresaId: string;
   colaborador: Colaborador;
@@ -112,6 +114,7 @@ export function ColaboradorDetalhe({
     pendencias: { chave: string; descricao: string }[];
   } | null;
   checklistIntegracao: Parameters<typeof IntegracaoCard>[0]["itens"];
+  ocorrenciasDisciplinares: Parameters<typeof DisciplinarCard>[0]["ocorrencias"];
 }) {
   const pendencias =
     ferias.filter((f) => f.status === "PENDENTE").length +
@@ -211,6 +214,9 @@ export function ColaboradorDetalhe({
           <TabsTrigger value="desempenho">Desempenho ({avaliacoes.length})</TabsTrigger>
           <TabsTrigger value="metas-pdi">Metas &amp; PDI</TabsTrigger>
           <TabsTrigger value="treinamentos">Treinamentos ({participacoesTreinamento.length})</TabsTrigger>
+          <TabsTrigger value="disciplinar">
+            Disciplinar ({ocorrenciasDisciplinares.length})
+          </TabsTrigger>
           {colaborador.ativo && <TabsTrigger value="integracao">Integração</TabsTrigger>}
           {colaborador.dataDesligamento && <TabsTrigger value="desligamento">Desligamento</TabsTrigger>}
         </TabsList>
@@ -316,6 +322,13 @@ export function ColaboradorDetalhe({
             colaboradorId={colaborador.id}
             participacoes={participacoesTreinamento}
             treinamentosAtivos={treinamentosAtivos}
+          />
+        </TabsContent>
+        <TabsContent value="disciplinar" className="pt-4">
+          <DisciplinarCard
+            empresaId={empresaId}
+            colaboradorId={colaborador.id}
+            ocorrencias={ocorrenciasDisciplinares}
           />
         </TabsContent>
         {colaborador.ativo && (
