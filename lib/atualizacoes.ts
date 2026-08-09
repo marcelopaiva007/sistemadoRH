@@ -26,6 +26,48 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.56.23",
+    data: "09/08/2026",
+    horario: "03:45",
+    titulo: "Remoção de cargos e setores sem colaboradores",
+    itens: [
+      "Funcionalidade de exclusão em lote de cargos e setores vagos (com 0 colaboradores cadastrados).",
+      "Limpeza atômica automática de vínculos pendentes de vagas, metas, planos de ação e requisitos NR.",
+    ],
+  },
+  {
+    versao: "1.56.20–1.56.22",
+    data: "09/08/2026",
+    horario: "03:30",
+    titulo: "Análise semântica e unificação de setores e cargos",
+    itens: [
+      "Algoritmo de agrupamento por semelhança semântica (ex: Vendas ↔ Comercial, RH ↔ Recursos Humanos, TI ↔ Tecnologia da Informação).",
+      "Painel interativo de consolidação de grupos com escolha de setor/cargo principal e padronização do nome final.",
+      "Melhorias de desempenho e otimização de imports na gestão de posições e departamentos.",
+    ],
+  },
+  {
+    versao: "1.56.16–1.56.19",
+    data: "09/08/2026",
+    horario: "03:00",
+    titulo: "Modernização e higienização de setores e cargos",
+    itens: [
+      "Redesign visual das telas de Setores e Cargos & Funções com KPI cards, avatares coloridos por hash, barras de ocupação e busca rápida.",
+      "Ferramenta de limpeza automática de duplicatas exatas de nomes.",
+      "Ajuste de escopo: remoção de nomes de empresas na lista de setores e unificação de cargos para o catálogo geral da marca.",
+    ],
+  },
+  {
+    versao: "1.56.2–1.56.15",
+    data: "08/08/2026",
+    horario: "14:00",
+    titulo: "Gerador nativo ultra-rápido de relatórios PDF e travas CI",
+    itens: [
+      "Substituição do Chromium por gerador nativo ultra-rápido para relatórios e PDFs A4.",
+      "Inclusão de travas de segurança de build e verificação de bundling no script de release.",
+    ],
+  },
+  {
     versao: "1.56.1",
     data: "08/08/2026",
     horario: "02:20",
