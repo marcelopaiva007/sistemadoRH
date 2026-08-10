@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { atualizarFicha } from "@/lib/actions/rh-ficha";
 import {
@@ -101,6 +102,7 @@ function Bloco({
   children: React.ReactNode;
   acao: (prev: import("@/lib/constants").ActionResult, fd: FormData) => Promise<import("@/lib/constants").ActionResult>;
 }) {
+  const router = useRouter();
   return (
     <Card>
       <CardHeader>
@@ -108,7 +110,11 @@ function Bloco({
         {descricao && <CardDescription>{descricao}</CardDescription>}
       </CardHeader>
       <CardContent>
-        <FormularioAction action={acao} mensagemSucesso="Ficha atualizada.">
+        <FormularioAction
+          action={acao}
+          mensagemSucesso="Ficha atualizada."
+          onSuccess={() => router.refresh()}
+        >
           {children}
         </FormularioAction>
       </CardContent>
