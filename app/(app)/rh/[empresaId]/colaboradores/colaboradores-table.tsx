@@ -328,21 +328,23 @@ function Kpi({
 
 export function ColaboradoresTable({
   empresaId,
-  empresasDoUsuario,
+  empresasDoEscopo,
   colaboradores,
   setores,
   posicoes,
   marcaPorEmpresa,
 }: {
   empresaId: string;
-  empresasDoUsuario: string[];
+  // Era `empresasDoUsuario` (tudo que a pessoa enxerga) até 10/08/2026; o
+  // servidor agora manda só a MARCA do caminho, já cruzada com ?empresas=.
+  empresasDoEscopo: string[];
   colaboradores: Colaborador[];
   setores: Setor[];
   posicoes: Posicao[];
   marcaPorEmpresa: Record<string, string>;
 }) {
   // Aplicar filtro de marcas/empresas selecionadas
-  const empresasSelecionadas = useFiltroEmpresas(empresasDoUsuario);
+  const empresasSelecionadas = useFiltroEmpresas(empresasDoEscopo);
   // Estado DERIVADO do filtro: useMemo, não useState + useEffect.
   // A forma anterior (setState dentro de effect) dispara render em cascata — o
   // lint barra, e com razão: foi essa mesma forma que congelou esta tela em
