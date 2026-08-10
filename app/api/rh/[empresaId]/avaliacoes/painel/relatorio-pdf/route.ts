@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { empresasVisiveis } from "@/lib/rh-auth-guard";
+import { empresasDaMesmaMarca } from "@/lib/escopo-marca";
 import { calcularPainelAvaliacao } from "@/lib/avaliacao-painel";
 import { gerarHtmlRelatorioAvaliacao } from "@/lib/avaliacao-relatorio";
 import { responderComHtmlRelatorio } from "@/lib/pdf-browser";
@@ -25,12 +26,17 @@ export async function GET(
   const session = await auth();
   const user = session?.user;
   if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-  const autorizado =
-    user.role === "ADMIN" ||
-    user.role === "DIRETORIA" ||
-    user.empresas.some((e) => e.empresaId === empresaId && e.ativo);
-  if (!autorizado) {
-    return NextResponse.json({ error: "Sem acesso a esta empresa." }, { status: 403 });
+
+  // Verifica acesso: ADMIN, DIRETORIA, acesso direto, ou acesso via marca
+  if (user.role === "ADMIN" || user.role === "DIRETORIA") {
+    // ADMIN e DIRETORIA têm acesso a tudo
+  } else if (!user.empresas.some((e) => e.empresaId === empresaId && e.ativo)) {
+    // Sem acesso direto à empresa, verifica acesso por marca
+    const idsDaMarca = await empresasDaMesmaMarca(empresaId);
+    const temAcessoMarca = idsDaMarca.some(id => user.empresas.some(e => e.empresaId === id && e.ativo));
+    if (!temAcessoMarca) {
+      return NextResponse.json({ error: "Sem acesso a esta empresa." }, { status: 403 });
+    }
   }
 
   // Mesmo alcance da tela: todos os CNPJs que o usuário enxerga, não só o da

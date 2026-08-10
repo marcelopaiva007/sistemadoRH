@@ -29,12 +29,17 @@ export async function GET(
   const session = await auth();
   const user = session?.user;
   if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-  const autorizado =
-    user.role === "ADMIN" ||
-    user.role === "DIRETORIA" ||
-    user.empresas.some((e) => e.empresaId === empresaId && e.ativo);
-  if (!autorizado) {
-    return NextResponse.json({ error: "Sem acesso a esta empresa." }, { status: 403 });
+
+  // Verifica acesso: ADMIN, DIRETORIA, acesso direto, ou acesso via marca
+  if (user.role === "ADMIN" || user.role === "DIRETORIA") {
+    // ADMIN e DIRETORIA têm acesso a tudo
+  } else if (!user.empresas.some((e) => e.empresaId === empresaId && e.ativo)) {
+    // Sem acesso direto à empresa, verifica acesso por marca
+    const idsDaMarca = await empresasDaMesmaMarca(empresaId);
+    const temAcessoMarca = idsDaMarca.some(id => user.empresas.some(e => e.empresaId === id && e.ativo));
+    if (!temAcessoMarca) {
+      return NextResponse.json({ error: "Sem acesso a esta empresa." }, { status: 403 });
+    }
   }
 
   const empresaIds = await empresasDaMesmaMarca(empresaId);
