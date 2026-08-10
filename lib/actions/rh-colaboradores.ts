@@ -60,13 +60,23 @@ async function validarSupervisor(
   return null;
 }
 
-async function validarSetorEPosicaoDaEmpresa(empresaId: string, setorId: string, posicaoId: string) {
+/**
+ * Setor e cargo valem para a MARCA inteira, igual ao líder logo acima: a
+ * higienização das telas de Setores/Cargos (unificar duplicatas + remover os
+ * sem colaboradores) deixou cada nome vivo numa única linha do grupo, e as
+ * próprias unificações já apontam colaboradores de vários CNPJs para essa
+ * linha. Validando por empresaId, o cargo aparecia no seletor mas o Salvar
+ * respondia "Posição inválida para essa empresa" — a tela oferecia uma escolha
+ * que o servidor recusava, e cadastrar colaborador novo ficou impossível.
+ */
+async function validarSetorEPosicaoDaMarca(empresaId: string, setorId: string, posicaoId: string) {
+  const escopo = await empresasDaMesmaMarca(empresaId);
   const [setor, posicao] = await Promise.all([
-    prisma.setor.findFirst({ where: { id: setorId, empresaId } }),
-    prisma.posicao.findFirst({ where: { id: posicaoId, empresaId } }),
+    prisma.setor.findFirst({ where: { id: setorId, empresaId: { in: escopo } } }),
+    prisma.posicao.findFirst({ where: { id: posicaoId, empresaId: { in: escopo } } }),
   ]);
-  if (!setor) return "Setor inválido para essa empresa.";
-  if (!posicao) return "Posição inválida para essa empresa.";
+  if (!setor) return "Setor inválido para essa marca.";
+  if (!posicao) return "Posição inválida para essa marca.";
   return null;
 }
 
@@ -135,7 +145,7 @@ export async function createColaborador(
     return { ok: false, error: "Informe a data de fim do contrato." };
   }
 
-  const erroEscopo = await validarSetorEPosicaoDaEmpresa(empresaId, parsed.data.setorId, parsed.data.posicaoId);
+  const erroEscopo = await validarSetorEPosicaoDaMarca(empresaId, parsed.data.setorId, parsed.data.posicaoId);
   if (erroEscopo) return { ok: false, error: erroEscopo };
 
   if (parsed.data.telegramChatId) {
@@ -206,7 +216,7 @@ export async function updateColaborador(
   const parsed = colaboradorSchema.safeParse(raw);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
 
-  const erroEscopo = await validarSetorEPosicaoDaEmpresa(empresaId, parsed.data.setorId, parsed.data.posicaoId);
+  const erroEscopo = await validarSetorEPosicaoDaMarca(empresaId, parsed.data.setorId, parsed.data.posicaoId);
   if (erroEscopo) return { ok: false, error: erroEscopo };
 
   if (parsed.data.telegramChatId) {
