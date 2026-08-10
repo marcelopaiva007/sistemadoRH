@@ -26,6 +26,16 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.63.1",
+    data: "10/08/2026",
+    horario: "11:30",
+    titulo: "Correção: motivo do desligamento volta a salvar na ficha do colaborador",
+    itens: [
+      "Salvar o bloco Vínculo da ficha só para preencher ou corrigir o motivo do desligamento não é mais bloqueado com pedido de data de admissão — o sistema tratava a data de saída como alterada por diferença de horário interno dos desligamentos importados.",
+      "Corrigir salário ou contrato de ex-colaborador desligado sem motivo registrado também deixa de ser travado pelo mesmo problema.",
+    ],
+  },
+  {
     versao: "1.63.0",
     data: "09/08/2026",
     horario: "21:00",

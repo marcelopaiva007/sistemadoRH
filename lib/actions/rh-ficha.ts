@@ -6,7 +6,7 @@ import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { registrarAuditoria, diffCampos } from "@/lib/audit";
 import { violouUnique } from "@/lib/prisma-erros";
 import { criariCiclo } from "@/lib/organograma";
-import { dataDoFormulario } from "@/lib/datas";
+import { dataDoFormulario, inicioDoDiaUTC, mesmoDiaUTC } from "@/lib/datas";
 import type { ActionResult } from "@/lib/constants";
 
 // A ficha é editada por blocos (identificação, endereço, emergência, banco,
@@ -196,10 +196,14 @@ export async function atualizarFicha(
   if (typeof data.email === "string" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
     return { ok: false, error: "E-mail inválido." };
   }
+  // Comparações de data SEMPRE por dia de calendário (inicioDoDiaUTC), nunca
+  // por timestamp: o formulário posta meia-noite UTC, mas as importações
+  // gravaram admissão/desligamento ao meio-dia UTC ("T12:00:00Z"). Comparar
+  // getTime() fazia a data parecer alterada num salvar que só mexeu no motivo.
   if (
     data.dataDesligamento instanceof Date &&
     (data.dataAdmissao ?? atual.dataAdmissao) instanceof Date &&
-    data.dataDesligamento < ((data.dataAdmissao ?? atual.dataAdmissao) as Date)
+    inicioDoDiaUTC(data.dataDesligamento) < inicioDoDiaUTC((data.dataAdmissao ?? atual.dataAdmissao) as Date)
   ) {
     return { ok: false, error: "O desligamento não pode ser anterior à admissão." };
   }
@@ -213,7 +217,7 @@ export async function atualizarFicha(
   const desligamentoMudou =
     data.dataDesligamento instanceof Date &&
     (!(atual.dataDesligamento instanceof Date) ||
-      data.dataDesligamento.getTime() !== atual.dataDesligamento.getTime());
+      !mesmoDiaUTC(data.dataDesligamento, atual.dataDesligamento));
   if (desligamentoMudou) {
     const motivo = typeof data.motivoDesligamento === "string" ? data.motivoDesligamento : atual.motivoDesligamento;
     if (!motivo) return { ok: false, error: "Informe o motivo do desligamento." };
