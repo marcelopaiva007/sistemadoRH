@@ -63,16 +63,21 @@ export default async function ColaboradoresPage({
         _count: { select: { ferias: true } },
       },
     }),
-    prisma.setor.findMany({ where: { empresaId: { in: escopo }, ativo: true }, orderBy: { nome: "asc" } }),
-    prisma.posicao.findMany({ where: { empresaId: { in: escopo }, ativo: true }, orderBy: { nome: "asc" } }),
+    // Buscar setores/posições para TODA a marca, não apenas o escopo filtrado.
+    // O usuário pode ter aberto um CNPJ específico sem cargos, mas quer oferecer
+    // aqueles que existem em irmãos da mesma marca (catálogo unificado).
+    prisma.setor.findMany({ where: { empresaId: { in: daMarcaVisiveis }, ativo: true }, orderBy: { nome: "asc" } }),
+    prisma.posicao.findMany({ where: { empresaId: { in: daMarcaVisiveis }, ativo: true }, orderBy: { nome: "asc" } }),
   ]);
 
   // empresaId → marcaId, para o formulário de novo/editar colaborador oferecer
   // só o catálogo da marca da empresa-alvo. O catálogo de setores/cargos foi
   // unificado por marca, e a validação no servidor aceita a marca inteira —
   // mas nunca outra marca (um ADMIN enxerga todas aqui).
+  // Busca para TODA a marca visível (daMarcaVisiveis), não apenas o escopo
+  // filtrado, porque os cargos/setores são catálogo unificado da marca.
   const empresasComMarca = await prisma.empresa.findMany({
-    where: { id: { in: escopo } },
+    where: { id: { in: daMarcaVisiveis } },
     select: { id: true, marcaId: true },
   });
   const marcaPorEmpresa = Object.fromEntries(empresasComMarca.map((e) => [e.id, e.marcaId]));
