@@ -4,6 +4,7 @@ import {
   pendenciasDaEmpresa,
   modulosSemRegistro,
   pesquisasAbertasDaEmpresa,
+  ciclosAEncerrarDaEmpresa,
 } from "@/lib/pendencias";
 import { resumoDaEmpresa, lacunasDaBase, lacunasDosDesligados } from "@/lib/dashboard";
 import { empresasDaMesmaMarca } from "@/lib/escopo-marca";
@@ -50,7 +51,7 @@ export default async function InicioDaEmpresaPage({
   const empresas =
     pedidas.length === 0 ? daMarcaVisiveis : daMarcaVisiveis.filter((id) => pedidas.includes(id));
 
-  const [resumo, pendencias, base, semRegistro, baseDesligados, pesquisasAbertas] =
+  const [resumo, pendencias, base, semRegistro, baseDesligados, pesquisasAbertas, ciclosAEncerrar] =
     await Promise.all([
       resumoDaEmpresa(empresas),
       pendenciasDaEmpresa(empresas),
@@ -61,6 +62,7 @@ export default async function InicioDaEmpresaPage({
       modulosSemRegistro(empresas),
       lacunasDosDesligados(empresas),
       pesquisasAbertasDaEmpresa(empresas),
+      ciclosAEncerrarDaEmpresa(empresas),
     ]);
 
   return (
@@ -73,6 +75,7 @@ export default async function InicioDaEmpresaPage({
         semRegistro={[...semRegistro]}
         diasAlerta={DIAS_ALERTA_VENCIMENTO}
         pesquisasAbertas={pesquisasAbertas}
+        ciclosAEncerrar={ciclosAEncerrar}
       />
       {/* Por último: pendência é o que exige ação HOJE; preenchimento da base
           é o trabalho de fundo que faz os módulos valerem. */}

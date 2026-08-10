@@ -17,7 +17,13 @@ export type Pendencias = {
   feriasVencidas: number;
   avisoPrevio: number;
   desligamentosIncompletos: number;
-  avaliacoesAtrasadas: number;
+  // Era `avaliacoesAtrasadas` (cada avaliação PENDENTE de ciclo com janela
+  // fechada) até 10/08/2026. Um ciclo esquecido com 235 avaliações pendentes
+  // virava 235 itens no total — como se o RH tivesse 235 ações separadas. A
+  // ação é UMA por ciclo: cobrar os avaliadores e encerrar (encerrarCiclo em
+  // lib/actions/rh-avaliacao.ts). Mesma régua de `pesquisasAbertas`, logo
+  // abaixo: conta a unidade que o RH fecha, nunca pessoa a pessoa.
+  ciclosAvaliacaoAEncerrar: number;
   // Era `convitesSemResposta` (pessoa com convite de pesquisa ativa e ainda sem
   // responder) até 06/08/2026. Responder pesquisa é OPCIONAL: parte do time
   // nunca responde, por direito, e isso não é falha do RH nem tem ação do RH
@@ -61,7 +67,7 @@ export const zeradas = (): Pendencias => ({
   feriasVencidas: 0,
   avisoPrevio: 0,
   desligamentosIncompletos: 0,
-  avaliacoesAtrasadas: 0,
+  ciclosAvaliacaoAEncerrar: 0,
   pesquisasAbertas: 0,
   fichasDesatualizadas: 0,
   contratosVencendo: 0,
@@ -108,7 +114,7 @@ export async function pendenciasPorEmpresa(
   const [
     feriasPendentes, ausenciasPendentes, documentosAConferir, asoVencendo,
     certificadosVencendo, catPendente, integracoesAtrasadas, epiVencido,
-    feriasVencidas, avisoPrevio, desligamentosIncompletos, avaliacoesAtrasadas,
+    feriasVencidas, avisoPrevio, desligamentosIncompletos, ciclosAvaliacaoAEncerrar,
     pesquisasAbertas, fichasDesatualizadas,
     contratosVencendo, dependentesSemCpf, atestadosSemDocumento, horasExtras,
     semTelegram,
@@ -169,11 +175,13 @@ export async function pendenciasPorEmpresa(
         _count: contar,
         where: { empresaId, concluido: false, colaborador: { ativo: false } },
       }),
-      // Avaliação pendente de ciclo cuja janela já fechou e ninguém encerrou.
-      cliente.avaliacaoDesempenho.groupBy({
+      // Ciclo de avaliação com a janela fechada e ainda aberto — falta cobrar
+      // quem não avaliou e encerrar. Conta o CICLO, não as avaliações pendentes
+      // dentro dele (ver o comentário do tipo).
+      cliente.cicloAvaliacao.groupBy({
         by: [...por],
         _count: contar,
-        where: { empresaId, status: "PENDENTE", ciclo: { dataFim: { lt: hoje }, encerrado: false } },
+        where: { empresaId, encerrado: false, dataFim: { lt: hoje } },
       }),
       // Pesquisa ainda ACTIVE — aberta para os colaboradores responderem e
       // esperando o RH encerrar. Só ACTIVE: DRAFT não chegou a ninguém e
@@ -268,7 +276,7 @@ export async function pendenciasPorEmpresa(
   somar(feriasVencidas, (p, n) => (p.feriasVencidas = n));
   somar(avisoPrevio, (p, n) => (p.avisoPrevio = n));
   somar(desligamentosIncompletos, (p, n) => (p.desligamentosIncompletos = n));
-  somar(avaliacoesAtrasadas, (p, n) => (p.avaliacoesAtrasadas = n));
+  somar(ciclosAvaliacaoAEncerrar, (p, n) => (p.ciclosAvaliacaoAEncerrar = n));
   somar(pesquisasAbertas, (p, n) => (p.pesquisasAbertas = n));
   somar(fichasDesatualizadas, (p, n) => (p.fichasDesatualizadas = n));
   somar(contratosVencendo, (p, n) => (p.contratosVencendo = n));
@@ -338,6 +346,49 @@ export async function pesquisasAbertasDaEmpresa(
   );
 }
 
+export type CicloAEncerrar = {
+  id: string;
+  nome: string;
+  /** Dias desde que a janela do ciclo fechou. */
+  diasVencido: number;
+  /** Avaliações ainda PENDENTES dentro dele — contexto da cobrança, não pendência. */
+  avaliacoesPendentes: number;
+};
+
+/**
+ * Os ciclos de avaliação vencidos e não encerrados, com o tamanho do atraso e
+ * quantas avaliações ainda faltam. O cartão mostra só a contagem de ciclos;
+ * quem vai agir precisa saber QUAL ciclo e o tamanho da cobrança — o número
+ * que era o próprio contador até 10/08/2026 vira contexto aqui.
+ */
+export async function ciclosAEncerrarDaEmpresa(
+  empresaIds: string[],
+  cliente: Cliente = prisma,
+): Promise<CicloAEncerrar[]> {
+  if (empresaIds.length === 0) return [];
+  const hoje = hojeUTC();
+
+  const ciclos = await cliente.cicloAvaliacao.findMany({
+    where: { empresaId: { in: empresaIds }, encerrado: false, dataFim: { lt: hoje } },
+    select: {
+      id: true,
+      nome: true,
+      dataFim: true,
+      _count: { select: { avaliacoes: { where: { status: "PENDENTE" } } } },
+    },
+  });
+
+  return ciclos
+    .map((c) => ({
+      id: c.id,
+      nome: c.nome,
+      diasVencido: Math.max(0, diferencaEmDiasUTC(hoje, c.dataFim)),
+      avaliacoesPendentes: c._count.avaliacoes,
+    }))
+    // Mais atrasado primeiro — é o que o RH precisa fechar antes.
+    .sort((a, b) => b.diasVencido - a.diasVencido);
+}
+
 /**
  * Os módulos que não têm NENHUM registro nestas empresas.
  *
@@ -377,7 +428,7 @@ export async function empresasComRegistro(
   const chaves = [
     "asoVencendo", "certificadosVencendo", "epiVencido", "catPendente",
     "integracoesAtrasadas", "desligamentosIncompletos", "documentosAConferir",
-    "avaliacoesAtrasadas", "atestadosSemDocumento", "horasExtrasExcedidas",
+    "ciclosAvaliacaoAEncerrar", "atestadosSemDocumento", "horasExtrasExcedidas",
     "dependentesSemCpf", "contratosVencendo", "pesquisasAbertas",
   ] as const satisfies readonly (keyof Pendencias)[];
 
@@ -389,7 +440,9 @@ export async function empresasComRegistro(
     cliente.checklistIntegracao.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
     cliente.checklistDesligamento.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
     cliente.documentoColaborador.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
-    cliente.avaliacaoDesempenho.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
+    // Ciclo, não avaliação: é o que a pendência conta desde 10/08/2026, e uma
+    // empresa que criou ciclo mas ainda não gerou avaliação já usa o módulo.
+    cliente.cicloAvaliacao.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
     cliente.ausencia.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
     cliente.eventoFolha.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
     // Dependente não tem empresaId — só colaboradorId. A pergunta vira "quais

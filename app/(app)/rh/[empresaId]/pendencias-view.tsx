@@ -31,7 +31,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 // O tipo vem da lib, não de uma cópia local: a cópia divergiu quando as seis
 // situações novas entraram e o build caiu por isso.
-import type { Pendencias, PesquisaAberta } from "@/lib/pendencias";
+import type { CicloAEncerrar, Pendencias, PesquisaAberta } from "@/lib/pendencias";
 
 export function PendenciasView({
   empresaId,
@@ -40,6 +40,7 @@ export function PendenciasView({
   semRegistro,
   diasAlerta,
   pesquisasAbertas,
+  ciclosAEncerrar,
 }: {
   empresaId: string;
   /** CNPJs que os números desta tela somam (a marca, ou o filtro da URL). */
@@ -52,6 +53,10 @@ export function PendenciasView({
   // Detalhe do cartão "Pesquisa a encerrar": qual pesquisa e há quantos dias
   // está aberta. O número sozinho não ajuda a decidir quando encerrar.
   pesquisasAbertas: PesquisaAberta[];
+  // Detalhe do cartão "Ciclo de avaliação a encerrar": qual ciclo, atraso e
+  // quantas avaliações faltam — o que era o contador até 10/08/2026 (235
+  // avaliações inflando o total) vira contexto do cartão.
+  ciclosAEncerrar: CicloAEncerrar[];
 }) {
   const [exportando, setExportando] = useState(false);
 
@@ -88,6 +93,17 @@ export function PendenciasView({
           .map((p) => `${p.titulo} — ${dias(p.diasAberta)}, ${p.respostas} resp.`)
           .join(" · ") +
         (pesquisasAbertas.length > 3 ? ` · +${pesquisasAbertas.length - 3}` : "");
+
+  // "Ciclo X — venceu há 12 dias, 235 av. pendentes": o atraso diz a urgência
+  // de encerrar; as avaliações que faltam dizem o tamanho da cobrança.
+  const atras = (n: number) => (n === 0 ? "hoje" : `há ${n} ${n === 1 ? "dia" : "dias"}`);
+  const descricaoCiclos =
+    ciclosAEncerrar.length === 0
+      ? "Janela encerrada com o ciclo ainda aberto — cobrar avaliações e encerrar."
+      : ciclosAEncerrar
+          .slice(0, 3)
+          .map((c) => `${c.nome} — venceu ${atras(c.diasVencido)}, ${c.avaliacoesPendentes} av. pendentes`)
+          .join(" · ") + (ciclosAEncerrar.length > 3 ? ` · +${ciclosAEncerrar.length - 3}` : "");
 
   const exportarPDF = async () => {
     setExportando(true);
@@ -194,9 +210,9 @@ export function PendenciasView({
       icon: ClipboardList,
     },
     {
-      chave: "avaliacoesAtrasadas",
-      titulo: "Avaliação atrasada",
-      descricao: "Ciclo com janela encerrada e avaliações ainda pendentes.",
+      chave: "ciclosAvaliacaoAEncerrar",
+      titulo: "Ciclo de avaliação a encerrar",
+      descricao: descricaoCiclos,
       href: comFiltro(`/rh/${empresaId}/avaliacoes`),
       icon: Star,
     },
