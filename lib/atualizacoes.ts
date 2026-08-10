@@ -26,6 +26,18 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.63.2",
+    data: "10/08/2026",
+    horario: "12:50",
+    titulo: "Correção: cadastro de colaborador volta a aceitar os cargos e setores unificados",
+    itens: [
+      "Cadastrar colaborador novo não é mais bloqueado com \"Posição inválida para essa empresa\": depois da unificação de cargos e setores por marca, o cargo escolhido pode estar registrado em outro CNPJ do grupo, e o sistema agora aceita qualquer cargo/setor da marca.",
+      "A mesma correção vale para o bloco Estrutura da ficha e para as movimentações de carreira (promoção/transferência).",
+      "Os seletores de setor e cargo da ficha passam a mostrar o catálogo unificado da marca — antes podiam aparecer quase vazios.",
+      "No cadastro de colaborador, as listas de setor, cargo e líder mostram somente a marca da empresa em que a pessoa será registrada.",
+    ],
+  },
+  {
     versao: "1.63.1",
     data: "10/08/2026",
     horario: "11:30",

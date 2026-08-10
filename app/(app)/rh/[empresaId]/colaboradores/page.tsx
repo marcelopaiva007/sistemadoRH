@@ -47,6 +47,16 @@ export default async function ColaboradoresPage({ params }: { params: Promise<{ 
     prisma.posicao.findMany({ where: { empresaId: { in: empresasDoUsuario }, ativo: true }, orderBy: { nome: "asc" } }),
   ]);
 
+  // empresaId → marcaId, para o formulário de novo/editar colaborador oferecer
+  // só o catálogo da marca da empresa-alvo. O catálogo de setores/cargos foi
+  // unificado por marca, e a validação no servidor aceita a marca inteira —
+  // mas nunca outra marca (um ADMIN enxerga todas aqui).
+  const empresasComMarca = await prisma.empresa.findMany({
+    where: { id: { in: empresasDoUsuario } },
+    select: { id: true, marcaId: true },
+  });
+  const marcaPorEmpresa = Object.fromEntries(empresasComMarca.map((e) => [e.id, e.marcaId]));
+
   // O filtro "?lacuna=salario|admissao" só precisa saber SE o campo está vazio.
   // Trocar o valor pelo booleano aqui mantém salário e data de admissão dentro
   // do servidor sem perder o filtro.
@@ -72,6 +82,7 @@ export default async function ColaboradoresPage({ params }: { params: Promise<{ 
       colaboradores={colaboradores}
       setores={setores}
       posicoes={posicoes}
+      marcaPorEmpresa={marcaPorEmpresa}
     />
   );
 }

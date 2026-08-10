@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
+import { empresasDaMesmaMarca } from "@/lib/escopo-marca";
 import { prisma } from "@/lib/prisma";
 import { calcularFerias } from "@/lib/ferias";
 import { conformidadeDoColaborador, situacaoDoExame } from "@/lib/conformidade";
@@ -29,6 +30,12 @@ export default async function ColaboradorPage({
     },
   });
   if (!colaborador) notFound();
+
+  // Setores e cargos são oferecidos no escopo da MARCA: o catálogo foi
+  // unificado por grupo (telas de Setores/Cargos), então a linha do cargo de
+  // quem é deste CNPJ pode viver num CNPJ irmão — buscar só por empresaId
+  // deixava os seletores da ficha e da Carreira quase vazios.
+  const escopoMarca = await empresasDaMesmaMarca(empresaId);
 
   const [dependentes, documentos, ferias, ausencias, requisitos, certificados, exames, setores, posicoes, candidatosSupervisor, movimentacoes, beneficios, entregasEpi, acidentes, ausenciasElegiveis, checklistDesligamento, entrevistaDesligamento, avaliacoes, metas, pdi, participacoesTreinamento, treinamentosAtivos, candidaturaDeOrigem, checklistIntegracao] =
     await Promise.all([
@@ -104,8 +111,8 @@ export default async function ColaboradorPage({
         arquivo: { select: { id: true, nome: true } },
       },
     }),
-    prisma.setor.findMany({ where: { empresaId, ativo: true }, orderBy: { nome: "asc" } }),
-    prisma.posicao.findMany({ where: { empresaId, ativo: true }, orderBy: { nome: "asc" } }),
+    prisma.setor.findMany({ where: { empresaId: { in: escopoMarca }, ativo: true }, orderBy: { nome: "asc" } }),
+    prisma.posicao.findMany({ where: { empresaId: { in: escopoMarca }, ativo: true }, orderBy: { nome: "asc" } }),
     prisma.colaborador.findMany({
       where: { empresaId, ativo: true, id: { not: colaboradorId } },
       orderBy: { nome: "asc" },

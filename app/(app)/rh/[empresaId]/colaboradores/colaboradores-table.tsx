@@ -332,12 +332,14 @@ export function ColaboradoresTable({
   colaboradores,
   setores,
   posicoes,
+  marcaPorEmpresa,
 }: {
   empresaId: string;
   empresasDoUsuario: string[];
   colaboradores: Colaborador[];
   setores: Setor[];
   posicoes: Posicao[];
+  marcaPorEmpresa: Record<string, string>;
 }) {
   // Aplicar filtro de marcas/empresas selecionadas
   const empresasSelecionadas = useFiltroEmpresas(empresasDoUsuario);
@@ -358,6 +360,20 @@ export function ColaboradoresTable({
     () => posicoes.filter((p) => empresasSelecionadas.includes(p.empresaId)),
     [posicoes, empresasSelecionadas],
   );
+
+  // Listas do FORMULÁRIO de novo/editar: só a marca da empresa-alvo. O
+  // catálogo de setores/cargos foi unificado por marca e o servidor valida
+  // nesse escopo — oferecer outra marca aqui (um ADMIN enxerga todas) faria a
+  // tela mostrar uma escolha que o Salvar recusa. Os filtros da TABELA acima
+  // continuam com o recorte inteiro: filtrar pode cruzar marcas, salvar não.
+  const listasDaMarca = (alvoEmpresaId: string) => {
+    const marca = marcaPorEmpresa[alvoEmpresaId];
+    return {
+      setores: setores.filter((s) => marcaPorEmpresa[s.empresaId] === marca),
+      posicoes: posicoes.filter((p) => marcaPorEmpresa[p.empresaId] === marca),
+      lideres: colaboradores.filter((c) => marcaPorEmpresa[c.empresaId] === marca),
+    };
+  };
   const [createOpen, setCreateOpen] = useState(false);
   const [editColaborador, setEditColaborador] = useState<Colaborador | null>(null);
   const [busca, setBusca] = useState("");
@@ -450,6 +466,11 @@ export function ColaboradoresTable({
     setPagina(1);
   }
 
+  // Criação sempre grava na empresa da rota; edição, na empresa do próprio
+  // colaborador (que pode ser de outra marca para quem enxerga o grupo todo).
+  const listasCriacao = listasDaMarca(empresaId);
+  const listasEdicao = editColaborador ? listasDaMarca(editColaborador.empresaId) : null;
+
   return (
     <div className="space-y-4">
       <AlertaDuplicados empresaId={empresaId} colaboradores={colaboradores} />
@@ -486,9 +507,9 @@ export function ColaboradoresTable({
               <ColaboradorForm
                 action={createColaborador.bind(null, empresaId)}
                 title="Novo Colaborador"
-                setores={setoresFiltrados}
-                posicoes={posicoesFiltradas}
-                candidatosSupervisor={colaboradores}
+                setores={listasCriacao.setores}
+                posicoes={listasCriacao.posicoes}
+                candidatosSupervisor={listasCriacao.lideres}
                 onSuccess={() => setCreateOpen(false)}
               />
             </DialogContent>
@@ -769,13 +790,13 @@ export function ColaboradoresTable({
 
       <Dialog open={!!editColaborador} onOpenChange={(open) => !open && setEditColaborador(null)}>
         <DialogContent>
-          {editColaborador && (
+          {editColaborador && listasEdicao && (
             <ColaboradorForm
               action={updateColaborador.bind(null, editColaborador.empresaId, editColaborador.id)}
               title="Editar Colaborador"
-              setores={setoresFiltrados}
-              posicoes={posicoesFiltradas}
-              candidatosSupervisor={colaboradores}
+              setores={listasEdicao.setores}
+              posicoes={listasEdicao.posicoes}
+              candidatosSupervisor={listasEdicao.lideres}
               defaultValues={editColaborador}
               onSuccess={() => setEditColaborador(null)}
             />
