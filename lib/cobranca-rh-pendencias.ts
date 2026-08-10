@@ -32,7 +32,7 @@ export const ROTULOS_PENDENCIA: Record<keyof Pendencias, string> = {
   feriasVencidas: "Férias vencidas",
   avisoPrevio: "Aviso prévio em curso",
   desligamentosIncompletos: "Desligamento incompleto",
-  avaliacoesAtrasadas: "Avaliação atrasada",
+  ciclosAvaliacaoAEncerrar: "Ciclo de avaliação a encerrar",
   pesquisasAbertas: "Pesquisa a encerrar",
   fichasDesatualizadas: "Ficha sem atualização",
   contratosVencendo: "Contrato vencendo",
