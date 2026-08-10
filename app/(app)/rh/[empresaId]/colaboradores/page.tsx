@@ -1,14 +1,34 @@
 import { requireEmpresaAccess, empresasVisiveis } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
 import { hojeUTC, somarAnosUTC } from "@/lib/datas";
+import { empresasDaMesmaMarca } from "@/lib/escopo-marca";
 import { ColaboradoresTable } from "./colaboradores-table";
 
-export default async function ColaboradoresPage({ params }: { params: Promise<{ empresaId: string }> }) {
+export default async function ColaboradoresPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ empresaId: string }>;
+  searchParams: Promise<{ empresas?: string }>;
+}) {
   const { empresaId } = await params;
+  const { empresas: empresasParam } = await searchParams;
   const usuario = await requireEmpresaAccess(empresaId);
 
-  // Buscar de todas as empresas que o usuário tem acesso
-  const empresasDoUsuario = await empresasVisiveis(usuario);
+  // Mesma regra da tela inicial da empresa: o padrão é a MARCA do caminho, e o
+  // filtro ?empresas= (árvore da lateral) estreita DENTRO dela. Até 10/08/2026
+  // o padrão era tudo que o usuário enxerga — quem abria a Vapt com acesso ao
+  // grupo via os colaboradores dos 11 CNPJs misturados, e "em cada CNPJ os
+  // devidos colaboradores" foi exatamente o pedido do RH. De brinde, a base
+  // inteira deixa de ser serializada para o navegador a cada abertura.
+  const [todasDaMarca, visiveis] = await Promise.all([
+    empresasDaMesmaMarca(empresaId),
+    empresasVisiveis(usuario),
+  ]);
+  const daMarcaVisiveis = todasDaMarca.filter((id) => visiveis.includes(id));
+  const pedidas = (empresasParam ?? "").split(",").filter(Boolean);
+  const escopo =
+    pedidas.length === 0 ? daMarcaVisiveis : daMarcaVisiveis.filter((id) => pedidas.includes(id));
 
   const [linhas, setores, posicoes] = await Promise.all([
     // `select` explícito, não `include`: esta lista vai inteira para um Client
@@ -18,7 +38,7 @@ export default async function ColaboradoresPage({ params }: { params: Promise<{ 
     // a tela mostrar nada disso. São os mesmos campos que lib/audit.ts trata
     // como sensíveis.
     prisma.colaborador.findMany({
-      where: { empresaId: { in: empresasDoUsuario } },
+      where: { empresaId: { in: escopo } },
       orderBy: [{ ativo: "desc" }, { empresaId: "asc" }, { nome: "asc" }],
       select: {
         id: true,
@@ -43,8 +63,8 @@ export default async function ColaboradoresPage({ params }: { params: Promise<{ 
         _count: { select: { ferias: true } },
       },
     }),
-    prisma.setor.findMany({ where: { empresaId: { in: empresasDoUsuario }, ativo: true }, orderBy: { nome: "asc" } }),
-    prisma.posicao.findMany({ where: { empresaId: { in: empresasDoUsuario }, ativo: true }, orderBy: { nome: "asc" } }),
+    prisma.setor.findMany({ where: { empresaId: { in: escopo }, ativo: true }, orderBy: { nome: "asc" } }),
+    prisma.posicao.findMany({ where: { empresaId: { in: escopo }, ativo: true }, orderBy: { nome: "asc" } }),
   ]);
 
   // empresaId → marcaId, para o formulário de novo/editar colaborador oferecer
@@ -52,7 +72,7 @@ export default async function ColaboradoresPage({ params }: { params: Promise<{ 
   // unificado por marca, e a validação no servidor aceita a marca inteira —
   // mas nunca outra marca (um ADMIN enxerga todas aqui).
   const empresasComMarca = await prisma.empresa.findMany({
-    where: { id: { in: empresasDoUsuario } },
+    where: { id: { in: escopo } },
     select: { id: true, marcaId: true },
   });
   const marcaPorEmpresa = Object.fromEntries(empresasComMarca.map((e) => [e.id, e.marcaId]));
@@ -78,7 +98,7 @@ export default async function ColaboradoresPage({ params }: { params: Promise<{ 
   return (
     <ColaboradoresTable
       empresaId={empresaId}
-      empresasDoUsuario={empresasDoUsuario}
+      empresasDoEscopo={escopo}
       colaboradores={colaboradores}
       setores={setores}
       posicoes={posicoes}
