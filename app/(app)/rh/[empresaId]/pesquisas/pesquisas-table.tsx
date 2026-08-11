@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useActionState, useMemo, useState } from "react";
+import { AjudaDaTela } from "@/components/ajuda-da-tela";
 import { Plus, RefreshCw, ShieldAlert, Trash2 } from "lucide-react";
 import { useFiltroEmpresas } from "../filtro-empresas";
 import { toast } from "sonner";
@@ -83,7 +84,12 @@ export function PesquisasTable({
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end gap-2">
+      {/* justify-between e nao justify-end: a ajuda fica na ponta esquerda, longe
+          dos botoes que criam pesquisa — ninguem clica em "como usar" por engano
+          querendo criar. */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <AjudaDaTela modulo="pesquisas" />
+        <div className="flex flex-wrap justify-end gap-2">
         <Button
           variant="outline"
           disabled={executandoCiclo}
@@ -134,6 +140,7 @@ export function PesquisasTable({
             <NovaPesquisaForm empresaId={empresaId} />
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <div className="rounded-md border bg-background">

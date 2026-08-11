@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.74.0",
+    data: "11/08/2026",
+    horario: "23:30",
+    titulo: "Ajuda \"Como usar\" nas telas e a lista do que vem a seguir",
+    itens: [
+      "Sete telas ganharam o botão \"Como usar\" ao lado do título: Ponto, Aprovações, Colaboradores, Férias, Disciplinar, Pesquisas de clima e Folha. Ele abre o que a tela faz, o passo a passo das ações principais e — o mais útil — os cuidados, que são as armadilhas reais de cada módulo.",
+      "Foi escolhido texto no lugar de vídeo: quem precisa de uma resposta não assiste dois minutos para achá-la, e quando uma tela muda de comportamento o texto se corrige no mesmo dia. Vídeo desatualizado ensina errado com cara de oficial.",
+      "A tela de Atualizações agora começa por \"Próximas atualizações\": o que está combinado para as próximas entregas e, quando algo depende de uma decisão, qual decisão é. Quando um item é publicado, ele sai dessa lista e passa para o histórico.",
+    ],
+  },
+  {
     versao: "1.73.0",
     data: "11/08/2026",
     horario: "22:40",

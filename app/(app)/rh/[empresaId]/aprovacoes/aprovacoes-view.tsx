@@ -17,6 +17,7 @@ import { tipoAusenciaLabel, tipoDocumentoLabel } from "@/lib/constants-dp";
 import { formatarTamanho } from "@/lib/anexos";
 import { formatarData, formatarDataHoraBrasilia } from "@/lib/datas";
 import type { ActionResult } from "@/lib/constants";
+import { AjudaDaTela } from "@/components/ajuda-da-tela";
 
 type Ferias = {
   id: string;
@@ -148,7 +149,10 @@ export function AprovacoesView({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold tracking-tight">Central de aprovações</h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="text-xl font-semibold tracking-tight">Central de aprovações</h2>
+          <AjudaDaTela modulo="aprovacoes" />
+        </div>
         <p className="text-sm text-muted-foreground">
           {total === 0
             ? "Nada esperando decisão no momento."

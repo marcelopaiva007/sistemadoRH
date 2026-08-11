@@ -27,6 +27,7 @@ import { formatarData } from "@/lib/datas";
 import { normalizarTexto } from "@/lib/text";
 import { CalendarOff, CheckCircle2, ChevronRight, Info, Scale, TriangleAlert } from "lucide-react";
 import type { LinhaFerias, PassivoNaTela } from "./page";
+import { AjudaDaTela } from "@/components/ajuda-da-tela";
 
 // O QUE ESTA TELA NÃO MOSTRA, DE PROPÓSITO:
 //
@@ -225,7 +226,10 @@ export function FeriasView({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold tracking-tight">Férias</h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="text-xl font-semibold tracking-tight">Férias</h2>
+          <AjudaDaTela modulo="ferias" />
+        </div>
         <p className="text-sm text-muted-foreground">
           Quem tem férias a vencer, vencidas ou saldo disponível. O prazo de gozo é de 12 meses após o
           fim do período aquisitivo — passando disso o pagamento é em dobro (CLT art. 137).
