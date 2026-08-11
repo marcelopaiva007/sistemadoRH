@@ -26,6 +26,16 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.69.1",
+    data: "11/08/2026",
+    horario: "18:45",
+    titulo: "Convites e lembretes automáticos deixam de falhar em silêncio",
+    itens: [
+      "Convites de pesquisa e lembretes do portal às vezes não saíam. As cinco rotinas automáticas do sistema rodavam todas no mesmo minuto e disputavam conexão com o banco; a que perdia simplesmente não enviava, sem avisar ninguém. Agora rodam espaçadas, e a disputa acabou.",
+      "Nada muda no que você faz na tela — é a parte que roda sozinha, de quinze em quinze minutos.",
+    ],
+  },
+  {
     versao: "1.69.0",
     data: "11/08/2026",
     horario: "18:20",
