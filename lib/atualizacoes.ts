@@ -26,6 +26,15 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.63.8",
+    data: "11/08/2026",
+    horario: "03:00",
+    titulo: "Visual: imagens e ilustrações do setor de RH na tela inicial",
+    itens: [
+      "Tela inicial da empresa ganha banner de boas-vindas com ilustração temática de RH e cartões de indicadores com ícones mais visíveis.",
+    ],
+  },
+  {
     versao: "1.63.2",
     data: "10/08/2026",
     horario: "12:50",
