@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { registrarAuditoria } from "@/lib/audit";
+import type { ActionResult } from "@/lib/constants";
 import { formatarData } from "@/lib/datas";
 import { gerarConteudoAFD, gerarConteudoAEJ } from "@/lib/ponto-afdaej";
 
@@ -228,31 +229,22 @@ export async function decidirTratamentoPonto(input: {
   tratamentoId: string;
   decisao: "APROVADO" | "REJEITADO";
   motivoDecisao?: string;
-}) {
+}): Promise<ActionResult> {
   const usuario = await requireEmpresaAccess(input.empresaId);
 
-  if (!DECISOES_VALIDAS.has(input.decisao)) return { erro: "Decisão inválida." };
+  if (!DECISOES_VALIDAS.has(input.decisao)) return { ok: false, error: "Decisão inválida." };
 
   const atual = await prisma.tratamentoPonto.findFirst({
     where: { id: input.tratamentoId, empresaId: input.empresaId },
     select: { id: true, status: true, motivo: true, colaborador: { select: { nome: true } } },
   });
-  if (!atual) return { erro: "Tratamento não encontrado nesta empresa." };
+  if (!atual) return { ok: false, error: "Tratamento não encontrado nesta empresa." };
   if (atual.status !== "PENDENTE") {
-    return { erro: `Este tratamento já foi ${atual.status.toLowerCase()}.` };
+    return { ok: false, error: `Este tratamento já foi ${atual.status.toLowerCase()}.` };
   }
   if (input.decisao === "REJEITADO" && (input.motivoDecisao ?? "").trim().length < 5) {
-    return { erro: "Escreva o motivo da rejeição (mínimo 5 caracteres)." };
+    return { ok: false, error: "Escreva o motivo da rejeição (mínimo 5 caracteres)." };
   }
-
-  // O motivo da rejeição entra no MESMO campo `motivo`, marcado — o model não
-  // tem coluna própria para a decisão, e perder o porquê da recusa seria pior
-  // que a costura ficar visível no texto. (A coluna própria depende de
-  // migration; ver o comentário no fim deste arquivo.)
-  const motivo =
-    input.decisao === "REJEITADO"
-      ? `${atual.motivo}\n\n[Rejeitado por ${usuario?.name ?? "RH"}] ${input.motivoDecisao!.trim()}`
-      : atual.motivo;
 
   // updateMany com `status: "PENDENTE"` no WHERE, não update por id: entre o
   // findFirst acima e a escrita existe uma janela em que OUTRA pessoa decide o
@@ -260,18 +252,23 @@ export async function decidirTratamentoPonto(input: {
   // última escreveria por cima — apagando do banco o motivo da rejeição da
   // primeira e registrando como aprovado o que alguém rejeitou. O WHERE faz o
   // próprio banco arbitrar: só a primeira encontra a linha pendente.
+  //
+  // `motivo` NÃO entra no `data`: é o texto de quem pediu o ajuste, e quem
+  // julga não reescreve o pedido. A justificativa da decisão vai em
+  // `motivoDecisao`, coluna própria desde 11/08/2026 — antes era concatenada
+  // dentro de `motivo`, o que adulterava o registro original a cada rejeição.
   const { count } = await prisma.tratamentoPonto.updateMany({
     where: { id: atual.id, empresaId: input.empresaId, status: "PENDENTE" },
     data: {
       status: input.decisao,
-      motivo,
+      motivoDecisao: input.decisao === "REJEITADO" ? input.motivoDecisao!.trim() : null,
       aprovadoPorId: usuario?.id ?? null,
       aprovadoPorNome: usuario?.name ?? null,
       aprovadoEm: new Date(),
     },
   });
   if (count === 0) {
-    return { erro: "Alguém decidiu este tratamento antes de você. Recarregue a tela." };
+    return { ok: false, error: "Alguém decidiu este tratamento antes de você. Recarregue a tela." };
   }
 
   // A Central de Aprovações monta "Decisões recentes" lendo AuditLog por
@@ -288,7 +285,7 @@ export async function decidirTratamentoPonto(input: {
   });
 
   revalidatePath(`/rh/${input.empresaId}/ponto`);
-  return { sucesso: true };
+  return { ok: true };
 }
 
 // Havia aqui duas funções sem nenhum chamador — `listarJornadasEmpresa` e

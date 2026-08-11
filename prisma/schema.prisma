@@ -2080,11 +2080,20 @@ model TratamentoPonto {
   aprovadoPorId    String?
   aprovadoPorNome  String?
   aprovadoEm       DateTime?
+  // Justificativa de QUEM DECIDIU, separada do `motivo` de quem pediu. Até
+  // 11/08/2026 a recusa era concatenada dentro de `motivo` — o texto original
+  // do solicitante era reescrito a cada rejeição, e num módulo fiscalizável
+  // (Portaria MTP 671/2021) o registro do pedido não pode ser alterado por
+  // quem o julga.
+  motivoDecisao    String?
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
 
   @@index([empresaId, dataFato])
   @@index([colaboradorId, dataFato])
+  // A fila de pendentes é lida a cada abertura da tela de Ponto e da Central
+  // de Aprovações, sempre filtrando por empresa + status.
+  @@index([empresaId, status])
   @@schema("rh")
 }
 

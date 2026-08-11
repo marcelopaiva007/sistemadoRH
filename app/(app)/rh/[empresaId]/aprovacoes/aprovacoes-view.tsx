@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Check, X, FileText, CalendarDays, Stethoscope, IdCard } from "lucide-react";
+import { Check, X, FileText, CalendarDays, Stethoscope, IdCard, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { decidirFerias } from "@/lib/actions/rh-ferias";
 import { decidirAusencia } from "@/lib/actions/rh-ausencias";
 import { conferirDocumento, devolverDocumento } from "@/lib/actions/rh-documentos-conferencia";
+import { decidirTratamentoPonto } from "@/app/actions/rh-ponto";
 import { tipoAusenciaLabel, tipoDocumentoLabel } from "@/lib/constants-dp";
 import { formatarTamanho } from "@/lib/anexos";
 import { formatarData, formatarDataHoraBrasilia } from "@/lib/datas";
@@ -82,6 +83,25 @@ type Decidida = {
   createdAt: Date;
 };
 
+type TratamentoPonto = {
+  id: string;
+  empresaId: string;
+  colaboradorId: string;
+  tipo: string;
+  dataFato: Date;
+  motivo: string;
+  createdAt: Date;
+  colaborador: { nome: string; setor: { nome: string }; empresa: { nome: string } };
+};
+
+/** Mesmos rótulos da aba Tratamento do módulo Ponto. */
+const TIPO_TRATAMENTO_LABEL: Record<string, string> = {
+  INCLUSAO_MANUAL: "Inclusão manual",
+  ABONO_ATESTADO: "Abono por atestado",
+  JUSTIFICATIVA: "Justificativa",
+  CORRECAO: "Correção",
+};
+
 /**
  * O que a pessoa digitou para o tipo de documento que anexou. É contra isto que
  * o RH compara a foto — sem, a conferência vira "parece um RG mesmo".
@@ -108,14 +128,16 @@ export function AprovacoesView({
   ausencias,
   documentos,
   decididasRecentes,
+  tratamentosPonto,
 }: {
   ferias: Ferias[];
   ausencias: Ausencia[];
   documentos: Documento[];
   decididasRecentes: Decidida[];
+  tratamentosPonto: TratamentoPonto[];
 }) {
   const router = useRouter();
-  const total = ferias.length + ausencias.length + documentos.length;
+  const total = ferias.length + ausencias.length + documentos.length + tratamentosPonto.length;
 
   // A lista pode misturar CNPJs (empresasVisiveis + filtro `?empresas=` da
   // barra lateral, não só o CNPJ da rota) — mostra o nome da empresa sempre,
@@ -271,6 +293,55 @@ export function AprovacoesView({
 
       <Card>
         <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="size-4" /> Ajustes de ponto (PTRP)
+            {tratamentosPonto.length > 0 && <Badge>{tratamentosPonto.length}</Badge>}
+          </CardTitle>
+          <CardDescription>
+            Inclusão, abono ou correção de batida aguardando decisão. Portaria MTP nº 671/2021.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {tratamentosPonto.length === 0 && (
+            <p className="py-4 text-center text-sm text-muted-foreground">Nenhum ajuste de ponto pendente.</p>
+          )}
+          {tratamentosPonto.map((t) => (
+            <ItemAprovacao
+              key={t.id}
+              empresaId={t.empresaId}
+              colaboradorId={t.colaboradorId}
+              titulo={t.colaborador.nome}
+              subtitulo={`${t.colaborador.setor.nome}${empresaLabel(t.colaborador.empresa.nome)}`}
+              etiqueta={TIPO_TRATAMENTO_LABEL[t.tipo] ?? t.tipo}
+              linhas={[
+                `Ocorrência em ${formatarData(t.dataFato)}`,
+                t.motivo,
+                `Aberto em ${formatarDataHoraBrasilia(t.createdAt)}`,
+              ]}
+              // Rejeitar um ajuste de ponto sem dizer por quê deixa o
+              // colaborador sem saber o que corrigir — e a action recusa
+              // motivo com menos de 5 caracteres de qualquer forma.
+              motivoObrigatorio
+              rotuloAprovar="Aprovar"
+              rotuloReprovar="Rejeitar"
+              onDecidir={async (decisao, motivo) =>
+                decidirTratamentoPonto({
+                  empresaId: t.empresaId,
+                  tratamentoId: t.id,
+                  decisao: decisao === "APROVADA" ? "APROVADO" : "REJEITADO",
+                  motivoDecisao: motivo,
+                }).then((r) => {
+                  if (r.ok) router.refresh();
+                  return r;
+                })
+              }
+            />
+          ))}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>Decisões recentes</CardTitle>
           <CardDescription>Últimas 10 decisões registradas na trilha de auditoria.</CardDescription>
         </CardHeader>
@@ -331,7 +402,13 @@ function ItemAprovacao({
     const resultado = await onDecidir(decisao, comMotivo);
     setEnviando(false);
     if (resultado.ok) {
-      toast.success(decisao === "APROVADA" ? `${rotuloAprovar} com sucesso.` : "Devolvido ao colaborador.");
+      // Simétrico aos dois rótulos. Era fixo em "Devolvido ao colaborador",
+      // texto da fila de documentos — em Férias e Ausências já mentia, e num
+      // ajuste de ponto rejeitado mentiria de novo: ninguém devolve nada, a
+      // solicitação foi recusada.
+      toast.success(
+        decisao === "APROVADA" ? `${rotuloAprovar} com sucesso.` : `${rotuloReprovar} com sucesso.`,
+      );
       setPedindoMotivo(false);
       setMotivo("");
     } else {

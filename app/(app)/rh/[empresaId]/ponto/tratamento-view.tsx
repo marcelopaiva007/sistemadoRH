@@ -17,6 +17,8 @@ export type TratamentoItem = {
   dataFato: Date | string;
   tipo: string;
   motivo: string;
+  /** Justificativa de quem decidiu — separada do `motivo`, que é de quem pediu. */
+  motivoDecisao?: string | null;
   status: string;
   aprovadoPorNome?: string | null;
   colaborador: {
@@ -293,8 +295,8 @@ function LinhaTratamento({
         decisao,
         motivoDecisao: decisao === "REJEITADO" ? motivoRejeicao : undefined,
       });
-      if (res.erro) {
-        setErro(res.erro);
+      if (!res.ok) {
+        setErro(res.error);
         // Atualiza mesmo em erro: o caso comum é "alguém decidiu antes de
         // você", e a linha precisa parar de se anunciar como pendente.
         router.refresh();
@@ -325,11 +327,24 @@ function LinhaTratamento({
               DIA ANTERIOR — no campo que diz quando a ocorrência aconteceu. */}
           {t.colaborador.setor.nome} · Data: {formatarData(new Date(t.dataFato))}
         </p>
-        {/* whitespace-pre-line: o motivo da rejeição é anexado ao texto
-            original com quebra de linha (ver decidirTratamentoPonto). */}
+        {/* whitespace-pre-line: rejeições antigas, anteriores à coluna
+            `motivoDecisao`, ainda trazem a decisão colada aqui com quebra de
+            linha. Sem isto elas viram um parágrafo só. */}
         <p className="text-xs whitespace-pre-line text-foreground italic">
           &ldquo;{t.motivo}&rdquo;
         </p>
+        {/* Os dois textos aparecem separados porque são de pessoas diferentes:
+            o de cima é o pedido, este é a decisão. Colados num campo só — como
+            eram até 11/08/2026 — não dá para saber quem escreveu o quê. */}
+        {t.motivoDecisao && (
+          <p className="border-l-2 border-muted pl-2 text-xs whitespace-pre-line text-muted-foreground">
+            <span className="font-medium">
+              {t.status === "REJEITADO" ? "Motivo da rejeição" : "Observação da decisão"}
+              {t.aprovadoPorNome ? ` (${t.aprovadoPorNome})` : ""}:
+            </span>{" "}
+            {t.motivoDecisao}
+          </p>
+        )}
       </div>
 
       {/* Antes esta coluna escrevia "Aprovado · Por: RH" em TODA linha,
