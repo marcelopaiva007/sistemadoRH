@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.65.0",
+    data: "11/08/2026",
+    horario: "07:40",
+    titulo: "Painel dividido em abas — menos rolagem, mais achabilidade",
+    itens: [
+      "O Painel vinha empilhando tudo numa página só (abertura, radar, indicadores, tempo de casa, quatro gráficos, custo e absenteísmo). Agora está em quatro abas, agrupadas pela pergunta que respondem: Resumo (como estamos), Quadro (quem é o time hoje), Movimento (o que mudou na janela) e Custo e faltas.",
+      "O filtro de empresa e o rodapé de ressalvas continuam sempre visíveis, fora das abas: as ressalvas dizem o que os números não cobrem, e escondê-las atrás de um clique faria o número parecer mais completo do que é.",
+      "Nenhum número mudou — é a mesma conta, só reorganizada na tela.",
+    ],
+  },
+  {
     versao: "1.64.3",
     data: "11/08/2026",
     horario: "05:10",
