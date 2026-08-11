@@ -1,6 +1,8 @@
 // Etapas do funil, na ordem em que aparecem no quadro. TRIAGEM..PROPOSTA são
 // as etapas "em andamento"; CONTRATADO/REPROVADO/DESISTIU encerram o
 // processo daquele candidato naquela vaga.
+import type { BadgeVariant, StatusBadgeMap } from "@/components/status-badge";
+
 export const ETAPAS_FUNIL = [
   { value: "TRIAGEM", label: "Triagem" },
   { value: "ENTREVISTA", label: "Entrevista" },
@@ -29,6 +31,21 @@ export const STATUS_VAGA = [
 ] as const;
 
 export const statusVagaLabel = (v: string) => STATUS_VAGA.find((s) => s.value === v)?.label ?? v;
+
+/**
+ * Ao lado de STATUS_VAGA para os dois nunca divergirem — consumido por
+ * StatusBadge (components/status-badge.tsx). O label vem do próprio catálogo
+ * acima, não de uma cópia.
+ */
+const VARIANTE_VAGA: Record<(typeof STATUS_VAGA)[number]["value"], BadgeVariant> = {
+  ABERTA: "default",
+  PAUSADA: "outline",
+  ENCERRADA: "secondary",
+};
+
+export const STATUS_VAGA_BADGE = Object.fromEntries(
+  STATUS_VAGA.map((s) => [s.value, { label: s.label, variant: VARIANTE_VAGA[s.value] }]),
+) as StatusBadgeMap<(typeof STATUS_VAGA)[number]["value"]>;
 
 export const ORIGENS_CANDIDATO = [
   { value: "RH", label: "Cadastrado pelo RH" },

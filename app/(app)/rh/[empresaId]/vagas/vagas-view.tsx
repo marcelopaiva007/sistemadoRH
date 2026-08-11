@@ -7,14 +7,14 @@ import { Copy, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/status-badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { criarVaga } from "@/lib/actions/rh-vagas";
-import { statusVagaLabel } from "@/lib/constants-ats";
+import { STATUS_VAGA_BADGE } from "@/lib/constants-ats";
 import { TIPOS_CONTRATO } from "@/lib/constants-dp";
 import { formatarData } from "@/lib/datas";
 import type { ActionResult } from "@/lib/constants";
@@ -39,12 +39,6 @@ type Vaga = {
   totalCandidatos: number;
   emAndamento: number;
   contratados: number;
-};
-
-const varianteStatus: Record<string, "default" | "secondary" | "outline"> = {
-  ABERTA: "default",
-  PAUSADA: "outline",
-  ENCERRADA: "secondary",
 };
 
 export function VagasView({
@@ -164,7 +158,7 @@ export function VagasView({
                         {v.emAndamento} <span className="text-xs text-muted-foreground">de {v.totalCandidatos}</span>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={varianteStatus[v.status] ?? "outline"}>{statusVagaLabel(v.status)}</Badge>
+                        <StatusBadge status={v.status} map={STATUS_VAGA_BADGE} />
                       </TableCell>
                       <TableCell>
                         {v.publicada && v.status === "ABERTA" ? (

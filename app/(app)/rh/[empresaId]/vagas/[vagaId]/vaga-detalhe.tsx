@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/status-badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,8 +21,8 @@ import {
   ETAPAS_FUNIL,
   etapaFunilLabel,
   origemCandidatoLabel,
-  statusVagaLabel,
   STATUS_VAGA,
+  STATUS_VAGA_BADGE,
 } from "@/lib/constants-ats";
 import { MIMES_ANEXO_ACEITOS, TIPOS_CONTRATO, tipoContratoLabel } from "@/lib/constants-dp";
 import { formatarData } from "@/lib/datas";
@@ -94,7 +95,7 @@ export function VagaDetalhe({
         <div>
           <div className="flex items-center gap-2">
             <h2 className="text-xl font-semibold tracking-tight">{vaga.titulo}</h2>
-            <Badge variant={vaga.status === "ABERTA" ? "default" : "secondary"}>{statusVagaLabel(vaga.status)}</Badge>
+            <StatusBadge status={vaga.status} map={STATUS_VAGA_BADGE} />
             {vaga.publicada && vaga.status === "ABERTA" && <Badge variant="outline">Página pública no ar</Badge>}
           </div>
           <p className="text-sm text-muted-foreground">

@@ -26,6 +26,15 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.64.1",
+    data: "11/08/2026",
+    horario: "04:30",
+    titulo: "Fase 1 do Design System: etiquetas de situação unificadas",
+    itens: [
+      "As etiquetas coloridas de situação (férias, ausências, vagas, conformidade) passam a sair de um componente único — antes cada tela tinha a sua cópia, e a mesma vaga podia aparecer com cor diferente na lista e na tela de detalhe.",
+    ],
+  },
+  {
     versao: "1.64.0",
     data: "11/08/2026",
     horario: "04:00",
