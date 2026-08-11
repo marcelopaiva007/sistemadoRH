@@ -271,7 +271,7 @@ export async function pendenciasPorEmpresa(
           ativo: true,
           OR: [
             { cpf: null },
-            { AND: [{ email: { in: [null, ""] } }, { telefone: { in: [null, ""] } }] },
+            { AND: [{ OR: [{ email: null }, { email: "" }] }, { OR: [{ telefone: null }, { telefone: "" }] }] },
             { dataAdmissao: null },
             { rg: null },
             { OR: [{ logradouro: null }, { numeroEndereco: null }, { bairro: null }, { uf: null }] },
