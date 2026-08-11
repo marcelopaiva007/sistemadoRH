@@ -1,6 +1,6 @@
 {
   "name": "sistema-rh",
-  "version": "1.71.0",
+  "version": "1.73.0",
   "private": true,
   "scripts": {
     "// ━━━━━━━━━━━━━━━━ DESENVOLVIMENTO ━━━━━━━━━━━━━━━━": "",
@@ -65,6 +65,7 @@
     "smoke:onboarding": "tsx scripts/smoke-onboarding.ts",
     "smoke:folha": "tsx scripts/smoke-folha.ts",
     "smoke:pendencias": "tsx scripts/smoke-pendencias.ts",
+    "smoke:cobranca-cadastro": "tsx scripts/smoke-cobranca-cadastro.ts",
     "smoke:login": "tsx scripts/smoke-login.ts"
   },
   "dependencies": {

@@ -7,6 +7,7 @@
     { "path": "/api/cron/enviar-convites", "schedule": "3,18,33,48 * * * *" },
     { "path": "/api/cron/lembrete-pesquisa", "schedule": "6,21,36,51 * * * *" },
     { "path": "/api/cron/lembrete-portal", "schedule": "9,24,39,54 * * * *" },
-    { "path": "/api/cron/cobranca-rh-pendencias", "schedule": "12,27,42,57 * * * *" }
+    { "path": "/api/cron/cobranca-rh-pendencias", "schedule": "12,27,42,57 * * * *" },
+    { "path": "/api/cron/cobranca-cadastro", "schedule": "5,20,35,50 * * * *" }
   ]
 }

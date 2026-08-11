@@ -17,6 +17,12 @@ export const LEMBRETES_CONFIGURAVEIS = {
   "lembrete-pesquisa": { label: "Lembrete de pesquisa não respondida", padroes: ["13:00", "19:00"] },
   "lembrete-portal": { label: "Lembrete de vínculo do portal", padroes: ["18:00"] },
   "cobranca-rh-pendencias": { label: "Cobrança de pendências do RH", padroes: ["09:00"] },
+  // Depois da cobrança do RH de propósito: o analista abre a fila às 09:00 e
+  // as respostas do time começam a chegar às 11:00, com ele já na tela.
+  "cobranca-cadastro": { label: "Cobrança de cadastro do colaborador", padroes: ["11:00"] },
+  // A frequência de cada pessoa (duas vezes por semana) NÃO se ajusta aqui: o
+  // horário diz a que horas o cron olha a base, e quem decide se hoje é a vez
+  // de fulano é DIAS_ENTRE_COBRANCAS, em lib/cobranca-cadastro-colaborador.ts.
 } as const;
 
 export type ChaveLembrete = keyof typeof LEMBRETES_CONFIGURAVEIS;

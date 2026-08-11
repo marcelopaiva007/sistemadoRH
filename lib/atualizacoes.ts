@@ -26,15 +26,42 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
-    versao: "1.71.0",
+    versao: "1.73.0",
     data: "11/08/2026",
-    horario: "21:15",
+    horario: "22:40",
     titulo: "Disciplinar: onde guardar a via assinada",
     itens: [
       "A aba Disciplinar da ficha ganhou \"Anexar via\" em cada ocorrência: depois de imprimir, colher a assinatura e digitalizar, o documento passa a ficar guardado no sistema. Antes o sistema gerava o papel e registrava que ele havia sido assinado, mas não tinha onde recebê-lo de volta — a via ficava na pasta física.",
       "Quando a via já está guardada, o botão vira \"Via assinada\" e abre o arquivo.",
       "Enviar uma via nova no lugar de outra apaga a anterior, para não sobrar arquivo sem tela por onde alcançá-lo.",
       "Aceita PDF, JPG, PNG ou WEBP, até 10 MB — o mesmo dos demais anexos do sistema.",
+    ],
+  },
+  {
+    // Escritas em 11/08/2026 a partir do que os commits das entregas #84 e #85
+    // descrevem: as duas subiram a `version` sem registrar nada aqui, e a tela
+    // ficou mostrando v1.72.0 com a lista parando em 1.70.1 — exatamente a
+    // omissão que a regra do AGENTS.md existe para evitar.
+    versao: "1.72.0",
+    data: "11/08/2026",
+    horario: "22:10",
+    titulo: "Cobrança de cadastro também por e-mail, duas vezes por semana",
+    itens: [
+      "Quem tem Telegram e e-mail passa a receber a cobrança pelos dois canais na mesma rodada — não é substituto, é soma: a mensagem que a pessoa vê primeiro é a que resolve.",
+      "Quem só tem e-mail entra na cobrança pela primeira vez. Antes ficava de fora por não ter Telegram, embora seja justamente quem menos fala com o RH.",
+      "A cobrança passou a ser a cada 3 dias, e não a cada 7, com até 8 tentativas — mantendo a janela de aproximadamente um mês.",
+      "O e-mail tem teto diário, e esta cobrança varre a base inteira. Para não repetir o que houve em 28/07, quando uma campanha consumiu a cota do dia e os convites de pesquisa não saíram, ela para de mandar e-mail antes de esgotar o orçamento e cede a vez. Ninguém deixa de ser cobrado: o Telegram não tem teto e o e-mail sai na rodada seguinte.",
+      "Fica registrado por quais canais cada cobrança saiu — só os que aceitaram o envio.",
+    ],
+  },
+  {
+    versao: "1.71.0",
+    data: "11/08/2026",
+    horario: "21:40",
+    titulo: "Sistema passa a cobrar o colaborador a completar a própria ficha",
+    itens: [
+      "O sistema passa a lembrar o colaborador, pelo Telegram, de completar o próprio cadastro e enviar os documentos que faltam — apenas o que ele mesmo resolve pelo portal.",
+      "Semanal, no máximo 4 vezes, para não virar incômodo.",
     ],
   },
   {
