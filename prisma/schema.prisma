@@ -1505,6 +1505,10 @@ model CobrancaCadastro {
   rodada        Int
   /// O que faltava no momento do envio, nos mesmos rótulos que a pessoa leu.
   itens         String
+  /// Por onde saiu: "TELEGRAM", "EMAIL" ou "TELEGRAM,EMAIL". Só canais que
+  /// ACEITARAM o envio entram — a linha é prova de que a pessoa foi avisada, e
+  /// registrar um canal que recusou transformaria a prova em ficção.
+  canais        String      @default("TELEGRAM")
   enviadaEm     DateTime    @default(now())
 
   @@index([colaboradorId, enviadaEm])
