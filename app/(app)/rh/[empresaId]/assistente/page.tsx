@@ -1,4 +1,5 @@
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
+import { CHAVE_ANTHROPIC, PAPEIS_QUE_CONFIGURAM, statusDoSegredo } from "@/lib/segredos";
 import { AssistenteView } from "./assistente-view";
 
 // Assistente de RH: pergunta em linguagem natural sobre os dados da empresa.
@@ -11,11 +12,23 @@ export default async function AssistentePage({
   params: Promise<{ empresaId: string }>;
 }) {
   const { empresaId } = await params;
-  await requireEmpresaAccess(empresaId);
+  const user = await requireEmpresaAccess(empresaId);
 
-  // Ler a env aqui (server component) evita expor a chave e evita um
-  // round-trip só para descobrir se o recurso está ligado.
-  const ligado = Boolean(process.env.ANTHROPIC_API_KEY);
+  // Só o status desce para o cliente: ligado ou não, de onde vem e os quatro
+  // últimos dígitos. A chave em si não sai do servidor em nenhuma hipótese.
+  const status = await statusDoSegredo(CHAVE_ANTHROPIC);
 
-  return <AssistenteView empresaId={empresaId} ligado={ligado} />;
+  return (
+    <AssistenteView
+      empresaId={empresaId}
+      ligado={status.ligado}
+      origem={status.origem}
+      dica={status.dica}
+      atualizadoPor={status.atualizadoPor}
+      // Quem grava a chave passa a poder gastar na conta da Anthropic do
+      // grupo. A server action confere de novo; isto aqui é só para não
+      // mostrar formulário a quem levaria uma recusa ao salvar.
+      podeConfigurar={PAPEIS_QUE_CONFIGURAM.includes(user.role as string)}
+    />
+  );
 }

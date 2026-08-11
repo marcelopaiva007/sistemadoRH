@@ -19,6 +19,8 @@ import { TIPOS_CONTRATO } from "@/lib/constants-dp";
 import { formatarData } from "@/lib/datas";
 import type { ActionResult } from "@/lib/constants";
 import { Indicador } from "@/components/indicador";
+import { Paginacao } from "@/components/paginacao";
+import { usePaginacao } from "@/lib/use-paginacao";
 
 const initialState: ActionResult = { ok: true };
 const classeSelect =
@@ -57,6 +59,7 @@ export function VagasView({
   posicoes: { id: string; nome: string }[];
 }) {
   const [criarAberto, setCriarAberto] = useState(false);
+  const { itensDaPagina: vagasNaPagina, ...paginacao } = usePaginacao(vagas);
 
   const abertas = vagas.filter((v) => v.status === "ABERTA").length;
   const candidatosAtivos = vagas.reduce((s, v) => s + v.emAndamento, 0);
@@ -129,7 +132,7 @@ export function VagasView({
             <p className="py-6 text-center text-sm text-muted-foreground">Nenhuma vaga cadastrada ainda.</p>
           ) : (
             <div className="rounded-md border">
-              <Table>
+              <Table compacta>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Vaga</TableHead>
@@ -141,7 +144,7 @@ export function VagasView({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {vagas.map((v) => (
+                  {vagasNaPagina.map((v) => (
                     <TableRow key={v.id}>
                       <TableCell>
                         <Link href={`/rh/${empresaId}/vagas/${v.id}`} className="font-medium hover:underline">
@@ -176,6 +179,15 @@ export function VagasView({
               </Table>
             </div>
           )}
+          <div className="mt-4">
+            <Paginacao
+              total={paginacao.total}
+              porPagina={paginacao.porPagina}
+              paginaAtual={paginacao.paginaAtual}
+              totalPaginas={paginacao.totalPaginas}
+              onMudarPagina={paginacao.irPara}
+            />
+          </div>
         </CardContent>
       </Card>
     </div>
@@ -202,6 +214,32 @@ function BotaoCopiarLink({ slug }: { slug: string }) {
 }
 
 
+function gerarModeloDescricao(cargoNome: string): { descricao: string; requisitos: string } {
+  const nomeLower = cargoNome.toLowerCase();
+  if (nomeLower.includes("técnico") || nomeLower.includes("tecnico") || nomeLower.includes("instalador") || nomeLower.includes("infra")) {
+    return {
+      descricao: `Atuação em rotinas operacionais e técnicas da área de ${cargoNome}. Responsável por instalação, manutenção e suporte a equipamentos e atendimento a chamados com agilidade e qualidade.`,
+      requisitos: `• Ensino Médio Completo ou Curso Técnico na área.\n• Experiência prévia em rotinas operacionais/campo.\n• Habilitação CNH B válida.\n• Disponibilidade para deslocamentos e horários flexíveis.`,
+    };
+  }
+  if (nomeLower.includes("analista") || nomeLower.includes("especialista") || nomeLower.includes("assistente")) {
+    return {
+      descricao: `Responsável por acompanhar e executar processos administrativos, análise de indicadores e suporte às decisões do setor. Interface com equipes internas e acompanhamento de metas.`,
+      requisitos: `• Ensino Superior cursando ou completo.\n• Domínio de ferramentas de produtividade e planilhas.\n• Boa comunicação verbal e escrita.\n• Capacidade de organização e foco em resultados.`,
+    };
+  }
+  if (nomeLower.includes("gerente") || nomeLower.includes("coordenador") || nomeLower.includes("supervisor") || nomeLower.includes("líder") || nomeLower.includes("lider")) {
+    return {
+      descricao: `Liderança da equipe de ${cargoNome}, gestão de rotinas, acompanhamento de indicadores e desenvolvimento contínuo dos liderados. Garantia dos padrões de qualidade e prazos.`,
+      requisitos: `• Ensino Superior Completo em área correlata.\n• Experiência comprovada em Gestão de Pessoas e Processos.\n• Visão estratégica e capacidade de tomada de decisão.\n• Conhecimento em metodologias de gestão e metas.`,
+    };
+  }
+  return {
+    descricao: `Oportunidade para atuar como ${cargoNome}, desempenhando atividades operacionais e de suporte com foco na qualidade do atendimento e cumprimento dos procedimentos internos da empresa.`,
+    requisitos: `• Ensino Médio Completo.\n• Vontade de aprender e comprometimento.\n• Boa pontualidade e trabalho em equipe.`,
+  };
+}
+
 function NovaVagaForm({
   empresaId,
   setores,
@@ -213,6 +251,10 @@ function NovaVagaForm({
   posicoes: { id: string; nome: string }[];
   onSuccess: () => void;
 }) {
+  const [posicaoSelecionada, setPosicaoSelecionada] = useState("");
+  const [descricao, setDescricao] = useState("");
+  const [requisitos, setRequisitos] = useState("");
+
   const [state, formAction, isPending] = useActionState(async (prev: ActionResult, fd: FormData) => {
     const result = await criarVaga(empresaId, prev, fd);
     if (result.ok) {
@@ -221,6 +263,18 @@ function NovaVagaForm({
     }
     return result;
   }, initialState);
+
+  const handleCargoChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const posId = e.target.value;
+    setPosicaoSelecionada(posId);
+    const cargo = posicoes.find((p) => p.id === posId);
+    if (cargo) {
+      const modelo = gerarModeloDescricao(cargo.nome);
+      setDescricao(modelo.descricao);
+      setRequisitos(modelo.requisitos);
+      toast.info(`Descrição e requisitos preenchidos para ${cargo.nome}.`);
+    }
+  };
 
   return (
     <form action={formAction} className="space-y-4">
@@ -244,8 +298,14 @@ function NovaVagaForm({
           </select>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="posicaoId">Cargo</Label>
-          <select id="posicaoId" name="posicaoId" defaultValue="" className={classeSelect}>
+          <Label htmlFor="posicaoId">Cargo (preenche descrição e requisitos automaticamente)</Label>
+          <select
+            id="posicaoId"
+            name="posicaoId"
+            value={posicaoSelecionada}
+            onChange={handleCargoChange}
+            className={classeSelect}
+          >
             <option value="">—</option>
             {posicoes.map((p) => (
               <option key={p.id} value={p.id}>
@@ -277,12 +337,24 @@ function NovaVagaForm({
         <Input id="faixaSalarial" name="faixaSalarial" placeholder="Ex.: A combinar" />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="descricao">Descrição</Label>
-        <Textarea id="descricao" name="descricao" rows={3} />
+        <Label htmlFor="descricao">Descrição (editável)</Label>
+        <Textarea
+          id="descricao"
+          name="descricao"
+          rows={3}
+          value={descricao}
+          onChange={(e) => setDescricao(e.target.value)}
+        />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="requisitos">Requisitos</Label>
-        <Textarea id="requisitos" name="requisitos" rows={3} />
+        <Label htmlFor="requisitos">Requisitos (editável)</Label>
+        <Textarea
+          id="requisitos"
+          name="requisitos"
+          rows={3}
+          value={requisitos}
+          onChange={(e) => setRequisitos(e.target.value)}
+        />
       </div>
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" name="publicada" value="true" className="size-4 rounded border-input accent-primary" />

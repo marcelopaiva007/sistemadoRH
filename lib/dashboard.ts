@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { hojeUTC, somarDiasUTC, somarMesesUTC } from "@/lib/datas";
+import { hojeUTC, somarDiasUTC, somarMesesUTC, somarAnosUTC } from "@/lib/datas";
 
 export type ResumoDashboard = {
   ativos: number;
@@ -21,7 +21,10 @@ export type ResumoDashboard = {
  * gráfico; a inicial precisa só do total, e é a tela que abre a cada login.
  * Trocar isso por findMany traria de volta a lentidão que acabamos de tirar.
  */
-export async function resumoDaEmpresa(empresaId: string): Promise<ResumoDashboard> {
+// Recebe os CNPJs da marca (ver lib/escopo-marca.ts), não um só: a tela
+// inicial é da marca inteira.
+export async function resumoDaEmpresa(empresaIds: string[]): Promise<ResumoDashboard> {
+  const empresaId = { in: empresaIds };
   const hoje = hojeUTC();
   const inicio12m = somarMesesUTC(hoje, -12);
   const inicio30d = somarDiasUTC(hoje, -30);
@@ -84,7 +87,8 @@ export async function resumoDaEmpresa(empresaId: string): Promise<ResumoDashboar
 }
 
 export type LacunaDaBase = {
-  chave: string;
+  /** Também é o valor de ?lacuna= na lista de colaboradores. */
+  chave: "salario" | "admissao" | "setor" | "cargo" | "cpf" | "telegram" | "ferias";
   rotulo: string;
   faltando: number;
   /** O que deixa de funcionar enquanto este campo estiver vazio. */
@@ -105,21 +109,40 @@ export type LacunaDaBase = {
  *
  * Só `count`, como o resto desta tela — ela abre a cada login.
  */
-export async function lacunasDaBase(empresaId: string): Promise<{
+export async function lacunasDaBase(empresaIds: string[]): Promise<{
   ativos: number;
   lacunas: LacunaDaBase[];
 }> {
-  const base = { empresaId, ativo: true };
-  const [ativos, semSalario, semAdmissao, semCpf, semTelegram, semSetor] = await Promise.all([
-    prisma.colaborador.count({ where: base }),
-    prisma.colaborador.count({ where: { ...base, salarioBase: null } }),
-    prisma.colaborador.count({ where: { ...base, dataAdmissao: null } }),
-    prisma.colaborador.count({ where: { ...base, cpf: null } }),
-    prisma.colaborador.count({ where: { ...base, telegramChatId: null } }),
-    prisma.colaborador.count({
-      where: { ...base, setor: { nome: { equals: "Não definido", mode: "insensitive" } } },
-    }),
-  ]);
+  const base = { empresaId: { in: empresaIds }, ativo: true };
+  // Mesmo corte de "já teria período fechado" usado nas férias vencidas de
+  // lib/pendencias.ts — sem ele, quem admitiu semana passada entraria como
+  // lacuna por ainda não ter pedido férias, o que não é falha de ninguém.
+  const umAnoAtras = somarAnosUTC(hojeUTC(), -1);
+  const [ativos, semSalario, semAdmissao, semCpf, semTelegram, semSetor, semCargo, semFerias] =
+    await Promise.all([
+      prisma.colaborador.count({ where: base }),
+      prisma.colaborador.count({ where: { ...base, salarioBase: null } }),
+      prisma.colaborador.count({ where: { ...base, dataAdmissao: null } }),
+      prisma.colaborador.count({ where: { ...base, cpf: null } }),
+      // null OU "": as telas filtram com `!c.telegramChatId` (string vazia é
+      // "sem"), e este count usava só IS NULL — um único registro com "" já
+      // fazia o cartão e a lista divergirem em 1.
+      prisma.colaborador.count({
+        where: { ...base, OR: [{ telegramChatId: null }, { telegramChatId: "" }] },
+      }),
+      prisma.colaborador.count({
+        where: { ...base, setor: { nome: { equals: "Não definido", mode: "insensitive" } } },
+      }),
+      prisma.colaborador.count({
+        where: { ...base, posicao: { nome: { equals: "Não definido", mode: "insensitive" } } },
+      }),
+      // Mesma regra de lib/ferias-passivo.ts::semHistoricoDeFerias, em contagem:
+      // 1+ ano de casa (então já existe período aquisitivo fechado) e NENHUMA
+      // solicitação de férias registrada, aprovada ou não.
+      prisma.colaborador.count({
+        where: { ...base, dataAdmissao: { not: null, lt: umAnoAtras }, ferias: { none: {} } },
+      }),
+    ]);
 
   const lacunas: LacunaDaBase[] = [
     {
@@ -141,10 +164,22 @@ export async function lacunasDaBase(empresaId: string): Promise<{
       consequencia: "não entram no organograma nem nos indicadores por setor",
     },
     {
+      chave: "cargo",
+      rotulo: "sem cargo definido",
+      faltando: semCargo,
+      consequencia: "não entram nos indicadores por cargo nem no plano de cargos",
+    },
+    {
       chave: "cpf",
       rotulo: "sem CPF",
       faltando: semCpf,
       consequencia: "bloqueia admissão digital e conferência de documento",
+    },
+    {
+      chave: "ferias",
+      rotulo: "sem nenhuma férias registrada",
+      faltando: semFerias,
+      consequencia: "1+ ano de casa sem histórico — provável passivo não lançado, não período em dia",
     },
     {
       chave: "telegram",
@@ -157,4 +192,56 @@ export async function lacunasDaBase(empresaId: string): Promise<{
   // Só o que realmente falta, do maior para o menor: uma lista de zeros não
   // informa nada e ainda esconde o que importa.
   return { ativos, lacunas: lacunas.filter((l) => l.faltando > 0).sort((a, b) => b.faltando - a.faltando) };
+}
+
+export type LacunaDeDesligado = {
+  /** Também é o valor de ?lacuna= — combinado com ?status=inativos, senão a lista mostraria todo ativo. */
+  chave: "desligamento_data" | "desligamento_motivo";
+  rotulo: string;
+  faltando: number;
+  consequencia: string;
+};
+
+/**
+ * O que falta na saída, não na entrada — irmã de `lacunasDaBase` e
+ * deliberadamente separada dela, não uma linha a mais na mesma lista.
+ *
+ * `lacunasDaBase` filtra `ativo: true` em toda contagem; um desligado nunca
+ * aparece ali. E o denominador é outro: "72% preenchido" de 215 ativos não diz
+ * nada sobre os 137 que já saíram. Duas listas, dois denominadores, dois
+ * links — nunca uma linha dentro da outra.
+ *
+ * Ver seção 3.1 do estudo de Gestão: motivo 0/137, data ausente em 31/137 —
+ * turnover de qualquer empresa aparece melhor do que é enquanto isto for zero.
+ */
+export async function lacunasDosDesligados(empresaIds: string[]): Promise<{
+  desligados: number;
+  lacunas: LacunaDeDesligado[];
+}> {
+  const base = { empresaId: { in: empresaIds }, ativo: false };
+  const [desligados, semData, semMotivo] = await Promise.all([
+    prisma.colaborador.count({ where: base }),
+    prisma.colaborador.count({ where: { ...base, dataDesligamento: null } }),
+    prisma.colaborador.count({ where: { ...base, motivoDesligamento: null } }),
+  ]);
+
+  const lacunas: LacunaDeDesligado[] = [
+    {
+      chave: "desligamento_data",
+      rotulo: "sem data de desligamento",
+      faltando: semData,
+      consequencia: "não entram no turnover nem em nenhuma série por mês",
+    },
+    {
+      chave: "desligamento_motivo",
+      rotulo: "sem motivo de desligamento",
+      faltando: semMotivo,
+      consequencia: "turnover não separa quem pediu demissão de quem foi desligado",
+    },
+  ];
+
+  return {
+    desligados,
+    lacunas: lacunas.filter((l) => l.faltando > 0).sort((a, b) => b.faltando - a.faltando),
+  };
 }

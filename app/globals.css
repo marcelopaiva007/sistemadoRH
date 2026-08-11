@@ -65,67 +65,76 @@
    controle). Antes de trocar qualquer cor, remedir — vários tons "bonitos"
    dessa paleta reprovam por pouco. */
 :root {
-  --background: #f6f8fb;
-  --foreground: #1f2937;
+  --background: #f8fafc;
+  --foreground: #0f172a;
   --card: #ffffff;
-  --card-foreground: #1f2937;
+  --card-foreground: #0f172a;
   --popover: #ffffff;
-  --popover-foreground: #1f2937;
-  /* blue-600, não blue-500. O 500 dava 3,68:1 contra branco — reprova no AA
-     (4,5:1) nos três usos que fazemos dele: texto de link, item ativo do menu
-     e rótulo branco dentro do botão principal. O 600 dá 5,17:1 e mantém o
-     mesmo azul de identidade. */
-  --primary: #2563eb;
+  --popover-foreground: #0f172a;
+  --primary: #4f46e5;
   --primary-foreground: #ffffff;
-  --secondary: #e8eef7;
-  --secondary-foreground: #1f2937;
-  --muted: #eef2f7;
-  /* slate-600. O 500 dava 4,47:1 contra o fundo da página — reprovava por
-     três centésimos, e é a cor de quase todo texto de apoio do sistema
-     (descrições, legendas, células secundárias de tabela). */
+  --secondary: #f1f5f9;
+  --secondary-foreground: #0f172a;
+  --muted: #f1f5f9;
   --muted-foreground: #475569;
-  --accent: #e0f2fe;
-  --accent-foreground: #0c4a6e;
-  /* destructive fica no red-600: já passa (4,83:1 como texto, 4,83:1 com o
-     branco por cima). Não se mexe em token que passa. */
+  --accent: #e0e7ff;
+  --accent-foreground: #3730a3;
   --destructive: #dc2626;
-  /* success sobe para emerald-700: o 600 dava 3,77:1, e ele carrega
-     informação ("em dia", "aprovado") — não é enfeite. */
   --success: #047857;
-  /* amber-700. Aviso é o caso em que reprovar dói mais: é a cor de "vence
-     hoje", de EPI vencido, de integração atrasada — texto pequeno que a
-     pessoa precisa ler para agir. O amber-600 que estava espalhado pelas
-     telas dava 2,99:1 contra o fundo da página. */
   --warning: #b45309;
-
-  /* border e input eram a MESMA cor, e têm papéis diferentes: um é traço
-     decorativo entre linhas de tabela, o outro delimita um campo onde a
-     pessoa precisa clicar. Só o segundo é um controle. */
   --border: #e2e8f0;
-  /* Fora da escala do Tailwind de propósito: o slate-400 dá 2,56:1 e o
-     slate-500 dá 4,76:1 (pesado demais para contornar todo campo). Este é o
-     tom mais CLARO que ainda cumpre os 3:1 exigidos de um controle. */
   --input: #8794a9;
-
-  /* O anel de foco em blue-200 dava 1,8:1 — invisível para quem navega por
-     teclado. Vai para a mesma cor da primária: os componentes aplicam
-     `border-ring` sólido junto do halo translúcido, e é a borda sólida que
-     cumpre os 3:1 exigidos para indicador de foco. */
-  --ring: #2563eb;
-  --chart-1: #2563eb;
-  --chart-2: #0ea5e9;
-  --chart-3: #10b981;
-  --chart-4: #f59e0b;
-  --chart-5: #ec4899;
+  --ring: #4f46e5;
+  --chart-1: #4f46e5;
+  --chart-2: #0284c7;
+  --chart-3: #059669;
+  --chart-4: #d97706;
+  --chart-5: #db2777;
   --radius: 0.625rem;
   --sidebar: #ffffff;
-  --sidebar-foreground: #1f2937;
-  --sidebar-primary: #3b82f6;
+  --sidebar-foreground: #0f172a;
+  --sidebar-primary: #4f46e5;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #eef2f7;
-  --sidebar-accent-foreground: #1f2937;
+  --sidebar-accent: #f1f5f9;
+  --sidebar-accent-foreground: #0f172a;
   --sidebar-border: #e2e8f0;
-  --sidebar-ring: #93c5fd;
+  --sidebar-ring: #818cf8;
+}
+
+.dark {
+  --background: #0f172a;
+  --foreground: #f8fafc;
+  --card: #1e293b;
+  --card-foreground: #f8fafc;
+  --popover: #1e293b;
+  --popover-foreground: #f8fafc;
+  --primary: #6366f1;
+  --primary-foreground: #ffffff;
+  --secondary: #334155;
+  --secondary-foreground: #f8fafc;
+  --muted: #1e293b;
+  --muted-foreground: #94a3b8;
+  --accent: #312e81;
+  --accent-foreground: #e0e7ff;
+  --destructive: #ef4444;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --border: #334155;
+  --input: #475569;
+  --ring: #6366f1;
+  --chart-1: #6366f1;
+  --chart-2: #38bdf8;
+  --chart-3: #34d399;
+  --chart-4: #fbbf24;
+  --chart-5: #f472b6;
+  --sidebar: #1e293b;
+  --sidebar-foreground: #f8fafc;
+  --sidebar-primary: #6366f1;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #334155;
+  --sidebar-accent-foreground: #f8fafc;
+  --sidebar-border: #334155;
+  --sidebar-ring: #6366f1;
 }
 
 /* Largura de leitura confortável — 45 a 75 caracteres por linha.

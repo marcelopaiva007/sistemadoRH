@@ -3,6 +3,7 @@
 
 import { DIMENSOES_GPTW } from "@/lib/constants-rh";
 import { AMOSTRA_MINIMA_ANONIMATO } from "@/lib/constants-rh";
+import { canonizarSetor } from "@/lib/de-para-rotulos";
 
 export type DimensaoGPTW = "CREDIBILIDADE" | "RESPEITO" | "IMPARCIALIDADE" | "ORGULHO" | "CAMARADAGEM" | "GERAL";
 
@@ -476,15 +477,18 @@ export function calcularClima(dados: {
   }
   mediaPorDimensao.sort((a, b) => a.media100 - b.media100);
 
-  // Por setor
+  // Por setor. O snapshot guarda o vocabulário da época da resposta — no Clima
+  // 2026 "Comercial" e "Vendas" convivem na MESMA pesquisa. Agrupar pelo nome
+  // canônico junta o que é o mesmo setor (ver lib/de-para-rotulos.ts).
   const porSetorMap = new Map<string, { soma: number; qtd: number }>();
   for (const resposta of respostas) {
+    const setorCanonico = canonizarSetor(resposta.setorNomeSnapshot).nome;
     for (const item of resposta.itens) {
       if (item.valorNumerico == null) continue;
-      const atual = porSetorMap.get(resposta.setorNomeSnapshot) ?? { soma: 0, qtd: 0 };
+      const atual = porSetorMap.get(setorCanonico) ?? { soma: 0, qtd: 0 };
       atual.soma += item.valorNumerico;
       atual.qtd += 1;
-      porSetorMap.set(resposta.setorNomeSnapshot, atual);
+      porSetorMap.set(setorCanonico, atual);
     }
   }
   const resultadoSetor: ResultadoSetor[] = [];
@@ -509,7 +513,9 @@ export function calcularClima(dados: {
     for (const item of resposta.itens) {
       if (item.valorNumerico == null) continue;
       const dim = (item.pergunta.dimensaoGPTW || item.pergunta.dimensao || "GERAL") as DimensaoGPTW;
-      const setor = resposta.setorNomeSnapshot;
+      // Mesma tradução do ranking por setor — sem ela o heatmap mostraria
+      // "Comercial" e "Vendas" como duas linhas do mesmo setor.
+      const setor = canonizarSetor(resposta.setorNomeSnapshot).nome;
       if (!setorDimensaoMap.has(setor)) setorDimensaoMap.set(setor, new Map());
       const mapa = setorDimensaoMap.get(setor)!;
       const atual = mapa.get(dim) ?? { soma: 0, qtd: 0 };
@@ -570,7 +576,8 @@ export function calcularClima(dados: {
     .flatMap((r) =>
       r.itens
         .filter((i) => i.pergunta.tipo === "TEXT" && i.valorTexto && i.valorTexto.trim().length > 5)
-        .map((i) => ({ texto: i.valorTexto!, setor: r.setorNomeSnapshot })),
+        // Rótulo traduzido para bater com os nomes do ranking/heatmap na tela.
+        .map((i) => ({ texto: i.valorTexto!, setor: canonizarSetor(r.setorNomeSnapshot).nome })),
     )
     .slice(0, 20);
 

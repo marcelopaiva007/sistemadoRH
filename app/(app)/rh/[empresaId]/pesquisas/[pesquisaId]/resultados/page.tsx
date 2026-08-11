@@ -1,7 +1,9 @@
 import { notFound } from "next/navigation";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
+import { marcaDaEmpresa } from "@/lib/escopo-marca";
 import { CONVITES_NA_PESQUISA } from "@/lib/pesquisa-numeros";
+import { calcularResultadoEnps } from "@/lib/pesquisa-enps-resultado";
 import { ResultadosView } from "../resultados-view";
 
 export default async function ResultadosPage({
@@ -13,8 +15,8 @@ export default async function ResultadosPage({
   await requireEmpresaAccess(empresaId);
 
   const pesquisa = await prisma.pesquisa.findFirst({
-    where: { id: pesquisaId, empresaId },
-    select: { id: true, anonima: true },
+    where: { id: pesquisaId, marcaId: await marcaDaEmpresa(empresaId) },
+    select: { id: true, anonima: true, modelo: true },
   });
   if (!pesquisa) notFound();
 
@@ -25,6 +27,15 @@ export default async function ResultadosPage({
       include: { itens: { include: { pergunta: true } } },
     }),
   ]);
+
+  // P05-ENPS: 1 pergunta de nota (0-10) + 2 abertas — os gráficos genéricos
+  // de dimensão/setor abaixo não fazem sentido pra esse formato.
+  const resultadoEnps =
+    pesquisa.modelo === "P05-ENPS"
+      ? calcularResultadoEnps(
+          respostas.flatMap((r) => r.itens.filter((i) => i.pergunta.tipo === "NPS_10")),
+        )
+      : null;
 
   const somaPorChave = new Map<string, { soma: number; qtd: number }>();
   const acumular = (chave: string, valor: number) => {
@@ -67,6 +78,7 @@ export default async function ResultadosPage({
       anonima={pesquisa.anonima}
       mediaPorDimensao={mediaPorDimensao}
       mediaPorSetor={mediaPorSetor}
+      resultadoEnps={resultadoEnps}
     />
   );
 }

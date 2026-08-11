@@ -1,9 +1,12 @@
 {
   "crons": [
-    { "path": "/api/cron/gestao-ciclo-pesquisas", "schedule": "0 9 * * *" },
-    { "path": "/api/cron/enviar-convites", "schedule": "0 12 * * *" },
-    { "path": "/api/cron/lembrete-pesquisa", "schedule": "0 13 * * *" },
-    { "path": "/api/cron/lembrete-pesquisa", "schedule": "0 19 * * *" },
-    { "path": "/api/cron/lembrete-portal", "schedule": "0 18 * * *" }
+    { "path": "/api/cron/backup-db", "schedule": "0 6 * * *" },
+    { "path": "/api/cron/gestao-ciclo-pesquisas", "schedule": "45 11 * * *" },
+    { "path": "/api/cron/foto-mensal", "schedule": "30 6 5-9 * *" },
+    { "path": "/api/cron/alertas-rh", "schedule": "*/15 * * * *" },
+    { "path": "/api/cron/enviar-convites", "schedule": "*/15 * * * *" },
+    { "path": "/api/cron/lembrete-pesquisa", "schedule": "*/15 * * * *" },
+    { "path": "/api/cron/lembrete-portal", "schedule": "*/15 * * * *" },
+    { "path": "/api/cron/cobranca-rh-pendencias", "schedule": "*/15 * * * *" }
   ]
 }

@@ -1,16 +1,35 @@
-import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
+import { requireEmpresaAccess, empresasVisiveis } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
 import { PosicoesTable } from "./posicoes-table";
 
 export default async function PosicoesPage({ params }: { params: Promise<{ empresaId: string }> }) {
   const { empresaId } = await params;
-  await requireEmpresaAccess(empresaId);
+  const usuario = await requireEmpresaAccess(empresaId);
 
-  const posicoes = await prisma.posicao.findMany({
-    where: { empresaId },
-    orderBy: [{ ativo: "desc" }, { nome: "asc" }],
-    include: { _count: { select: { colaboradores: true } } },
-  });
+  const empresasDoUsuario = await empresasVisiveis(usuario);
 
-  return <PosicoesTable empresaId={empresaId} posicoes={posicoes} />;
+  const [posicoes, empresas] = await Promise.all([
+    prisma.posicao.findMany({
+      where: { empresaId: { in: empresasDoUsuario } },
+      orderBy: [{ ativo: "desc" }, { empresaId: "asc" }, { nome: "asc" }],
+      include: {
+        _count: { select: { colaboradores: true, vagas: true } },
+        empresa: { select: { id: true, nome: true } },
+      },
+    }),
+    prisma.empresa.findMany({
+      where: { id: { in: empresasDoUsuario } },
+      select: { id: true, nome: true },
+      orderBy: { nome: "asc" },
+    }),
+  ]);
+
+  return (
+    <PosicoesTable
+      empresaId={empresaId}
+      empresasDoUsuario={empresasDoUsuario}
+      posicoes={posicoes}
+      empresas={empresas}
+    />
+  );
 }

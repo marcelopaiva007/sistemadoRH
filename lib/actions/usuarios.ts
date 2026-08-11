@@ -5,7 +5,7 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/auth-guard";
+import { requireGestaoUsuarios } from "@/lib/auth-guard";
 import { auth } from "@/auth";
 import { sendEmail } from "@/lib/email";
 import { registrarAuditoria, diffCampos } from "@/lib/audit";
@@ -34,12 +34,27 @@ const criarSchema = z
     email: emailSchema,
     telefone: z.string().trim().optional(),
     role: z.enum(ROLES),
+    // O acesso vem por UM dos dois: a marca inteira ou um CNPJ. Marca dá acesso
+    // dinâmico (CNPJ novo entra sozinho); CNPJ é pontual e é o único que
+    // comporta GESTOR_SETOR, já que setor pertence a um CNPJ específico.
+    marcaId: z.string().trim().optional(),
     empresaId: z.string().trim().optional(),
     setorId: z.string().trim().optional(),
   })
-  .refine((d) => !ROLES_COM_EMPRESA.includes(d.role as (typeof ROLES_COM_EMPRESA)[number]) || !!d.empresaId, {
-    message: "Selecione a empresa do usuário",
-    path: ["empresaId"],
+  .refine(
+    (d) =>
+      !ROLES_COM_EMPRESA.includes(d.role as (typeof ROLES_COM_EMPRESA)[number]) ||
+      !!d.empresaId ||
+      !!d.marcaId,
+    { message: "Selecione a marca ou o CNPJ do usuário", path: ["empresaId"] },
+  )
+  .refine((d) => !(d.marcaId && d.empresaId), {
+    message: "Escolha marca ou CNPJ, não os dois",
+    path: ["marcaId"],
+  })
+  .refine((d) => d.role !== "GESTOR_SETOR" || !d.marcaId, {
+    message: "Gestor de setor precisa de um CNPJ — setor pertence a um CNPJ, não à marca",
+    path: ["marcaId"],
   })
   .refine((d) => d.role !== "GESTOR_SETOR" || !!d.setorId, {
     message: "Selecione o setor do gestor",
@@ -76,7 +91,7 @@ function hashToken(token: string): string {
 }
 
 export async function createUsuario(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
-  const admin = await requireAdmin();
+  const admin = await requireGestaoUsuarios();
 
   const senha = String(formData.get("senha") ?? "");
   if (senha.length < 8) return { ok: false, error: "A senha deve ter pelo menos 8 caracteres." };
@@ -87,12 +102,13 @@ export async function createUsuario(_prev: ActionResult, formData: FormData): Pr
     email: formData.get("email") || undefined,
     telefone: formData.get("telefone") || undefined,
     role: formData.get("role"),
+    marcaId: formData.get("marcaId") || undefined,
     empresaId: formData.get("empresaId") || undefined,
     setorId: formData.get("setorId") || undefined,
   });
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
 
-  const { nome, username, email, telefone, role, empresaId, setorId } = parsed.data;
+  const { nome, username, email, telefone, role, marcaId, empresaId, setorId } = parsed.data;
   const passwordHash = await bcrypt.hash(senha, 10);
 
   try {
@@ -114,16 +130,22 @@ export async function createUsuario(_prev: ActionResult, formData: FormData): Pr
           setorId: setorId ?? null,
         },
       });
-      if (empresaId && ROLES_COM_EMPRESA.includes(role as (typeof ROLES_COM_EMPRESA)[number])) {
-        await tx.userEmpresa.create({
-          data: {
-            userId: user.id,
-            empresaId,
-            role,
-            setorId: setorId ?? null,
-            papelPrincipal: true,
-          },
-        });
+      if (ROLES_COM_EMPRESA.includes(role as (typeof ROLES_COM_EMPRESA)[number])) {
+        if (marcaId) {
+          // Acesso à marca inteira: um vínculo só, e os CNPJs saem dele a cada
+          // request. CNPJ novo na marca entra sozinho — ver UserMarca no schema.
+          await tx.userMarca.create({ data: { userId: user.id, marcaId, role } });
+        } else if (empresaId) {
+          await tx.userEmpresa.create({
+            data: {
+              userId: user.id,
+              empresaId,
+              role,
+              setorId: setorId ?? null,
+              papelPrincipal: true,
+            },
+          });
+        }
       }
       return user;
     });
@@ -133,7 +155,7 @@ export async function createUsuario(_prev: ActionResult, formData: FormData): Pr
       entidade: "User",
       entidadeId: result.id,
       resumo: `Criou usuário ${result.username} (${result.role})`,
-      detalhes: { nome: result.nome, email: result.email, role: result.role, empresaId, setorId },
+      detalhes: { nome: result.nome, email: result.email, role: result.role, marcaId, empresaId, setorId },
     });
 
     revalidatePath("/cadastros/usuarios");
@@ -151,7 +173,7 @@ export async function createUsuario(_prev: ActionResult, formData: FormData): Pr
 }
 
 export async function updateUsuario(id: string, _prev: ActionResult, formData: FormData): Promise<ActionResult> {
-  await requireAdmin();
+  await requireGestaoUsuarios();
 
   const parsed = editarSchema.safeParse({
     nome: formData.get("nome"),
@@ -212,7 +234,7 @@ export async function updateUsuario(id: string, _prev: ActionResult, formData: F
 }
 
 export async function resetSenhaUsuario(id: string, _prev: ActionResult, formData: FormData): Promise<ActionResult> {
-  await requireAdmin();
+  await requireGestaoUsuarios();
 
   const senha = String(formData.get("senha") ?? "");
   if (senha.length < 8) return { ok: false, error: "A senha deve ter pelo menos 8 caracteres." };
@@ -236,7 +258,7 @@ export async function resetSenhaUsuario(id: string, _prev: ActionResult, formDat
 }
 
 export async function deleteUsuario(id: string): Promise<ActionResult> {
-  const admin = await requireAdmin();
+  const admin = await requireGestaoUsuarios();
   if (admin.id === id) {
     return { ok: false, error: "Você não pode excluir seu próprio usuário." };
   }
@@ -281,7 +303,7 @@ export async function deleteUsuario(id: string): Promise<ActionResult> {
 }
 
 export async function vincularEmpresaUsuario(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
-  await requireAdmin();
+  await requireGestaoUsuarios();
 
   const parsed = vincularSchema.safeParse({
     userId: formData.get("userId"),
@@ -350,7 +372,7 @@ export async function vincularEmpresaUsuario(_prev: ActionResult, formData: Form
 }
 
 export async function desativarVinculoUsuario(userId: string, empresaId: string): Promise<ActionResult> {
-  await requireAdmin();
+  await requireGestaoUsuarios();
 
   const vinculo = await prisma.userEmpresa.findUnique({
     where: { userId_empresaId: { userId, empresaId } },
@@ -358,11 +380,13 @@ export async function desativarVinculoUsuario(userId: string, empresaId: string)
   if (!vinculo) return { ok: false, error: "Vínculo não encontrado." };
 
   // Bloqueia desativar a única empresa ativa do user — equivaleria a "tirar
-  // o login" sem passar pela tela de exclusão do User.
-  const ativosRestantes = await prisma.userEmpresa.count({
-    where: { userId, ativo: true, NOT: { id: vinculo.id } },
-  });
-  if (ativosRestantes === 0) {
+  // o login" sem passar pela tela de exclusão do User. Vínculo por marca conta
+  // como acesso: quem tem a marca não fica sem nada ao perder um CNPJ solto.
+  const [empresasRestantes, marcasRestantes] = await Promise.all([
+    prisma.userEmpresa.count({ where: { userId, ativo: true, NOT: { id: vinculo.id } } }),
+    prisma.userMarca.count({ where: { userId, ativo: true } }),
+  ]);
+  if (empresasRestantes + marcasRestantes === 0) {
     return { ok: false, error: "Não é possível desativar a única empresa ativa do usuário." };
   }
 
@@ -384,7 +408,7 @@ export async function desativarVinculoUsuario(userId: string, empresaId: string)
 }
 
 export async function reativarVinculoUsuario(userId: string, empresaId: string): Promise<ActionResult> {
-  await requireAdmin();
+  await requireGestaoUsuarios();
 
   const vinculo = await prisma.userEmpresa.findUnique({
     where: { userId_empresaId: { userId, empresaId } },
@@ -402,6 +426,106 @@ export async function reativarVinculoUsuario(userId: string, empresaId: string):
     entidadeId: vinculo.id,
     empresaId,
     resumo: `Reativou vínculo do usuário ${userId} na empresa ${empresaId}`,
+  });
+
+  revalidatePath("/cadastros/usuarios");
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Vínculo por MARCA — dá acesso a todos os CNPJs dela, inclusive os que vierem
+// depois. Só RH_MANAGER: GESTOR_SETOR precisa de um CNPJ, porque setor pertence
+// a um CNPJ e não à marca.
+// ---------------------------------------------------------------------------
+
+const vincularMarcaSchema = z.object({
+  userId: z.string().trim().min(1),
+  marcaId: z.string().trim().min(1, "Selecione a marca"),
+  role: z.literal("RH_MANAGER"),
+});
+
+export async function vincularMarcaUsuario(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  await requireGestaoUsuarios();
+
+  const parsed = vincularMarcaSchema.safeParse({
+    userId: formData.get("userId"),
+    marcaId: formData.get("marcaId"),
+    role: formData.get("role"),
+  });
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
+
+  const { userId, marcaId, role } = parsed.data;
+
+  try {
+    // upsert e não create: revincular uma marca que já foi desativada deve
+    // reativar a linha, não estourar na unicidade (userId, marcaId).
+    const vinculo = await prisma.userMarca.upsert({
+      where: { userId_marcaId: { userId, marcaId } },
+      create: { userId, marcaId, role },
+      update: { ativo: true, role },
+    });
+
+    const marca = await prisma.marca.findUnique({ where: { id: marcaId }, select: { nome: true } });
+
+    await registrarAuditoria({
+      acao: "VINCULAR",
+      entidade: "UserMarca",
+      entidadeId: vinculo.id,
+      resumo: `Vinculou usuário ${userId} à marca ${marca?.nome ?? marcaId} (todos os CNPJs)`,
+    });
+
+    revalidatePath("/cadastros/usuarios");
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Erro ao vincular a marca." };
+  }
+}
+
+export async function desativarVinculoMarca(userId: string, marcaId: string): Promise<ActionResult> {
+  await requireGestaoUsuarios();
+
+  const vinculo = await prisma.userMarca.findUnique({
+    where: { userId_marcaId: { userId, marcaId } },
+  });
+  if (!vinculo) return { ok: false, error: "Vínculo não encontrado." };
+
+  // Mesma trava do vínculo por empresa: ninguém fica sem acesso nenhum por aqui.
+  const [empresasAtivas, marcasRestantes] = await Promise.all([
+    prisma.userEmpresa.count({ where: { userId, ativo: true } }),
+    prisma.userMarca.count({ where: { userId, ativo: true, NOT: { id: vinculo.id } } }),
+  ]);
+  if (empresasAtivas + marcasRestantes === 0) {
+    return { ok: false, error: "Não é possível remover o único acesso ativo do usuário." };
+  }
+
+  await prisma.userMarca.update({ where: { id: vinculo.id }, data: { ativo: false } });
+
+  await registrarAuditoria({
+    acao: "DESVINCULAR",
+    entidade: "UserMarca",
+    entidadeId: vinculo.id,
+    resumo: `Desvinculou usuário ${userId} da marca ${marcaId}`,
+  });
+
+  revalidatePath("/cadastros/usuarios");
+  return { ok: true };
+}
+
+export async function reativarVinculoMarca(userId: string, marcaId: string): Promise<ActionResult> {
+  await requireGestaoUsuarios();
+
+  const vinculo = await prisma.userMarca.findUnique({
+    where: { userId_marcaId: { userId, marcaId } },
+  });
+  if (!vinculo) return { ok: false, error: "Vínculo não encontrado." };
+
+  await prisma.userMarca.update({ where: { id: vinculo.id }, data: { ativo: true } });
+
+  await registrarAuditoria({
+    acao: "VINCULAR",
+    entidade: "UserMarca",
+    entidadeId: vinculo.id,
+    resumo: `Reativou vínculo do usuário ${userId} na marca ${marcaId}`,
   });
 
   revalidatePath("/cadastros/usuarios");
@@ -434,7 +558,7 @@ const conviteSchema = z.object({
 });
 
 export async function criarConviteUsuario(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
-  await requireAdmin();
+  await requireGestaoUsuarios();
 
   const parsed = conviteSchema.safeParse({
     email: formData.get("email"),
@@ -544,6 +668,9 @@ export async function criarConviteUsuario(_prev: ActionResult, formData: FormDat
       subject: "Convite para acessar o sistema de RH",
       html,
       text: `Acesse ${link} para definir sua senha. O link expira em ${CONVITE_EXPIRA_EM_DIAS} dias.`,
+      // Protege contra duplo clique no botão de convidar. Reenvio legítimo
+      // (a pessoa perdeu o e-mail) volta a passar no dia seguinte.
+      chave: `convite-usuario:${email.trim().toLowerCase()}`,
     });
     if (!envio.ok) {
       return { ok: false, error: `Convite criado, mas e-mail falhou: ${envio.error}` };

@@ -9,6 +9,7 @@ import "dotenv/config";
 import { PrismaClient } from "../app/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { dataUTC } from "../lib/datas";
+import { empresaDeTeste } from "./_empresa-de-teste";
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
@@ -26,12 +27,12 @@ function ok(cond: boolean, msg: string) {
 }
 
 async function main() {
-  const empresa = await prisma.empresa.findFirst({ where: { ativo: true } });
+  const empresa = await empresaDeTeste(prisma, { comSetor: true });
   if (!empresa) throw new Error("Nenhuma empresa cadastrada.");
   const [pessoa, lider] = await prisma.colaborador.findMany({
     where: { empresaId: empresa.id, ativo: true },
     take: 2,
-    select: { id: true, nome: true, setorId: true, setor: { select: { nome: true } } },
+    select: { id: true, nome: true, setorId: true, supervisorId: true, setor: { select: { nome: true } } },
   });
   if (!pessoa || !lider) throw new Error("Preciso de ao menos 2 colaboradores ativos.");
   const outroSetor = await prisma.setor.findFirst({
@@ -95,7 +96,14 @@ async function main() {
   }
 
   const sobrou = await prisma.movimentacao.count({ where: { motivo: "smoke test" } });
-  const liderSobrou = await prisma.colaborador.count({ where: { id: pessoa.id, supervisorId: { not: null } } });
+  // Compara com o estado anterior em vez de exigir supervisorId nulo: numa
+  // empresa de verdade a pessoa sorteada já pode ter chefia legítima, e a
+  // versão antiga acusava vazamento por causa dela.
+  const depois = await prisma.colaborador.findUniqueOrThrow({
+    where: { id: pessoa.id },
+    select: { supervisorId: true },
+  });
+  const liderSobrou = depois.supervisorId === pessoa.supervisorId ? 0 : 1;
   ok(sobrou === 0, "nenhuma movimentação de teste sobrou");
   ok(liderSobrou === 0, "o vínculo de líder de teste não sobrou");
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, type ReactNode } from "react";
+import { useActionState, useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -132,6 +132,14 @@ export function CampoCheckbox({
 /**
  * Formulário que envia para uma server action, com estado de erro e toast de
  * sucesso. Usado por todos os blocos da ficha e pelos diálogos do DP.
+ *
+ * A ficha é dividida em vários blocos, cada um com o seu próprio "Salvar" —
+ * de propósito, para um bloco nunca apagar o que outro preencheu (ver o
+ * comentário no topo de lib/actions/rh-ficha.ts). O preço disso é que dá para
+ * editar um bloco, olhar outro, e sair da tela achando que salvou tudo: o
+ * toast de sucesso é verdadeiro, só que é do bloco errado. `dirty` rastreia
+ * se ESTE formulário tem algo digitado que ainda não foi para o servidor, e
+ * avisa antes que a pessoa recarregue ou feche a aba sem ver o aviso.
  */
 export function FormularioAction({
   action,
@@ -148,11 +156,13 @@ export function FormularioAction({
   onSuccess?: () => void;
   className?: string;
 }) {
+  const [dirty, setDirty] = useState(false);
   const [state, formAction, isPending] = useActionState(
     async (prev: ActionResult, formData: FormData) => {
       const resultado = await action(prev, formData);
       if (resultado.ok) {
         toast.success(mensagemSucesso);
+        setDirty(false);
         onSuccess?.();
       }
       return resultado;
@@ -160,15 +170,37 @@ export function FormularioAction({
     estadoInicial,
   );
 
+  // Fecha a aba/recarrega com este bloco editado e não salvo: o navegador
+  // pergunta antes de descartar. Sem isso, o F5 do relato original apaga
+  // silenciosamente o que só existia no formulário.
+  useEffect(() => {
+    if (!dirty) return;
+    const avisar = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", avisar);
+    return () => window.removeEventListener("beforeunload", avisar);
+  }, [dirty]);
+
   return (
-    <form action={formAction} className={cn("space-y-4", className)}>
+    <form
+      action={formAction}
+      onChange={() => setDirty(true)}
+      className={cn("space-y-4", className)}
+    >
       {children}
       {!state.ok && (
         <Alert variant="destructive">
           <AlertDescription>{state.error}</AlertDescription>
         </Alert>
       )}
-      <div className="flex justify-end">
+      <div className="flex items-center justify-between gap-3">
+        {dirty && !isPending ? (
+          <span className="text-xs text-warning">Alterações não salvas neste bloco.</span>
+        ) : (
+          <span />
+        )}
         <Button type="submit" disabled={isPending}>
           {isPending ? "Salvando..." : textoBotao}
         </Button>

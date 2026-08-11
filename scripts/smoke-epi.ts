@@ -9,6 +9,7 @@ import { PrismaClient } from "../app/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { dataUTC } from "../lib/datas";
 import { calcularValidade } from "../lib/conformidade";
+import { empresaDeTeste } from "./_empresa-de-teste";
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
@@ -26,7 +27,7 @@ function ok(cond: boolean, msg: string) {
 }
 
 async function main() {
-  const empresa = await prisma.empresa.findFirst({ where: { ativo: true } });
+  const empresa = await empresaDeTeste(prisma, { comSetor: true });
   if (!empresa) throw new Error("Nenhuma empresa cadastrada.");
   const colaborador = await prisma.colaborador.findFirst({
     where: { empresaId: empresa.id, ativo: true },

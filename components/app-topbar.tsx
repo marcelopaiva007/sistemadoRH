@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { LogOut, KeyRound } from "lucide-react";
+import { LogOut, KeyRound, Sun, Moon } from "lucide-react";
+import { useTheme } from "next-themes";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { navByRole, diretoriaNav } from "@/components/nav-config";
@@ -15,6 +17,34 @@ const ROLE_LABELS: Record<string, string> = {
   RH_MANAGER: "RH",
   GESTOR_SETOR: "Gestor de Setor",
 };
+
+function SeletorTema() {
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return <div className="size-8" />;
+  }
+
+  const proximoTema = theme === "dark" ? "light" : "dark";
+
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      className="size-8 text-muted-foreground hover:text-foreground"
+      title={`Alternar para modo ${proximoTema === "dark" ? "escuro" : "claro"}`}
+      onClick={() => setTheme(proximoTema)}
+    >
+      {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+      <span className="sr-only">Alternar tema</span>
+    </Button>
+  );
+}
 
 // Menu horizontal no topo (substitui a antiga sidebar) — libera a largura
 // inteira da tela para as tabelas do RH.
@@ -32,18 +62,18 @@ export function AppTopbar({
   const items = navByRole[role] ?? diretoriaNav;
 
   return (
-    <header className="sticky top-0 z-40 border-b bg-background">
-      <div className="flex h-14 items-center gap-4 px-4">
+    <header className="sticky top-0 z-40 border-b border-border/70 bg-background/85 backdrop-blur-md shadow-xs">
+      <div className="flex h-14 items-center gap-4 px-4 max-w-7xl mx-auto w-full">
         <div className="flex shrink-0 items-center gap-3">
           <Logo width={140} height={34} className="h-8 w-auto" />
-          <div className="hidden leading-tight lg:block">
-            <p className="text-xs text-muted-foreground">Sistema de RH</p>
+          <div className="hidden leading-tight lg:block border-l border-border/60 pl-3">
+            <p className="text-xs font-medium text-foreground/80">Sistema de RH</p>
             {/* Responde "estou vendo a versao nova?" sem sair da tela. */}
             <p className="font-mono text-[10px] text-muted-foreground/70">{versao}</p>
           </div>
         </div>
 
-        <nav className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+        <nav className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto py-1 scrollbar-none">
           {items.map((item) => {
             const active =
               item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
@@ -53,10 +83,10 @@ export function AppTopbar({
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                  "flex shrink-0 items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition-all duration-150",
                   active
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    ? "bg-primary text-primary-foreground shadow-xs font-semibold"
+                    : "text-muted-foreground hover:bg-muted/80 hover:text-foreground active:scale-[0.98]"
                 )}
               >
                 <Icon className="size-4" />
@@ -66,17 +96,18 @@ export function AppTopbar({
           })}
         </nav>
 
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="flex shrink-0 items-center gap-1.5">
+          <SeletorTema />
           <Link
             href="/conta"
             className={cn(
-              "flex items-center gap-2 rounded-md px-2 py-1 transition-colors hover:bg-muted",
-              pathname === "/conta" && "bg-muted"
+              "flex items-center gap-2 rounded-lg border border-transparent px-2.5 py-1 transition-all hover:bg-muted/80 hover:border-border/50",
+              pathname === "/conta" && "bg-muted border-border/60"
             )}
           >
             <div className="text-right">
-              <p className="text-sm font-medium leading-tight">{nome}</p>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-sm font-medium leading-tight text-foreground">{nome}</p>
+              <p className="text-[11px] text-muted-foreground font-medium">
                 {ROLE_LABELS[role] ?? "Diretoria/Gestão"}
               </p>
             </div>
@@ -85,7 +116,7 @@ export function AppTopbar({
           <Button
             variant="ghost"
             size="sm"
-            className="gap-2 text-muted-foreground"
+            className="gap-2 text-muted-foreground hover:text-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
             onClick={() => signOut({ callbackUrl: "/login" })}
           >
             <LogOut className="size-4" />

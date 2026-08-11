@@ -10,6 +10,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { dataUTC } from "../lib/datas";
 import { competenciaUTC, fimDaCompetencia, formatarCompetencia, rubricaUnidade } from "../lib/constants-folha";
 import { violouUnique } from "../lib/prisma-erros";
+import { empresaDeTeste } from "./_empresa-de-teste";
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
@@ -35,7 +36,7 @@ async function rodarComRollback(fn: (tx: Prisma.TransactionClient) => Promise<vo
 }
 
 async function main() {
-  const empresa = await prisma.empresa.findFirst({ where: { ativo: true } });
+  const empresa = await empresaDeTeste(prisma, { comSetor: true });
   if (!empresa) throw new Error("Nenhuma empresa cadastrada.");
   const colaborador = await prisma.colaborador.findFirst({
     where: { empresaId: empresa.id, ativo: true },
@@ -241,8 +242,15 @@ async function main() {
     throw new RollbackProposital();
   });
 
-  const sobrouComp = await prisma.competenciaFolha.count({ where: { empresaId: empresa.id } });
-  const sobrouEvento = await prisma.eventoFolha.count({ where: { empresaId: empresa.id } });
+  // Só as competências que ESTE smoke cria (referência 2026-09). Contar tudo da
+  // empresa acusava vazamento ao rodar numa empresa com folha de verdade — o
+  // smoke passava só porque a empresa sorteada estava vazia.
+  const sobrouComp = await prisma.competenciaFolha.count({
+    where: { empresaId: empresa.id, referencia: competenciaUTC(2026, 9) },
+  });
+  const sobrouEvento = await prisma.eventoFolha.count({
+    where: { empresaId: empresa.id, competencia: { referencia: competenciaUTC(2026, 9) } },
+  });
   const sobrouAusencia = await prisma.ausencia.count({
     where: { colaboradorId: colaborador.id, dataInicio: { gte: dataUTC(2026, 9, 1) } },
   });

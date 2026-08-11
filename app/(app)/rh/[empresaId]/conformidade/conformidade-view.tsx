@@ -16,6 +16,8 @@ import { NORMAS_REGULAMENTADORAS, validadePadraoDaNorma } from "@/lib/constants-
 import { SITUACAO_LABEL, type ConformidadeColaborador, type SituacaoExame, type SituacaoItem } from "@/lib/conformidade";
 import type { ActionResult } from "@/lib/constants";
 import { Indicador } from "@/components/indicador";
+import { Paginacao } from "@/components/paginacao";
+import { usePaginacao } from "@/lib/use-paginacao";
 
 type Posicao = {
   id: string;
@@ -26,6 +28,8 @@ type Posicao = {
 type Linha = {
   id: string;
   nome: string;
+  empresaId: string;
+  empresaNome: string;
   posicaoNome: string;
   setorNome: string;
   conformidade: ConformidadeColaborador;
@@ -58,7 +62,7 @@ export function ConformidadeView({
     examesEmDia: number;
   };
 }) {
-  const [filtro, setFiltro] = useState<"todos" | "irregulares">("irregulares");
+  const [filtro, setFiltroBruto] = useState<"todos" | "irregulares">("irregulares");
 
   const linhasFiltradas = useMemo(() => {
     const ordenadas = [...linhas].sort((a, b) => {
@@ -74,6 +78,12 @@ export function ConformidadeView({
         l.situacaoExame.situacao === "NUNCA_FEITO",
     );
   }, [linhas, filtro]);
+
+  const { itensDaPagina: linhasNaPagina, resetar, ...paginacao } = usePaginacao(linhasFiltradas);
+  const setFiltro = (v: "todos" | "irregulares") => {
+    setFiltroBruto(v);
+    resetar();
+  };
 
   const percentualNR = resumo.totalComRequisito > 0 ? Math.round((resumo.regularesNR / resumo.totalComRequisito) * 100) : null;
   const percentualExame = resumo.totalComExameExigivel > 0 ? Math.round((resumo.examesEmDia / resumo.totalComExameExigivel) * 100) : null;
@@ -91,19 +101,18 @@ export function ConformidadeView({
         <Indicador
           rotulo="Colaboradores ativos"
           valor={`${resumo.totalColaboradores}`}
-          alerta={false}
         />
         <Indicador
           rotulo="Em dia com as NRs da função"
           valor={percentualNR === null ? "—" : `${percentualNR}%`}
           complemento={resumo.totalComRequisito > 0 ? `${resumo.regularesNR}/${resumo.totalComRequisito}` : "nenhuma NR exigida ainda"}
-          alerta={percentualNR !== null && percentualNR < 100}
+          estado={percentualNR !== null && percentualNR < 100 ? "alerta" : "padrao"}
         />
         <Indicador
           rotulo="ASO em dia"
           valor={percentualExame === null ? "—" : `${percentualExame}%`}
           complemento={`${resumo.examesEmDia}/${resumo.totalComExameExigivel}`}
-          alerta={percentualExame !== null && percentualExame < 100}
+          estado={percentualExame !== null && percentualExame < 100 ? "alerta" : "padrao"}
         />
       </div>
 
@@ -155,23 +164,25 @@ export function ConformidadeView({
             </p>
           ) : (
             <div className="rounded-md border">
-              <Table>
+              <Table compacta>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Colaborador</TableHead>
+                    <TableHead>CNPJ</TableHead>
                     <TableHead>Setor / Função</TableHead>
                     <TableHead>NRs pendentes</TableHead>
                     <TableHead>ASO</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {linhasFiltradas.map((l) => (
+                  {linhasNaPagina.map((l) => (
                     <TableRow key={l.id}>
                       <TableCell>
-                        <Link href={`/rh/${empresaId}/colaboradores/${l.id}`} className="font-medium hover:underline">
+                        <Link href={`/rh/${l.empresaId}/colaboradores/${l.id}`} className="font-medium hover:underline">
                           {l.nome}
                         </Link>
                       </TableCell>
+                      <TableCell className="text-muted-foreground">{l.empresaNome}</TableCell>
                       <TableCell className="text-muted-foreground">
                         {l.setorNome} · {l.posicaoNome}
                       </TableCell>
@@ -201,6 +212,15 @@ export function ConformidadeView({
               </Table>
             </div>
           )}
+          <div className="mt-4">
+            <Paginacao
+              total={paginacao.total}
+              porPagina={paginacao.porPagina}
+              paginaAtual={paginacao.paginaAtual}
+              totalPaginas={paginacao.totalPaginas}
+              onMudarPagina={paginacao.irPara}
+            />
+          </div>
         </CardContent>
       </Card>
     </div>

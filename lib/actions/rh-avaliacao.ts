@@ -4,8 +4,10 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { registrarAuditoria } from "@/lib/audit";
-import { dataDoFormulario } from "@/lib/datas";
-import { AVALIADORES_AUTOMATICOS, COMPETENCIAS, tipoAvaliadorLabel, tipoCicloLabel } from "@/lib/constants-avaliacao";
+import { dataDoFormulario, formatarData } from "@/lib/datas";
+import { AVALIADORES_AUTOMATICOS, tipoAvaliadorLabel, tipoCicloLabel } from "@/lib/constants-avaliacao";
+import { sendTelegramMessage } from "@/lib/telegram";
+import { opcoesDoCatalogo } from "@/lib/catalogos";
 import type { ActionResult } from "@/lib/constants";
 
 export async function criarCiclo(
@@ -147,6 +149,146 @@ export async function gerarAvaliacoes(empresaId: string, cicloId: string): Promi
   return { ok: true };
 }
 
+/** Primeiro nome, capitalizado — a base veio do elleven em CAIXA ALTA. */
+const primeiroNome = (nome: string) =>
+  nome.trim().split(/\s+/)[0].toLowerCase().replace(/^./, (c) => c.toUpperCase());
+
+function convite(params: {
+  nome: string;
+  marca: string;
+  aFazer: number;
+  temEquipe: boolean;
+  prazo: string;
+}): string {
+  const { nome, marca, aFazer, temEquipe, prazo } = params;
+  const passos =
+    "1. Me mande /portal\n" +
+    "2. Abra o link que eu te enviar\n" +
+    "3. Toque na aba Avaliação";
+
+  if (temEquipe) {
+    return (
+      `Oi, ${primeiroNome(nome)}! 👋\n\n` +
+      "A avaliação de desempenho do 1º semestre está aberta. Você avalia a sua equipe, " +
+      "além da sua própria autoavaliação.\n\n" +
+      `${passos}\n\n` +
+      "Confira se a sua equipe está completa: no alto da aba, em \"Quem mais você avalia?\", " +
+      "busque pelo nome e toque em Incluir para cada pessoa que faltar — mesmo de outra " +
+      "empresa do grupo. Quem você incluir passa a responder também a própria autoavaliação.\n\n" +
+      `Hoje são ${aFazer} avaliação(ões) na sua lista. São 6 notas de 1 a 5 e três campos ` +
+      "para escrever, cerca de 3 minutos cada. Dá para responder aos poucos.\n\n" +
+      `Prazo: ${prazo}.\n\n` +
+      "O que você escrever vira a base da conversa de feedback com cada um.\n\n" +
+      `RH — ${marca}`
+    );
+  }
+
+  return (
+    `Oi, ${primeiroNome(nome)}! 👋\n\n` +
+    "Começou a avaliação de desempenho do 1º semestre e a sua autoavaliação está esperando " +
+    "você.\n\n" +
+    "São 6 notas de 1 a 5 e três campos para escrever. Leva 3 minutos.\n\n" +
+    `${passos}\n\n` +
+    `Prazo: ${prazo}.\n\n` +
+    "Sua resposta vai para o seu gestor e para o RH — não é anônima. É o seu espaço de dizer " +
+    "como o semestre foi do seu ponto de vista, antes que alguém diga por você.\n\n" +
+    `RH — ${marca}`
+  );
+}
+
+export type ResultadoConvites = {
+  enviados: number;
+  falhas: number;
+  semTelegram: number;
+  nadaPendente: number;
+};
+
+/**
+ * Convida pelo Telegram quem tem avaliação pendente no ciclo.
+ *
+ * Uma mensagem por PESSOA, não por avaliação: quem tem oito na lista recebe um
+ * aviso, não oito. O texto muda para quem avalia equipe — essa pessoa precisa
+ * saber que também monta a própria lista, e quem só tem a autoavaliação não
+ * precisa ouvir falar disso.
+ *
+ * Reexecutar é a cobrança: quem já respondeu tudo sai da lista sozinho.
+ */
+export async function enviarConvitesDoCiclo(
+  empresaId: string,
+  cicloId: string,
+): Promise<ActionResult & { resultado?: ResultadoConvites }> {
+  await requireEmpresaAccess(empresaId);
+
+  const ciclo = await prisma.cicloAvaliacao.findFirst({ where: { id: cicloId, empresaId } });
+  if (!ciclo) return { ok: false, error: "Ciclo não encontrado nesta empresa." };
+  if (ciclo.encerrado) return { ok: false, error: "Este ciclo está encerrado." };
+
+  const pendentes = await prisma.avaliacaoDesempenho.findMany({
+    where: { cicloId, status: { not: "CONCLUIDA" } },
+    select: { avaliadorId: true, tipoAvaliador: true },
+  });
+  if (pendentes.length === 0) {
+    return { ok: false, error: "Ninguém tem avaliação pendente neste ciclo." };
+  }
+
+  // Uma linha por avaliador, com o que ele tem a fazer.
+  const porAvaliador = new Map<string, { total: number; temEquipe: boolean }>();
+  for (const p of pendentes) {
+    const atual = porAvaliador.get(p.avaliadorId) ?? { total: 0, temEquipe: false };
+    atual.total += 1;
+    if (p.tipoAvaliador !== "AUTOAVALIACAO") atual.temEquipe = true;
+    porAvaliador.set(p.avaliadorId, atual);
+  }
+
+  const avaliadores = await prisma.colaborador.findMany({
+    where: { id: { in: [...porAvaliador.keys()] }, ativo: true },
+    select: {
+      id: true,
+      nome: true,
+      telegramChatId: true,
+      empresa: { select: { marca: { select: { nome: true } } } },
+    },
+  });
+
+  const prazo = formatarData(ciclo.dataFim);
+  let enviados = 0;
+  let falhas = 0;
+  let semTelegram = 0;
+
+  for (const a of avaliadores) {
+    if (!a.telegramChatId) {
+      semTelegram++;
+      continue;
+    }
+    const dele = porAvaliador.get(a.id)!;
+    const texto = convite({
+      nome: a.nome,
+      // Assina a marca da pessoa, nunca as do grupo: quem é da Centrysol lendo
+      // "LM Telecom" acha que a mensagem veio trocada.
+      marca: a.empresa.marca.nome,
+      aFazer: dele.total,
+      temEquipe: dele.temEquipe,
+      prazo,
+    });
+    const r = await sendTelegramMessage(a.telegramChatId, texto);
+    if (r.ok) enviados++;
+    else falhas++;
+  }
+
+  await registrarAuditoria({
+    empresaId,
+    acao: "ENVIAR_CONVITE",
+    entidade: "CicloAvaliacao",
+    entidadeId: cicloId,
+    resumo: `Convite do ciclo "${ciclo.nome}" enviado pelo Telegram: ${enviados} enviado(s), ${falhas} falha(s), ${semTelegram} sem Telegram vinculado.`,
+  });
+
+  return {
+    ok: true,
+    resultado: { enviados, falhas, semTelegram, nadaPendente: 0 },
+  };
+}
+
 export async function adicionarAvaliadorExtra(
   empresaId: string,
   cicloId: string,
@@ -211,8 +353,9 @@ export async function salvarNotasAvaliacao(
   });
   if (!avaliacao) return { ok: false, error: "Avaliação não encontrada nesta empresa." };
 
+  const competencias = await opcoesDoCatalogo(empresaId, "COMPETENCIA");
   const notas: { competencia: string; nota: number }[] = [];
-  for (const c of COMPETENCIAS) {
+  for (const c of competencias) {
     const bruto = String(formData.get(`nota_${c.value}`) ?? "").trim();
     if (!bruto) return { ok: false, error: `Falta a nota de "${c.label}".` };
     const nota = Number.parseInt(bruto, 10);

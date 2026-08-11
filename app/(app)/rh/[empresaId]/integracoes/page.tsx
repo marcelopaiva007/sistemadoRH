@@ -1,4 +1,4 @@
-import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
+import { empresasVisiveis, requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
 import { IntegracoesView } from "./integracoes-view";
 
@@ -7,14 +7,24 @@ import { IntegracoesView } from "./integracoes-view";
 // ter que abrir ficha por ficha.
 export default async function IntegracoesPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ empresaId: string }>;
+  searchParams: Promise<{ empresas?: string }>;
 }) {
   const { empresaId } = await params;
-  await requireEmpresaAccess(empresaId);
+  const { empresas: empresasParam } = await searchParams;
+  const usuario = await requireEmpresaAccess(empresaId);
+
+  const visiveis = await empresasVisiveis(usuario);
+  // Mesma regra de filtro-empresas.tsx::useFiltroEmpresas: sem filtro na URL,
+  // tudo que o usuário enxerga; com filtro, a INTERSEÇÃO — id digitado à mão não
+  // vira acesso.
+  const pedidas = (empresasParam ?? "").split(",").filter(Boolean);
+  const escopo = pedidas.length === 0 ? visiveis : pedidas.filter((id) => visiveis.includes(id));
 
   const itens = await prisma.checklistIntegracao.findMany({
-    where: { empresaId, colaborador: { ativo: true } },
+    where: { empresaId: { in: escopo }, colaborador: { ativo: true } },
     orderBy: [{ concluido: "asc" }, { prazo: "asc" }],
     select: {
       id: true,
@@ -24,7 +34,15 @@ export default async function IntegracoesPage({
       prazo: true,
       concluido: true,
       colaboradorId: true,
-      colaborador: { select: { nome: true, dataAdmissao: true, setor: { select: { nome: true } } } },
+      empresaId: true,
+      colaborador: {
+        select: {
+          nome: true,
+          dataAdmissao: true,
+          setor: { select: { nome: true } },
+          empresa: { select: { nome: true } },
+        },
+      },
     },
   });
 
@@ -35,6 +53,8 @@ export default async function IntegracoesPage({
     {
       colaboradorId: string;
       nome: string;
+      empresaId: string;
+      empresaNome: string;
       setorNome: string;
       dataAdmissao: Date | null;
       total: number;
@@ -49,6 +69,8 @@ export default async function IntegracoesPage({
     const atual = porPessoa.get(i.colaboradorId) ?? {
       colaboradorId: i.colaboradorId,
       nome: i.colaborador.nome,
+      empresaId: i.empresaId,
+      empresaNome: i.colaborador.empresa.nome,
       setorNome: i.colaborador.setor.nome,
       dataAdmissao: i.colaborador.dataAdmissao,
       total: 0,
@@ -79,5 +101,5 @@ export default async function IntegracoesPage({
 
   const concluidas = [...porPessoa.values()].filter((p) => p.concluidos === p.total).length;
 
-  return <IntegracoesView empresaId={empresaId} emAberto={lista} concluidas={concluidas} />;
+  return <IntegracoesView emAberto={lista} concluidas={concluidas} />;
 }

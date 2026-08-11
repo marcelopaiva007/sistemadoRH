@@ -21,11 +21,11 @@ Stack: Next.js 16 (App Router) · React 19 · Prisma 7 + PostgreSQL · NextAuth 
 > bonificação de vendas). Esse módulo foi removido em 23/07/2026 e o app passou
 > a ser exclusivamente o Sistema do RH. Em 25/07/2026 o último vínculo com o
 > lm-bonificacao — a tabela de login `shared.User`, que as duas aplicações
-> dividiam — foi desfeito: o RH passou a ter o seu próprio `rh.User`. Os dois
-> apps ainda moram no mesmo banco Neon, mas em schemas separados, e **nenhum
-> objeto do schema `rh` referencia objeto de fora dele**. Como o cadastro de
-> usuários nasceu de uma cópia, criar usuário ou trocar senha aqui não muda
-> nada no outro sistema — e vice-versa.
+> dividiam — foi desfeito: o RH passou a ter o seu próprio `rh.User`. Em
+> 01/08/2026 o banco também foi separado de vez: o RH migrou para um projeto
+> Neon **dedicado** (`SOFTrh`, São Paulo), sem nenhuma tabela, schema ou
+> `_prisma_migrations` em comum com `lm-bonificacao`/`vapt`/`shared`. O banco
+> antigo (compartilhado) continua intacto, sem uso, como rollback.
 
 ## Rodando local
 
@@ -38,29 +38,72 @@ npm run dev
 
 Abra http://localhost:3000 — a raiz redireciona para `/login`.
 
+### Qualidade antes de commitar
+
+`npm install` já configura um hook de pre-commit (husky + lint-staged): todo
+`git commit` roda `eslint --fix` nos `.ts`/`.tsx` staged e `prettier --write`
+em `.json`/`.md`/`.css` staged, automaticamente. Scripts relacionados:
+
+| Script                      | O que faz                                                                                                                       |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run type-check`        | `tsc --noEmit` — não faz parte do `build` (ver AGENTS.md sobre `exactOptionalPropertyTypes`), mas vale rodar antes de PR grande |
+| `npm run lint` / `lint:fix` | ESLint, com ou sem autofix                                                                                                      |
+| `npm run format`            | Prettier no projeto inteiro                                                                                                     |
+
+### CI
+
+`.github/workflows/ci.yml` roda em todo push/PR pro `master`: sobe um
+Postgres descartável, aplica as migrations do zero (`prisma migrate deploy`),
+depois `type-check` → `lint` → `build`. Não faz deploy — a integração
+nativa Vercel↔GitHub já builda e publica a cada push no `master`
+independente do Actions; o CI só é o sinal vermelho/verde de que aquele
+push está num estado buildável antes/depois da Vercel fazer o dela.
+
+`.github/dependabot.yml` abre PR semanal (segunda) pra dependências npm e
+pras próprias Actions, ignorando major de `next`/`react`/`react-dom`/`prisma`
+(essas exigem teste manual, não é pra virar PR automático).
+
+## Banco de Dados
+
+O build falha se `DATABASE_URL` não estiver configurada. Escolha uma opção:
+
+| Ambiente            | Opção         | Como                                             | Quando                                          |
+| ------------------- | ------------- | ------------------------------------------------ | ----------------------------------------------- |
+| **Desenvolvimento** | Neon dev      | Criar projeto Neon `sistemado_rh-db`; copiar URL | Recomendado                                     |
+| **Desenvolvimento** | Docker local  | `docker run ... postgres:15`                     | Sem acesso à internet                           |
+| **Testes**          | SQLite        | `file:./prisma/dev.db`                           | Build/validação rápida (não roda `npm run dev`) |
+| **Produção**        | Neon `SOFTrh` | Vercel Settings → Environment Variables          | CI/CD na Vercel                                 |
+
+1. Copie `.env.example` → `.env` e escolha UMA opção acima
+2. Execute: `npm run db:migrate && npm run dev`
+
+**Se o build falhar com "variáveis faltando"**, o script `scripts/validate-env.js` lista todos os valores esperados.
+
+Documentação completa: `sistemadorh-banco-ambientes.md` (no projeto).
+
 ## Variáveis de ambiente
 
-| Variável | Para quê |
-|---|---|
-| `DATABASE_URL` | Postgres (Prisma) |
-| `AUTH_SECRET` | assinatura de sessão do NextAuth v5. **Precisa ser diferente do valor usado pelo lm-bonificacao** — dois apps com o mesmo segredo aceitam o token de sessão um do outro (ver "Separação do lm-bonificacao") |
-| `NEXT_PUBLIC_APP_URL` | URL pública — monta o link do convite (`/responder/<token>`) |
-| `TELEGRAM_BOT_TOKEN` | canal preferido de convite + webhook que vincula o `chat_id` do colaborador |
-| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `EMAIL_FROM` | fallback de convite por e-mail (Resend) |
-| `CRON_SECRET` | protege `/api/cron/enviar-convites` |
-| `ANTHROPIC_API_KEY` | **opcional** — liga o Assistente de RH. Sem ela o recurso fica desligado e a tela avisa; nada quebra e nada é cobrado |
-| `SEED_*` | usuários/senhas fixos no seed (opcional; sem eles o seed gera senha aleatória) |
+| Variável                                                             | Para quê                                                                                                                                                                                                                              |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                                                       | Postgres (Prisma)                                                                                                                                                                                                                     |
+| `AUTH_SECRET`                                                        | assinatura de sessão do NextAuth v5. **Precisa ser diferente do valor usado pelo lm-bonificacao** — dois apps com o mesmo segredo aceitam o token de sessão um do outro (ver "Separação do lm-bonificacao")                           |
+| `NEXT_PUBLIC_APP_URL`                                                | URL pública — monta o link do convite (`/responder/<token>`)                                                                                                                                                                          |
+| `TELEGRAM_BOT_TOKEN`                                                 | **opcional** — canal preferido de convite + webhook que vincula o `chat_id` do colaborador. Também dá para cadastrar pela tela **Canais de envio** (`/rh/[empresaId]/canais`); a variável tem preferência sobre o que estiver gravado |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `EMAIL_FROM` | **opcional** — fallback de convite por e-mail. Mesma regra do Telegram: dá pra cadastrar pela tela **Canais de envio**, com a variável tendo preferência                                                                              |
+| `CRON_SECRET`                                                        | protege `/api/cron/enviar-convites`                                                                                                                                                                                                   |
+| `ANTHROPIC_API_KEY`                                                  | **opcional** — liga o Assistente de RH. Também dá para cadastrar a chave pela própria tela do assistente; a variável tem preferência sobre o que estiver gravado                                                                      |
+| `SEED_*`                                                             | usuários/senhas fixos no seed (opcional; sem eles o seed gera senha aleatória)                                                                                                                                                        |
 
 ## Separação do lm-bonificacao
 
 Em 25/07/2026 o Sistema do RH foi desacoplado do lm-bonificacao. O que mudou:
 
-| Antes | Agora |
-|---|---|
+| Antes                                                | Agora                                                       |
+| ---------------------------------------------------- | ----------------------------------------------------------- |
 | Login na tabela `shared.User`, a mesma dos dois apps | `rh.User`, própria deste app (cadastro nasceu de uma cópia) |
-| FK `rh.Pesquisa.criadoPorId → shared.User` | FK para `rh.User` — nenhuma referência sai do schema `rh` |
-| `datasource schemas = ["shared", "rh"]` | `["rh"]` — este app não enxerga mais schema de outro app |
-| Mesmo `AUTH_SECRET` nos dois | segredos distintos |
+| FK `rh.Pesquisa.criadoPorId → shared.User`           | FK para `rh.User` — nenhuma referência sai do schema `rh`   |
+| `datasource schemas = ["shared", "rh"]`              | `["rh"]` — este app não enxerga mais schema de outro app    |
+| Mesmo `AUTH_SECRET` nos dois                         | segredos distintos                                          |
 
 **O `AUTH_SECRET` importa tanto quanto a tabela.** Com o mesmo segredo, um token
 de sessão emitido por um app é aceito pelo outro — e, rodando os dois em
@@ -73,10 +116,10 @@ Consequência do cadastro separado: criar usuário ou trocar senha aqui não mud
 nada no lm-bonificacao, e vice-versa. As senhas do momento do corte continuam
 valendo nos dois (os hashes foram copiados), mas evoluem em separado.
 
-O que ainda é comum: o mesmo banco Neon (schemas distintos), a tabela
-`_prisma_migrations` (bookkeeping do Prisma, sem dado de negócio) e o bot do
-Telegram. Separar em bancos distintos, se um dia for preciso, é um
-`pg_dump --schema=rh` — não há mais nenhuma amarra de dados a desfazer.
+O que ainda é comum, mesmo após a separação do banco em 01/08/2026: só o bot
+do Telegram (mesmo `TELEGRAM_BOT_TOKEN`, usado tanto pro convite de pesquisa
+quanto pro portal do colaborador). Banco, schema e `_prisma_migrations` já são
+inteiramente próprios deste app.
 
 `npm run test:desacoplamento` confere tudo isso contra o banco.
 
@@ -85,14 +128,27 @@ Telegram. Separar em bancos distintos, se um dia for preciso, é um
 O sistema abre em `/rh`, onde se escolhe a empresa. Dentro dela, a navegação é
 um **menu lateral agrupado pelos 5 blocos do artefato de escopo** (Ciclo de
 vida · Departamento pessoal · Desempenho & desenvolvimento · Saúde & segurança
-· Gestão), mais um grupo **Configuração** no rodapé com o que se ajusta de vez
-em quando (Setores, Cargos, Auditoria).
+· Gestão), mais dois grupos no rodapé: **Configuração** (Visão geral —
+o hub `/rh/[empresaId]/configuracoes`, com um cartão de status por área —,
+Setores, Cargos, Marcas & CNPJs, Canais de envio, Lembretes, Tipos de
+benefício, Catálogos) e **Administração** (Importações, Auditoria, Papéis e
+permissões — ferramentas e leitura, não configuração).
 
 - **A tela inicial da empresa é a central de pendências** (`/rh/<empresa>`),
   não um dashboard: mostra o que exige ação hoje — CAT sem emitir, aprovações
   paradas, ASO/NR vencendo, EPI vencido, integração atrasada — e cada cartão
   leva para onde a coisa se resolve. Item com prazo legal aparece primeiro e
-  em vermelho.
+  em vermelho. São 17 situações (`lib/pendencias.ts`), cobertas por
+  `npm run smoke:pendencias`.
+- **Zero de pendência e zero de registro são coisas diferentes, e a tela
+  separa as duas.** "Nenhuma CAT em aberto" tanto pode ser a empresa em dia
+  quanto o módulo de acidentes nunca ter sido usado — significados opostos com
+  a mesma aparência. `modulosSemRegistro()` identifica o segundo caso e ele vai
+  para um bloco à parte, "sem base para avaliar", em vez de entrar na conta do
+  que está em dia. Em 04/08/2026 eram 10 a 12 das 17 situações em cada marca,
+  todas exibidas até então sob um "Tudo em dia" verde. O assistente recebe a
+  mesma informação, pelo mesmo motivo — ali a resposta sai em prosa afirmativa,
+  o que é pior.
 - **A empresa continua na URL** (`/rh/<empresaId>/...`). O seletor no topo da
   lateral troca de empresa mantendo a seção: quem está em Colaboradores da LM
   Telecom cai em Colaboradores da Centrysol. **Sub-rota é descartada de
@@ -101,11 +157,11 @@ em quando (Setores, Cargos, Auditoria).
 
 ## Papéis de acesso
 
-| Papel | Enxerga |
-|---|---|
-| `ADMIN` | tudo, todas as empresas, cadastro de usuários |
-| `DIRETORIA` | painéis e relatórios de RH |
-| `RH_MANAGER` | só a própria empresa (`empresaId`) |
+| Papel          | Enxerga                                                |
+| -------------- | ------------------------------------------------------ |
+| `ADMIN`        | tudo, todas as empresas, cadastro de usuários          |
+| `DIRETORIA`    | painéis e relatórios de RH                             |
+| `RH_MANAGER`   | só a própria empresa (`empresaId`)                     |
 | `GESTOR_SETOR` | só `/rh/meu-setor`, escopado a `empresaId` + `setorId` |
 
 ## Departamento Pessoal
@@ -127,7 +183,7 @@ em quando (Setores, Cargos, Auditoria).
   (12 meses após o aquisitivo — CLT art. 137). Fora do escopo: redução do
   direito por faltas injustificadas (art. 130).
 - **Ausências**: atestados, faltas, licenças e afastamentos, com anexo. Ausência
-  *abonada* não conta como falta no absenteísmo.
+  _abonada_ não conta como falta no absenteísmo.
 - **Aprovações** (`/rh/<empresa>/aprovacoes`): férias e ausências pendentes num
   lugar só. Aprovar férias revalida o saldo — entre o pedido e a decisão outro
   período pode ter consumido os dias.
@@ -196,10 +252,24 @@ completo fica para uma fase futura, se for necessário.
 
 `/rh/<empresa>/assistente` — pergunta em português sobre os dados da empresa.
 
-- **Precisa de `ANTHROPIC_API_KEY`.** Sem a variável o recurso fica desligado
-  e a tela avisa; nada quebra e nada é cobrado. Para ligar: criar a chave em
-  console.anthropic.com, adicionar nas variáveis do projeto na Vercel e
-  refazer o deploy. Nenhuma mudança de código é necessária.
+- **Ligar: o ADMIN cola a chave da Anthropic na própria tela.** Não precisa de
+  acesso à Vercel nem de deploy novo — o campo aparece em
+  `/rh/<empresa>/assistente` só para quem é ADMIN, porque quem grava a chave
+  passa a poder gastar na conta da Anthropic do grupo. A chave é testada
+  contra a API antes de gravar (chave errada ou revogada falha ali, não na
+  primeira pergunta) e vai para `rh.SegredoApp` cifrada em AES-256-GCM
+  (`lib/cripto.ts`), com a chave de cifra derivada do `AUTH_SECRET` — que vive
+  só no ambiente. Consequências que valem saber:
+  - Um dump do banco (o backup diário incluído) leva texto cifrado e nada mais.
+  - **Trocar o `AUTH_SECRET` torna a chave gravada ilegível** e ela precisa ser
+    cadastrada de novo. Não se perde nada de verdade: a credencial existe do
+    lado da Anthropic.
+  - A chave entra e não sai: nenhuma rota deste app devolve o valor. A tela
+    mostra só os quatro últimos dígitos, para dizer QUAL chave está valendo.
+  - A variável de ambiente `ANTHROPIC_API_KEY`, se existir, **tem preferência**
+    sobre o que estiver gravado — a tela avisa quando é o caso, para ninguém
+    cadastrar uma chave nova e ficar sem entender por que a antiga continua
+    valendo.
 - **O modelo não recebe acesso ao banco.** Ele escolhe entre as ferramentas de
   leitura em `lib/assistente/ferramentas.ts` e passa parâmetros simples. Três
   consequências que valem entender antes de mexer:
@@ -378,6 +448,22 @@ aba **Desligamento** só aparece na ficha quando há data de desligamento;
   pode diferir do `motivoDesligamento` formal na ficha; a auditoria registra
   que a entrevista foi feita, não o conteúdo (dado sensível de opinião).
 
+## Dashboard executivo
+
+`/rh/<empresa>/painel` ("Dashboard", primeiro item do grupo Gestão): a visão
+de grupo em curvas — evolução do quadro em 12 meses, admissões × desligamentos,
+colaboradores por setor (top 8 + "Outros"), faixa etária e custo de pessoal
+por setor (folha + benefícios, empilhado). KPIs no topo: ativos, turnover,
+tempo médio de casa e custo/mês.
+
+Consolidado pela marca e calculado pelas MESMAS funções puras de `lib/bi.ts`
+que alimentam a tela de Indicadores — nenhum número diverge entre as duas
+telas, só a forma muda (curvas × tabelas). As funções novas
+(`headcountMensal`, `distribuicaoFaixaEtaria`, `tempoMedioDeCasaAnos`) seguem
+o contrato do arquivo: puras, sem Prisma, testáveis sem banco. Cores dos
+gráficos validadas contra daltonismo/contraste (pares registrados em
+`painel-view.tsx`).
+
 ## Indicadores — BI inicial (Fase 2)
 
 `/rh/<empresa>/indicadores` — headcount, turnover, absenteísmo e custo de
@@ -388,7 +474,7 @@ pessoal, por setor. Fecha o último item do roadmap da Fase 2.
   (`npm run test:bi`).
 - **Turnover reconstrói o headcount do início do período** a partir do de
   agora: `headcountInicio = headcountFim − admissões do período + desligamentos
-  do período`. É uma aproximação (assume que ninguém foi reativado no meio do
+do período`. É uma aproximação (assume que ninguém foi reativado no meio do
   caminho) — não exige guardar uma foto de headcount por mês.
 - **Absenteísmo só conta falta NÃO abonada**, mesma regra da Fase 1, numa
   janela de 30 dias; a taxa é dias de falta ÷ (headcount do setor × ~22 dias
@@ -427,9 +513,70 @@ pessoal, por setor. Fecha o último item do roadmap da Fase 2.
 - **Valor não entra na auditoria.** Mesma regra do salário na ficha: a trilha
   registra que o benefício foi concedido/encerrado, nunca o valor.
 - Cobertura de dependente já existe como flag em `Dependente.planoSaude` (Fase
-  1) — o card de Benefícios só aponta a contagem, não duplica o dado.
+  1. — o card de Benefícios só aponta a contagem, não duplica o dado.
 - Telas: aba **Benefícios** na ficha do colaborador; `/beneficios` — panorama
   por tipo (quantas pessoas, custo mensal para a empresa e desconto em folha).
+- **Tipos de benefício são aditivos** (`/tipos-beneficio`, grupo
+  Configuração): o catálogo fixo de `lib/constants-beneficios.ts` (11 tipos)
+  continua valendo sempre; a tela só deixa a empresa somar tipos próprios
+  (ex.: "Auxílio-home-office") sem esperar deploy. `BeneficioColaborador.tipo`
+  continua `String` livre — aceita valor do catálogo fixo ou nome cadastrado
+  aqui; a validação do servidor (`concederBeneficio`) confere as duas fontes.
+
+## Branding por marca
+
+- **Logo**: upload de arquivo (PNG/JPG/SVG/WebP, até 2 MB, Vercel Blob
+  público) ou URL colada — no formulário de Marca (`/estrutura`). Arquivo tem
+  prioridade; sem arquivo, vale a URL.
+- **Cor primária**: campo opcional (`Marca.corPrimaria`, hex) no mesmo
+  formulário. Aplicada em `[empresaId]/layout.tsx` como override escopado da
+  variável CSS `--primary` — só no subtree de quem está numa empresa daquela
+  marca, mesmo mecanismo que o antigo modo escuro do tema usava (indireção
+  `--color-primary: var(--primary)`). Cor de texto sobre o botão calculada por
+  luminância (branco ou quase-preto), para uma marca não escolher uma cor
+  clara e deixar o texto ilegível.
+
+## Papéis e permissões
+
+`/papeis` (grupo Administração) documenta, **sem editar nada**, o que os 4
+papéis fixos (`ADMIN`, `DIRETORIA`, `RH_MANAGER`, `GESTOR_SETOR`) podem fazer
+hoje — direto de `lib/auth-guard.ts` e `lib/rh-auth-guard.ts`, com contagem
+de usuários ativos por papel. Achado registrado na própria tela: o código
+comenta a intenção de `DIRETORIA` ser "só consulta", mas nenhuma guarda hoje
+distingue `DIRETORIA` de `ADMIN` para escrita no módulo de RH — na prática
+os dois têm o mesmo acesso de edição (só o CRUD de Empresa/CNPJ fica
+exclusivo de `ADMIN`). Não há papéis customizáveis nem permissão granular —
+mudar isso é redesenho de autorização, não configuração.
+
+## Catálogos configuráveis
+
+`/rh/<empresa>/catalogos` (grupo Configuração) — mesma ideia aditiva dos
+"Tipos de benefício", generalizada para **9 taxonomias** que antes eram só
+constante fixa no código: dimensões GPTW, tipos de turno, competências de
+avaliação, status de meta, origens de candidato, tipos de acidente, tipos de
+EPI, motivos de entrega de EPI e tipos de movimentação.
+
+- **Um único modelo genérico** (`rh.CatalogoItem`, discriminado por
+  `categoria`) guarda os itens customizados de todas as 9 taxonomias — em vez
+  de nove tabelas quase idênticas. `lib/catalogos.ts` centraliza a mescla: os
+  itens fixos de cada `lib/constants-*.ts` **continuam valendo sempre**
+  (nunca somem, nem para quem não usa a tela); a empresa só soma itens
+  próprios, sem esperar deploy.
+- **Toda validação de servidor confere as duas fontes** — fixa e customizada
+  (`valoresValidosDoCatalogo`) — nunca só a lista fixa. Um valor cadastrado
+  pela tela e recusado pela action seria pior do que a tela não existir.
+- **Cor e validade são específicas de duas categorias**: tipo de turno carrega
+  cor (usada na grade de escalas) e tipo de EPI carrega validade em meses
+  (usada como sugestão ao lançar uma entrega) — as outras sete categorias são
+  só rótulo.
+- **Origem de candidato é a única cadastrável sem um formulário que a
+  consuma**: `Candidato.origem` é atribuído pelo próprio sistema conforme o
+  caminho de entrada (RH, público, indicação), nunca escolhido num dropdown —
+  por isso essa categoria existe no catálogo (para o RH pré-cadastrar nomes)
+  mas não aparece em nenhum `<select>`.
+- **Pausar, não excluir** — mesmo padrão dos demais catálogos aditivos: um
+  item customizado desativado some das telas novas mas continua legível em
+  registros antigos que já o usam.
 
 ## Reconhecimento (Fase 2)
 
@@ -460,6 +607,7 @@ atualizar, que é onde esse tipo de controle costuma apodrecer. Mesma lógica
 para `ExameOcupacional` (ASO/PCMSO), sem depender de requisito por função.
 
 Pontos que valem lembrar antes de mexer:
+
 - **A reciclagem mais recente vale, mesmo vencida uma anterior** — o motor pega
   sempre o certificado/exame de data mais recente por (colaborador, norma).
 - **Certificado de norma que a função não exige não conta para nada** — só os
@@ -478,7 +626,7 @@ ausências, documentos para baixar e os próprios dados cadastrais. Só consulta
 pedir férias e enviar atestado continuam passando pelo RH.
 
 **O login é o bot do Telegram.** O colaborador não tem usuário no sistema. Ele
-envia `/portal` ao bot e recebe, *só naquele chat*, um link de vida curta
+envia `/portal` ao bot e recebe, _só naquele chat_, um link de vida curta
 (`MINUTOS_VALIDADE_LINK`) e **uso único**; abrir o link queima o token e cria uma
 sessão em cookie de `HORAS_VALIDADE_SESSAO`. Para entrar é preciso controlar o
 Telegram já vinculado àquela pessoa — na prática, um segundo fator, e sem
@@ -506,13 +654,17 @@ Decisões de segurança que valem lembrar antes de mexer:
 
 - Canal preferido **Telegram** (quando o colaborador tem `telegramChatId`
   vinculado pelo webhook); **fallback e-mail**.
+- Token do bot e SMTP: variável de ambiente ou tela **Canais de envio**
+  (`/rh/[empresaId]/canais`, grupo "Configuração" do menu) — ADMIN/DIRETORIA
+  cadastram sem precisar de acesso à Vercel. Mesmo mecanismo cifrado da chave
+  do Assistente de RH (`lib/segredos.ts`); a variável de ambiente, quando
+  existe, sempre tem prioridade sobre o que foi cadastrado pela tela.
 - Teto global de **90 envios por dia-calendário de Brasília**
   (`LIMITE_DIARIO_ENVIOS` em `lib/constants-rh.ts`) — margem sob o limite do
   plano do provedor de e-mail.
-- O cron `/api/cron/enviar-convites` roda **1×/dia às 13:00 UTC (10:00 BRT)**
-  (ver `vercel.json`) e envia **por setor**: completa os setores menores
-  primeiro e usa o resto do orçamento para avançar num setor grande. Em poucos
-  dias toda a base é coberta sem estourar o limite.
+- `/api/cron/enviar-convites` envia **por setor**: completa os setores
+  menores primeiro e usa o resto do orçamento para avançar num setor grande.
+  Em poucos dias toda a base é coberta sem estourar o limite.
 - Convites `FAILED` **não** são retentados automaticamente — reenvio é manual
   na tela.
 - `/responder/[token]` é **público**: quem responde entra pelo token, sem login.
@@ -520,40 +672,69 @@ Decisões de segurança que valem lembrar antes de mexer:
   (`AMOSTRA_MINIMA_ANONIMATO`); em pesquisa anônima a `Resposta` nunca grava
   `colaboradorId`.
 
+## Horário dos lembretes
+
+Os 4 crons "de comunicação" — `alertas-rh`, `enviar-convites`,
+`lembrete-pesquisa`, `lembrete-portal` — têm horário configurável pela tela
+**Lembretes** (`/rh/[empresaId]/lembretes`, grupo "Configuração"), sem
+precisar de deploy. `backup-db` e `gestao-ciclo-pesquisas` ficam de fora de
+propósito: são operacionais/internos, não avisam ninguém.
+
+**Como funciona:** o `vercel.json` chama essas 4 rotas a cada 15 minutos
+(em vez do horário fixo de antes); cada rota consulta `ConfiguracaoLembrete`
+e só executa o trabalho de verdade se "agora" cair dentro de uma janela de
+±8 min de algum horário configurado (`lib/cron-horario.ts`). Sem nenhuma
+linha cadastrada para uma chave, vale o horário padrão embutido no código —
+o mesmo que já rodava fixo antes desta tabela existir.
+
+- **Disparo manual continua sem restrição de horário**: quem chama a rota com
+  `?secret=$CRON_SECRET` (teste/diagnóstico) roda na hora, ignorando a janela
+  configurada — só a chamada automática da Vercel Cron (header
+  `Authorization: Bearer`) respeita o horário.
+- **`lembrete-pesquisa` aceita mais de um horário** (hoje: 13:00 e 19:00,
+  editável independentemente) — os outros três normalmente têm um só.
+- Isso multiplica por ~16x a quantidade de invocações dessas 4 rotas por dia
+  (de ~6/dia total para ~384/dia) — inofensivo num plano Vercel Pro (cada
+  chamada fora da janela é um SELECT indexado e retorno imediato), mas exige
+  Pro ou superior; num plano Hobby a frequência de cron pode ser rejeitada no
+  deploy.
+
 ## Scripts
 
-| Comando | O que faz |
-|---|---|
-| `npm run diag:envios` | diagnóstico **read-only**: quanto do teto do dia já foi usado, o que falhou e por quê, quantos colaboradores estão sem contato |
-| `npm run test:ferias` | testes do motor de férias CLT e das datas de calendário (não toca o banco) |
-| `npm run test:portal` | testes do acesso ao portal (hash do token, uso único, expiração, CPF) — limpa o que cria |
-| `npx tsx scripts/portal-e2e.ts preparar\|alheio\|limpar` | colaborador descartável para conferir o portal no navegador sem tocar em dado de gente real |
-| `npm run smoke:dp` | fumaça do DP contra o banco real — ficha, anexo em bytea, férias, ausência e auditoria, **sempre em rollback** |
-| `npm run test:conformidade` | testes do motor de conformidade SST — reciclagem, vencimento, exame (não toca o banco) |
-| `npm run smoke:sst` | fumaça da conformidade contra o banco real — requisito, certificado, ASO, **sempre em rollback** |
-| `npm run smoke:movimentacoes` | fumaça de movimentações/organograma — líder, transferência com histórico, **sempre em rollback** |
-| `npm run smoke:beneficios` | fumaça de benefícios — conceder, custo no painel, encerrar, **sempre em rollback** |
-| `npm run test:reconhecimento` | testes de `anosCompletos` — tempo de casa e marcos redondos (não toca o banco) |
-| `npm run smoke:reconhecimento` | fumaça de reconhecimento — registro e duplicidade no mesmo ano, **sempre em rollback**, nenhuma mensagem enviada |
-| `npm run test:bi` | testes do BI inicial — headcount, turnover, absenteísmo, custo (não toca o banco) |
-| `npm run verificar:bi` | confere as consultas do BI contra o banco real — **read-only**, não escreve nada |
-| `npm run smoke:epi` | fumaça de EPIs — troca vencendo a antiga, assinatura, exclusão sem órfão, **sempre em rollback** |
-| `npm run smoke:cat` | fumaça de acidentes/CAT — vínculo com ausência, emissão de CAT, constraint de duplicidade, **sempre em rollback** |
-| `npm run test:escala` | testes do cálculo de semana (início na segunda, domingo não avança) — não toca o banco |
-| `npm run smoke:escala` | fumaça de escalas — upsert por dia, apagar, copiar semana sem sobrescrever, **sempre em rollback** |
-| `npm run smoke:offboarding` | fumaça de offboarding — checklist padrão, item personalizado, entrevista com constraint de unicidade, **sempre em rollback** |
-| `npm run smoke:avaliacao` | fumaça de avaliação de desempenho — gerar avaliações, nota final por média de competências, faixa do nine-box, avaliador extra e cascata, **sempre em rollback** |
-| `npm run smoke:metas` | fumaça de metas & PDI — meta individual/setor, constraint CHECK de alvo único, progresso/status, item de PDI, **sempre em rollback** |
-| `npm run smoke:treinamentos` | fumaça de treinamentos — catálogo com nome único, participação com constraint de duplicidade, ausência fora da matriz de competências, **sempre em rollback** |
-| `npm run smoke:ats` | fumaça do ATS — slug único, funil com histórico, inscrição repetida barrada, disponibilidade no banco de talentos, admissão ligando candidatura à ficha, **sempre em rollback** |
-| `npm run test:admissao` | testes das pendências da admissão — documento faltando, salário zero, documento extra (não toca o banco) |
-| `npm run smoke:onboarding` | fumaça da trilha de integração — responsável sugerido, item personalizado com prazo, concluir/reabrir, gerar duas vezes sem duplicar, **sempre em rollback** |
-| `npm run smoke:folha` | fumaça dos eventos variáveis — competência única por mês, recálculo preservando lançamento manual, falta abonada fora do desconto, fechamento, **sempre em rollback** |
-| `npm run verificar:assistente` | confere as ferramentas do assistente contra o banco real, inclusive o isolamento entre empresas — **read-only**, não escreve nada |
-| `npx tsx scripts/aplicar-migracao.ts <nome> [--dry]` | aplica um `migration.sql` à mão, em transação (ver "Notas sobre o banco") |
-| `npx tsx scripts/importar-colaboradores-elleven.ts [--dry]` | importa/atualiza colaboradores a partir das exportações do elleven (upsert idempotente por CPF → cód. elleven → nome) |
-| `npx tsx scripts/configurar-telegram-webhook.ts` | registra o webhook do bot do Telegram |
-| `npm run db:studio` | Prisma Studio |
+| Comando                                                     | O que faz                                                                                                                                                                       |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run diag:envios`                                       | diagnóstico **read-only**: quanto do teto do dia já foi usado, o que falhou e por quê, quantos colaboradores estão sem contato                                                  |
+| `npm run test:ferias`                                       | testes do motor de férias CLT e das datas de calendário (não toca o banco)                                                                                                      |
+| `npm run test:portal`                                       | testes do acesso ao portal (hash do token, uso único, expiração, CPF) — limpa o que cria                                                                                        |
+| `npx tsx scripts/portal-e2e.ts preparar\|alheio\|limpar`    | colaborador descartável para conferir o portal no navegador sem tocar em dado de gente real                                                                                     |
+| `npm run smoke:dp`                                          | fumaça do DP contra o banco real — ficha, anexo em bytea, férias, ausência e auditoria, **sempre em rollback**                                                                  |
+| `npm run test:conformidade`                                 | testes do motor de conformidade SST — reciclagem, vencimento, exame (não toca o banco)                                                                                          |
+| `npm run smoke:sst`                                         | fumaça da conformidade contra o banco real — requisito, certificado, ASO, **sempre em rollback**                                                                                |
+| `npm run smoke:movimentacoes`                               | fumaça de movimentações/organograma — líder, transferência com histórico, **sempre em rollback**                                                                                |
+| `npm run smoke:beneficios`                                  | fumaça de benefícios — conceder, custo no painel, encerrar, **sempre em rollback**                                                                                              |
+| `npm run test:reconhecimento`                               | testes de `anosCompletos` — tempo de casa e marcos redondos (não toca o banco)                                                                                                  |
+| `npm run smoke:reconhecimento`                              | fumaça de reconhecimento — registro e duplicidade no mesmo ano, **sempre em rollback**, nenhuma mensagem enviada                                                                |
+| `npm run test:bi`                                           | testes do BI inicial — headcount, turnover, absenteísmo, custo (não toca o banco)                                                                                               |
+| `npm run verificar:bi`                                      | confere as consultas do BI contra o banco real — **read-only**, não escreve nada                                                                                                |
+| `npm run smoke:epi`                                         | fumaça de EPIs — troca vencendo a antiga, assinatura, exclusão sem órfão, **sempre em rollback**                                                                                |
+| `npm run smoke:cat`                                         | fumaça de acidentes/CAT — vínculo com ausência, emissão de CAT, constraint de duplicidade, **sempre em rollback**                                                               |
+| `npm run test:escala`                                       | testes do cálculo de semana (início na segunda, domingo não avança) — não toca o banco                                                                                          |
+| `npm run smoke:escala`                                      | fumaça de escalas — upsert por dia, apagar, copiar semana sem sobrescrever, **sempre em rollback**                                                                              |
+| `npm run smoke:offboarding`                                 | fumaça de offboarding — checklist padrão, item personalizado, entrevista com constraint de unicidade, **sempre em rollback**                                                    |
+| `npm run smoke:avaliacao`                                   | fumaça de avaliação de desempenho — gerar avaliações, nota final por média de competências, faixa do nine-box, avaliador extra e cascata, **sempre em rollback**                |
+| `npm run smoke:metas`                                       | fumaça de metas & PDI — meta individual/setor, constraint CHECK de alvo único, progresso/status, item de PDI, **sempre em rollback**                                            |
+| `npm run smoke:treinamentos`                                | fumaça de treinamentos — catálogo com nome único, participação com constraint de duplicidade, ausência fora da matriz de competências, **sempre em rollback**                   |
+| `npm run smoke:ats`                                         | fumaça do ATS — slug único, funil com histórico, inscrição repetida barrada, disponibilidade no banco de talentos, admissão ligando candidatura à ficha, **sempre em rollback** |
+| `npm run test:admissao`                                     | testes das pendências da admissão — documento faltando, salário zero, documento extra (não toca o banco)                                                                        |
+| `npm run smoke:onboarding`                                  | fumaça da trilha de integração — responsável sugerido, item personalizado com prazo, concluir/reabrir, gerar duas vezes sem duplicar, **sempre em rollback**                    |
+| `npm run smoke:folha`                                       | fumaça dos eventos variáveis — competência única por mês, recálculo preservando lançamento manual, falta abonada fora do desconto, fechamento, **sempre em rollback**           |
+| `npm run smoke:pendencias`                                  | fumaça da tela inicial — contrato vencido que não some, hora extra somada por pessoa, atestado sem dupla contagem, total = soma das 17 chaves, **sempre em rollback**           |
+| `npm run verificar:assistente`                              | confere as ferramentas do assistente contra o banco real, inclusive o isolamento entre empresas — **read-only**, não escreve nada                                               |
+| `npx tsx scripts/aplicar-migracao.ts <nome> [--dry]`        | aplica um `migration.sql` à mão, em transação (ver "Notas sobre o banco")                                                                                                       |
+| `npm run check:migracoes`                                   | aplica no banco, via `prisma migrate deploy`, as migrations do repo que faltam — roda sozinho antes de todo `npm run build`; **não é read-only** desde 04/08/2026               |
+| `npx tsx scripts/importar-colaboradores-elleven.ts [--dry]` | importa/atualiza colaboradores a partir das exportações do elleven (upsert idempotente por CPF → cód. elleven → nome)                                                           |
+| `npx tsx scripts/configurar-telegram-webhook.ts`            | registra o webhook do bot do Telegram                                                                                                                                           |
+| `npm run db:studio`                                         | Prisma Studio                                                                                                                                                                   |
 
 ## Notas sobre o banco
 
@@ -562,14 +743,46 @@ Prisma (ver o cabeçalho de
 `prisma/migrations/20260721120000_sync_funcionario_contato_e_elleven_relatorio`).
 Ao rodar `prisma migrate` contra produção, confira o diff antes de aplicar.
 
-O banco Neon é compartilhado com outras aplicações do grupo, cada uma no seu
-schema: `rh` (este app), `bonificacao` (lm-bonificacao), `vapt` (painel de
-postos) e `shared` (o antigo login comum, hoje usado só pelo lm-bonificacao).
-**Este app enxerga apenas o schema `rh`** — é o que o `datasource` declara, e
-não há nenhuma FK saindo dele. Isso mantém a separação em bancos distintos a um
-`pg_dump --schema=rh` de distância, se um dia for preciso.
+**Desde 01/08/2026 o banco (`SOFTrh`, projeto Neon dedicado em São Paulo) não é
+mais compartilhado** com `lm-bonificacao`/`vapt`/`shared` — nem schema, nem a
+tabela `_prisma_migrations`. `npx prisma migrate deploy` volta a funcionar
+normalmente contra produção, sem risco de reaplicar migration de outro app
+(`npx prisma migrate status` confirma: banco em dia). O script manual continua
+disponível para o caso raro de precisar rodar um `migration.sql` fora do fluxo
+do Prisma:
+`npx tsx scripts/aplicar-migracao.ts <nome>` + `npx prisma migrate resolve --applied <nome>`.
 
-Aplicar migration aqui não usa `prisma migrate deploy`: os apps dividem a
-tabela `_prisma_migrations`, então o deploy tentaria reaplicar migrations dos
-outros. Use `npx tsx scripts/aplicar-migracao.ts <nome>` (roda em transação) e
-depois `npx prisma migrate resolve --applied <nome>`.
+Independente de como a migration é aplicada, é fácil esquecer o passo — e em
+30/07/2026 o código subiu sem a migration do pivô `UserEmpresa`: as telas
+responderam 404 e lista vazia, e passou-se o dia achando que o banco tinha
+zerado (não tinha). Por isso todo `npm run build` roda antes o
+`prisma/checar-migracoes.mjs`, que compara as pastas de `prisma/migrations/`
+com o que está registrado no banco e — desde 04/08/2026, agora que o banco é
+dedicado — **aplica com `prisma migrate deploy`** o que faltar, em vez de só
+barrar e pedir passo manual. Se ele não conseguir checar (sem `DATABASE_URL`,
+banco fora do ar), avisa e deixa passar — derrubar deploy por defeito da
+ferramenta foi o que fez a checagem ser desligada da primeira vez. No GitHub
+Actions ele se reconhece (`GITHUB_ACTIONS=true`) e se pula: o banco de CI é
+efêmero e vazio, e replayar o histórico inteiro nele não funciona (migrations
+de quando o banco era compartilhado, ver `.github/workflows/ci.yml`) — quem
+responde "o banco de produção está em dia?" é o build da Vercel, no deploy.
+
+O checador mora em `prisma/`, não em `scripts/`, porque o `.vercelignore` exclui
+`scripts` inteiro: qualquer coisa que o `build` execute e viva ali some no deploy
+com `Cannot find module`.
+
+## Vulnerabilidades de dependências
+
+`npm audit` em 01/08/2026 apontou 10 vulnerabilidades. Resolvidas 8: quatro por
+`npm audit fix` (todas em ferramenta de dev — CLI do Prisma e do shadcn, nunca
+rodam no app publicado) e o `sharp` (usado de verdade pelo `next/image`) via
+`overrides` no `package.json`, já que o Next carrega sua própria cópia interna
+e ignora o que está na raiz sem isso.
+
+Aceito como risco, sem fix disponível: o `postcss@8.4.31` que o próprio Next
+16.2.12 empacota dentro de `node_modules/next/node_modules/postcss` para o
+pipeline interno de CSS do build. As três falhas (XSS no stringify, leitura de
+arquivo via `sourceMappingURL`) exigem CSS malicioso passando por esse
+pipeline — que só processa o CSS do próprio repositório em tempo de build,
+nunca entrada de usuário em produção. Sem patch do Next disponível para essa
+versão; revisar de novo no próximo `npm audit` (ou ao atualizar o Next).

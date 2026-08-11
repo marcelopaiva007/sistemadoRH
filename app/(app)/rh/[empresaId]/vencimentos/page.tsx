@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
+import { empresasVisiveis, requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,18 +19,28 @@ import { Indicador } from "@/components/indicador";
 // lista de certificados.
 export default async function VencimentosPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ empresaId: string }>;
+  searchParams: Promise<{ empresas?: string }>;
 }) {
   const { empresaId } = await params;
-  await requireEmpresaAccess(empresaId);
+  const { empresas: empresasParam } = await searchParams;
+  const usuario = await requireEmpresaAccess(empresaId);
+
+  const visiveis = await empresasVisiveis(usuario);
+  // Mesma regra de `filtro-empresas.tsx::useFiltroEmpresas`: sem filtro na URL,
+  // tudo que o usuário enxerga; com filtro, a INTERSEÇÃO — id digitado à mão não
+  // vira acesso.
+  const pedidas = (empresasParam ?? "").split(",").filter(Boolean);
+  const escopo = pedidas.length === 0 ? visiveis : pedidas.filter((id) => visiveis.includes(id));
 
   const hoje = hojeUTC();
   const limite = somarDiasUTC(hoje, DIAS_ALERTA_VENCIMENTO);
 
   const [documentos, certificados, exames, epis] = await Promise.all([
     prisma.documentoColaborador.findMany({
-      where: { empresaId, validoAte: { not: null, lte: limite }, colaborador: { ativo: true } },
+      where: { empresaId: { in: escopo }, validoAte: { not: null, lte: limite }, colaborador: { ativo: true } },
       orderBy: { validoAte: "asc" },
       select: {
         id: true,
@@ -38,7 +48,8 @@ export default async function VencimentosPage({
         descricao: true,
         validoAte: true,
         colaboradorId: true,
-        colaborador: { select: { nome: true, setor: { select: { nome: true } } } },
+        empresaId: true,
+        colaborador: { select: { nome: true, setor: { select: { nome: true } }, empresa: { select: { nome: true } } } },
       },
     }),
     // Sem filtrar validoAte<=limite aqui: um certificado antigo vencido, já
@@ -46,7 +57,7 @@ export default async function VencimentosPage({
     // janela de alerta só é aplicado DEPOIS de achar o mais recente de cada
     // (colaborador, norma) — ver reduzirAoMaisRecente abaixo.
     prisma.certificadoNR.findMany({
-      where: { empresaId, validoAte: { not: null }, colaborador: { ativo: true } },
+      where: { empresaId: { in: escopo }, validoAte: { not: null }, colaborador: { ativo: true } },
       orderBy: { realizadoEm: "desc" },
       select: {
         id: true,
@@ -54,11 +65,12 @@ export default async function VencimentosPage({
         realizadoEm: true,
         validoAte: true,
         colaboradorId: true,
-        colaborador: { select: { nome: true, setor: { select: { nome: true } } } },
+        empresaId: true,
+        colaborador: { select: { nome: true, setor: { select: { nome: true } }, empresa: { select: { nome: true } } } },
       },
     }),
     prisma.exameOcupacional.findMany({
-      where: { empresaId, validoAte: { not: null }, tipo: { not: "DEMISSIONAL" }, colaborador: { ativo: true } },
+      where: { empresaId: { in: escopo }, validoAte: { not: null }, tipo: { not: "DEMISSIONAL" }, colaborador: { ativo: true } },
       orderBy: { realizadoEm: "desc" },
       select: {
         id: true,
@@ -66,13 +78,14 @@ export default async function VencimentosPage({
         realizadoEm: true,
         validoAte: true,
         colaboradorId: true,
-        colaborador: { select: { nome: true, setor: { select: { nome: true } } } },
+        empresaId: true,
+        colaborador: { select: { nome: true, setor: { select: { nome: true } }, empresa: { select: { nome: true } } } },
       },
     }),
     // Mesmo cuidado dos certificados: sem filtrar validoAte<=limite aqui, para
     // uma troca antiga já reposta não aparecer como vencida junto da nova.
     prisma.entregaEPI.findMany({
-      where: { empresaId, validoAte: { not: null }, colaborador: { ativo: true } },
+      where: { empresaId: { in: escopo }, validoAte: { not: null }, colaborador: { ativo: true } },
       orderBy: { dataEntrega: "desc" },
       select: {
         id: true,
@@ -80,7 +93,8 @@ export default async function VencimentosPage({
         dataEntrega: true,
         validoAte: true,
         colaboradorId: true,
-        colaborador: { select: { nome: true, setor: { select: { nome: true } } } },
+        empresaId: true,
+        colaborador: { select: { nome: true, setor: { select: { nome: true } }, empresa: { select: { nome: true } } } },
       },
     }),
   ]);
@@ -131,11 +145,11 @@ export default async function VencimentosPage({
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-5">
-        <Indicador rotulo="Documentos vencidos" valor={vencidos} alerta={vencidos > 0} />
+        <Indicador rotulo="Documentos vencidos" valor={vencidos} estado={vencidos > 0 ? "alerta" : "padrao"} />
         <Indicador rotulo="Documentos a vencer" valor={documentos.length - vencidos} />
-        <Indicador rotulo="Treinamentos NR" valor={certificadosVigentes.length} complemento={`${nrVencidos} vencido(s)`} alerta={nrVencidos > 0} />
-        <Indicador rotulo="ASO / PCMSO" valor={examesVigentes.length} complemento={`${asoVencidos} vencido(s)`} alerta={asoVencidos > 0} />
-        <Indicador rotulo="EPIs para trocar" valor={episVigentes.length} complemento={`${epiVencidos} vencido(s)`} alerta={epiVencidos > 0} />
+        <Indicador rotulo="Treinamentos NR" valor={certificadosVigentes.length} complemento={`${nrVencidos} vencido(s)`} estado={nrVencidos > 0 ? "alerta" : "padrao"} />
+        <Indicador rotulo="ASO / PCMSO" valor={examesVigentes.length} complemento={`${asoVencidos} vencido(s)`} estado={asoVencidos > 0 ? "alerta" : "padrao"} />
+        <Indicador rotulo="EPIs para trocar" valor={episVigentes.length} complemento={`${epiVencidos} vencido(s)`} estado={epiVencidos > 0 ? "alerta" : "padrao"} />
       </div>
 
       <Card>
@@ -154,6 +168,7 @@ export default async function VencimentosPage({
                 <TableHeader>
                   <TableRow>
                     <TableHead>Colaborador</TableHead>
+                    <TableHead>CNPJ</TableHead>
                     <TableHead>Setor</TableHead>
                     <TableHead>Documento</TableHead>
                     <TableHead>Validade</TableHead>
@@ -167,12 +182,13 @@ export default async function VencimentosPage({
                       <TableRow key={d.id}>
                         <TableCell>
                           <Link
-                            href={`/rh/${empresaId}/colaboradores/${d.colaboradorId}`}
+                            href={`/rh/${d.empresaId}/colaboradores/${d.colaboradorId}`}
                             className="font-medium hover:underline"
                           >
                             {d.colaborador.nome}
                           </Link>
                         </TableCell>
+                        <TableCell className="text-muted-foreground">{d.colaborador.empresa.nome}</TableCell>
                         <TableCell className="text-muted-foreground">{d.colaborador.setor.nome}</TableCell>
                         <TableCell>
                           {tipoDocumentoLabel(d.tipo)}
@@ -216,6 +232,7 @@ export default async function VencimentosPage({
                 <TableHeader>
                   <TableRow>
                     <TableHead>Colaborador</TableHead>
+                    <TableHead>CNPJ</TableHead>
                     <TableHead>Setor</TableHead>
                     <TableHead>Norma</TableHead>
                     <TableHead>Validade</TableHead>
@@ -229,12 +246,13 @@ export default async function VencimentosPage({
                       <TableRow key={c.id}>
                         <TableCell>
                           <Link
-                            href={`/rh/${empresaId}/colaboradores/${c.colaboradorId}`}
+                            href={`/rh/${c.empresaId}/colaboradores/${c.colaboradorId}`}
                             className="font-medium hover:underline"
                           >
                             {c.colaborador.nome}
                           </Link>
                         </TableCell>
+                        <TableCell className="text-muted-foreground">{c.colaborador.empresa.nome}</TableCell>
                         <TableCell className="text-muted-foreground">{c.colaborador.setor.nome}</TableCell>
                         <TableCell className="font-medium">{c.norma}</TableCell>
                         <TableCell className="tabular-nums">{formatarData(c.validoAte)}</TableCell>
@@ -271,6 +289,7 @@ export default async function VencimentosPage({
                 <TableHeader>
                   <TableRow>
                     <TableHead>Colaborador</TableHead>
+                    <TableHead>CNPJ</TableHead>
                     <TableHead>Setor</TableHead>
                     <TableHead>Tipo</TableHead>
                     <TableHead>Validade</TableHead>
@@ -284,12 +303,13 @@ export default async function VencimentosPage({
                       <TableRow key={e.id}>
                         <TableCell>
                           <Link
-                            href={`/rh/${empresaId}/colaboradores/${e.colaboradorId}`}
+                            href={`/rh/${e.empresaId}/colaboradores/${e.colaboradorId}`}
                             className="font-medium hover:underline"
                           >
                             {e.colaborador.nome}
                           </Link>
                         </TableCell>
+                        <TableCell className="text-muted-foreground">{e.colaborador.empresa.nome}</TableCell>
                         <TableCell className="text-muted-foreground">{e.colaborador.setor.nome}</TableCell>
                         <TableCell>{tipoExameLabel(e.tipo)}</TableCell>
                         <TableCell className="tabular-nums">{formatarData(e.validoAte)}</TableCell>
@@ -326,6 +346,7 @@ export default async function VencimentosPage({
                 <TableHeader>
                   <TableRow>
                     <TableHead>Colaborador</TableHead>
+                    <TableHead>CNPJ</TableHead>
                     <TableHead>Setor</TableHead>
                     <TableHead>EPI</TableHead>
                     <TableHead>Validade</TableHead>
@@ -339,12 +360,13 @@ export default async function VencimentosPage({
                       <TableRow key={e.id}>
                         <TableCell>
                           <Link
-                            href={`/rh/${empresaId}/colaboradores/${e.colaboradorId}`}
+                            href={`/rh/${e.empresaId}/colaboradores/${e.colaboradorId}`}
                             className="font-medium hover:underline"
                           >
                             {e.colaborador.nome}
                           </Link>
                         </TableCell>
+                        <TableCell className="text-muted-foreground">{e.colaborador.empresa.nome}</TableCell>
                         <TableCell className="text-muted-foreground">{e.colaborador.setor.nome}</TableCell>
                         <TableCell className="font-medium">{tipoEpiLabel(e.tipo)}</TableCell>
                         <TableCell className="tabular-nums">{formatarData(e.validoAte)}</TableCell>

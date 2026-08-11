@@ -7,10 +7,11 @@ import { ChevronLeft, ChevronRight, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { definirTurno, copiarSemana } from "@/lib/actions/rh-escala";
-import { TIPOS_TURNO, corDoTurno } from "@/lib/constants-escala";
+import type { OpcaoCatalogo } from "@/lib/catalogos";
 
 type Colaborador = { id: string; nome: string; setorNome: string };
 type Setor = { id: string; nome: string };
+const CINZA_PADRAO = "#cbd5e1";
 
 const NOMES_DIA = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 
@@ -30,6 +31,7 @@ export function EscalasView({
   setorSelecionado,
   colaboradores,
   turnoPorCelula,
+  turnosDisponiveis,
 }: {
   empresaId: string;
   inicioSemanaISO: string;
@@ -41,7 +43,10 @@ export function EscalasView({
   setorSelecionado: string;
   colaboradores: Colaborador[];
   turnoPorCelula: Record<string, string>;
+  turnosDisponiveis: OpcaoCatalogo[];
 }) {
+  const corDoTurno = (v: string | null) =>
+    (v && turnosDisponiveis.find((t) => t.value === v)?.cor) || CINZA_PADRAO;
   const router = useRouter();
   const searchParams = useSearchParams();
   const [pendente, iniciarTransicao] = useTransition();
@@ -125,9 +130,9 @@ export function EscalasView({
           <CardTitle className="text-base">Grade da semana</CardTitle>
           <CardDescription>
             <div className="flex flex-wrap gap-3">
-              {TIPOS_TURNO.map((t) => (
+              {turnosDisponiveis.map((t) => (
                 <span key={t.value} className="inline-flex items-center gap-1.5 text-xs">
-                  <span className="inline-block size-2.5 rounded-full" style={{ background: t.cor }} />
+                  <span className="inline-block size-2.5 rounded-full" style={{ background: t.cor || CINZA_PADRAO }} />
                   {t.label}
                 </span>
               ))}
@@ -179,7 +184,7 @@ export function EscalasView({
                                 }}
                               >
                                 <option value="">—</option>
-                                {TIPOS_TURNO.map((t) => (
+                                {turnosDisponiveis.map((t) => (
                                   <option key={t.value} value={t.value}>
                                     {t.label}
                                   </option>

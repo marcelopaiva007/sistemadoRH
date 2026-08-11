@@ -1,0 +1,79 @@
+#!/usr/bin/env node
+
+/**
+ * Valida variáveis de ambiente obrigatórias antes do build.
+ * Corre durante `npm run build` pra falhar claro se algo tá faltando.
+ *
+ * NÃO mover para scripts/: o .vercelignore exclui aquela pasta inteira do
+ * deploy (comentário lá explica o porquê — foi o que derrubou três deploys
+ * em 30/07/2026 com o checador de migrations, pelo mesmo motivo). Qualquer
+ * arquivo que `npm run build` execute tem que morar fora de scripts/.
+ */
+
+// Local, as variáveis moram no .env — e Node não o carrega sozinho. Sem isto
+// o validador rodava cego fora da Vercel e reprovava TODO build local, mesmo
+// com o .env completo do lado. Na Vercel o import falha (dotenv é
+// devDependency e pode nem estar lá) e seguimos com o process.env real, que é
+// o que interessa.
+//
+// .mjs e import() dinâmico, não require(): era .js com require() até
+// 04/08/2026, e isso reprovava o lint (@typescript-eslint/no-require-imports)
+// em toda PR baseada no master — inclusive as 7 do Dependabot, que não tinham
+// nada a ver com o problema. Mesmo padrão de prisma/checar-migracoes.mjs.
+if (!process.env.DATABASE_URL) {
+  try { await import('dotenv/config'); } catch { /* sem dotenv: segue o ambiente */ }
+}
+
+// NEXTAUTH_URL só é exigida onde a URL é fixa e conhecida: produção e local.
+// Em deploy de PREVIEW a URL nasce com o deploy (a Vercel entrega VERCEL_URL,
+// e o next-auth infere a partir dela), então cobrar a variável ali reprovava
+// TODO preview — foi o que manteve as 7 PRs do Dependabot vermelhas em
+// 04/08/2026, sem ter relação nenhuma com o conteúdo delas.
+const ehPreview = process.env.VERCEL_ENV === 'preview';
+
+const required = ['DATABASE_URL', 'AUTH_SECRET'];
+if (!ehPreview) required.push('NEXTAUTH_URL');
+
+const missing = required.filter(v => !process.env[v]);
+
+if (missing.length > 0) {
+  console.error('');
+  console.error('❌ ERRO: Variáveis de ambiente obrigatórias faltando:');
+  missing.forEach(v => console.error(`   - ${v}`));
+  console.error('');
+  console.error('📝 Solução:');
+  console.error('');
+  console.error('   Em PRODUÇÃO (Vercel):');
+  console.error('   1. Vercel Dashboard → Projeto → Settings → Environment Variables');
+  console.error('   2. Adicione:');
+  console.error('      - DATABASE_URL (do Neon SOFTrh)');
+  console.error('      - AUTH_SECRET (gerado: openssl rand -base64 32)');
+  console.error('      - NEXTAUTH_URL (URL da app)');
+  console.error('');
+  console.error('   Em DESENVOLVIMENTO (local):');
+  console.error('   1. Copie .env.example → .env');
+  console.error('   2. Escolha UMA opção de DATABASE_URL:');
+  console.error('      a) Neon dev: postgresql://...@ep-[ID].us-east-1.aws.neon.tech/...');
+  console.error('      b) Docker: postgresql://postgres:password@localhost:5432/sistemadorh?schema=rh');
+  console.error('      c) SQLite (testes só): file:./prisma/dev.db');
+  console.error('   3. Execute: npm run db:migrate');
+  console.error('');
+  console.error('📖 Documentação: README.md#banco-de-dados');
+  console.error('');
+  process.exit(1);
+}
+
+// Validação extra: DATABASE_URL deve ser URL válida (ou arquivo SQLite)
+const dbUrl = process.env.DATABASE_URL;
+const isPostgres = dbUrl.startsWith('postgresql://');
+const isSqlite = dbUrl.startsWith('file:');
+
+if (!isPostgres && !isSqlite) {
+  console.error('');
+  console.error('❌ ERRO: DATABASE_URL deve começar com postgresql:// ou file:');
+  console.error(`   Você passou: ${dbUrl.substring(0, 50)}...`);
+  console.error('');
+  process.exit(1);
+}
+
+console.log('✅ Variáveis de ambiente validadas');

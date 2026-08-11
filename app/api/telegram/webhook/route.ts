@@ -153,7 +153,7 @@ async function enviarLinkDoPortal(chatId: string): Promise<void> {
 }
 
 export async function POST(req: NextRequest) {
-  const secret = telegramWebhookSecret();
+  const secret = await telegramWebhookSecret();
   if (!secret || req.headers.get("x-telegram-bot-api-secret-token") !== secret) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

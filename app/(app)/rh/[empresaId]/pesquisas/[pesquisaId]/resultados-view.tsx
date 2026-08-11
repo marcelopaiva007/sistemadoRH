@@ -11,6 +11,15 @@ import {
   Tooltip,
 } from "recharts";
 import { participacaoPct } from "@/lib/pesquisa-numeros";
+import type { ResultadoEnps } from "@/lib/pesquisa-enps-resultado";
+
+const estiloTooltip = {
+  backgroundColor: "var(--card)",
+  borderColor: "var(--border)",
+  color: "var(--card-foreground)",
+  borderRadius: "var(--radius)",
+  boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+} as const;
 
 export function ResultadosView({
   totalRespostas,
@@ -18,12 +27,15 @@ export function ResultadosView({
   anonima,
   mediaPorDimensao,
   mediaPorSetor,
+  resultadoEnps,
 }: {
   totalRespostas: number;
   convites: number;
   anonima: boolean;
   mediaPorDimensao: { dimensao: string; media: number; respostas: number }[];
   mediaPorSetor: { setor: string; media: number; respostas: number }[];
+  /** Quando a pesquisa é P05-ENPS: score/zona já calculados (lib/pesquisa-enps-resultado.ts). Os gráficos genéricos de dimensão/setor não fazem sentido pra 1 pergunta de nota — este card substitui os dois. */
+  resultadoEnps?: ResultadoEnps | null;
 }) {
   return (
     <Card>
@@ -41,6 +53,22 @@ export function ResultadosView({
         )}
         {totalRespostas === 0 ? (
           <p className="text-sm text-muted-foreground">Ainda não há respostas.</p>
+        ) : resultadoEnps ? (
+          <div className="rounded-lg border p-6 text-center">
+            <p className="text-sm text-muted-foreground">eNPS</p>
+            <p className="text-5xl font-bold" style={{ color: resultadoEnps.zona?.cor }}>
+              {resultadoEnps.score}
+            </p>
+            {resultadoEnps.zona && (
+              <p className="mt-1 text-sm font-medium" style={{ color: resultadoEnps.zona.cor }}>
+                {resultadoEnps.zona.rotulo}
+              </p>
+            )}
+            <p className="mt-4 text-xs text-muted-foreground">
+              {resultadoEnps.promotores} promotor(es) · {resultadoEnps.neutros} neutro(s) · {resultadoEnps.detratores} detrator(es) —{" "}
+              {resultadoEnps.total} nota(s)
+            </p>
+          </div>
         ) : (
           <>
             <div className="h-72">
@@ -50,7 +78,7 @@ export function ResultadosView({
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                   <XAxis dataKey="dimensao" tick={{ fontSize: 12 }} />
                   <YAxis tick={{ fontSize: 12 }} />
-                  <Tooltip formatter={(v) => Number(v).toFixed(2)} />
+                  <Tooltip contentStyle={estiloTooltip} formatter={(v) => Number(v).toFixed(2)} />
                   <Bar dataKey="media" name="Média" fill="var(--chart-2)" radius={4} />
                 </BarChart>
               </ResponsiveContainer>
@@ -62,7 +90,7 @@ export function ResultadosView({
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                   <XAxis type="number" tick={{ fontSize: 12 }} />
                   <YAxis dataKey="setor" type="category" tick={{ fontSize: 12 }} width={100} />
-                  <Tooltip formatter={(v) => Number(v).toFixed(2)} />
+                  <Tooltip contentStyle={estiloTooltip} formatter={(v) => Number(v).toFixed(2)} />
                   <Bar dataKey="media" name="Média" fill="var(--chart-4)" radius={4} />
                 </BarChart>
               </ResponsiveContainer>

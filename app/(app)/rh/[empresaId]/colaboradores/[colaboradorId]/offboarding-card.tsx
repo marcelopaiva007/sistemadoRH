@@ -12,6 +12,8 @@ import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle }
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import {
   gerarChecklistPadrao,
+  dispensarChecklistDesligamento,
+  reverterDispensaChecklist,
   adicionarItemChecklist,
   alternarItemChecklist,
   excluirItemChecklist,
@@ -46,6 +48,9 @@ export function OffboardingCard({
   colaboradorId,
   dataDesligamento,
   motivoDesligamento,
+  checklistDispensado,
+  checklistDispensadoEm,
+  checklistDispensadoPorNome,
   checklist,
   entrevista,
 }: {
@@ -53,10 +58,15 @@ export function OffboardingCard({
   colaboradorId: string;
   dataDesligamento: Date | null;
   motivoDesligamento: string | null;
+  checklistDispensado: boolean;
+  checklistDispensadoEm: Date | null;
+  checklistDispensadoPorNome: string | null;
   checklist: ItemChecklist[];
   entrevista: Entrevista;
 }) {
   const [gerando, setGerando] = useState(false);
+  const [dispensando, setDispensando] = useState(false);
+  const [revertendo, setRevertendo] = useState(false);
   const [adicionando, setAdicionando] = useState(false);
 
   if (!dataDesligamento) {
@@ -106,20 +116,41 @@ export function OffboardingCard({
           </CardTitle>
           <CardAction>
             <div className="flex gap-2">
-              {checklist.length === 0 && (
-                <Button
-                  size="sm"
-                  disabled={gerando}
-                  onClick={async () => {
-                    setGerando(true);
-                    const r = await gerarChecklistPadrao(empresaId, colaboradorId);
-                    setGerando(false);
-                    if (r.ok) toast.success("Checklist gerado.");
-                    else toast.error(r.error);
-                  }}
-                >
-                  {gerando ? "Gerando..." : "Gerar checklist padrão"}
-                </Button>
+              {checklist.length === 0 && !checklistDispensado && (
+                <>
+                  <Button
+                    size="sm"
+                    disabled={gerando}
+                    onClick={async () => {
+                      setGerando(true);
+                      const r = await gerarChecklistPadrao(empresaId, colaboradorId);
+                      setGerando(false);
+                      if (r.ok) toast.success("Checklist gerado.");
+                      else toast.error(r.error);
+                    }}
+                  >
+                    {gerando ? "Gerando..." : "Gerar checklist padrão"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={dispensando || !motivoDesligamento}
+                    title={
+                      !motivoDesligamento
+                        ? "Preencha o motivo do desligamento na aba Ficha para poder dispensar."
+                        : "Para desligamento antigo, sem como cobrar devolução de crachá/notebook/EPI de quem já saiu. A entrevista de desligamento também sai das pendências."
+                    }
+                    onClick={async () => {
+                      setDispensando(true);
+                      const r = await dispensarChecklistDesligamento(empresaId, colaboradorId);
+                      setDispensando(false);
+                      if (r.ok) toast.success("Checklist dispensado.");
+                      else toast.error(r.error);
+                    }}
+                  >
+                    {dispensando ? "Dispensando..." : "Dispensar (desligamento antigo)"}
+                  </Button>
+                </>
               )}
               <Dialog open={adicionando} onOpenChange={setAdicionando}>
                 <DialogTrigger render={<Button size="sm" variant="outline" />}>
@@ -144,7 +175,29 @@ export function OffboardingCard({
           </CardAction>
         </CardHeader>
         <CardContent>
-          {checklist.length === 0 ? (
+          {checklistDispensado ? (
+            <div className="space-y-3 py-6 text-center">
+              <p className="text-sm text-muted-foreground">
+                Checklist e entrevista dispensados (desligamento antigo)
+                {checklistDispensadoEm && ` em ${formatarData(checklistDispensadoEm)}`}
+                {checklistDispensadoPorNome && ` por ${checklistDispensadoPorNome}`}.
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={revertendo}
+                onClick={async () => {
+                  setRevertendo(true);
+                  const r = await reverterDispensaChecklist(empresaId, colaboradorId);
+                  setRevertendo(false);
+                  if (r.ok) toast.success("Dispensa revertida.");
+                  else toast.error(r.error);
+                }}
+              >
+                {revertendo ? "Revertendo..." : "Reverter dispensa"}
+              </Button>
+            </div>
+          ) : checklist.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">
               Nenhum item no checklist ainda. Gere o checklist padrão para começar.
             </p>

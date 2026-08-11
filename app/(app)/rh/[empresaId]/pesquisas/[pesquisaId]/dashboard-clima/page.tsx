@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
+import { marcaDaEmpresa } from "@/lib/escopo-marca";
 import { CONVITES_NA_PESQUISA } from "@/lib/pesquisa-numeros";
 import { calcularClima, compararCiclos, extrairEvolucao, gerarAnaliseExecutiva, type RespostaPrisma } from "@/lib/clima";
 import { DashboardClimaView } from "./dashboard-clima-view";
@@ -14,7 +15,7 @@ export default async function DashboardClimaPage({
   await requireEmpresaAccess(empresaId);
 
   const pesquisa = await prisma.pesquisa.findFirst({
-    where: { id: pesquisaId, empresaId, modelo: "CLIMA" },
+    where: { id: pesquisaId, marcaId: await marcaDaEmpresa(empresaId), modelo: "CLIMA" },
     include: {
       empresa: { select: { nome: true } },
     },

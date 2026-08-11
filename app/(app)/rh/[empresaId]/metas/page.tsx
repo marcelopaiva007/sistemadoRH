@@ -1,5 +1,6 @@
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
+import { opcoesDoCatalogo } from "@/lib/catalogos";
 import { MetasView } from "./metas-view";
 
 // Metas por pessoa ou por setor, nunca as duas (constraint no banco). PDI é
@@ -13,7 +14,7 @@ export default async function MetasPage({
   const { empresaId } = await params;
   await requireEmpresaAccess(empresaId);
 
-  const [metas, colaboradores, setores] = await Promise.all([
+  const [metas, colaboradores, setores, statusDisponiveis] = await Promise.all([
     prisma.meta.findMany({
       where: { empresaId },
       orderBy: [{ dataFim: "asc" }],
@@ -39,7 +40,16 @@ export default async function MetasPage({
       orderBy: { nome: "asc" },
       select: { id: true, nome: true },
     }),
+    opcoesDoCatalogo(empresaId, "STATUS_META"),
   ]);
 
-  return <MetasView empresaId={empresaId} metas={metas} colaboradores={colaboradores} setores={setores} />;
+  return (
+    <MetasView
+      empresaId={empresaId}
+      metas={metas}
+      colaboradores={colaboradores}
+      setores={setores}
+      statusDisponiveis={statusDisponiveis}
+    />
+  );
 }

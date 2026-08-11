@@ -11,9 +11,10 @@ datasource db {
   // Este app usa APENAS o schema `rh` — inclusive o User. Até 25/07/2026 a
   // autenticação era a tabela `shared.User`, dividida com o lm-bonificacao;
   // hoje cada app tem a sua, e não existe mais nenhuma referência do RH a
-  // objeto de outro schema. Os schemas `bonificacao`, `shared` e `vapt`
-  // continuam no mesmo banco Neon, mas pertencem a outros apps e este aqui não
-  // os enxerga.
+  // objeto de outro schema. Desde 01/08/2026 o banco (`SOFTrh`) também é um
+  // projeto Neon dedicado — os schemas `bonificacao`, `shared` e `vapt` não
+  // existem mais aqui, moram no Neon dos outros apps (ver README, "Notas
+  // sobre o banco").
   schemas  = ["rh"]
 }
 
@@ -35,23 +36,28 @@ datasource db {
 // tabela — o cadastro nasceu de uma cópia, mas evolui separado (criar usuário
 // ou trocar senha aqui não muda nada no lm-bonificacao, e vice-versa).
 model User {
-  id               String    @id @default(cuid())
-  nome             String
-  username         String    @unique
-  passwordHash     String
-  role             String
-  ativo            Boolean   @default(true)
-  email            String?   @unique
-  telefone         String?
-  avatarUrl        String?
+  id                        String    @id @default(cuid())
+  nome                      String
+  username                  String    @unique
+  passwordHash              String
+  role                      String
+  ativo                     Boolean   @default(true)
+  email                     String?   @unique
+  telefone                  String?
+  avatarUrl                 String?
   // Definidos quando o usuário é criado via convite e ainda não aceitou:
   // `conviteExpiraEm` bloqueia o `aceitarConviteUsuario` se passou do prazo,
   // e `conviteTokenHash` guarda só o hash SHA-256 do token — o valor em claro
   // só volta na URL uma vez, no e-mail.
-  conviteExpiraEm  DateTime?
-  conviteTokenHash String?
-  ultimoAcessoEm   DateTime?
-  createdAt        DateTime  @default(now())
+  conviteExpiraEm           DateTime?
+  conviteTokenHash          String?
+  // "Esqueci minha senha" — mesmo padrão do convite: só o hash do token fica
+  // no banco, o valor em claro vai uma vez só no e-mail. Um token ativo por
+  // vez (pedir de novo invalida o anterior).
+  recuperacaoSenhaExpiraEm  DateTime?
+  recuperacaoSenhaTokenHash String?
+  ultimoAcessoEm            DateTime?
+  createdAt                 DateTime  @default(now())
 
   // Escopo do módulo de RH: preenchido apenas para RH_MANAGER (empresaId) e
   // GESTOR_SETOR (empresaId + setorId). ADMIN/DIRETORIA ficam nulos.
@@ -64,6 +70,8 @@ model User {
   // permanecem com este array vazio (papel é global). RH_MANAGER e
   // GESTOR_SETOR têm 1+ linhas, com exatamente uma marcada papelPrincipal.
   empresas         UserEmpresa[]
+  // Acesso concedido por marca inteira — ver o model UserMarca.
+  marcas           UserMarca[]
   pesquisasCriadas Pesquisa[]
 
   @@index([empresaId])
@@ -120,15 +128,50 @@ model UserEmpresa {
 // CNPJ porque é esse o vínculo empregatício, não à marca.
 
 model Marca {
+  id          String   @id @default(cuid())
+  nome        String   @unique
+  logoUrl     String?
+  // Hex "#RRGGBB", validado na action antes de gravar. Aplicado como override
+  // da variável CSS --primary no layout da empresa (server component) — só
+  // nesse subtree, não muda o tema global nem outras marcas. null = usa o
+  // azul padrão do tema.
+  corPrimaria String?
+  ativo       Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
+
+  empresas  Empresa[]
+  pesquisas Pesquisa[]
+  usuarios  UserMarca[]
+
+  @@schema("rh")
+}
+
+// Acesso concedido a uma MARCA inteira, em vez de CNPJ a CNPJ. O vínculo é
+// dinâmico de propósito: CNPJ novo cadastrado na marca entra no acesso sozinho,
+// que é o que "dê acesso à marca" significa para quem usa. Por isso mora numa
+// tabela própria e não como coluna opcional em UserEmpresa — ali empresaId é
+// obrigatório e a unicidade é (userId, empresaId), que não acomoda "a marca
+// toda" sem virar linha fantasma.
+//
+// A expansão marca -> empresas acontece no servidor a cada request
+// (empresasVisiveis, em lib/rh-auth-guard.ts), nunca no JWT: gravada no token,
+// a lista congelaria até o próximo login.
+model UserMarca {
   id        String   @id @default(cuid())
-  nome      String   @unique
-  logoUrl   String?
+  userId    String
+  marcaId   String
+  role      String // "RH_MANAGER" | "GESTOR_SETOR"
   ativo     Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
 
-  empresas Empresa[]
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  marca Marca @relation(fields: [marcaId], references: [id])
 
+  @@unique([userId, marcaId])
+  @@index([userId])
+  @@index([marcaId])
   @@schema("rh")
 }
 
@@ -153,14 +196,72 @@ model Empresa {
   cidade            String?
   uf                String?
 
-  marca         Marca         @relation(fields: [marcaId], references: [id])
-  setores       Setor[]
-  posicoes      Posicao[]
-  colaboradores Colaborador[]
-  pesquisas     Pesquisa[]
-  userEmpresas  UserEmpresa[]
+  marca          Marca           @relation(fields: [marcaId], references: [id])
+  setores                Setor[]
+  posicoes               Posicao[]
+  colaboradores          Colaborador[]
+  pesquisas              Pesquisa[]
+  userEmpresas           UserEmpresa[]
+  planosAcao             PlanoAcao[]
+  tiposBeneficio         TipoBeneficio[]
+  catalogoItens          CatalogoItem[]
+  ocorrenciasDisciplinares OcorrenciaDisciplinar[]
+  configuracaoPonto      ConfiguracaoPontoEmpresa?
 
   @@index([marcaId])
+  @@schema("rh")
+}
+
+// Catálogo genérico ADITIVO — mesmo raciocínio de TipoBeneficio, mas cobrindo
+// de uma vez os 9 catálogos fixos que o levantamento de 04/08/2026 confirmou
+// serem SÓ RÓTULO (nenhum código compara valor exato pra decidir
+// comportamento): dimensão GPTW, tipo de turno, competência, status de meta,
+// origem de candidato, tipo de acidente, tipo de EPI, motivo de entrega de
+// EPI, tipo de movimentação. `categoria` é o discriminador — ver
+// lib/catalogos.ts pra lista completa e os catálogos fixos de cada uma.
+//
+// Os DEMAIS catálogos fixos do sistema (status de pesquisa, tipo de
+// documento, etapa de funil, ...) FICAM DE FORA de propósito: têm código que
+// compara contra o value exato pra decidir fluxo (ex.: "CONTRATADO" cria
+// colaborador, "ADMISSIONAL" muda regra de vencimento) — deixar o RH
+// cadastrar um valor novo ali quebraria esse fluxo, porque nenhum código
+// saberia lidar com o valor desconhecido.
+//
+// `cor` e `validadeMeses` são opcionais e usados só por TIPO_TURNO e
+// TIPO_EPI respectivamente — os outros 7 catálogos deixam null.
+model CatalogoItem {
+  id            String   @id @default(cuid())
+  empresaId     String
+  empresa       Empresa  @relation(fields: [empresaId], references: [id])
+  categoria     String
+  nome          String
+  cor           String?
+  validadeMeses Int?
+  ativo         Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  @@unique([empresaId, categoria, nome])
+  @@index([empresaId, categoria])
+  @@schema("rh")
+}
+
+// Catálogo de benefícios ADITIVO: lib/constants-beneficios.ts continua tendo
+// os 11 tipos fixos que sempre existiram (VALE_TRANSPORTE, PLANO_SAUDE, ...) —
+// nenhum BeneficioColaborador antigo muda de significado. Esta tabela só
+// ACRESCENTA opções por empresa, pro RH cadastrar o que o catálogo fixo não
+// cobre (ex.: "Auxílio-home-office", específico de uma empresa) sem esperar
+// deploy. `BeneficioColaborador.tipo` continua String livre — aceita tanto um
+// value do catálogo fixo quanto o nome de uma linha daqui.
+model TipoBeneficio {
+  id        String   @id @default(cuid())
+  empresaId String
+  empresa   Empresa  @relation(fields: [empresaId], references: [id])
+  nome      String
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@unique([empresaId, nome])
+  @@index([empresaId])
   @@schema("rh")
 }
 
@@ -176,6 +277,7 @@ model Setor {
   metas         Meta[]
   vagas         Vaga[]
   userEmpresas  UserEmpresa[]
+  planosAcao    PlanoAcao[]
 
   @@unique([empresaId, nome])
   @@index([empresaId])
@@ -231,6 +333,12 @@ model Colaborador {
   supervisorId   String?
   supervisor     Colaborador?  @relation("SupervisorDoColaborador", fields: [supervisorId], references: [id], onDelete: SetNull)
   subordinados   Colaborador[] @relation("SupervisorDoColaborador")
+  // Quem avalia a equipe no ciclo de desempenho. É outra pergunta que a de
+  // cima: `supervisorId` diz a quem a pessoa reporta; aqui quem avalia é o
+  // gerente, que pode ter muito mais gente do que o organograma mostra — e em
+  // parte das empresas o organograma nem existe. Marcado pelo RH; o gerente
+  // monta a própria lista de avaliados pelo portal.
+  gerente        Boolean       @default(false)
   // Chat ID numérico do Telegram do colaborador, obtido manualmente (RH pede
   // pro colaborador dar /start no bot e lê o chat_id via Bot API getUpdates).
   // Sem isso, o convite da pesquisa não pode ser enviado automaticamente.
@@ -281,12 +389,30 @@ model Colaborador {
   // ---- Vínculo / contrato ----
   // dataAdmissao é a base do cálculo de períodos aquisitivos de férias
   // (lib/ferias.ts). Sem ela, o colaborador não entra no controle de férias.
-  dataAdmissao       DateTime?
-  dataDesligamento   DateTime?
-  motivoDesligamento String?
-  tipoContrato       String?
-  jornadaSemanal     Int?
-  salarioBase        Float?
+  dataAdmissao               DateTime?
+  dataDesligamento           DateTime?
+  motivoDesligamento         String?
+  // Desligamento anterior ao sistema, sem como cobrar devolução de crachá,
+  // notebook, EPI — nem entrevista de saída — de quem já saiu há tempo. A
+  // dispensa tira a pessoa das pendências de checklist E de entrevista
+  // (desligamentos/page.tsx) e exige motivo + data preenchidos
+  // (lib/actions/rh-offboarding.ts) — não é geração automática do checklist
+  // com os 11 itens marcados como conferidos, que registraria uma devolução
+  // que não aconteceu. Além do botão na ficha, corrigirDadosDesligamento
+  // dispensa sozinho ao confirmar data+motivo de quem entrou no sistema já
+  // desligado (dataDesligamento < createdAt) — regra do CEO em 07/08/2026.
+  checklistDispensado        Boolean   @default(false)
+  checklistDispensadoEm      DateTime?
+  checklistDispensadoPorId   String?
+  checklistDispensadoPorNome String?
+  tipoContrato               String?
+  // Fim do prazo, para os contratos que têm prazo (EXPERIENCIA, TEMPORARIO,
+  // ESTAGIO — ver CONTRATOS_POR_PRAZO em lib/constants-dp.ts). Deixar vencer
+  // sem ação transforma o contrato em indeterminado (CLT art. 445 e 451): é o
+  // vencimento mais caro do RH e era o único que o sistema não enxergava.
+  dataFimContrato            DateTime?
+  jornadaSemanal             Int?
+  salarioBase                Float?
 
   // Primeira entrada no portal do colaborador confirmada por CPF. O vínculo do
   // Telegram casa pelos últimos 8 dígitos do telefone importado do elleven —
@@ -304,6 +430,7 @@ model Colaborador {
   ausencias                Ausencia[]
   acessosPortal            PortalAcesso[]
   sessoesPortal            PortalSessao[]
+  mensagensPortal          MensagemPortal[]
   certificados             CertificadoNR[]
   exames                   ExameOcupacional[]
   movimentacoes            Movimentacao[]            @relation("MovimentacaoDoColaborador")
@@ -320,6 +447,10 @@ model Colaborador {
   metas                    Meta[]
   pdi                      PlanoDesenvolvimento[]
   participacoesTreinamento ParticipacaoTreinamento[]
+  ocorrenciasDisciplinares OcorrenciaDisciplinar[]
+  registrosPonto           RegistroPonto[]
+  tratamentosPonto         TratamentoPonto[]
+  bancosHoras              BancoHoras[]
 
   @@unique([empresaId, cpf])
   @@unique([telegramChatId])
@@ -327,7 +458,9 @@ model Colaborador {
   @@index([setorId])
   @@index([posicaoId])
   @@index([empresaId, dataAdmissao])
+  @@index([empresaId, dataFimContrato])
   @@index([supervisorId])
+  @@index([empresaId, gerente])
   @@schema("rh")
 }
 
@@ -386,6 +519,7 @@ model Arquivo {
   acidente                AcidenteTrabalho?
   participacaoTreinamento ParticipacaoTreinamento?
   curriculo               Candidato?
+  tratamentoPonto         TratamentoPonto?
 
   @@index([empresaId])
   @@schema("rh")
@@ -1248,6 +1382,45 @@ model EventoCandidatura {
   @@schema("rh")
 }
 
+// Módulo de Medidas Disciplinares e Ocorrências em desfavor do colaborador
+model OcorrenciaDisciplinar {
+  id                String   @id @default(cuid())
+  empresaId         String
+  colaboradorId     String
+  emitidoPorId      String?
+  emitidoPorNome    String?
+
+  // ADVERTENCIA_VERBAL | ADVERTENCIA_ESCRITA | SUSPENSAO | JUSTA_CAUSA |
+  // ABANDONO_EMPREGO | USO_INDEVIDO_EPI | DANO_PATRIMONIAL | RECUSA_EXAME
+  tipo              String
+  motivo            String
+  detalhes          String?
+  dataFato          DateTime
+
+  diasSuspensao     Int?
+  valorDesconto     Float?
+
+  // PENDENTE | ASSINADO | RECUSADO_COM_TESTEMUNHAS
+  statusAssinatura  String   @default("PENDENTE")
+  dataAssinatura    DateTime?
+
+  testemunha1Nome   String?
+  testemunha1Cpf    String?
+  testemunha2Nome   String?
+  testemunha2Cpf    String?
+
+  documentoUrl      String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  empresa     Empresa     @relation(fields: [empresaId], references: [id])
+  colaborador Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+
+  @@index([empresaId, tipo])
+  @@index([colaboradorId])
+  @@schema("rh")
+}
+
 // ------------------------------------------------------
 // PORTAL DO COLABORADOR — acesso sem senha
 // ------------------------------------------------------
@@ -1288,6 +1461,27 @@ model PortalSessao {
   ultimoAcessoEm DateTime    @default(now())
 
   @@index([colaboradorId, encerradaEm])
+  @@schema("rh")
+}
+
+// Mensagem que o colaborador manda ao RH pelo portal — dúvida, pedido,
+// aviso. O RH responde pela tela Mensagens e a resposta volta a aparecer no
+// portal da pessoa. respondidaPorNome é denormalizado (como Sinal.donoNome):
+// User não tem vínculo com Colaborador e o nome de quem respondeu precisa
+// sobreviver a usuário renomeado ou removido.
+model MensagemPortal {
+  id                String      @id @default(cuid())
+  colaboradorId     String
+  colaborador       Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  empresaId         String
+  mensagem          String
+  resposta          String?
+  respondidaEm      DateTime?
+  respondidaPorNome String?
+  createdAt         DateTime    @default(now())
+
+  @@index([empresaId, respondidaEm])
+  @@index([colaboradorId])
   @@schema("rh")
 }
 
@@ -1336,6 +1530,15 @@ model AuditLog {
 
 model Pesquisa {
   id          String    @id @default(cuid())
+  // A pesquisa é da MARCA, não do CNPJ: uma de clima é aplicada ao grupo
+  // inteiro, e qual CNPJ assina a carteira de quem responde não muda nada para
+  // quem conduz. Enquanto o vínculo era só `empresaId`, uma pesquisa criada na
+  // RSM sumia para os outros quatro CNPJs da LM Telecom — sem avisar que estava
+  // escondendo — e criar "uma por CNPJ" enchia a lista de duplicatas.
+  marcaId     String
+  marca       Marca     @relation(fields: [marcaId], references: [id])
+  // Mantido: registra em qual CNPJ a pesquisa nasceu e ainda é lido por telas
+  // e relatórios antigos. Sai numa limpeza posterior, quando ninguém mais usar.
   empresaId   String
   empresa     Empresa   @relation(fields: [empresaId], references: [id])
   titulo      String
@@ -1353,12 +1556,153 @@ model Pesquisa {
   iniciadaEm  DateTime?
   encerradaEm DateTime?
 
-  perguntas Pergunta[]
-  tokens    SurveyToken[]
-  respostas Resposta[]
+  // Cache do resultado NR-01 (lib/nr01.ts, resultado.geral), preenchido só no
+  // instante em que a pesquisa vira FINISHED (lib/actions/pesquisas.ts). Uma
+  // pesquisa encerrada não recebe resposta nova — recalcular a cada visita de
+  // /relatorios era refazer sempre a mesma conta. Ambos nulos para pesquisa
+  // CLIMA (o modelo não tem esse índice) ou NR01 ainda ACTIVE/DRAFT.
+  nivelGeralCache  String?
+  indiceGeralCache Int?
 
+  perguntas  Pergunta[]
+  tokens     SurveyToken[]
+  respostas  Resposta[]
+  planosAcao PlanoAcao[]
+
+  // FORA DO PRISMA: índice único parcial Pesquisa_marcaId_titulo_key —
+  // UNIQUE (marcaId, titulo) WHERE status = 'DRAFT' (migração
+  // 20260802150000). Rede de segurança contra rascunho de ciclo duplicado:
+  // em 31/07/2026 uma execução do cron criou um "Pulso de Clima 2026 T3" por
+  // CNPJ e o RH apagou os excedentes à mão. Parcial de propósito: as
+  // campanhas permanentes por evento (P06-ONB30, P09-OFF) nascem ACTIVE com
+  // título fixo e são recriadas legitimamente com o mesmo título quando a
+  // anterior encerra — um UNIQUE cheio quebraria essa recriação. Não é
+  // @@unique porque o Prisma não representa índice parcial; o cron re-checa
+  // antes de criar (lib/pesquisa-ciclo.ts) e as ações de criação/renomeio
+  // traduzem a violação em mensagem amigável (lib/actions/pesquisas.ts).
+
+  // A listagem passou a filtrar por marca; o índice acompanha. O de empresaId
+  // fica enquanto as telas antigas ainda leem por CNPJ.
+  @@index([marcaId, status])
   @@index([empresaId, status])
   @@index([criadoPorId])
+  @@schema("rh")
+}
+
+// Ação corretiva rastreável nascida de uma pesquisa (RD-001 seed, fase 2 do
+// roadmap de 02/08/2026: catálogo de tipos + plano de ação). Hoje esse "plano"
+// é só texto estático dentro do PDF do NR-01 (`PLANO_ACAO_NR01`) — sem dono,
+// prazo nem status, então não dá pra saber se foi feito. Isto substitui esse
+// texto por registro de verdade.
+//
+// RACI do seed: quem ELABORA e EXECUTA é o gestor da área, quem APROVA é a
+// diretoria — por isso `responsavelId/Nome` segue o mesmo padrão solto de
+// `ChecklistDesligamento`/`EntrevistaDesligamento` (texto livre, não FK
+// obrigatória pra User: nem todo responsável de ação é usuário do sistema).
+//
+// "Vencido" (alerta AL09 do seed, meta `planos_acao_no_prazo_pct`) é
+// DERIVADO (`prazo < hoje && status not in [CONCLUIDO, CANCELADO]`), não um
+// status gravado — evita placar desatualizado se ninguém abrir a tela.
+model PlanoAcao {
+  id              String    @id @default(cuid())
+  empresaId       String
+  empresa         Empresa   @relation(fields: [empresaId], references: [id])
+  pesquisaId      String?
+  pesquisa        Pesquisa? @relation(fields: [pesquisaId], references: [id], onDelete: SetNull)
+  setorId         String?
+  setor           Setor?    @relation(fields: [setorId], references: [id], onDelete: SetNull)
+  // Vocabulário de dimensão varia por tipo de pesquisa (A-H no NR-01,
+  // dimensões GPTW no Clima) — texto livre, cada tipo do catálogo define o
+  // seu (ver lib/pesquisas-catalogo.ts), não uma FK fixa.
+  dimensaoCodigo  String?
+  titulo          String
+  descricao       String?
+  responsavelId   String?
+  responsavelNome String?
+  prazo           DateTime
+  status          String    @default("ABERTO") // ABERTO | EM_ANDAMENTO | CONCLUIDO | CANCELADO
+  concluidoEm     DateTime?
+  // Preenchido só em CANCELADO — por que a ação não vai mais acontecer.
+  motivoDecisao   String?
+  criadoPorId     String?
+  criadoPorNome   String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([empresaId, status])
+  @@index([pesquisaId])
+  @@index([setorId, status])
+  @@schema("rh")
+}
+
+// Central de Sinais: alerta COM ESTADO — dono, prazo e desfecho. Os detectores
+// (lib/alertas.ts, lib/anomalias.ts via lib/sinais-registro.ts) gravam aqui
+// 1×/dia pelo cron alertas-rh; a tela sinais/ é onde o humano responde com
+// "reconheci", "virou plano" ou "descartei, e o motivo é este".
+//
+// Referências SOFT de propósito (donoUserId/donoNome, planoAcaoId, unidadeId +
+// unidadeNome como snapshot), mesmo padrão de PlanoAcao.responsavel* e da
+// trilha de auditoria: um cargo/setor apagado dois anos depois não pode quebrar
+// o histórico de sinais nem reescrever o rótulo do que foi detectado.
+model Sinal {
+  id String @id @default(cuid())
+
+  // Qual detector falou: ANOMALIA_DESLIGAMENTO | PLANO_VENCIDO |
+  // DESLIGAMENTOS_CONCENTRADOS | TAXA_RESPOSTA_BAIXA (ver lib/sinais.ts).
+  tipo String
+
+  // Onde: grupo | marca | empresa | setor, com snapshot do nome.
+  nivelUnidade String
+  unidadeId    String
+  unidadeNome  String
+  // CNPJ para o recorte da tela (empresasVisiveis). Nulo em sinal de
+  // grupo/marca, que todo leitor da Central enxerga.
+  empresaId    String?
+
+  // Identidade da ocorrência — o cron atualiza a linha existente em vez de
+  // criar outra (lib/sinais.ts::decidirRegistro). Índice simples, NÃO unique:
+  // a mesma chave volta a existir quando um descarte envelhece.
+  chaveDedupe String
+
+  // A frase do cartão + observado × esperado como texto pronto — cada detector
+  // tem unidade própria (%, dias, pessoas) e a tela não reformata número.
+  titulo    String
+  observado String
+  esperado  String
+  // O que ficou fora da conta, no rodapé do cartão. Honestidade de dado.
+  recorte   String?
+
+  gravidade String // critica | alta | atencao
+  status    String @default("ABERTO") // ABERTO | RECONHECIDO | EM_PLANO | DESCARTADO | SILENCIADO
+
+  // Preenchido só em DESCARTADO — descartar sem motivo escrito não existe.
+  motivoDescarte String?
+
+  // Dono é escolha MANUAL entre os usuários do sistema (soft ref + snapshot).
+  donoUserId String?
+  donoNome   String?
+  prazo      DateTime?
+
+  // Plano criado a partir deste sinal (status EM_PLANO), soft ref.
+  planoAcaoId String?
+
+  // Até quando este sinal nasceu calado (2+ descartes seguidos na unidade).
+  silenciadoAte DateTime?
+
+  detectadoEm  DateTime @default(now())
+  // Última vez que o detector confirmou que a situação continua de pé.
+  confirmadoEm DateTime @default(now())
+  // Quando o status atual foi definido — é daqui que se conta a validade de um
+  // descarte (SILENCIO_DIAS em lib/sinais.ts).
+  statusEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  // "Essa ocorrência já existe?" — a pergunta do cron a cada candidato.
+  @@index([chaveDedupe])
+  // "O que está aberto, por gravidade?" — a pergunta da tela.
+  @@index([status, gravidade])
+  // "Quantas vezes essa unidade já descartou esse tipo?" — a regra de silêncio.
+  @@index([tipo, unidadeId])
   @@schema("rh")
 }
 
@@ -1464,3 +1808,318 @@ model RespostaItem {
   @@index([opcaoId])
   @@schema("rh")
 }
+
+// ---------------------------------------------------------------------------
+// Orçamento de e-mail
+//
+// Toda saída de e-mail do sistema passa por lib/email.ts e é registrada aqui —
+// convite de pesquisa, lembrete, campanha do portal, notificação de ciclo e
+// convite de usuário. Antes só os convites de pesquisa eram contados (via
+// SurveyToken), e os outros quatro caminhos gastavam cota invisivelmente: em
+// 28/07/2026 saíram 118+ e-mails num dia com teto de 100, porque a campanha do
+// portal disparou ~60 sem aparecer para o contador.
+//
+// A conta do Resend é COMPARTILHADA com o lm-bonificacao e o teto de 100/dia é
+// da conta, não da chave — por isso o orçamento aqui é deliberadamente menor.
+model EmailEnviado {
+  id        String   @id @default(cuid())
+  // Sempre normalizado (trim + minúsculas) para o dedupe não vazar por
+  // diferença de caixa.
+  para      String
+  assunto   String
+  // Chave de deduplicação do dia. Duas tentativas com a mesma chave no mesmo
+  // dia-calendário de Brasília só gastam cota uma vez — é o que impede o
+  // reenvio manual pela tela de duplicar o que o cron já mandou.
+  chave     String?
+  ok        Boolean
+  erro      String?
+  enviadoEm DateTime @default(now())
+
+  @@index([enviadoEm])
+  @@index([chave, enviadoEm])
+  @@schema("rh")
+}
+
+// Endereços que não devem mais receber nada. Bounce repetido queima cota todo
+// dia e derruba a reputação do domínio `envios.assinelm.com.br` — que é o mesmo
+// usado pelo lm-bonificacao.
+model EmailSuprimido {
+  email    String   @id
+  motivo   String
+  criadoEm DateTime @default(now())
+
+  @@schema("rh")
+}
+
+// Credenciais que o ADMIN cadastra pela tela, em vez de exigir acesso à Vercel
+// e um deploy novo a cada troca.
+//
+// `valor` é AES-256-GCM (lib/cripto.ts) com chave derivada do AUTH_SECRET —
+// que vive só no ambiente. Um dump do banco (o backup diário inclusive) leva
+// texto cifrado e nada mais. Em troca: TROCAR O AUTH_SECRET INVALIDA TUDO
+// AQUI, e a credencial precisa ser cadastrada de novo.
+//
+// `dica` guarda os últimos caracteres em claro, e só isso. A tela precisa
+// mostrar QUAL chave está gravada sem nunca devolver a chave — nenhuma rota
+// deste app lê `valor` para fora do servidor.
+model SegredoApp {
+  chave         String   @id
+  valor         String
+  dica          String
+  atualizadoEm  DateTime @default(now()) @updatedAt
+  atualizadoPor String?
+
+  @@schema("rh")
+}
+
+// Horário dos crons "de comunicação" (alertas-rh, enviar-convites,
+// lembrete-pesquisa, lembrete-portal) — não inclui backup-db nem
+// gestao-ciclo-pesquisas, que são operacionais/internos, não avisos ao RH.
+//
+// vercel.json chama essas rotas a cada 15 min; cada uma decide, via
+// lib/cron-horario.ts, se a chamada de agora cai dentro da janela de algum
+// horário configurado aqui. Sem linha para uma `chave`, vale o horário
+// padrão embutido no código (LEMBRETES_CONFIGURAVEIS) — o mesmo que já
+// rodava fixo no vercel.json antes desta tabela existir.
+//
+// Uma `chave` pode ter mais de uma linha (lembrete-pesquisa roda 2×/dia hoje,
+// 13h e 19h) — RH edita, adiciona ou remove horário por horário.
+model ConfiguracaoLembrete {
+  id            String   @id @default(cuid())
+  chave         String
+  horario       String // "HH:mm", horário de Brasília
+  ativo         Boolean  @default(true)
+  atualizadoEm  DateTime @default(now()) @updatedAt
+  atualizadoPor String?
+
+  @@unique([chave, horario])
+  @@index([chave])
+  @@schema("rh")
+}
+
+// Tentativas de login que falharam — base do limite de 5 em 15 min
+// (lib/login-tentativas.ts). Uma linha por falha, não um contador na linha do
+// User, por três motivos: o usuário digitado pode não existir (e aí não há
+// linha para incrementar, mas é exatamente o caso que mais interessa barrar);
+// a janela é deslizante, o que exige saber QUANDO cada falha aconteceu, não
+// só quantas foram; e um contador em `User` seria escrita concorrente na
+// mesma linha a cada tentativa — bom alvo de disputa justo no caminho quente.
+//
+// Não há relação com User de propósito: `username` aqui é o texto digitado,
+// não uma chave estrangeira. Ele é normalizado (minúsculas, sem espaço nas
+// pontas) antes de gravar, para "Marcelo " e "marcelo" caírem no mesmo balde.
+//
+// As linhas com mais de 24h são apagadas oportunisticamente a cada falha
+// nova — sem cron próprio, porque a tabela só cresce quando alguém erra a
+// senha e o volume não justifica mais uma rota agendada.
+model TentativaLogin {
+  id       String   @id @default(cuid())
+  username String
+  ip       String
+  criadoEm DateTime @default(now())
+
+  // A pergunta feita a cada login é "quantas falhas deste usuário, deste IP,
+  // nos últimos 15 minutos" — a forma exata deste índice.
+  @@index([username, ip, criadoEm])
+  // A faxina pergunta só pela idade, sem usuário nem IP.
+  @@index([criadoEm])
+  @@schema("rh")
+}
+
+// Foto mensal: o histórico que o sistema não tinha.
+//
+// Todo "últimos 12 meses" que o Painel desenha hoje é RECONSTRUÍDO a partir de
+// campos que o RH edita todo dia — lib/bi.ts::calcularTurnover deduz o
+// headcount do início do período de trás para frente, justamente porque não
+// existia snapshot. O efeito colateral é que o passado muda: corrigir três
+// datas de desligamento na semana que vem reescreve o pico de junho/2026, e o
+// cartão que a Diretoria viu na segunda não bate mais na sexta. Alerta que não
+// se reproduz custa mais confiança do que falso positivo.
+//
+// Esta tabela é a memória. Uma linha por (competência × CNPJ × setor × cargo),
+// GRAVADA UMA VEZ E NUNCA REESCRITA — a unicidade abaixo é o que torna o cron
+// idempotente: rodar duas vezes no mesmo mês não duplica nem sobrescreve
+// (lib/foto-mensal.ts usa `createMany({ skipDuplicates: true })`).
+//
+// REFERÊNCIAS SOFT (id + nome, sem @relation), o mesmo padrão da trilha de
+// auditoria deste schema: um snapshot que muda quando o RH renomeia um setor
+// ou apaga um cargo não é snapshot. O nome gravado aqui é o nome que aquele
+// setor tinha NAQUELE mês; o id serve para reagrupar quando ele ainda existe.
+// `marcaId`/`marcaNome` vêm junto pelo mesmo motivo — a tela filtra por marca
+// (lib/escopo-marca.ts) e um CNPJ que trocar de marca não pode reescrever a
+// série da marca antiga.
+//
+// Sobre dinheiro: `folhaSalarial` é `null`, NUNCA 0, quando ninguém do balde
+// tem salário cadastrado — 49 dos 215 ativos não têm (Centrysol, VAPT,
+// Mobility), e "R$ 0" ali seria mentira. `comSalario`/`semSalario` dizem de
+// quantas pessoas a soma foi feita, para a tela poder marcar "parcial".
+// PRIVACIDADE: num balde de 1 pessoa a folha É o salário dela — quem montar a
+// tela trata esta coluna como salário (Diretoria/RH), não como agregado.
+model FotoMensal {
+  id          String @id @default(cuid())
+  // "AAAA-MM" — o mês FECHADO a que a foto se refere, não o dia da captura.
+  competencia String
+
+  empresaId   String
+  empresaNome String
+  marcaId     String
+  marcaNome   String
+  setorId     String
+  setorNome   String
+  posicaoId   String
+  posicaoNome String
+
+  // Estoque: pessoas ativas no último dia da competência.
+  headcount     Int
+  // Fluxo do mês. Atribuídos ao setor/cargo/CNPJ que a pessoa tinha na hora da
+  // captura — o cadastro não guarda o setor de origem de uma movimentação.
+  admissoes     Int
+  desligamentos Int
+
+  // O que ficou de fora, gravado junto para nenhuma série nascer muda sobre o
+  // próprio buraco. `headcountSemDataAdmissao`: ativos que nunca entram em
+  // `admissoes` porque não têm data. `desligadosSemDataAcumulado`: desligados
+  // deste balde sem data de desligamento (137 desligados, 31 sem data no
+  // levantamento de 04/08/2026) — é SALDO ACUMULADO, não fluxo do mês; a
+  // mesma pessoa reaparece em toda competência seguinte. NUNCA SOME ESSA
+  // COLUNA AO LONGO DOS MESES: o nome é comprido de propósito.
+  headcountSemDataAdmissao   Int
+  desligadosSemDataAcumulado Int
+
+  folhaSalarial Float?
+  comSalario    Int
+  semSalario    Int
+
+  // Auditoria da própria foto: quando foi tirada e por qual versão do código.
+  // A distância entre `capturadoEm` e o fim da `competencia` é o que denuncia
+  // uma captura atrasada (cron que não rodou, recuperado à mão depois).
+  capturadoEm DateTime @default(now())
+  versaoApp   String
+
+  // O contrato de idempotência do cron. Todas as quatro colunas são NOT NULL
+  // de propósito: em Postgres, NULL não colide com NULL, e uma delas opcional
+  // transformaria a trava em sugestão.
+  @@unique([competencia, empresaId, setorId, posicaoId])
+  // "a série inteira do grupo neste mês" e "a série deste CNPJ ao longo do
+  // tempo" — as duas perguntas que a tela vai fazer.
+  @@index([competencia])
+  @@index([empresaId, competencia])
+  @@schema("rh")
+}
+
+// ---------------------------------------------------------------------------
+// PONTO ELETRÔNICO & GESTÃO DE JORNADA (REP-P / Portaria MTP 671/2021)
+// ---------------------------------------------------------------------------
+
+// Cadastro da escala / jornada contratual de trabalho
+model JornadaTrabalho {
+  id              String   @id @default(cuid())
+  empresaId       String
+  nome            String   // Ex: "Administrativo 08h às 18h", "Turno 12x36"
+  entrada1        String   // "08:00"
+  saida1          String   // "12:00"
+  entrada2        String?  // "13:00"
+  saida2          String?  // "17:00"
+  cargaDiariaMin  Int      @default(480) // Carga diária contratual em minutos (ex: 480 min = 8h)
+  toleranciaMin   Int      @default(10)  // Tolerância diária em minutos (Art. 58 § 1º CLT)
+  sabadoUtil      Boolean  @default(false)
+  domingoUtil     Boolean  @default(false)
+  ativo           Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([empresaId, ativo])
+  @@schema("rh")
+}
+
+// Registro inalterável da batida de ponto (REP-P / Append-Only Log)
+// Proibido UPDATE ou DELETE nas colunas de marcação original por exigência fiscal MTE.
+model RegistroPonto {
+  id               String      @id @default(cuid())
+  empresaId        String
+  colaboradorId    String
+  colaborador      Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  dataHora         DateTime    // Instante exato oficial (NTP/UTC-3)
+  tipo             String      // "ENTRADA_1" | "SAIDA_1" | "ENTRADA_2" | "SAIDA_2"
+  nsr              BigInt      // Número Sequencial de Registro (crescente por empresa)
+  ipOrigem         String?     // Endereço IP público do batimento
+  ipValido         Boolean     @default(true)
+  latitude         Float?      // Coordenada GPS
+  longitude        Float?      // Coordenada GPS
+  precisaoGps      Float?      // Precisão em metros
+  gpsValido        Boolean     @default(true)
+  fotoUrl          String?     // URL do Blob da foto tirada no momento (opcional)
+  hashSHA256       String      // Criptografia e integridade da marcação
+  dispositivoInfo  String?     // User-agent / Navegador / SO
+  createdAt        DateTime    @default(now())
+
+  tratamentos      TratamentoPonto[]
+
+  @@index([empresaId, dataHora])
+  @@index([colaboradorId, dataHora])
+  @@index([empresaId, nsr])
+  @@schema("rh")
+}
+
+// Tratamento de Inconsistências (PTRP - Programa de Tratamento de Registro de Ponto)
+model TratamentoPonto {
+  id               String         @id @default(cuid())
+  empresaId        String
+  colaboradorId    String
+  colaborador      Colaborador    @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  registroPontoId  String?
+  registroPonto    RegistroPonto? @relation(fields: [registroPontoId], references: [id], onDelete: SetNull)
+  dataFato         DateTime       // Dia a que se refere a ocorrência
+  tipo             String         // "INCLUSAO_MANUAL" | "ABONO" | "JUSTIFICATIVA_ATESTADO" | "DESCONTO"
+  motivo           String         // Texto justificando a alteração
+  arquivoId        String?        @unique
+  arquivo          Arquivo?       @relation(fields: [arquivoId], references: [id], onDelete: SetNull)
+  status           String         @default("PENDENTE") // "PENDENTE" | "APROVADO" | "REJEITADO"
+  aprovadoPorId    String?
+  aprovadoPorNome  String?
+  aprovadoEm       DateTime?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@index([empresaId, dataFato])
+  @@index([colaboradorId, dataFato])
+  @@schema("rh")
+}
+
+// Extrato & Saldo de Banco de Horas
+model BancoHoras {
+  id             String      @id @default(cuid())
+  empresaId      String
+  colaboradorId  String
+  colaborador    Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  competencia    String      // "AAAA-MM"
+  saldoAnterior  Int         @default(0) // Saldo acumulado em minutos
+  creditosMes    Int         @default(0) // Horas extras enviadas ao banco no mês (minutos)
+  debitosMes     Int         @default(0) // Faltas/atrasos/folgas compensadas no mês (minutos)
+  saldoAtual     Int         @default(0) // Saldo final do mês (minutos)
+  expiraEm       DateTime?   // Prazo limite para compensação (6 a 12 meses)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@unique([colaboradorId, competencia])
+  @@index([empresaId, competencia])
+  @@schema("rh")
+}
+
+// Configurações de Trava de Ponto da Empresa (IP, GPS, Cercos)
+model ConfiguracaoPontoEmpresa {
+  id                String   @id @default(cuid())
+  empresaId         String   @unique
+  empresa           Empresa  @relation(fields: [empresaId], references: [id])
+  ipsAutorizados    String?  // Lista de IPs públicos separados por vírgula
+  exigirIp          Boolean  @default(false)
+  latitudeEmpresa   Float?   // Latitude da sede/unidade
+  longitudeEmpresa  Float?   // Longitude da sede/unidade
+  raioPermitidoMtrs Int      @default(200) // Raio do cerco em metros
+  exigirGps         Boolean  @default(true)
+  exigirFoto        Boolean  @default(false)
+  updatedAt         DateTime @updatedAt
+
+  @@schema("rh")
+}
+

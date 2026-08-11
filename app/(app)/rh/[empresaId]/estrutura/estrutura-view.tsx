@@ -37,6 +37,7 @@ type Marca = {
   id: string;
   nome: string;
   logoUrl: string | null;
+  corPrimaria: string | null;
   ativo: boolean;
   empresas: Empresa[];
 };
@@ -301,8 +302,45 @@ function MarcaForm({ marca, onSuccess }: { marca?: Marca; onSuccess: () => void 
         <Input id="nome" name="nome" defaultValue={marca?.nome} required autoFocus />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="logoUrl">Endereço do logo (opcional)</Label>
+        <Label htmlFor="logoArquivo">Logo (opcional)</Label>
+        <Input
+          id="logoArquivo"
+          name="logoArquivo"
+          type="file"
+          accept="image/png,image/jpeg,image/svg+xml,image/webp"
+        />
+        <p className="text-xs text-muted-foreground">
+          PNG, JPG, SVG ou WebP até 2 MB. O arquivo enviado substitui o endereço abaixo.
+        </p>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="logoUrl">Ou endereço do logo</Label>
         <Input id="logoUrl" name="logoUrl" defaultValue={marca?.logoUrl ?? ""} placeholder="https://..." />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="corPrimaria">Cor da marca (opcional)</Label>
+        <div className="flex items-center gap-2">
+          <input
+            id="corPrimariaSeletor"
+            type="color"
+            defaultValue={marca?.corPrimaria ?? "#2563eb"}
+            onChange={e => {
+              const campo = document.getElementById("corPrimaria") as HTMLInputElement | null;
+              if (campo) campo.value = e.target.value.toUpperCase();
+            }}
+            className="h-9 w-12 cursor-pointer rounded border border-input bg-transparent p-0.5"
+          />
+          <Input
+            id="corPrimaria"
+            name="corPrimaria"
+            defaultValue={marca?.corPrimaria ?? ""}
+            placeholder="#2563EB — em branco usa o azul padrão"
+            className="flex-1"
+          />
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Substitui a cor de destaque (botões, links) só para quem está numa empresa desta marca.
+        </p>
       </div>
       {marca && (
         <label className="flex items-center gap-2 text-sm">
@@ -400,15 +438,6 @@ function EmpresaForm({
       <div className="space-y-2">
         <Label htmlFor="nomeFantasia">Nome fantasia</Label>
         <Input id="nomeFantasia" name="nomeFantasia" defaultValue={empresa?.nomeFantasia ?? ""} />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="inscricaoEstadual">Inscrição estadual</Label>
-        <Input
-          id="inscricaoEstadual"
-          name="inscricaoEstadual"
-          defaultValue={empresa?.inscricaoEstadual ?? ""}
-          placeholder="Isento, se for o caso"
-        />
       </div>
 
       <div className="grid grid-cols-3 gap-4">

@@ -5,10 +5,9 @@ import { prisma } from "@/lib/prisma";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { registrarAuditoria } from "@/lib/audit";
 import { dataDoFormulario, formatarData } from "@/lib/datas";
-import { TIPOS_TURNO, tipoTurnoLabel } from "@/lib/constants-escala";
+import { tipoTurnoLabel } from "@/lib/constants-escala";
+import { valoresValidosDoCatalogo } from "@/lib/catalogos";
 import type { ActionResult } from "@/lib/constants";
-
-const TURNOS_VALIDOS = new Set<string>(TIPOS_TURNO.map((t) => t.value));
 
 /**
  * Define (ou apaga, se turno vier vazio) o turno de um colaborador num dia.
@@ -38,7 +37,8 @@ export async function definirTurno(
     return { ok: true };
   }
 
-  if (!TURNOS_VALIDOS.has(turno)) return { ok: false, error: "Turno inválido." };
+  const turnosValidos = await valoresValidosDoCatalogo(empresaId, "TIPO_TURNO");
+  if (!turnosValidos.has(turno)) return { ok: false, error: "Turno inválido." };
 
   await prisma.escalaTurno.upsert({
     where: { colaboradorId_data: { colaboradorId, data } },

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Check, X, FileText, CalendarDays, Stethoscope, IdCard } from "lucide-react";
@@ -18,6 +19,7 @@ import type { ActionResult } from "@/lib/constants";
 
 type Ferias = {
   id: string;
+  empresaId: string;
   colaboradorId: string;
   dataInicio: Date;
   dataFim: Date;
@@ -26,11 +28,12 @@ type Ferias = {
   observacoes: string | null;
   solicitadoPorNome: string | null;
   createdAt: Date;
-  colaborador: { nome: string; setor: { nome: string } };
+  colaborador: { nome: string; setor: { nome: string }; empresa: { nome: string } };
 };
 
 type Ausencia = {
   id: string;
+  empresaId: string;
   colaboradorId: string;
   tipo: string;
   dataInicio: Date;
@@ -41,11 +44,12 @@ type Ausencia = {
   registradoPorNome: string | null;
   createdAt: Date;
   arquivo: { id: string; nome: string } | null;
-  colaborador: { nome: string; setor: { nome: string } };
+  colaborador: { nome: string; setor: { nome: string }; empresa: { nome: string } };
 };
 
 type Documento = {
   id: string;
+  empresaId: string;
   colaboradorId: string;
   tipo: string;
   descricao: string | null;
@@ -66,6 +70,7 @@ type Documento = {
     ctpsUf: string | null;
     tituloEleitor: string | null;
     setor: { nome: string };
+    empresa: { nome: string };
   };
 };
 
@@ -99,19 +104,24 @@ function numeroDeclarado(d: Documento): string | null {
 }
 
 export function AprovacoesView({
-  empresaId,
   ferias,
   ausencias,
   documentos,
   decididasRecentes,
 }: {
-  empresaId: string;
   ferias: Ferias[];
   ausencias: Ausencia[];
   documentos: Documento[];
   decididasRecentes: Decidida[];
 }) {
+  const router = useRouter();
   const total = ferias.length + ausencias.length + documentos.length;
+
+  // A lista pode misturar CNPJs (empresasVisiveis + filtro `?empresas=` da
+  // barra lateral, não só o CNPJ da rota) — mostra o nome da empresa sempre,
+  // sem condicional: o CNPJ "da rota" não é mais referência confiável do que
+  // "a pessoa está vendo", já que agora pode estar filtrado.
+  const empresaLabel = (nomeEmpresa: string) => ` · ${nomeEmpresa}`;
 
   return (
     <div className="space-y-6">
@@ -139,16 +149,20 @@ export function AprovacoesView({
           {ferias.map((f) => (
             <ItemAprovacao
               key={f.id}
-              empresaId={empresaId}
+              empresaId={f.empresaId}
               colaboradorId={f.colaboradorId}
               titulo={f.colaborador.nome}
-              subtitulo={f.colaborador.setor.nome}
+              subtitulo={`${f.colaborador.setor.nome}${empresaLabel(f.colaborador.empresa.nome)}`}
               linhas={[
                 `${formatarData(f.dataInicio)} a ${formatarData(f.dataFim)} · ${f.dias} dia(s)${f.diasAbono ? ` + ${f.diasAbono} de abono` : ""}`,
                 f.observacoes ?? "",
                 `Solicitado por ${f.solicitadoPorNome ?? "—"} em ${formatarDataHoraBrasilia(f.createdAt)}`,
               ]}
-              onDecidir={(decisao, motivo) => decidirFerias(empresaId, f.id, decisao, motivo)}
+              onDecidir={async (decisao, motivo) => {
+                const resultado = await decidirFerias(f.empresaId, f.id, decisao, motivo);
+                if (resultado.ok) router.refresh();
+                return resultado;
+              }}
             />
           ))}
         </CardContent>
@@ -176,10 +190,10 @@ export function AprovacoesView({
           {documentos.map((d) => (
             <ItemAprovacao
               key={d.id}
-              empresaId={empresaId}
+              empresaId={d.empresaId}
               colaboradorId={d.colaboradorId}
               titulo={d.colaborador.nome}
-              subtitulo={`${d.colaborador.setor.nome} · ${tipoDocumentoLabel(d.tipo)}`}
+              subtitulo={`${d.colaborador.setor.nome} · ${tipoDocumentoLabel(d.tipo)}${empresaLabel(d.colaborador.empresa.nome)}`}
               linhas={[
                 // O número que a pessoa digitou, para bater com a foto.
                 numeroDeclarado(d) ?? "Sem número digitado para este documento.",
@@ -191,7 +205,7 @@ export function AprovacoesView({
               anexo={
                 d.arquivo
                   ? {
-                      href: `/api/rh/${empresaId}/arquivos/${d.arquivo.id}`,
+                      href: `/api/rh/${d.empresaId}/arquivos/${d.arquivo.id}`,
                       nome: `${d.arquivo.nome} · ${formatarTamanho(d.arquivo.tamanhoBytes)}`,
                     }
                   : undefined
@@ -199,11 +213,14 @@ export function AprovacoesView({
               rotuloAprovar="Conferir"
               rotuloReprovar="Devolver"
               motivoObrigatorio
-              onDecidir={(decisao, motivo) =>
-                decisao === "APROVADA"
-                  ? conferirDocumento(empresaId, d.id)
-                  : devolverDocumento(empresaId, d.id, motivo ?? "")
-              }
+              onDecidir={async (decisao, motivo) => {
+                const resultado =
+                  decisao === "APROVADA"
+                    ? await conferirDocumento(d.empresaId, d.id)
+                    : await devolverDocumento(d.empresaId, d.id, motivo ?? "");
+                if (resultado.ok) router.refresh();
+                return resultado;
+              }}
             />
           ))}
         </CardContent>
@@ -227,10 +244,10 @@ export function AprovacoesView({
           {ausencias.map((a) => (
             <ItemAprovacao
               key={a.id}
-              empresaId={empresaId}
+              empresaId={a.empresaId}
               colaboradorId={a.colaboradorId}
               titulo={a.colaborador.nome}
-              subtitulo={a.colaborador.setor.nome}
+              subtitulo={`${a.colaborador.setor.nome}${empresaLabel(a.colaborador.empresa.nome)}`}
               etiqueta={tipoAusenciaLabel(a.tipo)}
               linhas={[
                 `${formatarData(a.dataInicio)} a ${formatarData(a.dataFim)} · ${a.dias} dia(s)${a.abonada ? " · abonada" : " · não abonada"}`,
@@ -239,10 +256,14 @@ export function AprovacoesView({
               ]}
               anexo={
                 a.arquivo
-                  ? { href: `/api/rh/${empresaId}/arquivos/${a.arquivo.id}`, nome: a.arquivo.nome }
+                  ? { href: `/api/rh/${a.empresaId}/arquivos/${a.arquivo.id}`, nome: a.arquivo.nome }
                   : null
               }
-              onDecidir={(decisao, motivo) => decidirAusencia(empresaId, a.id, decisao, motivo)}
+              onDecidir={async (decisao, motivo) => {
+                const resultado = await decidirAusencia(a.empresaId, a.id, decisao, motivo);
+                if (resultado.ok) router.refresh();
+                return resultado;
+              }}
             />
           ))}
         </CardContent>

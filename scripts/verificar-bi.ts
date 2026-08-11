@@ -6,9 +6,10 @@ import "dotenv/config";
 import { prisma } from "@/lib/prisma";
 import { hojeUTC } from "@/lib/datas";
 import { absenteismoPorSetor, calcularTurnover, custoPessoalPorSetor, headcountPorSetor, movimentoMensal } from "@/lib/bi";
+import { empresaDeTeste } from "./_empresa-de-teste";
 
 async function main() {
-  const empresa = await prisma.empresa.findFirst({ where: { ativo: true } });
+  const empresa = await empresaDeTeste(prisma, { comSetor: true });
   if (!empresa) throw new Error("Nenhuma empresa cadastrada.");
   console.log(`Empresa: ${empresa.nome}\n`);
 

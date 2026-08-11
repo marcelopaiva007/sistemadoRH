@@ -14,7 +14,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { criarMeta, atualizarMeta, excluirMeta } from "@/lib/actions/rh-metas";
-import { STATUS_META, statusMetaLabel } from "@/lib/constants-metas";
+import { statusMetaLabel } from "@/lib/constants-metas";
+import type { OpcaoCatalogo } from "@/lib/catalogos";
 import { formatarData } from "@/lib/datas";
 import type { ActionResult } from "@/lib/constants";
 import { Indicador } from "@/components/indicador";
@@ -47,11 +48,13 @@ export function MetasView({
   metas,
   colaboradores,
   setores,
+  statusDisponiveis,
 }: {
   empresaId: string;
   metas: Meta[];
   colaboradores: { id: string; nome: string }[];
   setores: { id: string; nome: string }[];
+  statusDisponiveis: OpcaoCatalogo[];
 }) {
   const [criarAberto, setCriarAberto] = useState(false);
   const [editar, setEditar] = useState<Meta | null>(null);
@@ -158,7 +161,12 @@ export function MetasView({
       <Dialog open={!!editar} onOpenChange={(open) => !open && setEditar(null)}>
         <DialogContent>
           {editar && (
-            <EditarMetaForm empresaId={empresaId} meta={editar} onSuccess={() => setEditar(null)} />
+            <EditarMetaForm
+              empresaId={empresaId}
+              meta={editar}
+              statusDisponiveis={statusDisponiveis}
+              onSuccess={() => setEditar(null)}
+            />
           )}
         </DialogContent>
       </Dialog>
@@ -250,7 +258,17 @@ function NovaMetaForm({
   );
 }
 
-function EditarMetaForm({ empresaId, meta, onSuccess }: { empresaId: string; meta: Meta; onSuccess: () => void }) {
+function EditarMetaForm({
+  empresaId,
+  meta,
+  statusDisponiveis,
+  onSuccess,
+}: {
+  empresaId: string;
+  meta: Meta;
+  statusDisponiveis: OpcaoCatalogo[];
+  onSuccess: () => void;
+}) {
   const [state, formAction, isPending] = useActionState(async (prev: ActionResult, fd: FormData) => {
     const result = await atualizarMeta(empresaId, meta.id, prev, fd);
     if (result.ok) {
@@ -269,7 +287,7 @@ function EditarMetaForm({ empresaId, meta, onSuccess }: { empresaId: string; met
         <div className="space-y-2">
           <Label htmlFor="status">Status</Label>
           <select id="status" name="status" defaultValue={meta.status} className={classeSelect}>
-            {STATUS_META.map((s) => (
+            {statusDisponiveis.map((s) => (
               <option key={s.value} value={s.value}>
                 {s.label}
               </option>

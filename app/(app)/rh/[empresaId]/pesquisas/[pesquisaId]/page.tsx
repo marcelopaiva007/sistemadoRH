@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
+import { marcaDaEmpresa } from "@/lib/escopo-marca";
 import { CONVITES_NA_PESQUISA, participacaoPct } from "@/lib/pesquisa-numeros";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DadosPesquisaForm } from "./dados-pesquisa-form";
@@ -15,8 +16,10 @@ export default async function PesquisaVisaoGeralPage({
   const { empresaId, pesquisaId } = await params;
   await requireEmpresaAccess(empresaId);
 
+  const marcaId = await marcaDaEmpresa(empresaId);
+
   const pesquisa = await prisma.pesquisa.findFirst({
-    where: { id: pesquisaId, empresaId },
+    where: { id: pesquisaId, marcaId },
     select: {
       id: true,
       titulo: true,
@@ -36,9 +39,13 @@ export default async function PesquisaVisaoGeralPage({
     prisma.surveyToken.count({
       where: { pesquisaId, ...CONVITES_NA_PESQUISA, enviadoEm: { not: null } },
     }),
-    prisma.colaborador.count({ where: { empresaId, ativo: true } }),
+    // Cadastrados e "sem convite" são da MARCA — o mesmo universo que
+    // `gerarConvites` percorre. Por CNPJ a tela diria "168 convites sobre 68
+    // cadastrados", e o RH concluiria que o botão convidou gente que não
+    // existe.
+    prisma.colaborador.count({ where: { empresa: { marcaId }, ativo: true } }),
     prisma.colaborador.count({
-      where: { empresaId, ativo: true, tokens: { none: { pesquisaId } } },
+      where: { empresa: { marcaId }, ativo: true, tokens: { none: { pesquisaId } } },
     }),
   ]);
 

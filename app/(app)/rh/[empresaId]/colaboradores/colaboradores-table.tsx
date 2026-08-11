@@ -2,6 +2,8 @@
 
 import { useActionState, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { useFiltroEmpresas } from "../filtro-empresas";
 import { toast } from "sonner";
 import {
   ArrowDown,
@@ -62,10 +64,60 @@ import { AlertaDuplicados } from "./alerta-duplicados";
 import { ConferirCpfs } from "./conferir-cpfs";
 import { formatarCpf, mascararCpf } from "@/lib/cpf";
 import type { ActionResult } from "@/lib/constants";
+import { TIPOS_CONTRATO, CONTRATOS_POR_PRAZO } from "@/lib/constants-dp";
 import { cn } from "@/lib/utils";
 
-type Setor = { id: string; nome: string };
-type Posicao = { id: string; nome: string };
+// Rótulos das lacunas — os mesmos textos do bloco na tela inicial, para quem
+// clica reconhecer onde chegou.
+const ROTULO_LACUNA: Record<string, string> = {
+  salario: "sem salário na ficha",
+  admissao: "sem data de admissão",
+  setor: "sem setor definido",
+  cargo: "sem cargo definido",
+  cpf: "sem CPF",
+  telegram: "sem Telegram vinculado",
+  ferias: "sem nenhuma férias registrada",
+  desligamento_data: "sem data de desligamento",
+  desligamento_motivo: "sem motivo de desligamento",
+};
+
+function temLacuna(
+  c: {
+    semSalario: boolean;
+    semAdmissao: boolean;
+    semFerias: boolean;
+    cpf: string | null;
+    telegramChatId: string | null;
+    setor: { nome: string };
+    posicao: { nome: string };
+    semDataDesligamento?: boolean;
+    semMotivoDesligamento?: boolean;
+  },
+  chave: string,
+): boolean {
+  switch (chave) {
+    case "salario": return c.semSalario;
+    case "admissao": return c.semAdmissao;
+    case "ferias": return c.semFerias;
+    case "cpf": return !c.cpf;
+    case "telegram": return !c.telegramChatId;
+    case "setor": return c.setor.nome.trim().toLowerCase() === "não definido";
+    case "cargo": return c.posicao.nome.trim().toLowerCase() === "não definido";
+    // Só fazem sentido dentro de `?status=inativos` — todo ativo "não tem"
+    // data/motivo de desligamento por definição, e sem o filtro de status a
+    // lista inteira apareceria como lacuna.
+    case "desligamento_data": return Boolean(c.semDataDesligamento);
+    case "desligamento_motivo": return Boolean(c.semMotivoDesligamento);
+    default: return true;
+  }
+}
+
+type Setor = { id: string; nome: string; empresaId: string };
+type Posicao = { id: string; nome: string; empresaId: string };
+// Só o que esta tela realmente usa. A página monta este objeto com `select`
+// explícito: nada de salário, dados bancários, PIX, RG ou endereço trafega até
+// aqui — este componente roda no navegador, e tudo que chega nele vai junto no
+// HTML, visível para quem abrir a página.
 type Colaborador = {
   id: string;
   nome: string;
@@ -74,19 +126,26 @@ type Colaborador = {
   telefone: string | null;
   telegramChatId: string | null;
   supervisorId: string | null;
+  // O filtro ?lacuna= só precisa saber SE falta, não o valor. O salário fica no
+  // servidor; vem apenas o booleano.
+  semSalario: boolean;
+  semAdmissao: boolean;
+  semFerias: boolean;
+  semDataDesligamento: boolean;
+  semMotivoDesligamento: boolean;
+  gerente: boolean;
   ativo: boolean;
+  empresaId: string;
   setorId: string;
-  setor: Setor;
+  setor: { nome: string };
   posicaoId: string;
-  posicao: Posicao;
+  posicao: { nome: string };
 };
 
 const initialState: ActionResult = { ok: true };
 
-// 50 linhas com a tabela compacta ocupam menos que as 25 antigas ocupavam no
-// tamanho normal: 188 ativos passam de 8 páginas para 4. Menos troca de página
-// para conferir a base inteira, que é o que o RH faz aqui.
-const POR_PAGINA = 50;
+// 20 linhas por página — melhor navegabilidade sem muito scroll.
+const POR_PAGINA = 20;
 
 const classeFiltro =
   "h-9 rounded-md border border-input bg-transparent px-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
@@ -269,21 +328,72 @@ function Kpi({
 
 export function ColaboradoresTable({
   empresaId,
+  empresasDoEscopo,
   colaboradores,
   setores,
   posicoes,
+  marcaPorEmpresa,
 }: {
   empresaId: string;
+  // Era `empresasDoUsuario` (tudo que a pessoa enxerga) até 10/08/2026; o
+  // servidor agora manda só a MARCA do caminho, já cruzada com ?empresas=.
+  empresasDoEscopo: string[];
   colaboradores: Colaborador[];
   setores: Setor[];
   posicoes: Posicao[];
+  marcaPorEmpresa: Record<string, string>;
 }) {
+  // Aplicar filtro de marcas/empresas selecionadas
+  const empresasSelecionadas = useFiltroEmpresas(empresasDoEscopo);
+  // Estado DERIVADO do filtro: useMemo, não useState + useEffect.
+  // A forma anterior (setState dentro de effect) dispara render em cascata — o
+  // lint barra, e com razão: foi essa mesma forma que congelou esta tela em
+  // 31/07/2026, quando o retorno do hook mudava de identidade a cada render e
+  // realimentava o efeito.
+  const colaboradoresFiltrados = useMemo(
+    () => colaboradores.filter((c) => empresasSelecionadas.includes(c.empresaId)),
+    [colaboradores, empresasSelecionadas],
+  );
+  const setoresFiltrados = useMemo(
+    () => setores.filter((s) => empresasSelecionadas.includes(s.empresaId)),
+    [setores, empresasSelecionadas],
+  );
+  const posicoesFiltradas = useMemo(
+    () => posicoes.filter((p) => empresasSelecionadas.includes(p.empresaId)),
+    [posicoes, empresasSelecionadas],
+  );
+
+  // Listas do FORMULÁRIO de novo/editar: só a marca da empresa-alvo. O
+  // catálogo de setores/cargos foi unificado por marca e o servidor valida
+  // nesse escopo — oferecer outra marca aqui (um ADMIN enxerga todas) faria a
+  // tela mostrar uma escolha que o Salvar recusa. Os filtros da TABELA acima
+  // continuam com o recorte inteiro: filtrar pode cruzar marcas, salvar não.
+  const listasDaMarca = (alvoEmpresaId: string) => {
+    const marca = marcaPorEmpresa[alvoEmpresaId];
+    return {
+      setores: setores.filter((s) => marcaPorEmpresa[s.empresaId] === marca),
+      posicoes: posicoes.filter((p) => marcaPorEmpresa[p.empresaId] === marca),
+      lideres: colaboradores.filter((c) => marcaPorEmpresa[c.empresaId] === marca),
+    };
+  };
   const [createOpen, setCreateOpen] = useState(false);
   const [editColaborador, setEditColaborador] = useState<Colaborador | null>(null);
   const [busca, setBusca] = useState("");
   const [filtroSetor, setFiltroSetor] = useState("todos");
   const [filtroPosicao, setFiltroPosicao] = useState("todos");
-  const [filtroStatus, setFiltroStatus] = useState("ativos");
+  // ?status= vem do bloco "Lacunas dos desligados": sem ele, o filtro padrão
+  // "ativos" esconderia a lista inteira que o link prometeu abrir — todo
+  // desligado ficaria fora antes mesmo da lacuna entrar em jogo.
+  const statusDaUrl = useSearchParams().get("status");
+  const [filtroStatus, setFiltroStatus] = useState(
+    statusDaUrl === "inativos" ? "inativos" : "ativos",
+  );
+
+  // ?lacuna= vem do bloco "Preenchimento da base" da tela inicial: o número
+  // ali vira esta lista, já isolada em quem tem o campo vazio. Sem isto o
+  // bloco apontava o problema e escondia quem era.
+  const lacuna = useSearchParams().get("lacuna");
+  const empresasNaUrl = useSearchParams().get("empresas");
   const [ordem, setOrdem] = useState<{ campo: CampoOrdenavel; desc: boolean }>({
     campo: "nome",
     desc: false,
@@ -291,23 +401,24 @@ export function ColaboradoresTable({
   const [pagina, setPagina] = useState(1);
 
   const totais = useMemo(() => {
-    const ativos = colaboradores.filter((c) => c.ativo).length;
-    const telegram = colaboradores.filter((c) => c.ativo && c.telegramChatId).length;
-    const semSetor = colaboradores.filter(
+    const ativos = colaboradoresFiltrados.filter((c) => c.ativo).length;
+    const telegram = colaboradoresFiltrados.filter((c) => c.ativo && c.telegramChatId).length;
+    const semSetor = colaboradoresFiltrados.filter(
       (c) => c.ativo && c.setor.nome.trim().toLowerCase() === SETOR_AUSENTE,
     ).length;
-    return { total: colaboradores.length, ativos, telegram, semSetor };
-  }, [colaboradores]);
+    return { total: colaboradoresFiltrados.length, ativos, telegram, semSetor };
+  }, [colaboradoresFiltrados]);
 
   const filtrados = useMemo(() => {
     const termo = busca.trim().toLowerCase();
     const termoDigitos = termo.replace(/\D/g, "");
 
-    const lista = colaboradores.filter((c) => {
+    const lista = colaboradoresFiltrados.filter((c) => {
       if (filtroStatus === "ativos" && !c.ativo) return false;
       if (filtroStatus === "inativos" && c.ativo) return false;
       if (filtroSetor !== "todos" && c.setorId !== filtroSetor) return false;
       if (filtroPosicao !== "todos" && c.posicaoId !== filtroPosicao) return false;
+      if (lacuna && !temLacuna(c, lacuna)) return false;
       if (!termo) return true;
       return (
         c.nome.toLowerCase().includes(termo) ||
@@ -326,7 +437,7 @@ export function ColaboradoresTable({
       const r = valor(a).localeCompare(valor(b), "pt-BR", { sensitivity: "base" });
       return ordem.desc ? -r : r;
     });
-  }, [colaboradores, busca, filtroSetor, filtroPosicao, filtroStatus, ordem]);
+  }, [colaboradoresFiltrados, busca, filtroSetor, filtroPosicao, filtroStatus, ordem, lacuna]);
 
   const totalPaginas = Math.max(1, Math.ceil(filtrados.length / POR_PAGINA));
   // Mudar filtro pode encolher a lista para menos páginas do que a atual;
@@ -357,6 +468,11 @@ export function ColaboradoresTable({
     setPagina(1);
   }
 
+  // Criação sempre grava na empresa da rota; edição, na empresa do próprio
+  // colaborador (que pode ser de outra marca para quem enxerga o grupo todo).
+  const listasCriacao = listasDaMarca(empresaId);
+  const listasEdicao = editColaborador ? listasDaMarca(editColaborador.empresaId) : null;
+
   return (
     <div className="space-y-4">
       <AlertaDuplicados empresaId={empresaId} colaboradores={colaboradores} />
@@ -371,9 +487,17 @@ export function ColaboradoresTable({
               <Users className="size-5 text-primary" />
               Equipe
             </h2>
+            {/* "no recorte atual", nunca "na empresa atual": aberta pelo menu,
+                esta tela soma TUDO que o usuário enxerga (para ADMIN, o grupo
+                inteiro) — dizer "empresa" fazia o KPI de Telegram parecer
+                errado contra o painel da marca, quando só o universo mudou. */}
             <p className="text-sm text-muted-foreground">
               {totais.ativos} ativo{totais.ativos === 1 ? "" : "s"} de {totais.total} cadastrado
-              {totais.total === 1 ? "" : "s"} na empresa atual.
+              {totais.total === 1 ? "" : "s"} no recorte atual (
+              {empresasSelecionadas.length === 1
+                ? "1 CNPJ"
+                : `${empresasSelecionadas.length} CNPJs`}
+              ).
             </p>
           </div>
           <Dialog open={createOpen} onOpenChange={setCreateOpen}>
@@ -385,9 +509,9 @@ export function ColaboradoresTable({
               <ColaboradorForm
                 action={createColaborador.bind(null, empresaId)}
                 title="Novo Colaborador"
-                setores={setores}
-                posicoes={posicoes}
-                candidatosSupervisor={colaboradores}
+                setores={listasCriacao.setores}
+                posicoes={listasCriacao.posicoes}
+                candidatosSupervisor={listasCriacao.lideres}
                 onSuccess={() => setCreateOpen(false)}
               />
             </DialogContent>
@@ -412,6 +536,33 @@ export function ColaboradoresTable({
 
       {/* Filtros numa faixa separada — barra de busca em destaque, secundários
           em selects compactos; tudo num bloco que se lê como "filtre aqui". */}
+      {/* Chegou pelo bloco "Preenchimento da base": diz em que lista a pessoa
+          caiu e como sair dela — sem isso o filtro fica invisível e a lista
+          parece só estar faltando gente. */}
+      {lacuna && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
+          <span>
+            Mostrando apenas quem está{" "}
+            <strong>{ROTULO_LACUNA[lacuna] ?? lacuna}</strong> —{" "}
+            <span className="tabular-nums">{filtrados.length}</span>{" "}
+            {filtrados.length === 1 ? "pessoa" : "pessoas"}.
+          </span>
+          {/* Mantém o ?empresas= — "Ver todos" tira o filtro de LACUNA, não o
+              recorte de CNPJ; sem isso o clique também trocava o universo
+              (marca → tudo que o usuário enxerga) sem avisar. */}
+          <Link
+            href={
+              empresasNaUrl
+                ? `/rh/${empresaId}/colaboradores?empresas=${empresasNaUrl}`
+                : `/rh/${empresaId}/colaboradores`
+            }
+            className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+          >
+            Ver todos
+          </Link>
+        </div>
+      )}
+
       <div className="rounded-xl border bg-card p-3 shadow-xs">
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative min-w-0 flex-1 sm:max-w-xs">
@@ -433,7 +584,7 @@ export function ColaboradoresTable({
             aria-label="Filtrar por setor"
           >
             <option value="todos">Todos os setores</option>
-            {setores.map((s) => (
+            {setoresFiltrados.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.nome}
               </option>
@@ -446,7 +597,7 @@ export function ColaboradoresTable({
             aria-label="Filtrar por cargo"
           >
             <option value="todos">Todos os cargos</option>
-            {posicoes.map((p) => (
+            {posicoesFiltradas.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.nome}
               </option>
@@ -520,7 +671,10 @@ export function ColaboradoresTable({
               <TableRow key={c.id} className="group">
                 <TableCell className="py-2">
                   <Link
-                    href={`/rh/${empresaId}/colaboradores/${c.id}`}
+                    // A lista traz colaboradores de TODAS as marcas visíveis ao
+                    // usuário, mas a ficha é escopada à empresa da rota. Usar o
+                    // empresaId da URL aqui dava 404 em quem é de outra empresa.
+                    href={`/rh/${c.empresaId}/colaboradores/${c.id}`}
                     className="flex items-center gap-3 outline-none focus-visible:ring-2 focus-visible:ring-ring/40 rounded-md"
                   >
                     <AvatarIniciais nome={c.nome} id={c.id} ativo={c.ativo} />
@@ -584,8 +738,10 @@ export function ColaboradoresTable({
                     <Button variant="ghost" size="icon" onClick={() => setEditColaborador(c)} title="Editar">
                       <Pencil className="size-4" />
                     </Button>
-                    <AtivarDesativarButton empresaId={empresaId} id={c.id} ativo={c.ativo} />
-                    <DeleteColaboradorButton empresaId={empresaId} colaborador={c} />
+                    {/* Mesma razão do link acima: a ação tem de ir para a
+                        empresa do colaborador, não para a da rota. */}
+                    <AtivarDesativarButton empresaId={c.empresaId} id={c.id} ativo={c.ativo} />
+                    <DeleteColaboradorButton empresaId={c.empresaId} colaborador={c} />
                   </div>
                 </TableCell>
               </TableRow>
@@ -636,13 +792,13 @@ export function ColaboradoresTable({
 
       <Dialog open={!!editColaborador} onOpenChange={(open) => !open && setEditColaborador(null)}>
         <DialogContent>
-          {editColaborador && (
+          {editColaborador && listasEdicao && (
             <ColaboradorForm
-              action={updateColaborador.bind(null, empresaId, editColaborador.id)}
+              action={updateColaborador.bind(null, editColaborador.empresaId, editColaborador.id)}
               title="Editar Colaborador"
-              setores={setores}
-              posicoes={posicoes}
-              candidatosSupervisor={colaboradores}
+              setores={listasEdicao.setores}
+              posicoes={listasEdicao.posicoes}
+              candidatosSupervisor={listasEdicao.lideres}
               defaultValues={editColaborador}
               onSuccess={() => setEditColaborador(null)}
             />
@@ -673,7 +829,17 @@ function ColaboradorForm({
   const [setorId, setSetorId] = useState(defaultValues?.setorId ?? "");
   const [posicaoId, setPosicaoId] = useState(defaultValues?.posicaoId ?? "");
   const [supervisorId, setSupervisorId] = useState(defaultValues?.supervisorId ?? "");
+  const [gerente, setGerente] = useState(defaultValues?.gerente ?? false);
   const [ativo, setAtivo] = useState(defaultValues?.ativo ?? true);
+  // Só na criação — editar tipo/prazo de contrato de quem já existe continua
+  // pelo bloco "Vínculo" da ficha, que já tem os dois campos. Duplicar aqui
+  // faria o campo aparecer no dialog de edição sem `updateColaborador` gravar
+  // nada, e o RH acharia que salvou.
+  const [tipoContrato, setTipoContrato] = useState("");
+  const [dataFimContrato, setDataFimContrato] = useState("");
+  const contratoComPrazo = CONTRATOS_POR_PRAZO.includes(
+    tipoContrato as (typeof CONTRATOS_POR_PRAZO)[number],
+  );
 
   // Ativos, sem a própria pessoa (na edição) e sem quem já reporta a ela —
   // reportar ao próprio subordinado criaria um ciclo de dois na hora; o resto
@@ -683,7 +849,16 @@ function ColaboradorForm({
   );
 
   const [state, formAction, isPending] = useActionState(async (prev: ActionResult, fd: FormData) => {
+    fd.set("gerente", gerente ? "true" : "false");
     fd.set("ativo", ativo ? "true" : "false");
+    if (!defaultValues) {
+      if (!tipoContrato) return { ok: false, error: "Selecione o tipo de contrato." };
+      if (contratoComPrazo && !dataFimContrato) {
+        return { ok: false, error: "Informe a data de fim do contrato." };
+      }
+      fd.set("tipoContrato", tipoContrato);
+      if (dataFimContrato) fd.set("dataFimContrato", dataFimContrato);
+    }
     const result = await action(prev, fd);
     if (result.ok) {
       toast.success("Colaborador salvo com sucesso.");
@@ -770,6 +945,48 @@ function ColaboradorForm({
         </Select>
         <p className="text-xs text-muted-foreground">É o que monta o Organograma — some sozinho quando o líder muda.</p>
       </div>
+      {!defaultValues && (
+        <div className="space-y-2">
+          <Label>Tipo de contrato</Label>
+          <Select
+            value={tipoContrato}
+            onValueChange={(v) => {
+              setTipoContrato(v ?? "");
+              if (v && !CONTRATOS_POR_PRAZO.includes(v as (typeof CONTRATOS_POR_PRAZO)[number])) {
+                setDataFimContrato("");
+              }
+            }}
+            items={Object.fromEntries(TIPOS_CONTRATO.map((t) => [t.value, t.label]))}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Selecione o tipo de contrato" />
+            </SelectTrigger>
+            <SelectContent>
+              {TIPOS_CONTRATO.map((t) => (
+                <SelectItem key={t.value} value={t.value}>
+                  {t.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {contratoComPrazo && (
+            <div className="space-y-2 pt-1">
+              <Label htmlFor="dataFimContrato">Data de fim do contrato</Label>
+              <Input
+                id="dataFimContrato"
+                type="date"
+                value={dataFimContrato}
+                onChange={(e) => setDataFimContrato(e.target.value)}
+                required
+              />
+              <p className="text-xs text-muted-foreground">
+                Passado o prazo sem rescindir ou renovar, o contrato vira indeterminado (CLT art.
+                445 e 451) — aviso prévio e 40% do FGTS que a empresa não esperava.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
       <div className="space-y-2">
         <Label htmlFor="telegramChatId">Chat ID do Telegram (opcional)</Label>
         <Input
@@ -782,6 +999,19 @@ function ColaboradorForm({
           Necessário para enviar o convite da pesquisa pelo Telegram. Preenchido
           automaticamente quando o colaborador dá /start no bot e compartilha o número —
           só edite aqui em caso de exceção.
+        </p>
+      </div>
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <Checkbox id="gerente" checked={gerente} onCheckedChange={(v) => setGerente(v === true)} />
+          <Label htmlFor="gerente" className="font-normal">
+            É gerente — avalia a equipe
+          </Label>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Quem estiver marcado monta a própria lista de avaliados no portal, durante o ciclo de
+          avaliação. É diferente de &quot;Reporta a&quot;: aqui quem avalia é o gerente, que costuma
+          ter mais gente do que o organograma mostra.
         </p>
       </div>
       <div className="flex items-center gap-2">

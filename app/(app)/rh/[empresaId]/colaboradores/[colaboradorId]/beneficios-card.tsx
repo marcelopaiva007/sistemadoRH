@@ -30,11 +30,14 @@ export function BeneficiosCard({
   empresaId,
   colaboradorId,
   beneficios,
+  tiposBeneficioCustom,
   temDependentesNoPlano,
 }: {
   empresaId: string;
   colaboradorId: string;
   beneficios: Beneficio[];
+  /** Catálogo aditivo por empresa (lib/actions/rh-tipos-beneficio.ts) — soma ao fixo, não substitui. */
+  tiposBeneficioCustom: string[];
   temDependentesNoPlano: number;
 }) {
   const [aberto, setAberto] = useState(false);
@@ -75,7 +78,10 @@ export function BeneficiosCard({
                 <CampoSelect
                   name="tipo"
                   label="Tipo"
-                  opcoes={TIPOS_BENEFICIO.map((t) => ({ value: t.value, label: t.label }))}
+                  opcoes={[
+                    ...TIPOS_BENEFICIO.map((t) => ({ value: t.value, label: t.label })),
+                    ...tiposBeneficioCustom.map((nome) => ({ value: nome, label: nome })),
+                  ]}
                   required
                 />
                 <div className="grid gap-4 sm:grid-cols-2">

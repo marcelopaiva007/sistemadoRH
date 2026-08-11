@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Fragment, useActionState, useState } from "react";
 import { toast } from "sonner";
-import { Plus } from "lucide-react";
+import { Plus, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -16,11 +16,11 @@ import {
   encerrarCiclo,
   gerarAvaliacoes,
   adicionarAvaliadorExtra,
+  enviarConvitesDoCiclo,
   salvarNotasAvaliacao,
   excluirAvaliacao,
 } from "@/lib/actions/rh-avaliacao";
 import {
-  COMPETENCIAS,
   NIVEIS_POTENCIAL,
   faixaDesempenho,
   potencialLabel,
@@ -28,6 +28,7 @@ import {
   tipoCicloLabel,
 } from "@/lib/constants-avaliacao";
 import { formatarData } from "@/lib/datas";
+import type { OpcaoCatalogo } from "@/lib/catalogos";
 import type { ActionResult } from "@/lib/constants";
 
 const initialState: ActionResult = { ok: true };
@@ -66,14 +67,18 @@ export function CicloDetalhe({
   ciclo,
   avaliacoes,
   colaboradores,
+  competenciasDisponiveis,
 }: {
   empresaId: string;
   ciclo: Ciclo;
   avaliacoes: Avaliacao[];
   colaboradores: { id: string; nome: string }[];
+  competenciasDisponiveis: OpcaoCatalogo[];
 }) {
   const [gerando, setGerando] = useState(false);
   const [encerrando, setEncerrando] = useState(false);
+  const [convidando, setConvidando] = useState(false);
+  const [confirmarConvite, setConfirmarConvite] = useState(false);
   const [preencher, setPreencher] = useState<Avaliacao | null>(null);
   const [adicionarAberto, setAdicionarAberto] = useState(false);
 
@@ -111,6 +116,10 @@ export function CicloDetalhe({
               }}
             >
               {gerando ? "Gerando..." : "Gerar avaliações"}
+            </Button>
+            <Button variant="outline" disabled={convidando} onClick={() => setConfirmarConvite(true)}>
+              <Send className="size-4" />
+              {convidando ? "Enviando..." : "Convidar por Telegram"}
             </Button>
             {ciclo.tipo === "360" && (
               <Dialog open={adicionarAberto} onOpenChange={setAdicionarAberto}>
@@ -221,12 +230,60 @@ export function CicloDetalhe({
         </CardContent>
       </Card>
 
+      {/* Disparo em massa não pode ser um clique só: a mensagem vai para o
+          Telegram pessoal de dezenas de pessoas e não tem como voltar atrás. */}
+      <Dialog open={confirmarConvite} onOpenChange={setConfirmarConvite}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Convidar por Telegram</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            <p>
+              Vai sair uma mensagem para cada pessoa com avaliação pendente neste ciclo —{" "}
+              <strong>{new Set(avaliacoes.filter((a) => a.status !== "CONCLUIDA").map((a) => a.avaliadorId)).size} pessoa(s)</strong>{" "}
+              hoje. Uma mensagem por pessoa, não uma por avaliação.
+            </p>
+            <p className="text-muted-foreground">
+              Quem não tem Telegram vinculado fica de fora e aparece na contagem do resultado. Quem
+              já respondeu tudo não recebe. Pode repetir depois — vira cobrança de quem falta.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setConfirmarConvite(false)}>
+              Cancelar
+            </Button>
+            <Button
+              disabled={convidando}
+              onClick={async () => {
+                setConvidando(true);
+                const r = await enviarConvitesDoCiclo(empresaId, ciclo.id);
+                setConvidando(false);
+                setConfirmarConvite(false);
+                if (r.ok && r.resultado) {
+                  const { enviados, falhas, semTelegram } = r.resultado;
+                  toast.success(
+                    `${enviados} convite(s) enviado(s).` +
+                      (falhas > 0 ? ` ${falhas} falharam.` : "") +
+                      (semTelegram > 0 ? ` ${semTelegram} sem Telegram vinculado.` : ""),
+                  );
+                } else if (!r.ok) {
+                  toast.error(r.error);
+                }
+              }}
+            >
+              {convidando ? "Enviando..." : "Enviar agora"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={!!preencher} onOpenChange={(open) => !open && setPreencher(null)}>
         <DialogContent className="max-h-[85vh] overflow-y-auto">
           {preencher && (
             <PreencherAvaliacaoForm
               empresaId={empresaId}
               avaliacao={preencher}
+              competenciasDisponiveis={competenciasDisponiveis}
               onSuccess={() => setPreencher(null)}
             />
           )}
@@ -382,10 +439,12 @@ function AdicionarAvaliadorForm({
 function PreencherAvaliacaoForm({
   empresaId,
   avaliacao,
+  competenciasDisponiveis,
   onSuccess,
 }: {
   empresaId: string;
   avaliacao: Avaliacao;
+  competenciasDisponiveis: OpcaoCatalogo[];
   onSuccess: () => void;
 }) {
   const [state, formAction, isPending] = useActionState(async (prev: ActionResult, fd: FormData) => {
@@ -408,7 +467,7 @@ function PreencherAvaliacaoForm({
       </DialogHeader>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        {COMPETENCIAS.map((c) => (
+        {competenciasDisponiveis.map((c) => (
           <div key={c.value} className="space-y-1.5">
             <Label className="text-xs font-medium text-muted-foreground">{c.label}</Label>
             <select name={`nota_${c.value}`} required defaultValue={notaDe(c.value)} className={classeSelect}>

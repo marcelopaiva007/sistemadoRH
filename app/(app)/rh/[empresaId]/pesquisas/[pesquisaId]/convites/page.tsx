@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
+import { marcaDaEmpresa } from "@/lib/escopo-marca";
 import { ConvitesView } from "../convites-view";
 
 // A lista de convidados. É a tela pesada da pesquisa (uma linha por pessoa),
@@ -14,8 +15,10 @@ export default async function ConvitesPage({
   const { empresaId, pesquisaId } = await params;
   await requireEmpresaAccess(empresaId);
 
+  const marcaId = await marcaDaEmpresa(empresaId);
+
   const pesquisa = await prisma.pesquisa.findFirst({
-    where: { id: pesquisaId, empresaId },
+    where: { id: pesquisaId, marcaId },
     select: { id: true, titulo: true, descricao: true, anonima: true, status: true, modelo: true },
   });
   if (!pesquisa) notFound();
@@ -34,9 +37,11 @@ export default async function ConvitesPage({
       },
     }),
     // Quantos ativos ainda não têm convite: é esse número, e não o total de
-    // ativos, que diz se vale clicar em "Gerar convites".
+    // ativos, que diz se vale clicar em "Gerar convites". Sobre a MARCA, o
+    // mesmo universo do botão — por CNPJ ele diria "lista completa" com
+    // quatro CNPJs da marca ainda sem convite nenhum.
     prisma.colaborador.count({
-      where: { empresaId, ativo: true, tokens: { none: { pesquisaId } } },
+      where: { empresa: { marcaId }, ativo: true, tokens: { none: { pesquisaId } } },
     }),
   ]);
 

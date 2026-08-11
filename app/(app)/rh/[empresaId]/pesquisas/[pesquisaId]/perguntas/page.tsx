@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
+import { marcaDaEmpresa } from "@/lib/escopo-marca";
+import { opcoesDoCatalogo } from "@/lib/catalogos";
 import { PerguntasView } from "../perguntas-view";
 
 export default async function PerguntasPage({
@@ -12,7 +14,7 @@ export default async function PerguntasPage({
   await requireEmpresaAccess(empresaId);
 
   const pesquisa = await prisma.pesquisa.findFirst({
-    where: { id: pesquisaId, empresaId },
+    where: { id: pesquisaId, marcaId: await marcaDaEmpresa(empresaId) },
     select: {
       id: true,
       titulo: true,
@@ -28,5 +30,7 @@ export default async function PerguntasPage({
   });
   if (!pesquisa) notFound();
 
-  return <PerguntasView empresaId={empresaId} pesquisa={pesquisa} />;
+  const dimensoesDisponiveis = await opcoesDoCatalogo(empresaId, "DIMENSAO_GPTW");
+
+  return <PerguntasView empresaId={empresaId} pesquisa={pesquisa} dimensoesDisponiveis={dimensoesDisponiveis} />;
 }

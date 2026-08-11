@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { atualizarFicha } from "@/lib/actions/rh-ficha";
 import {
@@ -9,7 +10,7 @@ import {
   TIPOS_CONTA_BANCARIA,
   TIPOS_CONTRATO,
 } from "@/lib/constants-dp";
-import { CampoData, CampoSelect, CampoTexto, FormularioAction } from "./campos";
+import { Campo, CampoData, CampoSelect, CampoTexto, FormularioAction } from "./campos";
 
 // A ficha é dividida em blocos e cada bloco posta só os seus campos — a action
 // grava apenas o que veio no FormData, então um bloco nunca apaga o outro.
@@ -56,9 +57,33 @@ type Colaborador = {
   dataDesligamento: Date | null;
   motivoDesligamento: string | null;
   tipoContrato: string | null;
+  dataFimContrato: Date | null;
   jornadaSemanal: number | null;
   salarioBase: number | null;
+  setorId: string;
+  posicaoId: string;
+  supervisorId: string | null;
+  setor: { id: string; nome: string };
+  posicao: { id: string; nome: string };
+  supervisor: { id: string; nome: string } | null;
 };
+
+const classeSelect =
+  "h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:bg-input/30";
+
+/**
+ * As listas de setor/cargo vêm filtradas por `ativo: true`. Se a pessoa está
+ * hoje num setor desativado, ele não estaria entre as opções e o <select>
+ * abriria mostrando outro setor — o RH salvaria uma mudança que não pediu.
+ * Garantir o atual na lista evita isso.
+ */
+function comAtual(
+  opcoes: { id: string; nome: string }[],
+  atual: { id: string; nome: string },
+): { value: string; label: string }[] {
+  const lista = opcoes.some((o) => o.id === atual.id) ? opcoes : [atual, ...opcoes];
+  return lista.map((o) => ({ value: o.id, label: o.nome }));
+}
 
 const SEXOS = [
   { value: "Masculino", label: "Masculino" },
@@ -77,6 +102,7 @@ function Bloco({
   children: React.ReactNode;
   acao: (prev: import("@/lib/constants").ActionResult, fd: FormData) => Promise<import("@/lib/constants").ActionResult>;
 }) {
+  const router = useRouter();
   return (
     <Card>
       <CardHeader>
@@ -84,7 +110,11 @@ function Bloco({
         {descricao && <CardDescription>{descricao}</CardDescription>}
       </CardHeader>
       <CardContent>
-        <FormularioAction action={acao} mensagemSucesso="Ficha atualizada.">
+        <FormularioAction
+          action={acao}
+          mensagemSucesso="Ficha atualizada."
+          onSuccess={() => router.refresh()}
+        >
           {children}
         </FormularioAction>
       </CardContent>
@@ -98,15 +128,61 @@ function Bloco({
 export function FichaBlocos({
   empresaId,
   colaborador,
+  setores,
+  posicoes,
+  candidatosSupervisor,
 }: {
   empresaId: string;
   colaborador: Colaborador;
+  setores: { id: string; nome: string }[];
+  posicoes: { id: string; nome: string }[];
+  candidatosSupervisor: { id: string; nome: string }[];
 }) {
   const acao = atualizarFicha.bind(null, empresaId, colaborador.id);
   const c = colaborador;
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
+      <Bloco
+        titulo="Estrutura"
+        descricao="Onde a pessoa está hoje. Corrija aqui o cadastro; promoção ou transferência com histórico é na aba Carreira."
+        acao={acao}
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          <CampoSelect
+            name="setorId"
+            label="Setor"
+            opcoes={comAtual(setores, c.setor)}
+            defaultValue={c.setorId}
+            placeholder="Selecione o setor"
+            required
+          />
+          <CampoSelect
+            name="posicaoId"
+            label="Cargo"
+            opcoes={comAtual(posicoes, c.posicao)}
+            defaultValue={c.posicaoId}
+            placeholder="Selecione o cargo"
+            required
+          />
+          <Campo label="Reporta a" className="sm:col-span-2">
+            {/* Sem CampoSelect: aqui a opção vazia é um valor de verdade
+                ("sem líder"), não um placeholder a ser rejeitado. */}
+            <select name="supervisorId" defaultValue={c.supervisorId ?? ""} className={classeSelect}>
+              <option value="">Sem líder</option>
+              {(c.supervisor && !candidatosSupervisor.some((s) => s.id === c.supervisor!.id)
+                ? [c.supervisor, ...candidatosSupervisor]
+                : candidatosSupervisor
+              ).map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.nome}
+                </option>
+              ))}
+            </select>
+          </Campo>
+        </div>
+      </Bloco>
+
       <Bloco titulo="Identificação" acao={acao}>
         <div className="grid gap-4 sm:grid-cols-2">
           <CampoTexto name="nome" label="Nome completo" defaultValue={c.nome} required className="sm:col-span-2" />
@@ -164,12 +240,17 @@ export function FichaBlocos({
 
       <Bloco
         titulo="Vínculo"
-        descricao="A data de admissão é o que abre o controle de férias — sem ela, o colaborador não entra na programação."
+        descricao="A data de admissão é o que abre o controle de férias — sem ela, o colaborador não entra na programação. Em contrato de experiência, temporário ou estágio, preencha também o fim do prazo: deixar vencer transforma o contrato em indeterminado."
         acao={acao}
       >
         <div className="grid gap-4 sm:grid-cols-2">
           <CampoData name="dataAdmissao" label="Admissão" defaultValue={c.dataAdmissao} />
           <CampoSelect name="tipoContrato" label="Tipo de contrato" opcoes={TIPOS_CONTRATO} defaultValue={c.tipoContrato} />
+          <CampoData
+            name="dataFimContrato"
+            label="Fim do contrato (prazo determinado)"
+            defaultValue={c.dataFimContrato}
+          />
           <CampoTexto
             name="jornadaSemanal"
             label="Jornada semanal (horas)"

@@ -6,10 +6,9 @@ import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { registrarAuditoria } from "@/lib/audit";
 import { lerAnexo } from "@/lib/anexos";
 import { dataDoFormulario, formatarData, formatarDataHoraBrasilia } from "@/lib/datas";
-import { TIPOS_ACIDENTE, tipoAcidenteLabel } from "@/lib/constants-cat";
+import { tipoAcidenteLabel } from "@/lib/constants-cat";
+import { valoresValidosDoCatalogo } from "@/lib/catalogos";
 import type { ActionResult } from "@/lib/constants";
-
-const TIPOS_VALIDOS = new Set<string>(TIPOS_ACIDENTE.map((t) => t.value));
 
 /** Lê data + hora de dois campos separados (<input type=date> + <input type=time>). */
 function lerDataHora(formData: FormData, campoData: string, campoHora: string): Date | null {
@@ -37,7 +36,8 @@ export async function registrarAcidente(
   if (!colaborador) return { ok: false, error: "Colaborador não encontrado nesta empresa." };
 
   const tipo = String(formData.get("tipo") ?? "").trim();
-  if (!TIPOS_VALIDOS.has(tipo)) return { ok: false, error: "Selecione o tipo do acidente." };
+  const tiposValidos = await valoresValidosDoCatalogo(empresaId, "TIPO_ACIDENTE");
+  if (!tiposValidos.has(tipo)) return { ok: false, error: "Selecione o tipo do acidente." };
 
   const dataHora = lerDataHora(formData, "data", "hora");
   if (!dataHora) return { ok: false, error: "Informe a data do acidente." };

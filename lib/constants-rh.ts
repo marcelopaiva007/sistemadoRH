@@ -22,6 +22,13 @@ export const DIMENSOES_GPTW = [
   { value: "GERAL", label: "Geral" },
 ] as const;
 
+export const STATUS_PLANO_ACAO = [
+  { value: "ABERTO", label: "Aberto" },
+  { value: "EM_ANDAMENTO", label: "Em andamento" },
+  { value: "CONCLUIDO", label: "Concluído" },
+  { value: "CANCELADO", label: "Cancelado" },
+] as const;
+
 export const STATUS_TOKEN = [
   { value: "PENDING", label: "Pendente" },
   { value: "SENT", label: "Enviado" },
@@ -38,8 +45,17 @@ export const statusPesquisaLabel = (v: string) => STATUS_PESQUISA.find((s) => s.
 export const tipoPerguntaLabel = (v: string) => TIPOS_PERGUNTA.find((t) => t.value === v)?.label ?? v;
 export const dimensaoGPTWLabel = (v: string) => DIMENSOES_GPTW.find((d) => d.value === v)?.label ?? v;
 export const statusTokenLabel = (v: string) => STATUS_TOKEN.find((s) => s.value === v)?.label ?? v;
+export const statusPlanoAcaoLabel = (v: string) => STATUS_PLANO_ACAO.find((s) => s.value === v)?.label ?? v;
 
 export const AMOSTRA_MINIMA_ANONIMATO = 3;
 
-// Limite diário só para e-mail (100/dia). Telegram sem limite.
-export const LIMITE_DIARIO_ENVIOS = 100;
+// Teto diário de e-mail. Telegram não tem limite e não passa por aqui.
+//
+// O plano gratuito do Resend dá 100/dia, mas a cota é DA CONTA — e a conta é
+// dividida com o lm-bonificacao (mesmo domínio verificado, chaves diferentes).
+// A folga de 15 é o que impede um sistema de deixar o outro sem nada, e absorve
+// o descompasso entre o nosso contador e o do provedor.
+//
+// Ajustável sem deploy por LIMITE_DIARIO_EMAIL; ao trocar de plano, é só subir
+// a env var.
+export const LIMITE_DIARIO_ENVIOS = Number(process.env.LIMITE_DIARIO_EMAIL) || 85;

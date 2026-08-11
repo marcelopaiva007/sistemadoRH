@@ -1,0 +1,2572 @@
+{
+  "schema_version": "1.0",
+  "gerado_em": "2026-08-01",
+  "base_normativa": [
+    "NR-01 / Portaria MTE 1.419-2024",
+    "Lei 14.457/2022",
+    "LGPD Lei 13.709/2018"
+  ],
+  "escalas": {
+    "LIK5_CONC": {
+      "tipo": "likert",
+      "pontos": 5,
+      "rotulos": [
+        "Discordo totalmente",
+        "Discordo",
+        "Neutro",
+        "Concordo",
+        "Concordo totalmente"
+      ],
+      "favoravel": [
+        4,
+        5
+      ]
+    },
+    "LIK5_FREQ": {
+      "tipo": "likert",
+      "pontos": 5,
+      "rotulos": [
+        "Nunca",
+        "Raramente",
+        "Às vezes",
+        "Frequentemente",
+        "Sempre"
+      ],
+      "favoravel": [
+        1,
+        2
+      ]
+    },
+    "LIK5_SAT": {
+      "tipo": "likert",
+      "pontos": 5,
+      "rotulos": [
+        "Muito insatisfeito",
+        "Insatisfeito",
+        "Neutro",
+        "Satisfeito",
+        "Muito satisfeito"
+      ],
+      "favoravel": [
+        4,
+        5
+      ]
+    },
+    "LIK5_SAUDE": {
+      "tipo": "likert",
+      "pontos": 5,
+      "rotulos": [
+        "Muito ruim",
+        "Ruim",
+        "Regular",
+        "Boa",
+        "Muito boa"
+      ],
+      "favoravel": [
+        4,
+        5
+      ]
+    },
+    "NPS11": {
+      "tipo": "nps",
+      "min": 0,
+      "max": 10,
+      "promotor": [
+        9,
+        10
+      ],
+      "neutro": [
+        7,
+        8
+      ],
+      "detrator": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ]
+    },
+    "SIM_NAO_PN": {
+      "tipo": "categorica",
+      "opcoes": [
+        "Sim",
+        "Não",
+        "Prefiro não responder"
+      ]
+    },
+    "ABERTA": {
+      "tipo": "texto",
+      "max_caracteres": 500
+    }
+  },
+  "regras_globais": {
+    "n_minimo_exibicao": 5,
+    "n_minimo_demografico": 10,
+    "teto_convites_ano_por_colaborador": 6,
+    "teto_exclui_pesquisas_evento": true,
+    "dissociacao_token": "hash_irreversivel_com_salt_do_ciclo",
+    "descarte_straight_lining_pct": 90,
+    "descarte_tempo_minimo_pct_mediana": 35,
+    "retencao_resposta_individual_meses": 24,
+    "retencao_agregado_meses": 60,
+    "devolutiva_obrigatoria_dias": 30,
+    "plano_acao_obrigatorio_dias": 45,
+    "elegibilidade_vinculo": {
+      "principio": "Pesquisa de medicao so vai para vinculo ativo. Desligado nao entra em nenhuma medicao recorrente.",
+      "guarda": "hard_fail: desligado no lote de medicao lanca excecao, nao e filtrado silenciosamente",
+      "data_de_corte": "data efetiva de desligamento, nao a data do aviso",
+      "convite_pendente_de_desligado": "expira imediatamente",
+      "resposta_ja_enviada": "preservada — e anonima e dissociada; apagar exigiria religar resposta a pessoa",
+      "recortes": "n minimo calculado sobre base ATIVA, nunca sobre headcount historico",
+      "excecao_declarada": [
+        "P09",
+        "P10"
+      ],
+      "serie_separada": "P09 e P10 nao alimentam clima, eNPS, IRP nem indicador de populacao ativa"
+    }
+  },
+  "zonas": {
+    "favorabilidade": [
+      {
+        "min": 85,
+        "max": 100,
+        "rotulo": "Excelência",
+        "cor": "#00E5A0"
+      },
+      {
+        "min": 75,
+        "max": 84.99,
+        "rotulo": "Zona de Força",
+        "cor": "#8FD14F"
+      },
+      {
+        "min": 60,
+        "max": 74.99,
+        "rotulo": "Atenção",
+        "cor": "#FFC145"
+      },
+      {
+        "min": 45,
+        "max": 59.99,
+        "rotulo": "Risco",
+        "cor": "#FF8A3D"
+      },
+      {
+        "min": 0,
+        "max": 44.99,
+        "rotulo": "Crítico",
+        "cor": "#FF4757"
+      }
+    ],
+    "enps": [
+      {
+        "min": 71,
+        "max": 100,
+        "rotulo": "Excelência",
+        "cor": "#00E5A0"
+      },
+      {
+        "min": 31,
+        "max": 70,
+        "rotulo": "Qualidade",
+        "cor": "#8FD14F"
+      },
+      {
+        "min": 0,
+        "max": 30,
+        "rotulo": "Aperfeiçoamento",
+        "cor": "#FFC145"
+      },
+      {
+        "min": -100,
+        "max": -0.01,
+        "rotulo": "Crítico",
+        "cor": "#FF4757"
+      }
+    ],
+    "irp": [
+      {
+        "min": 0,
+        "max": 24,
+        "rotulo": "Baixo",
+        "cor": "#00E5A0",
+        "prazo_plano_dias": 60,
+        "escalonamento": [
+          "gestor"
+        ]
+      },
+      {
+        "min": 25,
+        "max": 49,
+        "rotulo": "Moderado",
+        "cor": "#FFC145",
+        "prazo_plano_dias": 45,
+        "escalonamento": [
+          "gestor",
+          "rh"
+        ]
+      },
+      {
+        "min": 50,
+        "max": 74,
+        "rotulo": "Alto",
+        "cor": "#FF8A3D",
+        "prazo_plano_dias": 30,
+        "escalonamento": [
+          "gestor",
+          "rh",
+          "diretoria",
+          "sesmt"
+        ]
+      },
+      {
+        "min": 75,
+        "max": 100,
+        "rotulo": "Crítico",
+        "cor": "#FF4757",
+        "prazo_plano_dias": 15,
+        "escalonamento": [
+          "diretoria",
+          "sesmt",
+          "juridico"
+        ],
+        "reavaliacao_dias": 90
+      }
+    ]
+  },
+  "trilhas_por_porte": {
+    "P": {
+      "faixa": "1-49",
+      "pesquisas": [
+        "P01",
+        "P03R",
+        "P05",
+        "P06",
+        "P09",
+        "P13",
+        "P15",
+        "P19"
+      ],
+      "minutos_ano": 35
+    },
+    "M": {
+      "faixa": "50-199",
+      "pesquisas": [
+        "P01",
+        "P02",
+        "P03",
+        "P05",
+        "P06",
+        "P07",
+        "P08",
+        "P09",
+        "P11",
+        "P13",
+        "P14",
+        "P15",
+        "P17",
+        "P18",
+        "P19"
+      ],
+      "minutos_ano": 48
+    },
+    "G": {
+      "faixa": "200-999",
+      "pesquisas": [
+        "P01",
+        "P02",
+        "P03",
+        "P04",
+        "P05",
+        "P06",
+        "P07",
+        "P08",
+        "P09",
+        "P10",
+        "P11",
+        "P12",
+        "P13",
+        "P14",
+        "P15",
+        "P16",
+        "P17",
+        "P18",
+        "P19",
+        "P20"
+      ],
+      "minutos_ano": 62
+    },
+    "GG": {
+      "faixa": "1000+",
+      "pesquisas": [
+        "P01",
+        "P02",
+        "P03",
+        "P04",
+        "P05",
+        "P06",
+        "P07",
+        "P08",
+        "P09",
+        "P10",
+        "P11",
+        "P12",
+        "P13",
+        "P14",
+        "P15",
+        "P16",
+        "P17",
+        "P18",
+        "P19",
+        "P20"
+      ],
+      "minutos_ano": 62,
+      "amostragem_rotativa_pulses_pct": 30
+    }
+  },
+  "regua_cobranca": [
+    {
+      "dia": -3,
+      "acao": "comunicado_lancamento",
+      "remetente": "diretoria",
+      "canais": [
+        "email",
+        "mural",
+        "whatsapp"
+      ]
+    },
+    {
+      "dia": 0,
+      "acao": "convite",
+      "canais": [
+        "email",
+        "whatsapp"
+      ]
+    },
+    {
+      "dia": 3,
+      "acao": "lembrete_1_com_placar",
+      "canais": [
+        "email"
+      ]
+    },
+    {
+      "dia": 5,
+      "acao": "ranking_participacao_gestores",
+      "canais": [
+        "email_gestores"
+      ]
+    },
+    {
+      "dia": 7,
+      "acao": "lembrete_2_reforco_anonimato",
+      "canais": [
+        "email",
+        "whatsapp"
+      ]
+    },
+    {
+      "dia": 10,
+      "acao": "cobranca_gestor_areas_abaixo_60",
+      "canais": [
+        "email"
+      ],
+      "copia": [
+        "diretoria"
+      ]
+    },
+    {
+      "dia": 13,
+      "acao": "ultimo_aviso",
+      "canais": [
+        "email",
+        "whatsapp",
+        "mural"
+      ]
+    },
+    {
+      "dia": 15,
+      "acao": "encerramento"
+    },
+    {
+      "dia": 20,
+      "acao": "resultado_direcao",
+      "canais": [
+        "dashboard"
+      ]
+    },
+    {
+      "dia": 30,
+      "acao": "devolutiva_obrigatoria_colaboradores",
+      "canais": [
+        "reuniao",
+        "comunicado"
+      ]
+    },
+    {
+      "dia": 45,
+      "acao": "publicacao_planos_acao",
+      "canais": [
+        "sistema"
+      ]
+    }
+  ],
+  "alertas": [
+    {
+      "id": "AL01",
+      "gatilho": "P15.item in [1,2,3] == 'Sim'",
+      "severidade": "critico",
+      "destinatarios": [
+        "comite_etica"
+      ],
+      "prazo_horas": 24
+    },
+    {
+      "id": "AL02",
+      "gatilho": "IRP_area >= 75",
+      "severidade": "critico",
+      "destinatarios": [
+        "diretoria",
+        "sesmt"
+      ],
+      "prazo_dias": 15
+    },
+    {
+      "id": "AL03",
+      "gatilho": "IRP_area between 50 and 74",
+      "severidade": "alto",
+      "destinatarios": [
+        "gestor",
+        "rh",
+        "diretoria"
+      ],
+      "prazo_dias": 30
+    },
+    {
+      "id": "AL04",
+      "gatilho": "eNPS_area < 0",
+      "severidade": "alto",
+      "destinatarios": [
+        "diretoria"
+      ],
+      "prazo_dias": 30
+    },
+    {
+      "id": "AL05",
+      "gatilho": "LNPS_gestor < 0",
+      "severidade": "alto",
+      "destinatarios": [
+        "gestor_do_gestor",
+        "rh"
+      ],
+      "prazo_dias": 15
+    },
+    {
+      "id": "AL06",
+      "gatilho": "queda_dimensao_pp >= 15",
+      "severidade": "alto",
+      "destinatarios": [
+        "gestor",
+        "rh"
+      ],
+      "prazo_dias": 15
+    },
+    {
+      "id": "AL07",
+      "gatilho": "P06.item6 desfavoravel",
+      "severidade": "medio",
+      "destinatarios": [
+        "rh",
+        "recrutador"
+      ],
+      "prazo_dias": 7
+    },
+    {
+      "id": "AL08",
+      "gatilho": "taxa_resposta_area < 60",
+      "severidade": "medio",
+      "destinatarios": [
+        "gestor",
+        "diretoria"
+      ],
+      "prazo": "durante_janela"
+    },
+    {
+      "id": "AL09",
+      "gatilho": "plano_acao_vencido",
+      "severidade": "medio",
+      "destinatarios": [
+        "gestor",
+        "diretoria"
+      ],
+      "prazo": "imediato"
+    },
+    {
+      "id": "AL10",
+      "gatilho": "desligamentos_area_90d >= 3",
+      "severidade": "alto",
+      "destinatarios": [
+        "diretoria"
+      ],
+      "prazo_dias": 15
+    },
+    {
+      "id": "AL11",
+      "gatilho": "desvio_padrao_dimensao > 1.3",
+      "severidade": "info",
+      "destinatarios": [
+        "rh"
+      ],
+      "prazo": "ciclo"
+    }
+  ],
+  "pesquisas": [
+    {
+      "codigo": "P01",
+      "id": "P01-FRPRT",
+      "nome": "Diagnóstico de Fatores de Risco Psicossocial (NR-01)",
+      "camada": "L2_diagnostico",
+      "obrigatoria_legal": true,
+      "publico": "todos_clt",
+      "tempo_minutos": 15,
+      "janela_dias": 15,
+      "cadencia": "anual",
+      "reaplicacao_condicional": "IRP >= 50 -> 180 dias",
+      "escala_padrao": "LIK5_FREQ",
+      "anonima": true,
+      "saida": [
+        "inventario_riscos_psicossociais",
+        "PGR",
+        "plano_acao"
+      ],
+      "dimensoes": [
+        {
+          "id": "A",
+          "nome": "Exigências quantitativas e ritmo",
+          "peso": 1.5,
+          "itens": [
+            {
+              "n": 1,
+              "texto": "Você precisa fazer horas extras ou levar trabalho para casa para dar conta das suas tarefas?",
+              "invertida": false
+            },
+            {
+              "n": 2,
+              "texto": "O seu volume de trabalho se acumula por não haver tempo suficiente para executá-lo?",
+              "invertida": false
+            },
+            {
+              "n": 3,
+              "texto": "Você precisa trabalhar em ritmo acelerado durante a maior parte do expediente?",
+              "invertida": false
+            },
+            {
+              "n": 4,
+              "texto": "Você fica sem tempo para pausas, refeições ou descanso adequado durante a jornada?",
+              "invertida": false
+            }
+          ]
+        },
+        {
+          "id": "B",
+          "nome": "Exigências cognitivas e emocionais",
+          "peso": 1.5,
+          "itens": [
+            {
+              "n": 5,
+              "texto": "Seu trabalho exige que você tome decisões difíceis sob pressão de tempo?",
+              "invertida": false
+            },
+            {
+              "n": 6,
+              "texto": "Seu trabalho exige que você lide com sentimentos ou problemas pessoais de outras pessoas?",
+              "invertida": false
+            },
+            {
+              "n": 7,
+              "texto": "Você precisa esconder o que realmente sente para desempenhar o seu trabalho?",
+              "invertida": false
+            },
+            {
+              "n": 8,
+              "texto": "Você se sente emocionalmente desgastado ao final do expediente?",
+              "invertida": false
+            }
+          ]
+        },
+        {
+          "id": "C",
+          "nome": "Influência, autonomia e previsibilidade",
+          "peso": 1.0,
+          "itens": [
+            {
+              "n": 9,
+              "texto": "Você tem influência sobre a forma como executa o seu trabalho?",
+              "invertida": true
+            },
+            {
+              "n": 10,
+              "texto": "Você pode decidir quando fazer uma pausa?",
+              "invertida": true
+            },
+            {
+              "n": 11,
+              "texto": "Você recebe com antecedência as informações necessárias para se planejar?",
+              "invertida": true
+            },
+            {
+              "n": 12,
+              "texto": "Você é informado sobre decisões e mudanças importantes antes que elas aconteçam?",
+              "invertida": true
+            },
+            {
+              "n": 13,
+              "texto": "Seu trabalho oferece oportunidade de aprender coisas novas?",
+              "invertida": true
+            }
+          ]
+        },
+        {
+          "id": "D",
+          "nome": "Liderança e apoio social",
+          "peso": 1.0,
+          "itens": [
+            {
+              "n": 14,
+              "texto": "Seu gestor direto está disponível quando você precisa de ajuda?",
+              "invertida": true
+            },
+            {
+              "n": 15,
+              "texto": "Seu gestor direto planeja bem o trabalho da equipe?",
+              "invertida": true
+            },
+            {
+              "n": 16,
+              "texto": "Seus colegas ajudam quando você enfrenta dificuldade na tarefa?",
+              "invertida": true
+            },
+            {
+              "n": 17,
+              "texto": "Existe bom ambiente de cooperação entre as pessoas da sua equipe?",
+              "invertida": true
+            },
+            {
+              "n": 18,
+              "texto": "Você recebe feedback sobre a qualidade do seu trabalho?",
+              "invertida": true
+            }
+          ]
+        },
+        {
+          "id": "E",
+          "nome": "Reconhecimento, justiça e confiança",
+          "peso": 1.0,
+          "itens": [
+            {
+              "n": 19,
+              "texto": "Seu trabalho é reconhecido e valorizado pela liderança?",
+              "invertida": true
+            },
+            {
+              "n": 20,
+              "texto": "Os conflitos são resolvidos de forma justa nesta empresa?",
+              "invertida": true
+            },
+            {
+              "n": 21,
+              "texto": "As oportunidades (promoções, treinamentos, escalas) são distribuídas com critério claro?",
+              "invertida": true
+            },
+            {
+              "n": 22,
+              "texto": "Você confia nas informações que a direção da empresa comunica?",
+              "invertida": true
+            },
+            {
+              "n": 23,
+              "texto": "Você sente que seu esforço é compensado de forma proporcional?",
+              "invertida": true
+            }
+          ]
+        },
+        {
+          "id": "F",
+          "nome": "Interface trabalho-vida",
+          "peso": 1.0,
+          "itens": [
+            {
+              "n": 24,
+              "texto": "As exigências do trabalho interferem na sua vida pessoal e familiar?",
+              "invertida": false
+            },
+            {
+              "n": 25,
+              "texto": "Você pensa em problemas do trabalho durante o seu tempo livre?",
+              "invertida": false
+            },
+            {
+              "n": 26,
+              "texto": "Você é contatado fora do horário de trabalho por demandas da empresa?",
+              "invertida": false
+            }
+          ]
+        },
+        {
+          "id": "G",
+          "nome": "Comportamentos ofensivos",
+          "peso": 1.5,
+          "regra_especial": "qualquer item >= 'Às vezes' em >=10% dos respondentes forca IRP para Critico",
+          "itens": [
+            {
+              "n": 27,
+              "texto": "Nos últimos 12 meses, você foi exposto a piadas ou comentários humilhantes no trabalho?",
+              "invertida": false
+            },
+            {
+              "n": 28,
+              "texto": "Nos últimos 12 meses, você foi exposto a gritos, humilhação pública ou tratamento hostil?",
+              "invertida": false
+            },
+            {
+              "n": 29,
+              "texto": "Nos últimos 12 meses, você presenciou situações de assédio moral com alguém da empresa?",
+              "invertida": false
+            },
+            {
+              "n": 30,
+              "texto": "Nos últimos 12 meses, você foi exposto a insinuações ou investidas de natureza sexual?",
+              "invertida": false
+            },
+            {
+              "n": 31,
+              "texto": "Nos últimos 12 meses, você sofreu tratamento desigual por cor, gênero, idade, religião, origem ou deficiência?",
+              "invertida": false
+            }
+          ]
+        },
+        {
+          "id": "H",
+          "nome": "Saúde, bem-estar e esgotamento",
+          "peso": 1.5,
+          "dado_sensivel": true,
+          "itens": [
+            {
+              "n": 32,
+              "texto": "Com que frequência você se sente fisicamente exausto?",
+              "invertida": false
+            },
+            {
+              "n": 33,
+              "texto": "Com que frequência você se sente emocionalmente esgotado?",
+              "invertida": false
+            },
+            {
+              "n": 34,
+              "texto": "Com que frequência você tem dificuldade para dormir por causa do trabalho?",
+              "invertida": false
+            },
+            {
+              "n": 35,
+              "texto": "Com que frequência você se sente irritado ou impaciente sem motivo claro?",
+              "invertida": false
+            },
+            {
+              "n": 36,
+              "texto": "Com que frequência você sente que não consegue mais dar conta?",
+              "invertida": false
+            },
+            {
+              "n": 37,
+              "texto": "De modo geral, como você avalia sua saúde mental hoje?",
+              "escala": "LIK5_SAUDE",
+              "invertida": true
+            },
+            {
+              "n": 38,
+              "texto": "Nos últimos 12 meses você faltou ao trabalho por motivo relacionado a estresse, ansiedade ou desgaste emocional?",
+              "escala": "SIM_NAO_PN"
+            },
+            {
+              "n": 39,
+              "texto": "Você sabe a quem recorrer na empresa se precisar de apoio psicológico ou quiser reportar uma situação grave?",
+              "escala": "SIM_NAO_PN"
+            }
+          ]
+        },
+        {
+          "id": "OPEN",
+          "nome": "Abertas",
+          "peso": 0,
+          "itens": [
+            {
+              "n": 40,
+              "texto": "Na sua opinião, qual é a principal fonte de pressão ou desgaste no seu trabalho hoje?",
+              "escala": "ABERTA"
+            },
+            {
+              "n": 41,
+              "texto": "O que a empresa poderia mudar para reduzir esse desgaste?",
+              "escala": "ABERTA"
+            },
+            {
+              "n": 42,
+              "texto": "Há algo que você gostaria que a Direção soubesse e que não foi perguntado aqui?",
+              "escala": "ABERTA"
+            }
+          ]
+        }
+      ],
+      "elegibilidade_vinculo": [
+        "ativo",
+        "experiencia",
+        "ferias"
+      ]
+    },
+    {
+      "codigo": "P02",
+      "id": "P02-PULSE-SM",
+      "nome": "Pulse de Saúde Mental e Carga",
+      "camada": "L1_termometro",
+      "publico": "todos",
+      "tempo_minutos": 3,
+      "janela_dias": 5,
+      "cadencia": "trimestral",
+      "escala_padrao": "LIK5_CONC",
+      "anonima": true,
+      "itens": [
+        {
+          "n": 1,
+          "texto": "Minha carga de trabalho nas últimas 4 semanas foi administrável.",
+          "escala": "LIK5_CONC"
+        },
+        {
+          "n": 2,
+          "texto": "Consegui desconectar do trabalho no meu tempo de descanso.",
+          "escala": "LIK5_FREQ",
+          "invertida": true
+        },
+        {
+          "n": 3,
+          "texto": "Meu gestor demonstrou atenção ao meu bem-estar.",
+          "escala": "LIK5_CONC"
+        },
+        {
+          "n": 4,
+          "texto": "Senti-me esgotado ao final da maioria dos dias.",
+          "escala": "LIK5_FREQ"
+        },
+        {
+          "n": 5,
+          "texto": "Tive clareza sobre o que se esperava de mim.",
+          "escala": "LIK5_CONC"
+        },
+        {
+          "n": 6,
+          "texto": "Senti-me à vontade para dizer que estava sobrecarregado.",
+          "escala": "LIK5_CONC"
+        },
+        {
+          "n": 7,
+          "texto": "As mudanças recentes na área foram comunicadas com antecedência.",
+          "escala": "LIK5_CONC"
+        },
+        {
+          "n": 8,
+          "texto": "De 0 a 10, como está a sua energia para o trabalho hoje?",
+          "escala": "NPS11"
+        },
+        {
+          "n": 9,
+          "texto": "O que mais pesou nas suas últimas semanas?",
+          "escala": "ABERTA"
+        }
+      ],
+      "elegibilidade_vinculo": [
+        "ativo",
+        "experiencia"
+      ]
+    },
+    {
+      "codigo": "P03",
+      "id": "P03-CLIMA",
+      "nome": "Pesquisa de Clima Organizacional",
+      "camada": "L2_diagnostico",
+      "publico": "todos",
+      "tempo_minutos": 16,
+      "janela_dias": 15,
+      "cadencia": "anual",
+      "mes_sugerido": 9,
+      "escala_padrao": "LIK5_CONC",
+      "anonima": true,
+      "versao_reduzida_porte_P": {
+        "itens": 24,
+        "tempo_minutos": 8,
+        "regra": "2 itens por dimensao"
+      },
+      "dimensoes": [
+        {
+          "id": "D1",
+          "nome": "Liderança Imediata",
+          "itens": [
+            {
+              "n": 1,
+              "texto": "Meu gestor direto dá orientações claras sobre o que se espera de mim."
+            },
+            {
+              "n": 2,
+              "texto": "Meu gestor direto me dá feedback com regularidade, sobre o que vai bem e o que precisa melhorar."
+            },
+            {
+              "n": 3,
+              "texto": "Meu gestor direto trata todos da equipe com o mesmo critério."
+            },
+            {
+              "n": 4,
+              "texto": "Confio nas decisões do meu gestor direto."
+            }
+          ]
+        },
+        {
+          "id": "D2",
+          "nome": "Comunicação e Transparência",
+          "itens": [
+            {
+              "n": 5,
+              "texto": "Recebo as informações que preciso para fazer bem o meu trabalho."
+            },
+            {
+              "n": 6,
+              "texto": "A empresa comunica mudanças importantes antes que elas aconteçam."
+            },
+            {
+              "n": 7,
+              "texto": "Sei quais são as prioridades e metas da minha área neste ano."
+            },
+            {
+              "n": 8,
+              "texto": "Quando faço uma pergunta à liderança, recebo uma resposta honesta."
+            }
+          ]
+        },
+        {
+          "id": "D3",
+          "nome": "Reconhecimento e Valorização",
+          "itens": [
+            {
+              "n": 9,
+              "texto": "Meu trabalho é reconhecido quando entrego bons resultados."
+            },
+            {
+              "n": 10,
+              "texto": "O reconhecimento nesta empresa é baseado em desempenho, não em proximidade."
+            },
+            {
+              "n": 11,
+              "texto": "Sinto que minha contribuição faz diferença para a empresa."
+            },
+            {
+              "n": 12,
+              "texto": "Recebo elogio ou reconhecimento pelo menos uma vez por mês."
+            }
+          ]
+        },
+        {
+          "id": "D4",
+          "nome": "Remuneração e Benefícios",
+          "itens": [
+            {
+              "n": 13,
+              "texto": "Considero meu salário justo para a função que exerço."
+            },
+            {
+              "n": 14,
+              "texto": "Entendo como meu salário é definido e o que preciso fazer para evoluir."
+            },
+            {
+              "n": 15,
+              "texto": "Os benefícios oferecidos atendem às minhas necessidades."
+            },
+            {
+              "n": 16,
+              "texto": "Meu salário é competitivo em relação ao que o mercado da região paga."
+            }
+          ]
+        },
+        {
+          "id": "D5",
+          "nome": "Carreira e Desenvolvimento",
+          "itens": [
+            {
+              "n": 17,
+              "texto": "Vejo possibilidade real de crescer nesta empresa."
+            },
+            {
+              "n": 18,
+              "texto": "Recebi treinamento suficiente para exercer bem a minha função."
+            },
+            {
+              "n": 19,
+              "texto": "A empresa investe no meu desenvolvimento profissional."
+            },
+            {
+              "n": 20,
+              "texto": "As vagas internas são divulgadas e disputadas com critério claro."
+            }
+          ]
+        },
+        {
+          "id": "D6",
+          "nome": "Condições de Trabalho e Recursos",
+          "itens": [
+            {
+              "n": 21,
+              "texto": "Tenho os equipamentos e ferramentas necessários para trabalhar bem."
+            },
+            {
+              "n": 22,
+              "texto": "Meu ambiente físico de trabalho é adequado e seguro."
+            },
+            {
+              "n": 23,
+              "texto": "Os sistemas e processos da empresa me ajudam mais do que atrapalham."
+            },
+            {
+              "n": 24,
+              "texto": "Quando um recurso falta ou quebra, a empresa resolve com agilidade."
+            }
+          ]
+        },
+        {
+          "id": "D7",
+          "nome": "Relacionamento e Trabalho em Equipe",
+          "itens": [
+            {
+              "n": 25,
+              "texto": "Existe cooperação entre as pessoas da minha equipe."
+            },
+            {
+              "n": 26,
+              "texto": "As áreas da empresa colaboram entre si em vez de competir."
+            },
+            {
+              "n": 27,
+              "texto": "Sinto-me respeitado pelos meus colegas."
+            },
+            {
+              "n": 28,
+              "texto": "Conflitos na minha equipe são tratados e resolvidos."
+            }
+          ]
+        },
+        {
+          "id": "D8",
+          "nome": "Carga de Trabalho e Equilíbrio",
+          "itens": [
+            {
+              "n": 29,
+              "texto": "Consigo dar conta do meu trabalho dentro da jornada normal."
+            },
+            {
+              "n": 30,
+              "texto": "A empresa respeita meu tempo de descanso e minha vida pessoal."
+            },
+            {
+              "n": 31,
+              "texto": "A distribuição de tarefas na minha equipe é equilibrada."
+            },
+            {
+              "n": 32,
+              "texto": "Consigo tirar férias e folgas sem prejuízo ou cobrança."
+            }
+          ]
+        },
+        {
+          "id": "D9",
+          "nome": "Autonomia e Clareza de Papel",
+          "itens": [
+            {
+              "n": 33,
+              "texto": "Tenho autonomia para decidir como executar as minhas tarefas."
+            },
+            {
+              "n": 34,
+              "texto": "Sei exatamente quais são as minhas responsabilidades."
+            },
+            {
+              "n": 35,
+              "texto": "Não recebo ordens conflitantes de pessoas diferentes."
+            },
+            {
+              "n": 36,
+              "texto": "Sou consultado sobre decisões que afetam diretamente o meu trabalho."
+            }
+          ]
+        },
+        {
+          "id": "D10",
+          "nome": "Cultura, Ética e Confiança na Direção",
+          "itens": [
+            {
+              "n": 37,
+              "texto": "Confio na Direção desta empresa."
+            },
+            {
+              "n": 38,
+              "texto": "A empresa cumpre o que promete aos colaboradores."
+            },
+            {
+              "n": 39,
+              "texto": "Aqui as regras valem igualmente para todos, inclusive para a liderança."
+            },
+            {
+              "n": 40,
+              "texto": "A empresa age com ética com clientes, fornecedores e colaboradores."
+            }
+          ]
+        },
+        {
+          "id": "D11",
+          "nome": "Segurança Psicológica e Respeito",
+          "itens": [
+            {
+              "n": 41,
+              "texto": "Posso discordar da liderança sem medo de sofrer consequências."
+            },
+            {
+              "n": 42,
+              "texto": "Posso admitir um erro sem ser punido ou humilhado."
+            },
+            {
+              "n": 43,
+              "texto": "Posso relatar um problema grave e ele será tratado com seriedade."
+            },
+            {
+              "n": 44,
+              "texto": "Nunca presenciei ou sofri tratamento desrespeitoso nesta empresa."
+            }
+          ]
+        },
+        {
+          "id": "D12",
+          "nome": "Orgulho e Pertencimento",
+          "itens": [
+            {
+              "n": 45,
+              "texto": "Tenho orgulho de dizer onde trabalho."
+            },
+            {
+              "n": 46,
+              "texto": "Vejo-me trabalhando aqui daqui a 2 anos."
+            },
+            {
+              "n": 47,
+              "texto": "Acredito no futuro desta empresa."
+            },
+            {
+              "n": 48,
+              "texto": "Se um amigo procurasse emprego, eu indicaria esta empresa."
+            }
+          ]
+        },
+        {
+          "id": "NPS",
+          "nome": "eNPS e abertas",
+          "itens": [
+            {
+              "n": 49,
+              "texto": "De 0 a 10, o quanto você recomendaria esta empresa como um bom lugar para trabalhar?",
+              "escala": "NPS11"
+            },
+            {
+              "n": 50,
+              "texto": "O que motivou a sua nota?",
+              "escala": "ABERTA"
+            },
+            {
+              "n": 51,
+              "texto": "O que esta empresa faz de melhor e não pode perder?",
+              "escala": "ABERTA"
+            },
+            {
+              "n": 52,
+              "texto": "Qual é a única coisa que, se mudasse, melhoraria mais o seu dia a dia?",
+              "escala": "ABERTA"
+            },
+            {
+              "n": 53,
+              "texto": "Se você fosse o dono por um dia, qual seria a primeira decisão que tomaria?",
+              "escala": "ABERTA"
+            }
+          ]
+        }
+      ],
+      "elegibilidade_vinculo": [
+        "ativo",
+        "experiencia",
+        "ferias"
+      ]
+    },
+    {
+      "codigo": "P04",
+      "id": "P04-PULSE-ENG",
+      "nome": "Pulse de Engajamento",
+      "camada": "L1_termometro",
+      "publico": "todos",
+      "tempo_minutos": 4,
+      "janela_dias": 5,
+      "cadencia": "trimestral",
+      "escala_padrao": "LIK5_CONC",
+      "anonima": true,
+      "itens": [
+        {
+          "n": 1,
+          "texto": "Sei o que se espera de mim no trabalho."
+        },
+        {
+          "n": 2,
+          "texto": "Tenho os recursos e materiais para fazer meu trabalho corretamente."
+        },
+        {
+          "n": 3,
+          "texto": "Tenho a oportunidade de fazer o que faço melhor, todos os dias."
+        },
+        {
+          "n": 4,
+          "texto": "Nos últimos 7 dias, recebi reconhecimento por um bom trabalho."
+        },
+        {
+          "n": 5,
+          "texto": "Meu gestor se importa comigo como pessoa."
+        },
+        {
+          "n": 6,
+          "texto": "Existe alguém no trabalho que incentiva o meu desenvolvimento."
+        },
+        {
+          "n": 7,
+          "texto": "Minhas opiniões parecem contar."
+        },
+        {
+          "n": 8,
+          "texto": "Entendo como o meu trabalho contribui para o resultado da empresa."
+        },
+        {
+          "n": 9,
+          "texto": "Meus colegas estão comprometidos com um trabalho de qualidade."
+        },
+        {
+          "n": 10,
+          "texto": "Tenho um bom amigo no trabalho."
+        },
+        {
+          "n": 11,
+          "texto": "Nos últimos 6 meses, alguém conversou comigo sobre o meu progresso."
+        },
+        {
+          "n": 12,
+          "texto": "No último ano, tive oportunidade de aprender e crescer."
+        },
+        {
+          "n": 13,
+          "texto": "O que faria a sua próxima semana ser melhor que a última?",
+          "escala": "ABERTA"
+        }
+      ],
+      "elegibilidade_vinculo": [
+        "ativo",
+        "experiencia"
+      ]
+    },
+    {
+      "codigo": "P05",
+      "id": "P05-ENPS",
+      "nome": "eNPS — Termômetro",
+      "camada": "L1_termometro",
+      "publico": "todos",
+      "tempo_minutos": 1,
+      "janela_dias": 5,
+      "cadencia": "mensal",
+      "cadencia_porte_G_GG": "bimestral",
+      "anonima": true,
+      "meta_taxa_resposta": 85,
+      "itens": [
+        {
+          "n": 1,
+          "texto": "De 0 a 10, o quanto você recomendaria esta empresa como um bom lugar para trabalhar?",
+          "escala": "NPS11"
+        },
+        {
+          "n": 2,
+          "texto": "O que motivou a sua nota?",
+          "escala": "ABERTA"
+        },
+        {
+          "n": 3,
+          "texto": "O que precisaria acontecer para você dar uma nota mais alta?",
+          "escala": "ABERTA"
+        }
+      ],
+      "elegibilidade_vinculo": [
+        "ativo",
+        "experiencia"
+      ]
+    },
+    {
+      "codigo": "P06",
+      "id": "P06-ONB30",
+      "nome": "Onboarding D+30",
+      "camada": "L3_jornada",
+      "gatilho": "30 dias apos admissao",
+      "tempo_minutos": 4,
+      "janela_dias": 5,
+      "cadencia": "por_evento",
+      "escala_padrao": "LIK5_CONC",
+      "anonima": false,
+      "itens": [
+        {
+          "n": 1,
+          "texto": "Recebi todas as informações necessárias antes do meu primeiro dia."
+        },
+        {
+          "n": 2,
+          "texto": "No meu primeiro dia eu tinha crachá, acessos, equipamento e local de trabalho prontos."
+        },
+        {
+          "n": 3,
+          "texto": "Fui bem recebido pela minha equipe."
+        },
+        {
+          "n": 4,
+          "texto": "Meu gestor deixou claro o que se espera de mim."
+        },
+        {
+          "n": 5,
+          "texto": "Recebi o treinamento inicial necessário para começar a trabalhar."
+        },
+        {
+          "n": 6,
+          "texto": "A função é o que foi apresentado a mim no processo seletivo.",
+          "alerta": "AL07",
+          "nota": "preditor n1 de desligamento em 90 dias"
+        },
+        {
+          "n": 7,
+          "texto": "Sei a quem recorrer quando tenho uma dúvida."
+        },
+        {
+          "n": 8,
+          "texto": "Entendo como meu salário e benefícios funcionam."
+        },
+        {
+          "n": 9,
+          "texto": "Até aqui, minha experiência corresponde ao que eu esperava."
+        },
+        {
+          "n": 10,
+          "texto": "De 0 a 10, o quanto você recomendaria esta empresa para um amigo hoje?",
+          "escala": "NPS11"
+        },
+        {
+          "n": 11,
+          "texto": "O que mais te surpreendeu positivamente?",
+          "escala": "ABERTA"
+        },
+        {
+          "n": 12,
+          "texto": "O que faltou nas suas primeiras semanas?",
+          "escala": "ABERTA"
+        }
+      ],
+      "elegibilidade_vinculo": [
+        "ativo",
+        "experiencia"
+      ]
+    },
+    {
+      "codigo": "P07",
+      "id": "P07-ONB90",
+      "nome": "Onboarding D+90 (Efetivação)",
+      "camada": "L3_jornada",
+      "gatilho": "5 dias antes do fim do contrato de experiencia",
+      "tempo_minutos": 5,
+      "janela_dias": 5,
+      "cadencia": "por_evento",
+      "escala_padrao": "LIK5_CONC",
+      "itens": [
+        {
+          "n": 1,
+          "texto": "Hoje me sinto capaz de executar minha função com autonomia."
+        },
+        {
+          "n": 2,
+          "texto": "Recebi feedback do meu gestor nestes 90 dias."
+        },
+        {
+          "n": 3,
+          "texto": "Recebi o treinamento técnico de que precisava."
+        },
+        {
+          "n": 4,
+          "texto": "Entendo como meu trabalho se conecta ao resultado da área."
+        },
+        {
+          "n": 5,
+          "texto": "Fui integrado à equipe."
+        },
+        {
+          "n": 6,
+          "texto": "As condições de trabalho combinadas foram cumpridas."
+        },
+        {
+          "n": 7,
+          "texto": "Sei quais são os próximos passos da minha carreira aqui."
+        },
+        {
+          "n": 8,
+          "texto": "A liderança está acessível quando preciso."
+        },
+        {
+          "n": 9,
+          "texto": "O ritmo e a carga de trabalho são compatíveis com o combinado."
+        },
+        {
+          "n": 10,
+          "texto": "Sinto-me respeitado no ambiente de trabalho."
+        },
+        {
+          "n": 11,
+          "texto": "Pretendo continuar nesta empresa."
+        },
+        {
+          "n": 12,
+          "texto": "De 0 a 10, o quanto você recomendaria esta empresa?",
+          "escala": "NPS11"
+        },
+        {
+          "n": 13,
+          "texto": "O que o seu gestor poderia fazer de diferente?",
+          "escala": "ABERTA"
+        },
+        {
+          "n": 14,
+          "texto": "O que quase te fez desistir nestes 90 dias?",
+          "escala": "ABERTA"
+        }
+      ],
+      "elegibilidade_vinculo": [
+        "ativo",
+        "experiencia"
+      ]
+    },
+    {
+      "codigo": "P08",
+      "id": "P08-STAY",
+      "nome": "Stay Interview (Entrevista de Permanência)",
+      "camada": "L3_jornada",
+      "formato": "presencial_conduzida_pelo_gestor",
+      "tempo_minutos": 35,
+      "cadencia": "semestral",
+      "publico": "talentos_chave_alto_desempenho_sucessores_cargos_criticos",
+      "registro_prazo_horas": 48,
+      "roteiro": [
+        "O que faz você continuar aqui?",
+        "O que te dá mais energia no seu trabalho hoje? E o que te drena?",
+        "Se você recebesse uma proposta amanhã, o que ela precisaria ter para te fazer considerar?",
+        "Existe algum talento ou habilidade sua que você sente que a empresa não está usando?",
+        "O que você quer estar fazendo daqui a 2 anos?",
+        "O que eu, como seu gestor, deveria começar, parar e continuar fazendo?",
+        "Existe algo acontecendo agora que, se não for resolvido, te faria sair?",
+        "Se você fosse o responsável por esta área, o que mudaria primeiro?"
+      ],
+      "campos_registro": [
+        "risco_saida (baixo|medio|alto)",
+        "fator_retencao_principal",
+        "acao_acordada",
+        "prazo",
+        "escalonamento"
+      ],
+      "elegibilidade_vinculo": [
+        "ativo"
+      ]
+    },
+    {
+      "codigo": "P09",
+      "id": "P09-OFF",
+      "nome": "Pesquisa de Desligamento",
+      "camada": "L3_jornada",
+      "gatilho": "dia do aviso",
+      "validade_link_dias": 30,
+      "tempo_minutos": 8,
+      "cadencia": "por_evento",
+      "escala_padrao": "LIK5_CONC",
+      "regra_aplicacao": "fora do momento do acerto rescisorio e sem presenca do gestor",
+      "motivos_multipla_escolha_max3": [
+        "Salário",
+        "Falta de perspectiva de carreira",
+        "Relação com o gestor direto",
+        "Carga de trabalho / esgotamento",
+        "Ambiente / clima da equipe",
+        "Falta de reconhecimento",
+        "Distância / deslocamento",
+        "Condições de trabalho",
+        "Motivo pessoal ou familiar",
+        "Proposta melhor",
+        "Insatisfação com a Direção",
+        "Assédio ou desrespeito",
+        "Outro"
+      ],
+      "itens": [
+        {
+          "n": 1,
+          "texto": "Meu gestor direto era preparado para liderar."
+        },
+        {
+          "n": 2,
+          "texto": "Meu gestor me dava feedback."
+        },
+        {
+          "n": 3,
+          "texto": "Meu trabalho era reconhecido."
+        },
+        {
+          "n": 4,
+          "texto": "A empresa cumpriu o que prometeu quando fui contratado."
+        },
+        {
+          "n": 5,
+          "texto": "Eu tinha os recursos necessários para trabalhar."
+        },
+        {
+          "n": 6,
+          "texto": "A carga de trabalho era administrável."
+        },
+        {
+          "n": 7,
+          "texto": "Eu enxergava possibilidade de crescer aqui."
+        },
+        {
+          "n": 8,
+          "texto": "O salário era compatível com a função."
+        },
+        {
+          "n": 9,
+          "texto": "Os benefícios atendiam às minhas necessidades."
+        },
+        {
+          "n": 10,
+          "texto": "O ambiente da equipe era saudável."
+        },
+        {
+          "n": 11,
+          "texto": "A comunicação da empresa era clara."
+        },
+        {
+          "n": 12,
+          "texto": "Eu me sentia respeitado."
+        },
+        {
+          "n": 13,
+          "texto": "Eu podia falar abertamente sobre problemas."
+        },
+        {
+          "n": 14,
+          "texto": "A empresa agia com ética."
+        },
+        {
+          "n": 15,
+          "texto": "O processo de desligamento foi conduzido com respeito."
+        },
+        {
+          "n": 16,
+          "texto": "Eu voltaria a trabalhar nesta empresa no futuro."
+        },
+        {
+          "n": 17,
+          "texto": "Eu indicaria esta empresa a um amigo."
+        },
+        {
+          "n": 18,
+          "texto": "De 0 a 10, o quanto você recomendaria esta empresa como lugar para trabalhar?",
+          "escala": "NPS11"
+        },
+        {
+          "n": 19,
+          "texto": "Qual foi o fato específico que iniciou sua decisão de sair?",
+          "escala": "ABERTA"
+        },
+        {
+          "n": 20,
+          "texto": "O que a empresa poderia ter feito para te manter?",
+          "escala": "ABERTA"
+        },
+        {
+          "n": 21,
+          "texto": "O que a empresa faz bem e deveria manter?",
+          "escala": "ABERTA"
+        },
+        {
+          "n": 22,
+          "texto": "Há algo que você não se sentiu à vontade para falar enquanto trabalhava aqui?",
+          "escala": "ABERTA"
+        }
+      ],
+      "elegibilidade_vinculo": [
+        "aviso_previo",
+        "desligado"
+      ],
+      "excecao_vinculo_ativo": true,
+      "alimenta_indicadores_populacao_ativa": false
+    },
+    {
+      "codigo": "P10",
+      "id": "P10-EX90",
+      "nome": "Ex-colaborador D+90",
+      "camada": "L3_jornada",
+      "gatilho": "90 dias apos desligamento",
+      "canal": "email_pessoal",
+      "tempo_minutos": 3,
+      "cadencia": "por_evento",
+      "metrica_derivada": "indice_de_censura_interna = delta(P09, P10)",
+      "itens": [
+        {
+          "n": 1,
+          "texto": "Agora que já se passou um tempo, qual foi o real motivo da sua saída?",
+          "escala": "ABERTA"
+        },
+        {
+          "n": 2,
+          "texto": "O que você não disse na entrevista de desligamento?",
+          "escala": "ABERTA"
+        },
+        {
+          "n": 3,
+          "texto": "Comparando com o seu emprego atual, o que a empresa anterior fazia melhor?",
+          "escala": "ABERTA"
+        },
+        {
+          "n": 4,
+          "texto": "E o que fazia pior?",
+          "escala": "ABERTA"
+        },
+        {
+          "n": 5,
+          "texto": "Você voltaria?",
+          "escala": "SIM_NAO_PN"
+        },
+        {
+          "n": 6,
+          "texto": "De 0 a 10, o quanto recomendaria a empresa como lugar para trabalhar?",
+          "escala": "NPS11"
+        }
+      ],
+      "elegibilidade_vinculo": [
+        "desligado"
+      ],
+      "excecao_vinculo_ativo": true,
+      "alimenta_indicadores_populacao_ativa": false
+    },
+    {
+      "codigo": "P11",
+      "id": "P11-LID",
+      "nome": "Avaliação de Liderança pelo Time (LNPS)",
+      "camada": "L2_diagnostico",
+      "publico": "liderados_sobre_gestor_direto",
+      "tempo_minutos": 6,
+      "janela_dias": 10,
+      "cadencia": "semestral",
+      "escala_padrao": "LIK5_CONC",
+      "anonima": true,
+      "n_minimo_exibicao_gestor": 5,
+      "fallback_n_insuficiente": "resultado vai para o gestor do gestor",
+      "dimensoes": [
+        {
+          "id": "DIR",
+          "nome": "Direção",
+          "itens": [
+            {
+              "n": 1,
+              "texto": "Meu gestor define prioridades claras."
+            },
+            {
+              "n": 2,
+              "texto": "Meu gestor toma decisões em tempo hábil."
+            },
+            {
+              "n": 3,
+              "texto": "Meu gestor explica o porquê das decisões."
+            }
+          ]
+        },
+        {
+          "id": "DEV",
+          "nome": "Desenvolvimento",
+          "itens": [
+            {
+              "n": 4,
+              "texto": "Meu gestor me dá feedback específico e útil."
+            },
+            {
+              "n": 5,
+              "texto": "Meu gestor reconhece meu bom trabalho."
+            },
+            {
+              "n": 6,
+              "texto": "Meu gestor me ajuda a evoluir profissionalmente."
+            },
+            {
+              "n": 7,
+              "texto": "Meu gestor delega e confia no meu trabalho."
+            }
+          ]
+        },
+        {
+          "id": "REL",
+          "nome": "Relação",
+          "itens": [
+            {
+              "n": 8,
+              "texto": "Meu gestor me trata com respeito."
+            },
+            {
+              "n": 9,
+              "texto": "Meu gestor ouve o que eu tenho a dizer."
+            },
+            {
+              "n": 10,
+              "texto": "Meu gestor é justo com todos da equipe."
+            },
+            {
+              "n": 11,
+              "texto": "Posso discordar do meu gestor sem sofrer represália."
+            },
+            {
+              "n": 12,
+              "texto": "Meu gestor se importa com o meu bem-estar."
+            }
+          ]
+        },
+        {
+          "id": "EXE",
+          "nome": "Execução",
+          "itens": [
+            {
+              "n": 13,
+              "texto": "Meu gestor cobra resultado de forma equilibrada."
+            },
+            {
+              "n": 14,
+              "texto": "Meu gestor resolve problemas que travam a equipe."
+            },
+            {
+              "n": 15,
+              "texto": "Meu gestor protege a equipe de demandas desnecessárias."
+            }
+          ]
+        },
+        {
+          "id": "NPS",
+          "nome": "LNPS e abertas",
+          "itens": [
+            {
+              "n": 16,
+              "texto": "De 0 a 10, o quanto você recomendaria trabalhar com este gestor?",
+              "escala": "NPS11"
+            },
+            {
+              "n": 17,
+              "texto": "O que seu gestor deve continuar fazendo?",
+              "escala": "ABERTA"
+            },
+            {
+              "n": 18,
+              "texto": "O que seu gestor deve começar ou parar de fazer?",
+              "escala": "ABERTA"
+            }
+          ]
+        }
+      ],
+      "elegibilidade_vinculo": [
+        "ativo",
+        "experiencia"
+      ]
+    },
+    {
+      "codigo": "P12",
+      "id": "P12-360",
+      "nome": "Avaliação 360° de Liderança",
+      "camada": "L4_tematica",
+      "publico": "gerentes_coordenadores_diretores",
+      "fontes": [
+        "auto",
+        "gestor",
+        "pares_min3",
+        "liderados_min5",
+        "clientes_internos_opcional"
+      ],
+      "itens_total": 35,
+      "tempo_minutos": 15,
+      "cadencia": "anual",
+      "escala_padrao": "LIK5_CONC",
+      "competencias": [
+        "Visão estratégica",
+        "Execução e entrega",
+        "Desenvolvimento de pessoas",
+        "Comunicação",
+        "Tomada de decisão",
+        "Colaboração transversal",
+        "Ética e exemplo",
+        "Adaptabilidade e gestão de mudança"
+      ],
+      "itens_modelo": [
+        "Traduz a estratégia da empresa em prioridades claras para a área.",
+        "Entrega o que se compromete, no prazo combinado.",
+        "Desenvolve sucessores e forma pessoas melhores do que encontrou.",
+        "Comunica de forma clara, sem ambiguidade.",
+        "Decide com dados e assume a responsabilidade pelo resultado.",
+        "Coopera com outras áreas mesmo quando não é do seu interesse imediato.",
+        "Age de forma coerente entre o que fala e o que faz.",
+        "Conduz mudanças mantendo a equipe informada e engajada."
+      ],
+      "metrica_especial": {
+        "nome": "gap_autopercepcao",
+        "formula": "auto - media_demais_fontes",
+        "alerta_se": "> 1.0"
+      },
+      "elegibilidade_vinculo": [
+        "ativo"
+      ]
+    },
+    {
+      "codigo": "P13",
+      "id": "P13-ESTRAT",
+      "nome": "Alinhamento Estratégico da Liderança",
+      "camada": "L4_tematica",
+      "publico": "lideranca_supervisor_para_cima_e_socios",
+      "tempo_minutos": 10,
+      "janela_dias": 7,
+      "cadencia": "semestral",
+      "timing": "15 dias antes do ciclo de planejamento",
+      "escala_padrao": "LIK5_CONC",
+      "dimensoes": [
+        {
+          "id": "CLA",
+          "nome": "Clareza estratégica",
+          "itens": [
+            {
+              "n": 1,
+              "texto": "Sei claramente qual é o objetivo da empresa para os próximos 12 meses."
+            },
+            {
+              "n": 2,
+              "texto": "Sei quais são os 3 indicadores mais importantes da minha área."
+            },
+            {
+              "n": 3,
+              "texto": "Consigo explicar a estratégia da empresa para a minha equipe sem inventar."
+            },
+            {
+              "n": 4,
+              "texto": "As metas da minha área estão alinhadas com as metas da empresa."
+            },
+            {
+              "n": 5,
+              "texto": "Sei o que a empresa não vai fazer neste ano."
+            }
+          ]
+        },
+        {
+          "id": "EXE",
+          "nome": "Capacidade de execução",
+          "itens": [
+            {
+              "n": 6,
+              "texto": "Tenho autonomia suficiente para entregar as metas que me cobram."
+            },
+            {
+              "n": 7,
+              "texto": "Tenho orçamento compatível com o que me é exigido."
+            },
+            {
+              "n": 8,
+              "texto": "Tenho o time necessário, em número e em qualificação."
+            },
+            {
+              "n": 9,
+              "texto": "Os processos internos me ajudam a entregar."
+            },
+            {
+              "n": 10,
+              "texto": "Os sistemas e ferramentas que uso são adequados."
+            }
+          ]
+        },
+        {
+          "id": "COO",
+          "nome": "Coordenação",
+          "itens": [
+            {
+              "n": 11,
+              "texto": "Recebo das outras áreas o que preciso, no prazo que preciso."
+            },
+            {
+              "n": 12,
+              "texto": "Os conflitos entre áreas são resolvidos pela Direção quando escalam."
+            },
+            {
+              "n": 13,
+              "texto": "As decisões da Direção chegam a mim de forma clara e rápida."
+            },
+            {
+              "n": 14,
+              "texto": "As reuniões de gestão geram decisão, não apenas discussão."
+            },
+            {
+              "n": 15,
+              "texto": "Sinto que a Direção escuta a minha visão antes de decidir sobre a minha área."
+            }
+          ]
+        },
+        {
+          "id": "CON",
+          "nome": "Confiança e futuro",
+          "itens": [
+            {
+              "n": 16,
+              "texto": "Confio na capacidade da Direção de levar a empresa aonde ela pretende ir."
+            },
+            {
+              "n": 17,
+              "texto": "Acredito que as metas do ano são alcançáveis."
+            },
+            {
+              "n": 18,
+              "texto": "Sinto-me responsável pelo resultado global do grupo, não só pela minha área."
+            },
+            {
+              "n": 19,
+              "texto": "Vejo meu futuro profissional dentro deste grupo."
+            },
+            {
+              "n": 20,
+              "texto": "Recomendaria a um bom profissional assumir uma posição de liderança aqui."
+            }
+          ]
+        },
+        {
+          "id": "OPEN",
+          "nome": "Abertas",
+          "itens": [
+            {
+              "n": 21,
+              "texto": "Qual é o maior gargalo que impede a empresa de chegar aonde quer?",
+              "escala": "ABERTA"
+            },
+            {
+              "n": 22,
+              "texto": "Qual decisão a Direção precisa tomar e está adiando?",
+              "escala": "ABERTA"
+            },
+            {
+              "n": 23,
+              "texto": "Se você tivesse que cortar uma prioridade do ano, qual seria?",
+              "escala": "ABERTA"
+            },
+            {
+              "n": 24,
+              "texto": "O que você sabe sobre a operação que a Direção provavelmente não sabe?",
+              "escala": "ABERTA",
+              "prioridade": "maxima"
+            }
+          ]
+        }
+      ],
+      "elegibilidade_vinculo": [
+        "ativo"
+      ]
+    },
+    {
+      "codigo": "P14",
+      "id": "P14-SEG-PSI",
+      "nome": "Segurança Psicológica e Ética",
+      "camada": "L2_diagnostico",
+      "publico": "todos",
+      "tempo_minutos": 5,
+      "janela_dias": 10,
+      "cadencia": "semestral",
+      "escala_padrao": "LIK5_CONC",
+      "anonima": true,
+      "itens": [
+        {
+          "n": 1,
+          "texto": "Nesta equipe, é seguro assumir um risco e errar."
+        },
+        {
+          "n": 2,
+          "texto": "Consigo falar sobre problemas difíceis com meu time."
+        },
+        {
+          "n": 3,
+          "texto": "Ninguém aqui sabota deliberadamente o trabalho do outro."
+        },
+        {
+          "n": 4,
+          "texto": "É fácil pedir ajuda aos colegas."
+        },
+        {
+          "n": 5,
+          "texto": "Minhas habilidades são valorizadas e utilizadas."
+        },
+        {
+          "n": 6,
+          "texto": "Erros são tratados como aprendizado, não como culpa."
+        },
+        {
+          "n": 7,
+          "texto": "Posso questionar uma decisão sem ser rotulado."
+        },
+        {
+          "n": 8,
+          "texto": "Sei exatamente como reportar uma conduta antiética."
+        },
+        {
+          "n": 9,
+          "texto": "Confio que uma denúncia seria apurada com seriedade."
+        },
+        {
+          "n": 10,
+          "texto": "Confio que não haveria retaliação contra quem denuncia."
+        },
+        {
+          "n": 11,
+          "texto": "A liderança age de acordo com os valores que declara."
+        },
+        {
+          "n": 12,
+          "texto": "Nunca vi decisão sendo tomada para beneficiar alguém indevidamente."
+        },
+        {
+          "n": 13,
+          "texto": "Se um cliente ou fornecedor propusesse algo irregular, sei o que fazer."
+        },
+        {
+          "n": 14,
+          "texto": "Já vi alguém ser corrigido por conduta inadequada, independentemente do cargo."
+        },
+        {
+          "n": 15,
+          "texto": "Existe algo acontecendo na empresa que a Direção deveria saber?",
+          "escala": "ABERTA"
+        },
+        {
+          "n": 16,
+          "texto": "O que impede as pessoas de falarem abertamente aqui?",
+          "escala": "ABERTA"
+        }
+      ],
+      "elegibilidade_vinculo": [
+        "ativo",
+        "experiencia"
+      ]
+    },
+    {
+      "codigo": "P15",
+      "id": "P15-COND",
+      "nome": "Assédio, Discriminação e Conduta (Lei 14.457/2022)",
+      "camada": "L4_tematica",
+      "publico": "todos",
+      "tempo_minutos": 4,
+      "janela_dias": 10,
+      "cadencia": "anual",
+      "obrigatoria_legal": true,
+      "anonima": true,
+      "identificacao_opcional_ativa": true,
+      "acesso_resultado": [
+        "comite_etica",
+        "diretoria",
+        "juridico",
+        "rh_senior"
+      ],
+      "acesso_negado": [
+        "gestores_de_area"
+      ],
+      "protocolo": "qualquer 'Sim' nos itens 1-3 dispara notificacao ao Comite em 24h; 2+ ocorrencias na mesma area (n>=5) exige auditoria presencial",
+      "itens": [
+        {
+          "n": 1,
+          "texto": "Nos últimos 12 meses, você sofreu assédio moral no trabalho?",
+          "escala": "SIM_NAO_PN",
+          "alerta": "AL01"
+        },
+        {
+          "n": 2,
+          "texto": "Nos últimos 12 meses, você sofreu assédio sexual no trabalho?",
+          "escala": "SIM_NAO_PN",
+          "alerta": "AL01"
+        },
+        {
+          "n": 3,
+          "texto": "Nos últimos 12 meses, você sofreu discriminação (cor, gênero, idade, religião, origem, orientação, deficiência)?",
+          "escala": "SIM_NAO_PN",
+          "alerta": "AL01"
+        },
+        {
+          "n": 4,
+          "texto": "Nos últimos 12 meses, você presenciou alguma dessas situações com outra pessoa?",
+          "escala": "SIM_NAO_PN"
+        },
+        {
+          "n": 5,
+          "texto": "Se sim, você reportou?",
+          "escala": "SIM_NAO_PN"
+        },
+        {
+          "n": 6,
+          "texto": "Se não reportou, por quê?",
+          "escala": "categorica",
+          "opcoes": [
+            "Medo de retaliação",
+            "Achei que nada mudaria",
+            "Não sabia como",
+            "Constrangimento",
+            "O envolvido era meu gestor",
+            "Outro"
+          ]
+        },
+        {
+          "n": 7,
+          "texto": "Você conhece o canal de denúncias da empresa?",
+          "escala": "SIM_NAO_PN"
+        },
+        {
+          "n": 8,
+          "texto": "Você confia que uma denúncia seria apurada com imparcialidade?",
+          "escala": "LIK5_CONC"
+        },
+        {
+          "n": 9,
+          "texto": "A empresa demonstra tolerância zero com esse tipo de conduta?",
+          "escala": "LIK5_CONC"
+        },
+        {
+          "n": 10,
+          "texto": "Deseja registrar um relato para apuração formal?",
+          "escala": "ABERTA",
+          "redireciona": "canal_formal_com_identificacao_opcional"
+        }
+      ],
+      "elegibilidade_vinculo": [
+        "ativo",
+        "experiencia",
+        "ferias"
+      ]
+    },
+    {
+      "codigo": "P16",
+      "id": "P16-DEI",
+      "nome": "Diversidade, Equidade e Inclusão",
+      "camada": "L4_tematica",
+      "publico": "todos",
+      "itens_total": 16,
+      "tempo_minutos": 6,
+      "cadencia": "anual",
+      "escala_padrao": "LIK5_CONC",
+      "anonima": true,
+      "n_minimo_demografico": 10,
+      "coleta_demografica": "opcional_opt_in_base_legal_explicita",
+      "dimensoes": [
+        "Representatividade percebida",
+        "Equidade em oportunidades",
+        "Equidade salarial percebida",
+        "Pertencimento",
+        "Acessibilidade",
+        "Linguagem e comportamento cotidiano"
+      ],
+      "itens_chave": [
+        "Pessoas como eu conseguem crescer nesta empresa.",
+        "Os critérios de promoção são iguais para todos.",
+        "Já ouvi piadas ou comentários preconceituosos aqui.",
+        "Sinto que posso ser eu mesmo no trabalho.",
+        "As instalações atendem pessoas com deficiência."
+      ],
+      "elegibilidade_vinculo": [
+        "ativo",
+        "experiencia"
+      ]
+    },
+    {
+      "codigo": "P17",
+      "id": "P17-REM",
+      "nome": "Remuneração e Benefícios",
+      "camada": "L4_tematica",
+      "publico": "todos",
+      "itens_total": 14,
+      "tempo_minutos": 5,
+      "cadencia": "anual",
+      "timing": "antes do ciclo orcamentario",
+      "escala_padrao": "LIK5_SAT",
+      "bloco_escolha_forcada": {
+        "pergunta": "Se a empresa pudesse melhorar apenas 3 benefícios, quais você escolheria?",
+        "max_escolhas": 3,
+        "opcoes": [
+          "Plano de saúde",
+          "Odontológico",
+          "Alimentação/refeição",
+          "Vale-transporte/combustível",
+          "PLR",
+          "Previdência",
+          "Auxílio-creche",
+          "Convênio farmácia",
+          "Seguro de vida",
+          "Academia/bem-estar",
+          "Home office",
+          "Day-off de aniversário"
+        ]
+      },
+      "saida": "ranking_beneficio_por_real_investido",
+      "elegibilidade_vinculo": [
+        "ativo",
+        "experiencia"
+      ]
+    },
+    {
+      "codigo": "P18",
+      "id": "P18-TREIN",
+      "nome": "Reação a Treinamento (Kirkpatrick N1)",
+      "camada": "L4_tematica",
+      "gatilho": "D+1 apos evento",
+      "itens_total": 10,
+      "tempo_minutos": 3,
+      "cadencia": "por_evento",
+      "dimensoes": [
+        "Conteúdo",
+        "Instrutor",
+        "Aplicabilidade",
+        "Carga horária",
+        "Infraestrutura",
+        "NPS do treinamento",
+        "Compromisso de aplicação"
+      ],
+      "complemento_n3": {
+        "gatilho": "D+60",
+        "itens_participante": 3,
+        "itens_gestor": 3,
+        "foco": "mudanca_de_comportamento_observada"
+      },
+      "elegibilidade_vinculo": [
+        "ativo",
+        "experiencia"
+      ]
+    },
+    {
+      "codigo": "P19",
+      "id": "P19-SST",
+      "nome": "Percepção de Segurança do Trabalho",
+      "camada": "L4_tematica",
+      "publico": "todos_com_prioridade_campo",
+      "itens_total": 12,
+      "tempo_minutos": 4,
+      "cadencia": "semestral",
+      "escala_padrao": "LIK5_CONC",
+      "itens_chave": [
+        "Recebi EPI adequado e em bom estado.",
+        "Recebi treinamento para a atividade de risco que executo.",
+        "Posso recusar uma tarefa que considero insegura sem sofrer consequência.",
+        "As metas de produtividade me pressionam a pular etapas de segurança.",
+        "Quase-acidentes são reportados e tratados.",
+        "Meu gestor prioriza segurança acima do prazo."
+      ],
+      "item_critico": "As metas de produtividade me pressionam a pular etapas de segurança — cruza SST com risco psicossocial; alto valor probatorio",
+      "elegibilidade_vinculo": [
+        "ativo",
+        "experiencia",
+        "ferias"
+      ]
+    },
+    {
+      "codigo": "P20",
+      "id": "P20-FERR",
+      "nome": "Ferramentas, Processos e TI",
+      "camada": "L4_tematica",
+      "publico": "todos",
+      "itens_total": 10,
+      "tempo_minutos": 4,
+      "cadencia": "anual",
+      "item_central": {
+        "texto": "Quantas horas por semana você perde com retrabalho, sistema lento ou processo desnecessário?",
+        "escala": "categorica",
+        "opcoes": [
+          "0",
+          "1-2",
+          "3-5",
+          "6-10",
+          "+10"
+        ],
+        "conversao_custo": "horas_medias * headcount * custo_hora_medio"
+      },
+      "elegibilidade_vinculo": [
+        "ativo",
+        "experiencia"
+      ]
+    }
+  ],
+  "relatorios": [
+    {
+      "id": "R1",
+      "nome": "Painel Executivo",
+      "destinatario": "direcao",
+      "periodicidade": "mensal"
+    },
+    {
+      "id": "R2",
+      "nome": "Relatório do Gestor",
+      "destinatario": "gestor_com_5_ou_mais_liderados",
+      "periodicidade": "por_ciclo",
+      "campo_obrigatorio": "plano_acao",
+      "paginas_max": 1
+    },
+    {
+      "id": "R3",
+      "nome": "Dossiê NR-01 / PGR",
+      "destinatario": [
+        "sesmt",
+        "juridico",
+        "direcao"
+      ],
+      "periodicidade": "anual_com_revisao_semestral",
+      "export": "pdf"
+    },
+    {
+      "id": "R4",
+      "nome": "Relatório de Jornada",
+      "destinatario": [
+        "rh",
+        "direcao"
+      ],
+      "periodicidade": "trimestral"
+    },
+    {
+      "id": "R5",
+      "nome": "Relatório de Liderança",
+      "destinatario": [
+        "direcao",
+        "rh"
+      ],
+      "periodicidade": "semestral"
+    },
+    {
+      "id": "R6",
+      "nome": "Relatório Qualitativo",
+      "destinatario": "direcao",
+      "periodicidade": "por_ciclo"
+    },
+    {
+      "id": "R7",
+      "nome": "Status de Planos de Ação",
+      "destinatario": "direcao",
+      "periodicidade": "mensal"
+    },
+    {
+      "id": "R8",
+      "nome": "Consolidado Multi-Empresa",
+      "destinatario": "socios",
+      "periodicidade": "semestral",
+      "normalizacao": "por_porte_e_setor_com_peso_headcount"
+    }
+  ],
+  "dashboards": [
+    {
+      "id": "DB1",
+      "nome": "Executivo",
+      "escopo": "grupo_e_empresa",
+      "kpis": [
+        "eNPS",
+        "IFG",
+        "IRP",
+        "turnover",
+        "taxa_resposta",
+        "planos_acao"
+      ],
+      "componentes": [
+        "cards",
+        "serie_historica_24m",
+        "mapa_calor_area_x_dimensao",
+        "matriz_resultado_x_clima",
+        "top_temas_abertas",
+        "alertas"
+      ]
+    },
+    {
+      "id": "DB2",
+      "nome": "Gestor",
+      "escopo": "propria_area",
+      "restricoes": [
+        "sem_ranking_entre_gestores",
+        "sem_outras_areas",
+        "n_minimo_5"
+      ]
+    },
+    {
+      "id": "DB3",
+      "nome": "Riscos Psicossociais NR-01",
+      "componentes": [
+        "semaforo_area_x_dominio",
+        "matriz_severidade_x_probabilidade",
+        "lista_riscos_com_controle",
+        "historico_reavaliacao",
+        "export_dossie_pgr"
+      ]
+    },
+    {
+      "id": "DB4",
+      "nome": "Jornada do Colaborador",
+      "componentes": [
+        "funil_enps_por_etapa",
+        "curva_vs_benchmark",
+        "delta_onboarding_offboarding"
+      ]
+    }
+  ],
+  "filtros_globais": [
+    "empresa",
+    "unidade",
+    "area",
+    "cargo",
+    "nivel_hierarquico",
+    "tempo_de_casa",
+    "turno",
+    "genero_opt_in",
+    "faixa_etaria"
+  ],
+  "faixas_tempo_de_casa": [
+    "0-6m",
+    "6m-2a",
+    "2-5a",
+    "+5a"
+  ],
+  "raci": {
+    "definir_calendario": {
+      "R": "rh",
+      "A": "diretoria",
+      "C": [
+        "gestor",
+        "sesmt"
+      ],
+      "I": [
+        "ti"
+      ]
+    },
+    "disparar_pesquisas": {
+      "R": "rh",
+      "C": [
+        "ti"
+      ],
+      "I": [
+        "gestor",
+        "diretoria"
+      ]
+    },
+    "cobrar_taxa_resposta": {
+      "R": [
+        "rh",
+        "gestor"
+      ],
+      "I": [
+        "diretoria"
+      ]
+    },
+    "garantir_anonimato_lgpd": {
+      "R": [
+        "rh",
+        "ti"
+      ],
+      "A": "diretoria",
+      "C": [
+        "juridico"
+      ]
+    },
+    "analisar_resultados": {
+      "R": "rh",
+      "A": "diretoria",
+      "C": [
+        "sesmt"
+      ]
+    },
+    "elaborar_plano_acao": {
+      "R": "gestor",
+      "A": "diretoria",
+      "C": [
+        "rh",
+        "sesmt"
+      ]
+    },
+    "executar_plano_acao": {
+      "R": "gestor",
+      "A": "diretoria",
+      "I": [
+        "rh"
+      ]
+    },
+    "monitorar_plano_acao": {
+      "R": [
+        "rh",
+        "gestor"
+      ],
+      "A": "diretoria"
+    },
+    "devolutiva_colaborador": {
+      "R": "gestor",
+      "C": [
+        "rh"
+      ]
+    },
+    "registro_pgr": {
+      "R": "sesmt",
+      "A": "diretoria",
+      "C": [
+        "rh"
+      ]
+    }
+  },
+  "metas_ano1": {
+    "taxa_resposta_pct": 70,
+    "enps_delta_vs_baseline": 10,
+    "ifg_pct": 70,
+    "reducao_areas_irp_alto_critico_pct": 50,
+    "planos_acao_no_prazo_pct": 70,
+    "delta_enps_onboarding_jornada_max": 20
+  },
+  "onda_implantacao": {
+    "onda_1_semanas_1_a_8": [
+      "P05",
+      "P01",
+      "P06",
+      "P09"
+    ],
+    "onda_2_semanas_9_a_20": [
+      "P03",
+      "P11",
+      "P13",
+      "P15",
+      "P19"
+    ],
+    "onda_3_semanas_21_a_40": [
+      "P02",
+      "P04",
+      "P07",
+      "P08",
+      "P14",
+      "P17",
+      "P18"
+    ],
+    "onda_4_ano_2": [
+      "P10",
+      "P12",
+      "P16",
+      "P20"
+    ]
+  }
+}

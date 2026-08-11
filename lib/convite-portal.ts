@@ -72,6 +72,7 @@ export async function rodadaLembretePortal(agora = new Date()): Promise<Resultad
       where: { ativo: true, telegramChatId: null, email: { not: null } },
       orderBy: { nome: "asc" },
       select: {
+        id: true,
         nome: true,
         email: true,
         empresa: { select: { marca: { select: { nome: true } } } },
@@ -101,9 +102,17 @@ export async function rodadaLembretePortal(agora = new Date()): Promise<Resultad
       html,
       text: texto,
       fromName: `RH ${marca}`,
+      // Uma cobrança por pessoa por dia, mesmo se o cron for disparado à mão
+      // mais de uma vez. Foi esta campanha que, em 28/07, mandou ~60 e-mails em
+      // 8 segundos e comeu a cota do dia antes de os convites saírem.
+      chave: `portal:${p.id}`,
     });
     if (r.ok) enviados++;
-    else falhas++;
+    else {
+      falhas++;
+      // Sem cota não adianta seguir: o resto do laço só produziria recusas.
+      if (r.motivo === "COTA") break;
+    }
   }
 
   return { encerrada: false, enviados, falhas, ...base };

@@ -5,15 +5,10 @@
 // Auth: Vercel Cron envia "Authorization: Bearer $CRON_SECRET"; para
 // disparo manual/diagnóstico aceita ?secret=$CRON_SECRET.
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import {
-  coletarCandidatos,
-  criarCicloRascunho,
-  encerrarVencidas,
-  ativarAgendadas,
-  type ResultadoGestaoCiclo,
-} from "@/lib/pesquisa-ciclo";
-import { notificarCiclo } from "@/lib/pesquisa-notificacoes";
+import { executarGestaoCiclo } from "@/lib/pesquisa-ciclo";
+import { executarCicloEnps } from "@/lib/pesquisa-enps";
+import { executarCicloOnboarding } from "@/lib/pesquisa-onboarding";
+import { executarReguaCobranca } from "@/lib/regua-cobranca";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -30,81 +25,43 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const resultado: ResultadoGestaoCiclo = {
-    criados: [],
-    encerrados: [],
-    ativados: [],
-    jaNotificados: [],
-    erros: [],
-  };
-
   try {
-    // 1. Coleta candidatos para novo ciclo
-    const candidatos = await coletarCandidatos();
-
-    // 2. Cria rascunhos + notifica
-    for (const cand of candidatos) {
-      try {
-        const { pesquisaId, titulo } = await criarCicloRascunho(cand);
-        resultado.criados.push({
-          empresaId: cand.empresaId,
-          pesquisaId,
-          tipo: cand.tipo,
-          titulo,
-        });
-
-        const notif = await notificarCiclo({
-          empresaId: cand.empresaId,
-          pesquisaId,
-          titulo,
-          tipo: "CRIADA",
-        });
-        console.log(
-          `gestion-ciclo: pesquisa ${titulo} criada e ${notif.enviados} notificação(ões) enviada(s) — ${notif.erros} erro(s).`,
-        );
-      } catch (e) {
-        resultado.erros.push(
-          `criar ${cand.empresaNome} ${cand.tipo}: ${e instanceof Error ? e.message : String(e)}`,
-        );
-      }
-    }
-
-    // 3. Encerra pesquisas vencidas (ativa há 30+ dias, sem respostas há 7+)
-    const encerrados = await encerrarVencidas();
-    resultado.encerrados = encerrados;
-
-    for (const enc of encerrados) {
-      try {
-        const pesquisa = await prisma.pesquisa.findUnique({
-          where: { id: enc.pesquisaId },
-          select: { empresaId: true },
-        });
-        if (pesquisa) {
-          await notificarCiclo({
-            empresaId: pesquisa.empresaId,
-            pesquisaId: enc.pesquisaId,
-            titulo: enc.titulo,
-            tipo: "ENCERRADA",
-          });
-        }
-      } catch (e) {
-        resultado.erros.push(
-          `notificar encerramento ${enc.titulo}: ${e instanceof Error ? e.message : String(e)}`,
-        );
-      }
-    }
-
-    // 4. Placeholder para ativação agendada
-    resultado.ativados = await ativarAgendadas();
+    // A orquestração (candidatos → rascunhos → notificação → encerramento →
+    // ativação agendada) mora em lib/pesquisa-ciclo.ts: o botão manual da
+    // tela de Pesquisas (lib/actions/pesquisas.ts) chama a mesma função, para
+    // não ter duas versões da mesma lógica divergindo com o tempo.
+    const resultado = await executarGestaoCiclo();
+    // eNPS mensal (fase 4) — não passa pelo mesmo `coletarCandidatos`/
+    // `criarCicloRascunho` porque aqueles são tipados pra CLIMA (anual/pulso
+    // trimestral).
+    const enps = await executarCicloEnps();
+    const onboarding = await executarCicloOnboarding();
+    // Régua de cobrança (fase 5) — lembretes/encerramento de NR01, P05-ENPS
+    // e CLIMA (migrado 02/08/2026, ver lib/regua-cobranca.ts). O
+    // `encerrarVencidas` do executarGestaoCiclo acima fica no código mas é
+    // inerte pra CLIMA agora — nada mais chega aos 30 dias ainda ACTIVE.
+    const regua = await executarReguaCobranca();
 
     console.log(
-      `cron gestao-ciclo: ${resultado.criados.length} criado(s), ${resultado.encerrados.length} encerrado(s), ${resultado.erros.length} erro(s).`,
+      `cron gestao-ciclo: ${resultado.criados.length} criado(s), ${resultado.encerrados.length} encerrado(s), ` +
+        `${enps.criados.length} eNPS criado(s), ${onboarding.convidados.length} onboarding D+30 convidado(s), ` +
+        `régua: ${regua.lembretesEnviados} lembrete(s), ${regua.encerradas} encerrada(s), ` +
+        `${resultado.erros.length + enps.erros.length + onboarding.erros.length + regua.erros} erro(s).`,
     );
 
-    return NextResponse.json({ ok: resultado.erros.length === 0, ...resultado });
+    return NextResponse.json({
+      ok: resultado.erros.length === 0 && enps.erros.length === 0 && onboarding.erros.length === 0 && regua.erros === 0,
+      ...resultado,
+      enpsCriados: enps.criados,
+      onboardingConvidados: onboarding.convidados,
+      regua,
+      erros: [...resultado.erros, ...enps.erros, ...onboarding.erros],
+    });
   } catch (e) {
     console.error("cron gestao-ciclo:", e);
-    resultado.erros.push(e instanceof Error ? e.message : String(e));
-    return NextResponse.json({ ok: false, ...resultado }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, criados: [], encerrados: [], ativados: [], jaNotificados: [], erros: [e instanceof Error ? e.message : String(e)] },
+      { status: 500 },
+    );
   }
 }

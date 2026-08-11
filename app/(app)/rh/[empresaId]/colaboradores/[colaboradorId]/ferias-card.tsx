@@ -15,8 +15,14 @@ import {
   decidirFerias,
   excluirSolicitacaoFerias,
   registrarFeriasGozadas,
+  conciliarSaldoFerias,
 } from "@/lib/actions/rh-ferias";
-import { STATUS_PERIODO_LABEL, type ResumoFerias, type StatusPeriodo } from "@/lib/ferias";
+import {
+  STATUS_PERIODO_LABEL,
+  DIAS_FERIAS_POR_PERIODO,
+  type ResumoFerias,
+  type StatusPeriodo,
+} from "@/lib/ferias";
 import { statusSolicitacaoLabel } from "@/lib/constants-dp";
 import { formatarData, paraInputDate } from "@/lib/datas";
 import { Campo, CampoData, CampoTexto, CampoCheckbox, FormularioAction } from "./campos";
@@ -64,6 +70,7 @@ export function FeriasCard({
 }) {
   const [novoAberto, setNovoAberto] = useState(false);
   const [gozadaAberto, setGozadaAberto] = useState(false);
+  const [conciliarAberto, setConciliarAberto] = useState(false);
 
   if (!resumo) {
     return (
@@ -122,7 +129,23 @@ export function FeriasCard({
                     <TableCell className="tabular-nums">
                       {formatarData(p.inicio)} — {formatarData(p.fim)}
                     </TableCell>
-                    <TableCell className="tabular-nums">{formatarData(p.limiteConcessivo)}</TableCell>
+                    <TableCell className="tabular-nums">
+                      {p.status === "EM_CURSO" && p.progresso ? (
+                        <div className="flex items-center gap-2">
+                          <div className="h-2 w-16 shrink-0 overflow-hidden rounded-full bg-secondary">
+                            <div
+                              className="h-full rounded-full bg-primary transition-[width]"
+                              style={{ width: `${p.progresso.percentual}%` }}
+                            />
+                          </div>
+                          <span className="text-xs whitespace-nowrap text-muted-foreground">
+                            {p.progresso.meses}/12 meses ({p.progresso.diasCorridos} d)
+                          </span>
+                        </div>
+                      ) : (
+                        formatarData(p.limiteConcessivo)
+                      )}
+                    </TableCell>
                     <TableCell className="text-right tabular-nums">{p.diasUsados}</TableCell>
                     <TableCell className="text-right tabular-nums">{p.diasReservados}</TableCell>
                     <TableCell className="text-right font-medium tabular-nums">{p.saldo}</TableCell>
@@ -163,6 +186,65 @@ export function FeriasCard({
           <CardTitle>Programação</CardTitle>
           <CardDescription>Pedidos de férias e o histórico de decisões.</CardDescription>
           <CardAction className="flex gap-2">
+            {/* Só para quem ainda não tem NENHUM lançamento — é o estado de
+                quem veio da importação sem histórico de gozo. Uma vez usado
+                (ou uma vez lançada a 1ª férias por qualquer outro caminho),
+                este botão some e "Lançar férias já gozadas" assume, período a
+                período — misturar os dois no mesmo colaborador contaria dia
+                duas vezes. */}
+            {solicitacoes.length === 0 && periodosSelecionaveis.length > 0 && (
+              <Dialog open={conciliarAberto} onOpenChange={setConciliarAberto}>
+                <DialogTrigger render={<Button size="sm" variant="outline" />}>
+                  <History className="size-4" />
+                  Conciliar saldo atual
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Conciliar saldo atual de férias</DialogTitle>
+                  </DialogHeader>
+                  <Alert className="mb-4">
+                    <AlertDescription>
+                      Para quem veio da importação sem data exata de cada férias gozada: informe
+                      quantos <strong>dias</strong> de saldo a pessoa tem HOJE, e o sistema calcula
+                      de trás para frente — marca os períodos aquisitivos mais{" "}
+                      <strong>antigos</strong> como já gozados até bater esse saldo. A data de gozo
+                      fica estimada; o que importa é o saldo resultante bater com a realidade.
+                      <br />
+                      <br />
+                      Acumulado desde a admissão:{" "}
+                      <strong>
+                        {periodosSelecionaveis.length * DIAS_FERIAS_POR_PERIODO} dias
+                      </strong>{" "}
+                      em {periodosSelecionaveis.length} período(s) completo(s). Pensando em meses:
+                      multiplique por 30 (ex.: 2 meses ≈ 60 dias).
+                    </AlertDescription>
+                  </Alert>
+                  <FormularioAction
+                    action={conciliarSaldoFerias.bind(null, empresaId, colaboradorId)}
+                    textoBotao="Conciliar"
+                    mensagemSucesso="Saldo de férias conciliado."
+                    onSuccess={() => setConciliarAberto(false)}
+                  >
+                    <CampoTexto
+                      name="diasAtuais"
+                      label="Saldo atual (dias)"
+                      type="number"
+                      min={0}
+                      max={periodosSelecionaveis.length * DIAS_FERIAS_POR_PERIODO}
+                      required
+                    />
+                    <Campo label="Observações">
+                      <Textarea
+                        name="observacoes"
+                        rows={2}
+                        placeholder="Ex.: conferido com o RH anterior / planilha do sistema antigo"
+                      />
+                    </Campo>
+                  </FormularioAction>
+                </DialogContent>
+              </Dialog>
+            )}
+
             {/* Lançamento retroativo: a base foi importada sem histórico de gozo,
                 então o RH precisa poder registrar o que já aconteceu. Sem isso o
                 saldo fica inflado e todo mundo com 2+ anos aparece como vencido. */}

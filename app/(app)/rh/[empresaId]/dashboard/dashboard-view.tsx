@@ -1,9 +1,24 @@
 "use client";
 
+import { useActionState, useState } from "react";
 import { useRouter } from "next/navigation";
-import { FileDown, ShieldAlert } from "lucide-react";
+import { toast } from "sonner";
+import { ClipboardList, FileDown, ShieldAlert } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -30,9 +45,31 @@ import {
 } from "recharts";
 import { NIVEIS_RISCO, type ResultadoGrupo, type ResultadoNR01 } from "@/lib/nr01";
 import { DIMENSOES_NR01, type DimensaoNR01 } from "@/lib/nr01-modelo";
-import { AMOSTRA_MINIMA_ANONIMATO } from "@/lib/constants-rh";
+import { AMOSTRA_MINIMA_ANONIMATO, statusPlanoAcaoLabel } from "@/lib/constants-rh";
+import { ZONAS_IRP, classificarEmZona, type ZonaIrp } from "@/lib/zonas";
+import { criarPlanoAcao } from "@/lib/actions/planos-acao";
+import { formatarData, hojeUTC, paraInputDate, somarDiasUTC } from "@/lib/datas";
+import { normalizarTexto } from "@/lib/text";
+import type { ActionResult } from "@/lib/constants";
 
 type PesquisaResumo = { id: string; titulo: string; status: string };
+type SetorResumo = { id: string; nome: string };
+type PlanoAberto = { id: string; titulo: string; prazo: Date; status: string; setorId: string | null };
+
+// Papéis da cadeia de escalonamento (lib/zonas.ts grava slugs do seed).
+const ROTULO_ESCALONAMENTO: Record<string, string> = {
+  gestor: "Gestor do setor",
+  rh: "RH",
+  diretoria: "Diretoria",
+  sesmt: "SESMT",
+  juridico: "Jurídico",
+};
+
+// ZONAS_IRP tem fronteiras inteiras (…24 | 25…): um índice 24,5 cairia no vão
+// entre faixas — arredonda antes de classificar, igual ao número exibido.
+function zonaDoIndice(indice100: number): ZonaIrp | null {
+  return classificarEmZona(Math.round(indice100), ZONAS_IRP);
+}
 
 const DIMENSOES = Object.keys(DIMENSOES_NR01) as DimensaoNR01[];
 
@@ -69,12 +106,16 @@ export function DashboardNR01View({
   pesquisaSelecionada,
   convites,
   resultado,
+  setores,
+  planosAbertos,
 }: {
   empresaId: string;
   pesquisas: PesquisaResumo[];
   pesquisaSelecionada: string | null;
   convites: number;
   resultado: ResultadoNR01 | null;
+  setores: SetorResumo[];
+  planosAbertos: PlanoAberto[];
 }) {
   const router = useRouter();
 
@@ -99,6 +140,7 @@ export function DashboardNR01View({
 
   const semDados = resultado.totalRespostas === 0;
   const amostraGeralInsuficiente = geral.amostraInsuficiente;
+  const zonaGeral = amostraGeralInsuficiente ? null : zonaDoIndice(geral.indiceGeral100);
 
   return (
     <div className="space-y-6">
@@ -161,6 +203,15 @@ export function DashboardNR01View({
             <p className="text-2xl font-bold">
               {amostraGeralInsuficiente ? "—" : Math.round(geral.indiceGeral100)}
             </p>
+            {zonaGeral && (
+              <span
+                className="mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-semibold"
+                style={{ backgroundColor: zonaGeral.cor, color: "#1f2937" }}
+                title={`Zona ${zonaGeral.rotulo}: plano de ação em até ${zonaGeral.prazoPlanoDias} dias`}
+              >
+                Zona {zonaGeral.rotulo}
+              </span>
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -257,10 +308,249 @@ export function DashboardNR01View({
           </div>
 
           <HeatmapGrupos titulo="Mapa de calor por Setor" grupos={resultado.porSetor} />
+          <ZonasAcaoSetores
+            empresaId={empresaId}
+            pesquisaId={pesquisaSelecionada}
+            grupos={resultado.porSetor}
+            setores={setores}
+            planosAbertos={planosAbertos}
+          />
           <HeatmapGrupos titulo="Mapa de calor por Cargo" grupos={resultado.porCargo} />
         </>
       )}
     </div>
+  );
+}
+
+// Zona de ação por setor (ZONAS_IRP ligada ao índice NR-01 — decisão do CEO:
+// só aqui nesta fase, turnover/absenteísmo ficam de fora). O número vermelho
+// deixa de ser etiqueta muda: cada setor mostra a zona, o prazo que ela exige,
+// a cadeia de escalonamento e o botão de criar o plano já preenchido. Toda
+// zona do seed tem prazo (até "Baixo", 60 dias — NR-01 monitora risco baixo
+// também), então todo setor com amostra aparece; o corte de anonimato continua
+// valendo e o rodapé diz quantos ficaram fora.
+function ZonasAcaoSetores({
+  empresaId,
+  pesquisaId,
+  grupos,
+  setores,
+  planosAbertos,
+}: {
+  empresaId: string;
+  pesquisaId: string;
+  grupos: ResultadoGrupo[];
+  setores: SetorResumo[];
+  planosAbertos: PlanoAberto[];
+}) {
+  // O grupo do heatmap é o NOME canônico do snapshot; o plano exige o ID da
+  // linha de Setor desta empresa (nomes se repetem entre CNPJs). Cruzamento
+  // por nome normalizado — rótulo sem linha correspondente (ex.: vocabulário
+  // novo, "Desconhecido") fica sem botão, com aviso.
+  const setoresPorNome = new Map(setores.map((s) => [normalizarTexto(s.nome), s]));
+  const comAmostra = grupos.filter((g) => !g.amostraInsuficiente);
+  const foraDoRecorte = grupos.length - comAmostra.length;
+
+  if (comAmostra.length === 0) return null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Zona de ação por setor (índice de risco NR-01)</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {comAmostra.map((g) => (
+          <BlocoZonaSetor
+            key={g.grupo}
+            empresaId={empresaId}
+            pesquisaId={pesquisaId}
+            grupo={g}
+            setor={setoresPorNome.get(normalizarTexto(g.grupo)) ?? null}
+            planosAbertos={planosAbertos}
+          />
+        ))}
+        {foraDoRecorte > 0 && (
+          <p className="text-xs text-muted-foreground">
+            {foraDoRecorte} {foraDoRecorte === 1 ? "setor ficou fora" : "setores ficaram fora"} deste
+            recorte por amostra menor que {AMOSTRA_MINIMA_ANONIMATO} respostas (anonimato).
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function BlocoZonaSetor({
+  empresaId,
+  pesquisaId,
+  grupo,
+  setor,
+  planosAbertos,
+}: {
+  empresaId: string;
+  pesquisaId: string;
+  grupo: ResultadoGrupo;
+  setor: SetorResumo | null;
+  planosAbertos: PlanoAberto[];
+}) {
+  const [criarAberto, setCriarAberto] = useState(false);
+  const zona = zonaDoIndice(grupo.indiceGeral100);
+  if (!zona) return null; // índice fora de 0-100 não acontece com o motor atual
+
+  const dimensaoCritica = [...grupo.dimensoes].sort((a, b) => b.nr - a.nr)[0];
+  const planoAberto = setor ? (planosAbertos.find((p) => p.setorId === setor.id) ?? null) : null;
+  const prazoSugerido = somarDiasUTC(hojeUTC(), zona.prazoPlanoDias);
+  const cadeia = zona.escalonamento.map((papel) => ROTULO_ESCALONAMENTO[papel] ?? papel).join(" → ");
+
+  return (
+    <div className="flex flex-wrap items-start justify-between gap-3 rounded-md border p-3">
+      <div className="min-w-0 space-y-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-semibold">{grupo.grupo}</span>
+          <span
+            className="rounded-full px-2 py-0.5 text-xs font-semibold"
+            style={{ backgroundColor: zona.cor, color: "#1f2937" }}
+          >
+            Zona {zona.rotulo} · índice {Math.round(grupo.indiceGeral100)}
+          </span>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Plano de ação em até <span className="font-medium text-foreground">{zona.prazoPlanoDias} dias</span>{" "}
+          ({formatarData(prazoSugerido)})
+          {zona.reavaliacaoDias ? ` · reavaliação em ${zona.reavaliacaoDias} dias` : ""} · Escalonamento: {cadeia}
+        </p>
+        {dimensaoCritica.perguntaCritica && (
+          <p className="text-xs text-muted-foreground">
+            Dimensão crítica: <span className="font-medium text-foreground">{dimensaoCritica.label}</span> — &quot;
+            {dimensaoCritica.perguntaCritica.enunciado}&quot; (risco médio{" "}
+            {dimensaoCritica.perguntaCritica.mediaRisco.toFixed(2)}/4)
+          </p>
+        )}
+      </div>
+
+      {planoAberto ? (
+        <div className="text-right text-xs">
+          <Badge variant="default">{statusPlanoAcaoLabel(planoAberto.status)}</Badge>
+          <p className="mt-1 max-w-56 truncate font-medium" title={planoAberto.titulo}>
+            {planoAberto.titulo}
+          </p>
+          <p className="text-muted-foreground">Prazo {formatarData(planoAberto.prazo)}</p>
+          <a href={`/rh/${empresaId}/planos-acao`} className="text-primary underline-offset-2 hover:underline">
+            Acompanhar
+          </a>
+        </div>
+      ) : setor ? (
+        <Dialog open={criarAberto} onOpenChange={setCriarAberto}>
+          <DialogTrigger render={<Button size="sm" variant="outline" />}>
+            <ClipboardList className="size-4" />
+            Criar plano de ação
+          </DialogTrigger>
+          <DialogContent>
+            <NovoPlanoZonaForm
+              empresaId={empresaId}
+              pesquisaId={pesquisaId}
+              setor={setor}
+              zona={zona}
+              grupo={grupo}
+              dimensaoCritica={dimensaoCritica}
+              prazoSugerido={prazoSugerido}
+              cadeia={cadeia}
+              onSuccess={() => setCriarAberto(false)}
+            />
+          </DialogContent>
+        </Dialog>
+      ) : (
+        <p className="max-w-52 text-right text-xs text-muted-foreground">
+          Sem setor cadastrado com este nome nesta empresa — crie o plano na tela Planos de ação.
+        </p>
+      )}
+    </div>
+  );
+}
+
+const initialState: ActionResult = { ok: true };
+
+function NovoPlanoZonaForm({
+  empresaId,
+  pesquisaId,
+  setor,
+  zona,
+  grupo,
+  dimensaoCritica,
+  prazoSugerido,
+  cadeia,
+  onSuccess,
+}: {
+  empresaId: string;
+  pesquisaId: string;
+  setor: SetorResumo;
+  zona: ZonaIrp;
+  grupo: ResultadoGrupo;
+  dimensaoCritica: ResultadoGrupo["dimensoes"][number];
+  prazoSugerido: Date;
+  cadeia: string;
+  onSuccess: () => void;
+}) {
+  const router = useRouter();
+  const [state, formAction, isPending] = useActionState(async (prev: ActionResult, fd: FormData) => {
+    const result = await criarPlanoAcao(empresaId, prev, fd);
+    if (result.ok) {
+      toast.success("Plano de ação criado.");
+      onSuccess();
+      // A action revalida só /planos-acao; o dashboard precisa rebuscar os
+      // planos abertos para trocar o botão pelo estado do plano.
+      router.refresh();
+    }
+    return result;
+  }, initialState);
+
+  const descricaoSugerida = dimensaoCritica.perguntaCritica
+    ? `Pergunta mais crítica (${dimensaoCritica.perguntaCritica.codigo}): "${dimensaoCritica.perguntaCritica.enunciado}" — risco médio ${dimensaoCritica.perguntaCritica.mediaRisco.toFixed(2)}/4. Zona ${zona.rotulo} (índice ${Math.round(grupo.indiceGeral100)}): prazo de ${zona.prazoPlanoDias} dias, escalonamento ${cadeia}.`
+    : `Zona ${zona.rotulo} (índice ${Math.round(grupo.indiceGeral100)}): prazo de ${zona.prazoPlanoDias} dias, escalonamento ${cadeia}.`;
+
+  return (
+    <form action={formAction} className="space-y-4">
+      <DialogHeader>
+        <DialogTitle>Plano de ação — {setor.nome}</DialogTitle>
+      </DialogHeader>
+      {/* setorId é o ID da linha (nome repete entre CNPJs); dimensaoCodigo usa
+          o código da dimensão do motor NR-01, mesmo vocabulário do relatório. */}
+      <input type="hidden" name="setorId" value={setor.id} />
+      <input type="hidden" name="pesquisaId" value={pesquisaId} />
+      <input type="hidden" name="dimensaoCodigo" value={dimensaoCritica.dimensao} />
+      <div className="space-y-2">
+        <Label htmlFor="zona-titulo">Ação</Label>
+        <Input
+          id="zona-titulo"
+          name="titulo"
+          defaultValue={`NR-01 · ${setor.nome}: ${dimensaoCritica.label}`}
+          required
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="zona-descricao">Descrição</Label>
+        <Textarea id="zona-descricao" name="descricao" rows={4} defaultValue={descricaoSugerida} />
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="zona-responsavel">Responsável</Label>
+          <Input id="zona-responsavel" name="responsavelNome" placeholder={`Ex.: ${cadeia.split(" → ")[0]}`} />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="zona-prazo">Prazo (zona {zona.rotulo}: {zona.prazoPlanoDias} dias)</Label>
+          <Input id="zona-prazo" name="prazo" type="date" defaultValue={paraInputDate(prazoSugerido)} required />
+        </div>
+      </div>
+      {!state.ok && (
+        <Alert variant="destructive">
+          <AlertDescription>{state.error}</AlertDescription>
+        </Alert>
+      )}
+      <DialogFooter>
+        <Button type="submit" disabled={isPending}>
+          {isPending ? "Criando..." : "Criar plano"}
+        </Button>
+      </DialogFooter>
+    </form>
   );
 }
 

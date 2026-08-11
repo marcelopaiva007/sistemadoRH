@@ -4,6 +4,7 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-guard";
+import { registrarAuditoria } from "@/lib/audit";
 import type { ActionResult } from "@/lib/constants";
 
 const senhaSchema = z
@@ -35,6 +36,13 @@ export async function alterarSenha(_prev: ActionResult, formData: FormData): Pro
 
   const novoHash = await bcrypt.hash(parsed.data.novaSenha, 10);
   await prisma.user.update({ where: { id: user.id }, data: { passwordHash: novoHash } });
+
+  await registrarAuditoria({
+    acao: "RESET_SENHA",
+    entidade: "User",
+    entidadeId: user.id,
+    resumo: `${registro.username} alterou a própria senha.`,
+  });
 
   return { ok: true };
 }

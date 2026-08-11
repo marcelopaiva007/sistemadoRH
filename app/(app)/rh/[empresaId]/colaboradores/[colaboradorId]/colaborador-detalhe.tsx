@@ -26,13 +26,14 @@ import { DesempenhoCard } from "./desempenho-card";
 import { MetasPdiCard } from "./metas-pdi-card";
 import { TreinamentosCard } from "./treinamentos-card";
 import { IntegracaoCard } from "./integracao-card";
+import { DisciplinarCard } from "./disciplinar-card";
 
 type Colaborador = Parameters<typeof FichaBlocos>[0]["colaborador"] & {
   ativo: boolean;
   telegramChatId: string | null;
-  setor: { nome: string };
-  posicao: { nome: string };
-  supervisor: { id: string; nome: string } | null;
+  checklistDispensado: boolean;
+  checklistDispensadoEm: Date | null;
+  checklistDispensadoPorNome: string | null;
 };
 
 export function ColaboradorDetalhe({
@@ -52,19 +53,27 @@ export function ColaboradorDetalhe({
   candidatosSupervisor,
   movimentacoes,
   beneficios,
+  tiposBeneficioCustom,
   dependentesNoPlanoSaude,
   entregasEpi,
+  tiposEpiDisponiveis,
+  motivosEntregaDisponiveis,
   acidentes,
   ausenciasElegiveisAcidente,
+  tiposAcidenteDisponiveis,
+  tiposMovimentacaoDisponiveis,
   checklistDesligamento,
   entrevistaDesligamento,
   avaliacoes,
+  competenciasDisponiveis,
   metas,
+  statusMetaDisponiveis,
   pdi,
   participacoesTreinamento,
   treinamentosAtivos,
   admissao,
   checklistIntegracao,
+  ocorrenciasDisciplinares,
 }: {
   empresaId: string;
   colaborador: Colaborador;
@@ -82,14 +91,21 @@ export function ColaboradorDetalhe({
   candidatosSupervisor: Parameters<typeof MovimentacoesCard>[0]["candidatosSupervisor"];
   movimentacoes: Parameters<typeof MovimentacoesCard>[0]["movimentacoes"];
   beneficios: Parameters<typeof BeneficiosCard>[0]["beneficios"];
+  tiposBeneficioCustom: Parameters<typeof BeneficiosCard>[0]["tiposBeneficioCustom"];
   dependentesNoPlanoSaude: number;
   entregasEpi: Parameters<typeof EpisCard>[0]["entregas"];
+  tiposEpiDisponiveis: Parameters<typeof EpisCard>[0]["tiposEpiDisponiveis"];
+  motivosEntregaDisponiveis: Parameters<typeof EpisCard>[0]["motivosEntregaDisponiveis"];
   acidentes: Parameters<typeof AcidentesCard>[0]["acidentes"];
   ausenciasElegiveisAcidente: Parameters<typeof AcidentesCard>[0]["ausenciasElegiveis"];
+  tiposAcidenteDisponiveis: Parameters<typeof AcidentesCard>[0]["tiposAcidenteDisponiveis"];
+  tiposMovimentacaoDisponiveis: Parameters<typeof MovimentacoesCard>[0]["tiposMovimentacaoDisponiveis"];
   checklistDesligamento: Parameters<typeof OffboardingCard>[0]["checklist"];
   entrevistaDesligamento: Parameters<typeof OffboardingCard>[0]["entrevista"];
   avaliacoes: Parameters<typeof DesempenhoCard>[0]["avaliacoes"];
+  competenciasDisponiveis: Parameters<typeof DesempenhoCard>[0]["competenciasDisponiveis"];
   metas: Parameters<typeof MetasPdiCard>[0]["metas"];
+  statusMetaDisponiveis: Parameters<typeof MetasPdiCard>[0]["statusMetaDisponiveis"];
   pdi: Parameters<typeof MetasPdiCard>[0]["pdi"];
   participacoesTreinamento: Parameters<typeof TreinamentosCard>[0]["participacoes"];
   treinamentosAtivos: Parameters<typeof TreinamentosCard>[0]["treinamentosAtivos"];
@@ -98,6 +114,7 @@ export function ColaboradorDetalhe({
     pendencias: { chave: string; descricao: string }[];
   } | null;
   checklistIntegracao: Parameters<typeof IntegracaoCard>[0]["itens"];
+  ocorrenciasDisciplinares: Parameters<typeof DisciplinarCard>[0]["ocorrencias"];
 }) {
   const pendencias =
     ferias.filter((f) => f.status === "PENDENTE").length +
@@ -180,29 +197,70 @@ export function ColaboradorDetalhe({
         </Alert>
       )}
 
-      <Tabs defaultValue={abaPadrao}>
-        <TabsList variant="line">
-          <TabsTrigger value="ficha">Ficha</TabsTrigger>
-          <TabsTrigger value="dependentes">Dependentes ({dependentes.length})</TabsTrigger>
-          <TabsTrigger value="dossie">Dossiê ({documentos.length})</TabsTrigger>
-          <TabsTrigger value="ferias">Férias</TabsTrigger>
-          <TabsTrigger value="ausencias">Ausências ({ausencias.length})</TabsTrigger>
-          <TabsTrigger value="seguranca">
-            Segurança {irregular && <Badge variant="destructive">!</Badge>}
+      <Tabs defaultValue={abaPadrao} className="w-full">
+        <TabsList variant="default" className="w-full flex flex-wrap h-auto justify-start gap-1.5 p-1.5 bg-muted/60 rounded-lg">
+          <TabsTrigger value="ficha" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
+            Ficha
           </TabsTrigger>
-          <TabsTrigger value="carreira">Carreira ({movimentacoes.length})</TabsTrigger>
-          <TabsTrigger value="beneficios">Benefícios ({beneficios.length})</TabsTrigger>
-          <TabsTrigger value="epis">EPIs ({entregasEpi.length})</TabsTrigger>
-          <TabsTrigger value="acidentes">Acidentes ({acidentes.length})</TabsTrigger>
-          <TabsTrigger value="desempenho">Desempenho ({avaliacoes.length})</TabsTrigger>
-          <TabsTrigger value="metas-pdi">Metas &amp; PDI</TabsTrigger>
-          <TabsTrigger value="treinamentos">Treinamentos ({participacoesTreinamento.length})</TabsTrigger>
-          {colaborador.ativo && <TabsTrigger value="integracao">Integração</TabsTrigger>}
-          {colaborador.dataDesligamento && <TabsTrigger value="desligamento">Desligamento</TabsTrigger>}
+          <TabsTrigger value="dependentes" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
+            Dependentes ({dependentes.length})
+          </TabsTrigger>
+          <TabsTrigger value="dossie" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
+            Dossiê ({documentos.length})
+          </TabsTrigger>
+          <TabsTrigger value="ferias" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
+            Férias
+          </TabsTrigger>
+          <TabsTrigger value="ausencias" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
+            Ausências ({ausencias.length})
+          </TabsTrigger>
+          <TabsTrigger value="seguranca" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
+            Segurança {irregular && <Badge variant="destructive" className="ml-1 px-1 py-0 text-[10px]">!</Badge>}
+          </TabsTrigger>
+          <TabsTrigger value="carreira" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
+            Carreira ({movimentacoes.length})
+          </TabsTrigger>
+          <TabsTrigger value="beneficios" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
+            Benefícios ({beneficios.length})
+          </TabsTrigger>
+          <TabsTrigger value="epis" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
+            EPIs ({entregasEpi.length})
+          </TabsTrigger>
+          <TabsTrigger value="acidentes" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
+            Acidentes ({acidentes.length})
+          </TabsTrigger>
+          <TabsTrigger value="desempenho" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
+            Desempenho ({avaliacoes.length})
+          </TabsTrigger>
+          <TabsTrigger value="metas-pdi" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
+            Metas &amp; PDI
+          </TabsTrigger>
+          <TabsTrigger value="treinamentos" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
+            Treinamentos ({participacoesTreinamento.length})
+          </TabsTrigger>
+          <TabsTrigger value="disciplinar" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
+            Disciplinar ({ocorrenciasDisciplinares.length})
+          </TabsTrigger>
+          {colaborador.ativo && (
+            <TabsTrigger value="integracao" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
+              Integração
+            </TabsTrigger>
+          )}
+          {colaborador.dataDesligamento && (
+            <TabsTrigger value="desligamento" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
+              Desligamento
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="ficha" className="pt-4">
-          <FichaBlocos empresaId={empresaId} colaborador={colaborador} />
+          <FichaBlocos
+            empresaId={empresaId}
+            colaborador={colaborador}
+            setores={setores}
+            posicoes={posicoes}
+            candidatosSupervisor={candidatosSupervisor}
+          />
         </TabsContent>
         <TabsContent value="dependentes" className="pt-4">
           <DependentesCard empresaId={empresaId} colaboradorId={colaborador.id} dependentes={dependentes} />
@@ -243,6 +301,7 @@ export function ColaboradorDetalhe({
             posicoes={posicoes}
             candidatosSupervisor={candidatosSupervisor}
             movimentacoes={movimentacoes}
+            tiposMovimentacaoDisponiveis={tiposMovimentacaoDisponiveis}
           />
         </TabsContent>
         <TabsContent value="beneficios" className="pt-4">
@@ -250,11 +309,18 @@ export function ColaboradorDetalhe({
             empresaId={empresaId}
             colaboradorId={colaborador.id}
             beneficios={beneficios}
+            tiposBeneficioCustom={tiposBeneficioCustom}
             temDependentesNoPlano={dependentesNoPlanoSaude}
           />
         </TabsContent>
         <TabsContent value="epis" className="pt-4">
-          <EpisCard empresaId={empresaId} colaboradorId={colaborador.id} entregas={entregasEpi} />
+          <EpisCard
+            empresaId={empresaId}
+            colaboradorId={colaborador.id}
+            entregas={entregasEpi}
+            tiposEpiDisponiveis={tiposEpiDisponiveis}
+            motivosEntregaDisponiveis={motivosEntregaDisponiveis}
+          />
         </TabsContent>
         <TabsContent value="acidentes" className="pt-4">
           <AcidentesCard
@@ -262,13 +328,25 @@ export function ColaboradorDetalhe({
             colaboradorId={colaborador.id}
             acidentes={acidentes}
             ausenciasElegiveis={ausenciasElegiveisAcidente}
+            tiposAcidenteDisponiveis={tiposAcidenteDisponiveis}
           />
         </TabsContent>
         <TabsContent value="desempenho" className="pt-4">
-          <DesempenhoCard empresaId={empresaId} colaboradorId={colaborador.id} avaliacoes={avaliacoes} />
+          <DesempenhoCard
+            empresaId={empresaId}
+            colaboradorId={colaborador.id}
+            avaliacoes={avaliacoes}
+            competenciasDisponiveis={competenciasDisponiveis}
+          />
         </TabsContent>
         <TabsContent value="metas-pdi" className="pt-4">
-          <MetasPdiCard empresaId={empresaId} colaboradorId={colaborador.id} metas={metas} pdi={pdi} />
+          <MetasPdiCard
+            empresaId={empresaId}
+            colaboradorId={colaborador.id}
+            metas={metas}
+            pdi={pdi}
+            statusMetaDisponiveis={statusMetaDisponiveis}
+          />
         </TabsContent>
         <TabsContent value="treinamentos" className="pt-4">
           <TreinamentosCard
@@ -276,6 +354,13 @@ export function ColaboradorDetalhe({
             colaboradorId={colaborador.id}
             participacoes={participacoesTreinamento}
             treinamentosAtivos={treinamentosAtivos}
+          />
+        </TabsContent>
+        <TabsContent value="disciplinar" className="pt-4">
+          <DisciplinarCard
+            empresaId={empresaId}
+            colaboradorId={colaborador.id}
+            ocorrencias={ocorrenciasDisciplinares}
           />
         </TabsContent>
         {colaborador.ativo && (
@@ -294,6 +379,9 @@ export function ColaboradorDetalhe({
               colaboradorId={colaborador.id}
               dataDesligamento={colaborador.dataDesligamento}
               motivoDesligamento={colaborador.motivoDesligamento}
+              checklistDispensado={colaborador.checklistDispensado}
+              checklistDispensadoEm={colaborador.checklistDispensadoEm}
+              checklistDispensadoPorNome={colaborador.checklistDispensadoPorNome}
               checklist={checklistDesligamento}
               entrevista={entrevistaDesligamento}
             />

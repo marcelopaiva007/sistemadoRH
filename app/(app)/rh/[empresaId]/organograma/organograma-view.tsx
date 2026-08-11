@@ -8,6 +8,7 @@ import {
   ChevronDown,
   ChevronRight,
   Network,
+  GitBranch,
   Pencil,
   Users,
   UserX,
@@ -16,6 +17,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ArvoreVisual } from "./arvore-visual";
 import { definirSupervisor } from "@/lib/actions/rh-colaboradores";
 import { cn } from "@/lib/utils";
 
@@ -28,6 +31,7 @@ type Colaborador = {
   supervisorId: string | null;
   setor: { nome: string };
   posicao: { nome: string };
+  empresa: { nome: string };
 };
 
 type No = Colaborador & { filhos: No[] };
@@ -65,7 +69,17 @@ function combina(no: No, termo: string): boolean {
   return no.filhos.some((f) => combina(f, termo));
 }
 
-export function OrganogramaView({ empresaId, colaboradores }: { empresaId: string; colaboradores: Colaborador[] }) {
+export function OrganogramaView({
+  empresaId,
+  colaboradores,
+  marcaNome,
+  totalCnpjs,
+}: {
+  empresaId: string;
+  colaboradores: Colaborador[];
+  marcaNome: string;
+  totalCnpjs: number;
+}) {
   const [busca, setBusca] = useState("");
 
   const { arvores, orfaos, gruposSemLider, naEstrutura } = useMemo(() => {
@@ -134,15 +148,16 @@ export function OrganogramaView({ empresaId, colaboradores }: { empresaId: strin
       <div>
         <h2 className="text-xl font-semibold tracking-tight">Organograma</h2>
         <p className="text-sm text-muted-foreground">
-          Montado a partir de quem reporta a quem — atualiza sozinho quando uma movimentação troca
-          o líder de alguém.
+          Marca <strong>{marcaNome}</strong> — {totalCnpjs} CNPJ{totalCnpjs > 1 ? "s" : ""}, todos na
+          mesma árvore. Montado a partir de quem reporta a quem, e atualiza sozinho quando uma
+          movimentação troca o líder de alguém.
         </p>
       </div>
 
       {colaboradores.length === 0 ? (
         <Card>
           <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            Nenhum colaborador ativo nesta empresa.
+            Nenhum colaborador ativo nesta marca.
           </CardContent>
         </Card>
       ) : (
@@ -183,6 +198,23 @@ export function OrganogramaView({ empresaId, colaboradores }: { empresaId: strin
             </div>
           </div>
 
+          <Tabs defaultValue="estrutura" className="space-y-4">
+            <TabsList>
+              <TabsTrigger value="estrutura">
+                <Network className="size-4" /> Estrutura
+              </TabsTrigger>
+              <TabsTrigger value="arvore">
+                <GitBranch className="size-4" /> Árvore
+              </TabsTrigger>
+            </TabsList>
+
+            {/* Desenho de cima para baixo: para ler e apresentar. Não repete os
+                controles de edição — quem monta a hierarquia usa a Estrutura. */}
+            <TabsContent value="arvore">
+              <ArvoreVisual empresaId={empresaId} arvores={arvores} />
+            </TabsContent>
+
+            <TabsContent value="estrutura" className="space-y-4">
           <Input
             placeholder="Buscar por nome..."
             value={busca}
@@ -293,6 +325,8 @@ export function OrganogramaView({ empresaId, colaboradores }: { empresaId: strin
               )}
             </CardContent>
           </Card>
+            </TabsContent>
+          </Tabs>
         </>
       )}
     </div>
@@ -359,8 +393,10 @@ function Nodo({
               </Badge>
             )}
           </div>
+          {/* O CNPJ entra na linha porque a árvore é da marca inteira: sem
+              ele, um time com gente de três empresas parece um time só. */}
           <p className="truncate text-xs text-muted-foreground">
-            {no.posicao.nome} · {no.setor.nome}
+            {no.posicao.nome} · {no.setor.nome} · {no.empresa.nome}
           </p>
         </div>
         {!editando && (
@@ -467,7 +503,9 @@ function PessoaSemLider({
           >
             {nomeExibicao(pessoa.nome)}
           </Link>
-          <p className="truncate text-xs text-muted-foreground">{pessoa.posicao.nome}</p>
+          <p className="truncate text-xs text-muted-foreground">
+            {pessoa.posicao.nome} · {pessoa.empresa.nome}
+          </p>
         </div>
         {!editando && (
           <Button
@@ -524,7 +562,8 @@ function EditorDeLider({
   const [salvando, setSalvando] = useState(false);
 
   // Nem a própria pessoa, nem quem ela já lidera (ciclo óbvio) — o servidor
-  // confere o resto (ciclo mais longo, líder de outra empresa).
+  // confere o resto (ciclo mais longo, líder fora da marca). Os CNPJs irmãos
+  // ficam na lista de propósito: liderança no grupo atravessa CNPJ.
   const bloqueados = useMemo(() => new Set([no.id, ...idsDescendentes(no)]), [no]);
   const opcoes = todos
     .filter((c) => !bloqueados.has(c.id))
@@ -558,9 +597,12 @@ function EditorDeLider({
         className={cn(classeSelect, "max-w-64")}
       >
         <option value="">Sem líder</option>
+        {/* O CNPJ vai no rótulo porque a lista mistura as empresas da marca:
+            sem ele, dois nomes parecidos de CNPJs diferentes ficam
+            indistinguíveis na hora de escolher o líder. */}
         {opcoes.map((c) => (
           <option key={c.id} value={c.id}>
-            {nomeExibicao(c.nome)}
+            {nomeExibicao(c.nome)} — {c.empresa.nome}
           </option>
         ))}
       </select>

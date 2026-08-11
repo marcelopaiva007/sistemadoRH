@@ -1,13 +1,16 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Bot, Send, User, Wrench } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { Bot, KeyRound, Send, User, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { perguntarAoAssistente } from "@/lib/actions/rh-assistente";
+import { removerChaveAnthropic, salvarChaveAnthropic } from "@/lib/actions/rh-segredos";
 
 type Turno =
   | { de: "pessoa"; texto: string }
@@ -21,7 +24,21 @@ const SUGESTOES = [
   "Quem faz aniversário de empresa neste mês?",
 ];
 
-export function AssistenteView({ empresaId, ligado }: { empresaId: string; ligado: boolean }) {
+export function AssistenteView({
+  empresaId,
+  ligado,
+  origem,
+  dica,
+  atualizadoPor,
+  podeConfigurar,
+}: {
+  empresaId: string;
+  ligado: boolean;
+  origem: "ambiente" | "sistema" | null;
+  dica: string | null;
+  atualizadoPor: string | null;
+  podeConfigurar: boolean;
+}) {
   const [turnos, setTurnos] = useState<Turno[]>([]);
   const [texto, setTexto] = useState("");
   const [pensando, setPensando] = useState(false);
@@ -58,15 +75,24 @@ export function AssistenteView({ empresaId, ligado }: { empresaId: string; ligad
         </p>
       </div>
 
-      {!ligado && (
+      {!ligado && !podeConfigurar && (
         <Alert>
           <Bot className="size-4" />
           <AlertDescription>
-            <strong>Assistente desligado.</strong> Falta a variável <code>ANTHROPIC_API_KEY</code> no
-            ambiente. Crie uma chave em console.anthropic.com, adicione nas variáveis do projeto na
-            Vercel e faça um novo deploy — nada mais precisa mudar no código.
+            <strong>Assistente desligado.</strong> Falta cadastrar a chave da API da Anthropic — peça
+            a um administrador.
           </AlertDescription>
         </Alert>
+      )}
+
+      {podeConfigurar && (
+        <ChaveDaApi
+          empresaId={empresaId}
+          ligado={ligado}
+          origem={origem}
+          dica={dica}
+          atualizadoPor={atualizadoPor}
+        />
       )}
 
       {turnos.length === 0 && ligado && (
@@ -142,5 +168,162 @@ export function AssistenteView({ empresaId, ligado }: { empresaId: string; ligad
         </Button>
       </form>
     </div>
+  );
+}
+
+/**
+ * Cadastro da chave da API, na tela em vez da Vercel.
+ *
+ * A chave é escrita e nunca lida de volta: o campo sempre nasce vazio, e o que
+ * a tela sabe da chave gravada são os quatro últimos dígitos. Trocar é
+ * sobrescrever — não existe "ver a chave atual" em lugar nenhum do sistema.
+ */
+function ChaveDaApi({
+  empresaId,
+  ligado,
+  origem,
+  dica,
+  atualizadoPor,
+}: {
+  empresaId: string;
+  ligado: boolean;
+  origem: "ambiente" | "sistema" | null;
+  dica: string | null;
+  atualizadoPor: string | null;
+}) {
+  const router = useRouter();
+  const [chave, setChave] = useState("");
+  const [salvando, setSalvando] = useState(false);
+  const [trocando, setTrocando] = useState(false);
+
+  async function salvar() {
+    if (!chave.trim() || salvando) return;
+    setSalvando(true);
+    try {
+      const r = await salvarChaveAnthropic(empresaId, chave);
+      if (r.ok) {
+        // Limpa antes de sair: o valor não fica no estado do formulário depois
+        // de gravado.
+        setChave("");
+        setTrocando(false);
+        toast.success("Chave cadastrada. O assistente está ligado.");
+        router.refresh();
+      } else {
+        toast.error(r.error);
+      }
+    } catch {
+      toast.error("Não foi possível salvar — verifique a conexão e tente de novo.");
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  async function remover() {
+    setSalvando(true);
+    try {
+      const r = await removerChaveAnthropic(empresaId);
+      if (r.ok) {
+        toast.success("Chave removida. O assistente ficou desligado.");
+        router.refresh();
+      } else {
+        toast.error(r.error);
+      }
+    } catch {
+      toast.error("Não foi possível remover — verifique a conexão e tente de novo.");
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  // Ligado e sem intenção de trocar: uma linha de status, não um formulário. O
+  // caminho do dia a dia é perguntar, não reconfigurar.
+  if (ligado && !trocando) {
+    return (
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border bg-card px-4 py-3 text-sm text-card-foreground">
+        <KeyRound className="size-4 shrink-0 text-muted-foreground" />
+        <span>
+          Chave da Anthropic ativa
+          {origem === "ambiente" ? (
+            <span className="text-muted-foreground"> — vinda das variáveis de ambiente</span>
+          ) : (
+            <span className="text-muted-foreground">
+              {dica ? ` (final ${dica})` : ""}
+              {atualizadoPor ? `, cadastrada por ${atualizadoPor}` : ""}
+            </span>
+          )}
+        </span>
+        <div className="ml-auto flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => setTrocando(true)}>
+            Trocar
+          </Button>
+          {origem === "sistema" && (
+            <Button size="sm" variant="ghost" disabled={salvando} onClick={remover}>
+              Remover
+            </Button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <KeyRound className="size-4" />
+          {ligado ? "Trocar a chave da Anthropic" : "Ligar o assistente"}
+        </CardTitle>
+        <CardDescription>
+          Crie uma chave em console.anthropic.com e cole aqui. Ela é gravada cifrada e não volta a
+          aparecer na tela — para trocar, cole uma nova por cima. A partir daí cada pergunta passa a
+          ter custo na sua conta da Anthropic.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {origem === "ambiente" && (
+          <Alert>
+            <AlertDescription>
+              Já existe uma chave nas variáveis de ambiente, e <strong>ela tem preferência</strong>.
+              O que for cadastrado aqui fica guardado, mas só passa a valer quando a variável sair do
+              projeto na Vercel.
+            </AlertDescription>
+          </Alert>
+        )}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            salvar();
+          }}
+          className="flex flex-wrap gap-2"
+        >
+          <Input
+            type="password"
+            autoComplete="off"
+            value={chave}
+            onChange={(e) => setChave(e.target.value)}
+            placeholder="sk-ant-..."
+            className="min-w-64 flex-1"
+            disabled={salvando}
+          />
+          <Button type="submit" disabled={salvando || !chave.trim()}>
+            {salvando ? "Conferindo..." : "Salvar chave"}
+          </Button>
+          {ligado && (
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={salvando}
+              onClick={() => setTrocando(false)}
+            >
+              Cancelar
+            </Button>
+          )}
+        </form>
+        <p className="text-xs text-muted-foreground">
+          A chave é testada na Anthropic antes de ser gravada — se estiver errada ou revogada, você
+          descobre agora e não na primeira pergunta.
+        </p>
+      </CardContent>
+    </Card>
   );
 }

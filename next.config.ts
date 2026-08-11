@@ -1,7 +1,17 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["@sparticuz/chromium", "playwright-core"],
+  serverExternalPackages: [
+    "@sparticuz/chromium",
+    "playwright-core",
+    "@prisma/adapter-pg",
+    "pg",
+    "pg-connection-string",
+    "pgpass",
+  ],
+  turbopack: {
+    root: __dirname,
+  },
   // O tracer não detecta os arquivos auxiliares do playwright/chromium
   // (browsers.json, binário) — inclui o pacote inteiro na função do relatório
   // PDF.
@@ -9,7 +19,7 @@ const nextConfig: NextConfig = {
   // escape, então usamos `**` no lugar dos segmentos dinâmicos. O sufixo importa
   // — sem ele, o Chromium entraria também na função de download de anexos.
   outputFileTracingIncludes: {
-    "/api/rh/**/relatorio-pdf": [
+    "/api/rh/**/relatorio*pdf": [
       "./node_modules/playwright-core/**/*",
       "./node_modules/@sparticuz/chromium/**/*",
     ],
@@ -41,6 +51,37 @@ const nextConfig: NextConfig = {
     // logo acima do teto de 4 MB validado em lib/constants-dp.ts e abaixo do
     // limite de corpo de requisição da Vercel (4,5 MB + overhead).
     serverActions: { bodySizeLimit: "5mb" },
+  },
+  // Headers de segurança aplicados a toda resposta. Colocados aqui (não em
+  // proxy.ts) de propósito: por doc do Next 16, `headers` do next.config
+  // roda ANTES do proxy na cadeia de execução, então isto nunca disputa com
+  // nem depende da lógica de autenticação do NextAuth em proxy.ts — os dois
+  // arquivos ficam independentes um do outro.
+  //
+  // NÃO criar middleware.ts para isto: nesta versão o Next renomeou o
+  // arquivo para proxy.ts (ver AGENTS.md) e middleware.ts é simplesmente
+  // ignorado — foi tentado e descartado nesta mesma leva de mudanças.
+  //
+  // Sem CSP de propósito: a stack usa estilo inline do Tailwind/shadcn e
+  // scripts de terceiros (Vercel Analytics, etc.) — uma CSP escrita sem
+  // testar contra cada rota quebraria renderização em produção. Fica como
+  // trabalho futuro, testado caso a caso.
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "X-XSS-Protection", value: "1; mode=block" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          {
+            key: "Permissions-Policy",
+            value: "camera=(), microphone=(), geolocation=(self), payment=()",
+          },
+        ],
+      },
+    ];
   },
 };
 

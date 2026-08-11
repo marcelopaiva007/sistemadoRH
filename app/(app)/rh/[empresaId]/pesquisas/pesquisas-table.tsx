@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState } from "react";
-import { Plus, ShieldAlert, Trash2 } from "lucide-react";
+import { useActionState, useMemo, useState } from "react";
+import { Plus, RefreshCw, ShieldAlert, Trash2 } from "lucide-react";
+import { useFiltroEmpresas } from "../filtro-empresas";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,7 +28,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { createPesquisa, criarPesquisaNR01, deletePesquisa } from "@/lib/actions/pesquisas";
+import { createPesquisa, criarPesquisaNR01, deletePesquisa, executarGestaoCicloAgora } from "@/lib/actions/pesquisas";
 import { statusPesquisaLabel } from "@/lib/constants-rh";
 import { participacaoPct } from "@/lib/pesquisa-numeros";
 import type { ActionResult } from "@/lib/constants";
@@ -39,6 +40,9 @@ type Pesquisa = {
   anonima: boolean;
   modelo: string;
   createdAt: Date;
+  empresaId: string;
+  marcaId: string;
+  marcaNome: string;
   _count: { perguntas: number; tokens: number; respostas: number };
 };
 
@@ -46,20 +50,66 @@ const initialState: ActionResult = { ok: true };
 
 export function PesquisasTable({
   empresaId,
+  empresasDoUsuario,
+  marcaDoCnpj,
   pesquisas,
   colaboradoresAtivos,
 }: {
   empresaId: string;
+  empresasDoUsuario: string[];
+  /** CNPJ -> marca. O filtro da lateral seleciona CNPJs; a pesquisa é da marca. */
+  marcaDoCnpj: Record<string, string>;
   pesquisas: Pesquisa[];
-  /** Colaboradores ativos da empresa hoje — o universo que a pesquisa deveria cobrir. */
-  colaboradoresAtivos: number;
+  /** Colaboradores ativos hoje por MARCA — o universo que cada pesquisa cobre. */
+  colaboradoresAtivos: Record<string, number>;
 }) {
+  const empresasSelecionadas = useFiltroEmpresas(empresasDoUsuario);
+
+  // O recorte é por MARCA: a pesquisa da LM Telecom mora no CNPJ da RSM, e
+  // filtrar por ME TELECOM devolvia tabela vazia — como se a marca não
+  // tivesse pesquisa nenhuma.
+  const visiveis = useMemo(() => {
+    const marcas = new Set(empresasSelecionadas.map((id) => marcaDoCnpj[id]).filter(Boolean));
+    return pesquisas.filter((p) => marcas.has(p.marcaId));
+  }, [pesquisas, empresasSelecionadas, marcaDoCnpj]);
+
+  // A coluna de marca só aparece quando há mais de uma na lista. Filtrado numa
+  // marca só, ela repetiria o mesmo nome em todas as linhas dizendo nada.
+  const mostrarMarca = new Set(visiveis.map((p) => p.marcaId)).size > 1;
+
   const [createOpen, setCreateOpen] = useState(false);
   const [criandoNR01, setCriandoNR01] = useState(false);
+  const [executandoCiclo, setExecutandoCiclo] = useState(false);
 
   return (
     <div className="space-y-4">
       <div className="flex justify-end gap-2">
+        <Button
+          variant="outline"
+          disabled={executandoCiclo}
+          title="Cria o Pulso/Anual das marcas sem pesquisa ativa e encerra as vencidas — o mesmo que o cron diário faz. Use quando uma marca ficou de fora da janela automática (meses 1/4/7/10)."
+          onClick={async () => {
+            setExecutandoCiclo(true);
+            const result = await executarGestaoCicloAgora();
+            setExecutandoCiclo(false);
+            if (!result.ok) {
+              toast.error(result.error);
+              return;
+            }
+            const { criados, encerrados, erros } = result.resumo;
+            if (criados === 0 && encerrados === 0) {
+              toast.info("Nada para fazer — todas as marcas já têm pesquisa ativa em dia.");
+            } else {
+              toast.success(
+                `${criados} pesquisa(s) criada(s), ${encerrados} encerrada(s)` +
+                  (erros.length > 0 ? ` — ${erros.length} erro(s), veja o console` : ""),
+              );
+            }
+          }}
+        >
+          <RefreshCw className="size-4" />
+          {executandoCiclo ? "Executando..." : "Rodar gestão de ciclo"}
+        </Button>
         <Button
           variant="outline"
           disabled={criandoNR01}
@@ -91,6 +141,7 @@ export function PesquisasTable({
           <TableHeader>
             <TableRow>
               <TableHead>Título</TableHead>
+              {mostrarMarca && <TableHead>Marca</TableHead>}
               <TableHead>Status</TableHead>
               <TableHead>Anônima</TableHead>
               <TableHead>Perguntas</TableHead>
@@ -101,17 +152,23 @@ export function PesquisasTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {pesquisas.length === 0 && (
+            {visiveis.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
+                <TableCell
+                  colSpan={mostrarMarca ? 9 : 8}
+                  className="py-8 text-center text-muted-foreground"
+                >
                   Nenhuma pesquisa cadastrada ainda.
                 </TableCell>
               </TableRow>
             )}
-            {pesquisas.map((p) => (
+            {visiveis.map((p) => (
               <TableRow key={p.id}>
                 <TableCell className="font-medium">
-                  <Link href={`/rh/${empresaId}/pesquisas/${p.id}`} className="hover:underline">
+                  {/* O caminho leva o CNPJ da própria pesquisa, não o da URL:
+                      a lista consolidada mistura empresas, e apontar para o
+                      CNPJ da tela daria "pesquisa não encontrada". */}
+                  <Link href={`/rh/${p.empresaId}/pesquisas/${p.id}`} className="hover:underline">
                     {p.titulo}
                   </Link>
                   {p.modelo === "NR01" && (
@@ -120,15 +177,21 @@ export function PesquisasTable({
                     </Badge>
                   )}
                 </TableCell>
+                {mostrarMarca && (
+                  <TableCell className="text-muted-foreground">{p.marcaNome}</TableCell>
+                )}
                 <TableCell>
                   <Badge variant="secondary">{statusPesquisaLabel(p.status)}</Badge>
                 </TableCell>
                 <TableCell>{p.anonima ? "Sim" : "Não"}</TableCell>
                 <TableCell>{p._count.perguntas}</TableCell>
-                {/* Cadastrados é da EMPRESA, não da pesquisa: repete em toda
-                    linha de propósito, porque é a referência contra a qual os
-                    outros dois números se leem. */}
-                <TableCell className="text-muted-foreground">{colaboradoresAtivos}</TableCell>
+                {/* Cadastrados é da MARCA, não da pesquisa: repete em toda
+                    linha da mesma marca de propósito, porque é a referência
+                    contra a qual os outros dois números se leem — e é o mesmo
+                    universo que "Gerar convites" percorre. */}
+                <TableCell className="text-muted-foreground">
+                  {colaboradoresAtivos[p.marcaId] ?? 0}
+                </TableCell>
                 <TableCell>{p._count.tokens}</TableCell>
                 <TableCell>
                   {p._count.respostas}
@@ -140,7 +203,7 @@ export function PesquisasTable({
                 </TableCell>
                 <TableCell className="text-right">
                   <ExcluirPesquisaButton
-                    empresaId={empresaId}
+                    empresaId={p.empresaId}
                     pesquisaId={p.id}
                     titulo={p.titulo}
                     respostas={p._count.respostas}

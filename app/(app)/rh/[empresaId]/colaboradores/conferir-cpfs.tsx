@@ -14,6 +14,7 @@ type Colaborador = {
   nome: string;
   cpf: string | null;
   ativo: boolean;
+  empresaId: string;
   setor: { nome: string };
 };
 
@@ -104,7 +105,7 @@ export function ConferirCpfs({ empresaId, colaboradores }: { empresaId: string; 
                           {r.colaborador.ativo ? "Ativo" : "Inativo — provável ficha duplicada"}
                         </Badge>
                         <Link
-                          href={`/rh/${empresaId}/colaboradores/${r.colaborador.id}`}
+                          href={`/rh/${r.colaborador.empresaId}/colaboradores/${r.colaborador.id}`}
                           className="font-medium hover:underline"
                         >
                           {r.colaborador.nome}

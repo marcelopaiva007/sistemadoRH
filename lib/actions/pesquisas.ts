@@ -5,16 +5,29 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
+import { marcaDaEmpresa } from "@/lib/escopo-marca";
+import { requireEmpresaAccess, requireRHAccess } from "@/lib/rh-auth-guard";
+import { executarGestaoCiclo } from "@/lib/pesquisa-ciclo";
 import { enviarUmConvite, enviosRestantesHoje, LIMITE_DIARIO_ENVIOS } from "@/lib/convites";
 import { vinculoTelegramQuebrado, MSG_AGUARDANDO_NOVO_VINCULO } from "@/lib/pesquisa-numeros";
+import { filtrarElegiveisPorVinculo, invalidarConvitesDeDesligados } from "@/lib/pesquisa-vinculo";
+import { valoresValidosDoCatalogo } from "@/lib/catalogos";
 import {
   PERGUNTAS_NR01,
   TITULO_PESQUISA_NR01,
   DESCRICAO_PESQUISA_NR01,
 } from "@/lib/nr01-modelo";
 import { registrarAuditoria } from "@/lib/audit";
+import { violouUnique } from "@/lib/prisma-erros";
+import { gravarCacheNR01 } from "@/lib/nr01-cache";
 import type { ActionResult } from "@/lib/constants";
+
+// Título é único por marca ENQUANTO RASCUNHO (índice parcial
+// Pesquisa_marcaId_titulo_key — ver o comentário no schema) — a rede de
+// segurança contra rascunhos duplicados do cron. Aqui a violação vira mensagem
+// para a tela em vez de 500.
+const ERRO_TITULO_DUPLICADO =
+  "Já existe um rascunho de pesquisa com este título nesta marca. Use outro título — ou reaproveite o rascunho existente.";
 
 /**
  * Igual ao ActionResult, mas com um texto de sucesso para a tela. Serve para as
@@ -43,20 +56,21 @@ function revalidarNumerosDaPesquisa(empresaId: string, pesquisaId: string) {
 
 const STATUSES = ["DRAFT", "ACTIVE", "FINISHED", "ARCHIVED"] as const;
 const TIPOS_PERGUNTA = ["LIKERT_5", "FREQ_0_4", "NPS_10", "MULTIPLE_CHOICE", "TEXT"] as const;
-const DIMENSOES_GPTW = [
-  "CREDIBILIDADE",
-  "RESPEITO",
-  "IMPARCIALIDADE",
-  "ORGULHO",
-  "CAMARADAGEM",
-  "GERAL",
-] as const;
 
 const pesquisaSchema = z.object({
   titulo: z.string().trim().min(3, "Informe o título da pesquisa"),
   descricao: z.string().trim().optional(),
   anonima: z.coerce.boolean().default(true),
 });
+
+// `anonima` se decide na criação e não muda mais. A tela já trata o campo como
+// imutável (dados-pesquisa-form.tsx só mostra "Anônima: sim/não" em texto), mas
+// server action é endpoint HTTP: sem tirar o campo daqui, um POST direto viraria
+// uma pesquisa anônima em identificada no meio da coleta — depois de o convite
+// já ter prometido anonimato ao colaborador (lib/convites.ts). E como o valor
+// vinha de `formData.get("anonima") === "true"`, campo ausente virava `false`:
+// falhava abrindo, no sentido mais perigoso.
+const pesquisaUpdateSchema = pesquisaSchema.omit({ anonima: true });
 
 export async function createPesquisa(
   empresaId: string,
@@ -71,15 +85,26 @@ export async function createPesquisa(
   });
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
 
-  const pesquisa = await prisma.pesquisa.create({
-    data: {
-      empresaId,
-      titulo: parsed.data.titulo,
-      descricao: parsed.data.descricao || null,
-      anonima: parsed.data.anonima,
-      criadoPorId: user?.id ?? null,
-    },
-  });
+  let pesquisa;
+  try {
+    pesquisa = await prisma.pesquisa.create({
+      data: {
+        // A pesquisa nasce vinculada a MARCA — e ao CNPJ so como registro de
+        // onde foi criada. Ver o comentario de `marcaId` no schema.
+        marcaId: await marcaDaEmpresa(empresaId),
+        empresaId,
+        titulo: parsed.data.titulo,
+        descricao: parsed.data.descricao || null,
+        anonima: parsed.data.anonima,
+        criadoPorId: user?.id ?? null,
+      },
+    });
+  } catch (e) {
+    if (violouUnique(e, "Pesquisa_marcaId_titulo_key")) {
+      return { ok: false, error: ERRO_TITULO_DUPLICADO };
+    }
+    throw e;
+  }
 
   revalidatePath(`/rh/${empresaId}/pesquisas`);
   redirect(`/rh/${empresaId}/pesquisas/${pesquisa.id}`);
@@ -94,27 +119,41 @@ export async function criarPesquisaNR01(empresaId: string): Promise<ActionResult
   const user = await requireEmpresaAccess(empresaId);
 
   const ano = new Date().getFullYear();
-  const pesquisa = await prisma.pesquisa.create({
-    data: {
-      empresaId,
-      titulo: `${TITULO_PESQUISA_NR01} — ${ano}`,
-      descricao: DESCRICAO_PESQUISA_NR01,
-      modelo: "NR01",
-      anonima: true,
-      criadoPorId: user?.id ?? null,
-      perguntas: {
-        create: PERGUNTAS_NR01.map((p, index) => ({
-          ordem: index,
-          enunciado: p.enunciado,
-          tipo: "FREQ_0_4",
-          codigo: p.codigo,
-          dimensao: p.dimensao,
-          invertida: p.invertida,
-          obrigatoria: true,
-        })),
+  let pesquisa;
+  try {
+    pesquisa = await prisma.pesquisa.create({
+      data: {
+        // A pesquisa nasce vinculada a MARCA — e ao CNPJ so como registro de
+        // onde foi criada. Ver o comentario de `marcaId` no schema.
+        marcaId: await marcaDaEmpresa(empresaId),
+        empresaId,
+        titulo: `${TITULO_PESQUISA_NR01} — ${ano}`,
+        descricao: DESCRICAO_PESQUISA_NR01,
+        modelo: "NR01",
+        anonima: true,
+        criadoPorId: user?.id ?? null,
+        perguntas: {
+          create: PERGUNTAS_NR01.map((p, index) => ({
+            ordem: index,
+            enunciado: p.enunciado,
+            tipo: "FREQ_0_4",
+            codigo: p.codigo,
+            dimensao: p.dimensao,
+            invertida: p.invertida,
+            obrigatoria: true,
+          })),
+        },
       },
-    },
-  });
+    });
+  } catch (e) {
+    if (violouUnique(e, "Pesquisa_marcaId_titulo_key")) {
+      return {
+        ok: false,
+        error: `A Avaliação NR-01 de ${ano} já está em rascunho nesta marca — ative ou exclua o rascunho existente.`,
+      };
+    }
+    throw e;
+  }
 
   revalidatePath(`/rh/${empresaId}/pesquisas`);
   redirect(`/rh/${empresaId}/pesquisas/${pesquisa.id}`);
@@ -129,6 +168,11 @@ export async function deletePesquisa(empresaId: string, id: string): Promise<Act
   const pesquisa = await prisma.pesquisa.findFirst({ where: { id, empresaId } });
   if (!pesquisa) return { ok: false, error: "Pesquisa não encontrada." };
 
+  const [totalConvites, totalRespostas] = await Promise.all([
+    prisma.surveyToken.count({ where: { pesquisaId: id } }),
+    prisma.resposta.count({ where: { pesquisaId: id } }),
+  ]);
+
   await prisma.$transaction([
     prisma.respostaItem.deleteMany({ where: { resposta: { pesquisaId: id } } }),
     prisma.resposta.deleteMany({ where: { pesquisaId: id } }),
@@ -137,6 +181,14 @@ export async function deletePesquisa(empresaId: string, id: string): Promise<Act
     prisma.pergunta.deleteMany({ where: { pesquisaId: id } }),
     prisma.pesquisa.delete({ where: { id } }),
   ]);
+
+  await registrarAuditoria({
+    empresaId,
+    acao: "EXCLUIR",
+    entidade: "Pesquisa",
+    entidadeId: id,
+    resumo: `Pesquisa "${pesquisa.titulo}" foi excluída (${totalConvites} convite(s), ${totalRespostas} resposta(s) apagados).`,
+  });
 
   revalidatePath(`/rh/${empresaId}/pesquisas`);
   redirect(`/rh/${empresaId}/pesquisas`);
@@ -149,21 +201,26 @@ export async function updatePesquisa(
   formData: FormData
 ): Promise<ActionResult> {
   await requireEmpresaAccess(empresaId);
-  const parsed = pesquisaSchema.safeParse({
+  const parsed = pesquisaUpdateSchema.safeParse({
     titulo: formData.get("titulo"),
     descricao: formData.get("descricao") || undefined,
-    anonima: formData.get("anonima") === "on" || formData.get("anonima") === "true",
   });
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
 
-  await prisma.pesquisa.update({
-    where: { id, empresaId },
-    data: {
-      titulo: parsed.data.titulo,
-      descricao: parsed.data.descricao || null,
-      anonima: parsed.data.anonima,
-    },
-  });
+  try {
+    await prisma.pesquisa.update({
+      where: { id, empresaId },
+      data: {
+        titulo: parsed.data.titulo,
+        descricao: parsed.data.descricao || null,
+      },
+    });
+  } catch (e) {
+    if (violouUnique(e, "Pesquisa_marcaId_titulo_key")) {
+      return { ok: false, error: ERRO_TITULO_DUPLICADO };
+    }
+    throw e;
+  }
 
   revalidatePath(`/rh/${empresaId}/pesquisas`);
   revalidatePath(`/rh/${empresaId}/pesquisas/${id}`);
@@ -197,8 +254,15 @@ export async function alterarStatusPesquisa(
     },
   });
 
+  // Última vez que o resultado NR-01 pode mudar — grava o cache que
+  // /relatorios vai ler daqui em diante em vez de recalcular.
+  if (novoStatus === "FINISHED" && pesquisa.modelo === "NR01") {
+    await gravarCacheNR01(id);
+  }
+
   revalidatePath(`/rh/${empresaId}/pesquisas`);
   revalidatePath(`/rh/${empresaId}/pesquisas/${id}`);
+  revalidatePath(`/rh/${empresaId}/relatorios`);
   return { ok: true };
 }
 
@@ -209,7 +273,12 @@ const opcaoSchema = z.object({
 const perguntaSchema = z.object({
   enunciado: z.string().trim().min(3, "Informe o enunciado da pergunta"),
   tipo: z.enum(TIPOS_PERGUNTA),
-  dimensaoGPTW: z.enum(DIMENSOES_GPTW).optional().nullable(),
+  // String livre aqui (não z.enum(DIMENSOES_GPTW) como antes): a dimensão
+  // aceita as 6 fixas OU uma customizada pelo catálogo aditivo (Configuração
+  // → Catálogos). A checagem contra o conjunto válido de verdade acontece
+  // depois do parse, em salvarPerguntas — precisa do empresaId, que o schema
+  // não tem acesso.
+  dimensaoGPTW: z.string().trim().min(1).optional().nullable(),
   obrigatoria: z.boolean().default(true),
   opcoes: z.array(opcaoSchema).default([]),
 });
@@ -248,6 +317,13 @@ export async function salvarPerguntas(
   const parsed = perguntasArraySchema.safeParse(perguntasRaw);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
 
+  const dimensoesValidas = await valoresValidosDoCatalogo(empresaId, "DIMENSAO_GPTW");
+  for (const pergunta of parsed.data) {
+    if (pergunta.dimensaoGPTW && !dimensoesValidas.has(pergunta.dimensaoGPTW)) {
+      return { ok: false, error: `Dimensão inválida em "${pergunta.enunciado}".` };
+    }
+  }
+
   await prisma.$transaction(async (tx) => {
     await tx.pergunta.deleteMany({ where: { pesquisaId } });
     for (const [index, pergunta] of parsed.data.entries()) {
@@ -275,13 +351,20 @@ export async function salvarPerguntas(
 export async function gerarConvites(empresaId: string, pesquisaId: string): Promise<ResultadoComMensagem> {
   await requireEmpresaAccess(empresaId);
 
-  const pesquisa = await prisma.pesquisa.findFirst({ where: { id: pesquisaId, empresaId } });
+  const pesquisa = await prisma.pesquisa.findFirst({
+    where: { id: pesquisaId, marcaId: await marcaDaEmpresa(empresaId) },
+  });
   if (!pesquisa) return { ok: false, error: "Pesquisa não encontrada." };
 
-  const colaboradores = await prisma.colaborador.findMany({
-    where: { empresaId, ativo: true },
-    select: { id: true },
-  });
+  // Convida a MARCA inteira, não o CNPJ onde a pesquisa nasceu. Era o que
+  // faltava para a pesquisa ser da marca de fato: ela já aparecia para os
+  // cinco CNPJs da LM Telecom, mas o convite só saía para quem estava no
+  // CNPJ de criação — os outros quatro viam a pesquisa e nunca a recebiam.
+  //
+  // Vínculo ativo (RD-001): elegibilidade lida do catálogo por tipo de
+  // pesquisa (lib/pesquisas-catalogo.ts) — quem está com INSS/licença-
+  // maternidade/suspensão vigente nunca entra, mesmo com o cadastro ativo.
+  const colaboradores = await filtrarElegiveisPorVinculo(prisma, pesquisa.marcaId, pesquisa.modelo);
 
   // `skipDuplicates` sobre a unique [pesquisaId, colaboradorId] é o que torna
   // este botão seguro de clicar de novo: quem já tem convite não ganha outro,
@@ -296,6 +379,16 @@ export async function gerarConvites(empresaId: string, pesquisaId: string): Prom
     })),
     skipDuplicates: true,
   });
+
+  if (count > 0) {
+    await registrarAuditoria({
+      empresaId,
+      acao: "CRIAR",
+      entidade: "SurveyToken",
+      entidadeId: pesquisaId,
+      resumo: `${count} convite(s) novo(s) gerado(s) para a pesquisa "${pesquisa.titulo}".`,
+    });
+  }
 
   revalidatePath(`/rh/${empresaId}/pesquisas/${pesquisaId}`);
   return { ok: true, message: count === 0 ? "Nenhum convite novo — a lista já está completa." : `${count} convite(s) novo(s) gerado(s).` };
@@ -348,8 +441,9 @@ export async function excluirDaPesquisa(
 
   const desativouCadastro = token.colaborador.ativo;
 
-  // As duas escritas na mesma transação: cadastro desativado com convite ainda
-  // pendente é justamente o estado meio-termo que esta ação existe para evitar.
+  // As três escritas na mesma transação: cadastro desativado com convite ainda
+  // pendente (aqui ou em outra pesquisa) é justamente o estado meio-termo que
+  // esta ação existe para evitar.
   await prisma.$transaction(async (tx) => {
     await tx.surveyToken.update({
       where: { id: tokenId },
@@ -357,6 +451,9 @@ export async function excluirDaPesquisa(
     });
     if (desativouCadastro) {
       await tx.colaborador.update({ where: { id: token.colaborador.id }, data: { ativo: false } });
+      // RD-001: desativar o cadastro aqui é um desligamento — expira também os
+      // convites em aberto que essa pessoa tenha em QUALQUER outra pesquisa.
+      await invalidarConvitesDeDesligados(tx, token.colaborador.id);
     }
   });
 
@@ -439,8 +536,10 @@ async function apagarExcluidos(
   empresaId: string,
   where: { pesquisaId: string } | { id: string },
 ): Promise<{ apagados: number; pesquisaId: string | null; nomes: string[] }> {
+  const marcaId = await marcaDaEmpresa(empresaId);
+
   const tokens = await prisma.surveyToken.findMany({
-    where: { ...where, status: "EXCLUIDO", pesquisa: { empresaId } },
+    where: { ...where, status: "EXCLUIDO", pesquisa: { marcaId } },
     select: {
       id: true,
       pesquisaId: true,
@@ -454,8 +553,12 @@ async function apagarExcluidos(
   const colaboradorIds = tokens.map((t) => t.colaboradorId);
 
   await prisma.$transaction([
+    // Desativa por MARCA: agora que o convite alcança os CNPJs irmãos, o
+    // excluído pode ser da BRNET numa pesquisa criada na RSM. Preso ao CNPJ,
+    // o updateMany não pegaria ninguém e a pessoa voltaria no próximo "Gerar
+    // convites" — o retorno que este trecho existe justamente para impedir.
     prisma.colaborador.updateMany({
-      where: { id: { in: colaboradorIds }, empresaId, ativo: true },
+      where: { id: { in: colaboradorIds }, empresa: { marcaId }, ativo: true },
       data: { ativo: false },
     }),
     prisma.surveyToken.deleteMany({ where: { id: { in: ids } } }),
@@ -529,8 +632,10 @@ async function limparVinculo(
   empresaId: string,
   where: { pesquisaId: string } | { id: string },
 ): Promise<{ limpos: number; pesquisaId: string | null; nomes: string[] }> {
+  const marcaId = await marcaDaEmpresa(empresaId);
+
   const tokens = await prisma.surveyToken.findMany({
-    where: { ...where, pesquisa: { empresaId } },
+    where: { ...where, pesquisa: { marcaId } },
     select: {
       id: true,
       pesquisaId: true,
@@ -548,8 +653,11 @@ async function limparVinculo(
   const colaboradorIds = [...new Set(quebrados.map((t) => t.colaboradorId))];
 
   await prisma.$transaction([
+    // Por MARCA, pelo mesmo motivo de apagarExcluidos: o chat_id quebrado pode
+    // ser de alguém de um CNPJ irmão. Preso ao CNPJ, o botão diria "limpo" e
+    // o vínculo continuaria lá, com a pessoa parada em FAILED para sempre.
     prisma.colaborador.updateMany({
-      where: { id: { in: colaboradorIds }, empresaId },
+      where: { id: { in: colaboradorIds }, empresa: { marcaId } },
       data: { telegramChatId: null },
     }),
     prisma.surveyToken.updateMany({
@@ -629,6 +737,17 @@ export async function enviarConviteToken(empresaId: string, tokenId: string): Pr
   }
 
   const resultado = await enviarUmConvite(token);
+
+  await registrarAuditoria({
+    empresaId,
+    acao: "ENVIAR_CONVITE",
+    entidade: "SurveyToken",
+    entidadeId: tokenId,
+    resumo: resultado.ok
+      ? `Convite da pesquisa "${token.pesquisa.titulo}" enviado a ${token.colaborador.nome}.`
+      : `Falha ao enviar convite da pesquisa "${token.pesquisa.titulo}" a ${token.colaborador.nome}: ${resultado.error}`,
+  });
+
   revalidatePath(`/rh/${empresaId}/pesquisas/${token.pesquisaId}`);
   return resultado.ok ? { ok: true } : { ok: false, error: resultado.error };
 }
@@ -699,6 +818,66 @@ export async function enviarConvites(
 
   const restantes = await prisma.surveyToken.count({ where: restantesQuery });
 
+  if (lote.length > 0) {
+    await registrarAuditoria({
+      empresaId,
+      acao: "ENVIAR_CONVITE",
+      entidade: "SurveyToken",
+      entidadeId: pesquisaId,
+      resumo: `Lote de convites da pesquisa "${lote[0].pesquisa.titulo}": ${enviados} enviado(s), ${falhas} falha(s).`,
+    });
+  }
+
   revalidatePath(`/rh/${empresaId}/pesquisas/${pesquisaId}`);
   return { ok: falhas === 0, enviados, falhas, restantes, error: ultimoErro };
+}
+
+export type ResumoGestaoCiclo = {
+  criados: number;
+  encerrados: number;
+  erros: string[];
+};
+
+/**
+ * O mesmo motor do cron diário (app/api/cron/gestao-ciclo-pesquisas), botão
+ * na mão do RH em vez de request com CRON_SECRET. Existe para o caso que o
+ * cron não cobre: a janela automática do Pulso trimestral é só nos meses
+ * 1/4/7/10 (ver `precisaCriarCiclo` em lib/pesquisa-ciclo.ts) — uma marca sem
+ * CNPJ ativo na janela, ou criada fora dela, fica sem Pulso até o próximo
+ * trimestre a menos que alguém rode isto manualmente.
+ *
+ * Guard é `requireRHAccess`, não `requireEmpresaAccess`: a ação não é de uma
+ * empresa, é do grupo inteiro — mesmo critério de lib/actions/rh-estrutura.ts
+ * para configuração de marcas e CNPJs.
+ */
+export async function executarGestaoCicloAgora(): Promise<
+  { ok: true; resumo: ResumoGestaoCiclo } | { ok: false; error: string }
+> {
+  await requireRHAccess();
+
+  const resultado = await executarGestaoCiclo();
+
+  await registrarAuditoria({
+    acao: "CRIAR",
+    entidade: "Pesquisa",
+    resumo:
+      `Gestão de ciclo executada manualmente: ${resultado.criados.length} pesquisa(s) criada(s), ` +
+      `${resultado.encerrados.length} encerrada(s), ${resultado.erros.length} erro(s)`,
+    detalhes: {
+      criados: resultado.criados.map((c) => ({ empresaId: c.empresaId, titulo: c.titulo, tipo: c.tipo })),
+      encerrados: resultado.encerrados.map((e) => ({ titulo: e.titulo, motivo: e.motivo })),
+      erros: resultado.erros,
+    },
+  });
+
+  revalidatePath("/", "layout");
+
+  if (resultado.erros.length > 0 && resultado.criados.length === 0 && resultado.encerrados.length === 0) {
+    return { ok: false, error: resultado.erros[0] };
+  }
+
+  return {
+    ok: true,
+    resumo: { criados: resultado.criados.length, encerrados: resultado.encerrados.length, erros: resultado.erros },
+  };
 }

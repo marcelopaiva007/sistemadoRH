@@ -6,6 +6,7 @@ import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { registrarAuditoria } from "@/lib/audit";
 import { dataDoFormulario, formatarData } from "@/lib/datas";
 import { ITENS_OFFBOARDING, itemOffboardingLabel } from "@/lib/constants-offboarding";
+import { MOTIVOS_DESLIGAMENTO, motivoDesligamentoLabel } from "@/lib/constants-dp";
 import type { ActionResult } from "@/lib/constants";
 
 const ITENS_CATALOGO = ITENS_OFFBOARDING.filter((i) => i.value !== "OUTRO").map((i) => i.value);
@@ -44,6 +45,189 @@ export async function gerarChecklistPadrao(
     entidade: "ChecklistDesligamento",
     entidadeId: colaboradorId,
     resumo: `Checklist de desligamento gerado para ${colaborador.nome} (${faltando.length} item(ns)).`,
+  });
+
+  revalidatePath(`/rh/${empresaId}/colaboradores/${colaboradorId}`);
+  revalidatePath(`/rh/${empresaId}/desligamentos`);
+  return { ok: true };
+}
+
+/**
+ * Corrige data e motivo de um desligamento já registrado, direto da lista de
+ * Desligamentos — sem obrigar a abrir a ficha e achar o bloco "Vínculo". É o
+ * caminho curto para completar os desligamentos importados sem motivo.
+ * Só vale para quem JÁ tem desligamento: registrar um novo continua sendo na
+ * ficha, onde as consequências (desativar, expirar convites) acontecem.
+ */
+export async function corrigirDadosDesligamento(
+  empresaId: string,
+  colaboradorId: string,
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const usuario = await requireEmpresaAccess(empresaId);
+
+  const colaborador = await prisma.colaborador.findFirst({
+    where: { id: colaboradorId, empresaId },
+    select: {
+      id: true,
+      nome: true,
+      createdAt: true,
+      dataDesligamento: true,
+      motivoDesligamento: true,
+      checklistDispensado: true,
+      _count: { select: { checklistDesligamento: true } },
+    },
+  });
+  if (!colaborador) return { ok: false, error: "Colaborador não encontrado nesta empresa." };
+  if (!colaborador.dataDesligamento) {
+    return { ok: false, error: "Esta pessoa não tem desligamento registrado — use a ficha para desligar." };
+  }
+
+  const dataDesligamento = dataDoFormulario(formData.get("dataDesligamento"));
+  if (!dataDesligamento) return { ok: false, error: "Informe a data de saída." };
+
+  const motivo = String(formData.get("motivoDesligamento") ?? "").trim();
+  if (!MOTIVOS_DESLIGAMENTO.some((m) => m.value === motivo)) {
+    return { ok: false, error: "Informe o motivo da saída." };
+  }
+
+  // Desligamento ANTIGO — anterior ao próprio cadastro no sistema, ou seja,
+  // importado já desligado: não há como cobrar devolução de crachá nem fazer
+  // entrevista de saída. Confirmar data + motivo é o que encerra o assunto,
+  // então a dispensa do offboarding acontece junto, sozinha (regra do CEO em
+  // 07/08/2026). Mesma trava da dispensa manual: quem já tem item de checklist
+  // gerado termina os itens em vez de dispensar.
+  const dispensarOffboarding =
+    !colaborador.checklistDispensado &&
+    colaborador._count.checklistDesligamento === 0 &&
+    dataDesligamento < colaborador.createdAt;
+
+  await prisma.colaborador.update({
+    where: { id: colaboradorId },
+    data: {
+      dataDesligamento,
+      motivoDesligamento: motivo,
+      ...(dispensarOffboarding
+        ? {
+            checklistDispensado: true,
+            checklistDispensadoEm: new Date(),
+            checklistDispensadoPorId: usuario?.id ?? null,
+            checklistDispensadoPorNome: usuario?.name ?? null,
+          }
+        : {}),
+    },
+  });
+
+  await registrarAuditoria({
+    empresaId,
+    acao: "ATUALIZAR",
+    entidade: "Colaborador",
+    entidadeId: colaboradorId,
+    resumo:
+      `Desligamento de ${colaborador.nome} corrigido: ${formatarData(dataDesligamento)}, ${motivoDesligamentoLabel(motivo)}.` +
+      (dispensarOffboarding
+        ? " Offboarding dispensado (desligamento anterior ao cadastro no sistema)."
+        : ""),
+  });
+
+  revalidatePath(`/rh/${empresaId}/desligamentos`);
+  revalidatePath(`/rh/${empresaId}/colaboradores/${colaboradorId}`);
+  return { ok: true };
+}
+
+/**
+ * Dispensa o checklist de offboarding de quem saiu antes do sistema existir —
+ * não tem como cobrar devolução de crachá, notebook, EPI etc. de quem já foi
+ * embora há meses ou anos. Exige motivo + data de desligamento preenchidos
+ * (o mínimo que dá pra confirmar sobre o desligamento) e só vale para quem
+ * ainda não tem nenhum item de checklist gerado — quem já começou o
+ * checklist termina ele normalmente, não dispensa.
+ */
+export async function dispensarChecklistDesligamento(
+  empresaId: string,
+  colaboradorId: string,
+): Promise<ActionResult> {
+  const usuario = await requireEmpresaAccess(empresaId);
+
+  const colaborador = await prisma.colaborador.findFirst({
+    where: { id: colaboradorId, empresaId },
+    select: {
+      id: true,
+      nome: true,
+      dataDesligamento: true,
+      motivoDesligamento: true,
+      checklistDispensado: true,
+      _count: { select: { checklistDesligamento: true } },
+    },
+  });
+  if (!colaborador) return { ok: false, error: "Colaborador não encontrado nesta empresa." };
+  if (!colaborador.dataDesligamento) {
+    return { ok: false, error: "Preencha a data de desligamento na ficha antes de dispensar o checklist." };
+  }
+  if (!colaborador.motivoDesligamento) {
+    return { ok: false, error: "Preencha o motivo do desligamento na ficha antes de dispensar o checklist." };
+  }
+  if (colaborador.checklistDispensado) {
+    return { ok: false, error: "O checklist desta pessoa já está dispensado." };
+  }
+  if (colaborador._count.checklistDesligamento > 0) {
+    return { ok: false, error: "Esta pessoa já tem checklist gerado — conclua os itens em vez de dispensar." };
+  }
+
+  await prisma.colaborador.update({
+    where: { id: colaboradorId },
+    data: {
+      checklistDispensado: true,
+      checklistDispensadoEm: new Date(),
+      checklistDispensadoPorId: usuario?.id ?? null,
+      checklistDispensadoPorNome: usuario?.name ?? null,
+    },
+  });
+
+  await registrarAuditoria({
+    empresaId,
+    acao: "ATUALIZAR",
+    entidade: "Colaborador",
+    entidadeId: colaboradorId,
+    resumo: `Checklist de desligamento de ${colaborador.nome} dispensado (desligamento antigo).`,
+  });
+
+  revalidatePath(`/rh/${empresaId}/colaboradores/${colaboradorId}`);
+  revalidatePath(`/rh/${empresaId}/desligamentos`);
+  return { ok: true };
+}
+
+/** Desfaz a dispensa — volta a exigir o checklist normal (gerar + concluir os itens). */
+export async function reverterDispensaChecklist(
+  empresaId: string,
+  colaboradorId: string,
+): Promise<ActionResult> {
+  await requireEmpresaAccess(empresaId);
+
+  const colaborador = await prisma.colaborador.findFirst({
+    where: { id: colaboradorId, empresaId },
+    select: { id: true, nome: true, checklistDispensado: true },
+  });
+  if (!colaborador) return { ok: false, error: "Colaborador não encontrado nesta empresa." };
+  if (!colaborador.checklistDispensado) return { ok: false, error: "O checklist desta pessoa não está dispensado." };
+
+  await prisma.colaborador.update({
+    where: { id: colaboradorId },
+    data: {
+      checklistDispensado: false,
+      checklistDispensadoEm: null,
+      checklistDispensadoPorId: null,
+      checklistDispensadoPorNome: null,
+    },
+  });
+
+  await registrarAuditoria({
+    empresaId,
+    acao: "ATUALIZAR",
+    entidade: "Colaborador",
+    entidadeId: colaboradorId,
+    resumo: `Dispensa do checklist de desligamento de ${colaborador.nome} revertida.`,
   });
 
   revalidatePath(`/rh/${empresaId}/colaboradores/${colaboradorId}`);

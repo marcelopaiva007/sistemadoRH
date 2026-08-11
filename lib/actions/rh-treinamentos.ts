@@ -7,13 +7,12 @@ import { registrarAuditoria } from "@/lib/audit";
 import { lerAnexo } from "@/lib/anexos";
 import { violouUnique } from "@/lib/prisma-erros";
 import { dataDoFormulario } from "@/lib/datas";
-import { COMPETENCIAS } from "@/lib/constants-avaliacao";
+import { valoresValidosDoCatalogo } from "@/lib/catalogos";
 import type { ActionResult } from "@/lib/constants";
 
-const COMPETENCIAS_VALIDAS = new Set<string>(COMPETENCIAS.map((c) => c.value));
-
-function lerCompetencias(formData: FormData): string[] {
-  return formData.getAll("competencias").map(String).filter((c) => COMPETENCIAS_VALIDAS.has(c));
+async function lerCompetencias(empresaId: string, formData: FormData): Promise<string[]> {
+  const validas = await valoresValidosDoCatalogo(empresaId, "COMPETENCIA");
+  return formData.getAll("competencias").map(String).filter((c) => validas.has(c));
 }
 
 export async function criarTreinamento(
@@ -40,7 +39,7 @@ export async function criarTreinamento(
         descricao: String(formData.get("descricao") ?? "").trim() || null,
         categoria: String(formData.get("categoria") ?? "").trim() || null,
         cargaHoraria,
-        competencias: lerCompetencias(formData),
+        competencias: await lerCompetencias(empresaId, formData),
       },
     });
 
@@ -54,6 +53,56 @@ export async function criarTreinamento(
   } catch (e) {
     if (violouUnique(e, "Treinamento_empresaId_nome_key")) {
       return { ok: false, error: "Já existe um treinamento com este nome." };
+    }
+    throw e;
+  }
+
+  revalidatePath(`/rh/${empresaId}/treinamentos`);
+  return { ok: true };
+}
+
+export async function editarTreinamento(
+  empresaId: string,
+  treinamentoId: string,
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  await requireEmpresaAccess(empresaId);
+
+  const existente = await prisma.treinamento.findFirst({ where: { id: treinamentoId, empresaId } });
+  if (!existente) return { ok: false, error: "Treinamento não encontrado." };
+
+  const nome = String(formData.get("nome") ?? "").trim();
+  if (!nome) return { ok: false, error: "Dê um nome ao treinamento." };
+
+  const cargaTexto = String(formData.get("cargaHoraria") ?? "").trim();
+  const cargaHoraria = cargaTexto ? Number.parseInt(cargaTexto, 10) : null;
+  if (cargaHoraria !== null && (!Number.isInteger(cargaHoraria) || cargaHoraria <= 0)) {
+    return { ok: false, error: "Carga horária deve ser um número positivo." };
+  }
+
+  try {
+    await prisma.treinamento.update({
+      where: { id: treinamentoId },
+      data: {
+        nome,
+        descricao: String(formData.get("descricao") ?? "").trim() || null,
+        categoria: String(formData.get("categoria") ?? "").trim() || null,
+        cargaHoraria,
+        competencias: await lerCompetencias(empresaId, formData),
+      },
+    });
+
+    await registrarAuditoria({
+      empresaId,
+      acao: "ATUALIZAR",
+      entidade: "Treinamento",
+      entidadeId: treinamentoId,
+      resumo: `Treinamento "${nome}" atualizado.`,
+    });
+  } catch (e) {
+    if (violouUnique(e, "Treinamento_empresaId_nome_key")) {
+      return { ok: false, error: "Já existe outro treinamento com este nome." };
     }
     throw e;
   }

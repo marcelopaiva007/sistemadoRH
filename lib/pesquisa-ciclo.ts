@@ -3,12 +3,19 @@
 
 import { prisma } from "@/lib/prisma";
 import { TEMPLATE_CLIMA_COMPLETO, TEMPLATE_CLIMA_PULSO } from "@/lib/pesquisa-templates";
+import { notificarCiclo } from "@/lib/pesquisa-notificacoes";
 
 type DimensaoGPTW = "CREDIBILIDADE" | "RESPEITO" | "IMPARCIALIDADE" | "ORGULHO" | "CAMARADAGEM" | "GERAL";
 
 export type TipoCiclo = "ANUAL" | "PULSO";
 
+// O ciclo é por MARCA. Antes era por CNPJ, e o cron criava um rascunho para
+// cada empresa: a LM Telecom, com cinco CNPJs, ganhava cinco "Pulso de Clima"
+// idênticos a cada trimestre. `empresaId` continua aqui só para registrar em
+// qual empresa da marca a pesquisa nasce.
 export type CicloCandidato = {
+  marcaId: string;
+  marcaNome: string;
   empresaId: string;
   empresaNome: string;
   tipo: TipoCiclo;
@@ -64,11 +71,13 @@ export function precisaCriarCiclo(
   });
 }
 
-// Coleta candidatos para criação de ciclo em todas as empresas
+// Coleta candidatos para criação de ciclo — uma pesquisa por MARCA, não por
+// CNPJ. A pesquisa de clima é do grupo: rodar uma por empresa multiplicava o
+// mesmo questionário e obrigava o RH a consolidar cinco resultados à mão.
 export async function coletarCandidatos(): Promise<CicloCandidato[]> {
-  const empresas = await prisma.empresa.findMany({
+  const marcas = await prisma.marca.findMany({
     where: { ativo: true },
-    select: { id: true, nome: true },
+    select: { id: true, nome: true, empresas: { where: { ativo: true }, select: { id: true, nome: true } } },
   });
 
   const candidatos: CicloCandidato[] = [];
@@ -76,9 +85,14 @@ export async function coletarCandidatos(): Promise<CicloCandidato[]> {
   const ano = agora.getFullYear();
   const tri = trimestreAtual(agora);
 
-  for (const e of empresas) {
+  for (const marca of marcas) {
+    // Marca sem CNPJ ativo não tem a quem aplicar pesquisa.
+    const empresa = marca.empresas[0];
+    if (!empresa) continue;
+    const e = { id: empresa.id, nome: empresa.nome, marcaId: marca.id, marcaNome: marca.nome };
+
     const pesquisas = await prisma.pesquisa.findMany({
-      where: { empresaId: e.id, modelo: "CLIMA" },
+      where: { marcaId: marca.id, modelo: "CLIMA" },
       select: { id: true, titulo: true, status: true, createdAt: true },
     });
 
@@ -92,6 +106,8 @@ export async function coletarCandidatos(): Promise<CicloCandidato[]> {
         (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
       )[0];
       candidatos.push({
+        marcaId: e.marcaId,
+        marcaNome: e.marcaNome,
         empresaId: e.id,
         empresaNome: e.nome,
         tipo: "ANUAL",
@@ -103,6 +119,8 @@ export async function coletarCandidatos(): Promise<CicloCandidato[]> {
     // PULSO
     if (precisaCriarCiclo(pesquisas, "PULSO", agora)) {
       candidatos.push({
+        marcaId: e.marcaId,
+        marcaNome: e.marcaNome,
         empresaId: e.id,
         empresaNome: e.nome,
         tipo: "PULSO",
@@ -115,8 +133,20 @@ export async function coletarCandidatos(): Promise<CicloCandidato[]> {
   return candidatos;
 }
 
-// Cria pesquisa em DRAFT (nunca em ACTIVE) — RH precisa aprovar
-export async function criarCicloRascunho(cand: CicloCandidato): Promise<{ pesquisaId: string; titulo: string }> {
+// Cria pesquisa em DRAFT (nunca em ACTIVE) — RH precisa aprovar.
+//
+// Idempotente por (marca, título): chamada repetida — cron e botão manual da
+// tela de Pesquisas no mesmo instante, reexecução — devolve a pesquisa já
+// criada (`jaExistia: true`) em vez de duplicar. A checagem de
+// coletarCandidatos acontece FORA da transação, então sozinha ela é
+// check-then-create sem trava: em 31/07/2026 uma execução criou "Pulso de
+// Clima 2026 T3" para cada CNPJ e o RH apagou os excedentes à mão. O laço por
+// CNPJ morreu com a pesquisa por marca; a trava abaixo fecha a janela que
+// sobrou. O índice único parcial Pesquisa_marcaId_titulo_key (só rascunhos —
+// ver o comentário no schema) é a rede de segurança no banco.
+export async function criarCicloRascunho(
+  cand: CicloCandidato,
+): Promise<{ pesquisaId: string; titulo: string; jaExistia: boolean }> {
   const titulo =
     cand.tipo === "ANUAL"
       ? `Pesquisa de Clima Organizacional ${cand.ano}`
@@ -136,51 +166,78 @@ export async function criarCicloRascunho(cand: CicloCandidato): Promise<{ pesqui
           d.enunciados.map((enunciado) => ({ dimensao: d.dimensao as DimensaoGPTW, enunciado })),
         );
 
-  return await prisma.$transaction(async (tx) => {
-    const pesquisa = await tx.pesquisa.create({
-      data: {
-        empresaId: cand.empresaId,
-        titulo,
-        descricao,
-        modelo: "CLIMA",
-        // "tipo" não é coluna — vai no título. Marcamos PULSO no título.
-        anonima: true,
-        status: "DRAFT",
-      },
-    });
+  return await prisma.$transaction(
+    async (tx) => {
+      // Trava consultiva por marca+título: a segunda invocação espera a
+      // primeira commitar e a re-checagem logo abaixo a faz devolver a
+      // pesquisa existente. hashtext() é int4 — cabe no advisory lock. O cast
+      // ::text existe porque a função retorna void e o Prisma não desserializa
+      // coluna void.
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`pesquisa-ciclo:${cand.marcaId}:${titulo}`}))::text`;
 
-    let ordem = 0;
-    for (const p of perguntas) {
+      const existente = await tx.pesquisa.findFirst({
+        where: { marcaId: cand.marcaId, titulo },
+        select: { id: true },
+      });
+      if (existente) {
+        return { pesquisaId: existente.id, titulo, jaExistia: true };
+      }
+
+      const pesquisa = await tx.pesquisa.create({
+        data: {
+          marcaId: cand.marcaId,
+          empresaId: cand.empresaId,
+          titulo,
+          descricao,
+          modelo: "CLIMA",
+          // "tipo" não é coluna — vai no título. Marcamos PULSO no título.
+          anonima: true,
+          status: "DRAFT",
+        },
+      });
+
+      let ordem = 0;
+      for (const p of perguntas) {
+        await tx.pergunta.create({
+          data: {
+            pesquisaId: pesquisa.id,
+            ordem: ordem++,
+            enunciado: p.enunciado,
+            tipo: "LIKERT_5",
+            dimensaoGPTW: p.dimensao,
+            obrigatoria: true,
+          },
+        });
+      }
+
       await tx.pergunta.create({
         data: {
           pesquisaId: pesquisa.id,
           ordem: ordem++,
-          enunciado: p.enunciado,
-          tipo: "LIKERT_5",
-          dimensaoGPTW: p.dimensao as any,
+          enunciado:
+            "Qual é a probabilidade de você recomendar a empresa como um bom lugar para trabalhar? (0 = não recomenda, 10 = recomenda fortemente)",
+          tipo: "NPS_10",
+          dimensaoGPTW: "GERAL",
           obrigatoria: true,
         },
       });
-    }
 
-    await tx.pergunta.create({
-      data: {
-        pesquisaId: pesquisa.id,
-        ordem: ordem++,
-        enunciado:
-          "Qual é a probabilidade de você recomendar a empresa como um bom lugar para trabalhar? (0 = não recomenda, 10 = recomenda fortemente)",
-        tipo: "NPS_10",
-        dimensaoGPTW: "GERAL",
-        obrigatoria: true,
-      },
-    });
-
-    return { pesquisaId: pesquisa.id, titulo };
-  });
+      return { pesquisaId: pesquisa.id, titulo, jaExistia: false };
+    },
+    // Espera da trava + 21 inserts serial: o teto default de 5s da transação
+    // interativa é apertado com o Neon acordando de hibernação.
+    { maxWait: 10_000, timeout: 30_000 },
+  );
 }
 
 // Encerra pesquisas ACTIVE cujo prazo venceu (campo descritivo ou convenção)
 // Por convenção: ACTIVE há mais de 30 dias e sem respostas há 7 dias
+//
+// Desde que CLIMA migrou pra régua de cobrança (lib/regua-cobranca.ts, fecha
+// no dia 15), esta função fica de fato inerte: nenhuma pesquisa CLIMA chega
+// mais aos 30 dias ainda ACTIVE. Mantida — é barata e inofensiva — em vez de
+// removida, pra não arrastar mudança no tipo de retorno de
+// `executarGestaoCiclo`/`ResumoGestaoCiclo` só por limpeza.
 export async function encerrarVencidas(): Promise<Array<{ pesquisaId: string; titulo: string; motivo: string }>> {
   const limiteAtiva = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // 30 dias
   const limiteResposta = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // 7 dias
@@ -243,4 +300,79 @@ export async function ativarAgendadas(): Promise<Array<{ pesquisaId: string; tit
   // Como o modelo não tem campo "agendarInicio", esta função fica como
   // placeholder — RH ativa manualmente. Mantida para evolução futura.
   return [];
+}
+
+// Os quatro passos do ciclo, na ordem em que o cron os executa. Extraído para
+// cá para ter um único dono: a rota de cron (app/api/cron/gestao-ciclo-pesquisas)
+// e o botão manual da tela de Pesquisas (lib/actions/pesquisas.ts) chamam a
+// mesma função — sem isso, o botão manual reimplementaria a orquestração por
+// conta própria e as duas versões divergiriam na primeira mudança.
+//
+// A janela automática do PULSO é só nos meses 1/4/7/10 (ver
+// `precisaCriarCiclo`): uma marca sem CNPJ ativo em todo o trimestre, ou
+// criada fora da janela, fica sem Pulso até o próximo trimestre — a menos que
+// alguém rode isto manualmente. É esse o caso que o botão cobre.
+export async function executarGestaoCiclo(): Promise<ResultadoGestaoCiclo> {
+  const resultado: ResultadoGestaoCiclo = {
+    criados: [],
+    encerrados: [],
+    ativados: [],
+    jaNotificados: [],
+    erros: [],
+  };
+
+  const candidatos = await coletarCandidatos();
+
+  for (const cand of candidatos) {
+    try {
+      const { pesquisaId, titulo, jaExistia } = await criarCicloRascunho(cand);
+
+      // Criação idempotente: se outra invocação (cron × botão manual) já
+      // criou este ciclo, não conta como criado nem notifica de novo.
+      if (jaExistia) {
+        resultado.jaNotificados.push(titulo);
+        continue;
+      }
+
+      resultado.criados.push({ empresaId: cand.empresaId, pesquisaId, tipo: cand.tipo, titulo });
+
+      await notificarCiclo({
+        empresaId: cand.empresaId,
+        pesquisaId,
+        titulo,
+        tipo: "CRIADA",
+      });
+    } catch (e) {
+      resultado.erros.push(
+        `criar ${cand.empresaNome} ${cand.tipo}: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+  }
+
+  resultado.encerrados = await encerrarVencidas();
+
+  for (const enc of resultado.encerrados) {
+    try {
+      const pesquisa = await prisma.pesquisa.findUnique({
+        where: { id: enc.pesquisaId },
+        select: { empresaId: true },
+      });
+      if (pesquisa) {
+        await notificarCiclo({
+          empresaId: pesquisa.empresaId,
+          pesquisaId: enc.pesquisaId,
+          titulo: enc.titulo,
+          tipo: "ENCERRADA",
+        });
+      }
+    } catch (e) {
+      resultado.erros.push(
+        `notificar encerramento ${enc.titulo}: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+  }
+
+  resultado.ativados = await ativarAgendadas();
+
+  return resultado;
 }

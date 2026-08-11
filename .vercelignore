@@ -3,5 +3,11 @@
 !.env.example
 prisma/*.db
 prisma/*.db-journal
+# Ferramenta de desenvolvimento não vai para o deploy. Cuidado: nada que o
+# `build` do package.json executa pode morar aqui — o arquivo simplesmente não
+# existe na Vercel e o build morre com `Cannot find module`. Foi o que derrubou
+# três deploys em 30/07/2026 com o checador de migrations, que por isso hoje
+# fica em `prisma/checar-migracoes.mjs`. Negar um arquivo aqui dentro
+# (`!scripts/x`) não resolve: o diretório-pai já está excluído.
 scripts
 relatorio_lm_movel.pdf

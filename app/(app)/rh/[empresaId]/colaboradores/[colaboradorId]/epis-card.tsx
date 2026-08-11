@@ -12,7 +12,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { registrarEntregaEpi, confirmarAssinaturaEpi, excluirEntregaEpi } from "@/lib/actions/rh-epi";
 import { MIMES_ANEXO_ACEITOS } from "@/lib/constants-dp";
-import { MOTIVOS_ENTREGA_EPI, TIPOS_EPI, motivoEntregaEpiLabel, tipoEpiLabel } from "@/lib/constants-epi";
+import { motivoEntregaEpiLabel, tipoEpiLabel } from "@/lib/constants-epi";
+import type { OpcaoCatalogo } from "@/lib/catalogos";
 import { formatarData, diferencaEmDiasUTC, hojeUTC } from "@/lib/datas";
 import { Campo, CampoCheckbox, CampoData, CampoSelect, CampoTexto, FormularioAction } from "./campos";
 import { BotaoExcluir } from "./dependentes-card";
@@ -42,10 +43,14 @@ export function EpisCard({
   empresaId,
   colaboradorId,
   entregas,
+  tiposEpiDisponiveis,
+  motivosEntregaDisponiveis,
 }: {
   empresaId: string;
   colaboradorId: string;
   entregas: EntregaEpi[];
+  tiposEpiDisponiveis: OpcaoCatalogo[];
+  motivosEntregaDisponiveis: OpcaoCatalogo[];
 }) {
   const [aberto, setAberto] = useState(false);
   const pendentesDeAssinatura = entregas.filter((e) => !e.assinado).length;
@@ -85,13 +90,13 @@ export function EpisCard({
                   <CampoSelect
                     name="tipo"
                     label="Tipo de EPI"
-                    opcoes={TIPOS_EPI.map((t) => ({ value: t.value, label: t.label }))}
+                    opcoes={tiposEpiDisponiveis.map((t) => ({ value: t.value, label: t.label }))}
                     required
                   />
                   <CampoSelect
                     name="motivo"
                     label="Motivo"
-                    opcoes={MOTIVOS_ENTREGA_EPI.map((m) => ({ value: m.value, label: m.label }))}
+                    opcoes={motivosEntregaDisponiveis.map((m) => ({ value: m.value, label: m.label }))}
                     defaultValue="PRIMEIRA_ENTREGA"
                   />
                 </div>

@@ -18,8 +18,28 @@ export const ITENS_ONBOARDING = [
   { value: "APRESENTACAO_EQUIPE", label: "Apresentação à equipe e ao gestor", responsavelPadrao: "Gestor" },
   { value: "TREINAMENTO_INTEGRACAO", label: "Treinamento de integração", responsavelPadrao: "RH" },
   { value: "TREINAMENTO_NR", label: "Treinamento das NRs exigidas pela função", responsavelPadrao: "SST" },
+  // Marcos de acompanhamento dos primeiros 90 dias. O risco de saída está
+  // concentrado no primeiro ano (Vendas: mediana de 0,59 ano de casa, 64%
+  // abaixo de 1 ano) — e para técnico instalador e vendedor externo a conversa
+  // de 30 dias é a intervenção de retenção mais barata que existe. Hoje ela não
+  // tem gatilho nenhum; entrando na trilha padrão, nasce com prazo e dono.
+  { value: "CONVERSA_30", label: "Conversa de 30 dias", responsavelPadrao: "Gestor" },
+  { value: "CONVERSA_60", label: "Conversa de 60 dias", responsavelPadrao: "Gestor" },
+  { value: "CONVERSA_90", label: "Conversa de 90 dias", responsavelPadrao: "Gestor" },
   { value: "OUTRO", label: "Outro", responsavelPadrao: null },
 ] as const;
+
+/**
+ * Dias após a admissão em que cada marco de conversa deve acontecer. É daqui
+ * que `gerarTrilhaPadrao` calcula o prazo do item — os demais itens do
+ * catálogo continuam nascendo sem prazo, porque "entregar crachá" não tem uma
+ * data certa derivável da admissão.
+ */
+export const DIAS_DO_MARCO: Record<string, number> = {
+  CONVERSA_30: 30,
+  CONVERSA_60: 60,
+  CONVERSA_90: 90,
+};
 
 export const itemOnboardingLabel = (v: string) =>
   ITENS_ONBOARDING.find((i) => i.value === v)?.label ?? v;

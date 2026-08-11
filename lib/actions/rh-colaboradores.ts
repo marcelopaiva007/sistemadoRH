@@ -5,8 +5,13 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { proximaMatricula } from "@/lib/matricula";
-import { registrarAuditoria } from "@/lib/audit";
+import { registrarAuditoria, diffCampos } from "@/lib/audit";
 import { criariCiclo } from "@/lib/organograma";
+import { empresasDaMesmaMarca, marcaDaEmpresa } from "@/lib/escopo-marca";
+import { invalidarConvitesDeDesligados } from "@/lib/pesquisa-vinculo";
+import { convidarParaPesquisaDesligamento } from "@/lib/pesquisa-desligamento";
+import { hojeUTC } from "@/lib/datas";
+import { MOTIVOS_DESLIGAMENTO, TIPOS_CONTRATO, CONTRATOS_POR_PRAZO } from "@/lib/constants-dp";
 import type { ActionResult } from "@/lib/constants";
 
 const colaboradorSchema = z.object({
@@ -22,6 +27,7 @@ const colaboradorSchema = z.object({
   posicaoId: z.string().trim().min(1, "Selecione a posição"),
   telegramChatId: z.string().trim().optional(),
   supervisorId: z.string().trim().optional(),
+  gerente: z.coerce.boolean().default(false),
   ativo: z.coerce.boolean().default(true),
 });
 
@@ -29,6 +35,12 @@ const colaboradorSchema = z.object({
  * "Reporta a" — usada tanto na criação quanto na edição, com o `idExcluido`
  * só fazendo sentido na edição (ninguém pode liderar a si mesmo, mas na
  * criação o colaborador ainda nem tem id).
+ *
+ * O líder vale para a MARCA inteira, não para o CNPJ da URL: um supervisor da
+ * RSM tem gente da BRNET embaixo, e o organograma já mostra os CNPJs irmãos na
+ * mesma árvore. Validando por empresaId, o nome aparecia na lista mas o Salvar
+ * respondia "Líder inválido para essa empresa" — a tela oferecia uma escolha
+ * que o servidor recusava.
  */
 async function validarSupervisor(
   empresaId: string,
@@ -37,9 +49,9 @@ async function validarSupervisor(
 ): Promise<string | null> {
   if (supervisorId === idExcluido) return "Alguém não pode liderar a si mesmo.";
   const supervisor = await prisma.colaborador.findFirst({
-    where: { id: supervisorId, empresaId, ativo: true },
+    where: { id: supervisorId, empresaId: { in: await empresasDaMesmaMarca(empresaId) }, ativo: true },
   });
-  if (!supervisor) return "Líder inválido para essa empresa.";
+  if (!supervisor) return "Líder inválido para essa marca.";
   // Na criação não há ciclo possível: um colaborador novo não lidera ninguém
   // ainda, então não pode aparecer na própria cadeia de liderança.
   if (idExcluido && (await criariCiclo(idExcluido, supervisorId))) {
@@ -48,13 +60,23 @@ async function validarSupervisor(
   return null;
 }
 
-async function validarSetorEPosicaoDaEmpresa(empresaId: string, setorId: string, posicaoId: string) {
+/**
+ * Setor e cargo valem para a MARCA inteira, igual ao líder logo acima: a
+ * higienização das telas de Setores/Cargos (unificar duplicatas + remover os
+ * sem colaboradores) deixou cada nome vivo numa única linha do grupo, e as
+ * próprias unificações já apontam colaboradores de vários CNPJs para essa
+ * linha. Validando por empresaId, o cargo aparecia no seletor mas o Salvar
+ * respondia "Posição inválida para essa empresa" — a tela oferecia uma escolha
+ * que o servidor recusava, e cadastrar colaborador novo ficou impossível.
+ */
+async function validarSetorEPosicaoDaMarca(empresaId: string, setorId: string, posicaoId: string) {
+  const escopo = await empresasDaMesmaMarca(empresaId);
   const [setor, posicao] = await Promise.all([
-    prisma.setor.findFirst({ where: { id: setorId, empresaId } }),
-    prisma.posicao.findFirst({ where: { id: posicaoId, empresaId } }),
+    prisma.setor.findFirst({ where: { id: setorId, empresaId: { in: escopo } } }),
+    prisma.posicao.findFirst({ where: { id: posicaoId, empresaId: { in: escopo } } }),
   ]);
-  if (!setor) return "Setor inválido para essa empresa.";
-  if (!posicao) return "Posição inválida para essa empresa.";
+  if (!setor) return "Setor inválido para essa marca.";
+  if (!posicao) return "Posição inválida para essa marca.";
   return null;
 }
 
@@ -98,12 +120,32 @@ export async function createColaborador(
     posicaoId: formData.get("posicaoId"),
     telegramChatId: formData.get("telegramChatId") || undefined,
     supervisorId: formData.get("supervisorId") || undefined,
+    gerente: formData.get("gerente") === "on" || formData.get("gerente") === "true",
     ativo: formData.get("ativo") === "on" || formData.get("ativo") === "true",
   };
   const parsed = colaboradorSchema.safeParse(raw);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
 
-  const erroEscopo = await validarSetorEPosicaoDaEmpresa(empresaId, parsed.data.setorId, parsed.data.posicaoId);
+  // Tipo de contrato e data de fim — obrigatórios na admissão. É o único
+  // ponto de entrada de colaborador novo no sistema, e é o momento mais
+  // barato de capturar isto: preencher depois exige alguém lembrar que o
+  // campo ficou vazio. Ver seção 3.3 do estudo de Gestão — o schema já chama
+  // isto de "o vencimento mais caro do RH" (CLT art. 445/451).
+  const tipoContrato = formData.get("tipoContrato");
+  if (typeof tipoContrato !== "string" || !TIPOS_CONTRATO.some((t) => t.value === tipoContrato)) {
+    return { ok: false, error: "Selecione o tipo de contrato." };
+  }
+  const contratoComPrazo = CONTRATOS_POR_PRAZO.includes(
+    tipoContrato as (typeof CONTRATOS_POR_PRAZO)[number]
+  );
+  const dataFimBruta = formData.get("dataFimContrato");
+  const dataFimContrato =
+    typeof dataFimBruta === "string" && dataFimBruta ? new Date(`${dataFimBruta}T00:00:00Z`) : null;
+  if (contratoComPrazo && !dataFimContrato) {
+    return { ok: false, error: "Informe a data de fim do contrato." };
+  }
+
+  const erroEscopo = await validarSetorEPosicaoDaMarca(empresaId, parsed.data.setorId, parsed.data.posicaoId);
   if (erroEscopo) return { ok: false, error: erroEscopo };
 
   if (parsed.data.telegramChatId) {
@@ -116,8 +158,9 @@ export async function createColaborador(
     if (erroSupervisor) return { ok: false, error: erroSupervisor };
   }
 
+  let novoId: string;
   try {
-    await prisma.colaborador.create({
+    const criado = await prisma.colaborador.create({
       data: {
         empresaId,
         matricula: await proximaMatricula(),
@@ -128,12 +171,26 @@ export async function createColaborador(
         posicaoId: parsed.data.posicaoId,
         telegramChatId: parsed.data.telegramChatId || null,
         supervisorId: parsed.data.supervisorId || null,
+        gerente: parsed.data.gerente,
         ativo: parsed.data.ativo,
+        tipoContrato,
+        dataFimContrato,
       },
+      select: { id: true },
     });
+    novoId = criado.id;
   } catch {
     return { ok: false, error: "Já existe um colaborador com esse CPF ou chat_id do Telegram." };
   }
+
+  await registrarAuditoria({
+    empresaId,
+    acao: "CRIAR",
+    entidade: "Colaborador",
+    entidadeId: novoId,
+    resumo: `${parsed.data.nome} foi cadastrado(a).`,
+  });
+
   revalidatePath(`/rh/${empresaId}/colaboradores`);
   return { ok: true };
 }
@@ -153,12 +210,13 @@ export async function updateColaborador(
     posicaoId: formData.get("posicaoId"),
     telegramChatId: formData.get("telegramChatId") || undefined,
     supervisorId: formData.get("supervisorId") || undefined,
+    gerente: formData.get("gerente") === "on" || formData.get("gerente") === "true",
     ativo: formData.get("ativo") === "on" || formData.get("ativo") === "true",
   };
   const parsed = colaboradorSchema.safeParse(raw);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
 
-  const erroEscopo = await validarSetorEPosicaoDaEmpresa(empresaId, parsed.data.setorId, parsed.data.posicaoId);
+  const erroEscopo = await validarSetorEPosicaoDaMarca(empresaId, parsed.data.setorId, parsed.data.posicaoId);
   if (erroEscopo) return { ok: false, error: erroEscopo };
 
   if (parsed.data.telegramChatId) {
@@ -171,37 +229,119 @@ export async function updateColaborador(
     if (erroSupervisor) return { ok: false, error: erroSupervisor };
   }
 
+  const atual = await prisma.colaborador.findFirst({
+    where: { id, empresaId },
+    select: {
+      nome: true,
+      cpf: true,
+      email: true,
+      setorId: true,
+      posicaoId: true,
+      telegramChatId: true,
+      supervisorId: true,
+      gerente: true,
+      ativo: true,
+    },
+  });
+  if (!atual) return { ok: false, error: "Colaborador não encontrado." };
+
+  const novosDados = {
+    nome: parsed.data.nome,
+    cpf: parsed.data.cpf || null,
+    email: parsed.data.email || null,
+    setorId: parsed.data.setorId,
+    posicaoId: parsed.data.posicaoId,
+    telegramChatId: parsed.data.telegramChatId || null,
+    supervisorId: parsed.data.supervisorId || null,
+    gerente: parsed.data.gerente,
+    ativo: parsed.data.ativo,
+  };
+
   try {
-    await prisma.colaborador.update({
-      where: { id, empresaId },
-      data: {
-        nome: parsed.data.nome,
-        cpf: parsed.data.cpf || null,
-        email: parsed.data.email || null,
-        setorId: parsed.data.setorId,
-        posicaoId: parsed.data.posicaoId,
-        telegramChatId: parsed.data.telegramChatId || null,
-        supervisorId: parsed.data.supervisorId || null,
-        ativo: parsed.data.ativo,
-      },
+    await prisma.$transaction(async (tx) => {
+      await tx.colaborador.update({
+        where: { id, empresaId },
+        data: novosDados,
+      });
+      // RD-001: transição true→false é o momento do desligamento — expira os
+      // convites de pesquisa em aberto (ver lib/pesquisa-vinculo.ts) e
+      // convida pra pesquisa de desligamento (fase 4, P09-OFF).
+      if (atual.ativo && !parsed.data.ativo) {
+        await invalidarConvitesDeDesligados(tx, id);
+        await convidarParaPesquisaDesligamento(tx, id, empresaId, await marcaDaEmpresa(empresaId));
+      }
     });
   } catch {
     return { ok: false, error: "Já existe um colaborador com esse CPF ou chat_id do Telegram." };
   }
+
+  const mudancas = diffCampos(atual as unknown as Record<string, unknown>, novosDados);
+  if (Object.keys(mudancas).length > 0) {
+    await registrarAuditoria({
+      empresaId,
+      acao: "ATUALIZAR",
+      entidade: "Colaborador",
+      entidadeId: id,
+      resumo: `Ficha de ${atual.nome} atualizada (${Object.keys(mudancas).join(", ")}).`,
+      detalhes: mudancas,
+    });
+  }
+
   revalidatePath(`/rh/${empresaId}/colaboradores`);
   return { ok: true };
 }
 
-export async function toggleColaboradorAtivo(empresaId: string, id: string, ativo: boolean): Promise<ActionResult> {
+/**
+ * Desativar é o momento real do desligamento na maioria dos casos — o botão
+ * está na lista e na ficha, é um clique, e é por isso que 31 dos 137
+ * desligados de hoje não têm `dataDesligamento` nem `motivoDesligamento`: o
+ * bloco "Vínculo" da ficha pede os dois, mas ninguém é obrigado a passar por
+ * ele para desativar. `motivoDesligamento` fica obrigatório só nesta
+ * transição (true→false); reativar não pede nada, e desativar quem já estava
+ * inativo (chamada redundante) também não.
+ */
+export async function toggleColaboradorAtivo(
+  empresaId: string,
+  id: string,
+  ativo: boolean,
+  motivoDesligamento?: string
+): Promise<ActionResult> {
   await requireEmpresaAccess(empresaId);
 
   const colaborador = await prisma.colaborador.findFirst({
     where: { id, empresaId },
-    select: { nome: true },
+    select: { nome: true, ativo: true, dataDesligamento: true },
   });
   if (!colaborador) return { ok: false, error: "Colaborador não encontrado." };
 
-  await prisma.colaborador.update({ where: { id, empresaId }, data: { ativo } });
+  const estaDesligando = colaborador.ativo && !ativo;
+  if (estaDesligando) {
+    if (!motivoDesligamento || !MOTIVOS_DESLIGAMENTO.some((m) => m.value === motivoDesligamento)) {
+      return { ok: false, error: "Selecione o motivo do desligamento." };
+    }
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.colaborador.update({
+      where: { id, empresaId },
+      data: {
+        ativo,
+        ...(estaDesligando
+          ? {
+              // Não sobrescreve uma data já registrada por outro caminho (o
+              // bloco "Vínculo" pode ter sido preenchido antes do clique).
+              dataDesligamento: colaborador.dataDesligamento ?? hojeUTC(),
+              motivoDesligamento,
+            }
+          : {}),
+      },
+    });
+    // RD-001 + fase 4 (P09-OFF): mesma regra do formulário de edição — ver acima.
+    if (estaDesligando) {
+      await invalidarConvitesDeDesligados(tx, id);
+      await convidarParaPesquisaDesligamento(tx, id, empresaId, await marcaDaEmpresa(empresaId));
+    }
+  });
 
   await registrarAuditoria({
     empresaId,
@@ -223,6 +363,11 @@ export async function toggleColaboradorAtivo(empresaId: string, id: string, ativ
  * Só o "Reporta a" — para editar direto no Organograma sem abrir o formulário
  * inteiro do colaborador (que pede nome/setor/posição também). `supervisorId
  * null` remove o líder.
+ *
+ * Escopo de MARCA nos dois lados: o organograma desenha os CNPJs irmãos na
+ * mesma árvore, então o lápis também aparece para quem é de outro CNPJ da
+ * marca. Procurando por empresaId, esses cliques morriam em "Colaborador não
+ * encontrado" — a pessoa estava na tela, só não na empresa da URL.
  */
 export async function definirSupervisor(
   empresaId: string,
@@ -232,7 +377,7 @@ export async function definirSupervisor(
   await requireEmpresaAccess(empresaId);
 
   const colaborador = await prisma.colaborador.findFirst({
-    where: { id, empresaId },
+    where: { id, empresaId: { in: await empresasDaMesmaMarca(empresaId) } },
     select: { nome: true, supervisorId: true },
   });
   if (!colaborador) return { ok: false, error: "Colaborador não encontrado." };
@@ -246,7 +391,7 @@ export async function definirSupervisor(
   }
 
   try {
-    await prisma.colaborador.update({ where: { id, empresaId }, data: { supervisorId } });
+    await prisma.colaborador.update({ where: { id }, data: { supervisorId } });
   } catch (e) {
     console.error("definirSupervisor:", e);
     return { ok: false, error: "Não foi possível salvar o líder. Tente de novo." };

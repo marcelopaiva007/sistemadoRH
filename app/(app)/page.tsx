@@ -1,12 +1,19 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { AlertTriangle, Briefcase, Building2, CheckCircle2, CircleDashed, Rocket, Users } from "lucide-react";
+import { Briefcase, Building2, CheckCircle2, CircleDashed, Rocket, Users } from "lucide-react";
 import { requireUser } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
-import { pendenciasDaEmpresa, totalPendencias } from "@/lib/pendencias";
+import {
+  pendenciasPorEmpresa,
+  empresasComRegistro,
+  semRegistroNoEscopo,
+  totalPendencias,
+  zeradas,
+} from "@/lib/pendencias";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Indicador } from "@/components/indicador";
+import { PendenciasIndicador } from "./pendencias-indicador";
 
 // Tela inicial do grupo: quantas pessoas, o que está pendente e por onde
 // entrar. Até 25/07/2026 esta página era um painel de pesquisa de clima
@@ -17,28 +24,67 @@ export default async function HomePage() {
   const user = await requireUser();
   if (user.role === "GESTOR_SETOR") redirect("/rh/meu-setor");
 
+  // RH_MANAGER: buscar apenas as empresas vinculadas a ele
+  // ADMIN/DIRETORIA: buscar todas as empresas ativas
+  const isRHManager = user.role === "RH_MANAGER";
+  const empresasIds =
+    isRHManager && Array.isArray(user.empresas) && user.empresas.length > 0
+      ? user.empresas.map((e) => e.empresaId)
+      : undefined;
+
   const empresas = await prisma.empresa.findMany({
     where: {
       ativo: true,
-      ...(user.role === "RH_MANAGER" && user.empresaId ? { id: user.empresaId } : {}),
+      ...(empresasIds ? { id: { in: empresasIds } } : {}),
     },
     orderBy: { nome: "asc" },
     select: { id: true, nome: true, marca: { select: { id: true, nome: true } } },
   });
 
-  const resumos = await Promise.all(
-    empresas.map(async (empresa) => {
-      const [ativos, vagasAbertas, integracoesAbertas, pendencias] = await Promise.all([
-        prisma.colaborador.count({ where: { empresaId: empresa.id, ativo: true } }),
-        prisma.vaga.count({ where: { empresaId: empresa.id, status: "ABERTA" } }),
-        prisma.checklistIntegracao.count({
-          where: { empresaId: empresa.id, concluido: false, colaborador: { ativo: true } },
-        }),
-        pendenciasDaEmpresa(empresa.id),
-      ]);
-      return { empresa, ativos, vagasAbertas, integracoesAbertas, pendencias };
-    }),
-  );
+  // Tudo agregado de uma vez, não uma rodada de queries por empresa: são 33
+  // idas ao banco no total (3 aqui + 18 em pendenciasPorEmpresa + 12 em
+  // empresasComRegistro), quantas empresas forem. O laço anterior fazia 11 POR
+  // empresa — com os 11 CNPJs do grupo passava de 120, e esta é a primeira
+  // tela depois do login.
+  const ids = empresas.map((e) => e.id);
+  const [ativosPorEmpresa, vagasPorEmpresa, integracoesPorEmpresa, pendenciasPorId, comRegistro] =
+    await Promise.all([
+      prisma.colaborador.groupBy({
+        by: ["empresaId"],
+        _count: { _all: true },
+        where: { empresaId: { in: ids }, ativo: true },
+      }),
+      prisma.vaga.groupBy({
+        by: ["empresaId"],
+        _count: { _all: true },
+        where: { empresaId: { in: ids }, status: "ABERTA" },
+      }),
+      prisma.checklistIntegracao.groupBy({
+        by: ["empresaId"],
+        _count: { _all: true },
+        where: { empresaId: { in: ids }, concluido: false, colaborador: { ativo: true } },
+      }),
+      pendenciasPorEmpresa(ids),
+      // Para a etiqueta da marca não dizer "em dia" sobre módulo que ninguém
+      // abriu — mesmo engano que a tela da empresa tinha, só que aqui é a
+      // primeira coisa que se vê depois do login.
+      empresasComRegistro(ids),
+    ]);
+
+  // Empresa sem registro nenhum não volta no groupBy — daí o `?? 0`.
+  const contagem = (linhas: { empresaId: string; _count?: { _all?: number } }[]) =>
+    new Map(linhas.map((l) => [l.empresaId, l._count?._all ?? 0]));
+  const ativosPorId = contagem(ativosPorEmpresa);
+  const vagasPorId = contagem(vagasPorEmpresa);
+  const integracoesPorId = contagem(integracoesPorEmpresa);
+
+  const resumos = empresas.map((empresa) => ({
+    empresa,
+    ativos: ativosPorId.get(empresa.id) ?? 0,
+    vagasAbertas: vagasPorId.get(empresa.id) ?? 0,
+    integracoesAbertas: integracoesPorId.get(empresa.id) ?? 0,
+    pendencias: pendenciasPorId.get(empresa.id) ?? zeradas(),
+  }));
 
   // Os números somam por MARCA, não por CNPJ: é assim que a diretoria pensa o
   // grupo. O CNPJ continua sendo onde o dado vive (e de onde a folha sai), mas
@@ -57,6 +103,36 @@ export default async function HomePage() {
   const totalIntegracoes = resumos.reduce((a, r) => a + r.integracoesAbertas, 0);
   const totalPend = resumos.reduce((a, r) => a + totalPendencias(r.pendencias), 0);
 
+  // Resumo por marca calculado uma vez só, fora do JSX: o card de cada marca e
+  // o link do indicador "Pendências" do topo precisam do mesmo número.
+  const marcasComResumo = marcas.map((marca) => {
+    const pend = marca.itens.reduce((a, r) => a + totalPendencias(r.pendencias), 0);
+    const semBase = semRegistroNoEscopo(
+      comRegistro,
+      marca.itens.map((r) => r.empresa.id),
+    ).size;
+    return {
+      marca,
+      ativos: marca.itens.reduce((a, r) => a + r.ativos, 0),
+      vagasAbertas: marca.itens.reduce((a, r) => a + r.vagasAbertas, 0),
+      integracoesAbertas: marca.itens.reduce((a, r) => a + r.integracoesAbertas, 0),
+      pend,
+      semCadastro: marca.itens.reduce((a, r) => a + r.ativos, 0) === 0,
+      semBase,
+      // Visão consolidada da marca (mesmo padrão do organograma). Qualquer
+      // CNPJ serve de ponto de entrada — a tela de empresa soma por marca por
+      // padrão. Quem clica num CNPJ específico da lista abaixo (ver
+      // `hrefCnpj`) entra já filtrado só naquele CNPJ via `?empresas=`.
+      href: `/rh/${marca.itens[0].empresa.id}#pendencias`,
+    };
+  });
+
+  // Itens do popover do indicador "Pendências" do topo: só as marcas que têm
+  // algo pendente, cada uma já com o link pronto pra tela de resolução.
+  const marcasComPendencia = marcasComResumo
+    .filter((m) => m.pend > 0)
+    .map((m) => ({ nome: m.marca.nome, pend: m.pend, href: m.href }));
+
   return (
     <div className="space-y-6">
       <div>
@@ -70,73 +146,99 @@ export default async function HomePage() {
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Indicador variante="cartao" icone={<Users className="size-4" />} rotulo="Colaboradores ativos" valor={totalColaboradores} />
-        <Indicador variante="cartao"
-          icone={<AlertTriangle className="size-4" />}
-          rotulo="Pendências"
-          valor={totalPend}
-          alerta={totalPend > 0}
-        />
+        <PendenciasIndicador total={totalPend} itens={marcasComPendencia} />
         <Indicador variante="cartao" icone={<Briefcase className="size-4" />} rotulo="Vagas abertas" valor={totalVagas} />
         <Indicador variante="cartao" icone={<Rocket className="size-4" />} rotulo="Integrações em aberto" valor={totalIntegracoes} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        {marcas.map((marca) => {
-          const ativos = marca.itens.reduce((a, r) => a + r.ativos, 0);
-          const vagasAbertas = marca.itens.reduce((a, r) => a + r.vagasAbertas, 0);
-          const integracoesAbertas = marca.itens.reduce((a, r) => a + r.integracoesAbertas, 0);
-          const pend = marca.itens.reduce((a, r) => a + totalPendencias(r.pendencias), 0);
-          const varios = marca.itens.length > 1;
-          // "Em dia" e "não tem ninguém cadastrado" davam a MESMA etiqueta
-          // verde. Uma diz que o RH está com tudo em ordem; a outra, que a
-          // empresa nem começou a ser alimentada — e ler a segunda como a
-          // primeira é justamente o engano que faz uma empresa vazia passar
-          // despercebida.
-          const semCadastro = ativos === 0;
+        {marcasComResumo.map(
+          ({ marca, ativos, vagasAbertas, integracoesAbertas, pend, semCadastro, semBase, href }) => {
+            const varios = marca.itens.length > 1;
 
-          const corpo = (
-            <Card className="h-full transition-colors hover:bg-accent/40">
-              <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Building2 className="size-4 text-muted-foreground" />
-                  {marca.nome}
-                </CardTitle>
-                {pend > 0 ? (
-                  <Badge variant="destructive">{pend} pendência(s)</Badge>
-                ) : semCadastro ? (
-                  <Badge variant="outline" className="gap-1 text-muted-foreground font-normal">
-                    <CircleDashed className="size-3" />
-                    sem cadastro
-                  </Badge>
-                ) : (
-                  <Badge variant="secondary" className="gap-1">
-                    <CheckCircle2 className="size-3" />
-                    em dia
-                  </Badge>
-                )}
-              </CardHeader>
-              <CardContent>
-                <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                  <dt className="text-muted-foreground">Colaboradores</dt>
-                  <dd className="text-right font-medium tabular-nums">{ativos}</dd>
-                  <dt className="text-muted-foreground">Vagas abertas</dt>
-                  <dd className="text-right font-medium tabular-nums">{vagasAbertas}</dd>
-                  <dt className="text-muted-foreground">Integrações em aberto</dt>
-                  <dd className="text-right font-medium tabular-nums">{integracoesAbertas}</dd>
-                </dl>
+            // O card inteiro já foi um único <Link> (marca inteira), mas isso
+            // escondia o CNPJ atrás do primeiro da lista — quem clicava em
+            // "RSM TELECOM LTDA · 19 pend." caía numa tela somada com os
+            // outros CNPJs da marca, sem bater com o número que via aqui.
+            // Agora o cabeçalho/resumo continuam um Link só (visão da marca),
+            // e cada linha de CNPJ é o SEU PRÓPRIO Link, filtrado por
+            // `?empresas=` (mesmo filtro de Férias/Vencimentos/Aprovações) —
+            // não pode ficar aninhado dentro do Link de cima, então os dois
+            // são irmãos dentro do Card, não um dentro do outro.
+            return (
+              <Card key={marca.nome} className="h-full">
+                <Link href={href} className="block transition-colors hover:bg-accent/40">
+                  <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <Building2 className="size-4 text-muted-foreground" />
+                      {marca.nome}
+                    </CardTitle>
+                    {pend > 0 ? (
+                      <Badge variant="destructive">{pend} pendência(s)</Badge>
+                    ) : semCadastro ? (
+                      <Badge variant="outline" className="gap-1 text-muted-foreground font-normal">
+                        <CircleDashed className="size-3" />
+                        sem cadastro
+                      </Badge>
+                    ) : semBase > 0 ? (
+                      <Badge
+                        variant="outline"
+                        className="gap-1 font-normal text-muted-foreground"
+                        title={`${semBase} das situações acompanhadas não têm nenhum registro — o zero não é conformidade.`}
+                      >
+                        <CircleDashed className="size-3" />
+                        {semBase} sem base
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary" className="gap-1">
+                        <CheckCircle2 className="size-3" />
+                        em dia
+                      </Badge>
+                    )}
+                  </CardHeader>
+                  <CardContent>
+                    <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                      <dt className="text-muted-foreground">Colaboradores</dt>
+                      <dd className="text-right font-medium tabular-nums">{ativos}</dd>
+                      <dt className="text-muted-foreground">Vagas abertas</dt>
+                      <dd className="text-right font-medium tabular-nums">{vagasAbertas}</dd>
+                      <dt className="text-muted-foreground">Integrações em aberto</dt>
+                      <dd className="text-right font-medium tabular-nums">{integracoesAbertas}</dd>
+                    </dl>
+
+                    {pend > 0 && (
+                      <p className="mt-3 text-xs text-muted-foreground">
+                        {(() => {
+                          const soma = (campo: keyof (typeof marca.itens)[0]["pendencias"]) =>
+                            marca.itens.reduce((a, r) => a + (r.pendencias[campo] as number), 0);
+                          return [
+                            soma("catPendente") > 0 && `${soma("catPendente")} CAT sem emitir`,
+                            soma("aprovacoes") > 0 && `${soma("aprovacoes")} aguardando aprovação`,
+                            soma("epiVencido") > 0 && `${soma("epiVencido")} EPI vencido`,
+                            soma("asoVencendo") > 0 && `${soma("asoVencendo")} ASO vencendo`,
+                            soma("certificadosVencendo") > 0 && `${soma("certificadosVencendo")} NR vencendo`,
+                            soma("integracoesAtrasadas") > 0 && `${soma("integracoesAtrasadas")} integração atrasada`,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ");
+                        })()}
+                      </p>
+                    )}
+                  </CardContent>
+                </Link>
 
                 {/* Só abre por CNPJ quando há mais de um. Com um só, a quebra
                     repetiria o número de cima e não informaria nada. */}
                 {varios && (
-                  <div className="mt-3 space-y-1 border-t pt-3">
+                  <CardContent className="space-y-1 border-t pt-3">
                     <p className="text-xs text-muted-foreground">
                       {marca.itens.length} CNPJs nesta marca:
                     </p>
                     {marca.itens.map((r) => (
                       <Link
                         key={r.empresa.id}
-                        href={`/rh/${r.empresa.id}`}
-                        className="flex items-baseline justify-between rounded px-1 py-0.5 text-sm hover:bg-accent"
+                        href={`/rh/${r.empresa.id}?empresas=${r.empresa.id}#pendencias`}
+                        className="flex items-baseline justify-between rounded px-1 py-0.5 text-sm transition-colors hover:bg-accent/40"
                       >
                         <span>{r.empresa.nome}</span>
                         <span className="tabular-nums text-muted-foreground">
@@ -150,42 +252,12 @@ export default async function HomePage() {
                         </span>
                       </Link>
                     ))}
-                  </div>
+                  </CardContent>
                 )}
-
-                {pend > 0 && (
-                  <p className="mt-3 text-xs text-muted-foreground">
-                    {(() => {
-                      const soma = (campo: keyof (typeof marca.itens)[0]["pendencias"]) =>
-                        marca.itens.reduce((a, r) => a + (r.pendencias[campo] as number), 0);
-                      return [
-                        soma("catPendente") > 0 && `${soma("catPendente")} CAT sem emitir`,
-                        soma("aprovacoes") > 0 && `${soma("aprovacoes")} aguardando aprovação`,
-                        soma("epiVencido") > 0 && `${soma("epiVencido")} EPI vencido`,
-                        soma("asoVencendo") > 0 && `${soma("asoVencendo")} ASO vencendo`,
-                        soma("certificadosVencendo") > 0 && `${soma("certificadosVencendo")} NR vencendo`,
-                        soma("integracoesAtrasadas") > 0 && `${soma("integracoesAtrasadas")} integração atrasada`,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ");
-                    })()}
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          );
-
-          // Com um CNPJ só, o cartão inteiro entra na empresa — é o gesto que
-          // já existia. Com vários, entrar "na marca" não significa nada: a
-          // navegação passa a ser por CNPJ, na lista de dentro.
-          return varios ? (
-            <div key={marca.nome}>{corpo}</div>
-          ) : (
-            <Link key={marca.nome} href={`/rh/${marca.itens[0].empresa.id}`}>
-              {corpo}
-            </Link>
-          );
-        })}
+              </Card>
+            );
+          },
+        )}
       </div>
     </div>
   );

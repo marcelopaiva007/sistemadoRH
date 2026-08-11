@@ -6,14 +6,19 @@ import {
   Activity,
   AlertOctagon,
   Award,
-  BarChart3,
+  BellRing,
   Bot,
   Briefcase,
   Building2,
   CalendarDays,
   CheckSquare,
   ClipboardCheck,
+  ClipboardList,
+  Clock,
+  ContactRound,
   CreditCard,
+  LibraryBig,
+  Tags,
   FileBarChart,
   FileUp,
   GraduationCap,
@@ -21,16 +26,23 @@ import {
   LayoutDashboard,
   ListChecks,
   LogOut,
+  MessageCircle,
   Network,
   Palmtree,
   Receipt,
   Rocket,
   Search,
+  Send,
+  Settings,
+  ShieldAlert,
   ShieldCheck,
+  Trophy,
+  UserCog,
   Star,
   Target,
   Users,
   UsersRound,
+  Waypoints,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -53,7 +65,9 @@ const GRUPOS = [
   {
     titulo: "Departamento pessoal",
     itens: [
+      { slug: "ponto", label: "Ponto Eletrônico", icon: Clock },
       { slug: "aprovacoes", label: "Aprovações", icon: CheckSquare },
+      { slug: "mensagens", label: "Mensagens", icon: MessageCircle },
       { slug: "vencimentos", label: "Vencimentos", icon: CalendarDays },
       { slug: "ferias", label: "Férias", icon: Palmtree },
       { slug: "escalas", label: "Escalas", icon: ClipboardCheck },
@@ -69,6 +83,11 @@ const GRUPOS = [
       { slug: "treinamentos", label: "Treinamentos", icon: GraduationCap },
       { slug: "reconhecimento", label: "Reconhecimento", icon: Award },
       { slug: "pesquisas", label: "Pesquisas de clima", icon: Activity },
+      // "Planos de ação" saiu daqui para "Gestão": ele deixou de ser o destino
+      // do que sai de uma avaliação e virou o destino de tudo — anomalia de
+      // desligamento, span sobrecarregado, férias vencidas. Enquanto morava em
+      // "Desempenho", quem chegava pelo Placar ou pela Liderança não achava
+      // onde registrar a decisão.
     ],
   },
   {
@@ -81,8 +100,28 @@ const GRUPOS = [
   {
     titulo: "Gestão",
     itens: [
-      { slug: "dashboard", label: "Painel de clima", icon: LayoutDashboard },
-      { slug: "indicadores", label: "Indicadores", icon: BarChart3 },
+      // "Dashboard" e "Painel de clima" eram dois nomes genéricos ao lado do
+      // slug `dashboard`, que é OUTRA tela — ninguém acertava qual link abria
+      // o quê. Agora cada rótulo diz o recorte: o executivo é do grupo, o de
+      // NR-01 é de risco psicossocial.
+      { slug: "painel", label: "Painel executivo", icon: LayoutDashboard },
+      { slug: "placar", label: "Placar do grupo", icon: Trophy },
+      // O que o radar de desvio e os detectores de lib/alertas.ts encontram
+      // vira cartão aqui, com dono e prazo — sem isso, alerta é ruído que o
+      // time aprende a ignorar em um mês.
+      { slug: "sinais", label: "Central de Sinais", icon: BellRing },
+      { slug: "lideranca", label: "Malha de liderança", icon: Waypoints },
+      // A leitura de UMA equipe, pessoa a pessoa (a Malha acima é a estrutura
+      // inteira). Tem seletor de setor porque não existe papel de gestor de
+      // setor no sistema — o gestor real vê o próprio recorte pelo portal.
+      { slug: "time", label: "Meu time", icon: ContactRound },
+      // A tela NÃO mostra clima: escolher uma pesquisa de clima nela não
+      // renderiza nada, só devolve um link para Pesquisas. O nome antigo
+      // ("Painel de clima") prometia o que ela não entrega — e clima e risco
+      // psicossocial são instrumentos diferentes, com obrigação legal
+      // diferente. O rótulo passa a ser o da norma.
+      { slug: "dashboard", label: "Risco psicossocial (NR-01)", icon: ShieldAlert },
+      { slug: "planos-acao", label: "Planos de ação", icon: ClipboardList },
       { slug: "relatorios", label: "Relatórios", icon: FileBarChart },
       { slug: "assistente", label: "Assistente", icon: Bot },
     ],
@@ -90,13 +129,29 @@ const GRUPOS = [
   {
     titulo: "Configuração",
     itens: [
+      // "Visão geral" é o hub: um cartão por área com o status real (canal
+      // ligado?, horário ajustado?) — o mapa de tudo que se configura.
+      { slug: "configuracoes", label: "Visão geral", icon: Settings },
       { slug: "setores", label: "Setores", icon: UsersRound },
       { slug: "posicoes", label: "Cargos", icon: ListChecks },
       // Estrutura é a única entrada aqui que configura o GRUPO, não a empresa
       // aberta. Fica neste grupo mesmo assim porque é onde se procura por ela.
       { slug: "estrutura", label: "Marcas & CNPJs", icon: Building2 },
+      { slug: "canais", label: "Canais de envio", icon: Send },
+      { slug: "lembretes", label: "Lembretes", icon: Clock },
+      { slug: "tipos-beneficio", label: "Tipos de benefício", icon: Tags },
+      { slug: "catalogos", label: "Catálogos", icon: LibraryBig },
+    ],
+  },
+  {
+    // Importações e Auditoria moravam em "Configuração", mas não configuram
+    // nada: uma é ferramenta de carga de dados, a outra é trilha de leitura.
+    // Separadas para "Configuração" dizer só o que de fato se ajusta.
+    titulo: "Administração",
+    itens: [
       { slug: "importacoes", label: "Importações", icon: FileUp },
       { slug: "auditoria", label: "Auditoria", icon: History },
+      { slug: "papeis", label: "Papéis e permissões", icon: UserCog },
     ],
   },
 ] as const;

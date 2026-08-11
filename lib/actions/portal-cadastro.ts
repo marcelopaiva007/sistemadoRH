@@ -6,17 +6,23 @@ import { lerSessaoPortal } from "@/lib/portal-auth";
 import { registrarAuditoria } from "@/lib/audit";
 import { lerAnexo } from "@/lib/anexos";
 import { enviarParaBlob } from "@/lib/blob";
+import { sendEmail } from "@/lib/email";
+import { buscarDestinatarios } from "@/lib/pesquisa-notificacoes";
 import { dataDoFormulario } from "@/lib/datas";
-import { TIPOS_DOCUMENTO } from "@/lib/constants-dp";
+import { TIPOS_DOCUMENTO, TIPOS_CONTA_BANCARIA, tipoContaLabel } from "@/lib/constants-dp";
 import type { ActionResult } from "@/lib/constants";
 
 // Autoatendimento cadastral do colaborador.
 //
-// A divisão entre o que entra direto e o que espera conferência não é
-// burocracia: quem tomar o Telegram de alguém não pode trocar a chave PIX e
-// desviar o pagamento. Então contato e endereço — errados, o pior caso é uma
-// correspondência perdida — entram na hora; documento, banco e dependente
-// passam pelo RH.
+// A divisão real não é "passa pelo RH" vs. "não passa" — nenhum campo de
+// texto fica represado esperando aprovação aqui, nem número de documento
+// (RG/PIS/CTPS) nem dado bancário. O que muda por campo é o RISCO: contato e
+// endereço errados custam uma correspondência perdida; dado bancário errado —
+// ou trocado por quem invadiu o Telegram da pessoa — desvia um pagamento. Por
+// isso só ele dispara aviso automático ao RH (buscarDestinatarios) a cada
+// alteração, para alguém confirmar com a pessoa antes do próximo pagamento. A
+// foto do documento continua indo para a fila de conferência em
+// `enviarMeuDocumento` — é onde a aprovação de verdade acontece.
 //
 // Nada aqui recebe colaboradorId por parâmetro: sempre sai da sessão. Server
 // action é endpoint público, e aceitar o id de fora deixaria qualquer pessoa
@@ -51,7 +57,10 @@ export async function atualizarMeusDados(
 
   const colaborador = await prisma.colaborador.findUnique({
     where: { id: sessao.colaboradorId },
-    select: { id: true, nome: true, empresaId: true },
+    select: {
+      id: true, nome: true, empresaId: true,
+      bancoNome: true, bancoAgencia: true, bancoConta: true, bancoTipoConta: true, chavePix: true,
+    },
   });
   if (!colaborador) return { ok: false, error: "Cadastro não encontrado." };
 
@@ -70,10 +79,32 @@ export async function atualizarMeusDados(
     return { ok: false, error: "PIS/PASEP inválido — confira os números no documento." };
   }
 
+  const bancoTipoConta = String(formData.get("bancoTipoConta") ?? "").trim() || null;
+  if (bancoTipoConta && !TIPOS_CONTA_BANCARIA.some((t) => t.value === bancoTipoConta)) {
+    return { ok: false, error: "Selecione um tipo de conta válido." };
+  }
+  const dadosBancarios = {
+    bancoNome: texto(formData, "bancoNome", 60),
+    bancoTipoConta,
+    bancoAgencia: texto(formData, "bancoAgencia", 20),
+    bancoConta: texto(formData, "bancoConta", 30),
+    chavePix: texto(formData, "chavePix", 140),
+  };
+  // Dado bancário é o que move dinheiro — só ele justifica avisar o RH. Compara
+  // com o que já estava salvo para não gerar e-mail toda vez que a pessoa só
+  // corrige o telefone e reenvia o formulário inteiro.
+  const bancoMudou =
+    dadosBancarios.bancoNome !== colaborador.bancoNome ||
+    dadosBancarios.bancoTipoConta !== colaborador.bancoTipoConta ||
+    dadosBancarios.bancoAgencia !== colaborador.bancoAgencia ||
+    dadosBancarios.bancoConta !== colaborador.bancoConta ||
+    dadosBancarios.chavePix !== colaborador.chavePix;
+
   await prisma.colaborador.update({
     where: { id: colaborador.id },
     data: {
       email,
+      ...dadosBancarios,
       telefone: texto(formData, "telefone", 40),
       estadoCivil: texto(formData, "estadoCivil", 40),
       escolaridade: texto(formData, "escolaridade", 60),
@@ -109,8 +140,40 @@ export async function atualizarMeusDados(
     acao: "ATUALIZAR",
     entidade: "Colaborador",
     entidadeId: colaborador.id,
-    resumo: `${colaborador.nome} atualizou os próprios dados cadastrais pelo portal.`,
+    resumo: bancoMudou
+      ? `${colaborador.nome} atualizou os próprios dados cadastrais pelo portal, incluindo dado bancário/PIX.`
+      : `${colaborador.nome} atualizou os próprios dados cadastrais pelo portal.`,
   });
+
+  // Dado bancário mudou: o RH precisa saber AGORA, não no próximo relatório —
+  // é a janela entre a troca e o próximo pagamento que decide se dá tempo de
+  // confirmar com a pessoa antes de uma chave PIX trocada desviar o valor.
+  if (bancoMudou) {
+    const linhas = [
+      dadosBancarios.bancoNome && `Banco: ${dadosBancarios.bancoNome}`,
+      dadosBancarios.bancoTipoConta && `Tipo de conta: ${tipoContaLabel(dadosBancarios.bancoTipoConta)}`,
+      dadosBancarios.bancoAgencia && `Agência: ${dadosBancarios.bancoAgencia}`,
+      dadosBancarios.bancoConta && `Conta: ${dadosBancarios.bancoConta}`,
+      dadosBancarios.chavePix && `Chave PIX: ${dadosBancarios.chavePix}`,
+    ].filter(Boolean).join(" · ") || "todos os campos foram apagados";
+    const mensagem =
+      `${colaborador.nome} alterou os dados bancários pelo portal. Novo valor — ${linhas}. ` +
+      `Confirme com a pessoa por um canal à parte antes do próximo pagamento.`;
+
+    const destinatarios = await buscarDestinatarios(colaborador.empresaId);
+    for (const d of destinatarios) {
+      if (!d.email) continue;
+      const resultado = await sendEmail({
+        to: d.email,
+        subject: `[RH] Dado bancário alterado — ${colaborador.nome}`,
+        text: mensagem,
+        html: `<p>${mensagem}</p>`,
+      });
+      if (!resultado.ok) {
+        console.error(`[portal-cadastro] falha ao avisar ${d.email} sobre troca de dado bancário:`, resultado.error);
+      }
+    }
+  }
 
   revalidatePath("/portal");
   return { ok: true };

@@ -81,6 +81,42 @@ export async function baixarDoBlob(
   }
 }
 
+/**
+ * Sobe o logo de uma marca — público, ao contrário dos documentos acima.
+ *
+ * Logo não é dado pessoal: aparece na tela de login, na página de carreiras e
+ * em todo e-mail — páginas sem sessão nenhuma. `access: "public"` deixa a URL
+ * servir direto num <img>, sem passar por rota autenticada (que aliás barraria
+ * o visitante anônimo exatamente onde o logo mais aparece).
+ */
+export async function enviarLogoMarca(params: {
+  marcaId: string;
+  nome: string;
+  mimeType: string;
+  bytes: Uint8Array<ArrayBuffer>;
+}): Promise<EnvioBlob> {
+  if (!blobConfigurado()) {
+    return {
+      ok: false,
+      error: "Armazenamento de arquivos não configurado (BLOB_READ_WRITE_TOKEN).",
+    };
+  }
+
+  const limpo = params.nome.replace(/[^\w.\-]/g, "_").slice(-80);
+  const caminho = `marcas/${params.marcaId}/${limpo}`;
+
+  try {
+    const { url } = await put(caminho, Buffer.from(params.bytes), {
+      access: "public",
+      addRandomSuffix: true,
+      contentType: params.mimeType,
+    });
+    return { ok: true, url };
+  } catch (e) {
+    return { ok: false, error: `Falha ao enviar o logo: ${String(e).slice(0, 120)}` };
+  }
+}
+
 /** Best-effort: apagar o registro é o que importa, o blob órfão só ocupa espaço. */
 export async function removerDoBlob(url: string): Promise<void> {
   if (!blobConfigurado()) return;

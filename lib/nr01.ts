@@ -14,6 +14,7 @@
 // Anonimato: grupos com menos de AMOSTRA_MINIMA_ANONIMATO respostas não expõem
 // números (flag amostraInsuficiente) — mesma regra do restante do módulo de RH.
 import { AMOSTRA_MINIMA_ANONIMATO } from "@/lib/constants-rh";
+import { canonizarCargo, canonizarSetor } from "@/lib/de-para-rotulos";
 import { DIMENSOES_NR01, type DimensaoNR01 } from "@/lib/nr01-modelo";
 
 export type NivelRisco = "BAIXO" | "MEDIO" | "ALTO" | "CRITICO";
@@ -223,7 +224,10 @@ export function calcularNR01(
   return {
     totalRespostas: respostas.length,
     geral: calcularGrupo("GERAL", respostas, perguntasPorId),
-    porSetor: porChave((r) => r.setorNomeSnapshot),
-    porCargo: porChave((r) => r.posicaoNomeSnapshot),
+    // A NR-01 gravou o vocabulário antigo de setor ("Área Comercial", "Área
+    // Administrativa"...) — sem traduzir, o mesmo setor vira dois grupos e a
+    // amostra racha (ver lib/de-para-rotulos.ts).
+    porSetor: porChave((r) => canonizarSetor(r.setorNomeSnapshot).nome),
+    porCargo: porChave((r) => canonizarCargo(r.posicaoNomeSnapshot).nome),
   };
 }

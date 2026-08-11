@@ -3,13 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
+import { empresasDaMesmaMarca } from "@/lib/escopo-marca";
 import { registrarAuditoria } from "@/lib/audit";
 import { dataDoFormulario, formatarData } from "@/lib/datas";
-import { TIPOS_MOVIMENTACAO, tipoMovimentacaoLabel } from "@/lib/constants-movimentacao";
+import { tipoMovimentacaoLabel } from "@/lib/constants-movimentacao";
 import { criariCiclo } from "@/lib/organograma";
+import { valoresValidosDoCatalogo } from "@/lib/catalogos";
 import type { ActionResult } from "@/lib/constants";
-
-const TIPOS_VALIDOS = new Set<string>(TIPOS_MOVIMENTACAO.map((t) => t.value));
 
 // Sentinela do <select> para "tirar o líder atual" — distinto de campo vazio,
 // que em todos os três seletores (setor/posição/líder) significa "não mudar
@@ -32,7 +32,8 @@ export async function registrarMovimentacao(
   if (!colaborador) return { ok: false, error: "Colaborador não encontrado nesta empresa." };
 
   const tipo = String(formData.get("tipo") ?? "").trim();
-  if (!TIPOS_VALIDOS.has(tipo)) return { ok: false, error: "Selecione o tipo de movimentação." };
+  const tiposValidos = await valoresValidosDoCatalogo(empresaId, "TIPO_MOVIMENTACAO");
+  if (!tiposValidos.has(tipo)) return { ok: false, error: "Selecione o tipo de movimentação." };
 
   const dataEfetiva = dataDoFormulario(formData.get("dataEfetiva"));
   if (!dataEfetiva) return { ok: false, error: "Informe a data efetiva." };
@@ -41,13 +42,20 @@ export async function registrarMovimentacao(
   const registro: Record<string, unknown> = {};
   let mudouAlgo = false;
 
+  // Setor e cargo valem para a MARCA inteira — o catálogo foi unificado por
+  // grupo e a linha do cargo pode viver em outro CNPJ irmão (ver
+  // validarSetorEPosicaoDaMarca em rh-colaboradores.ts).
+  const escopoMarca = await empresasDaMesmaMarca(empresaId);
+
   const novoSetorId = String(formData.get("novoSetorId") ?? "").trim();
   if (novoSetorId) {
     if (novoSetorId === colaborador.setorId) {
       return { ok: false, error: "O novo setor é igual ao atual." };
     }
-    const setor = await prisma.setor.findFirst({ where: { id: novoSetorId, empresaId, ativo: true } });
-    if (!setor) return { ok: false, error: "Setor inválido para esta empresa." };
+    const setor = await prisma.setor.findFirst({
+      where: { id: novoSetorId, empresaId: { in: escopoMarca }, ativo: true },
+    });
+    if (!setor) return { ok: false, error: "Setor inválido para esta marca." };
     data.setorId = novoSetorId;
     registro.setorAnteriorNome = colaborador.setor.nome;
     registro.setorNovoId = novoSetorId;
@@ -60,8 +68,10 @@ export async function registrarMovimentacao(
     if (novaPosicaoId === colaborador.posicaoId) {
       return { ok: false, error: "O novo cargo é igual ao atual." };
     }
-    const posicao = await prisma.posicao.findFirst({ where: { id: novaPosicaoId, empresaId, ativo: true } });
-    if (!posicao) return { ok: false, error: "Cargo inválido para esta empresa." };
+    const posicao = await prisma.posicao.findFirst({
+      where: { id: novaPosicaoId, empresaId: { in: escopoMarca }, ativo: true },
+    });
+    if (!posicao) return { ok: false, error: "Cargo inválido para esta marca." };
     data.posicaoId = novaPosicaoId;
     registro.posicaoAnteriorNome = colaborador.posicao.nome;
     registro.posicaoNovaId = novaPosicaoId;

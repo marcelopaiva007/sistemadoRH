@@ -10,6 +10,7 @@ import { PrismaClient, Prisma } from "../app/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { dataUTC } from "../lib/datas";
 import { COMPETENCIAS, faixaDesempenho } from "../lib/constants-avaliacao";
+import { empresaDeTeste } from "./_empresa-de-teste";
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
@@ -35,7 +36,7 @@ async function rodarComRollback(fn: (tx: Prisma.TransactionClient) => Promise<vo
 }
 
 async function main() {
-  const empresa = await prisma.empresa.findFirst({ where: { ativo: true } });
+  const empresa = await empresaDeTeste(prisma, { comSetor: true });
   if (!empresa) throw new Error("Nenhuma empresa cadastrada.");
   const colaboradores = await prisma.colaborador.findMany({
     where: { empresaId: empresa.id, ativo: true },

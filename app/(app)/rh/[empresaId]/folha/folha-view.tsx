@@ -25,6 +25,8 @@ type Competencia = {
   status: string;
   fechadaEm: Date | null;
   fechadaPorNome: string | null;
+  empresaId: string;
+  empresa: { nome: string };
   _count: { eventos: number };
 };
 
@@ -74,6 +76,7 @@ export function FolhaView({
                 <TableHeader>
                   <TableRow>
                     <TableHead>Competência</TableHead>
+                    <TableHead>CNPJ</TableHead>
                     <TableHead>Lançamentos</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Fechamento</TableHead>
@@ -83,10 +86,11 @@ export function FolhaView({
                   {competencias.map((c) => (
                     <TableRow key={c.id}>
                       <TableCell>
-                        <Link href={`/rh/${empresaId}/folha/${c.id}`} className="font-medium hover:underline">
+                        <Link href={`/rh/${c.empresaId}/folha/${c.id}`} className="font-medium hover:underline">
                           {formatarCompetencia(c.referencia)}
                         </Link>
                       </TableCell>
+                      <TableCell className="text-muted-foreground">{c.empresa.nome}</TableCell>
                       <TableCell className="tabular-nums">{c._count.eventos}</TableCell>
                       <TableCell>
                         {c.status === "FECHADA" ? (

@@ -36,6 +36,11 @@ export const authConfig = {
       // /carreiras é a vitrine pública: lista as vagas publicadas do grupo e
       // leva para /vagas/<slug>. Só mostra o que já é público por definição.
       if (request.nextUrl.pathname.startsWith("/carreiras")) return true;
+      // "Esqueci minha senha": pedir o link e redefinir com o token são as
+      // duas telas que, por definição, quem não consegue logar precisa
+      // acessar sem estar logado.
+      if (request.nextUrl.pathname.startsWith("/esqueci-senha")) return true;
+      if (request.nextUrl.pathname.startsWith("/redefinir-senha")) return true;
       const isOnLogin = request.nextUrl.pathname.startsWith("/login");
       if (isOnLogin) {
         return isLoggedIn ? Response.redirect(new URL("/", request.nextUrl)) : true;

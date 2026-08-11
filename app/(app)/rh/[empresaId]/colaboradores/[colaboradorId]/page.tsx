@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
+import { empresasDaMesmaMarca } from "@/lib/escopo-marca";
 import { prisma } from "@/lib/prisma";
 import { calcularFerias } from "@/lib/ferias";
 import { conformidadeDoColaborador, situacaoDoExame } from "@/lib/conformidade";
 import { pendenciasDaAdmissao } from "@/lib/admissao";
+import { opcoesDoCatalogo } from "@/lib/catalogos";
 import { ColaboradorDetalhe } from "./colaborador-detalhe";
 
 // Ficha completa do colaborador: dados cadastrais, dependentes, dossiê digital,
@@ -28,6 +30,12 @@ export default async function ColaboradorPage({
     },
   });
   if (!colaborador) notFound();
+
+  // Setores e cargos são oferecidos no escopo da MARCA: o catálogo foi
+  // unificado por grupo (telas de Setores/Cargos), então a linha do cargo de
+  // quem é deste CNPJ pode viver num CNPJ irmão — buscar só por empresaId
+  // deixava os seletores da ficha e da Carreira quase vazios.
+  const escopoMarca = await empresasDaMesmaMarca(empresaId);
 
   const [dependentes, documentos, ferias, ausencias, requisitos, certificados, exames, setores, posicoes, candidatosSupervisor, movimentacoes, beneficios, entregasEpi, acidentes, ausenciasElegiveis, checklistDesligamento, entrevistaDesligamento, avaliacoes, metas, pdi, participacoesTreinamento, treinamentosAtivos, candidaturaDeOrigem, checklistIntegracao] =
     await Promise.all([
@@ -103,8 +111,8 @@ export default async function ColaboradorPage({
         arquivo: { select: { id: true, nome: true } },
       },
     }),
-    prisma.setor.findMany({ where: { empresaId, ativo: true }, orderBy: { nome: "asc" } }),
-    prisma.posicao.findMany({ where: { empresaId, ativo: true }, orderBy: { nome: "asc" } }),
+    prisma.setor.findMany({ where: { empresaId: { in: escopoMarca }, ativo: true }, orderBy: { nome: "asc" } }),
+    prisma.posicao.findMany({ where: { empresaId: { in: escopoMarca }, ativo: true }, orderBy: { nome: "asc" } }),
     prisma.colaborador.findMany({
       where: { empresaId, ativo: true, id: { not: colaboradorId } },
       orderBy: { nome: "asc" },
@@ -280,6 +288,37 @@ export default async function ColaboradorPage({
   const conformidade = conformidadeDoColaborador(requisitos, certificados);
   const situacaoExame = situacaoDoExame(exames);
 
+  // Fora do Promise.all de cima de propósito: aquele array já tem 24
+  // posições — inserir no meio dele para uma busca nova é o tipo de mudança
+  // fácil de desalinhar sem notar. Esta é independente e mais barata que
+  // tudo ali (uma tabela pequena, sem relations).
+  const tiposBeneficioCustom = await prisma.tipoBeneficio.findMany({
+    where: { empresaId, ativo: true },
+    orderBy: { nome: "asc" },
+    select: { nome: true },
+  });
+
+  const [
+    tiposEpiDisponiveis,
+    motivosEntregaDisponiveis,
+    tiposAcidenteDisponiveis,
+    tiposMovimentacaoDisponiveis,
+    statusMetaDisponiveis,
+    competenciasDisponiveis,
+    ocorrenciasDisciplinares,
+  ] = await Promise.all([
+    opcoesDoCatalogo(empresaId, "TIPO_EPI"),
+    opcoesDoCatalogo(empresaId, "MOTIVO_ENTREGA_EPI"),
+    opcoesDoCatalogo(empresaId, "TIPO_ACIDENTE"),
+    opcoesDoCatalogo(empresaId, "TIPO_MOVIMENTACAO"),
+    opcoesDoCatalogo(empresaId, "STATUS_META"),
+    opcoesDoCatalogo(empresaId, "COMPETENCIA"),
+    prisma.ocorrenciaDisciplinar.findMany({
+      where: { colaboradorId },
+      orderBy: [{ dataFato: "desc" }],
+    }),
+  ]);
+
   const admissao = candidaturaDeOrigem
     ? {
         vaga: candidaturaDeOrigem.vaga,
@@ -318,6 +357,12 @@ export default async function ColaboradorPage({
         candidatosSupervisor={candidatosSupervisor}
         movimentacoes={movimentacoes}
         beneficios={beneficios}
+        tiposBeneficioCustom={tiposBeneficioCustom.map((t) => t.nome)}
+        tiposEpiDisponiveis={tiposEpiDisponiveis}
+        motivosEntregaDisponiveis={motivosEntregaDisponiveis}
+        tiposAcidenteDisponiveis={tiposAcidenteDisponiveis}
+        tiposMovimentacaoDisponiveis={tiposMovimentacaoDisponiveis}
+        statusMetaDisponiveis={statusMetaDisponiveis}
         dependentesNoPlanoSaude={colaborador._count.dependentes}
         entregasEpi={entregasEpi}
         acidentes={acidentes}
@@ -325,12 +370,14 @@ export default async function ColaboradorPage({
         checklistDesligamento={checklistDesligamento}
         entrevistaDesligamento={entrevistaDesligamento}
         avaliacoes={avaliacoes}
+        competenciasDisponiveis={competenciasDisponiveis}
         metas={metas}
         pdi={pdi}
         participacoesTreinamento={participacoesTreinamento}
         treinamentosAtivos={treinamentosAtivos}
         admissao={admissao}
         checklistIntegracao={checklistIntegracao}
+        ocorrenciasDisciplinares={ocorrenciasDisciplinares}
       />
     </div>
   );

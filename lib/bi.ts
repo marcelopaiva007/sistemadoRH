@@ -92,6 +92,83 @@ export function movimentoMensal(
   return linhas;
 }
 
+/**
+ * Headcount no FIM de cada um dos últimos `meses` — a curva de crescimento do
+ * quadro. Mesma reconstrução retroativa de `calcularTurnover`: parte do
+ * headcount de agora e desfaz admissões/desligamentos mês a mês voltando no
+ * tempo (vínculo sem `dataAdmissao` conta como sempre presente, coerente com a
+ * aproximação de lá).
+ */
+export function headcountMensal(
+  vinculos: VinculoParaTurnover[],
+  headcountAtual: number,
+  hoje: Date = hojeUTC(),
+  meses = 12,
+): { mes: string; total: number }[] {
+  const movimento = movimentoMensal(vinculos, hoje, meses);
+  // Do mês mais recente para trás: o total no fim do mês anterior é o total
+  // atual sem o saldo (admissões - desligamentos) do mês seguinte.
+  const totais: number[] = new Array(movimento.length);
+  let total = headcountAtual;
+  for (let i = movimento.length - 1; i >= 0; i--) {
+    totais[i] = total;
+    total = Math.max(0, total - movimento[i].admissoes + movimento[i].desligamentos);
+  }
+  return movimento.map((m, i) => ({ mes: m.mes, total: totais[i] }));
+}
+
+// ---------------------------------------------------------------
+// Demografia
+// ---------------------------------------------------------------
+
+export type LinhaFaixaEtaria = { faixa: string; total: number };
+
+/** Distribuição etária dos ativos. Quem não tem data de nascimento aparece como faixa própria — omitir esconderia o buraco da base. */
+export function distribuicaoFaixaEtaria(
+  colaboradoresAtivos: { dataNascimento: Date | null }[],
+  hoje: Date = hojeUTC(),
+): LinhaFaixaEtaria[] {
+  const faixas: [string, (idade: number) => boolean][] = [
+    ["Até 24", (i) => i <= 24],
+    ["25–34", (i) => i >= 25 && i <= 34],
+    ["35–44", (i) => i >= 35 && i <= 44],
+    ["45–54", (i) => i >= 45 && i <= 54],
+    ["55+", (i) => i >= 55],
+  ];
+  const contagem = new Map<string, number>(faixas.map(([f]) => [f, 0]));
+  let semData = 0;
+
+  for (const c of colaboradoresAtivos) {
+    if (!c.dataNascimento) {
+      semData++;
+      continue;
+    }
+    const idade = Math.floor(
+      (hoje.getTime() - c.dataNascimento.getTime()) / (365.25 * 24 * 60 * 60 * 1000),
+    );
+    const faixa = faixas.find(([, cabe]) => cabe(idade));
+    if (faixa) contagem.set(faixa[0], (contagem.get(faixa[0]) ?? 0) + 1);
+  }
+
+  const linhas = faixas.map(([faixa]) => ({ faixa, total: contagem.get(faixa) ?? 0 }));
+  if (semData > 0) linhas.push({ faixa: "Sem data", total: semData });
+  return linhas;
+}
+
+/** Tempo médio de casa dos ativos, em anos — só de quem tem admissão preenchida. */
+export function tempoMedioDeCasaAnos(
+  colaboradoresAtivos: { dataAdmissao: Date | null }[],
+  hoje: Date = hojeUTC(),
+): { anos: number; comData: number } {
+  const comAdmissao = colaboradoresAtivos.filter((c) => c.dataAdmissao);
+  if (comAdmissao.length === 0) return { anos: 0, comData: 0 };
+  const somaAnos = comAdmissao.reduce(
+    (t, c) => t + (hoje.getTime() - c.dataAdmissao!.getTime()) / (365.25 * 24 * 60 * 60 * 1000),
+    0,
+  );
+  return { anos: somaAnos / comAdmissao.length, comData: comAdmissao.length };
+}
+
 // ---------------------------------------------------------------
 // Absenteísmo
 // ---------------------------------------------------------------

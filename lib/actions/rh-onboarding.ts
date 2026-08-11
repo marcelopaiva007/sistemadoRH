@@ -4,8 +4,8 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { registrarAuditoria } from "@/lib/audit";
-import { dataDoFormulario } from "@/lib/datas";
-import { ITENS_ONBOARDING, itemOnboardingLabel } from "@/lib/constants-onboarding";
+import { dataDoFormulario, somarDiasUTC } from "@/lib/datas";
+import { DIAS_DO_MARCO, ITENS_ONBOARDING, itemOnboardingLabel } from "@/lib/constants-onboarding";
 import type { ActionResult } from "@/lib/constants";
 
 const ITENS_CATALOGO = ITENS_ONBOARDING.filter((i) => i.value !== "OUTRO");
@@ -19,7 +19,9 @@ export async function gerarTrilhaPadrao(
 
   const colaborador = await prisma.colaborador.findFirst({
     where: { id: colaboradorId, empresaId },
-    select: { id: true, nome: true },
+    // dataAdmissao entra para dar prazo aos marcos de conversa (30/60/90 dias
+    // após a admissão) — é só uma data, não segue para lugar nenhum.
+    select: { id: true, nome: true, dataAdmissao: true },
   });
   if (!colaborador) return { ok: false, error: "Colaborador não encontrado nesta empresa." };
 
@@ -33,13 +35,24 @@ export async function gerarTrilhaPadrao(
     return { ok: false, error: "A trilha padrão já foi gerada para esta pessoa." };
   }
 
+  const diasDoMarco = (item: string): number | undefined => DIAS_DO_MARCO[item];
   await prisma.checklistIntegracao.createMany({
-    data: faltando.map((i) => ({
-      empresaId,
-      colaboradorId,
-      item: i.value,
-      responsavel: i.responsavelPadrao,
-    })),
+    data: faltando.map((i) => {
+      const dias = diasDoMarco(i.value);
+      return {
+        empresaId,
+        colaboradorId,
+        item: i.value,
+        responsavel: i.responsavelPadrao,
+        // Marco de conversa nasce com prazo contado da admissão. Sem data de
+        // admissão o prazo fica nulo — melhor um marco sem data (a tela mostra
+        // "sem prazo") que um prazo inventado a partir de hoje.
+        prazo:
+          dias !== undefined && colaborador.dataAdmissao
+            ? somarDiasUTC(colaborador.dataAdmissao, dias)
+            : null,
+      };
+    }),
   });
 
   await registrarAuditoria({
@@ -52,6 +65,9 @@ export async function gerarTrilhaPadrao(
 
   revalidatePath(`/rh/${empresaId}/colaboradores/${colaboradorId}`);
   revalidatePath(`/rh/${empresaId}/integracoes`);
+  // A tela "Meu time" mostra o progresso da trilha dos recém-chegados e tem o
+  // botão de gerar trilha — precisa refletir a mudança sem F5.
+  revalidatePath(`/rh/${empresaId}/time`);
   return { ok: true };
 }
 
@@ -93,6 +109,9 @@ export async function adicionarItemIntegracao(
 
   revalidatePath(`/rh/${empresaId}/colaboradores/${colaboradorId}`);
   revalidatePath(`/rh/${empresaId}/integracoes`);
+  // A tela "Meu time" mostra o progresso da trilha dos recém-chegados e tem o
+  // botão de gerar trilha — precisa refletir a mudança sem F5.
+  revalidatePath(`/rh/${empresaId}/time`);
   return { ok: true };
 }
 
@@ -127,6 +146,9 @@ export async function alternarItemIntegracao(
 
   revalidatePath(`/rh/${empresaId}/colaboradores/${colaboradorId}`);
   revalidatePath(`/rh/${empresaId}/integracoes`);
+  // A tela "Meu time" mostra o progresso da trilha dos recém-chegados e tem o
+  // botão de gerar trilha — precisa refletir a mudança sem F5.
+  revalidatePath(`/rh/${empresaId}/time`);
   return { ok: true };
 }
 
@@ -154,5 +176,8 @@ export async function excluirItemIntegracao(
 
   revalidatePath(`/rh/${empresaId}/colaboradores/${colaboradorId}`);
   revalidatePath(`/rh/${empresaId}/integracoes`);
+  // A tela "Meu time" mostra o progresso da trilha dos recém-chegados e tem o
+  // botão de gerar trilha — precisa refletir a mudança sem F5.
+  revalidatePath(`/rh/${empresaId}/time`);
   return { ok: true };
 }

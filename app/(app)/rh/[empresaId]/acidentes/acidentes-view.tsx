@@ -12,6 +12,7 @@ import { Indicador } from "@/components/indicador";
 
 type Acidente = {
   id: string;
+  empresaId: string;
   dataHora: Date;
   tipo: string;
   descricao: string;
@@ -20,15 +21,13 @@ type Acidente = {
   catNumero: string | null;
   situacao: string;
   colaboradorId: string;
-  colaborador: { nome: string; setor: { nome: string } };
+  colaborador: { nome: string; setor: { nome: string }; empresa: { nome: string } };
 };
 
 export function AcidentesView({
-  empresaId,
   acidentes,
   resumo,
 }: {
-  empresaId: string;
   acidentes: Acidente[];
   resumo: { total: number; catsPendentes: number; emInvestigacao: number };
 }) {
@@ -44,7 +43,7 @@ export function AcidentesView({
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Indicador rotulo="Total registrado" valor={resumo.total} />
-        <Indicador rotulo="CAT pendente de emissão" valor={resumo.catsPendentes} alerta={resumo.catsPendentes > 0} />
+        <Indicador rotulo="CAT pendente de emissão" valor={resumo.catsPendentes} estado={resumo.catsPendentes > 0 ? "alerta" : "padrao"} />
         <Indicador rotulo="Em investigação" valor={resumo.emInvestigacao} />
       </div>
 
@@ -76,6 +75,7 @@ export function AcidentesView({
                   <TableRow>
                     <TableHead>Quando</TableHead>
                     <TableHead>Colaborador</TableHead>
+                    <TableHead>CNPJ</TableHead>
                     <TableHead>Setor</TableHead>
                     <TableHead>Tipo</TableHead>
                     <TableHead>CAT</TableHead>
@@ -90,12 +90,13 @@ export function AcidentesView({
                       </TableCell>
                       <TableCell>
                         <Link
-                          href={`/rh/${empresaId}/colaboradores/${a.colaboradorId}`}
+                          href={`/rh/${a.empresaId}/colaboradores/${a.colaboradorId}`}
                           className="font-medium hover:underline"
                         >
                           {a.colaborador.nome}
                         </Link>
                       </TableCell>
+                      <TableCell className="text-muted-foreground">{a.colaborador.empresa.nome}</TableCell>
                       <TableCell className="text-muted-foreground">{a.colaborador.setor.nome}</TableCell>
                       <TableCell>
                         {tipoAcidenteLabel(a.tipo)}
