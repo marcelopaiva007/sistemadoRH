@@ -973,7 +973,7 @@ function VincularForm({
                 <div>
                   <div className="font-medium">
                     {v.empresaNome}{" "}
-                    {v.papelPrincipal && <span className="text-xs text-amber-600">(principal)</span>}
+                    {v.papelPrincipal && <span className="text-xs text-amber-600 dark:text-amber-400">(principal)</span>}
                     {!v.ativo && <span className="ml-2 text-xs text-muted-foreground">(desativado)</span>}
                   </div>
                   <div className="text-xs text-muted-foreground">

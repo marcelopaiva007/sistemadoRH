@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.64.3",
+    data: "11/08/2026",
+    horario: "05:10",
+    titulo: "Correção de legibilidade no tema escuro",
+    itens: [
+      "Quem usa o sistema no tema escuro (pelo botão da barra de topo ou porque o computador está configurado assim) passa a enxergar melhor: mensagens de erro dentro dos cartões, contorno dos campos de formulário, rótulo dos botões principais e textos de apoio estavam com contraste abaixo do mínimo recomendado.",
+      "No tema claro, o contorno dos campos que ficam fora de um cartão e o destaque de foco do menu lateral também foram ajustados pelo mesmo motivo.",
+      "Ícones e etiquetas coloridas de várias telas (unificação de cargos e setores, clima, produtividade, medidas disciplinares) ganharam versão própria para o tema escuro — antes ficavam lavados ou quase invisíveis.",
+    ],
+  },
+  {
     versao: "1.64.2",
     data: "11/08/2026",
     horario: "04:50",
