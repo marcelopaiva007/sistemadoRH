@@ -26,6 +26,19 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.64.0",
+    data: "11/08/2026",
+    horario: "10:00",
+    titulo: "Disciplinar: o sistema passa a gerar o documento para assinatura",
+    itens: [
+      "A aba Disciplinar da ficha do colaborador ganhou o botão \"Documento\" em cada ocorrência: abre a advertência, o comunicado de suspensão ou o termo já redigido, pronto para imprimir e assinar. Antes a tela só registrava a ocorrência e o status da assinatura — o papel a ser assinado nunca era produzido.",
+      "Ao registrar uma nova medida, o sistema oferece o documento na hora, com o botão \"Abrir documento\".",
+      "Cada tipo tem o texto e o fundamento legal próprios: advertência verbal e escrita, suspensão (art. 474 da CLT), justa causa, notificação de abandono de emprego com prazo de 48 horas, recusa/mau uso de EPI (art. 158), termo de dano ao patrimônio (art. 462, § 1º) e recusa a exame ocupacional.",
+      "O documento sai com razão social e CNPJ da empresa, identificação completa do colaborador (CPF, matrícula, cargo, setor e admissão), motivo, circunstâncias e campos de assinatura do colaborador, da empresa e de duas testemunhas.",
+      "Quando a recusa de assinatura já foi registrada com as duas testemunhas, o documento sai com a certidão de recusa e os nomes e CPFs das testemunhas preenchidos.",
+    ],
+  },
+  {
     versao: "1.63.8",
     data: "11/08/2026",
     horario: "03:00",

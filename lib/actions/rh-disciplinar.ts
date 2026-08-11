@@ -6,11 +6,16 @@ import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { registrarAuditoria } from "@/lib/audit";
 import type { ActionResult } from "@/lib/constants";
 
+// Devolve o id da ocorrência criada porque a tela precisa dele para oferecer,
+// logo após o registro, o link do documento a ser impresso e assinado
+// (/api/rh/[empresaId]/disciplinar/[ocorrenciaId]/documento).
+export type ResultadoOcorrencia = ActionResult & { ocorrenciaId?: string };
+
 export async function criarOcorrenciaDisciplinar(
   empresaId: string,
-  _prev: ActionResult,
+  _prev: ResultadoOcorrencia,
   formData: FormData,
-): Promise<ActionResult> {
+): Promise<ResultadoOcorrencia> {
   const usuario = await requireEmpresaAccess(empresaId);
 
   const colaboradorId = formData.get("colaboradorId") as string;
@@ -61,7 +66,7 @@ export async function criarOcorrenciaDisciplinar(
     revalidatePath(`/rh/${empresaId}/colaboradores/${colaboradorId}`);
     revalidatePath(`/rh/${empresaId}/disciplinar`);
 
-    return { ok: true };
+    return { ok: true, ocorrenciaId: ocorrencia.id };
   } catch (error) {
     console.error("Erro ao criar ocorrência disciplinar:", error);
     return { ok: false, error: "Falha ao salvar a ocorrência disciplinar." };
