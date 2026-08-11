@@ -261,8 +261,7 @@ export async function pendenciasPorEmpresa(
         _count: contar,
         where: { empresaId, ativo: true, OR: [{ telegramChatId: null }, { telegramChatId: "" }] },
       }),
-      // Cadastros com dados incompletos: faltam uma ou mais informações críticas
-      // necessárias para um funcionário estar totalmente registrado no sistema.
+      // Cadastros com dados incompletos: faltam uma ou mais informações críticas.
       cliente.colaborador.groupBy({
         by: [...por],
         _count: contar,
@@ -271,7 +270,8 @@ export async function pendenciasPorEmpresa(
           ativo: true,
           OR: [
             { cpf: null },
-            { AND: [{ OR: [{ email: null }, { email: "" }] }, { OR: [{ telefone: null }, { telefone: "" }] }] },
+            { email: null },
+            { telefone: null },
             { dataAdmissao: null },
             { rg: null },
             { logradouro: null },
