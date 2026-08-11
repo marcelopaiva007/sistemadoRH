@@ -115,7 +115,7 @@ export function DisciplinarCard({
           </div>
           <div>
             <span className="text-muted-foreground">Suspensões</span>
-            <p className="text-lg font-bold text-amber-600">{totalSuspensoes}</p>
+            <p className="text-lg font-bold text-amber-600 dark:text-amber-400">{totalSuspensoes}</p>
           </div>
           <div>
             <span className="text-muted-foreground">Notificações / Termos</span>
@@ -167,7 +167,7 @@ export function DisciplinarCard({
                           {metaTipo?.label ?? o.tipo}
                         </span>
                         {o.diasSuspensao && (
-                          <span className="text-[11px] text-amber-600 font-medium block">
+                          <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium block">
                             {o.diasSuspensao} dia(s) de suspensão
                           </span>
                         )}

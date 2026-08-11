@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
@@ -19,7 +20,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Indicador } from "@/components/indicador";
 import { Paginacao } from "@/components/paginacao";
 import { usePaginacao } from "@/lib/use-paginacao";
-import { STATUS_PERIODO_LABEL, type StatusPeriodo } from "@/lib/ferias";
+import { STATUS_PERIODO_BADGE, type StatusPeriodo } from "@/lib/ferias";
 import type { OrigemHistorico, ProgramacaoFerias, ValorEmReais } from "@/lib/ferias-passivo";
 import { formatarReais } from "@/lib/constants-beneficios";
 import { formatarData } from "@/lib/datas";
@@ -62,14 +63,6 @@ const ORDENS = [
 type Ordem = (typeof ORDENS)[number]["chave"];
 
 const TODOS_OS_SETORES = "__todos";
-
-const VARIANTE: Record<StatusPeriodo, "default" | "secondary" | "destructive" | "outline"> = {
-  EM_CURSO: "outline",
-  DISPONIVEL: "default",
-  VENCENDO: "secondary",
-  VENCIDO: "destructive",
-  CONCLUIDO: "outline",
-};
 
 /**
  * Abaixo desta cobertura a soma em R$ deixa de descrever o CNPJ.
@@ -463,9 +456,7 @@ export function FeriasView({
                             ) : l.periodo.status === "VENCENDO" ? (
                               <Badge variant="secondary">Vence em {l.periodo.diasAteLimite} d</Badge>
                             ) : (
-                              <Badge variant={VARIANTE[l.periodo.status]}>
-                                {STATUS_PERIODO_LABEL[l.periodo.status]}
-                              </Badge>
+                              <StatusBadge status={l.periodo.status} map={STATUS_PERIODO_BADGE} />
                             )}
                           </TableCell>
                           <TableCell>

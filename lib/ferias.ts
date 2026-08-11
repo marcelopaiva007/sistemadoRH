@@ -22,6 +22,7 @@ import {
   somarAnosUTC,
   somarDiasUTC,
 } from "@/lib/datas";
+import type { StatusBadgeMap } from "@/components/status-badge";
 
 export const DIAS_FERIAS_POR_PERIODO = 30;
 export const MAXIMO_DIAS_ABONO = 10;
@@ -241,4 +242,17 @@ export const STATUS_PERIODO_LABEL: Record<StatusPeriodo, string> = {
   VENCENDO: "Vencendo",
   VENCIDO: "Vencido",
   CONCLUIDO: "Concluído",
+};
+
+/**
+ * Ao lado de STATUS_PERIODO_LABEL para os dois nunca divergirem — consumido por
+ * StatusBadge (components/status-badge.tsx). O import do tipo é `import type`,
+ * apagado na compilação: lib/ continua sem dependência de runtime em React.
+ */
+export const STATUS_PERIODO_BADGE: StatusBadgeMap<StatusPeriodo> = {
+  EM_CURSO: { label: STATUS_PERIODO_LABEL.EM_CURSO, variant: "outline" },
+  DISPONIVEL: { label: STATUS_PERIODO_LABEL.DISPONIVEL, variant: "default" },
+  VENCENDO: { label: STATUS_PERIODO_LABEL.VENCENDO, variant: "secondary" },
+  VENCIDO: { label: STATUS_PERIODO_LABEL.VENCIDO, variant: "destructive" },
+  CONCLUIDO: { label: STATUS_PERIODO_LABEL.CONCLUIDO, variant: "outline" },
 };

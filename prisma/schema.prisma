@@ -23,10 +23,12 @@ datasource db {
 // since SQLite does not support native enums.
 // Role: "ADMIN" | "DIRETORIA" | "RH_MANAGER" | "GESTOR_SETOR"
 // StatusPesquisa: "DRAFT" | "ACTIVE" | "FINISHED" | "ARCHIVED"
-// TipoPergunta: "LIKERT_5" | "NPS_10" | "MULTIPLE_CHOICE" | "TEXT"
+// TipoPergunta: "LIKERT_5" | "FREQ_0_4" | "NPS_10" | "MULTIPLE_CHOICE" | "TEXT" (ver lib/constants-rh.ts)
 // DimensaoGPTW: "CREDIBILIDADE" | "RESPEITO" | "IMPARCIALIDADE" | "ORGULHO" | "CAMARADAGEM" | "GERAL"
-// CanalToken: "TELEGRAM" | "LINK_PUBLICO"
-// StatusToken: "PENDING" | "SENT" | "DELIVERED" | "FAILED" | "RESPONDED"
+// CanalToken: não é um domínio único — cada model que reaproveita a coluna `canal`
+//   tem seu próprio conjunto: SurveyToken usa "TELEGRAM" | "EMAIL", PortalAcesso usa
+//   "TELEGRAM" | "RH", Reconhecimento só grava "TELEGRAM" hoje.
+// StatusToken: "PENDING" | "SENT" | "DELIVERED" | "FAILED" | "RESPONDED" | "EXCLUIDO" (ver lib/constants-rh.ts)
 // TipoDocumento / TipoAusencia / TipoContrato: ver lib/constants-dp.ts
 // StatusSolicitacao: "PENDENTE" | "APROVADA" | "REPROVADA" | "CANCELADA"
 
@@ -1651,7 +1653,7 @@ model Sinal {
   // DESLIGAMENTOS_CONCENTRADOS | TAXA_RESPOSTA_BAIXA (ver lib/sinais.ts).
   tipo String
 
-  // Onde: grupo | marca | empresa | setor, com snapshot do nome.
+  // Onde: GRUPO | MARCA | EMPRESA | SETOR, com snapshot do nome.
   nivelUnidade String
   unidadeId    String
   unidadeNome  String
@@ -1672,7 +1674,7 @@ model Sinal {
   // O que ficou fora da conta, no rodapé do cartão. Honestidade de dado.
   recorte   String?
 
-  gravidade String // critica | alta | atencao
+  gravidade String // CRITICA | ALTA | ATENCAO
   status    String @default("ABERTO") // ABERTO | RECONHECIDO | EM_PLANO | DESCARTADO | SILENCIADO
 
   // Preenchido só em DESCARTADO — descartar sem motivo escrito não existe.
@@ -2070,7 +2072,7 @@ model TratamentoPonto {
   registroPontoId  String?
   registroPonto    RegistroPonto? @relation(fields: [registroPontoId], references: [id], onDelete: SetNull)
   dataFato         DateTime       // Dia a que se refere a ocorrência
-  tipo             String         // "INCLUSAO_MANUAL" | "ABONO" | "JUSTIFICATIVA_ATESTADO" | "DESCONTO"
+  tipo             String         // "INCLUSAO_MANUAL" | "ABONO_ATESTADO" | "JUSTIFICATIVA" | "CORRECAO" (ver app/actions/rh-ponto.ts)
   motivo           String         // Texto justificando a alteração
   arquivoId        String?        @unique
   arquivo          Arquivo?       @relation(fields: [arquivoId], references: [id], onDelete: SetNull)

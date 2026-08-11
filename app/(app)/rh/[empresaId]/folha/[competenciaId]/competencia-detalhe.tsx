@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useActionState, useState } from "react";
 import { toast } from "sonner";
 import { Download, Lock, LockOpen, Plus, RefreshCw } from "lucide-react";
@@ -29,6 +28,7 @@ import {
 } from "@/lib/constants-folha";
 import type { ActionResult } from "@/lib/constants";
 import { Indicador } from "@/components/indicador";
+import { Trilha } from "@/components/trilha";
 
 const initialState: ActionResult = { ok: true };
 const classeSelect =
@@ -80,9 +80,7 @@ export function CompetenciaDetalhe({
 
   return (
     <div className="space-y-6">
-      <Link href={`/rh/${empresaId}/folha`} className="text-sm text-muted-foreground hover:underline">
-        ← Competências
-      </Link>
+      <Trilha empresaId={empresaId} atual={formatarCompetencia(competencia.referencia)} />
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>

@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Plus, FileText, ShieldCheck, Stethoscope } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/status-badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -14,7 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { registrarCertificado, excluirCertificado, registrarExame, excluirExame } from "@/lib/actions/rh-sst";
 import { MIMES_ANEXO_ACEITOS } from "@/lib/constants-dp";
 import { NORMAS_REGULAMENTADORAS, RESULTADOS_EXAME, TIPOS_EXAME, normaLabel, resultadoExameLabel, tipoExameLabel } from "@/lib/constants-sst";
-import { SITUACAO_LABEL, type ConformidadeColaborador, type SituacaoExame, type SituacaoItem } from "@/lib/conformidade";
+import { SITUACAO_BADGE, type ConformidadeColaborador, type SituacaoExame, type SituacaoItem } from "@/lib/conformidade";
 import { formatarData } from "@/lib/datas";
 import { Campo, CampoData, CampoSelect, CampoTexto, FormularioAction } from "./campos";
 import { BotaoExcluir } from "./dependentes-card";
@@ -41,20 +42,12 @@ type Exame = {
   arquivo: { id: string; nome: string } | null;
 };
 
-const VARIANTE: Record<SituacaoItem, "default" | "secondary" | "destructive" | "outline"> = {
-  EM_DIA: "default",
-  VENCENDO: "secondary",
-  VENCIDO: "destructive",
-  NUNCA_FEITO: "destructive",
-};
-
 export function SelodeSituacao({ situacao, dias }: { situacao: SituacaoItem; dias?: number | null }) {
   return (
-    <Badge variant={VARIANTE[situacao]}>
-      {SITUACAO_LABEL[situacao]}
+    <StatusBadge status={situacao} map={SITUACAO_BADGE}>
       {situacao === "VENCENDO" && dias != null && ` · ${dias} d`}
       {situacao === "VENCIDO" && dias != null && ` há ${Math.abs(dias)} d`}
-    </Badge>
+    </StatusBadge>
   );
 }
 
