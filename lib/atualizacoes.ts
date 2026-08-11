@@ -26,7 +26,7 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
-    versao: "1.66.1",
+    versao: "1.66.2",
     data: "11/08/2026",
     horario: "11:40",
     titulo: "Ponto: correção de segurança e acabamento do fluxo de aprovação",
@@ -34,7 +34,8 @@ export const ATUALIZACOES: Atualizacao[] = [
       "Segurança: exportar os arquivos fiscais (AFD/AEJ) e criar jornadas passam a exigir acesso à empresa. Antes, essas operações não conferiam permissão — quem estivesse logado podia baixar o histórico de batidas e o CPF de colaboradores de qualquer empresa informando o código dela.",
       "Duas pessoas decidindo o mesmo ajuste ao mesmo tempo não apagam mais a decisão uma da outra: quem chega depois recebe um aviso para recarregar.",
       "Ajustes pendentes não ficam mais presos: a lista de pendentes deixou de ter limite de 20 itens — o limite valia também para o que ainda precisava de decisão.",
-      "Rejeitar agora abre um campo na própria tela para escrever o motivo, e os erros aparecem onde a ação foi feita.",
+      "Rejeitar agora abre um campo na própria tela para escrever o motivo, e o aviso de erro aparece na própria linha em que se clicou.",
+      "Quem pediu o ajuste passa a ficar registrado na trilha de auditoria, e as aprovações e rejeições de ponto aparecem em \"Decisões recentes\" na Central de Aprovações — antes só férias e ausências apareciam ali.",
       "A data da ocorrência aparecia um dia antes do informado, por causa do fuso horário. Corrigido.",
       "Colaboradores desligados voltam a aparecer na lista de ajuste — é durante a rescisão que a correção de ponto costuma ser feita.",
     ],

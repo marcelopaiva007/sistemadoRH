@@ -26,6 +26,22 @@ export type TratamentoItem = {
   };
 };
 
+/** Rótulo legível do tipo de tratamento — usado pelo formulário e pela linha. */
+function tipoLabel(tipo: string) {
+  switch (tipo) {
+    case "INCLUSAO_MANUAL":
+      return "Inclusão Manual";
+    case "ABONO_ATESTADO":
+      return "Abono p/ Atestado Médico";
+    case "JUSTIFICATIVA":
+      return "Justificativa de Ausência";
+    case "CORRECAO":
+      return "Correção de Marcação";
+    default:
+      return tipo;
+  }
+}
+
 export type OpcaoColaborador = { id: string; nome: string; ativo: boolean };
 
 export function TratamentoView({
@@ -40,16 +56,11 @@ export function TratamentoView({
   const router = useRouter();
   const [modalAberta, setModalAberta] = useState(false);
   const [loading, setLoading] = useState(false);
-  // Dois estados de erro, não um: o do formulário só é visível DENTRO do
-  // diálogo de criação. Com um estado só, todo erro de Aprovar/Rejeitar caía
-  // num elemento fora de tela — e reaparecia depois, sem contexto, na próxima
-  // vez que alguém abrisse "Novo Ajuste".
+  // Só o erro do FORMULÁRIO mora aqui; o da decisão vive dentro de cada
+  // LinhaTratamento. Enquanto os dois dividiam um estado só no pai, o erro de
+  // aprovar caía num elemento que só existe dentro do diálogo de criação —
+  // invisível — e reaparecia depois num formulário em branco.
   const [erroForm, setErroForm] = useState<string | null>(null);
-  const [erroDecisao, setErroDecisao] = useState<string | null>(null);
-  const [decidindo, setDecidindo] = useState<string | null>(null);
-  /** Id da linha com o campo de motivo de rejeição aberto. */
-  const [rejeitando, setRejeitando] = useState<string | null>(null);
-  const [motivoRejeicao, setMotivoRejeicao] = useState("");
 
   const [colaboradorId, setColaboradorId] = useState("");
   const [dataFato, setDataFato] = useState("");
@@ -96,47 +107,6 @@ export function TratamentoView({
     }
   };
 
-  const handleDecidir = async (id: string, decisao: "APROVADO" | "REJEITADO") => {
-    setDecidindo(id);
-    setErroDecisao(null);
-    try {
-      const res = await decidirTratamentoPonto({
-        empresaId,
-        tratamentoId: id,
-        decisao,
-        motivoDecisao: decisao === "REJEITADO" ? motivoRejeicao : undefined,
-      });
-      if (res.erro) {
-        setErroDecisao(res.erro);
-        // Mesmo em erro vale atualizar: o caso mais comum é "alguém decidiu
-        // antes de você", e a tela precisa parar de mostrar como pendente.
-        router.refresh();
-      } else {
-        setRejeitando(null);
-        setMotivoRejeicao("");
-        router.refresh();
-      }
-    } catch {
-      setErroDecisao("Não foi possível registrar a decisão agora. Tente de novo.");
-    } finally {
-      setDecidindo(null);
-    }
-  };
-
-  const tipoLabel = (tipo: string) => {
-    switch (tipo) {
-      case "INCLUSAO_MANUAL":
-        return "Inclusão Manual";
-      case "ABONO_ATESTADO":
-        return "Abono p/ Atestado Médico";
-      case "JUSTIFICATIVA":
-        return "Justificativa de Ausência";
-      case "CORRECAO":
-        return "Correção de Marcação";
-      default:
-        return tipo;
-    }
-  };
 
   return (
     <div className="space-y-4">
@@ -147,7 +117,16 @@ export function TratamentoView({
             Ajustes e abonos legais conforme a Portaria MTP 671/2021. Registros de batidas originais são preservados.
           </p>
         </div>
-        <Button size="sm" onClick={() => setModalAberta(true)} className="gap-1 text-xs">
+        <Button
+          size="sm"
+          // Limpa o que sobrou da tentativa anterior: sem isto o diálogo
+          // reabria com o erro antigo por cima de um formulário em branco.
+          onClick={() => {
+            setErroForm(null);
+            setModalAberta(true);
+          }}
+          className="gap-1 text-xs"
+        >
           <FileEdit className="w-4 h-4" /> Novo Ajuste / Abono
         </Button>
       </div>
@@ -156,12 +135,12 @@ export function TratamentoView({
         <Card className="border-primary/50 shadow-md">
           <CardHeader className="py-3">
             <CardTitle className="text-sm">Registrar Tratamento de Ponto (PTRP)</CardTitle>
-            {/* Este texto já mentiu duas vezes. Dizia "assinado digitalmente
+            {/* Este texto já mentiu duas vezes: dizia "assinado digitalmente
                 pelo RH" quando o aprovador gravado era a string fixa "Gestor de
-                RH"; a primeira correção prometeu registrar "quem pediu" (não há
-                coluna para isso) e que o ajuste "só vale depois de aprovado"
-                (nada no sistema lê o status ainda). Descreve só o que de fato
-                acontece — nem uma palavra além. */}
+                RH", e depois prometeu que o ajuste "só vale depois de aprovado"
+                — nada no sistema lê o status ainda. Descreve só o que de fato
+                acontece. (Quem pediu passou a ser registrado de verdade, na
+                trilha do AuditLog — ver registrarTratamentoPonto.) */}
             <CardDescription className="text-xs">
               O ajuste entra como pendente e precisa de decisão. Ficam registrados quem decidiu,
               quando e a justificativa — as batidas originais nunca são alteradas.
@@ -236,7 +215,16 @@ export function TratamentoView({
               </div>
 
               <div className="flex justify-end gap-2 pt-2">
-                <Button type="button" variant="outline" size="sm" onClick={() => setModalAberta(false)} className="text-xs">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setModalAberta(false);
+                    setErroForm(null);
+                  }}
+                  className="text-xs"
+                >
                   Cancelar
                 </Button>
                 <Button type="submit" size="sm" disabled={loading} className="text-xs">
@@ -262,138 +250,180 @@ export function TratamentoView({
               <p className="text-xs text-muted-foreground text-center py-6">Nenhum tratamento ou ajuste realizado no período.</p>
             ) : (
               tratamentos.map((t) => (
-                <div key={t.id} className="p-3 flex items-center justify-between hover:bg-muted/30 transition-colors">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-foreground">{t.colaborador.nome}</span>
-                      <Badge variant="outline" className="text-[10px]">{tipoLabel(t.tipo)}</Badge>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {/* formatarData (UTC) e não toLocaleDateString: a data
-                          é gravada como meia-noite UTC, e no fuso do Brasil o
-                          formatador local exibiria o DIA ANTERIOR — no campo
-                          que diz em que dia a ocorrência aconteceu. */}
-                      {t.colaborador.setor.nome} · Data: {formatarData(new Date(t.dataFato))}
-                    </p>
-                    {/* whitespace-pre-line: o motivo da rejeição é anexado ao
-                        texto original com quebra de linha (ver
-                        decidirTratamentoPonto) e sem isto viraria um parágrafo
-                        só, colado. */}
-                    <p className="text-xs whitespace-pre-line text-foreground italic">
-                      &ldquo;{t.motivo}&rdquo;
-                    </p>
-                  </div>
-                  {/* Antes esta coluna escrevia "Aprovado · Por: RH" em TODA
-                      linha, ignorando t.status e caindo em "RH" quando não
-                      havia aprovador. Num histórico que existe para auditoria,
-                      dizer aprovado sobre o que não foi é o pior defeito
-                      possível — mostra o estado real, e só. */}
-                  <div className="shrink-0 text-right text-xs text-muted-foreground">
-                    {t.status === "APROVADO" && (
-                      <>
-                        <span className="flex items-center justify-end gap-1 font-semibold text-emerald-600 dark:text-emerald-400">
-                          <CheckCircle2 className="h-3.5 w-3.5" /> Aprovado
-                        </span>
-                        <span className="mt-0.5 block text-[10px]">
-                          Por: {t.aprovadoPorNome ?? "—"}
-                        </span>
-                      </>
-                    )}
-                    {t.status === "REJEITADO" && (
-                      <>
-                        <span className="flex items-center justify-end gap-1 font-semibold text-destructive">
-                          <XCircle className="h-3.5 w-3.5" /> Rejeitado
-                        </span>
-                        <span className="mt-0.5 block text-[10px]">
-                          Por: {t.aprovadoPorNome ?? "—"}
-                        </span>
-                      </>
-                    )}
-                    {t.status === "PENDENTE" && (
-                      <div className="flex w-56 flex-col items-end gap-1.5">
-                        <span className="flex items-center gap-1 font-semibold text-warning">
-                          <Clock3 className="h-3.5 w-3.5" /> Aguardando decisão
-                        </span>
-
-                        {/* Campo inline em vez de window.prompt: o prompt some
-                            de vez se a pessoa marcar "impedir novos diálogos"
-                            no navegador — e aí o botão Rejeitar deixa de fazer
-                            qualquer coisa, calado. Mesmo formato do CartaoDecisao
-                            usado na Central de Aprovações. */}
-                        {rejeitando === t.id ? (
-                          <>
-                            <Textarea
-                              autoFocus
-                              value={motivoRejeicao}
-                              onChange={(e) => setMotivoRejeicao(e.target.value)}
-                              placeholder="Por que está sendo rejeitado?"
-                              className="min-h-[52px] w-full text-xs"
-                            />
-                            <div className="flex gap-1">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-6 px-2 text-[11px]"
-                                onClick={() => {
-                                  setRejeitando(null);
-                                  setMotivoRejeicao("");
-                                  setErroDecisao(null);
-                                }}
-                              >
-                                Cancelar
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                className="h-6 px-2 text-[11px]"
-                                disabled={decidindo === t.id || motivoRejeicao.trim().length < 5}
-                                onClick={() => handleDecidir(t.id, "REJEITADO")}
-                              >
-                                {decidindo === t.id ? "..." : "Confirmar rejeição"}
-                              </Button>
-                            </div>
-                          </>
-                        ) : (
-                          <div className="flex gap-1">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-6 px-2 text-[11px]"
-                              disabled={decidindo === t.id}
-                              onClick={() => {
-                                setRejeitando(t.id);
-                                setMotivoRejeicao("");
-                                setErroDecisao(null);
-                              }}
-                            >
-                              Rejeitar
-                            </Button>
-                            <Button
-                              size="sm"
-                              className="h-6 px-2 text-[11px]"
-                              disabled={decidindo === t.id}
-                              onClick={() => handleDecidir(t.id, "APROVADO")}
-                            >
-                              {decidindo === t.id ? "..." : "Aprovar"}
-                            </Button>
-                          </div>
-                        )}
-
-                        {/* O erro mora AQUI, na linha decidida — antes ia para
-                            um elemento dentro do diálogo de criação, invisível
-                            enquanto ele estivesse fechado. */}
-                        {erroDecisao && decidindo === null && rejeitando !== t.id && (
-                          <p className="text-right text-[11px] text-destructive">{erroDecisao}</p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
+                <LinhaTratamento key={t.id} empresaId={empresaId} tratamento={t} />
               ))
             )}
           </div>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+/**
+ * Uma linha do histórico, com o estado da decisão DENTRO dela.
+ *
+ * A primeira versão guardava `decidindo`, `rejeitando`, `motivoRejeicao` e
+ * `erroDecisao` no componente pai, um de cada para N linhas. O resultado:
+ * o erro de uma decisão aparecia em todas as OUTRAS linhas e não na que foi
+ * clicada, e decidir duas linhas em sequência reabilitava a primeira com a
+ * segunda ainda em voo. Estado por linha elimina os dois — é a mesma forma do
+ * ItemAprovacao da Central de Aprovações.
+ */
+function LinhaTratamento({
+  empresaId,
+  tratamento: t,
+}: {
+  empresaId: string;
+  tratamento: TratamentoItem;
+}) {
+  const router = useRouter();
+  const [enviando, setEnviando] = useState(false);
+  const [pedindoMotivo, setPedindoMotivo] = useState(false);
+  const [motivoRejeicao, setMotivoRejeicao] = useState("");
+  const [erro, setErro] = useState<string | null>(null);
+
+  const decidir = async (decisao: "APROVADO" | "REJEITADO") => {
+    setEnviando(true);
+    setErro(null);
+    try {
+      const res = await decidirTratamentoPonto({
+        empresaId,
+        tratamentoId: t.id,
+        decisao,
+        motivoDecisao: decisao === "REJEITADO" ? motivoRejeicao : undefined,
+      });
+      if (res.erro) {
+        setErro(res.erro);
+        // Atualiza mesmo em erro: o caso comum é "alguém decidiu antes de
+        // você", e a linha precisa parar de se anunciar como pendente.
+        router.refresh();
+      } else {
+        setPedindoMotivo(false);
+        setMotivoRejeicao("");
+        router.refresh();
+      }
+    } catch {
+      setErro("Não foi possível registrar a decisão agora. Tente de novo.");
+    } finally {
+      setEnviando(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center justify-between p-3 transition-colors hover:bg-muted/30">
+      <div className="space-y-1">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold text-foreground">{t.colaborador.nome}</span>
+          <Badge variant="outline" className="text-[10px]">
+            {tipoLabel(t.tipo)}
+          </Badge>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {/* formatarData (UTC) e não toLocaleDateString: a data é gravada como
+              meia-noite UTC, e no fuso do Brasil o formatador local exibiria o
+              DIA ANTERIOR — no campo que diz quando a ocorrência aconteceu. */}
+          {t.colaborador.setor.nome} · Data: {formatarData(new Date(t.dataFato))}
+        </p>
+        {/* whitespace-pre-line: o motivo da rejeição é anexado ao texto
+            original com quebra de linha (ver decidirTratamentoPonto). */}
+        <p className="text-xs whitespace-pre-line text-foreground italic">
+          &ldquo;{t.motivo}&rdquo;
+        </p>
+      </div>
+
+      {/* Antes esta coluna escrevia "Aprovado · Por: RH" em TODA linha,
+          ignorando t.status. Num histórico que existe para auditoria, afirmar
+          aprovação sobre o que não foi aprovado é o pior defeito possível. */}
+      <div className="shrink-0 text-right text-xs text-muted-foreground">
+        {t.status === "APROVADO" && (
+          <>
+            <span className="flex items-center justify-end gap-1 font-semibold text-emerald-600 dark:text-emerald-400">
+              <CheckCircle2 className="h-3.5 w-3.5" /> Aprovado
+            </span>
+            <span className="mt-0.5 block text-[10px]">Por: {t.aprovadoPorNome ?? "—"}</span>
+          </>
+        )}
+        {t.status === "REJEITADO" && (
+          <>
+            <span className="flex items-center justify-end gap-1 font-semibold text-destructive">
+              <XCircle className="h-3.5 w-3.5" /> Rejeitado
+            </span>
+            <span className="mt-0.5 block text-[10px]">Por: {t.aprovadoPorNome ?? "—"}</span>
+          </>
+        )}
+        {t.status === "PENDENTE" && (
+          <div className="flex w-56 flex-col items-end gap-1.5">
+            <span className="flex items-center gap-1 font-semibold text-warning">
+              <Clock3 className="h-3.5 w-3.5" /> Aguardando decisão
+            </span>
+
+            {/* Campo inline em vez de window.prompt: o prompt some de vez se a
+                pessoa marcar "impedir novos diálogos" no navegador, e aí o
+                botão Rejeitar fica calado para sempre. */}
+            {pedindoMotivo ? (
+              <>
+                <Textarea
+                  autoFocus
+                  value={motivoRejeicao}
+                  onChange={(e) => setMotivoRejeicao(e.target.value)}
+                  placeholder="Por que está sendo rejeitado?"
+                  className="min-h-[52px] w-full text-xs"
+                />
+                <div className="flex gap-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-6 px-2 text-[11px]"
+                    onClick={() => {
+                      setPedindoMotivo(false);
+                      setMotivoRejeicao("");
+                      setErro(null);
+                    }}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    className="h-6 px-2 text-[11px]"
+                    disabled={enviando || motivoRejeicao.trim().length < 5}
+                    onClick={() => decidir("REJEITADO")}
+                  >
+                    {enviando ? "..." : "Confirmar rejeição"}
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <div className="flex gap-1">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-6 px-2 text-[11px]"
+                  disabled={enviando}
+                  onClick={() => {
+                    setPedindoMotivo(true);
+                    setErro(null);
+                  }}
+                >
+                  Rejeitar
+                </Button>
+                <Button
+                  size="sm"
+                  className="h-6 px-2 text-[11px]"
+                  disabled={enviando}
+                  onClick={() => decidir("APROVADO")}
+                >
+                  {enviando ? "..." : "Aprovar"}
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* O erro mora na PRÓPRIA linha decidida. */}
+        {erro && <p className="mt-1 text-right text-[11px] text-destructive">{erro}</p>}
+      </div>
     </div>
   );
 }
