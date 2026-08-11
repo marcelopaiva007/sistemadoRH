@@ -26,6 +26,15 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.63.9",
+    data: "11/08/2026",
+    horario: "03:10",
+    titulo: "Ajuste: histórico de atualizações completo até a v1.63.7",
+    itens: [
+      "A tela de Atualizações estava sem as entradas de v1.63.3 a v1.63.7 — corrigido, agora mostra todas as entregas do período em ordem.",
+    ],
+  },
+  {
     versao: "1.63.8",
     data: "11/08/2026",
     horario: "03:00",
@@ -67,7 +76,7 @@ export const ATUALIZACOES: Atualizacao[] = [
     horario: "18:07",
     titulo: "Ajuste: lista de Colaboradores abre na marca do CNPJ aberto, não no grupo inteiro",
     itens: [
-      "A tela de Colaboradores mostrava os colaboradores de todos os CNPJs do grupo misturados. Passa a abrir só com a marca da empresa do caminho — em cada CNPJ, os devidos colaboradores — com o filtro da lateral estreitando dentro dessa marca quando necessário.",
+      "A tela de Colaboradores mostrava os colaboradores de todos os CNPJs do grupo misturados. Passa a abrir só com os colaboradores da marca da empresa do caminho, com o filtro da lateral estreitando dentro dessa marca quando necessário.",
     ],
   },
   {
