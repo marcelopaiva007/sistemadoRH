@@ -79,6 +79,7 @@ const ROTULO_LACUNA: Record<string, string> = {
   ferias: "sem nenhuma férias registrada",
   desligamento_data: "sem data de desligamento",
   desligamento_motivo: "sem motivo de desligamento",
+  incompleto: "com cadastro incompleto",
 };
 
 function temLacuna(
@@ -92,6 +93,7 @@ function temLacuna(
     posicao: { nome: string };
     semDataDesligamento?: boolean;
     semMotivoDesligamento?: boolean;
+    semCadastroCompleto: boolean;
   },
   chave: string,
 ): boolean {
@@ -108,7 +110,16 @@ function temLacuna(
     // lista inteira apareceria como lacuna.
     case "desligamento_data": return Boolean(c.semDataDesligamento);
     case "desligamento_motivo": return Boolean(c.semMotivoDesligamento);
-    default: return true;
+    // Booleano montado no servidor (colaboradores/page.tsx) com a mesma função
+    // que conta o cartão: `cadastroIncompleto` de lib/pendencias.ts. RG,
+    // endereço e banco não chegam neste componente.
+    case "incompleto": return c.semCadastroCompleto;
+    // Chave desconhecida esconde todo mundo, em vez de mostrar todo mundo.
+    // Era o contrário, e foi assim que um cartão novo apontando para uma chave
+    // sem `case` foi parar em revisão parecendo funcionar: ele abria a lista
+    // COMPLETA, e lista completa é indistinguível de "filtro que não filtra
+    // nada". Lista vazia dói na hora, que é quando ainda dá para consertar.
+    default: return false;
   }
 }
 
@@ -133,6 +144,7 @@ type Colaborador = {
   semFerias: boolean;
   semDataDesligamento: boolean;
   semMotivoDesligamento: boolean;
+  semCadastroCompleto: boolean;
   gerente: boolean;
   ativo: boolean;
   empresaId: string;

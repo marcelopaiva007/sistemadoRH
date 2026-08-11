@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.69.0",
+    data: "11/08/2026",
+    horario: "18:20",
+    titulo: "Pendências: novo cartão \"Cadastros incompletos\"",
+    itens: [
+      "A tela de Pendências ganhou o cartão \"Cadastros incompletos\": quantos colaboradores ativos estão com campo essencial em branco — CPF, contato, data de admissão, RG, endereço ou dados bancários.",
+      "Clicar no cartão abre a lista de Colaboradores já filtrada só em quem tem dado faltando.",
+      "Contato conta como faltando só quando não há nem email nem telefone — ter um dos dois basta.",
+    ],
+  },
+  {
     // Duas entregas do mesmo dia (1.66.0 e 1.66.2, ambas de Ponto) consolidadas
     // aqui: nenhuma das duas chegou a ser publicada com esse número, porque a
     // linha `master` foi para 1.67.0 antes. Numerar por 1.66.x deixaria a

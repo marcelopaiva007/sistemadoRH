@@ -2,6 +2,7 @@ import { requireEmpresaAccess, empresasVisiveis } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
 import { hojeUTC, somarAnosUTC } from "@/lib/datas";
 import { empresasDaMesmaMarca } from "@/lib/escopo-marca";
+import { cadastroIncompleto } from "@/lib/pendencias";
 import { ColaboradoresTable } from "./colaboradores-table";
 
 export default async function ColaboradoresPage({
@@ -60,6 +61,19 @@ export default async function ColaboradoresPage({
         dataAdmissao: true,
         dataDesligamento: true,
         motivoDesligamento: true,
+        // RG, endereço e banco entram AQUI e param aqui: viram um único
+        // booleano `semCadastroCompleto` logo abaixo. Mandá-los para a tabela
+        // colocaria documento, endereço e conta bancária de toda a base no HTML
+        // da página — é exatamente o que o comentário do tipo `Colaborador` em
+        // colaboradores-table.tsx proíbe.
+        rg: true,
+        logradouro: true,
+        numeroEndereco: true,
+        bairro: true,
+        uf: true,
+        bancoNome: true,
+        bancoAgencia: true,
+        bancoConta: true,
         _count: { select: { ferias: true } },
       },
     }),
@@ -87,10 +101,21 @@ export default async function ColaboradoresPage({
   // do servidor sem perder o filtro.
   const umAnoAtras = somarAnosUTC(hojeUTC(), -1);
   const colaboradores = linhas.map(
-    ({ salarioBase, dataAdmissao, dataDesligamento, motivoDesligamento, _count, ...c }) => ({
+    ({
+      salarioBase, dataAdmissao, dataDesligamento, motivoDesligamento, _count,
+      rg, logradouro, numeroEndereco, bairro, uf, bancoNome, bancoAgencia, bancoConta,
+      ...c
+    }) => ({
       ...c,
       semSalario: salarioBase === null || salarioBase === undefined,
       semAdmissao: !dataAdmissao,
+      // Mesma regra que conta o cartão "Cadastros incompletos" em
+      // lib/pendencias.ts — a função é literalmente a mesma, para o número do
+      // cartão e o tamanho desta lista nunca discordarem.
+      semCadastroCompleto: cadastroIncompleto({
+        cpf: c.cpf, email: c.email, telefone: c.telefone, dataAdmissao,
+        rg, logradouro, numeroEndereco, bairro, uf, bancoNome, bancoAgencia, bancoConta,
+      }),
       // Mesma regra de lib/dashboard.ts::lacunasDaBase e
       // lib/ferias-passivo.ts::semHistoricoDeFerias: 1+ ano de casa e nenhuma
       // solicitação de férias registrada.

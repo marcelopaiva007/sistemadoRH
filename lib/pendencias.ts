@@ -1,4 +1,5 @@
 import { prisma, type Cliente } from "@/lib/prisma";
+import type { Prisma } from "@/app/generated/prisma/client";
 import { DIAS_ALERTA_VENCIMENTO, CONTRATOS_POR_PRAZO } from "@/lib/constants-dp";
 import { RUBRICAS_HORA_EXTRA, LIMITE_HORAS_EXTRAS_MES } from "@/lib/constants-folha";
 import { hojeUTC, somarDiasUTC, diferencaEmDiasUTC } from "@/lib/datas";
@@ -52,7 +53,77 @@ export type Pendencias = {
   // ao portal — é cobrança do RH, não estatística. Mesma condição da lacuna e
   // da lista (?lacuna=telegram): ativo com telegramChatId nulo OU vazio.
   semTelegram: number;
+  // Ficha de colaborador ativo com campo essencial em branco. Ver
+  // CADASTRO_INCOMPLETO_WHERE / cadastroIncompleto logo abaixo: a regra é uma
+  // só, usada pela contagem e pelo filtro da lista.
+  cadastrosIncompletos: number;
 };
+
+/**
+ * Ficha incompleta: a MESMA regra em dois formatos — filtro do Prisma (para
+ * contar) e predicado (para a lista `?lacuna=incompleto` marcar as linhas).
+ *
+ * As duas TÊM que andar juntas. Se divergirem, o cartão diz "12 cadastros
+ * incompletos", o RH clica e a lista mostra 40 — e a tela de pendências perde
+ * a credibilidade inteira, não só este número.
+ *
+ * Contato é o único par: exigir email E telefone marcaria quase toda base
+ * operacional, onde a maioria só tem telefone. Falta de contato é não ter
+ * nenhum dos dois.
+ *
+ * Só `null`, sem `""`: mesmo critério de lib/dashboard.ts::lacunasDaBase, que
+ * também trata string vazia à parte apenas no telegramChatId, onde ela de fato
+ * aparece nos dados importados.
+ */
+// Sem `as const`: o Prisma exige `OR` como array mutável, e um literal
+// readonly não é atribuível a `ColaboradorWhereInput[]`.
+export const CADASTRO_INCOMPLETO_WHERE: Prisma.ColaboradorWhereInput = {
+  OR: [
+    { cpf: null },
+    { dataAdmissao: null },
+    { rg: null },
+    { logradouro: null },
+    { numeroEndereco: null },
+    { bairro: null },
+    { uf: null },
+    { bancoNome: null },
+    { bancoAgencia: null },
+    { bancoConta: null },
+    { AND: [{ email: null }, { telefone: null }] },
+  ],
+};
+
+/** Campos lidos por `cadastroIncompleto`. Só o servidor os enxerga. */
+export type CamposDoCadastro = {
+  cpf: string | null;
+  email: string | null;
+  telefone: string | null;
+  dataAdmissao: Date | null;
+  rg: string | null;
+  logradouro: string | null;
+  numeroEndereco: string | null;
+  bairro: string | null;
+  uf: string | null;
+  bancoNome: string | null;
+  bancoAgencia: string | null;
+  bancoConta: string | null;
+};
+
+export function cadastroIncompleto(c: CamposDoCadastro): boolean {
+  return (
+    c.cpf === null ||
+    c.dataAdmissao === null ||
+    c.rg === null ||
+    c.logradouro === null ||
+    c.numeroEndereco === null ||
+    c.bairro === null ||
+    c.uf === null ||
+    c.bancoNome === null ||
+    c.bancoAgencia === null ||
+    c.bancoConta === null ||
+    (c.email === null && c.telefone === null)
+  );
+}
 
 export const totalPendencias = (p: Pendencias) => Object.values(p).reduce((s, n) => s + n, 0);
 
@@ -75,6 +146,7 @@ export const zeradas = (): Pendencias => ({
   dependentesSemCpf: 0,
   atestadosSemDocumento: 0,
   semTelegram: 0,
+  cadastrosIncompletos: 0,
 });
 
 type LinhaAgrupada = { empresaId: string; _count?: { _all?: number } };
@@ -117,7 +189,7 @@ export async function pendenciasPorEmpresa(
     feriasVencidas, avisoPrevio, desligamentosIncompletos, ciclosAvaliacaoAEncerrar,
     pesquisasAbertas, fichasDesatualizadas,
     contratosVencendo, dependentesSemCpf, atestadosSemDocumento, horasExtras,
-    semTelegram,
+    semTelegram, cadastrosIncompletos,
   ] =
     await Promise.all([
       cliente.solicitacaoFerias.groupBy({ by: [...por], _count: contar, where: { empresaId, status: "PENDENTE" } }),
@@ -255,6 +327,13 @@ export async function pendenciasPorEmpresa(
         _count: contar,
         where: { empresaId, ativo: true, OR: [{ telegramChatId: null }, { telegramChatId: "" }] },
       }),
+      // Ficha com campo essencial em branco. A regra vive em
+      // CADASTRO_INCOMPLETO_WHERE, ao lado do predicado que a lista usa.
+      cliente.colaborador.groupBy({
+        by: [...por],
+        _count: contar,
+        where: { empresaId, ativo: true, ...CADASTRO_INCOMPLETO_WHERE },
+      }),
     ]);
 
   const somar = (linhas: LinhaAgrupada[], aplicar: (p: Pendencias, n: number) => void) => {
@@ -283,6 +362,7 @@ export async function pendenciasPorEmpresa(
   somar(dependentesSemCpf, (p, n) => (p.dependentesSemCpf = n));
   somar(atestadosSemDocumento, (p, n) => (p.atestadosSemDocumento = n));
   somar(semTelegram, (p, n) => (p.semTelegram = n));
+  somar(cadastrosIncompletos, (p, n) => (p.cadastrosIncompletos = n));
 
   // Uma linha por colaborador que lançou hora extra no mês aberto; conta quem
   // passou do teto. `_sum` volta null quando todas as quantidades da pessoa são
@@ -429,7 +509,7 @@ export async function empresasComRegistro(
     "asoVencendo", "certificadosVencendo", "epiVencido", "catPendente",
     "integracoesAtrasadas", "desligamentosIncompletos", "documentosAConferir",
     "ciclosAvaliacaoAEncerrar", "atestadosSemDocumento", "horasExtrasExcedidas",
-    "dependentesSemCpf", "contratosVencendo", "pesquisasAbertas",
+    "dependentesSemCpf", "contratosVencendo", "pesquisasAbertas", "cadastrosIncompletos",
   ] as const satisfies readonly (keyof Pendencias)[];
 
   const achados = await Promise.all([
@@ -465,6 +545,14 @@ export async function empresasComRegistro(
     // as pesquisas "em dia", está sem o módulo. Sem isto, marca que nunca abriu
     // pesquisa apareceria no verde junto de quem encerra tudo em prazo.
     cliente.pesquisa.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
+    // Qualquer colaborador ativo: se não tem ninguém, o módulo de cadastros
+    // nunca foi aberto. Com isto a verificação de "tem registro" e "precisa de
+    // ação" ficam alinhadas para cadastrosIncompletos.
+    cliente.colaborador.groupBy({
+      by: [...por],
+      _count: contar,
+      where: { empresaId, ativo: true },
+    }),
   ]);
 
   achados.forEach((linhas: LinhaAgrupada[], i) => {
