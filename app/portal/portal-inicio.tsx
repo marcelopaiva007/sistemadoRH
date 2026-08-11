@@ -4,6 +4,7 @@ import { Clock, FileText, LogOut, MessageCircle, PencilLine, Star, Stethoscope, 
 import { BaterPontoCard } from "./bater-ponto-card";
 import { MeuBancoHorasCard } from "./meu-banco-horas-card";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -16,7 +17,7 @@ import { formatarTamanho } from "@/lib/anexos";
 // Mesma máscara usada na listagem interna — o portal confirma identidade,
 // não serve para descobrir o CPF de ninguém.
 import { mascararCpf } from "@/lib/cpf";
-import { statusSolicitacaoLabel, tipoAusenciaLabel, tipoContratoLabel, tipoDocumentoLabel } from "@/lib/constants-dp";
+import { STATUS_SOLICITACAO_BADGE, tipoAusenciaLabel, tipoContratoLabel, tipoDocumentoLabel } from "@/lib/constants-dp";
 import { formatarData, tempoDeCasa } from "@/lib/datas";
 
 type Colaborador = {
@@ -78,12 +79,6 @@ type Ausencia = {
   dias: number;
   status: string;
 };
-
-function varianteStatus(status: string) {
-  if (status === "APROVADA") return "default" as const;
-  if (status === "REPROVADA" || status === "CANCELADA") return "destructive" as const;
-  return "secondary" as const;
-}
 
 export function PortalInicio({
   colaborador,
@@ -260,7 +255,7 @@ export function PortalInicio({
                         {formatarData(a.dataInicio)} — {formatarData(a.dataFim)} · {a.dias} dia(s)
                       </span>
                     </div>
-                    <Badge variant={varianteStatus(a.status)}>{statusSolicitacaoLabel(a.status)}</Badge>
+                    <StatusBadge status={a.status} map={STATUS_SOLICITACAO_BADGE} />
                   </div>
                 ))
               )}

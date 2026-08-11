@@ -4,13 +4,14 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Indicador } from "@/components/indicador";
 import type { ProgramacaoFerias } from "@/lib/ferias-passivo";
-import { statusSolicitacaoLabel } from "@/lib/constants-dp";
+import { STATUS_SOLICITACAO_BADGE } from "@/lib/constants-dp";
 import { formatarData } from "@/lib/datas";
 import { ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, Info } from "lucide-react";
 import type { LinhaProgramada } from "./page";
@@ -39,9 +40,6 @@ const ITENS_POR_PAGINA = 20;
 
 const plural = (n: number, um: string, muitos: string) => `${n} ${n === 1 ? um : muitos}`;
 
-/** Só PENDENTE e APROVADA chegam aqui (STATUS_DE_AGENDA filtra no servidor). */
-const varianteStatus = (status: string) =>
-  status === "APROVADA" ? ("default" as const) : ("secondary" as const);
 
 export function ProgramadasView({
   empresaId,
@@ -296,9 +294,8 @@ export function ProgramadasView({
                             : `começa em ${l.comecaEmDias} d`}
                       </TableCell>
                       <TableCell>
-                        <Badge variant={varianteStatus(l.status)}>
-                          {statusSolicitacaoLabel(l.status)}
-                        </Badge>
+                        {/* Só PENDENTE e APROVADA chegam aqui (STATUS_DE_AGENDA filtra no servidor). */}
+                        <StatusBadge status={l.status} map={STATUS_SOLICITACAO_BADGE} />
                       </TableCell>
                       <TableCell className="text-center">
                         <Link

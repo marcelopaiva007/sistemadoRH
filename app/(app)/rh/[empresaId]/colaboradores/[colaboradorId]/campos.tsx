@@ -20,14 +20,19 @@ export function Campo({
   label,
   children,
   className,
+  required,
 }: {
   label: string;
   children: ReactNode;
   className?: string;
+  /** Asterisco no rótulo. O `required` do input continua sendo o que valida. */
+  required?: boolean;
 }) {
   return (
     <div className={cn("space-y-1.5", className)}>
-      <Label className="text-xs font-medium text-muted-foreground">{label}</Label>
+      <Label required={required} className="text-xs font-medium text-muted-foreground">
+        {label}
+      </Label>
       {children}
     </div>
   );
@@ -46,7 +51,7 @@ export function CampoTexto({
   className?: string;
 } & Omit<React.ComponentProps<typeof Input>, "name" | "defaultValue">) {
   return (
-    <Campo label={label} className={className}>
+    <Campo label={label} className={className} required={props.required}>
       <Input name={name} defaultValue={defaultValue ?? ""} {...props} />
     </Campo>
   );
@@ -57,15 +62,17 @@ export function CampoData({
   label,
   defaultValue,
   className,
+  required,
 }: {
   name: string;
   label: string;
   defaultValue?: Date | null;
   className?: string;
+  required?: boolean;
 }) {
   return (
-    <Campo label={label} className={className}>
-      <Input type="date" name={name} defaultValue={paraInputDate(defaultValue)} />
+    <Campo label={label} className={className} required={required}>
+      <Input type="date" name={name} defaultValue={paraInputDate(defaultValue)} required={required} />
     </Campo>
   );
 }
@@ -91,7 +98,7 @@ export function CampoSelect({
   className?: string;
 }) {
   return (
-    <Campo label={label} className={className}>
+    <Campo label={label} className={className} required={required}>
       <select name={name} defaultValue={defaultValue ?? ""} required={required} className={classeSelect}>
         <option value="">{placeholder}</option>
         {opcoes.map((o) => (

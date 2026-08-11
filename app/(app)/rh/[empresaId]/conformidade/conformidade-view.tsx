@@ -6,6 +6,7 @@ import { useActionState } from "react";
 import { toast } from "sonner";
 import { Plus, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -13,7 +14,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { definirRequisitoNR, removerRequisitoNR } from "@/lib/actions/rh-sst";
 import { NORMAS_REGULAMENTADORAS, validadePadraoDaNorma } from "@/lib/constants-sst";
-import { SITUACAO_LABEL, type ConformidadeColaborador, type SituacaoExame, type SituacaoItem } from "@/lib/conformidade";
+import { SITUACAO_BADGE, type ConformidadeColaborador, type SituacaoExame } from "@/lib/conformidade";
 import type { ActionResult } from "@/lib/constants";
 import { Indicador } from "@/components/indicador";
 import { Paginacao } from "@/components/paginacao";
@@ -34,13 +35,6 @@ type Linha = {
   setorNome: string;
   conformidade: ConformidadeColaborador;
   situacaoExame: SituacaoExame;
-};
-
-const VARIANTE: Record<SituacaoItem, "default" | "secondary" | "destructive" | "outline"> = {
-  EM_DIA: "default",
-  VENCENDO: "secondary",
-  VENCIDO: "destructive",
-  NUNCA_FEITO: "destructive",
 };
 
 const estadoInicial: ActionResult = { ok: true };
@@ -194,17 +188,15 @@ export function ConformidadeView({
                         ) : (
                           <div className="flex flex-wrap gap-1">
                             {l.conformidade.pendencias.map((p) => (
-                              <Badge key={p.norma} variant={VARIANTE[p.situacao]}>
-                                {p.norma} · {SITUACAO_LABEL[p.situacao]}
+                              <Badge key={p.norma} variant={SITUACAO_BADGE[p.situacao]?.variant ?? "outline"}>
+                                {p.norma} · {SITUACAO_BADGE[p.situacao]?.label ?? p.situacao}
                               </Badge>
                             ))}
                           </div>
                         )}
                       </TableCell>
                       <TableCell>
-                        <Badge variant={VARIANTE[l.situacaoExame.situacao]}>
-                          {SITUACAO_LABEL[l.situacaoExame.situacao]}
-                        </Badge>
+                        <StatusBadge status={l.situacaoExame.situacao} map={SITUACAO_BADGE} />
                       </TableCell>
                     </TableRow>
                   ))}

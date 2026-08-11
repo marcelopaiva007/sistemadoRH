@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { Fragment, useActionState, useState } from "react";
 import { toast } from "sonner";
 import { Plus, Send } from "lucide-react";
@@ -30,6 +29,7 @@ import {
 import { formatarData } from "@/lib/datas";
 import type { OpcaoCatalogo } from "@/lib/catalogos";
 import type { ActionResult } from "@/lib/constants";
+import { Trilha } from "@/components/trilha";
 
 const initialState: ActionResult = { ok: true };
 const classeSelect =
@@ -86,9 +86,7 @@ export function CicloDetalhe({
 
   return (
     <div className="space-y-6">
-      <Link href={`/rh/${empresaId}/avaliacoes`} className="text-sm text-muted-foreground hover:underline">
-        ← Avaliações
-      </Link>
+      <Trilha empresaId={empresaId} atual={ciclo.nome} />
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
