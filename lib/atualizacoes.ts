@@ -26,6 +26,18 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.71.0",
+    data: "11/08/2026",
+    horario: "21:15",
+    titulo: "Disciplinar: onde guardar a via assinada",
+    itens: [
+      "A aba Disciplinar da ficha ganhou \"Anexar via\" em cada ocorrência: depois de imprimir, colher a assinatura e digitalizar, o documento passa a ficar guardado no sistema. Antes o sistema gerava o papel e registrava que ele havia sido assinado, mas não tinha onde recebê-lo de volta — a via ficava na pasta física.",
+      "Quando a via já está guardada, o botão vira \"Via assinada\" e abre o arquivo.",
+      "Enviar uma via nova no lugar de outra apaga a anterior, para não sobrar arquivo sem tela por onde alcançá-lo.",
+      "Aceita PDF, JPG, PNG ou WEBP, até 10 MB — o mesmo dos demais anexos do sistema.",
+    ],
+  },
+  {
     versao: "1.70.1",
     data: "11/08/2026",
     horario: "20:40",
