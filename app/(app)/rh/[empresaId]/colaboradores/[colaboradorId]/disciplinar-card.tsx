@@ -25,6 +25,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { formatarData } from "@/lib/datas";
 import { formatarTamanho } from "@/lib/anexos";
+import { AjudaDaTela } from "@/components/ajuda-da-tela";
 import {
   TIPOS_OCORRENCIA_DISCIPLINAR,
   STATUS_ASSINATURA_DISCIPLINAR,
@@ -90,9 +91,10 @@ export function DisciplinarCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-lg">
+        <CardTitle className="flex flex-wrap items-center gap-2 text-lg">
           <ShieldAlert className="size-5 text-destructive" />
           Medidas Disciplinares &amp; Notificações
+          <AjudaDaTela modulo="disciplinar" />
         </CardTitle>
         <CardDescription>
           Histórico formal de advertências, suspensões, termos de recusa e avarias.

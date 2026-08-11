@@ -66,6 +66,7 @@ import { formatarCpf, mascararCpf } from "@/lib/cpf";
 import type { ActionResult } from "@/lib/constants";
 import { TIPOS_CONTRATO, CONTRATOS_POR_PRAZO } from "@/lib/constants-dp";
 import { cn } from "@/lib/utils";
+import { AjudaDaTela } from "@/components/ajuda-da-tela";
 
 // Rótulos das lacunas — os mesmos textos do bloco na tela inicial, para quem
 // clica reconhecer onde chegou.
@@ -495,10 +496,13 @@ export function ColaboradoresTable({
       <div className="rounded-xl border bg-card p-4 shadow-xs">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="space-y-0.5">
-            <h2 className="flex items-center gap-2 text-lg font-semibold">
-              <Users className="size-5 text-primary" />
-              Equipe
-            </h2>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="flex items-center gap-2 text-lg font-semibold">
+                <Users className="size-5 text-primary" />
+                Equipe
+              </h2>
+              <AjudaDaTela modulo="colaboradores" />
+            </div>
             {/* "no recorte atual", nunca "na empresa atual": aberta pelo menu,
                 esta tela soma TUDO que o usuário enxerga (para ADMIN, o grupo
                 inteiro) — dizer "empresa" fazia o KPI de Telegram parecer

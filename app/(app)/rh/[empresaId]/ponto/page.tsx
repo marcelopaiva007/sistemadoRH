@@ -6,6 +6,7 @@ import { RelatoriosPontoView } from "./relatorios-view";
 import { DashboardDiretoriaPontoView } from "./dashboard-diretoria";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Clock, ShieldCheck, FileEdit, FileSpreadsheet, BarChart3 } from "lucide-react";
+import { AjudaDaTela } from "@/components/ajuda-da-tela";
 
 export default async function PontoEletronicoPage({
   params,
@@ -124,7 +125,10 @@ export default async function PontoEletronicoPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight">Ponto Eletrônico & Gestão de Jornada (REP-P)</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-xl font-semibold tracking-tight">Ponto Eletrônico & Gestão de Jornada (REP-P)</h1>
+          <AjudaDaTela modulo="ponto" />
+        </div>
         <p className="text-sm text-muted-foreground">
           {empresa?.nome || "Empresa"} · Portaria MTP nº 671/2021 & CLT
         </p>
