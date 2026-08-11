@@ -52,6 +52,11 @@ export type Pendencias = {
   // ao portal — é cobrança do RH, não estatística. Mesma condição da lacuna e
   // da lista (?lacuna=telegram): ativo com telegramChatId nulo OU vazio.
   semTelegram: number;
+  // Cadastro de funcionário com dados incompletos — faltam campos obrigatórios
+  // como CPF, email/telefone, data de admissão, documentos, endereço ou dados
+  // bancários. O RH precisa completar a ficha antes que o colaborador possa
+  // usar todos os recursos do sistema.
+  cadastrosIncompletos: number;
 };
 
 export const totalPendencias = (p: Pendencias) => Object.values(p).reduce((s, n) => s + n, 0);
@@ -75,6 +80,7 @@ export const zeradas = (): Pendencias => ({
   dependentesSemCpf: 0,
   atestadosSemDocumento: 0,
   semTelegram: 0,
+  cadastrosIncompletos: 0,
 });
 
 type LinhaAgrupada = { empresaId: string; _count?: { _all?: number } };
@@ -117,7 +123,7 @@ export async function pendenciasPorEmpresa(
     feriasVencidas, avisoPrevio, desligamentosIncompletos, ciclosAvaliacaoAEncerrar,
     pesquisasAbertas, fichasDesatualizadas,
     contratosVencendo, dependentesSemCpf, atestadosSemDocumento, horasExtras,
-    semTelegram,
+    semTelegram, cadastrosIncompletos,
   ] =
     await Promise.all([
       cliente.solicitacaoFerias.groupBy({ by: [...por], _count: contar, where: { empresaId, status: "PENDENTE" } }),
@@ -255,6 +261,29 @@ export async function pendenciasPorEmpresa(
         _count: contar,
         where: { empresaId, ativo: true, OR: [{ telegramChatId: null }, { telegramChatId: "" }] },
       }),
+      // Cadastros com dados incompletos: faltam uma ou mais informações críticas.
+      cliente.colaborador.groupBy({
+        by: [...por],
+        _count: contar,
+        where: {
+          empresaId,
+          ativo: true,
+          OR: [
+            { cpf: null },
+            { email: null },
+            { telefone: null },
+            { dataAdmissao: null },
+            { rg: null },
+            { logradouro: null },
+            { numeroEndereco: null },
+            { bairro: null },
+            { uf: null },
+            { bancoNome: null },
+            { bancoAgencia: null },
+            { bancoConta: null },
+          ],
+        },
+      }),
     ]);
 
   const somar = (linhas: LinhaAgrupada[], aplicar: (p: Pendencias, n: number) => void) => {
@@ -283,6 +312,7 @@ export async function pendenciasPorEmpresa(
   somar(dependentesSemCpf, (p, n) => (p.dependentesSemCpf = n));
   somar(atestadosSemDocumento, (p, n) => (p.atestadosSemDocumento = n));
   somar(semTelegram, (p, n) => (p.semTelegram = n));
+  somar(cadastrosIncompletos, (p, n) => (p.cadastrosIncompletos = n));
 
   // Uma linha por colaborador que lançou hora extra no mês aberto; conta quem
   // passou do teto. `_sum` volta null quando todas as quantidades da pessoa são
@@ -429,7 +459,7 @@ export async function empresasComRegistro(
     "asoVencendo", "certificadosVencendo", "epiVencido", "catPendente",
     "integracoesAtrasadas", "desligamentosIncompletos", "documentosAConferir",
     "ciclosAvaliacaoAEncerrar", "atestadosSemDocumento", "horasExtrasExcedidas",
-    "dependentesSemCpf", "contratosVencendo", "pesquisasAbertas",
+    "dependentesSemCpf", "contratosVencendo", "pesquisasAbertas", "cadastrosIncompletos",
   ] as const satisfies readonly (keyof Pendencias)[];
 
   const achados = await Promise.all([
@@ -465,6 +495,14 @@ export async function empresasComRegistro(
     // as pesquisas "em dia", está sem o módulo. Sem isto, marca que nunca abriu
     // pesquisa apareceria no verde junto de quem encerra tudo em prazo.
     cliente.pesquisa.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
+    // Qualquer colaborador ativo: se não tem ninguém, o módulo de cadastros
+    // nunca foi aberto. Com isto a verificação de "tem registro" e "precisa de
+    // ação" ficam alinhadas para cadastrosIncompletos.
+    cliente.colaborador.groupBy({
+      by: [...por],
+      _count: contar,
+      where: { empresaId, ativo: true },
+    }),
   ]);
 
   achados.forEach((linhas: LinhaAgrupada[], i) => {
