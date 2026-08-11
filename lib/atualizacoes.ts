@@ -26,31 +26,45 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
-    versao: "1.66.2",
+    // Duas entregas do mesmo dia (1.66.0 e 1.66.2, ambas de Ponto) consolidadas
+    // aqui: nenhuma das duas chegou a ser publicada com esse número, porque a
+    // linha `master` foi para 1.67.0 antes. Numerar por 1.66.x deixaria a
+    // etiqueta da tela mostrando 1.68.0 e esta lista começando em 1.66.2 — o
+    // usuário procuraria a versão que está vendo e não a encontraria.
+    versao: "1.68.0",
     data: "11/08/2026",
-    horario: "11:40",
-    titulo: "Ponto: correção de segurança e acabamento do fluxo de aprovação",
+    horario: "13:30",
+    titulo: "Ponto: ajustes do PTRP passam a ter aprovação de verdade",
     itens: [
       "Segurança: exportar os arquivos fiscais (AFD/AEJ) e criar jornadas passam a exigir acesso à empresa. Antes, essas operações não conferiam permissão — quem estivesse logado podia baixar o histórico de batidas e o CPF de colaboradores de qualquer empresa informando o código dela.",
+      "Todo ajuste ou abono de ponto entra como PENDENTE e precisa ser aprovado ou rejeitado — antes já nascia aprovado, no mesmo clique de quem o registrava.",
+      "Quem aprova ou rejeita fica registrado com o nome de quem está logado. Até agora o sistema gravava sempre \"Gestor de RH\", um texto fixo que não correspondia a pessoa nenhuma — e a tela dizia que o ajuste era assinado digitalmente.",
+      "O histórico passa a mostrar a situação real de cada ajuste (pendente, aprovado ou rejeitado). Antes todos apareciam como \"Aprovado\", independentemente do que estivesse gravado.",
+      "Rejeitar exige escrever o motivo, num campo que abre na própria tela, e o aviso de erro aparece na própria linha em que se clicou.",
       "Duas pessoas decidindo o mesmo ajuste ao mesmo tempo não apagam mais a decisão uma da outra: quem chega depois recebe um aviso para recarregar.",
       "Ajustes pendentes não ficam mais presos: a lista de pendentes deixou de ter limite de 20 itens — o limite valia também para o que ainda precisava de decisão.",
-      "Rejeitar agora abre um campo na própria tela para escrever o motivo, e o aviso de erro aparece na própria linha em que se clicou.",
       "Quem pediu o ajuste passa a ficar registrado na trilha de auditoria, e as aprovações e rejeições de ponto aparecem em \"Decisões recentes\" na Central de Aprovações — antes só férias e ausências apareciam ali.",
+      "Ao lançar um ajuste, o colaborador agora é escolhido numa lista — antes era preciso colar o código interno dele.",
       "A data da ocorrência aparecia um dia antes do informado, por causa do fuso horário. Corrigido.",
       "Colaboradores desligados voltam a aparecer na lista de ajuste — é durante a rescisão que a correção de ponto costuma ser feita.",
     ],
   },
   {
-    versao: "1.66.0",
+    // Publicada em produção como v1.64.0 por volta das 09h30 e renumerada para
+    // 1.67.0 na mesma manhã: a linha `main` já tinha usado 1.64.0 a 1.65.1 para
+    // outras entregas, e dois números iguais na etiqueta da tela quebram a
+    // única pergunta que ela existe para responder ("é a versão nova?").
+    versao: "1.67.0",
     data: "11/08/2026",
-    horario: "11:10",
-    titulo: "Ponto: ajustes do PTRP passam a ter aprovação de verdade",
+    horario: "10:00",
+    titulo: "Disciplinar: o sistema passa a gerar o documento para assinatura",
     itens: [
-      "Todo ajuste ou abono de ponto entra como PENDENTE e precisa ser aprovado ou rejeitado — antes já nascia aprovado, no mesmo clique de quem o registrava.",
-      "Quem aprova ou rejeita fica registrado com o nome de quem está logado. Até agora o sistema gravava sempre \"Gestor de RH\", um texto fixo que não correspondia a pessoa nenhuma — e a tela dizia que o ajuste era assinado digitalmente.",
-      "Rejeitar exige escrever o motivo, que fica junto do histórico.",
-      "O histórico passa a mostrar a situação real de cada ajuste (pendente, aprovado ou rejeitado). Antes todos apareciam como \"Aprovado\", independentemente do que estivesse gravado.",
-      "Ao lançar um ajuste, o colaborador agora é escolhido numa lista — antes era preciso colar o código interno dele.",
+      "A aba Disciplinar da ficha do colaborador ganhou o botão \"Documento\" em cada ocorrência: abre a advertência, o comunicado de suspensão ou o termo já redigido, pronto para imprimir e assinar. Antes a tela só registrava a ocorrência e o status da assinatura — o papel a ser assinado nunca era produzido.",
+      "Ao registrar uma nova medida, o sistema oferece o documento na hora, com o botão \"Abrir documento\".",
+      "Cada tipo tem o texto e o fundamento legal próprios: advertência verbal e escrita, suspensão (art. 474 da CLT), justa causa, notificação de abandono de emprego com prazo de 48 horas, recusa/mau uso de EPI (art. 158), termo de dano ao patrimônio (art. 462, § 1º) e recusa a exame ocupacional.",
+      "O documento sai com razão social e CNPJ da empresa, identificação completa do colaborador (CPF, matrícula, cargo, setor e admissão), motivo, circunstâncias e campos de assinatura do colaborador, da empresa e de duas testemunhas.",
+      "Quando a recusa de assinatura já foi registrada com as duas testemunhas, o documento sai com a certidão de recusa e os nomes e CPFs das testemunhas preenchidos.",
+      "Esta entrega chegou à produção primeiro como v1.64.0 e foi renumerada para v1.67.0 — o número 1.64.0 já pertencia à primeira fase do Design System.",
     ],
   },
   {
