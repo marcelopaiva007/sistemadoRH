@@ -2,7 +2,16 @@
 
 import { useActionState, useState } from "react";
 import { toast } from "sonner";
-import { AlertOctagon, FileSignature, Plus, ShieldAlert, CheckCircle2, UserX } from "lucide-react";
+import {
+  AlertOctagon,
+  FileSignature,
+  FileText,
+  Plus,
+  Printer,
+  ShieldAlert,
+  CheckCircle2,
+  UserX,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,7 +22,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { formatarData } from "@/lib/datas";
-import type { ActionResult } from "@/lib/constants";
 import {
   TIPOS_OCORRENCIA_DISCIPLINAR,
   STATUS_ASSINATURA_DISCIPLINAR,
@@ -22,9 +30,19 @@ import {
 import {
   criarOcorrenciaDisciplinar,
   registrarAssinaturaOcorrencia,
+  type ResultadoOcorrencia,
 } from "@/lib/actions/rh-disciplinar";
 
-const initialState: ActionResult = { ok: true };
+const initialState: ResultadoOcorrencia = { ok: true };
+
+/**
+ * Rota que devolve o documento formal (advertência, suspensão, termo…) pronto
+ * para imprimir, assinar e arquivar no dossiê. É o papel que a medida
+ * disciplinar exige — a tela só registrava o status da assinatura até aqui.
+ */
+function urlDocumento(empresaId: string, ocorrenciaId: string): string {
+  return `/api/rh/${empresaId}/disciplinar/${ocorrenciaId}/documento`;
+}
 
 type Ocorrencia = {
   id: string;
@@ -171,21 +189,38 @@ export function DisciplinarCard({
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                        {o.statusAssinatura === "PENDENTE" ? (
+                        <div className="flex items-center justify-end gap-1.5">
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => setModalAssinatura(o)}
                             className="h-7 text-xs"
+                            render={
+                              <a
+                                href={urlDocumento(empresaId, o.id)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              />
+                            }
                           >
-                            <FileSignature className="size-3.5 mr-1" />
-                            Assinar / Recusa
+                            <FileText className="size-3.5 mr-1" />
+                            Documento
                           </Button>
-                        ) : (
-                          <span className="text-[11px] text-muted-foreground">
-                            {o.dataAssinatura ? formatarData(o.dataAssinatura) : "Concluído"}
-                          </span>
-                        )}
+                          {o.statusAssinatura === "PENDENTE" ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setModalAssinatura(o)}
+                              className="h-7 text-xs"
+                            >
+                              <FileSignature className="size-3.5 mr-1" />
+                              Assinar / Recusa
+                            </Button>
+                          ) : (
+                            <span className="text-[11px] text-muted-foreground">
+                              {o.dataAssinatura ? formatarData(o.dataAssinatura) : "Concluído"}
+                            </span>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
@@ -222,17 +257,52 @@ function NovaOcorrenciaForm({
   onSuccess: () => void;
 }) {
   const [tipoSel, setTipoSel] = useState<string>("ADVERTENCIA_ESCRITA");
+  // Guardado para oferecer o documento logo depois de gravar: registrar a
+  // medida sem entregar o papel a ser assinado deixa o RH sem o que imprimir.
+  const [criadaId, setCriadaId] = useState<string | null>(null);
   const [state, formAction, isPending] = useActionState(
-    async (prev: ActionResult, fd: FormData) => {
+    async (prev: ResultadoOcorrencia, fd: FormData) => {
       const res = await criarOcorrenciaDisciplinar(empresaId, prev, fd);
       if (res.ok) {
-        toast.success("Ocorrência disciplinar registrada.");
-        onSuccess();
+        toast.success("Ocorrência registrada. Gere o documento para assinatura.");
+        setCriadaId(res.ocorrenciaId ?? null);
       }
       return res;
     },
     initialState,
   );
+
+  if (criadaId) {
+    return (
+      <div className="space-y-4">
+        <DialogHeader>
+          <DialogTitle>Documento pronto para assinatura</DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-muted-foreground">
+          A medida foi registrada no histórico do colaborador. Abra o documento formal, imprima em
+          duas vias (colaborador e empresa), colha a assinatura e depois registre o resultado em
+          &quot;Assinar / Recusa&quot;.
+        </p>
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={onSuccess}>
+            Fechar
+          </Button>
+          <Button
+            render={
+              <a
+                href={urlDocumento(empresaId, criadaId)}
+                target="_blank"
+                rel="noopener noreferrer"
+              />
+            }
+          >
+            <Printer className="size-4 mr-1.5" />
+            Abrir documento
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <form action={formAction} className="space-y-4">
@@ -387,9 +457,29 @@ function AssinaturaOuRecusaForm({
         </DialogTitle>
       </DialogHeader>
 
-      <div className="rounded-md border p-3 text-xs space-y-1 bg-muted/30">
-        <p className="font-semibold">{ocorrencia.tipo}</p>
-        <p className="text-muted-foreground">{ocorrencia.motivo}</p>
+      <div className="rounded-md border p-3 text-xs space-y-2 bg-muted/30">
+        <div>
+          <p className="font-semibold">
+            {TIPOS_OCORRENCIA_DISCIPLINAR.find((t) => t.value === ocorrencia.tipo)?.label ??
+              ocorrencia.tipo}
+          </p>
+          <p className="text-muted-foreground">{ocorrencia.motivo}</p>
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 text-xs"
+          render={
+            <a
+              href={urlDocumento(empresaId, ocorrencia.id)}
+              target="_blank"
+              rel="noopener noreferrer"
+            />
+          }
+        >
+          <Printer className="size-3.5 mr-1" />
+          Abrir documento para imprimir
+        </Button>
       </div>
 
       {!modoRecusa ? (
