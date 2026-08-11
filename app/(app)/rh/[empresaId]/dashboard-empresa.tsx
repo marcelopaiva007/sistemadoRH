@@ -50,11 +50,14 @@ export function DashboardEmpresa({ empresaId, resumo }: { empresaId: string; res
   return (
     // pt-1: o seletor de empresa da lateral é fixo (sticky top-14), então ao
     // rolar a página este título encostava nele sem folga nenhuma.
-    <section className="space-y-3 pt-1">
+    <section className="space-y-4 pt-1">
       <div className="flex items-baseline justify-between gap-4">
-        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-          Visão da empresa
-        </h2>
+        <div>
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+            Visão da empresa
+          </h2>
+          <p className="text-xs text-muted-foreground mt-1">Métricas principais de recursos humanos</p>
+        </div>
         <Link
           href={`/rh/${empresaId}/indicadores`}
           className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground hover:underline"
@@ -68,14 +71,14 @@ export function DashboardEmpresa({ empresaId, resumo }: { empresaId: string; res
         {cartoes.map((c) => {
           const Icone = c.icone;
           return (
-            <Card key={c.rotulo}>
-              <CardContent className="space-y-1 py-4">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Icone className="size-3.5" />
-                  {c.rotulo}
+            <Card key={c.rotulo} className="hover:shadow-md transition-shadow">
+              <CardContent className="space-y-2 py-5 px-4">
+                <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                  <Icone className="size-4 text-primary" />
+                  <span>{c.rotulo}</span>
                 </div>
-                <div className="text-2xl font-semibold tabular-nums">{c.valor}</div>
-                <p className={`text-xs ${c.alerta ? "text-warning" : "text-muted-foreground"}`}>
+                <div className="text-3xl font-bold text-foreground tabular-nums">{c.valor}</div>
+                <p className={`text-xs leading-relaxed ${c.alerta ? "text-warning font-medium" : "text-muted-foreground"}`}>
                   {c.apoio}
                 </p>
               </CardContent>
