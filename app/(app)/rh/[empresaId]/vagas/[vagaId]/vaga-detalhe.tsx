@@ -27,6 +27,7 @@ import {
 import { MIMES_ANEXO_ACEITOS, TIPOS_CONTRATO, tipoContratoLabel } from "@/lib/constants-dp";
 import { formatarData } from "@/lib/datas";
 import type { ActionResult } from "@/lib/constants";
+import { Trilha } from "@/components/trilha";
 
 const initialState: ActionResult = { ok: true };
 const classeSelect =
@@ -87,9 +88,7 @@ export function VagaDetalhe({
 
   return (
     <div className="space-y-6">
-      <Link href={`/rh/${empresaId}/vagas`} className="text-sm text-muted-foreground hover:underline">
-        ← Vagas
-      </Link>
+      <Trilha empresaId={empresaId} atual={vaga.titulo} />
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>

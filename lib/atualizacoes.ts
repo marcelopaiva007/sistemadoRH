@@ -26,6 +26,16 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.65.1",
+    data: "11/08/2026",
+    horario: "08:20",
+    titulo: "Trilha de navegação nas telas de detalhe",
+    itens: [
+      "As telas de dentro de uma pesquisa (dados, perguntas, convites, resultados e dashboard de clima) não tinham nenhum caminho de volta — só o botão do navegador. Agora mostram \"Início › Pesquisas de clima › nome da pesquisa\" no topo.",
+      "Na ficha do colaborador, no ciclo de avaliação, na competência de folha e na vaga, o antigo link \"← Módulo\" virou a mesma trilha, que além de voltar mostra de quem (ou de que) é o registro aberto.",
+    ],
+  },
+  {
     versao: "1.65.0",
     data: "11/08/2026",
     horario: "07:40",
