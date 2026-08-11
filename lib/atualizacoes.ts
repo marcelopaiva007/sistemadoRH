@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.70.1",
+    data: "11/08/2026",
+    horario: "20:40",
+    titulo: "Diretoria volta a conseguir gerar os relatórios em PDF",
+    itens: [
+      "Quem tem o papel Diretoria/Gestão recebia \"Sem acesso a esta empresa\" ao gerar o PDF das pesquisas — de clima e de NR-01 —, em qualquer empresa. Corrigido.",
+      "O mesmo bloqueio atingia o download de qualquer anexo do sistema (atestados, documentos do portal, currículos), a planilha modelo de importação e o CSV da folha. Todos liberados.",
+      "A causa era a mesma nas nove rotas envolvidas: cada uma decidia o acesso por conta própria, com cinco versões diferentes da regra, e as que falhavam não sabiam que Diretoria e Administrativo não têm vínculo empresa a empresa — o acesso deles é global. Agora todas usam a mesma verificação das telas.",
+    ],
+  },
+  {
     versao: "1.70.0",
     data: "11/08/2026",
     horario: "19:10",

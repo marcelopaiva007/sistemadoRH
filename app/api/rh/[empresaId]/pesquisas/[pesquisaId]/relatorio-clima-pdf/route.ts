@@ -2,8 +2,8 @@
 // Mesmo padrão do relatorio-pdf de NR-01.
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { usuarioAlcancaEmpresa } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
-import { empresasDaMesmaMarca } from "@/lib/escopo-marca";
 import { CONVITES_NA_PESQUISA } from "@/lib/pesquisa-numeros";
 import { gerarHtmlRelatorioClima } from "@/lib/clima-relatorio";
 import { calcularClima, compararCiclos, extrairEvolucao, gerarAnaliseExecutiva, type RespostaPrisma } from "@/lib/clima";
@@ -22,16 +22,12 @@ export async function GET(
   const user = session?.user;
   if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
 
-  // Verifica acesso: ADMIN, ou acesso direto, ou acesso via marca
-  if (user.role === "ADMIN") {
-    // ADMIN tem acesso a tudo
-  } else if (!user.empresas.some((e) => e.empresaId === empresaId && e.ativo)) {
-    // Sem acesso direto à empresa, verifica acesso por marca
-    const idsDaMarca = await empresasDaMesmaMarca(empresaId);
-    const temAcessoMarca = idsDaMarca.some(id => user.empresas.some(e => e.empresaId === id && e.ativo));
-    if (!temAcessoMarca) {
-      return NextResponse.json({ error: "Sem acesso a esta empresa." }, { status: 403 });
-    }
+  // Uma linha, uma regra: `usuarioAlcancaEmpresa` de lib/rh-auth-guard.ts, a
+  // MESMA que decide o acesso às páginas. Aqui havia uma checagem escrita à
+  // mão — cinco variantes diferentes conviviam em nove rotas, e duas delas
+  // esqueciam DIRETORIA, cujo pivô `UserEmpresa` é vazio por desenho.
+  if (!(await usuarioAlcancaEmpresa(user, empresaId))) {
+    return NextResponse.json({ error: "Sem acesso a esta empresa." }, { status: 403 });
   }
 
   const pesquisa = await prisma.pesquisa.findFirst({

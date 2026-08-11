@@ -7,6 +7,7 @@
 // CNPJ pelo vínculo de marca precisa conseguir abrir o documento.
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { usuarioAlcancaEmpresa } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
 import { empresasDaMesmaMarca } from "@/lib/escopo-marca";
 import { responderComHtmlRelatorio } from "@/lib/pdf-browser";
@@ -28,18 +29,18 @@ export async function GET(
   const user = session?.user;
   if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
 
-  const idsDaMarca = await empresasDaMesmaMarca(empresaId);
-
-  if (user.role === "ADMIN" || user.role === "DIRETORIA") {
-    // Papéis globais: acesso a qualquer CNPJ.
-  } else if (!user.empresas.some((e) => e.empresaId === empresaId && e.ativo)) {
-    const temAcessoMarca = idsDaMarca.some((id) =>
-      user.empresas.some((e) => e.empresaId === id && e.ativo),
-    );
-    if (!temAcessoMarca) {
-      return NextResponse.json({ error: "Sem acesso a esta empresa." }, { status: 403 });
-    }
+  // Uma linha, uma regra: `usuarioAlcancaEmpresa` de lib/rh-auth-guard.ts, a
+  // MESMA que decide o acesso às páginas. Aqui havia uma checagem escrita à
+  // mão — cinco variantes diferentes conviviam em nove rotas, e duas delas
+  // esqueciam DIRETORIA, cujo pivô `UserEmpresa` é vazio por desenho.
+  if (!(await usuarioAlcancaEmpresa(user, empresaId))) {
+    return NextResponse.json({ error: "Sem acesso a esta empresa." }, { status: 403 });
   }
+
+  // A ocorrência pode estar em outro CNPJ da MESMA marca — o RH abre a ficha
+  // pela marca, não CNPJ a CNPJ. Escopo de busca, não de autorização: quem
+  // pode entrar já foi decidido acima.
+  const idsDaMarca = await empresasDaMesmaMarca(empresaId);
 
   const ocorrencia = await prisma.ocorrenciaDisciplinar.findFirst({
     where: { id: ocorrenciaId, empresaId: { in: idsDaMarca } },
