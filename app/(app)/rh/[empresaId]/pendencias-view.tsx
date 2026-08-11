@@ -25,6 +25,7 @@ import {
   Users,
   Stethoscope,
   CircleDashed,
+  AlertCircle,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -267,6 +268,13 @@ export function PendenciasView({
         "Não recebem convite de pesquisa, lembrete nem acesso ao portal. A pessoa envia /start ao bot e compartilha o número.",
       href: comFiltro(`/rh/${empresaId}/colaboradores`, "lacuna=telegram"),
       icon: Send,
+    },
+    {
+      chave: "cadastrosIncompletos",
+      titulo: "Cadastros incompletos",
+      descricao: "Funcionários com dados faltando: CPF, contato, data de admissão, documentos, endereço ou banco.",
+      href: comFiltro(`/rh/${empresaId}/colaboradores`, "lacuna=incompleto"),
+      icon: AlertCircle,
     },
   ];
 
