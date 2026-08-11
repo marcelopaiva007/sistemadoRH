@@ -184,7 +184,7 @@ export async function virarPlanoDeAcaoDoSinal(
   // de conferir que o setor pertence mesmo à empresa do plano (o snapshot pode
   // ter envelhecido; setor apagado não pode derrubar a criação).
   let setorId: string | null = null;
-  if (sinal.nivelUnidade === "setor") {
+  if (sinal.nivelUnidade === "SETOR") {
     const setor = await prisma.setor.findFirst({
       where: { id: sinal.unidadeId, empresaId: empresaDoPlano },
       select: { id: true },

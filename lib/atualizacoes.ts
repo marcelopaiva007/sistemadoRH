@@ -26,6 +26,16 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.64.0",
+    data: "11/08/2026",
+    horario: "04:00",
+    titulo: "Fase 1 do Design System: início — padronização de enum e documentação",
+    itens: [
+      "Central de Sinais: gravidade e nível de unidade dos sinais passam a ser gravados em maiúsculo, alinhado ao resto do sistema (não muda nada na tela, só a forma como o dado é guardado).",
+      "Documentação técnica do banco de dados corrigida em 5 pontos que estavam desatualizados havia semanas.",
+    ],
+  },
+  {
     versao: "1.63.9",
     data: "11/08/2026",
     horario: "03:10",
