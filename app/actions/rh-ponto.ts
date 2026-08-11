@@ -6,6 +6,7 @@ import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { gerarConteudoAFD, gerarConteudoAEJ } from "@/lib/ponto-afdaej";
 
 export async function exportarArquivoAFDRH(empresaId: string) {
+  await requireEmpresaAccess(empresaId);
   const empresa = await prisma.empresa.findUnique({
     where: { id: empresaId },
     select: { nome: true, cnpj: true },
@@ -38,6 +39,7 @@ export async function exportarArquivoAFDRH(empresaId: string) {
 }
 
 export async function exportarArquivoAEJRH(empresaId: string) {
+  await requireEmpresaAccess(empresaId);
   const empresa = await prisma.empresa.findUnique({
     where: { id: empresaId },
     select: { nome: true, cnpj: true },
@@ -83,6 +85,7 @@ export type CriarJornadaInput = {
 };
 
 export async function criarJornadaTrabalho(input: CriarJornadaInput) {
+  await requireEmpresaAccess(input.empresaId);
   if (!input.nome || !input.entrada1 || !input.saida1) {
     return { erro: "Preencha todos os campos obrigatórios da jornada." };
   }
@@ -107,6 +110,7 @@ export async function criarJornadaTrabalho(input: CriarJornadaInput) {
 }
 
 export async function listarJornadasEmpresa(empresaId: string) {
+  await requireEmpresaAccess(empresaId);
   return prisma.jornadaTrabalho.findMany({
     where: { empresaId, ativo: true },
     orderBy: { nome: "asc" },
@@ -198,14 +202,21 @@ export async function decidirTratamentoPonto(input: {
 
   // O motivo da rejeição entra no MESMO campo `motivo`, marcado — o model não
   // tem coluna própria para a decisão, e perder o porquê da recusa seria pior
-  // que a costura ficar visível no texto.
+  // que a costura ficar visível no texto. (A coluna própria depende de
+  // migration; ver o comentário no fim deste arquivo.)
   const motivo =
     input.decisao === "REJEITADO"
       ? `${atual.motivo}\n\n[Rejeitado por ${usuario?.name ?? "RH"}] ${input.motivoDecisao!.trim()}`
       : atual.motivo;
 
-  const tratamento = await prisma.tratamentoPonto.update({
-    where: { id: atual.id },
+  // updateMany com `status: "PENDENTE"` no WHERE, não update por id: entre o
+  // findFirst acima e a escrita existe uma janela em que OUTRA pessoa decide o
+  // mesmo tratamento. Com update por id, as duas passariam pela checagem e a
+  // última escreveria por cima — apagando do banco o motivo da rejeição da
+  // primeira e registrando como aprovado o que alguém rejeitou. O WHERE faz o
+  // próprio banco arbitrar: só a primeira encontra a linha pendente.
+  const { count } = await prisma.tratamentoPonto.updateMany({
+    where: { id: atual.id, empresaId: input.empresaId, status: "PENDENTE" },
     data: {
       status: input.decisao,
       motivo,
@@ -214,9 +225,12 @@ export async function decidirTratamentoPonto(input: {
       aprovadoEm: new Date(),
     },
   });
+  if (count === 0) {
+    return { erro: "Alguém decidiu este tratamento antes de você. Recarregue a tela." };
+  }
 
   revalidatePath(`/rh/${input.empresaId}/ponto`);
-  return { sucesso: true, tratamento };
+  return { sucesso: true };
 }
 
 /**
@@ -224,6 +238,7 @@ export async function decidirTratamentoPonto(input: {
  * inclusive aprovados e rejeitados, desde que foi escrita.
  */
 export async function listarTratamentosPendentesRH(empresaId: string) {
+  await requireEmpresaAccess(empresaId);
   return prisma.tratamentoPonto.findMany({
     where: { empresaId, status: "PENDENTE" },
     orderBy: { createdAt: "desc" },
