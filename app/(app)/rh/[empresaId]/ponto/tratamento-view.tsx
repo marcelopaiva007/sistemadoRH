@@ -1,14 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { FileEdit, ShieldAlert, CheckCircle2, XCircle, Search, User } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { FileEdit, ShieldAlert, CheckCircle2, XCircle, Clock3 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { registrarTratamentoPonto } from "@/app/actions/rh-ponto";
+import { registrarTratamentoPonto, decidirTratamentoPonto } from "@/app/actions/rh-ponto";
+import { dataDoFormulario, formatarData } from "@/lib/datas";
 
 export type TratamentoItem = {
   id: string;
@@ -24,10 +26,41 @@ export type TratamentoItem = {
   };
 };
 
-export function TratamentoView({ empresaId, tratamentos }: { empresaId: string; tratamentos: TratamentoItem[] }) {
+/** Rótulo legível do tipo de tratamento — usado pelo formulário e pela linha. */
+function tipoLabel(tipo: string) {
+  switch (tipo) {
+    case "INCLUSAO_MANUAL":
+      return "Inclusão Manual";
+    case "ABONO_ATESTADO":
+      return "Abono p/ Atestado Médico";
+    case "JUSTIFICATIVA":
+      return "Justificativa de Ausência";
+    case "CORRECAO":
+      return "Correção de Marcação";
+    default:
+      return tipo;
+  }
+}
+
+export type OpcaoColaborador = { id: string; nome: string; ativo: boolean };
+
+export function TratamentoView({
+  empresaId,
+  tratamentos,
+  colaboradores,
+}: {
+  empresaId: string;
+  tratamentos: TratamentoItem[];
+  colaboradores: OpcaoColaborador[];
+}) {
+  const router = useRouter();
   const [modalAberta, setModalAberta] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [erro, setErro] = useState<string | null>(null);
+  // Só o erro do FORMULÁRIO mora aqui; o da decisão vive dentro de cada
+  // LinhaTratamento. Enquanto os dois dividiam um estado só no pai, o erro de
+  // aprovar caía num elemento que só existe dentro do diálogo de criação —
+  // invisível — e reaparecia depois num formulário em branco.
+  const [erroForm, setErroForm] = useState<string | null>(null);
 
   const [colaboradorId, setColaboradorId] = useState("");
   const [dataFato, setDataFato] = useState("");
@@ -37,41 +70,43 @@ export function TratamentoView({ empresaId, tratamentos }: { empresaId: string; 
   const handleSalvarTratamento = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setErro(null);
+    setErroForm(null);
 
-    const res = await registrarTratamentoPonto({
-      empresaId,
-      colaboradorId,
-      dataFato: new Date(dataFato),
-      tipo,
-      motivo,
-      aprovadoPorId: "rh-admin",
-      aprovadoPorNome: "Gestor de RH",
-    });
+    // try/finally: sem ele, uma exceção na action (queda de conexão, pool
+    // esgotado) deixaria o botão em "Registrando..." para sempre, sem erro na
+    // tela e só resolvido com F5.
+    try {
+      const res = await registrarTratamentoPonto({
+        empresaId,
+        colaboradorId,
+        // dataDoFormulario e não `new Date(str)`: a string "2026-08-11" do
+        // <input type="date"> é interpretada como meia-noite UTC, e o dia da
+        // ocorrência é justamente o dado com peso legal aqui. Ver lib/datas.ts.
+        dataFato: dataDoFormulario(dataFato)!,
+        tipo,
+        motivo,
+      });
 
-    if (res.erro) {
-      setErro(res.erro);
-    } else {
-      setModalAberta(false);
-      setMotivo("");
+      if (res.erro) {
+        setErroForm(res.erro);
+      } else {
+        setModalAberta(false);
+        setMotivo("");
+        setColaboradorId("");
+        setDataFato("");
+        // Sem isto a lista abaixo continua mostrando o estado antigo: o
+        // revalidatePath da action limpa o cache do servidor, mas este
+        // componente é cliente e segue com as props que já tinha (mesma causa
+        // do defeito da ficha corrigido em v1.63.6).
+        router.refresh();
+      }
+    } catch {
+      setErroForm("Não foi possível registrar agora. Tente de novo.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
-  const tipoLabel = (tipo: string) => {
-    switch (tipo) {
-      case "INCLUSAO_MANUAL":
-        return "Inclusão Manual";
-      case "ABONO_ATESTADO":
-        return "Abono p/ Atestado Médico";
-      case "JUSTIFICATIVA":
-        return "Justificativa de Ausência";
-      case "CORRECAO":
-        return "Correção de Marcação";
-      default:
-        return tipo;
-    }
-  };
 
   return (
     <div className="space-y-4">
@@ -82,7 +117,16 @@ export function TratamentoView({ empresaId, tratamentos }: { empresaId: string; 
             Ajustes e abonos legais conforme a Portaria MTP 671/2021. Registros de batidas originais são preservados.
           </p>
         </div>
-        <Button size="sm" onClick={() => setModalAberta(true)} className="gap-1 text-xs">
+        <Button
+          size="sm"
+          // Limpa o que sobrou da tentativa anterior: sem isto o diálogo
+          // reabria com o erro antigo por cima de um formulário em branco.
+          onClick={() => {
+            setErroForm(null);
+            setModalAberta(true);
+          }}
+          className="gap-1 text-xs"
+        >
           <FileEdit className="w-4 h-4" /> Novo Ajuste / Abono
         </Button>
       </div>
@@ -91,23 +135,45 @@ export function TratamentoView({ empresaId, tratamentos }: { empresaId: string; 
         <Card className="border-primary/50 shadow-md">
           <CardHeader className="py-3">
             <CardTitle className="text-sm">Registrar Tratamento de Ponto (PTRP)</CardTitle>
+            {/* Este texto já mentiu duas vezes: dizia "assinado digitalmente
+                pelo RH" quando o aprovador gravado era a string fixa "Gestor de
+                RH", e depois prometeu que o ajuste "só vale depois de aprovado"
+                — nada no sistema lê o status ainda. Descreve só o que de fato
+                acontece. (Quem pediu passou a ser registrado de verdade, na
+                trilha do AuditLog — ver registrarTratamentoPonto.) */}
             <CardDescription className="text-xs">
-              Todo ajuste fica auditado e assinado digitalmente pelo RH com justificativa explícita.
+              O ajuste entra como pendente e precisa de decisão. Ficam registrados quem decidiu,
+              quando e a justificativa — as batidas originais nunca são alteradas.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSalvarTratamento} className="space-y-3">
-              {erro && <div className="text-xs text-destructive bg-destructive/10 p-2 rounded">{erro}</div>}
+              {erroForm && (
+                <div className="rounded bg-destructive/10 p-2 text-xs text-destructive">{erroForm}</div>
+              )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <Label className="text-xs">ID do Colaborador</Label>
-                  <Input
-                    placeholder="Cole ou selecione o ID do funcionário"
+                  <Label className="text-xs" required>
+                    Colaborador
+                  </Label>
+                  {/* Era um campo de texto pedindo "cole o ID do funcionário".
+                      Ninguém sabe o id de ninguém: ou se abria outra aba para
+                      copiar, ou se digitava errado e o ajuste ia para o ponto
+                      de outra pessoa. A lista já vem carregada na página. */}
+                  <select
                     value={colaboradorId}
                     onChange={(e) => setColaboradorId(e.target.value)}
-                    className="h-8 text-xs mt-1"
+                    className="mt-1 h-8 w-full rounded-md border bg-background px-2 text-xs"
                     required
-                  />
+                  >
+                    <option value="">Selecione…</option>
+                    {colaboradores.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.nome}
+                        {c.ativo ? "" : " (desligado)"}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <Label className="text-xs">Data da Ocorrência / Fato</Label>
@@ -126,7 +192,7 @@ export function TratamentoView({ empresaId, tratamentos }: { empresaId: string; 
                   <Label className="text-xs">Tipo de Tratamento Legal</Label>
                   <select
                     value={tipo}
-                    onChange={(e: any) => setTipo(e.target.value)}
+                    onChange={(e) => setTipo(e.target.value as typeof tipo)}
                     className="w-full h-8 text-xs mt-1 border rounded-md px-2 bg-background"
                   >
                     <option value="INCLUSAO_MANUAL">Inclusão Manual (Esquecimento)</option>
@@ -149,7 +215,16 @@ export function TratamentoView({ empresaId, tratamentos }: { empresaId: string; 
               </div>
 
               <div className="flex justify-end gap-2 pt-2">
-                <Button type="button" variant="outline" size="sm" onClick={() => setModalAberta(false)} className="text-xs">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setModalAberta(false);
+                    setErroForm(null);
+                  }}
+                  className="text-xs"
+                >
                   Cancelar
                 </Button>
                 <Button type="submit" size="sm" disabled={loading} className="text-xs">
@@ -175,29 +250,180 @@ export function TratamentoView({ empresaId, tratamentos }: { empresaId: string; 
               <p className="text-xs text-muted-foreground text-center py-6">Nenhum tratamento ou ajuste realizado no período.</p>
             ) : (
               tratamentos.map((t) => (
-                <div key={t.id} className="p-3 flex items-center justify-between hover:bg-muted/30 transition-colors">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-foreground">{t.colaborador.nome}</span>
-                      <Badge variant="outline" className="text-[10px]">{tipoLabel(t.tipo)}</Badge>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {t.colaborador.setor.nome} · Data: {new Date(t.dataFato).toLocaleDateString("pt-BR")}
-                    </p>
-                    <p className="text-xs text-foreground italic">"{t.motivo}"</p>
-                  </div>
-                  <div className="text-right text-xs text-muted-foreground">
-                    <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Aprovado
-                    </span>
-                    <span className="text-[10px] block mt-0.5">Por: {t.aprovadoPorNome || "RH"}</span>
-                  </div>
-                </div>
+                <LinhaTratamento key={t.id} empresaId={empresaId} tratamento={t} />
               ))
             )}
           </div>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+/**
+ * Uma linha do histórico, com o estado da decisão DENTRO dela.
+ *
+ * A primeira versão guardava `decidindo`, `rejeitando`, `motivoRejeicao` e
+ * `erroDecisao` no componente pai, um de cada para N linhas. O resultado:
+ * o erro de uma decisão aparecia em todas as OUTRAS linhas e não na que foi
+ * clicada, e decidir duas linhas em sequência reabilitava a primeira com a
+ * segunda ainda em voo. Estado por linha elimina os dois — é a mesma forma do
+ * ItemAprovacao da Central de Aprovações.
+ */
+function LinhaTratamento({
+  empresaId,
+  tratamento: t,
+}: {
+  empresaId: string;
+  tratamento: TratamentoItem;
+}) {
+  const router = useRouter();
+  const [enviando, setEnviando] = useState(false);
+  const [pedindoMotivo, setPedindoMotivo] = useState(false);
+  const [motivoRejeicao, setMotivoRejeicao] = useState("");
+  const [erro, setErro] = useState<string | null>(null);
+
+  const decidir = async (decisao: "APROVADO" | "REJEITADO") => {
+    setEnviando(true);
+    setErro(null);
+    try {
+      const res = await decidirTratamentoPonto({
+        empresaId,
+        tratamentoId: t.id,
+        decisao,
+        motivoDecisao: decisao === "REJEITADO" ? motivoRejeicao : undefined,
+      });
+      if (res.erro) {
+        setErro(res.erro);
+        // Atualiza mesmo em erro: o caso comum é "alguém decidiu antes de
+        // você", e a linha precisa parar de se anunciar como pendente.
+        router.refresh();
+      } else {
+        setPedindoMotivo(false);
+        setMotivoRejeicao("");
+        router.refresh();
+      }
+    } catch {
+      setErro("Não foi possível registrar a decisão agora. Tente de novo.");
+    } finally {
+      setEnviando(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center justify-between p-3 transition-colors hover:bg-muted/30">
+      <div className="space-y-1">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold text-foreground">{t.colaborador.nome}</span>
+          <Badge variant="outline" className="text-[10px]">
+            {tipoLabel(t.tipo)}
+          </Badge>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {/* formatarData (UTC) e não toLocaleDateString: a data é gravada como
+              meia-noite UTC, e no fuso do Brasil o formatador local exibiria o
+              DIA ANTERIOR — no campo que diz quando a ocorrência aconteceu. */}
+          {t.colaborador.setor.nome} · Data: {formatarData(new Date(t.dataFato))}
+        </p>
+        {/* whitespace-pre-line: o motivo da rejeição é anexado ao texto
+            original com quebra de linha (ver decidirTratamentoPonto). */}
+        <p className="text-xs whitespace-pre-line text-foreground italic">
+          &ldquo;{t.motivo}&rdquo;
+        </p>
+      </div>
+
+      {/* Antes esta coluna escrevia "Aprovado · Por: RH" em TODA linha,
+          ignorando t.status. Num histórico que existe para auditoria, afirmar
+          aprovação sobre o que não foi aprovado é o pior defeito possível. */}
+      <div className="shrink-0 text-right text-xs text-muted-foreground">
+        {t.status === "APROVADO" && (
+          <>
+            <span className="flex items-center justify-end gap-1 font-semibold text-emerald-600 dark:text-emerald-400">
+              <CheckCircle2 className="h-3.5 w-3.5" /> Aprovado
+            </span>
+            <span className="mt-0.5 block text-[10px]">Por: {t.aprovadoPorNome ?? "—"}</span>
+          </>
+        )}
+        {t.status === "REJEITADO" && (
+          <>
+            <span className="flex items-center justify-end gap-1 font-semibold text-destructive">
+              <XCircle className="h-3.5 w-3.5" /> Rejeitado
+            </span>
+            <span className="mt-0.5 block text-[10px]">Por: {t.aprovadoPorNome ?? "—"}</span>
+          </>
+        )}
+        {t.status === "PENDENTE" && (
+          <div className="flex w-56 flex-col items-end gap-1.5">
+            <span className="flex items-center gap-1 font-semibold text-warning">
+              <Clock3 className="h-3.5 w-3.5" /> Aguardando decisão
+            </span>
+
+            {/* Campo inline em vez de window.prompt: o prompt some de vez se a
+                pessoa marcar "impedir novos diálogos" no navegador, e aí o
+                botão Rejeitar fica calado para sempre. */}
+            {pedindoMotivo ? (
+              <>
+                <Textarea
+                  autoFocus
+                  value={motivoRejeicao}
+                  onChange={(e) => setMotivoRejeicao(e.target.value)}
+                  placeholder="Por que está sendo rejeitado?"
+                  className="min-h-[52px] w-full text-xs"
+                />
+                <div className="flex gap-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-6 px-2 text-[11px]"
+                    onClick={() => {
+                      setPedindoMotivo(false);
+                      setMotivoRejeicao("");
+                      setErro(null);
+                    }}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    className="h-6 px-2 text-[11px]"
+                    disabled={enviando || motivoRejeicao.trim().length < 5}
+                    onClick={() => decidir("REJEITADO")}
+                  >
+                    {enviando ? "..." : "Confirmar rejeição"}
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <div className="flex gap-1">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-6 px-2 text-[11px]"
+                  disabled={enviando}
+                  onClick={() => {
+                    setPedindoMotivo(true);
+                    setErro(null);
+                  }}
+                >
+                  Rejeitar
+                </Button>
+                <Button
+                  size="sm"
+                  className="h-6 px-2 text-[11px]"
+                  disabled={enviando}
+                  onClick={() => decidir("APROVADO")}
+                >
+                  {enviando ? "..." : "Aprovar"}
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* O erro mora na PRÓPRIA linha decidida. */}
+        {erro && <p className="mt-1 text-right text-[11px] text-destructive">{erro}</p>}
+      </div>
     </div>
   );
 }

@@ -15,7 +15,7 @@ export default async function PontoEletronicoPage({
   const { empresaId } = await params;
 
   // Buscar empresa e jornadas
-  const [empresa, jornadas, colaboradores, tratamentos] = await Promise.all([
+  const [empresa, jornadas, colaboradores, pendentes, historico, paraSelecao] = await Promise.all([
     prisma.empresa.findUnique({
       where: { id: empresaId },
       select: { id: true, nome: true },
@@ -41,8 +41,26 @@ export default async function PontoEletronicoPage({
         },
       },
     }),
+    // Duas consultas, não uma com `take`: os PENDENTES vêm inteiros, porque
+    // desde 11/08/2026 é nesta lista que se aprova ou rejeita — com o corte de
+    // 20 que existia aqui, um ajuste que passasse dessa posição ficaria sem
+    // nenhuma tela onde decidir. O corte continua valendo para o histórico já
+    // decidido, que é só leitura.
     prisma.tratamentoPonto.findMany({
-      where: { empresaId },
+      where: { empresaId, status: "PENDENTE" },
+      orderBy: { createdAt: "desc" },
+      include: {
+        colaborador: {
+          select: {
+            nome: true,
+            setor: { select: { nome: true } },
+            posicao: { select: { nome: true } },
+          },
+        },
+      },
+    }),
+    prisma.tratamentoPonto.findMany({
+      where: { empresaId, status: { not: "PENDENTE" } },
       orderBy: { createdAt: "desc" },
       take: 20,
       include: {
@@ -54,6 +72,14 @@ export default async function PontoEletronicoPage({
           },
         },
       },
+    }),
+    // Para o seletor do formulário: inclui DESLIGADOS. O ajuste de ponto de
+    // quem saiu é justamente o que se faz durante o cálculo da rescisão — com
+    // a lista só de ativos, esse caso ficava sem caminho na tela.
+    prisma.colaborador.findMany({
+      where: { empresaId },
+      orderBy: [{ ativo: "desc" }, { nome: "asc" }],
+      select: { id: true, nome: true, ativo: true },
     }),
   ]);
 
@@ -128,7 +154,12 @@ export default async function PontoEletronicoPage({
         </TabsContent>
 
         <TabsContent value="tratamento" className="pt-4">
-          <TratamentoView empresaId={empresaId} tratamentos={tratamentos} />
+          <TratamentoView
+            empresaId={empresaId}
+            // Pendentes primeiro e sempre: são os que exigem ação.
+            tratamentos={[...pendentes, ...historico]}
+            colaboradores={paraSelecao}
+          />
         </TabsContent>
 
         <TabsContent value="escalas" className="pt-4">

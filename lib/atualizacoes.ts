@@ -26,6 +26,30 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    // Duas entregas do mesmo dia (1.66.0 e 1.66.2, ambas de Ponto) consolidadas
+    // aqui: nenhuma das duas chegou a ser publicada com esse número, porque a
+    // linha `master` foi para 1.67.0 antes. Numerar por 1.66.x deixaria a
+    // etiqueta da tela mostrando 1.68.0 e esta lista começando em 1.66.2 — o
+    // usuário procuraria a versão que está vendo e não a encontraria.
+    versao: "1.68.0",
+    data: "11/08/2026",
+    horario: "13:30",
+    titulo: "Ponto: ajustes do PTRP passam a ter aprovação de verdade",
+    itens: [
+      "Segurança: exportar os arquivos fiscais (AFD/AEJ) e criar jornadas passam a exigir acesso à empresa. Antes, essas operações não conferiam permissão — quem estivesse logado podia baixar o histórico de batidas e o CPF de colaboradores de qualquer empresa informando o código dela.",
+      "Todo ajuste ou abono de ponto entra como PENDENTE e precisa ser aprovado ou rejeitado — antes já nascia aprovado, no mesmo clique de quem o registrava.",
+      "Quem aprova ou rejeita fica registrado com o nome de quem está logado. Até agora o sistema gravava sempre \"Gestor de RH\", um texto fixo que não correspondia a pessoa nenhuma — e a tela dizia que o ajuste era assinado digitalmente.",
+      "O histórico passa a mostrar a situação real de cada ajuste (pendente, aprovado ou rejeitado). Antes todos apareciam como \"Aprovado\", independentemente do que estivesse gravado.",
+      "Rejeitar exige escrever o motivo, num campo que abre na própria tela, e o aviso de erro aparece na própria linha em que se clicou.",
+      "Duas pessoas decidindo o mesmo ajuste ao mesmo tempo não apagam mais a decisão uma da outra: quem chega depois recebe um aviso para recarregar.",
+      "Ajustes pendentes não ficam mais presos: a lista de pendentes deixou de ter limite de 20 itens — o limite valia também para o que ainda precisava de decisão.",
+      "Quem pediu o ajuste passa a ficar registrado na trilha de auditoria, e as aprovações e rejeições de ponto aparecem em \"Decisões recentes\" na Central de Aprovações — antes só férias e ausências apareciam ali.",
+      "Ao lançar um ajuste, o colaborador agora é escolhido numa lista — antes era preciso colar o código interno dele.",
+      "A data da ocorrência aparecia um dia antes do informado, por causa do fuso horário. Corrigido.",
+      "Colaboradores desligados voltam a aparecer na lista de ajuste — é durante a rescisão que a correção de ponto costuma ser feita.",
+    ],
+  },
+  {
     // Publicada em produção como v1.64.0 por volta das 09h30 e renumerada para
     // 1.67.0 na mesma manhã: a linha `main` já tinha usado 1.64.0 a 1.65.1 para
     // outras entregas, e dois números iguais na etiqueta da tela quebram a
