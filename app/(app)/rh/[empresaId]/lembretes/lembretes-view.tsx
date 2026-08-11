@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Clock, Plus, X } from "lucide-react";
+import { Clock, Play, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +14,7 @@ import {
   alternarHorarioLembrete,
   removerHorarioLembrete,
 } from "@/lib/actions/rh-lembretes";
+import { rodarCobrancaAgora } from "@/lib/actions/rh-cobranca-cadastro";
 import type { ChaveLembrete } from "@/lib/cron-horario";
 
 type Lembrete = {
@@ -198,7 +199,78 @@ function CartaoLembrete({
             </Button>
           </form>
         )}
+
+        {/* Só a cobrança de cadastro tem disparo manual por enquanto. Os outros
+            crons continuam sem: convite e lembrete de pesquisa dependem de uma
+            campanha aberta e já têm botão na tela da própria pesquisa, e
+            alertas-rh/lembrete-portal não têm quem peça "roda agora". */}
+        {podeConfigurar && lembrete.chave === "cobranca-cadastro" && (
+          <RodarCobrancaAgora empresaId={empresaId} />
+        )}
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * Dispara a rodada inteira fora do horário.
+ *
+ * RESPEITA as regras de sempre — só cobra quem está na vez, dentro do teto.
+ * Não é o botão da ficha do colaborador, que ignora as travas de propósito:
+ * aquilo é decisão sobre uma pessoa; isto é antecipar o relógio da campanha, e
+ * furar as travas aqui atropelaria a cadência de todo mundo de uma vez.
+ */
+function RodarCobrancaAgora({ empresaId }: { empresaId: string }) {
+  const [confirmando, setConfirmando] = useState(false);
+  const [rodando, setRodando] = useState(false);
+
+  async function confirmar() {
+    setRodando(true);
+    const r = await rodarCobrancaAgora(empresaId);
+    setRodando(false);
+    setConfirmando(false);
+
+    if (!r.ok) {
+      toast.error(r.error);
+      return;
+    }
+    if (r.enviados === 0) {
+      // Zero é resultado legítimo e o mais provável fora da janela: ninguém
+      // está na vez. Dizer "0 enviadas" sem explicar pareceria falha.
+      toast.info(
+        `Ninguém estava na vez agora — ${r.aguardandoPrazo} dentro do intervalo, ${r.esgotados} já sem rodada.`,
+        { duration: 8000 },
+      );
+      return;
+    }
+    toast.success(
+      `${r.enviados} pessoa(s) cobrada(s) — ${r.porTelegram} por Telegram, ${r.porEmail} por e-mail.`,
+      { duration: 8000 },
+    );
+  }
+
+  if (confirmando) {
+    return (
+      <div className="flex flex-wrap items-center gap-2 border-t pt-3">
+        <span className="text-xs text-muted-foreground">
+          Rodar agora? Manda para todos que estiverem na vez, sem esperar o horário.
+        </span>
+        <Button size="sm" disabled={rodando} onClick={confirmar}>
+          {rodando ? "Rodando..." : "Confirmar"}
+        </Button>
+        <Button size="sm" variant="ghost" disabled={rodando} onClick={() => setConfirmando(false)}>
+          Cancelar
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="border-t pt-3">
+      <Button size="sm" variant="outline" onClick={() => setConfirmando(true)}>
+        <Play className="size-3.5" />
+        Rodar agora
+      </Button>
+    </div>
   );
 }

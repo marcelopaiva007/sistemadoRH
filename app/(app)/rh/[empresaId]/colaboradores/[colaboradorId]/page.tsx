@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { calcularFerias } from "@/lib/ferias";
 import { conformidadeDoColaborador, situacaoDoExame } from "@/lib/conformidade";
 import { pendenciasDaAdmissao } from "@/lib/admissao";
+import { faltasNaFicha, documentosFaltando } from "@/lib/cobranca-cadastro-colaborador";
 import { opcoesDoCatalogo } from "@/lib/catalogos";
 import { ColaboradorDetalhe } from "./colaborador-detalhe";
 import { Trilha } from "@/components/trilha";
@@ -319,6 +320,14 @@ export default async function ColaboradorPage({
     }),
   ]);
 
+  // O que a cobrança de cadastro pediria a esta pessoa se saísse agora — a
+  // MESMA regra do cron (lib/cobranca-cadastro-colaborador.ts), para a ficha
+  // não prometer uma lista e a mensagem mandar outra.
+  const cobrancaCadastro = {
+    faltas: [...faltasNaFicha(colaborador), ...documentosFaltando(documentos.map((d) => d.tipo))],
+    temCanal: Boolean(colaborador.telegramChatId || colaborador.email),
+  };
+
   const admissao = candidaturaDeOrigem
     ? {
         vaga: candidaturaDeOrigem.vaga,
@@ -371,6 +380,7 @@ export default async function ColaboradorPage({
         participacoesTreinamento={participacoesTreinamento}
         treinamentosAtivos={treinamentosAtivos}
         admissao={admissao}
+        cobrancaCadastro={cobrancaCadastro}
         checklistIntegracao={checklistIntegracao}
         ocorrenciasDisciplinares={ocorrenciasDisciplinares}
       />
