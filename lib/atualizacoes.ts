@@ -26,6 +26,19 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.75.0",
+    data: "12/08/2026",
+    horario: "00:20",
+    titulo: "Avisos automáticos ao gestor (ainda desligados)",
+    itens: [
+      "O sistema passa a saber montar, para cada gestor, um aviso pelo Telegram sobre o time dele: contrato de experiência vencendo, férias a vencer ou já vencidas, e hora extra acima do limite do mês.",
+      "Só entra o que o gestor decide. Nada de CPF faltando ou dado bancário — isso é assunto do DP, e aviso que o gestor não resolve ensina a ignorar os que ele resolve.",
+      "O mesmo assunto sobre a mesma pessoa não se repete antes de 7 dias, para o aviso não virar ruído.",
+      "IMPORTANTE: nada é enviado ainda. O disparo automático está desligado de propósito — primeiro é preciso rodar a simulação, que mostra exatamente as mensagens que sairiam, e conferir uma a uma. Mensagem enviada não volta.",
+      "Quem lidera é quem tem outras pessoas apontando para si como supervisor na ficha — a mesma definição que o portal já usa em \"Meu time\". Gestor sem Telegram vinculado não recebe, e continua aparecendo na pendência do RH.",
+    ],
+  },
+  {
     versao: "1.74.0",
     data: "11/08/2026",
     horario: "23:30",

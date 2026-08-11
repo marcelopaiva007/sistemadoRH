@@ -23,6 +23,12 @@ export const LEMBRETES_CONFIGURAVEIS = {
   // A frequência de cada pessoa (duas vezes por semana) NÃO se ajusta aqui: o
   // horário diz a que horas o cron olha a base, e quem decide se hoje é a vez
   // de fulano é DIAS_ENTRE_COBRANCAS, em lib/cobranca-cadastro-colaborador.ts.
+  //
+  // Às 08:00 de propósito: o gestor lê antes de a operação começar. Avisado no
+  // meio da tarde, ele adia para o dia seguinte — e o que este aviso cobre tem
+  // data fatal. A rota existe mas AINDA NÃO está em vercel.json: ver o
+  // comentário em app/api/cron/avisos-gestor/route.ts.
+  "avisos-gestor": { label: "Avisos ao gestor sobre o time", padroes: ["08:00"] },
 } as const;
 
 export type ChaveLembrete = keyof typeof LEMBRETES_CONFIGURAVEIS;

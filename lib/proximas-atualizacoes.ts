@@ -62,16 +62,18 @@ export const PROXIMAS_ATUALIZACOES: ProximaAtualizacao[] = [
     bloqueio: "Depende de saber qual sistema de folha o escritório usa e se ele aceita integração.",
   },
   {
-    titulo: "Avisos em tempo real para o gestor",
+    titulo: "Avisos automáticos para o gestor",
     descricao:
-      "Alerta na hora quando algo sai do previsto — falta não justificada, hora extra acima do limite, atestado vencendo — em vez de aparecer só quando alguém abre a tela.",
-    situacao: "PRONTO_PARA_COMECAR",
+      "O gestor recebe, pelo Telegram, o que sai do previsto no time dele — contrato de experiência vencendo, férias a vencer, hora extra acima do limite — em vez de depender de alguém abrir a tela e reparar.",
+    situacao: "EM_ANDAMENTO",
   },
   {
     titulo: "Painel próprio do gestor de setor",
     descricao:
       "Uma tela com o time da pessoa e o que ela precisa decidir, sem passar pelos módulos do RH inteiro.",
-    situacao: "PRONTO_PARA_COMECAR",
+    situacao: "AGUARDANDO_DECISAO",
+    bloqueio:
+      "Hoje o gestor entra pelo portal, como colaborador, e vê a equipe por quem tem ele como supervisor. Não existe login com papel de gestor: o cadastro de usuários e o de colaboradores não são ligados entre si. Uma tela nova exigiria decidir se cada gestor ganha login próprio e como esse login se liga à ficha dele — antes disso, a tela nasceria sem ninguém para abri-la.",
   },
   {
     titulo: "Vídeos curtos de treinamento",

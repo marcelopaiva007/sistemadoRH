@@ -1,6 +1,6 @@
 {
   "name": "sistema-rh",
-  "version": "1.74.0",
+  "version": "1.75.0",
   "private": true,
   "scripts": {
     "// ━━━━━━━━━━━━━━━━ DESENVOLVIMENTO ━━━━━━━━━━━━━━━━": "",
@@ -66,7 +66,8 @@
     "smoke:folha": "tsx scripts/smoke-folha.ts",
     "smoke:pendencias": "tsx scripts/smoke-pendencias.ts",
     "smoke:cobranca-cadastro": "tsx scripts/smoke-cobranca-cadastro.ts",
-    "smoke:login": "tsx scripts/smoke-login.ts"
+    "smoke:login": "tsx scripts/smoke-login.ts",
+    "simular:avisos-gestor": "tsx scripts/simular-avisos-gestor.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",
