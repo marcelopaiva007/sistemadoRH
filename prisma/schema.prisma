@@ -453,6 +453,7 @@ model Colaborador {
   registrosPonto           RegistroPonto[]
   tratamentosPonto         TratamentoPonto[]
   bancosHoras              BancoHoras[]
+  cobrancasCadastro        CobrancaCadastro[]
 
   @@unique([empresaId, cpf])
   @@unique([telegramChatId])
@@ -1484,6 +1485,30 @@ model MensagemPortal {
 
   @@index([empresaId, respondidaEm])
   @@index([colaboradorId])
+  @@schema("rh")
+}
+
+// Uma linha por cobrança de cadastro enviada ao colaborador pelo Telegram
+// (lib/cobranca-cadastro-colaborador.ts). É o relógio da cadência: sem ela o
+// cron não sabe quem já foi cobrado e mandaria a mesma mensagem todo dia.
+//
+// Histórico, não estado: linha por envio em vez de dois campos na ficha
+// ("últimaCobrançaEm", "rodadas"). Quando o colaborador reclamar que "o RH
+// nunca me avisou", o que responde é a lista do que foi pedido e quando —
+// `itens` guarda exatamente o que estava faltando naquele dia.
+model CobrancaCadastro {
+  id            String      @id @default(cuid())
+  colaboradorId String
+  colaborador   Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  empresaId     String
+  /// 1ª, 2ª… cobrança desta pessoa. Para em MAX_COBRANCAS.
+  rodada        Int
+  /// O que faltava no momento do envio, nos mesmos rótulos que a pessoa leu.
+  itens         String
+  enviadaEm     DateTime    @default(now())
+
+  @@index([colaboradorId, enviadaEm])
+  @@index([empresaId, enviadaEm])
   @@schema("rh")
 }
 
