@@ -26,6 +26,18 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.70.0",
+    data: "11/08/2026",
+    horario: "19:10",
+    titulo: "Ajustes de ponto entram na Central de Aprovações",
+    itens: [
+      "Os ajustes de ponto pendentes agora aparecem na Central de Aprovações, junto com férias, ausências e documentos — e podem ser aprovados ou rejeitados ali mesmo. Antes só existiam dentro da aba Tratamento do módulo Ponto, e a Central dizia reunir \"tudo que espera decisão\" sem incluí-los.",
+      "O motivo da rejeição passa a ficar em campo próprio, separado do texto de quem pediu o ajuste. Até agora ele era colado dentro da justificativa do solicitante, o que reescrevia o pedido original a cada recusa — num registro que a fiscalização pode pedir, o que a pessoa escreveu tem que continuar sendo o que ela escreveu.",
+      "As rejeições já gravadas foram separadas automaticamente onde dava para identificar a marca \"[Rejeitado por ...]\". As que não têm essa marca ficaram como estavam — separar por adivinhação seria pior.",
+      "Ao rejeitar, o aviso de confirmação dizia \"Devolvido ao colaborador\" mesmo em férias e ausências, onde nada é devolvido. Agora cada fila usa o próprio nome da ação.",
+    ],
+  },
+  {
     versao: "1.69.1",
     data: "11/08/2026",
     horario: "18:45",

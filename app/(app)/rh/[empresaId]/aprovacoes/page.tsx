@@ -29,7 +29,7 @@ export default async function AprovacoesPage({
   const escopoIds = pedidas.length === 0 ? visiveis : pedidas.filter((id) => visiveis.includes(id));
   const escopo = { in: escopoIds };
 
-  const [ferias, ausencias, documentos, decididasRecentes] = await Promise.all([
+  const [ferias, ausencias, documentos, decididasRecentes, tratamentosPonto] = await Promise.all([
     prisma.solicitacaoFerias.findMany({
       where: { empresaId: escopo, status: "PENDENTE" },
       orderBy: { dataInicio: "asc" },
@@ -104,6 +104,27 @@ export default async function AprovacoesPage({
       take: 10,
       select: { id: true, acao: true, resumo: true, usuarioNome: true, createdAt: true },
     }),
+    // Ajustes de ponto (PTRP) esperando decisão. As DECISÕES de ponto já
+    // apareciam em "Decisões recentes" desde 11/08/2026, mas os PENDENTES
+    // ficavam só na aba Tratamento do módulo Ponto — esta tela se anuncia como
+    // "tudo que espera uma decisão do RH num lugar só", e uma fila fora dela
+    // torna a frase falsa justamente no módulo fiscalizável.
+    prisma.tratamentoPonto.findMany({
+      where: { empresaId: escopo, status: "PENDENTE" },
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true,
+        empresaId: true,
+        colaboradorId: true,
+        tipo: true,
+        dataFato: true,
+        motivo: true,
+        createdAt: true,
+        colaborador: {
+          select: { nome: true, setor: { select: { nome: true } }, empresa: { select: { nome: true } } },
+        },
+      },
+    }),
   ]);
 
   return (
@@ -112,6 +133,7 @@ export default async function AprovacoesPage({
       ausencias={ausencias}
       documentos={documentos}
       decididasRecentes={decididasRecentes}
+      tratamentosPonto={tratamentosPonto}
     />
   );
 }
