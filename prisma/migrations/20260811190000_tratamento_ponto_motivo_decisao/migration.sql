@@ -27,9 +27,14 @@ CREATE INDEX "TratamentoPonto_empresaId_status_idx" ON "rh"."TratamentoPonto"("e
 -- o solicitante escreveu esse texto por conta própria) fica como está — nesses
 -- casos não há como separar pedido de decisão sem inventar, e inventar num
 -- registro fiscalizável é pior que deixar a costura à vista.
+-- Flag 's': o separador entre os dois textos é `\n\n`, e sem ela o `.` não
+-- atravessa quebra de linha — a decisão ficaria intacta no `motivo`.
+-- `btrim` com a lista explícita, e não `rtrim()`: o `rtrim` do Postgres remove
+-- só ESPAÇOS. Com `\n\n` no meio, o pedido original terminaria com as quebras
+-- penduradas e a decisão começaria com um espaço.
 UPDATE "rh"."TratamentoPonto"
 SET
-  "motivoDecisao" = substring("motivo" from position(']' in substring("motivo" from position('[Rejeitado por ' in "motivo"))) + position('[Rejeitado por ' in "motivo")),
-  "motivo"        = rtrim(substring("motivo" from 1 for position('[Rejeitado por ' in "motivo") - 1))
+  "motivoDecisao" = btrim(regexp_replace("motivo", '^.*?\[Rejeitado por [^\]]*\]', '', 's'), E' \t\r\n'),
+  "motivo"        = btrim(regexp_replace("motivo", '\[Rejeitado por [^\]]*\].*$', '', 's'), E' \t\r\n')
 WHERE "status" = 'REJEITADO'
-  AND position('[Rejeitado por ' in "motivo") > 0;
+  AND "motivo" ~ '\[Rejeitado por [^\]]*\]';
