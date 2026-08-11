@@ -1,6 +1,6 @@
-// Cobrança de CADASTRO do colaborador, pelo Telegram — a terceira cobrança do
-// sistema, e a primeira que fala com a pessoa sobre a própria ficha. As outras
-// duas, para não confundir:
+// Cobrança de CADASTRO do colaborador, por Telegram E e-mail — a terceira
+// cobrança do sistema, e a primeira que fala com a pessoa sobre a própria
+// ficha. As outras duas, para não confundir:
 //
 //   lib/regua-cobranca.ts        cobra COLABORADOR para responder pesquisa
 //   lib/cobranca-rh-pendencias.ts cobra o RH sobre o que ficou parado na fila
@@ -19,27 +19,61 @@
 //    cobrança de pendências. Mesma régua nos documentos: CONTRATO é papel que a
 //    empresa emite, não que o colaborador anexa, e fica de fora.
 //
-// 2. Só Telegram, sem cair para e-mail. Foi o canal pedido, e o e-mail tem teto
-//    diário apertado (LIMITE_DIARIO_ENVIOS) que uma campanha para a base
-//    inteira estoura sozinha — em 28/07/2026 uma campanha de portal comeu a
-//    cota do dia em 8 segundos e derrubou os convites. Quem não tem Telegram
-//    vinculado já é cobrado do RH pela pendência `semTelegram`, que existe
-//    exatamente para isso.
+// 2. OS DOIS CANAIS, na mesma rodada (decisão do Marcelo em 11/08/2026; a
+//    primeira versão era só Telegram). Quem tem os dois recebe pelos dois —
+//    não é fallback: cadastro incompleto trava pagamento e eSocial, e a
+//    mensagem que a pessoa vê primeiro é a que resolve.
 //
-// 3. Cadência semanal com fim. Diário como a cobrança do RH não cabe aqui:
-//    juntar documento leva dias, e mensagem diária de robô vira bloqueio do
-//    bot — perde-se o canal inteiro, não só esta cobrança. São no máximo
-//    MAX_COBRANCAS envios, um por semana; depois disso o silêncio é resposta e
-//    o caso volta a ser do RH, que continua vendo a ficha na tela de
-//    pendências.
+//    O e-mail tem teto diário (LIMITE_DIARIO_ENVIOS, hoje 85) que uma campanha
+//    para a base inteira estoura sozinha — em 28/07/2026 uma campanha de portal
+//    comeu a cota do dia em 8 segundos e os convites de pesquisa não saíram. Por
+//    isso esta cobrança para de mandar e-mail quando o orçamento do dia chega a
+//    RESERVA_DE_EMAILS: ela é a menos urgente das que disputam a cota (convite
+//    de pesquisa tem janela, cobrança do RH é diária), então cede primeiro. Quem
+//    ficou de fora hoje não perde nada — segue recebendo pelo Telegram, e o
+//    e-mail sai na próxima rodada. Só não se gasta o teto inteiro numa cobrança
+//    que pode esperar três dias.
+//
+// 3. Duas vezes por semana, com fim. Diário como a cobrança do RH não cabe
+//    aqui: juntar documento leva dias, e mensagem diária de robô vira bloqueio
+//    do bot — perde-se o canal inteiro, não só esta cobrança. São no máximo
+//    MAX_COBRANCAS envios; depois disso o silêncio é resposta e o caso volta a
+//    ser do RH, que continua vendo a ficha na tela de pendências.
 import { prisma, type Cliente } from "@/lib/prisma";
 import { sendTelegramMessage } from "@/lib/telegram";
+import { sendEmail, orcamentoRestanteHoje } from "@/lib/email";
 
-/** Uma cobrança por semana, no máximo. */
-export const DIAS_ENTRE_COBRANCAS = 7;
+/**
+ * Duas vezes por semana (decisão do Marcelo em 11/08/2026; era 7 dias). Três
+ * dias e não "segunda e quinta": o cron já roda todo dia e a trava é "dias
+ * desde a última cobrança DESTA pessoa" — cada um tem o próprio relógio,
+ * contado de quando entrou na campanha, e não existe um dia da semana em que
+ * a base inteira seja cobrada junto.
+ */
+export const DIAS_ENTRE_COBRANCAS = 3;
 
-/** Depois de 4 (≈1 mês de tentativas), para de insistir. */
-export const MAX_COBRANCAS = 4;
+/**
+ * Oito, e não os quatro de antes: a cobrança dobrou de frequência, e manter o
+ * teto faria a campanha inteira acabar em 12 dias. Com 8 a janela volta a ser
+ * de aproximadamente um mês, que era a intenção original — insistir o
+ * suficiente para vencer o esquecimento, sem virar perseguição.
+ */
+export const MAX_COBRANCAS = 8;
+
+/**
+ * E-mails que esta cobrança nunca consome. Ver o recorte 2 no topo: com o
+ * orçamento do dia neste patamar, ela para de mandar e-mail e deixa o resto
+ * para convite de pesquisa e cobrança do RH, que não podem esperar.
+ */
+export const RESERVA_DE_EMAILS = 25;
+
+/**
+ * O bot, para quem vai ler no e-mail e precisa achá-lo no Telegram. Cópia do
+ * valor de lib/convite-portal.ts, e não import: aquele módulo é `server-only` e
+ * importá-lo aqui quebraria o smoke, que roda fora do Next. Se o bot mudar de
+ * nome, os dois trocam juntos.
+ */
+export const BOT_DO_RH = "@ContatoLm_bot";
 
 /**
  * Documentos que o colaborador anexa pelo portal, com o texto do PEDIDO — não
@@ -131,16 +165,76 @@ export function montarMensagem(nome: string, itens: string[], rodada: number): s
   );
 }
 
+/**
+ * A mesma cobrança em formato de e-mail, para quem tem endereço. Assina a marca
+ * da pessoa, nunca as três do grupo — quem é da Centrysol lendo "LM Telecom"
+ * acha que a mensagem veio trocada (mesma regra de lib/convite-portal.ts).
+ *
+ * Não repete a instrução do `/portal`: no Telegram o comando faz sentido porque
+ * a pessoa está dentro do chat do bot; num e-mail seria mandar alguém procurar
+ * um aplicativo. Aqui o caminho é o bot pelo nome.
+ */
+export function montarEmail(
+  nome: string,
+  itens: string[],
+  rodada: number,
+  marca: string,
+): { assunto: string; texto: string; html: string } {
+  const primeiro = nome.split(" ")[0];
+  const abertura =
+    rodada === 1
+      ? `Oi, ${primeiro}! Seu cadastro no RH está incompleto.`
+      : `Oi, ${primeiro}! Passando de novo sobre o seu cadastro.`;
+
+  const assunto = rodada === 1 ? "Falta completar seu cadastro no RH" : "Seu cadastro no RH ainda está incompleto";
+
+  const texto =
+    `${abertura}\n\nAinda falta:\n\n` +
+    itens.map((i) => `- ${i}`).join("\n") +
+    `\n\nPara resolver, procure ${BOT_DO_RH} no Telegram e envie /portal. ` +
+    `O link abre a sua ficha no celular: você atualiza os dados e anexa as fotos por lá mesmo.\n\n` +
+    `Se alguma coisa dessa lista você já entregou em papel, responda este e-mail que a gente acerta.\n\n` +
+    `RH - ${marca}\n`;
+
+  const html = `<!doctype html><html lang="pt-BR"><body style="margin:0;padding:24px;background:#f4f5f7;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;">
+<table role="presentation" style="max-width:520px;margin:0 auto;background:#fff;border-radius:8px;border:1px solid #e2e5e9;">
+<tr><td style="padding:30px 32px;">
+  <p style="margin:0 0 18px;font-size:16px;color:#15191e;">${abertura}</p>
+  <p style="margin:0 0 12px;font-size:15px;line-height:1.6;color:#3d454f;">Ainda falta:</p>
+  <table role="presentation" style="width:100%;background:#f0f4f9;border-radius:6px;margin:0 0 18px;">
+    <tr><td style="padding:16px 20px;font-size:15px;line-height:1.9;color:#15191e;">
+      ${itens.map((i) => `• ${i}`).join("<br>")}
+    </td></tr>
+  </table>
+  <p style="margin:0 0 18px;font-size:15px;line-height:1.6;color:#15191e;">
+    Para resolver, procure <b>${BOT_DO_RH}</b> no Telegram e envie <b>/portal</b>.
+    O link abre a sua ficha no celular: você atualiza os dados e anexa as fotos por lá mesmo.
+  </p>
+  <p style="margin:0;font-size:14px;line-height:1.6;color:#5a636e;">
+    Se alguma coisa dessa lista você já entregou em papel, responda este e-mail que a gente acerta.
+  </p>
+  <p style="margin:26px 0 0;padding-top:16px;border-top:1px solid #e9ecef;font-size:12px;color:#8a929c;">RH — ${marca}</p>
+</td></tr></table></body></html>`;
+
+  return { assunto, texto, html };
+}
+
 export type ResultadoCobrancaCadastro = {
-  /** Fichas ativas com Telegram que o motor olhou. */
+  /** Fichas ativas com pelo menos um canal (Telegram ou e-mail) que o motor olhou. */
   avaliados: number;
   /** Dessas, quantas têm algo faltando. */
   incompletos: number;
+  /** Pessoas cobradas — uma por pessoa, mesmo quando saiu pelos dois canais. */
   enviados: number;
-  /** Cobrados há menos de DIAS_ENTRE_COBRANCAS — a vez deles é semana que vem. */
+  porTelegram: number;
+  porEmail: number;
+  /** Cobrados há menos de DIAS_ENTRE_COBRANCAS — a vez deles é na próxima rodada. */
   aguardandoPrazo: number;
   /** Já receberam MAX_COBRANCAS e continuam incompletos: agora é caso do RH. */
   esgotados: number;
+  /** E-mails não enviados para preservar a cota do dia (ver RESERVA_DE_EMAILS). */
+  emailAdiado: number;
+  /** Ninguém foi alcançado: os canais disponíveis falharam. */
   erros: number;
 };
 
@@ -162,8 +256,13 @@ export async function executarCobrancaCadastro(
   const candidatos = await cliente.colaborador.findMany({
     where: {
       ativo: true,
-      telegramChatId: { not: null },
-      NOT: { telegramChatId: "" },
+      // Pelo menos um canal por onde falar. Quem não tem nenhum não some do
+      // radar: continua na pendência do RH (`cadastrosIncompletos` e
+      // `semTelegram`), que é de quem passou a ser o caso.
+      OR: [
+        { AND: [{ telegramChatId: { not: null } }, { NOT: { telegramChatId: "" } }] },
+        { AND: [{ email: { not: null } }, { NOT: { email: "" } }] },
+      ],
       // Quem está de aviso prévio não é cobrado a completar cadastro: o
       // processo dessa pessoa agora é a saída, e o que falta ali o RH resolve
       // no desligamento. Cobrar seria ruído no pior momento possível.
@@ -186,6 +285,8 @@ export async function executarCobrancaCadastro(
       bancoAgencia: true,
       bancoConta: true,
       documentos: { select: { tipo: true } },
+      // Para assinar o e-mail com a marca certa (ver montarEmail).
+      empresa: { select: { marca: { select: { nome: true } } } },
     },
   });
 
@@ -212,9 +313,19 @@ export async function executarCobrancaCadastro(
   }
 
   let enviados = 0;
+  let porTelegram = 0;
+  let porEmail = 0;
   let aguardandoPrazo = 0;
   let esgotados = 0;
+  let emailAdiado = 0;
   let erros = 0;
+
+  // Orçamento lido UMA vez, antes do laço, e descontado à mão a cada envio: uma
+  // consulta por pessoa seria uma ida ao banco por e-mail, e o valor mal teria
+  // mudado entre elas. A conta local pode ficar um pouco defasada se outro
+  // processo mandar e-mail no meio — daí a reserva, que absorve a diferença.
+  let orcamento = await orcamentoRestanteHoje();
+  const diaChave = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(hoje);
 
   for (const { pessoa, itens } of pendentes) {
     const anterior = porPessoa.get(pessoa.id);
@@ -234,24 +345,61 @@ export async function executarCobrancaCadastro(
     const rodada = (anterior?.rodadas ?? 0) + 1;
 
     try {
-      const envio = await sendTelegramMessage(
-        pessoa.telegramChatId!,
-        montarMensagem(pessoa.nome, itens, rodada),
-      );
-      if (!envio.ok) {
+      // Os dois canais na mesma rodada, cada um valendo por si: Telegram fora
+      // do ar não pode impedir o e-mail de sair, nem o contrário.
+      const canais: string[] = [];
+
+      if (pessoa.telegramChatId) {
+        const r = await sendTelegramMessage(pessoa.telegramChatId, montarMensagem(pessoa.nome, itens, rodada));
+        if (r.ok) {
+          canais.push("TELEGRAM");
+          porTelegram++;
+        }
+      }
+
+      if (pessoa.email) {
+        if (orcamento <= RESERVA_DE_EMAILS) {
+          emailAdiado++;
+        } else {
+          const { assunto, texto, html } = montarEmail(pessoa.nome, itens, rodada, pessoa.empresa.marca.nome);
+          const r = await sendEmail({
+            to: pessoa.email,
+            subject: assunto,
+            text: texto,
+            html,
+            fromName: `RH ${pessoa.empresa.marca.nome}`,
+            // Uma cobrança por pessoa por dia, mesmo se o cron for disparado à
+            // mão mais de uma vez — a trava de DIAS_ENTRE_COBRANCAS só é
+            // consultada no início da rodada e não protege contra isso.
+            chave: `cobranca-cadastro:${pessoa.id}:${diaChave}`,
+          });
+          if (r.ok) {
+            canais.push("EMAIL");
+            porEmail++;
+            if (!r.deduplicado) orcamento--;
+          } else if (r.motivo === "COTA") {
+            // Sem cota não adianta seguir tentando: o resto do laço só
+            // produziria recusas. O Telegram continua normalmente.
+            orcamento = 0;
+            emailAdiado++;
+          }
+        }
+      }
+
+      // Nenhum canal entregou: não gasta rodada. A pessoa não recebeu nada, e
+      // gravar aqui a faria esperar três dias por uma mensagem que nunca saiu.
+      if (canais.length === 0) {
         erros++;
         continue;
       }
 
-      // Só grava depois do envio confirmado. Gravar antes gastaria a rodada de
-      // uma pessoa que não recebeu nada — e ela ficaria uma semana esperando
-      // uma mensagem que o Telegram recusou.
       await cliente.cobrancaCadastro.create({
         data: {
           colaboradorId: pessoa.id,
           empresaId: pessoa.empresaId,
           rodada,
           itens: itens.join(" · ").slice(0, 500),
+          canais: canais.join(","),
           enviadaEm: hoje,
         },
       });
@@ -265,8 +413,11 @@ export async function executarCobrancaCadastro(
     avaliados: candidatos.length,
     incompletos: pendentes.length,
     enviados,
+    porTelegram,
+    porEmail,
     aguardandoPrazo,
     esgotados,
+    emailAdiado,
     erros,
   };
 }

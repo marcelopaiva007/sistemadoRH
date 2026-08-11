@@ -1,17 +1,18 @@
-// Fumaça da cobrança de cadastro do colaborador
+// Fumaça da cobrança de cadastro do colaborador (Telegram + e-mail)
 // (lib/cobranca-cadastro-colaborador.ts) contra o banco de verdade, em
 // transação com rollback proposital: marca/empresa/setor/posição/colaboradores
 // próprios do teste. Nada fica gravado.
 //
-// Bot do Telegram não configurado neste ambiente é ESPERADO e é o que torna
-// este teste seguro de rodar: sem token, sendTelegramMessage devolve erro e o
-// motor conta em `erros` sem falar com ninguém. Por isso os asserts checam a
-// SELEÇÃO (quem entra, quem fica de fora, quem já esgotou a rodada) e o texto
-// da mensagem, nunca a entrega.
+// Bot do Telegram e SMTP não configurados neste ambiente são ESPERADOS e é o
+// que torna este teste seguro de rodar: sem token e sem servidor, os dois
+// canais recusam e o motor conta em `erros` sem falar com ninguém. Por isso os
+// asserts de `testarSelecao` checam a SELEÇÃO (quem entra, quem fica de fora,
+// quem já esgotou a rodada), nunca a entrega — `testarCaminhoFeliz`, mais
+// abaixo, é que cobre o envio aceito, com o Telegram dublado.
 //
 // Ainda assim o `apenas` é passado em toda chamada: se um dia alguém rodar
-// isto numa máquina com o token do bot na env, sem o filtro a base inteira
-// receberia cobrança de verdade.
+// isto numa máquina com o token do bot ou o SMTP na env, sem o filtro a base
+// inteira receberia cobrança de verdade.
 //
 //   npx tsx scripts/smoke-cobranca-cadastro.ts
 import "dotenv/config";
@@ -22,6 +23,8 @@ import {
   faltasNaFicha,
   documentosFaltando,
   montarMensagem,
+  montarEmail,
+  BOT_DO_RH,
   DIAS_ENTRE_COBRANCAS,
   MAX_COBRANCAS,
 } from "../lib/cobranca-cadastro-colaborador";
@@ -115,6 +118,15 @@ function testarRegras() {
   ok(primeira.includes("• Número do RG"), "mensagem lista o que falta");
   const segunda = montarMensagem("Maria Souza Lima", ["Número do RG"], 2);
   ok(segunda !== primeira && segunda.includes("de novo"), "da 2ª em diante o texto reconhece que já pediu");
+
+  const email = montarEmail("Maria Souza Lima", ["Número do RG"], 1, "LM Telecom");
+  ok(email.assunto.length > 0 && !email.assunto.includes("undefined"), "e-mail tem assunto");
+  ok(email.texto.includes("Número do RG") && email.html.includes("Número do RG"), "e-mail lista o que falta nas duas versões");
+  ok(email.texto.includes("LM Telecom") && email.html.includes("LM Telecom"), "e-mail assina a marca da pessoa, não o grupo");
+  ok(email.html.includes(BOT_DO_RH), "e-mail diz o nome do bot — quem lê fora do Telegram não tem /portal à mão");
+  ok(!email.texto.startsWith("<"), "versão texto do e-mail não é HTML (entrega e leitor sem HTML)");
+  const email2 = montarEmail("Maria Souza Lima", ["Número do RG"], 2, "LM Telecom");
+  ok(email2.assunto !== email.assunto, "assunto muda da 2ª em diante (não vira o mesmo e-mail repetido na caixa)");
 }
 
 async function testarSelecao() {
@@ -146,7 +158,11 @@ async function testarSelecao() {
     const semRg = await criar("incompleto", { rg: null });
     const semDocumento = await criar("sem_documento", {});
     const completo = await criar("completo", {});
-    const semTelegram = await criar("sem_telegram", { rg: null, telegramChatId: null });
+    // Sem Telegram mas COM e-mail: desde que a cobrança passou a sair pelos
+    // dois canais, esta pessoa ENTRA — antes ficava de fora por não ter chat.
+    const soEmail = await criar("so_email", { rg: null, telegramChatId: null });
+    // Sem nenhum canal: continua fora, porque não há por onde falar com ela.
+    const semCanal = await criar("sem_canal", { rg: null, telegramChatId: null, email: null });
     const saindo = await criar("aviso_previo", { rg: null, dataDesligamento: diasAtras(-3) });
     const jaCobrado = await criar("cobrado_ontem", { rg: null });
     const esgotado = await criar("esgotado", { rg: null });
@@ -154,7 +170,7 @@ async function testarSelecao() {
     // Quem já tem os 4 documentos no dossiê só é cobrado pelo que falta na
     // ficha — é o que separa `semRg` de `semDocumento` no teste.
     for (const tipo of ["RG", "CPF", "CTPS", "COMPROVANTE_RESIDENCIA"]) {
-      for (const id of [semRg.id, completo.id, semTelegram.id, saindo.id, jaCobrado.id, esgotado.id]) {
+      for (const id of [semRg.id, completo.id, soEmail.id, semCanal.id, saindo.id, jaCobrado.id, esgotado.id]) {
         await tx.documentoColaborador.create({
           data: { empresaId: empresa.id, colaboradorId: id, tipo, origem: "COLABORADOR" },
         });
@@ -171,27 +187,35 @@ async function testarSelecao() {
           empresaId: empresa.id,
           rodada: r,
           itens: "Número do RG",
-          // Espalhadas no passado, a última bem fora do prazo semanal: o que
-          // barra esta pessoa tem que ser o teto de rodadas, não o intervalo.
-          enviadaEm: diasAtras(60 - r * 10),
+          // Espalhadas no passado, a última bem fora do prazo: o que barra esta
+          // pessoa tem que ser o teto de rodadas, não o intervalo.
+          //
+          // O passo (5) tem que ser MENOR que 90/MAX_COBRANCAS, senão as
+          // últimas rodadas caem em hoje ou no futuro. Já caiu: com a fórmula
+          // antiga (`60 - r * 10`, escrita quando o teto era 4), subir para 8
+          // pôs três linhas no futuro e quebrou a contagem de "gravadas hoje"
+          // — o teste acusou o motor por dado que o próprio teste plantou.
+          enviadaEm: diasAtras(90 - r * 5),
         },
       });
     }
 
-    const doTeste = [semRg.id, semDocumento.id, completo.id, semTelegram.id, saindo.id, jaCobrado.id, esgotado.id];
+    const doTeste = [semRg.id, semDocumento.id, completo.id, soEmail.id, semCanal.id, saindo.id, jaCobrado.id, esgotado.id];
     const r = await executarCobrancaCadastro(tx, HOJE, doTeste);
 
-    // Os dois filtros que cortam na própria consulta: sem Telegram não há
-    // canal, e quem está de aviso prévio não se cobra. Sobram 5 dos 7.
-    ok(r.avaliados === 5, `ignora quem não tem Telegram e quem está saindo — 5 de 7 criados (achou ${r.avaliados})`);
-    ok(r.incompletos === 4, `4 fichas com algo faltando (achou ${r.incompletos})`);
+    // Os dois filtros que cortam na própria consulta: sem NENHUM canal não há
+    // como falar, e quem está de aviso prévio não se cobra. Sobram 6 dos 8.
+    ok(r.avaliados === 6, `ignora quem não tem canal nenhum e quem está saindo — 6 de 8 criados (achou ${r.avaliados})`);
+    ok(r.incompletos === 5, `5 fichas com algo faltando (achou ${r.incompletos})`);
     ok(r.aguardandoPrazo === 1, `1 pessoa dentro do prazo de ${DIAS_ENTRE_COBRANCAS} dias (achou ${r.aguardandoPrazo})`);
     ok(r.esgotados === 1, `1 pessoa já com ${MAX_COBRANCAS} cobranças (achou ${r.esgotados})`);
 
-    // Sem bot configurado o envio falha e nada é gravado — é o comportamento
-    // que protege este teste. Com bot, os mesmos 2 sairiam como `enviados`.
+    // Sem bot nem SMTP configurados, os dois canais recusam e nada é gravado —
+    // é o comportamento que protege este teste. Configurados, estes 3 sairiam
+    // como `enviados`. O terceiro é justamente quem só tem e-mail: a mudança
+    // de 11/08/2026 é o que o trouxe para dentro da cobrança.
     const tentados = r.enviados + r.erros;
-    ok(tentados === 2, `tenta cobrar exatamente 2 pessoas: ficha incompleta e documento faltando (tentou ${tentados})`);
+    ok(tentados === 3, `tenta cobrar 3: ficha incompleta, documento faltando e a pessoa só com e-mail (tentou ${tentados})`);
 
     const gravadas = await tx.cobrancaCadastro.count({
       where: { colaboradorId: { in: doTeste }, enviadaEm: { gte: diasAtras(0.5) } },
@@ -208,6 +232,10 @@ async function testarSelecao() {
     ok(
       (await tx.cobrancaCadastro.count({ where: { colaboradorId: completo.id } })) === 0,
       "ficha completa não é cobrada",
+    );
+    ok(
+      (await tx.cobrancaCadastro.count({ where: { colaboradorId: semCanal.id } })) === 0,
+      "quem não tem Telegram nem e-mail não é cobrado (fica com o RH, na pendência)",
     );
 
     throw new RollbackProposital();
@@ -276,6 +304,14 @@ async function testarCaminhoFeliz() {
       ok(linhas1.length === 1 && linhas1[0].rodada === 1, "grava a rodada 1 depois do envio aceito");
       ok(linhas1[0]?.itens.includes("RG"), "guarda o que foi pedido, para responder a quem disser que nunca foi avisado");
       ok(linhas1[0]?.empresaId === empresa.id, "grava a empresa da pessoa");
+      // SMTP não está configurado aqui, então o e-mail recusa e só o Telegram
+      // entra em `canais`. É exatamente o que a coluna tem que registrar: o
+      // canal que ACEITOU, nunca o que foi tentado.
+      ok(
+        linhas1[0]?.canais === "TELEGRAM",
+        `registra só o canal que aceitou (achou "${linhas1[0]?.canais}")`,
+      );
+      ok(r1.porTelegram === 1 && r1.porEmail === 0, `conta por canal (telegram=${r1.porTelegram}, email=${r1.porEmail})`);
 
       const r2 = await executarCobrancaCadastro(tx, HOJE, so);
       ok(
@@ -283,18 +319,30 @@ async function testarCaminhoFeliz() {
         "rodar de novo no mesmo dia não reenvia (é a trava que impede cobrança diária)",
       );
 
-      const daquiUmaSemana = new Date(HOJE.getTime() + 8 * 24 * 3600 * 1000);
-      const r3 = await executarCobrancaCadastro(tx, daquiUmaSemana, so);
+      // Um dia a menos que o intervalo: continua segurando. É o teste de que a
+      // trava é o intervalo configurado, não "outro dia do calendário".
+      const quaseNaHora = new Date(HOJE.getTime() + (DIAS_ENTRE_COBRANCAS - 1) * 24 * 3600 * 1000);
+      const rCedo = await executarCobrancaCadastro(tx, quaseNaHora, so);
+      ok(
+        rCedo.enviados === 0 && rCedo.aguardandoPrazo === 1,
+        `${DIAS_ENTRE_COBRANCAS - 1} dia(s) depois ainda não é a hora`,
+      );
+
+      const naHora = new Date(HOJE.getTime() + DIAS_ENTRE_COBRANCAS * 24 * 3600 * 1000);
+      const r3 = await executarCobrancaCadastro(tx, naHora, so);
       const linhas3 = await tx.cobrancaCadastro.findMany({
         where: { colaboradorId: pessoa.id },
         orderBy: { rodada: "asc" },
       });
-      ok(r3.enviados === 1 && linhas3.length === 2 && linhas3[1].rodada === 2, "passada a semana, cobra de novo como rodada 2");
+      ok(
+        r3.enviados === 1 && linhas3.length === 2 && linhas3[1].rodada === 2,
+        `passados ${DIAS_ENTRE_COBRANCAS} dias, cobra de novo como rodada 2`,
+      );
       ok(enviadas[1]?.includes("de novo"), "a 2ª mensagem reconhece que já pediu antes");
 
-      let dia = 8;
+      let dia = DIAS_ENTRE_COBRANCAS;
       for (let i = 3; i <= MAX_COBRANCAS; i++) {
-        dia += 8;
+        dia += DIAS_ENTRE_COBRANCAS;
         await executarCobrancaCadastro(tx, new Date(HOJE.getTime() + dia * 24 * 3600 * 1000), so);
       }
       const rFim = await executarCobrancaCadastro(tx, new Date(HOJE.getTime() + (dia + 30) * 24 * 3600 * 1000), so);
@@ -317,7 +365,7 @@ async function testarCaminhoFeliz() {
 }
 
 async function main() {
-  console.log("Cobrança de cadastro do colaborador (Telegram)\n");
+  console.log("Cobrança de cadastro do colaborador (Telegram + e-mail)\n");
   testarRegras();
   await testarSelecao();
   await testarCaminhoFeliz();

@@ -1,6 +1,6 @@
-// Cobrança de cadastro do COLABORADOR pelo Telegram
+// Cobrança de cadastro do COLABORADOR por Telegram e e-mail
 // (lib/cobranca-cadastro-colaborador.ts) — roda 1×/dia, mas cada pessoa só é
-// cobrada de semana em semana e no máximo 4 vezes.
+// cobrada de três em três dias (duas vezes por semana) e no máximo 8 vezes.
 //
 // Não confundir com as outras duas rotas de cobrança:
 //   /api/cron/cobranca-rh-pendencias  cobra o RH sobre a fila parada
@@ -32,9 +32,12 @@ export async function GET(req: NextRequest) {
   try {
     const r = await executarCobrancaCadastro();
     console.log(
-      `cron cobranca-cadastro: ${r.enviados} cobrança(s) enviada(s), ${r.erros} erro(s); ` +
+      `cron cobranca-cadastro: ${r.enviados} pessoa(s) cobrada(s) ` +
+        `(${r.porTelegram} por Telegram, ${r.porEmail} por e-mail), ${r.erros} sem nenhum canal; ` +
         `${r.incompletos} de ${r.avaliados} ficha(s) incompleta(s), ` +
-        `${r.aguardandoPrazo} dentro do prazo semanal, ${r.esgotados} já sem rodada.`,
+        `${r.aguardandoPrazo} dentro do prazo, ${r.esgotados} já sem rodada` +
+        (r.emailAdiado > 0 ? `, ${r.emailAdiado} e-mail(s) adiado(s) para preservar a cota do dia` : "") +
+        ".",
     );
     return NextResponse.json({ ok: true, ...r });
   } catch (e) {

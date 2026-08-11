@@ -1,0 +1,12 @@
+-- A cobrança de cadastro passa a sair pelos DOIS canais (Telegram e e-mail),
+-- então a linha do histórico precisa dizer por onde a pessoa foi avisada.
+-- "Cobramos no dia 14" e "cobramos no dia 14, pelos dois canais" respondem
+-- coisas diferentes quando alguém diz que nunca foi avisado.
+--
+-- DEFAULT 'TELEGRAM' cobre as linhas que já existirem: até esta migration, todo
+-- envio saiu por Telegram e só por ele. O default fica na coluna (e não some
+-- depois) porque o Prisma o declara em `@default("TELEGRAM")` — schema e banco
+-- têm que continuar iguais, senão a próxima checagem de migration acusa desvio.
+--
+-- Puramente ADITIVA: acrescenta coluna com default e não toca em dado existente.
+ALTER TABLE "rh"."CobrancaCadastro" ADD COLUMN "canais" TEXT NOT NULL DEFAULT 'TELEGRAM';
