@@ -4,7 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Plus, Check, X, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/status-badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,14 +13,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { registrarAusencia, decidirAusencia, excluirAusencia } from "@/lib/actions/rh-ausencias";
 import {
   MIMES_ANEXO_ACEITOS,
+  STATUS_SOLICITACAO_BADGE,
   TIPOS_AUSENCIA,
-  statusSolicitacaoLabel,
   tipoAusenciaLabel,
 } from "@/lib/constants-dp";
 import { formatarData } from "@/lib/datas";
 import { Campo, CampoCheckbox, CampoData, CampoSelect, CampoTexto, FormularioAction } from "./campos";
 import { BotaoExcluir } from "./dependentes-card";
-import { VariantePorStatus } from "./ferias-card";
 
 type Ausencia = {
   id: string;
@@ -147,7 +146,7 @@ export function AusenciasCard({
                       )}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={VariantePorStatus(a.status)}>{statusSolicitacaoLabel(a.status)}</Badge>
+                      <StatusBadge status={a.status} map={STATUS_SOLICITACAO_BADGE} />
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">

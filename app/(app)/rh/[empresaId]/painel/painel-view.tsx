@@ -35,6 +35,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Indicador } from "@/components/indicador";
 import { formatarReais } from "@/lib/constants-beneficios";
 import { cn } from "@/lib/utils";
@@ -309,293 +310,335 @@ export function PainelView({
         </Card>
       ) : (
         <>
-          {/* --- "O que aconteceu", abertura em prosa ------------------------- */}
-          <NarrativaAbertura empresaId={empresaId} narrativa={narrativa} />
+          {/* Até 11/08/2026 tudo isto vinha empilhado numa página só: narrativa,
+              radar, 4 KPIs, tempo de casa, 4 gráficos, custo, absenteísmo e
+              rodapé — rolagem longa em que ninguém achava a mesma coisa duas
+              vezes no mesmo lugar. As abas agrupam por PERGUNTA, não por tipo
+              de gráfico: "como estamos" (Resumo), "quem é o time" (Quadro), "o
+              que mudou" (Movimento), "quanto custa e quem faltou" (Custo).
 
-          {/* --- Radar de desvio ---------------------------------------------- */}
-          <RadarDesvio radar={radar} hrefCentral={`/rh/${empresaId}/sinais`} />
+              Ficam FORA das abas, de propósito: o filtro (vale para todas) e o
+              rodapé de ressalvas — esconder atrás de aba o aviso de que metade
+              das fichas não tem salário seria deixar o número mentir para quem
+              não clicou. */}
+          <Tabs defaultValue="resumo" className="w-full">
+            <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1.5 rounded-lg bg-muted/60 p-1.5">
+              <TabsTrigger value="resumo" className="rounded-md px-3 py-1.5 text-xs data-active:bg-background">
+                Resumo
+              </TabsTrigger>
+              <TabsTrigger value="quadro" className="rounded-md px-3 py-1.5 text-xs data-active:bg-background">
+                Quadro
+              </TabsTrigger>
+              <TabsTrigger value="movimento" className="rounded-md px-3 py-1.5 text-xs data-active:bg-background">
+                Movimento
+              </TabsTrigger>
+              <TabsTrigger value="custo" className="rounded-md px-3 py-1.5 text-xs data-active:bg-background">
+                Custo e faltas
+              </TabsTrigger>
+            </TabsList>
 
-          {/* --- KPIs -------------------------------------------------------- */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Indicador
-              variante="cartao"
-              rotulo="Colaboradores ativos"
-              valor={`${totalAtivos}`}
-              complemento={
-                saldo === 0
-                  ? `quadro estável em ${janela} meses`
-                  : `${saldo > 0 ? "+" : ""}${saldo} em ${janela} meses`
-              }
-            />
-            <Indicador
-              variante="cartao"
-              rotulo={`Turnover (${janela} meses)`}
-              valor={turnover.headcountMedio > 0 ? `${turnover.taxaPct.toFixed(1)}%` : <SemDado />}
-              complemento={`${turnover.desligados} saída(s) · ${turnover.admissoes} admissão(ões)`}
-              estado={turnover.headcountMedio > 0 && turnover.taxaPct > 20 ? "alerta" : "padrao"}
-            />
-            <Indicador
-              variante="cartao"
-              rotulo="Tempo de casa (mediana)"
-              valor={
-                tempo.quartis ? `${formatarNumero(tempo.quartis.mediana)} ano(s)` : <SemDado />
-              }
-              complemento={
-                tempo.abaixoDeUmAnoPct !== null
-                  ? `${tempo.abaixoDeUmAno} de ${tempo.comData} (${Math.round(tempo.abaixoDeUmAnoPct)}%) com menos de 1 ano`
-                  : "ninguém com data de admissão preenchida"
-              }
-            />
-            <Indicador
-              variante="cartao"
-              rotulo="Folha + benefícios/mês"
-              valor={
-                folhaTotal === null ? <SemDado /> : formatarReais(folhaTotal + beneficiosTotal)
-              }
-              complemento={
-                folhaTotal === null
-                  ? `só ${comSalario} de ${totalAtivos} ativos têm salário — a soma descreveria a minoria`
-                  : comSalario < totalAtivos
-                    ? `piso: ${comSalario} de ${totalAtivos} ativos com salário · sem encargos`
-                    : "salário base + benefícios vigentes · sem encargos"
-              }
-            />
-          </div>
+            {/* --- Resumo: como estamos ------------------------------------- */}
+            <TabsContent value="resumo" className="space-y-6 pt-4">
+              {/* --- "O que aconteceu", abertura em prosa ------------------------- */}
+              <NarrativaAbertura empresaId={empresaId} narrativa={narrativa} />
 
-          {/* --- Tempo de casa ---------------------------------------------- */}
-          <BlocoTempoDeCasa
-            tempo={tempo}
-            porSetor={tempoPorSetor}
-            totalAtivos={totalAtivos}
-            vista={vista}
-          />
+              {/* --- Radar de desvio ---------------------------------------------- */}
+              <RadarDesvio radar={radar} hrefCentral={`/rh/${empresaId}/sinais`} />
 
-          {/* --- Movimentação e composição ---------------------------------- */}
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Bloco
-              titulo={`Evolução do quadro (${janela} meses)`}
-              descricao="Colaboradores ativos no fim de cada mês, reconstruído a partir do quadro de hoje."
-            >
-              {vista === "graficos" ? (
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={evolucao} margin={{ left: -16, right: 8 }}>
-                      <defs>
-                        <linearGradient id="grad-headcount" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor={COR.primaria} stopOpacity={0.25} />
-                          <stop offset="100%" stopColor={COR.primaria} stopOpacity={0.02} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid
-                        strokeDasharray="3 3"
-                        stroke="var(--border)"
-                        vertical={false}
-                      />
-                      <XAxis dataKey="mes" tick={eixoTick} tickLine={false} axisLine={false} />
-                      <YAxis
-                        allowDecimals={false}
-                        tick={eixoTick}
-                        tickLine={false}
-                        axisLine={false}
-                        domain={["dataMin - 2", "dataMax + 2"]}
-                      />
-                      <Tooltip contentStyle={estiloTooltip} formatter={v => [`${v}`, "Ativos"]} />
-                      <Area
-                        type="monotone"
-                        dataKey="total"
-                        stroke={COR.primaria}
-                        strokeWidth={2}
-                        fill="url(#grad-headcount)"
-                        dot={false}
-                        activeDot={{ r: 4 }}
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <TabelaDeSerie
-                  colunas={[{ rotulo: "Mês" }, { rotulo: "Ativos no fim do mês", numerica: true }]}
-                  linhas={evolucao.map(e => ({ chave: e.mes, celulas: [e.mes, e.total] }))}
+              {/* --- KPIs -------------------------------------------------------- */}
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <Indicador
+                  variante="cartao"
+                  rotulo="Colaboradores ativos"
+                  valor={`${totalAtivos}`}
+                  complemento={
+                    saldo === 0
+                      ? `quadro estável em ${janela} meses`
+                      : `${saldo > 0 ? "+" : ""}${saldo} em ${janela} meses`
+                  }
                 />
-              )}
-            </Bloco>
-
-            <Bloco
-              titulo="Admissões × desligamentos"
-              descricao={`Movimentação mês a mês nos últimos ${janela} meses.`}
-            >
-              {vista === "graficos" ? (
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={movimento} margin={{ left: -16, right: 8 }}>
-                      <CartesianGrid
-                        strokeDasharray="3 3"
-                        stroke="var(--border)"
-                        vertical={false}
-                      />
-                      <XAxis dataKey="mes" tick={eixoTick} tickLine={false} axisLine={false} />
-                      <YAxis
-                        allowDecimals={false}
-                        tick={eixoTick}
-                        tickLine={false}
-                        axisLine={false}
-                      />
-                      <Tooltip contentStyle={estiloTooltip} />
-                      <Legend wrapperStyle={{ fontSize: 12 }} />
-                      <Line
-                        type="monotone"
-                        dataKey="admissoes"
-                        name="Admissões"
-                        stroke={COR.admissoes}
-                        strokeWidth={2}
-                        dot={false}
-                        activeDot={{ r: 4 }}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="desligamentos"
-                        name="Desligamentos"
-                        stroke={COR.desligamentos}
-                        strokeWidth={2}
-                        dot={false}
-                        activeDot={{ r: 4 }}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <TabelaDeSerie
-                  colunas={[
-                    { rotulo: "Mês" },
-                    { rotulo: "Admissões", numerica: true },
-                    { rotulo: "Desligamentos", numerica: true },
-                  ]}
-                  linhas={movimento.map(m => ({
-                    chave: m.mes,
-                    celulas: [
-                      m.mes,
-                      <span key="a" className="text-success">
-                        {m.admissoes > 0 ? `+${m.admissoes}` : "—"}
-                      </span>,
-                      <span key="d" className="text-destructive">
-                        {m.desligamentos > 0 ? `-${m.desligamentos}` : "—"}
-                      </span>,
-                    ],
-                  }))}
+                <Indicador
+                  variante="cartao"
+                  rotulo={`Turnover (${janela} meses)`}
+                  valor={turnover.headcountMedio > 0 ? `${turnover.taxaPct.toFixed(1)}%` : <SemDado />}
+                  complemento={`${turnover.desligados} saída(s) · ${turnover.admissoes} admissão(ões)`}
+                  estado={turnover.headcountMedio > 0 && turnover.taxaPct > 20 ? "alerta" : "padrao"}
                 />
-              )}
-            </Bloco>
-
-            <Bloco
-              titulo="Colaboradores por setor"
-              descricao={
-                headcount.length > TOP_SETORES && vista === "graficos"
-                  ? `Os ${TOP_SETORES} maiores setores; os demais somados em "Outros".`
-                  : "Todos os setores com gente ativa."
-              }
-            >
-              {headcount.length === 0 ? (
-                <Vazio texto="Nenhum colaborador ativo no recorte." />
-              ) : vista === "graficos" ? (
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                      data={agruparOutros(headcount)}
-                      layout="vertical"
-                      margin={{ left: 16, right: 24 }}
-                    >
-                      <CartesianGrid
-                        strokeDasharray="3 3"
-                        stroke="var(--border)"
-                        horizontal={false}
-                      />
-                      <XAxis
-                        type="number"
-                        allowDecimals={false}
-                        tick={eixoTick}
-                        tickLine={false}
-                        axisLine={false}
-                      />
-                      <YAxis
-                        type="category"
-                        dataKey="setor"
-                        width={110}
-                        tick={eixoTick}
-                        tickLine={false}
-                        axisLine={false}
-                      />
-                      <Tooltip contentStyle={estiloTooltip} formatter={v => [`${v}`, "Colaboradores"]} />
-                      <Bar
-                        dataKey="total"
-                        fill={COR.primaria}
-                        radius={[0, 4, 4, 0]}
-                        maxBarSize={18}
-                      />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <TabelaDeSerie
-                  colunas={[
-                    { rotulo: "Setor" },
-                    { rotulo: "Colaboradores", numerica: true },
-                    { rotulo: "% do quadro", numerica: true },
-                  ]}
-                  linhas={headcount.map(h => ({
-                    chave: h.setor,
-                    celulas: [
-                      h.setor,
-                      h.total,
-                      totalAtivos > 0 ? `${Math.round((h.total / totalAtivos) * 100)}%` : "—",
-                    ],
-                  }))}
+                <Indicador
+                  variante="cartao"
+                  rotulo="Tempo de casa (mediana)"
+                  valor={
+                    tempo.quartis ? `${formatarNumero(tempo.quartis.mediana)} ano(s)` : <SemDado />
+                  }
+                  complemento={
+                    tempo.abaixoDeUmAnoPct !== null
+                      ? `${tempo.abaixoDeUmAno} de ${tempo.comData} (${Math.round(tempo.abaixoDeUmAnoPct)}%) com menos de 1 ano`
+                      : "ninguém com data de admissão preenchida"
+                  }
                 />
-              )}
-            </Bloco>
-
-            <Bloco titulo="Faixa etária" descricao="Distribuição de idade dos ativos.">
-              {vista === "graficos" ? (
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={faixaEtaria} margin={{ left: -16, right: 8 }}>
-                      <CartesianGrid
-                        strokeDasharray="3 3"
-                        stroke="var(--border)"
-                        vertical={false}
-                      />
-                      <XAxis dataKey="faixa" tick={eixoTick} tickLine={false} axisLine={false} />
-                      <YAxis
-                        allowDecimals={false}
-                        tick={eixoTick}
-                        tickLine={false}
-                        axisLine={false}
-                      />
-                      <Tooltip contentStyle={estiloTooltip} formatter={v => [`${v}`, "Colaboradores"]} />
-                      <Bar
-                        dataKey="total"
-                        fill={COR.primaria}
-                        radius={[4, 4, 0, 0]}
-                        maxBarSize={40}
-                      />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <TabelaDeSerie
-                  colunas={[{ rotulo: "Faixa" }, { rotulo: "Colaboradores", numerica: true }]}
-                  linhas={faixaEtaria.map(f => ({ chave: f.faixa, celulas: [f.faixa, f.total] }))}
+                <Indicador
+                  variante="cartao"
+                  rotulo="Folha + benefícios/mês"
+                  valor={
+                    folhaTotal === null ? <SemDado /> : formatarReais(folhaTotal + beneficiosTotal)
+                  }
+                  complemento={
+                    folhaTotal === null
+                      ? `só ${comSalario} de ${totalAtivos} ativos têm salário — a soma descreveria a minoria`
+                      : comSalario < totalAtivos
+                        ? `piso: ${comSalario} de ${totalAtivos} ativos com salário · sem encargos`
+                        : "salário base + benefícios vigentes · sem encargos"
+                  }
                 />
-              )}
-            </Bloco>
-          </div>
+              </div>
 
-          {/* --- Custo ------------------------------------------------------- */}
-          <BlocoCusto custo={custo} vista={vista} />
+            </TabsContent>
 
-          {/* --- Absenteísmo ------------------------------------------------- */}
-          <BlocoAbsenteismo absenteismo={absenteismo} />
+            {/* --- Movimento: o que mudou na janela ------------------------- */}
+            <TabsContent value="movimento" className="space-y-6 pt-4">
+              <div className="grid gap-4 lg:grid-cols-2">
+                <Bloco
+                  titulo={`Evolução do quadro (${janela} meses)`}
+                  descricao="Colaboradores ativos no fim de cada mês, reconstruído a partir do quadro de hoje."
+                >
+                  {vista === "graficos" ? (
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={evolucao} margin={{ left: -16, right: 8 }}>
+                          <defs>
+                            <linearGradient id="grad-headcount" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor={COR.primaria} stopOpacity={0.25} />
+                              <stop offset="100%" stopColor={COR.primaria} stopOpacity={0.02} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid
+                            strokeDasharray="3 3"
+                            stroke="var(--border)"
+                            vertical={false}
+                          />
+                          <XAxis dataKey="mes" tick={eixoTick} tickLine={false} axisLine={false} />
+                          <YAxis
+                            allowDecimals={false}
+                            tick={eixoTick}
+                            tickLine={false}
+                            axisLine={false}
+                            domain={["dataMin - 2", "dataMax + 2"]}
+                          />
+                          <Tooltip contentStyle={estiloTooltip} formatter={v => [`${v}`, "Ativos"]} />
+                          <Area
+                            type="monotone"
+                            dataKey="total"
+                            stroke={COR.primaria}
+                            strokeWidth={2}
+                            fill="url(#grad-headcount)"
+                            dot={false}
+                            activeDot={{ r: 4 }}
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    <TabelaDeSerie
+                      colunas={[{ rotulo: "Mês" }, { rotulo: "Ativos no fim do mês", numerica: true }]}
+                      linhas={evolucao.map(e => ({ chave: e.mes, celulas: [e.mes, e.total] }))}
+                    />
+                  )}
+                </Bloco>
 
-          {/* --- O que ficou de fora ---------------------------------------- */}
+                <Bloco
+                  titulo="Admissões × desligamentos"
+                  descricao={`Movimentação mês a mês nos últimos ${janela} meses.`}
+                >
+                  {vista === "graficos" ? (
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={movimento} margin={{ left: -16, right: 8 }}>
+                          <CartesianGrid
+                            strokeDasharray="3 3"
+                            stroke="var(--border)"
+                            vertical={false}
+                          />
+                          <XAxis dataKey="mes" tick={eixoTick} tickLine={false} axisLine={false} />
+                          <YAxis
+                            allowDecimals={false}
+                            tick={eixoTick}
+                            tickLine={false}
+                            axisLine={false}
+                          />
+                          <Tooltip contentStyle={estiloTooltip} />
+                          <Legend wrapperStyle={{ fontSize: 12 }} />
+                          <Line
+                            type="monotone"
+                            dataKey="admissoes"
+                            name="Admissões"
+                            stroke={COR.admissoes}
+                            strokeWidth={2}
+                            dot={false}
+                            activeDot={{ r: 4 }}
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="desligamentos"
+                            name="Desligamentos"
+                            stroke={COR.desligamentos}
+                            strokeWidth={2}
+                            dot={false}
+                            activeDot={{ r: 4 }}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    <TabelaDeSerie
+                      colunas={[
+                        { rotulo: "Mês" },
+                        { rotulo: "Admissões", numerica: true },
+                        { rotulo: "Desligamentos", numerica: true },
+                      ]}
+                      linhas={movimento.map(m => ({
+                        chave: m.mes,
+                        celulas: [
+                          m.mes,
+                          <span key="a" className="text-success">
+                            {m.admissoes > 0 ? `+${m.admissoes}` : "—"}
+                          </span>,
+                          <span key="d" className="text-destructive">
+                            {m.desligamentos > 0 ? `-${m.desligamentos}` : "—"}
+                          </span>,
+                        ],
+                      }))}
+                    />
+                  )}
+                </Bloco>
+
+              </div>
+            </TabsContent>
+
+            {/* --- Quadro: quem é o time hoje ------------------------------- */}
+            <TabsContent value="quadro" className="space-y-6 pt-4">
+              <BlocoTempoDeCasa
+                tempo={tempo}
+                porSetor={tempoPorSetor}
+                totalAtivos={totalAtivos}
+                vista={vista}
+              />
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                <Bloco
+                  titulo="Colaboradores por setor"
+                  descricao={
+                    headcount.length > TOP_SETORES && vista === "graficos"
+                      ? `Os ${TOP_SETORES} maiores setores; os demais somados em "Outros".`
+                      : "Todos os setores com gente ativa."
+                  }
+                >
+                  {headcount.length === 0 ? (
+                    <Vazio texto="Nenhum colaborador ativo no recorte." />
+                  ) : vista === "graficos" ? (
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          data={agruparOutros(headcount)}
+                          layout="vertical"
+                          margin={{ left: 16, right: 24 }}
+                        >
+                          <CartesianGrid
+                            strokeDasharray="3 3"
+                            stroke="var(--border)"
+                            horizontal={false}
+                          />
+                          <XAxis
+                            type="number"
+                            allowDecimals={false}
+                            tick={eixoTick}
+                            tickLine={false}
+                            axisLine={false}
+                          />
+                          <YAxis
+                            type="category"
+                            dataKey="setor"
+                            width={110}
+                            tick={eixoTick}
+                            tickLine={false}
+                            axisLine={false}
+                          />
+                          <Tooltip contentStyle={estiloTooltip} formatter={v => [`${v}`, "Colaboradores"]} />
+                          <Bar
+                            dataKey="total"
+                            fill={COR.primaria}
+                            radius={[0, 4, 4, 0]}
+                            maxBarSize={18}
+                          />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    <TabelaDeSerie
+                      colunas={[
+                        { rotulo: "Setor" },
+                        { rotulo: "Colaboradores", numerica: true },
+                        { rotulo: "% do quadro", numerica: true },
+                      ]}
+                      linhas={headcount.map(h => ({
+                        chave: h.setor,
+                        celulas: [
+                          h.setor,
+                          h.total,
+                          totalAtivos > 0 ? `${Math.round((h.total / totalAtivos) * 100)}%` : "—",
+                        ],
+                      }))}
+                    />
+                  )}
+                </Bloco>
+
+                <Bloco titulo="Faixa etária" descricao="Distribuição de idade dos ativos.">
+                  {vista === "graficos" ? (
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={faixaEtaria} margin={{ left: -16, right: 8 }}>
+                          <CartesianGrid
+                            strokeDasharray="3 3"
+                            stroke="var(--border)"
+                            vertical={false}
+                          />
+                          <XAxis dataKey="faixa" tick={eixoTick} tickLine={false} axisLine={false} />
+                          <YAxis
+                            allowDecimals={false}
+                            tick={eixoTick}
+                            tickLine={false}
+                            axisLine={false}
+                          />
+                          <Tooltip contentStyle={estiloTooltip} formatter={v => [`${v}`, "Colaboradores"]} />
+                          <Bar
+                            dataKey="total"
+                            fill={COR.primaria}
+                            radius={[4, 4, 0, 0]}
+                            maxBarSize={40}
+                          />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    <TabelaDeSerie
+                      colunas={[{ rotulo: "Faixa" }, { rotulo: "Colaboradores", numerica: true }]}
+                      linhas={faixaEtaria.map(f => ({ chave: f.faixa, celulas: [f.faixa, f.total] }))}
+                    />
+                  )}
+                </Bloco>
+              </div>
+            </TabsContent>
+
+            {/* --- Custo e faltas ------------------------------------------- */}
+            <TabsContent value="custo" className="space-y-6 pt-4">
+              <BlocoCusto custo={custo} vista={vista} />
+              <BlocoAbsenteismo absenteismo={absenteismo} />
+            </TabsContent>
+          </Tabs>
+
+          {/* --- O que ficou de fora ----------------------------------------
+              Fora das abas de propósito: são as ressalvas do que os números
+              NÃO cobrem (ficha sem salário, sem data de admissão). Atrás de
+              uma aba, quem não clicasse levaria o número como completo. */}
           <Rodape tempo={tempo} totalAtivos={totalAtivos} comSalario={comSalario} janela={janela} />
         </>
       )}

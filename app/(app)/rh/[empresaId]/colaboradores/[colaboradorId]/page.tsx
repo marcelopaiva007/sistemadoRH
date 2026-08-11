@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { empresasDaMesmaMarca } from "@/lib/escopo-marca";
@@ -8,6 +7,7 @@ import { conformidadeDoColaborador, situacaoDoExame } from "@/lib/conformidade";
 import { pendenciasDaAdmissao } from "@/lib/admissao";
 import { opcoesDoCatalogo } from "@/lib/catalogos";
 import { ColaboradorDetalhe } from "./colaborador-detalhe";
+import { Trilha } from "@/components/trilha";
 
 // Ficha completa do colaborador: dados cadastrais, dependentes, dossiê digital,
 // férias e ausências. Sempre escopada à empresa da rota — o id do colaborador
@@ -334,12 +334,7 @@ export default async function ColaboradorPage({
 
   return (
     <div className="space-y-4">
-      <Link
-        href={`/rh/${empresaId}/colaboradores`}
-        className="text-sm text-muted-foreground hover:underline"
-      >
-        ← Colaboradores
-      </Link>
+      <Trilha empresaId={empresaId} atual={colaborador.nome} />
       <ColaboradorDetalhe
         empresaId={empresaId}
         colaborador={colaborador}

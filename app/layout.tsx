@@ -26,6 +26,12 @@ export default function RootLayout({
   return (
     <html
       lang="pt-BR"
+      // O next-themes escreve a classe do tema (`dark`) no <html> por script,
+      // ANTES do React hidratar — é assim que ele evita o flash de tema
+      // errado. Então o HTML que sai do servidor e o que o cliente encontra
+      // divergem por construção, e sem isto o React reclama no console a cada
+      // carregamento de quem usa o tema escuro.
+      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-background">

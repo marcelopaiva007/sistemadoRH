@@ -120,7 +120,7 @@ export async function verificarPlanosDeAcaoVencidos(
       // Chave por plano, sem tempo: enquanto ele seguir vencido é a MESMA
       // ocorrência — o cron confirma a linha em vez de abrir outra.
       chaveDedupe: `AL09:${plano.id}`,
-      nivelUnidade: "empresa",
+      nivelUnidade: "EMPRESA",
       unidadeId: plano.empresaId,
       unidadeNome: plano.empresa.nome,
       empresaId: plano.empresaId,
@@ -128,7 +128,7 @@ export async function verificarPlanosDeAcaoVencidos(
       observado: `vencido desde ${formatarData(plano.prazo)} e ainda aberto`,
       esperado: "concluído (ou cancelado com motivo) até o prazo",
       recorte: null,
-      gravidade: "alta",
+      gravidade: "ALTA",
     });
 
     const resultado = await enviarAlerta({
@@ -177,7 +177,7 @@ export async function verificarDesligamentosConcentrados(
       // Condição contínua (janela móvel de 90 dias): chave sem tempo — a linha
       // viva vai sendo confirmada com a contagem do dia.
       chaveDedupe: `AL10:${setor.setorId}`,
-      nivelUnidade: "setor",
+      nivelUnidade: "SETOR",
       unidadeId: setor.setorId,
       unidadeNome: setor.setorNome,
       empresaId: setor.empresaId,
@@ -186,7 +186,7 @@ export async function verificarDesligamentosConcentrados(
       esperado: `menos de ${DESLIGAMENTOS_MINIMOS_90D} na mesma janela`,
       recorte:
         "Limiar fixo, não estatístico — o radar de desvio (Poisson contra a própria média) é quem separa pico real de ruído por tamanho de unidade.",
-      gravidade: "alta",
+      gravidade: "ALTA",
     });
 
     const resultado = await enviarAlerta({
@@ -244,7 +244,7 @@ export async function verificarTaxaRespostaBaixa(cliente: Cliente = prisma): Pro
         // Por pesquisa × setor: a mesma pesquisa pode ter dois setores atrasados,
         // e o mesmo setor pode voltar em pesquisa nova — ocorrências distintas.
         chaveDedupe: `AL08:${pesquisa.id}:${setorId}`,
-        nivelUnidade: "setor",
+        nivelUnidade: "SETOR",
         unidadeId: setorId,
         unidadeNome: dados.setorNome,
         empresaId: pesquisa.empresaId,
@@ -252,9 +252,9 @@ export async function verificarTaxaRespostaBaixa(cliente: Cliente = prisma): Pro
         observado: `${taxaPct}% de resposta (${dados.respondidos}/${dados.total})`,
         esperado: `pelo menos ${TAXA_RESPOSTA_MINIMA_PCT}% durante a janela da pesquisa`,
         recorte: `Setores com menos de ${N_MINIMO_PARA_ALERTAR_RESPOSTA} convidados ficam fora deste sinal — amostra pequena demais para taxa dizer algo.`,
-        // "atencao", não "alta": ainda dá tempo de corrigir durante a janela —
+        // "ATENCAO", não "ALTA": ainda dá tempo de corrigir durante a janela —
         // é lembrete de gestão da coleta, não dano consumado.
-        gravidade: "atencao",
+        gravidade: "ATENCAO",
       });
 
       const resultado = await enviarAlerta({

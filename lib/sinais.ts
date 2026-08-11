@@ -20,9 +20,9 @@ export type TipoSinal =
   | "DESLIGAMENTOS_CONCENTRADOS" // AL10
   | "TAXA_RESPOSTA_BAIXA"; // AL08
 
-export type NivelUnidadeSinal = "grupo" | "marca" | "empresa" | "setor";
+export type NivelUnidadeSinal = "GRUPO" | "MARCA" | "EMPRESA" | "SETOR";
 
-export type GravidadeSinal = "critica" | "alta" | "atencao";
+export type GravidadeSinal = "CRITICA" | "ALTA" | "ATENCAO";
 
 export type StatusSinal = "ABERTO" | "RECONHECIDO" | "EM_PLANO" | "DESCARTADO" | "SILENCIADO";
 
@@ -42,9 +42,9 @@ export const STATUS_SINAL = [
 ] as const;
 
 export const GRAVIDADE_SINAL = [
-  { value: "critica", label: "Crítica" },
-  { value: "alta", label: "Alta" },
-  { value: "atencao", label: "Atenção" },
+  { value: "CRITICA", label: "Crítica" },
+  { value: "ALTA", label: "Alta" },
+  { value: "ATENCAO", label: "Atenção" },
 ] as const;
 
 export const tipoSinalLabel = (v: string) => TIPO_SINAL.find(t => t.value === v)?.label ?? v;

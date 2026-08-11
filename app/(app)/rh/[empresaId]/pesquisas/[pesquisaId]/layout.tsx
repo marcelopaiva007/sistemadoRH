@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { CONVITES_NA_PESQUISA } from "@/lib/pesquisa-numeros";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Trilha } from "@/components/trilha";
 import { AcoesPesquisa } from "./acoes-pesquisa";
 import { AbasDaPesquisa } from "./abas-da-pesquisa";
 import Link from "next/link";
@@ -48,6 +49,12 @@ export default async function PesquisaLayout({
 
   return (
     <div className="space-y-6">
+      {/* No layout, não em cada page: as quatro rotas irmãs (dados, perguntas,
+          convites, resultados) precisam da mesma volta, e o AbasDaPesquisa
+          logo abaixo já diz em qual delas se está. Até 11/08/2026 essas telas
+          eram as únicas do sistema sem NENHUM caminho de volta. */}
+      <Trilha empresaId={empresaId} atual={pesquisa.titulo} />
+
       <div className="flex flex-wrap items-start justify-between gap-4">
         <h2 className="text-xl font-semibold tracking-tight">{pesquisa.titulo}</h2>
         <AcoesPesquisa empresaId={empresaId} pesquisaId={pesquisa.id} status={pesquisa.status} />

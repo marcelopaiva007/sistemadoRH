@@ -53,9 +53,8 @@ export function ResponderForm({ token, pesquisa }: { token: string; pesquisa: Pe
 
       {pesquisa.perguntas.map((pergunta, index) => (
         <div key={pergunta.id} className="space-y-3 rounded-md border p-4">
-          <Label className="text-sm font-medium">
+          <Label className="text-sm font-medium" required={pergunta.obrigatoria}>
             {index + 1}. {pergunta.enunciado}
-            {pergunta.obrigatoria && <span className="text-destructive"> *</span>}
           </Label>
 
           {pergunta.tipo === "LIKERT_5" && (

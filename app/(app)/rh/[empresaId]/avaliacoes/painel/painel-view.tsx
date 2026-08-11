@@ -204,7 +204,7 @@ export function PainelAvaliacaoView({
         />
         <TabelaDestaque
           titulo="Acima da média"
-          icone={<TrendingUp className="size-4 text-green-600" />}
+          icone={<TrendingUp className="size-4 text-green-600 dark:text-green-400" />}
           linhas={dados.destaques.acimaDaMedia}
           vazio="Ninguém está estatisticamente acima da média."
         />

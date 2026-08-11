@@ -26,12 +26,126 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.65.1",
+    data: "11/08/2026",
+    horario: "08:20",
+    titulo: "Trilha de navegação nas telas de detalhe",
+    itens: [
+      "As telas de dentro de uma pesquisa (dados, perguntas, convites, resultados e dashboard de clima) não tinham nenhum caminho de volta — só o botão do navegador. Agora mostram \"Início › Pesquisas de clima › nome da pesquisa\" no topo.",
+      "Na ficha do colaborador, no ciclo de avaliação, na competência de folha e na vaga, o antigo link \"← Módulo\" virou a mesma trilha, que além de voltar mostra de quem (ou de que) é o registro aberto.",
+    ],
+  },
+  {
+    versao: "1.65.0",
+    data: "11/08/2026",
+    horario: "07:40",
+    titulo: "Painel dividido em abas — menos rolagem, mais achabilidade",
+    itens: [
+      "O Painel vinha empilhando tudo numa página só (abertura, radar, indicadores, tempo de casa, quatro gráficos, custo e absenteísmo). Agora está em quatro abas, agrupadas pela pergunta que respondem: Resumo (como estamos), Quadro (quem é o time hoje), Movimento (o que mudou na janela) e Custo e faltas.",
+      "O filtro de empresa e o rodapé de ressalvas continuam sempre visíveis, fora das abas: as ressalvas dizem o que os números não cobrem, e escondê-las atrás de um clique faria o número parecer mais completo do que é.",
+      "Nenhum número mudou — é a mesma conta, só reorganizada na tela.",
+    ],
+  },
+  {
+    versao: "1.64.3",
+    data: "11/08/2026",
+    horario: "05:10",
+    titulo: "Correção de legibilidade no tema escuro",
+    itens: [
+      "Quem usa o sistema no tema escuro (pelo botão da barra de topo ou porque o computador está configurado assim) passa a enxergar melhor: mensagens de erro dentro dos cartões, contorno dos campos de formulário, rótulo dos botões principais e textos de apoio estavam com contraste abaixo do mínimo recomendado.",
+      "No tema claro, o contorno dos campos que ficam fora de um cartão e o destaque de foco do menu lateral também foram ajustados pelo mesmo motivo.",
+      "Ícones e etiquetas coloridas de várias telas (unificação de cargos e setores, clima, produtividade, medidas disciplinares) ganharam versão própria para o tema escuro — antes ficavam lavados ou quase invisíveis.",
+    ],
+  },
+  {
+    versao: "1.64.2",
+    data: "11/08/2026",
+    horario: "04:50",
+    titulo: "Fase 1 do Design System: marca de campo obrigatório",
+    itens: [
+      "Os campos de formulário podem passar a exibir o asterisco vermelho de obrigatório — antes cada tela precisava escrever o asterisco à mão, e só uma fazia isso.",
+    ],
+  },
+  {
+    versao: "1.64.1",
+    data: "11/08/2026",
+    horario: "04:30",
+    titulo: "Fase 1 do Design System: etiquetas de situação unificadas",
+    itens: [
+      "As etiquetas coloridas de situação (férias, ausências, vagas, conformidade) passam a sair de um componente único — antes cada tela tinha a sua cópia, e a mesma vaga podia aparecer com cor diferente na lista e na tela de detalhe.",
+    ],
+  },
+  {
+    versao: "1.64.0",
+    data: "11/08/2026",
+    horario: "04:00",
+    titulo: "Fase 1 do Design System: início — padronização de enum e documentação",
+    itens: [
+      "Central de Sinais: gravidade e nível de unidade dos sinais passam a ser gravados em maiúsculo, alinhado ao resto do sistema (não muda nada na tela, só a forma como o dado é guardado).",
+      "Documentação técnica do banco de dados corrigida em 5 pontos que estavam desatualizados havia semanas.",
+    ],
+  },
+  {
+    versao: "1.63.9",
+    data: "11/08/2026",
+    horario: "03:10",
+    titulo: "Ajuste: histórico de atualizações completo até a v1.63.7",
+    itens: [
+      "A tela de Atualizações estava sem as entradas de v1.63.3 a v1.63.7 — corrigido, agora mostra todas as entregas do período em ordem.",
+    ],
+  },
+  {
     versao: "1.63.8",
     data: "11/08/2026",
     horario: "03:00",
     titulo: "Visual: imagens e ilustrações do setor de RH na tela inicial",
     itens: [
       "Tela inicial da empresa ganha banner de boas-vindas com ilustração temática de RH e cartões de indicadores com ícones mais visíveis.",
+    ],
+  },
+  {
+    versao: "1.63.7",
+    data: "10/08/2026",
+    horario: "20:42",
+    titulo: "Correção: cargos e setores voltam a aparecer ao cadastrar colaborador em qualquer CNPJ",
+    itens: [
+      "Ao abrir um CNPJ específico sem cargos próprios, a lista de cargos/setores no cadastro de colaborador não aparece mais vazia — passa a mostrar o catálogo completo da marca, mesmo quando os cargos estão registrados em outro CNPJ do grupo.",
+    ],
+  },
+  {
+    versao: "1.63.6",
+    data: "10/08/2026",
+    horario: "20:35",
+    titulo: "Correção: campos de Sexo, Estado civil e Escolaridade voltam a salvar na ficha",
+    itens: [
+      "Alterar Sexo, Estado civil ou Escolaridade na ficha do colaborador e salvar não mostra mais o valor antigo na tela — a página agora atualiza sozinha após salvar com sucesso.",
+    ],
+  },
+  {
+    versao: "1.63.5",
+    data: "10/08/2026",
+    horario: "20:20",
+    titulo: "Correção: relatórios em PDF voltam a abrir para acesso por marca",
+    itens: [
+      "Relatórios em PDF (clima organizacional, pesquisas, indicadores, avaliações) não bloqueiam mais com \"Sem acesso a esta empresa\" para quem tem acesso pela marca — as quatro rotas passam a reconhecer o mesmo modelo de acesso por marca já usado na tela de Colaboradores.",
+    ],
+  },
+  {
+    versao: "1.63.4",
+    data: "10/08/2026",
+    horario: "18:07",
+    titulo: "Ajuste: lista de Colaboradores abre na marca do CNPJ aberto, não no grupo inteiro",
+    itens: [
+      "A tela de Colaboradores mostrava os colaboradores de todos os CNPJs do grupo misturados. Passa a abrir só com os colaboradores da marca da empresa do caminho, com o filtro da lateral estreitando dentro dessa marca quando necessário.",
+    ],
+  },
+  {
+    versao: "1.63.3",
+    data: "10/08/2026",
+    horario: "14:59",
+    titulo: "Ajuste: cartão de avaliação atrasada conta por ciclo, não por avaliação",
+    itens: [
+      "O cartão \"Avaliação atrasada\" na tela de Pendências contava cada avaliação pendente de um ciclo vencido — um ciclo esquecido com 235 avaliações pendentes virava 235 itens na lista e no e-mail de cobrança do RH. Passa a contar 1 por ciclo (\"Ciclo de avaliação a encerrar\"), com o detalhe de qual ciclo, atraso e avaliações pendentes.",
     ],
   },
   {
