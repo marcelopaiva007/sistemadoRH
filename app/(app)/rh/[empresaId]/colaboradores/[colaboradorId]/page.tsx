@@ -316,6 +316,10 @@ export default async function ColaboradorPage({
     prisma.ocorrenciaDisciplinar.findMany({
       where: { colaboradorId },
       orderBy: [{ dataFato: "desc" }],
+      // Só os metadados da via assinada — o conteúdo do arquivo desce pela
+      // rota /api/rh/[empresaId]/arquivos/[arquivoId], sob autorização, e não
+      // no HTML desta página.
+      include: { arquivo: { select: { id: true, nome: true, tamanhoBytes: true } } },
     }),
   ]);
 

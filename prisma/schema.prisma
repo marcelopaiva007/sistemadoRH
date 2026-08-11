@@ -523,6 +523,7 @@ model Arquivo {
   participacaoTreinamento ParticipacaoTreinamento?
   curriculo               Candidato?
   tratamentoPonto         TratamentoPonto?
+  ocorrenciaDisciplinar   OcorrenciaDisciplinar?
 
   @@index([empresaId])
   @@schema("rh")
@@ -1413,6 +1414,15 @@ model OcorrenciaDisciplinar {
   testemunha2Cpf    String?
 
   documentoUrl      String?
+
+  // A VIA ASSINADA, digitalizada. O sistema gera o documento em branco e
+  // registra `statusAssinatura`, mas até 11/08/2026 não havia onde guardar o
+  // papel de volta: o RH imprimia, colhia a assinatura e o comprovante ficava
+  // na pasta física. Numa reclamatória o que se pede é justamente esse papel —
+  // o status sozinho é a afirmação de que ele existe, não a prova.
+  arquivoId         String?  @unique
+  arquivo           Arquivo? @relation(fields: [arquivoId], references: [id], onDelete: SetNull)
+
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 

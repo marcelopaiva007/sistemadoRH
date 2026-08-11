@@ -11,6 +11,8 @@ import {
   ShieldAlert,
   CheckCircle2,
   UserX,
+  Paperclip,
+  Upload,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +24,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { formatarData } from "@/lib/datas";
+import { formatarTamanho } from "@/lib/anexos";
 import {
   TIPOS_OCORRENCIA_DISCIPLINAR,
   STATUS_ASSINATURA_DISCIPLINAR,
@@ -30,6 +33,7 @@ import {
 import {
   criarOcorrenciaDisciplinar,
   registrarAssinaturaOcorrencia,
+  anexarViaAssinadaOcorrencia,
   type ResultadoOcorrencia,
 } from "@/lib/actions/rh-disciplinar";
 
@@ -59,6 +63,8 @@ type Ocorrencia = {
   testemunha1Cpf: string | null;
   testemunha2Nome: string | null;
   testemunha2Cpf: string | null;
+  /** A via assinada digitalizada. Null = o papel ainda não voltou. */
+  arquivo: { id: string; nome: string; tamanhoBytes: number } | null;
   createdAt: Date;
 };
 
@@ -73,6 +79,7 @@ export function DisciplinarCard({
 }) {
   const [modalAberto, setModalAberto] = useState(false);
   const [modalAssinatura, setModalAssinatura] = useState<Ocorrencia | null>(null);
+  const [modalAnexo, setModalAnexo] = useState<Ocorrencia | null>(null);
 
   const totalAdvertencias = ocorrencias.filter((o) =>
     o.tipo.includes("ADVERTENCIA"),
@@ -220,6 +227,39 @@ export function DisciplinarCard({
                               {o.dataAssinatura ? formatarData(o.dataAssinatura) : "Concluído"}
                             </span>
                           )}
+                          {/* A via assinada. O sistema gerava o papel e
+                              registrava o status, mas não tinha onde guardar o
+                              documento de volta — numa reclamatória é ele que
+                              se pede, e o status sozinho é só a afirmação de
+                              que ele existe. */}
+                          {o.arquivo ? (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 text-xs"
+                              render={
+                                <a
+                                  href={`/api/rh/${empresaId}/arquivos/${o.arquivo.id}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                />
+                              }
+                              title={`${o.arquivo.nome} · ${formatarTamanho(o.arquivo.tamanhoBytes)}`}
+                            >
+                              <Paperclip className="size-3.5 mr-1" />
+                              Via assinada
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => setModalAnexo(o)}
+                              className="h-7 text-xs text-muted-foreground"
+                            >
+                              <Upload className="size-3.5 mr-1" />
+                              Anexar via
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -243,7 +283,101 @@ export function DisciplinarCard({
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Guardar a via assinada digitalizada */}
+      {modalAnexo && (
+        <Dialog open={!!modalAnexo} onOpenChange={() => setModalAnexo(null)}>
+          <DialogContent className="max-w-md">
+            <AnexarViaForm
+              empresaId={empresaId}
+              ocorrencia={modalAnexo}
+              onSuccess={() => setModalAnexo(null)}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
     </Card>
+  );
+}
+
+/**
+ * Guarda no sistema o papel que voltou assinado.
+ *
+ * Fica separado de "Assinar / Recusa" de propósito: aquele registra o QUE
+ * aconteceu (assinou, recusou com testemunhas), este guarda a PROVA. Os dois
+ * momentos são distintos na prática — o RH marca o status na hora e digitaliza
+ * depois, quando passa pelo scanner.
+ */
+function AnexarViaForm({
+  empresaId,
+  ocorrencia,
+  onSuccess,
+}: {
+  empresaId: string;
+  ocorrencia: Ocorrencia;
+  onSuccess: () => void;
+}) {
+  const [enviando, setEnviando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  return (
+    <form
+      onSubmit={async (e) => {
+        e.preventDefault();
+        setEnviando(true);
+        setErro(null);
+        try {
+          const resultado = await anexarViaAssinadaOcorrencia(
+            empresaId,
+            ocorrencia.id,
+            new FormData(e.currentTarget),
+          );
+          if (resultado.ok) {
+            toast.success("Via assinada guardada.");
+            onSuccess();
+          } else {
+            setErro(resultado.error);
+          }
+        } catch {
+          setErro("Não foi possível enviar o arquivo agora. Tente de novo.");
+        } finally {
+          setEnviando(false);
+        }
+      }}
+    >
+      <DialogHeader>
+        <DialogTitle>Anexar a via assinada</DialogTitle>
+      </DialogHeader>
+
+      <div className="space-y-3 py-4">
+        <p className="text-sm text-muted-foreground">
+          Digitalize o documento depois de assinado pelo colaborador e pela empresa e guarde-o
+          aqui. É esta via que vale como prova — o status de assinatura, sozinho, apenas afirma
+          que ela existe.
+        </p>
+        <div className="space-y-1.5">
+          <Label htmlFor="arquivo" required>
+            Arquivo digitalizado
+          </Label>
+          <Input id="arquivo" name="arquivo" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" required />
+          <p className="text-xs text-muted-foreground">PDF, JPG, PNG ou WEBP, até 10 MB.</p>
+        </div>
+        {erro && (
+          <Alert variant="destructive">
+            <AlertDescription>{erro}</AlertDescription>
+          </Alert>
+        )}
+      </div>
+
+      <DialogFooter>
+        <Button type="button" variant="outline" onClick={onSuccess} disabled={enviando}>
+          Cancelar
+        </Button>
+        <Button type="submit" disabled={enviando}>
+          {enviando ? "Enviando..." : "Guardar via"}
+        </Button>
+      </DialogFooter>
+    </form>
   );
 }
 

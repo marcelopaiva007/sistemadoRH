@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { registrarAuditoria } from "@/lib/audit";
+import { lerAnexo } from "@/lib/anexos";
 import type { ActionResult } from "@/lib/constants";
 
 // Devolve o id da ocorrência criada porque a tela precisa dele para oferecer,
@@ -80,7 +81,9 @@ export async function registrarAssinaturaOcorrencia(
   testemunha1?: { nome: string; cpf: string },
   testemunha2?: { nome: string; cpf: string },
 ): Promise<ActionResult> {
-  const usuario = await requireEmpresaAccess(empresaId);
+  // Sem atribuir: quem registrou fica na trilha por `registrarAuditoria`, que
+  // lê a sessão sozinho. A chamada aqui é a guarda de acesso, não o autor.
+  await requireEmpresaAccess(empresaId);
 
   try {
     const dados = recusou
@@ -120,4 +123,78 @@ export async function registrarAssinaturaOcorrencia(
     console.error("Erro ao atualizar assinatura:", error);
     return { ok: false, error: "Falha ao atualizar o status de assinatura." };
   }
+}
+
+/**
+ * Guarda a VIA ASSINADA digitalizada de uma medida disciplinar.
+ *
+ * O sistema já gerava o documento em branco e já registrava o status da
+ * assinatura, mas o papel assinado não tinha onde entrar — ficava na pasta
+ * física. Status é afirmação; o anexo é a prova, e é ele que se pede numa
+ * reclamatória.
+ *
+ * Recebe `FormData` (e não os campos soltos) porque é assim que um File
+ * atravessa uma server action. Mesmo caminho de `registrarAusencia`.
+ */
+export async function anexarViaAssinadaOcorrencia(
+  empresaId: string,
+  ocorrenciaId: string,
+  formData: FormData,
+): Promise<ActionResult> {
+  const usuario = await requireEmpresaAccess(empresaId);
+
+  const lido = await lerAnexo(formData);
+  if (!lido.ok) return { ok: false, error: lido.error };
+  if (!lido.anexo) return { ok: false, error: "Escolha o arquivo digitalizado." };
+  const anexo = lido.anexo;
+
+  // A ocorrência tem que ser DESTA empresa: o id vem do cliente.
+  const atual = await prisma.ocorrenciaDisciplinar.findFirst({
+    where: { id: ocorrenciaId, empresaId },
+    select: { id: true, arquivoId: true, colaboradorId: true, colaborador: { select: { nome: true } } },
+  });
+  if (!atual) return { ok: false, error: "Ocorrência não encontrada nesta empresa." };
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const arquivo = await tx.arquivo.create({
+        data: {
+          empresaId,
+          nome: anexo.nome,
+          mimeType: anexo.mimeType,
+          tamanhoBytes: anexo.bytes.byteLength,
+          conteudo: anexo.bytes,
+          criadoPorId: usuario?.id ?? null,
+          criadoPorNome: usuario?.name ?? null,
+        },
+        select: { id: true },
+      });
+
+      await tx.ocorrenciaDisciplinar.update({
+        where: { id: atual.id },
+        data: { arquivoId: arquivo.id },
+      });
+
+      // A relação é 1-para-1 (arquivoId é UNIQUE): substituir a via deixaria o
+      // anexo anterior órfão no banco, sem nenhuma tela por onde alcançá-lo.
+      // Apagado DEPOIS de trocar o vínculo, dentro da mesma transação.
+      if (atual.arquivoId) await tx.arquivo.delete({ where: { id: atual.arquivoId } });
+    });
+  } catch (error) {
+    console.error("Erro ao anexar via assinada:", error);
+    return { ok: false, error: "Falha ao guardar o arquivo. Tente de novo." };
+  }
+
+  await registrarAuditoria({
+    empresaId,
+    acao: "ATUALIZAR",
+    entidade: "OcorrenciaDisciplinar",
+    entidadeId: atual.id,
+    resumo: `Anexou a via assinada da ocorrência disciplinar de ${atual.colaborador.nome}`,
+    detalhes: { arquivo: anexo.nome, substituiu: Boolean(atual.arquivoId) },
+  });
+
+  revalidatePath(`/rh/${empresaId}/colaboradores/${atual.colaboradorId}`);
+  revalidatePath(`/rh/${empresaId}/disciplinar`);
+  return { ok: true };
 }
