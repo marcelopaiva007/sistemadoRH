@@ -26,12 +26,66 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.63.9",
+    data: "11/08/2026",
+    horario: "03:10",
+    titulo: "Ajuste: histórico de atualizações completo até a v1.63.7",
+    itens: [
+      "A tela de Atualizações estava sem as entradas de v1.63.3 a v1.63.7 — corrigido, agora mostra todas as entregas do período em ordem.",
+    ],
+  },
+  {
     versao: "1.63.8",
     data: "11/08/2026",
     horario: "03:00",
     titulo: "Visual: imagens e ilustrações do setor de RH na tela inicial",
     itens: [
       "Tela inicial da empresa ganha banner de boas-vindas com ilustração temática de RH e cartões de indicadores com ícones mais visíveis.",
+    ],
+  },
+  {
+    versao: "1.63.7",
+    data: "10/08/2026",
+    horario: "20:42",
+    titulo: "Correção: cargos e setores voltam a aparecer ao cadastrar colaborador em qualquer CNPJ",
+    itens: [
+      "Ao abrir um CNPJ específico sem cargos próprios, a lista de cargos/setores no cadastro de colaborador não aparece mais vazia — passa a mostrar o catálogo completo da marca, mesmo quando os cargos estão registrados em outro CNPJ do grupo.",
+    ],
+  },
+  {
+    versao: "1.63.6",
+    data: "10/08/2026",
+    horario: "20:35",
+    titulo: "Correção: campos de Sexo, Estado civil e Escolaridade voltam a salvar na ficha",
+    itens: [
+      "Alterar Sexo, Estado civil ou Escolaridade na ficha do colaborador e salvar não mostra mais o valor antigo na tela — a página agora atualiza sozinha após salvar com sucesso.",
+    ],
+  },
+  {
+    versao: "1.63.5",
+    data: "10/08/2026",
+    horario: "20:20",
+    titulo: "Correção: relatórios em PDF voltam a abrir para acesso por marca",
+    itens: [
+      "Relatórios em PDF (clima organizacional, pesquisas, indicadores, avaliações) não bloqueiam mais com \"Sem acesso a esta empresa\" para quem tem acesso pela marca — as quatro rotas passam a reconhecer o mesmo modelo de acesso por marca já usado na tela de Colaboradores.",
+    ],
+  },
+  {
+    versao: "1.63.4",
+    data: "10/08/2026",
+    horario: "18:07",
+    titulo: "Ajuste: lista de Colaboradores abre na marca do CNPJ aberto, não no grupo inteiro",
+    itens: [
+      "A tela de Colaboradores mostrava os colaboradores de todos os CNPJs do grupo misturados. Passa a abrir só com os colaboradores da marca da empresa do caminho, com o filtro da lateral estreitando dentro dessa marca quando necessário.",
+    ],
+  },
+  {
+    versao: "1.63.3",
+    data: "10/08/2026",
+    horario: "14:59",
+    titulo: "Ajuste: cartão de avaliação atrasada conta por ciclo, não por avaliação",
+    itens: [
+      "O cartão \"Avaliação atrasada\" na tela de Pendências contava cada avaliação pendente de um ciclo vencido — um ciclo esquecido com 235 avaliações pendentes virava 235 itens na lista e no e-mail de cobrança do RH. Passa a contar 1 por ciclo (\"Ciclo de avaliação a encerrar\"), com o detalhe de qual ciclo, atraso e avaliações pendentes.",
     ],
   },
   {
