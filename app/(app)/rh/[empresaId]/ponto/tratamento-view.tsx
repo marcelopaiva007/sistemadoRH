@@ -1,14 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { FileEdit, ShieldAlert, CheckCircle2, XCircle, Search, User } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { FileEdit, ShieldAlert, CheckCircle2, XCircle, Clock3 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { registrarTratamentoPonto } from "@/app/actions/rh-ponto";
+import { registrarTratamentoPonto, decidirTratamentoPonto } from "@/app/actions/rh-ponto";
 
 export type TratamentoItem = {
   id: string;
@@ -24,10 +25,22 @@ export type TratamentoItem = {
   };
 };
 
-export function TratamentoView({ empresaId, tratamentos }: { empresaId: string; tratamentos: TratamentoItem[] }) {
+export type OpcaoColaborador = { id: string; nome: string };
+
+export function TratamentoView({
+  empresaId,
+  tratamentos,
+  colaboradores,
+}: {
+  empresaId: string;
+  tratamentos: TratamentoItem[];
+  colaboradores: OpcaoColaborador[];
+}) {
+  const router = useRouter();
   const [modalAberta, setModalAberta] = useState(false);
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [decidindo, setDecidindo] = useState<string | null>(null);
 
   const [colaboradorId, setColaboradorId] = useState("");
   const [dataFato, setDataFato] = useState("");
@@ -45,8 +58,6 @@ export function TratamentoView({ empresaId, tratamentos }: { empresaId: string; 
       dataFato: new Date(dataFato),
       tipo,
       motivo,
-      aprovadoPorId: "rh-admin",
-      aprovadoPorNome: "Gestor de RH",
     });
 
     if (res.erro) {
@@ -54,8 +65,30 @@ export function TratamentoView({ empresaId, tratamentos }: { empresaId: string; 
     } else {
       setModalAberta(false);
       setMotivo("");
+      setColaboradorId("");
+      setDataFato("");
+      // Sem isto a lista abaixo continua mostrando o estado antigo: o
+      // revalidatePath da action limpa o cache do servidor, mas este componente
+      // é cliente e segue com as props que já tinha (mesma causa do defeito da
+      // ficha corrigido em v1.63.6).
+      router.refresh();
     }
     setLoading(false);
+  };
+
+  const handleDecidir = async (id: string, decisao: "APROVADO" | "REJEITADO") => {
+    let motivoDecisao: string | undefined;
+    if (decisao === "REJEITADO") {
+      const escrito = window.prompt("Motivo da rejeição (fica registrado na auditoria):");
+      if (escrito === null) return; // desistiu
+      motivoDecisao = escrito;
+    }
+    setDecidindo(id);
+    setErro(null);
+    const res = await decidirTratamentoPonto({ empresaId, tratamentoId: id, decisao, motivoDecisao });
+    if (res.erro) setErro(res.erro);
+    else router.refresh();
+    setDecidindo(null);
   };
 
   const tipoLabel = (tipo: string) => {
@@ -91,8 +124,13 @@ export function TratamentoView({ empresaId, tratamentos }: { empresaId: string; 
         <Card className="border-primary/50 shadow-md">
           <CardHeader className="py-3">
             <CardTitle className="text-sm">Registrar Tratamento de Ponto (PTRP)</CardTitle>
+            {/* O texto anterior dizia "assinado digitalmente pelo RH" — não
+                havia assinatura, e o aprovador gravado era a string fixa
+                "Gestor de RH". Descrever o que o sistema FAZ: registra quem
+                decidiu, quando, com justificativa. */}
             <CardDescription className="text-xs">
-              Todo ajuste fica auditado e assinado digitalmente pelo RH com justificativa explícita.
+              O ajuste entra como pendente e só vale depois de aprovado. Fica registrado quem pediu,
+              quem decidiu, quando e por quê — as batidas originais nunca são alteradas.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -100,14 +138,26 @@ export function TratamentoView({ empresaId, tratamentos }: { empresaId: string; 
               {erro && <div className="text-xs text-destructive bg-destructive/10 p-2 rounded">{erro}</div>}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <Label className="text-xs">ID do Colaborador</Label>
-                  <Input
-                    placeholder="Cole ou selecione o ID do funcionário"
+                  <Label className="text-xs" required>
+                    Colaborador
+                  </Label>
+                  {/* Era um campo de texto pedindo "cole o ID do funcionário".
+                      Ninguém sabe o id de ninguém: ou se abria outra aba para
+                      copiar, ou se digitava errado e o ajuste ia para o ponto
+                      de outra pessoa. A lista já vem carregada na página. */}
+                  <select
                     value={colaboradorId}
                     onChange={(e) => setColaboradorId(e.target.value)}
-                    className="h-8 text-xs mt-1"
+                    className="mt-1 h-8 w-full rounded-md border bg-background px-2 text-xs"
                     required
-                  />
+                  >
+                    <option value="">Selecione…</option>
+                    {colaboradores.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.nome}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <Label className="text-xs">Data da Ocorrência / Fato</Label>
@@ -126,7 +176,7 @@ export function TratamentoView({ empresaId, tratamentos }: { empresaId: string; 
                   <Label className="text-xs">Tipo de Tratamento Legal</Label>
                   <select
                     value={tipo}
-                    onChange={(e: any) => setTipo(e.target.value)}
+                    onChange={(e) => setTipo(e.target.value as typeof tipo)}
                     className="w-full h-8 text-xs mt-1 border rounded-md px-2 bg-background"
                   >
                     <option value="INCLUSAO_MANUAL">Inclusão Manual (Esquecimento)</option>
@@ -184,13 +234,66 @@ export function TratamentoView({ empresaId, tratamentos }: { empresaId: string; 
                     <p className="text-xs text-muted-foreground">
                       {t.colaborador.setor.nome} · Data: {new Date(t.dataFato).toLocaleDateString("pt-BR")}
                     </p>
-                    <p className="text-xs text-foreground italic">"{t.motivo}"</p>
+                    {/* whitespace-pre-line: o motivo da rejeição é anexado ao
+                        texto original com quebra de linha (ver
+                        decidirTratamentoPonto) e sem isto viraria um parágrafo
+                        só, colado. */}
+                    <p className="text-xs whitespace-pre-line text-foreground italic">
+                      &ldquo;{t.motivo}&rdquo;
+                    </p>
                   </div>
-                  <div className="text-right text-xs text-muted-foreground">
-                    <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Aprovado
-                    </span>
-                    <span className="text-[10px] block mt-0.5">Por: {t.aprovadoPorNome || "RH"}</span>
+                  {/* Antes esta coluna escrevia "Aprovado · Por: RH" em TODA
+                      linha, ignorando t.status e caindo em "RH" quando não
+                      havia aprovador. Num histórico que existe para auditoria,
+                      dizer aprovado sobre o que não foi é o pior defeito
+                      possível — mostra o estado real, e só. */}
+                  <div className="shrink-0 text-right text-xs text-muted-foreground">
+                    {t.status === "APROVADO" && (
+                      <>
+                        <span className="flex items-center justify-end gap-1 font-semibold text-emerald-600 dark:text-emerald-400">
+                          <CheckCircle2 className="h-3.5 w-3.5" /> Aprovado
+                        </span>
+                        <span className="mt-0.5 block text-[10px]">
+                          Por: {t.aprovadoPorNome ?? "—"}
+                        </span>
+                      </>
+                    )}
+                    {t.status === "REJEITADO" && (
+                      <>
+                        <span className="flex items-center justify-end gap-1 font-semibold text-destructive">
+                          <XCircle className="h-3.5 w-3.5" /> Rejeitado
+                        </span>
+                        <span className="mt-0.5 block text-[10px]">
+                          Por: {t.aprovadoPorNome ?? "—"}
+                        </span>
+                      </>
+                    )}
+                    {t.status === "PENDENTE" && (
+                      <div className="flex flex-col items-end gap-1.5">
+                        <span className="flex items-center gap-1 font-semibold text-warning">
+                          <Clock3 className="h-3.5 w-3.5" /> Aguardando decisão
+                        </span>
+                        <div className="flex gap-1">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-6 px-2 text-[11px]"
+                            disabled={decidindo === t.id}
+                            onClick={() => handleDecidir(t.id, "REJEITADO")}
+                          >
+                            Rejeitar
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="h-6 px-2 text-[11px]"
+                            disabled={decidindo === t.id}
+                            onClick={() => handleDecidir(t.id, "APROVADO")}
+                          >
+                            {decidindo === t.id ? "..." : "Aprovar"}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))

@@ -128,7 +128,11 @@ export default async function PontoEletronicoPage({
         </TabsContent>
 
         <TabsContent value="tratamento" className="pt-4">
-          <TratamentoView empresaId={empresaId} tratamentos={tratamentos} />
+          <TratamentoView
+            empresaId={empresaId}
+            tratamentos={tratamentos}
+            colaboradores={colaboradores.map((c) => ({ id: c.id, nome: c.nome }))}
+          />
         </TabsContent>
 
         <TabsContent value="escalas" className="pt-4">

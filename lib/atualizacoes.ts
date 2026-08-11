@@ -26,6 +26,19 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.66.0",
+    data: "11/08/2026",
+    horario: "11:10",
+    titulo: "Ponto: ajustes do PTRP passam a ter aprovação de verdade",
+    itens: [
+      "Todo ajuste ou abono de ponto entra como PENDENTE e precisa ser aprovado ou rejeitado — antes já nascia aprovado, no mesmo clique de quem o registrava.",
+      "Quem aprova ou rejeita fica registrado com o nome de quem está logado. Até agora o sistema gravava sempre \"Gestor de RH\", um texto fixo que não correspondia a pessoa nenhuma — e a tela dizia que o ajuste era assinado digitalmente.",
+      "Rejeitar exige escrever o motivo, que fica junto do histórico.",
+      "O histórico passa a mostrar a situação real de cada ajuste (pendente, aprovado ou rejeitado). Antes todos apareciam como \"Aprovado\", independentemente do que estivesse gravado.",
+      "Ao lançar um ajuste, o colaborador agora é escolhido numa lista — antes era preciso colar o código interno dele.",
+    ],
+  },
+  {
     versao: "1.65.1",
     data: "11/08/2026",
     horario: "08:20",
