@@ -26,6 +26,15 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.64.2",
+    data: "11/08/2026",
+    horario: "04:50",
+    titulo: "Fase 1 do Design System: marca de campo obrigatório",
+    itens: [
+      "Os campos de formulário podem passar a exibir o asterisco vermelho de obrigatório — antes cada tela precisava escrever o asterisco à mão, e só uma fazia isso.",
+    ],
+  },
+  {
     versao: "1.64.1",
     data: "11/08/2026",
     horario: "04:30",
