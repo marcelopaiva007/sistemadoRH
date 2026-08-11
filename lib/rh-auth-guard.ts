@@ -16,20 +16,40 @@ export async function requireRHAccess() {
 // UserEmpresa ativa apontando para a empresaId solicitada. ADMIN e DIRETORIA
 // também podem acessar — ADMIN livre, DIRETORIA só para consulta (read-only
 // no módulo RH).
-export async function requireEmpresaAccess(empresaId: string) {
-  const user = await requireRHAccess();
+/**
+ * A pergunta "esta pessoa alcança esta empresa?", isolada da RESPOSTA.
+ *
+ * Existe porque a resposta difere por contexto: uma página redireciona, uma
+ * rota de API devolve 403 — `redirect()` dentro de um handler de API vira
+ * resposta quebrada. Antes disso, cada rota em app/api reimplementava a regra
+ * à mão, e em 11/08/2026 havia CINCO variantes diferentes espalhadas por nove
+ * rotas. Duas delas esqueciam DIRETORIA, cujo pivô `UserEmpresa` é vazio POR
+ * DESENHO — resultado: todo diretor tomava 403 ao gerar qualquer PDF de
+ * pesquisa, e não conseguia baixar anexo nenhum do sistema.
+ *
+ * Regra nova: rota de API não decide acesso sozinha. Chama isto.
+ */
+export async function usuarioAlcancaEmpresa(
+  user: { id?: string; role: string; empresas: { empresaId: string; ativo: boolean }[] },
+  empresaId: string,
+): Promise<boolean> {
+  if (!RH_ROLES.includes(user.role as (typeof RH_ROLES)[number])) return false;
   // Papel global: ADMIN opera, DIRETORIA consulta. Nenhum dos dois passa pelo
   // pivô — exigir vínculo deles devolvia a diretoria para a home a cada clique.
-  if (user.role === "ADMIN" || user.role === "DIRETORIA") return user;
-  const temAcesso = user.empresas.some(
-    (e) => e.empresaId === empresaId && e.ativo && (e.papel === "RH_MANAGER" || e.papel === "GESTOR_SETOR"),
-  );
-  if (temAcesso) return user;
+  if (user.role === "ADMIN" || user.role === "DIRETORIA") return true;
+  if (user.empresas.some((e) => e.empresaId === empresaId && e.ativo)) return true;
 
   // Pode não ter vínculo com este CNPJ e ainda assim alcançá-lo pela marca.
+  // Vem de `UserMarca` — e não de cruzar as empresas da marca com o pivô, que
+  // é o erro que as rotas de API cometiam: são tabelas diferentes, e quem tem
+  // acesso só por marca não aparece no pivô.
   const porMarca = await empresasDasMarcasDoUsuario(user.id);
-  if (porMarca.includes(empresaId)) return user;
+  return porMarca.includes(empresaId);
+}
 
+export async function requireEmpresaAccess(empresaId: string) {
+  const user = await requireRHAccess();
+  if (await usuarioAlcancaEmpresa(user, empresaId)) return user;
   redirect(user.role === "GESTOR_SETOR" ? "/rh/meu-setor" : "/rh");
 }
 
