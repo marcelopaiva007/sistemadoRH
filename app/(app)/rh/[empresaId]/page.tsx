@@ -12,6 +12,7 @@ import { DashboardEmpresa } from "./dashboard-empresa";
 import { PendenciasView } from "./pendencias-view";
 import { LacunasView } from "./lacunas-view";
 import { LacunasDosDesligadosView } from "./lacunas-desligados-view";
+import { HRWelcomeBanner } from "@/app/components/HRIllustrations";
 
 // Tela inicial da empresa: os números no topo (o retrato) e logo abaixo o que
 // exige ação hoje (a lista de tarefas). Nessa ordem de propósito — quem abre
@@ -67,6 +68,7 @@ export default async function InicioDaEmpresaPage({
 
   return (
     <div className="space-y-8">
+      <HRWelcomeBanner />
       <DashboardEmpresa empresaId={empresaId} resumo={resumo} />
       <PendenciasView
         empresaId={empresaId}
