@@ -115,7 +115,7 @@ export function ProdutividadeView({
           {top3[0] && (
             <Indicador
               rotulo="1º Lugar no Ranking"
-              icone={<Trophy className="size-4 text-amber-500" />}
+              icone={<Trophy className="size-4 text-amber-500 dark:text-amber-400" />}
               valor={top3[0].usuarioNome}
               complemento={`${top3[0].totalAcoes} ação(ões) (${top3[0].aprovados} aprov. / ${top3[0].reprovados} reprov.)`}
             />
@@ -123,7 +123,7 @@ export function ProdutividadeView({
           {top3[1] && (
             <Indicador
               rotulo="2º Lugar no Ranking"
-              icone={<Medal className="size-4 text-slate-400" />}
+              icone={<Medal className="size-4 text-slate-400 dark:text-slate-300" />}
               valor={top3[1].usuarioNome}
               complemento={`${top3[1].totalAcoes} ação(ões) (${top3[1].aprovados} aprov. / ${top3[1].reprovados} reprov.)`}
             />
@@ -131,7 +131,7 @@ export function ProdutividadeView({
           {top3[2] && (
             <Indicador
               rotulo="3º Lugar no Ranking"
-              icone={<Award className="size-4 text-amber-700" />}
+              icone={<Award className="size-4 text-amber-700 dark:text-amber-500" />}
               valor={top3[2].usuarioNome}
               complemento={`${top3[2].totalAcoes} ação(ões) (${top3[2].aprovados} aprov. / ${top3[2].reprovados} reprov.)`}
             />

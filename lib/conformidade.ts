@@ -11,6 +11,7 @@
 // data vira EM_DIA, VENCENDO ou VENCIDO conforme a janela de alerta.
 import { diferencaEmDiasUTC, hojeUTC, somarMesesUTC } from "@/lib/datas";
 import { DIAS_ALERTA_VENCIMENTO } from "@/lib/constants-dp";
+import type { StatusBadgeMap } from "@/components/status-badge";
 
 export type SituacaoItem = "EM_DIA" | "VENCENDO" | "VENCIDO" | "NUNCA_FEITO";
 
@@ -134,4 +135,17 @@ export const SITUACAO_LABEL: Record<SituacaoItem, string> = {
   VENCENDO: "Vencendo",
   VENCIDO: "Vencido",
   NUNCA_FEITO: "Nunca feito",
+};
+
+/**
+ * Ao lado de SITUACAO_LABEL para os dois nunca divergirem — consumido por
+ * StatusBadge (components/status-badge.tsx). Substitui o VARIANTE local
+ * duplicado em conformidade-view.tsx e seguranca-card.tsx (mesmos 4 valores,
+ * mesma tradução, copiado byte a byte nos dois arquivos).
+ */
+export const SITUACAO_BADGE: StatusBadgeMap<SituacaoItem> = {
+  EM_DIA: { label: SITUACAO_LABEL.EM_DIA, variant: "default" },
+  VENCENDO: { label: SITUACAO_LABEL.VENCENDO, variant: "secondary" },
+  VENCIDO: { label: SITUACAO_LABEL.VENCIDO, variant: "destructive" },
+  NUNCA_FEITO: { label: SITUACAO_LABEL.NUNCA_FEITO, variant: "destructive" },
 };

@@ -26,6 +26,45 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.64.3",
+    data: "11/08/2026",
+    horario: "05:10",
+    titulo: "Correção de legibilidade no tema escuro",
+    itens: [
+      "Quem usa o sistema no tema escuro (pelo botão da barra de topo ou porque o computador está configurado assim) passa a enxergar melhor: mensagens de erro dentro dos cartões, contorno dos campos de formulário, rótulo dos botões principais e textos de apoio estavam com contraste abaixo do mínimo recomendado.",
+      "No tema claro, o contorno dos campos que ficam fora de um cartão e o destaque de foco do menu lateral também foram ajustados pelo mesmo motivo.",
+      "Ícones e etiquetas coloridas de várias telas (unificação de cargos e setores, clima, produtividade, medidas disciplinares) ganharam versão própria para o tema escuro — antes ficavam lavados ou quase invisíveis.",
+    ],
+  },
+  {
+    versao: "1.64.2",
+    data: "11/08/2026",
+    horario: "04:50",
+    titulo: "Fase 1 do Design System: marca de campo obrigatório",
+    itens: [
+      "Os campos de formulário podem passar a exibir o asterisco vermelho de obrigatório — antes cada tela precisava escrever o asterisco à mão, e só uma fazia isso.",
+    ],
+  },
+  {
+    versao: "1.64.1",
+    data: "11/08/2026",
+    horario: "04:30",
+    titulo: "Fase 1 do Design System: etiquetas de situação unificadas",
+    itens: [
+      "As etiquetas coloridas de situação (férias, ausências, vagas, conformidade) passam a sair de um componente único — antes cada tela tinha a sua cópia, e a mesma vaga podia aparecer com cor diferente na lista e na tela de detalhe.",
+    ],
+  },
+  {
+    versao: "1.64.0",
+    data: "11/08/2026",
+    horario: "04:00",
+    titulo: "Fase 1 do Design System: início — padronização de enum e documentação",
+    itens: [
+      "Central de Sinais: gravidade e nível de unidade dos sinais passam a ser gravados em maiúsculo, alinhado ao resto do sistema (não muda nada na tela, só a forma como o dado é guardado).",
+      "Documentação técnica do banco de dados corrigida em 5 pontos que estavam desatualizados havia semanas.",
+    ],
+  },
+  {
     versao: "1.63.9",
     data: "11/08/2026",
     horario: "03:10",

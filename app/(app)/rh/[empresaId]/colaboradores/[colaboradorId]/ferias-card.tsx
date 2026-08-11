@@ -4,7 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Plus, Check, X, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/status-badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,13 +17,8 @@ import {
   registrarFeriasGozadas,
   conciliarSaldoFerias,
 } from "@/lib/actions/rh-ferias";
-import {
-  STATUS_PERIODO_LABEL,
-  DIAS_FERIAS_POR_PERIODO,
-  type ResumoFerias,
-  type StatusPeriodo,
-} from "@/lib/ferias";
-import { statusSolicitacaoLabel } from "@/lib/constants-dp";
+import { STATUS_PERIODO_BADGE, DIAS_FERIAS_POR_PERIODO, type ResumoFerias } from "@/lib/ferias";
+import { STATUS_SOLICITACAO_BADGE } from "@/lib/constants-dp";
 import { formatarData, paraInputDate } from "@/lib/datas";
 import { Campo, CampoData, CampoTexto, CampoCheckbox, FormularioAction } from "./campos";
 import { BotaoExcluir } from "./dependentes-card";
@@ -42,20 +37,6 @@ type Solicitacao = {
   decididoPorNome: string | null;
   motivoDecisao: string | null;
 };
-
-const VARIANTE_PERIODO: Record<StatusPeriodo, "default" | "secondary" | "destructive" | "outline"> = {
-  EM_CURSO: "outline",
-  DISPONIVEL: "default",
-  VENCENDO: "secondary",
-  VENCIDO: "destructive",
-  CONCLUIDO: "outline",
-};
-
-export function VariantePorStatus(status: string) {
-  if (status === "APROVADA") return "default" as const;
-  if (status === "REPROVADA" || status === "CANCELADA") return "destructive" as const;
-  return "secondary" as const;
-}
 
 export function FeriasCard({
   empresaId,
@@ -150,10 +131,9 @@ export function FeriasCard({
                     <TableCell className="text-right tabular-nums">{p.diasReservados}</TableCell>
                     <TableCell className="text-right font-medium tabular-nums">{p.saldo}</TableCell>
                     <TableCell>
-                      <Badge variant={VARIANTE_PERIODO[p.status]}>
-                        {STATUS_PERIODO_LABEL[p.status]}
+                      <StatusBadge status={p.status} map={STATUS_PERIODO_BADGE}>
                         {p.status === "VENCENDO" && ` · ${p.diasAteLimite} d`}
-                      </Badge>
+                      </StatusBadge>
                     </TableCell>
                     <TableCell className="text-center">
                       {p.status === "VENCIDO" && p.saldo > 0 && (
@@ -380,7 +360,7 @@ export function FeriasCard({
                       <TableCell className="text-right tabular-nums">{s.dias}</TableCell>
                       <TableCell className="text-right tabular-nums">{s.diasAbono || "—"}</TableCell>
                       <TableCell>
-                        <Badge variant={VariantePorStatus(s.status)}>{statusSolicitacaoLabel(s.status)}</Badge>
+                        <StatusBadge status={s.status} map={STATUS_SOLICITACAO_BADGE} />
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {s.decididoPorNome ?? "—"}

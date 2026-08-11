@@ -526,7 +526,7 @@ export function PosicoesTable({
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Wand2 className="size-5 text-violet-600" />
+              <Wand2 className="size-5 text-violet-600 dark:text-violet-400" />
               Análise & Unificação Semântica de Cargos
             </DialogTitle>
           </DialogHeader>
@@ -600,7 +600,7 @@ function GrupoSemelhanteCard({
     <div className="space-y-3 rounded-lg border bg-card p-3.5 text-xs shadow-xs">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Badge variant="secondary" className="font-semibold text-violet-700 bg-violet-50 border-violet-200">
+          <Badge variant="secondary" className="font-semibold text-violet-700 bg-violet-50 border-violet-200 dark:text-violet-300 dark:bg-violet-950/50 dark:border-violet-800">
             {grupo.posicoes.length} variações encontradas
           </Badge>
           <span className="text-muted-foreground font-medium">
@@ -615,7 +615,7 @@ function GrupoSemelhanteCard({
             <span className="flex items-center gap-1.5">
               <span>• {p.nome}</span>
               {p.id === destinoId && (
-                <Badge variant="outline" className="text-[10px] text-emerald-700 border-emerald-400 bg-emerald-50">
+                <Badge variant="outline" className="text-[10px] text-emerald-700 border-emerald-400 bg-emerald-50 dark:text-emerald-300 dark:border-emerald-700 dark:bg-emerald-950/50">
                   Principal Escolhido
                 </Badge>
               )}
