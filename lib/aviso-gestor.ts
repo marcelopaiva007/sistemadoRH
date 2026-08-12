@@ -102,14 +102,22 @@ export function montarMensagemDoGestor(gestorNome: string, itens: ItemDeAviso[])
 export async function levantarAvisos(
   cliente: Cliente = prisma,
   hoje: Date = hojeUTC(),
+  /**
+   * Recorte de empresas. O CRON roda sem isto, de propósito: ele varre o grupo
+   * inteiro, como as demais rotinas. Já a TELA passa `empresasVisiveis` — sem
+   * o recorte, ela exibiria nome de colaborador de empresa que quem abriu não
+   * enxerga, o que é vazamento por descuido, não funcionalidade.
+   */
+  empresaIds?: string[],
 ): Promise<AvisoDoGestor[]> {
   const limiteContrato = somarDiasUTC(hoje, DIAS_AVISO_CONTRATO);
+  const escopo = empresaIds ? { empresaId: { in: empresaIds } } : {};
 
   // Só quem TEM subordinado ativo é gestor. `supervisorId` é a mesma definição
   // do portal (app/portal/page.tsx) e de lib/meu-time.ts — as três leituras
   // precisam concordar sobre quem lidera quem.
   const liderados = await cliente.colaborador.findMany({
-    where: { ativo: true, supervisorId: { not: null } },
+    where: { ativo: true, supervisorId: { not: null }, ...escopo },
     select: {
       id: true,
       nome: true,

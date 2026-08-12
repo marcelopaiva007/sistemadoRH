@@ -9,7 +9,12 @@
  *
  *   npx tsx scripts/simular-avisos-gestor.ts
  *
- * Precisa de DATABASE_URL apontando para o banco que se quer inspecionar.
+ * Precisa de DATABASE_URL apontando para o banco que se quer inspecionar — e é
+ * por isso que ele NÃO é o caminho principal. Quem responde pelos avisos usa o
+ * sistema pelo navegador e não tem o projeto instalado; mandá-lo ao terminal é
+ * pedir o que não se pode entregar. A conferência de verdade mora na tela
+ * "Avisos ao gestor" (Departamento pessoal), que mostra o mesmo conteúdo.
+ * Este script fica para quem já está no código.
  */
 
 import { config } from "dotenv";
