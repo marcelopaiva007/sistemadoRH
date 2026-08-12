@@ -59,8 +59,6 @@ const MSG_PEDIR_CPF =
   "Envie seu CPF (somente números) para eu localizar você.";
 const MSG_CPF_NAO_ENCONTRADO =
   "CPF não encontrado no cadastro de colaboradores. Confira os números ou procure o RH.";
-const MSG_JA_VINCULADO_OUTRO =
-  "Este Telegram já está vinculado a outro colaborador. Procure o RH para ajustar.";
 
 function digitos(s: string): string {
   return (s || "").replace(/\D/g, "");
@@ -88,14 +86,39 @@ async function marcaDo(colaboradorId: string): Promise<string> {
 
 async function vincular(
   chatId: string,
-  colaborador: { id: string; nome: string; telegramChatId: string | null }
+  colaborador: { id: string; nome: string; cpf: string | null; telegramChatId: string | null }
 ): Promise<void> {
   const jaDono = await prisma.colaborador.findFirst({
     where: { telegramChatId: chatId, NOT: { id: colaborador.id } },
-    select: { id: true },
+    select: { id: true, nome: true, cpf: true },
   });
   if (jaDono) {
-    await sendTelegramMessage(chatId, MSG_JA_VINCULADO_OUTRO, REMOVER_TECLADO);
+    // Mesmo CPF em outra ficha = a MESMA pessoa cadastrada duas vezes (o grupo
+    // tem vários CNPJs e a base veio de importações por razão social). Em
+    // 12/08/2026 isso travou um colaborador real: o CPF dele achava a ficha B,
+    // o chat estava na ficha A, e o bot o recusava como se fosse "outro
+    // colaborador" — dele mesmo. Pessoa igual não é conflito: confirma e segue.
+    if (jaDono.cpf && colaborador.cpf && digitos(jaDono.cpf) === digitos(colaborador.cpf)) {
+      await sendTelegramMessage(
+        chatId,
+        `Você já está vinculado, ${colaborador.nome.split(" ")[0]}! ✅\n\n` +
+          "Envie /portal quando quiser consultar suas férias, seus dados e seus documentos.",
+        REMOVER_TECLADO
+      );
+      return;
+    }
+    // Pessoas diferentes: dizer O NOME de quem segura o chat é o que destrava.
+    // A mensagem antiga mandava "procurar o RH" sem pista nenhuma — e o RH não
+    // tinha como adivinhar em qual das centenas de fichas o chat estava. Só o
+    // primeiro nome, para quem está com este Telegram na mão: é informação
+    // mínima e suficiente para o RH achar a ficha e limpar o campo.
+    await sendTelegramMessage(
+      chatId,
+      `Este Telegram já está vinculado a ${jaDono.nome.split(" ")[0]}. 🤔\n\n` +
+        "Se vocês dividem o aparelho, cada um precisa do próprio Telegram para usar o portal.\n\n" +
+        "Se não for isso, procure o RH e diga esse nome — o vínculo é ajustado na ficha do colaborador.",
+      REMOVER_TECLADO
+    );
     return;
   }
   if (colaborador.telegramChatId === chatId) {
@@ -187,7 +210,7 @@ export async function POST(req: NextRequest) {
       if (sufixo.length === 8) {
         const colaboradores = await prisma.colaborador.findMany({
           where: { ativo: true, telefone: { not: null } },
-          select: { id: true, nome: true, telefone: true, telegramChatId: true },
+          select: { id: true, nome: true, cpf: true, telefone: true, telegramChatId: true },
         });
         const matches = colaboradores.filter((c) => sufixoTelefone(c.telefone!) === sufixo);
         if (matches.length === 1) {
@@ -216,10 +239,22 @@ export async function POST(req: NextRequest) {
     // 4) CPF digitado.
     const cpf = digitos(texto);
     if (cpf.length === 11) {
-      const colaborador = await prisma.colaborador.findFirst({
+      // findMany, não findFirst: o mesmo CPF pode existir em mais de uma ficha
+      // (um CNPJ por razão social, importações separadas). O findFirst sem
+      // ordenação escolhia uma ficha imprevisível — e podia escolher exatamente
+      // a que NÃO tinha o chat, transformando a própria pessoa em "outro
+      // colaborador". A preferência aqui é determinística: primeiro a ficha
+      // que JÁ tem este chat (vira "você já está vinculado"), depois uma sem
+      // chat nenhum (não rouba vínculo), por fim a mais antiga.
+      const fichas = await prisma.colaborador.findMany({
         where: { cpf, ativo: true },
-        select: { id: true, nome: true, telegramChatId: true },
+        select: { id: true, nome: true, cpf: true, telegramChatId: true },
+        orderBy: { createdAt: "asc" },
       });
+      const colaborador =
+        fichas.find((f) => f.telegramChatId === chatId) ??
+        fichas.find((f) => !f.telegramChatId) ??
+        fichas[0];
       if (colaborador) {
         await vincular(chatId, colaborador);
       } else {
