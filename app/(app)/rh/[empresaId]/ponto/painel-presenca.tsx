@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Clock, UserCheck, AlertTriangle, UserX, Search, CheckCircle2, ShieldCheck } from "lucide-react";
+import { Clock, UserCheck, AlertTriangle, UserX, Search, ShieldCheck, Camera, CameraOff } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -14,9 +14,18 @@ export type PresenteItem = {
   status: "PRESENTE" | "EM_INTERVALO" | "ATRASADO" | "AUSENTE";
   primeiraEntrada?: string | null;
   ultimaSaida?: string | null;
+  // Cada batida do dia, com hora e se tem foto. A foto é o que responde "foi
+  // ele mesmo que bateu?" — clicar abre pela rota autenticada, que audita.
+  batidas: Array<{ id: string; hora: string; temFoto: boolean }>;
 };
 
-export function PainelPresencaView({ colaboradores }: { colaboradores: PresenteItem[] }) {
+export function PainelPresencaView({
+  colaboradores,
+  empresaId,
+}: {
+  colaboradores: PresenteItem[];
+  empresaId: string;
+}) {
   const [busca, setBusca] = useState("");
 
   const filtrados = colaboradores.filter(
@@ -112,14 +121,45 @@ export function PainelPresencaView({ colaboradores }: { colaboradores: PresenteI
               <p className="text-xs text-muted-foreground text-center py-6">Nenhum registro localizado.</p>
             ) : (
               filtrados.map((item) => (
-                <div key={item.colaboradorId} className="p-3 flex items-center justify-between hover:bg-muted/30 transition-colors">
-                  <div>
+                <div key={item.colaboradorId} className="p-3 flex items-center justify-between gap-3 hover:bg-muted/30 transition-colors">
+                  <div className="min-w-0">
                     <span className="text-sm font-semibold text-foreground block">{item.nome}</span>
                     <span className="text-xs text-muted-foreground">
                       {item.setor} · {item.cargo}
                     </span>
+                    {/* As batidas do dia, com a foto de cada uma. Batida sem
+                        foto fica visível de propósito: silêncio aqui faria
+                        "sem foto" parecer "está tudo bem". */}
+                    {item.batidas.length > 0 && (
+                      <span className="mt-1 flex flex-wrap gap-1.5">
+                        {item.batidas.map((b) =>
+                          b.temFoto ? (
+                            <a
+                              key={b.id}
+                              href={`/api/rh/${empresaId}/ponto/${b.id}/foto`}
+                              target="_blank"
+                              rel="noreferrer"
+                              title="Ver a foto tirada nesta batida"
+                              className="inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-mono text-foreground hover:bg-accent"
+                            >
+                              <Camera className="w-3 h-3 text-primary" />
+                              {b.hora}
+                            </a>
+                          ) : (
+                            <span
+                              key={b.id}
+                              title="Batida registrada sem foto"
+                              className="inline-flex items-center gap-1 rounded border border-dashed px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground"
+                            >
+                              <CameraOff className="w-3 h-3" />
+                              {b.hora}
+                            </span>
+                          ),
+                        )}
+                      </span>
+                    )}
                   </div>
-                  <div className="flex items-center gap-4">
+                  <div className="flex shrink-0 items-center gap-4">
                     <div className="text-right text-xs text-muted-foreground font-mono">
                       <div>1ª Ent: {item.primeiraEntrada || "—"}</div>
                       <div>Últ Saí: {item.ultimaSaida || "—"}</div>

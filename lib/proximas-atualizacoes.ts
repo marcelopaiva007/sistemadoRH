@@ -39,12 +39,12 @@ export const SITUACAO_LABEL: Record<Situacao, string> = {
 
 export const PROXIMAS_ATUALIZACOES: ProximaAtualizacao[] = [
   {
-    titulo: "Ponto por biometria ou reconhecimento facial",
+    titulo: "Conferência automática do rosto na batida de ponto",
     descricao:
-      "Registrar a batida sem digitar nada, direto no equipamento. Hoje o ponto é registrado pelo sistema, e a conferência de quem bateu depende de IP e localização.",
+      "Comparar sozinho a foto tirada na batida com uma foto de referência do colaborador, apontando divergência para o RH. A foto na batida já existe desde 12/08/2026 — hoje a conferência é humana, pelo painel do ponto. Decidido em 12/08/2026: o ponto é pelo celular, sem relógio físico.",
     situacao: "AGUARDANDO_DECISAO",
     bloqueio:
-      "Depende de escolher e comprar o equipamento — custo e instalação. A ligação com o sistema, essa não depende da marca: todo relógio de ponto legal no Brasil é obrigado a gerar o arquivo AFD no formato da Portaria 671, e é esse arquivo que o sistema passaria a ler. O sistema já GERA o AFD (para a fiscalização); falta LER o que vem do equipamento.",
+      "Comparar rosto exige um serviço pago, cobrado por batida. Antes de contratar, vale usar um tempo com a conferência humana pelo painel — o custo só se justifica se aparecer fraude que ela não pegue.",
   },
   {
     titulo: "Envio automático para a folha de pagamento",

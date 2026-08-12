@@ -26,6 +26,20 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.80.0",
+    data: "12/08/2026",
+    horario: "06:20",
+    titulo: "Bater ponto agora tira foto — a prova de quem bateu",
+    itens: [
+      "Ficou decidido: o ponto é pelo celular, sem relógio físico para comprar e instalar. O que faltava era a prova de QUEM bateu — e é isso que entra agora.",
+      "Ao tocar no botão de bater ponto no portal, a câmera da frente abre e a foto vai junto com o registro. No painel do ponto, o RH vê cada batida do dia com a foto ao lado — é clicar para conferir o rosto.",
+      "A batida NUNCA é impedida pela câmera: se ela falhar ou a pessoa cancelar, dá para registrar mesmo assim, e a batida aparece como \"sem foto\" no painel — visível, para o RH cobrar. Ponto é obrigação legal; foto é evidência.",
+      "A foto fica em armazenamento privado, fora do banco, e só abre para quem tem acesso à empresa — cada visualização entra na trilha de auditoria, como RG e atestado.",
+      "Corrigido no mesmo pacote: o monitor de presença mostrava as batidas com 3 horas a mais (fuso do servidor). Mesma família do erro do arquivo fiscal corrigido hoje mais cedo.",
+      "A conferência automática do rosto (comparar a selfie com uma foto de referência, sozinho) fica como decisão à parte, em \"Próximas atualizações\": é serviço pago por batida, e vale medir antes se a conferência humana resolve.",
+    ],
+  },
+  {
     versao: "1.79.2",
     data: "12/08/2026",
     horario: "05:40",
