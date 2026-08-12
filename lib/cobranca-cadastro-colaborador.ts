@@ -39,6 +39,18 @@
 //    do bot — perde-se o canal inteiro, não só esta cobrança. São no máximo
 //    MAX_COBRANCAS envios; depois disso o silêncio é resposta e o caso volta a
 //    ser do RH, que continua vendo a ficha na tela de pendências.
+//
+// QUEM DISPARA (mudou em 12/08/2026, decisão do Marcelo):
+//
+//   à mão   — SEMPRE disponível. Botão na ficha do colaborador e na lista, para
+//             o pessoal do RH. É o caminho principal.
+//   sozinho — só se a GESTÃO ligar em Configuração → Lembretes. Nasce
+//             desligado (LEMBRETES_QUE_NASCEM_DESLIGADOS, lib/cron-horario.ts):
+//             varrer a base inteira falando com colaborador é decisão de
+//             gestão, tomada uma vez e registrada, não padrão herdado de quem
+//             escreveu o código.
+//
+// O motor é o mesmo nos dois casos; só muda quem apertou o botão.
 import { prisma, type Cliente } from "@/lib/prisma";
 import { sendTelegramMessage } from "@/lib/telegram";
 import { sendEmail, orcamentoRestanteHoje } from "@/lib/email";

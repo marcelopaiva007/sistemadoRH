@@ -34,6 +34,39 @@ export const LEMBRETES_CONFIGURAVEIS = {
 export type ChaveLembrete = keyof typeof LEMBRETES_CONFIGURAVEIS;
 
 /**
+ * Lembretes que NASCEM DESLIGADOS: sem uma decisão explícita da gestão, não
+ * saem. Para os demais, a ausência de configuração significa "usa o horário
+ * padrão" — aqui significa "não roda".
+ *
+ * A cobrança de cadastro entrou nesta lista em 12/08/2026, por decisão do
+ * Marcelo. Ela é diferente das outras: varre a base INTEIRA e fala com
+ * colaborador, não com o RH. O disparo automático de algo assim é decisão de
+ * gestão, tomada uma vez e por escrito, não um padrão herdado de quem escreveu
+ * o código. O envio à mão (botão na ficha e na lista) não depende disto e
+ * continua disponível para o RH o tempo todo.
+ *
+ * Ligar é adicionar/reativar um horário em Configuração → Lembretes, tela que
+ * já é restrita a ADMIN e DIRETORIA — a mesma gestão. Desligar é pausar todos.
+ */
+export const LEMBRETES_QUE_NASCEM_DESLIGADOS = new Set<ChaveLembrete>(["cobranca-cadastro"]);
+
+/**
+ * Se o envio automático deste lembrete está ligado AGORA — a pergunta que a
+ * tela faz para mostrar o interruptor no estado certo.
+ *
+ * Mesma leitura que `deveRodarAgora` usa para decidir, só que sem olhar a
+ * hora: se as duas divergirem, a tela mente sobre o que o sistema faz.
+ */
+export function envioAutomaticoLigado(
+  chave: ChaveLembrete,
+  linhas: { chave: string; ativo: boolean }[],
+): boolean {
+  const daChave = linhas.filter((l) => l.chave === chave);
+  if (daChave.length === 0) return !LEMBRETES_QUE_NASCEM_DESLIGADOS.has(chave);
+  return daChave.some((l) => l.ativo);
+}
+
+/**
  * Cada rota de cron aceita duas formas de autorização (padrão já usado nas 6
  * rotas): o header que o próprio Vercel Cron manda ("cron", chamada
  * automática e periódica) e `?secret=` na URL ("manual", disparo manual de
@@ -87,11 +120,18 @@ function paraMinutos(hhmm: string): number | null {
 export async function deveRodarAgora(chave: ChaveLembrete, janelaMin = 8): Promise<boolean> {
   const linhas = await prisma.configuracaoLembrete.findMany({ where: { chave } });
 
+  // MESMA função que a tela usa para desenhar o interruptor — de propósito.
+  // Duas leituras da mesma regra divergiriam no primeiro ajuste, e a divergência
+  // aqui é a pior possível: a tela diz "desligado" e o sistema manda mensagem.
+  //
+  // Ela cobre os dois jeitos de estar desligado: sem nenhuma linha num lembrete
+  // que nasce desligado (a gestão nunca ligou) e todas as linhas pausadas
+  // (ligaram e depois desligaram).
+  if (!envioAutomaticoLigado(chave, linhas)) return false;
+
   const horarios = linhas.length > 0
     ? linhas.filter((l) => l.ativo).map((l) => l.horario)
     : [...LEMBRETES_CONFIGURAVEIS[chave].padroes];
-
-  if (horarios.length === 0) return false; // RH desativou todos os horários deste lembrete
 
   const minutosAgora = paraMinutos(horaAgoraSaoPaulo());
   if (minutosAgora === null) return false;

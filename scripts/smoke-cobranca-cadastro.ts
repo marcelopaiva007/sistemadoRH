@@ -29,6 +29,7 @@ import {
   DIAS_ENTRE_COBRANCAS,
   MAX_COBRANCAS,
 } from "../lib/cobranca-cadastro-colaborador";
+import { LEMBRETES_QUE_NASCEM_DESLIGADOS, envioAutomaticoLigado } from "../lib/cron-horario";
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
@@ -128,6 +129,51 @@ function testarRegras() {
   ok(!email.texto.startsWith("<"), "versão texto do e-mail não é HTML (entrega e leitor sem HTML)");
   const email2 = montarEmail("Maria Souza Lima", ["Número do RG"], 2, "LM Telecom");
   ok(email2.assunto !== email.assunto, "assunto muda da 2ª em diante (não vira o mesmo e-mail repetido na caixa)");
+}
+
+/**
+ * O interruptor da gestão: o envio automático NASCE DESLIGADO.
+ *
+ * Sem função pura isto só se testaria mandando mensagem de verdade, então a
+ * regra vive em `envioAutomaticoLigado`, que recebe as linhas de configuração
+ * em vez de ir ao banco — e é a MESMA que `deveRodarAgora` consulta antes de
+ * deixar o cron rodar. Se esta divergir da tela, a tela diz "desligado" e o
+ * sistema manda mensagem para a base inteira: é a pior falha possível aqui, e
+ * é por isso que ela tem teste próprio.
+ */
+function testarInterruptorDaGestao() {
+  console.log("\nInterruptor do envio automático (decisão da gestão)\n");
+
+  const CHAVE = "cobranca-cadastro" as const;
+  const OUTRO = "lembrete-portal" as const;
+
+  ok(
+    LEMBRETES_QUE_NASCEM_DESLIGADOS.has(CHAVE),
+    "a cobrança de cadastro está na lista dos que nascem desligados",
+  );
+  ok(
+    !envioAutomaticoLigado(CHAVE, []),
+    "sem nenhuma configuração, o automático da cobrança está DESLIGADO",
+  );
+  ok(
+    envioAutomaticoLigado(OUTRO, []),
+    "os demais lembretes seguem ligados por padrão — a mudança não vazou para eles",
+  );
+
+  const umHorario = [{ chave: CHAVE, ativo: true }];
+  ok(envioAutomaticoLigado(CHAVE, umHorario), "com um horário ativo, liga");
+  ok(
+    !envioAutomaticoLigado(CHAVE, [{ chave: CHAVE, ativo: false }]),
+    "com o único horário pausado, volta a desligar",
+  );
+  ok(
+    envioAutomaticoLigado(CHAVE, [{ chave: CHAVE, ativo: false }, { chave: CHAVE, ativo: true }]),
+    "com vários horários, basta um ativo para estar ligado",
+  );
+  ok(
+    !envioAutomaticoLigado(CHAVE, [{ chave: OUTRO, ativo: true }]),
+    "configuração de OUTRO lembrete não liga esta — a leitura é por chave",
+  );
 }
 
 async function testarSelecao() {
@@ -493,6 +539,7 @@ async function testarCobrancaManual() {
 async function main() {
   console.log("Cobrança de cadastro do colaborador (Telegram + e-mail)\n");
   testarRegras();
+  testarInterruptorDaGestao();
   await testarSelecao();
   await testarCaminhoFeliz();
   await testarCobrancaManual();
