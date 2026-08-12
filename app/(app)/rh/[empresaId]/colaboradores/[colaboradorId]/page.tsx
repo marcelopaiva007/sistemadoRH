@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { calcularFerias } from "@/lib/ferias";
 import { conformidadeDoColaborador, situacaoDoExame } from "@/lib/conformidade";
 import { pendenciasDaAdmissao } from "@/lib/admissao";
+import { faltasNaFicha, documentosFaltando } from "@/lib/cobranca-cadastro-colaborador";
 import { opcoesDoCatalogo } from "@/lib/catalogos";
 import { ColaboradorDetalhe } from "./colaborador-detalhe";
 import { Trilha } from "@/components/trilha";
@@ -12,6 +13,12 @@ import { Trilha } from "@/components/trilha";
 // Ficha completa do colaborador: dados cadastrais, dependentes, dossiê digital,
 // férias e ausências. Sempre escopada à empresa da rota — o id do colaborador
 // sozinho nunca abre a ficha de outra empresa.
+// A cobrança de cadastro é disparada desta tela por server action, e o laço
+// dela é o MESMO do cron (uma chamada ao Telegram mais uma ao SMTP por
+// pessoa, em série) — que declara 300 pelo mesmo motivo. Sem isto a action
+// herda o padrão da plataforma e morre no meio do lote.
+export const maxDuration = 300;
+
 export default async function ColaboradorPage({
   params,
 }: {
@@ -323,6 +330,14 @@ export default async function ColaboradorPage({
     }),
   ]);
 
+  // O que a cobrança de cadastro pediria a esta pessoa se saísse agora — a
+  // MESMA regra do cron (lib/cobranca-cadastro-colaborador.ts), para a ficha
+  // não prometer uma lista e a mensagem mandar outra.
+  const cobrancaCadastro = {
+    faltas: [...faltasNaFicha(colaborador), ...documentosFaltando(documentos.map((d) => d.tipo))],
+    temCanal: Boolean(colaborador.telegramChatId || colaborador.email),
+  };
+
   const admissao = candidaturaDeOrigem
     ? {
         vaga: candidaturaDeOrigem.vaga,
@@ -375,6 +390,7 @@ export default async function ColaboradorPage({
         participacoesTreinamento={participacoesTreinamento}
         treinamentosAtivos={treinamentosAtivos}
         admissao={admissao}
+        cobrancaCadastro={cobrancaCadastro}
         checklistIntegracao={checklistIntegracao}
         ocorrenciasDisciplinares={ocorrenciasDisciplinares}
       />

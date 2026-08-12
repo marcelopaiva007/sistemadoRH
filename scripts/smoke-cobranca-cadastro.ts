@@ -24,6 +24,7 @@ import {
   documentosFaltando,
   montarMensagem,
   montarEmail,
+  cobrarCadastroAgora,
   BOT_DO_RH,
   DIAS_ENTRE_COBRANCAS,
   MAX_COBRANCAS,
@@ -364,11 +365,137 @@ async function testarCaminhoFeliz() {
   }
 }
 
+/**
+ * Cobrança avulsa, disparada pela tela — o que o cron NÃO faz.
+ *
+ * O que importa aqui não é o envio (já coberto acima), e sim a INDEPENDÊNCIA
+ * entre as duas: o clique ignora as travas, e ao mesmo tempo não pode encurtar
+ * a campanha automática de quem foi cobrado à mão nem adiar a próxima rodada
+ * dele. É a parte que um erro deixaria silenciosa — a pessoa simplesmente
+ * pararia de receber a cobrança automática, e ninguém notaria.
+ */
+async function testarCobrancaManual() {
+  console.log("\nCobrança manual (botão da tela)\n");
+
+  const fetchReal = globalThis.fetch;
+  const tokenReal = process.env.TELEGRAM_BOT_TOKEN;
+  process.env.TELEGRAM_BOT_TOKEN = "__smoke_token_falso";
+
+  const enviadas: string[] = [];
+  globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+    const alvo = String(url);
+    if (!alvo.includes("api.telegram.org")) throw new Error(`fetch inesperado no smoke: ${alvo}`);
+    enviadas.push(JSON.parse(String(init?.body ?? "{}")).text);
+    return new Response(JSON.stringify({ ok: true, result: {} }), { status: 200 });
+  }) as typeof fetch;
+
+  try {
+    await rodarComRollback(async (tx) => {
+      const carimbo = Date.now();
+      const marca = await tx.marca.create({ data: { nome: `__smoke_manual_marca_${carimbo}` } });
+      const empresa = await tx.empresa.create({
+        data: { nome: `__smoke_manual_empresa_${carimbo}`, marcaId: marca.id },
+      });
+      const setor = await tx.setor.create({ data: { nome: "__smoke_setor", empresaId: empresa.id } });
+      const posicao = await tx.posicao.create({ data: { nome: "__smoke_cargo", empresaId: empresa.id } });
+
+      const criar = (nome: string, dados: Partial<Prisma.ColaboradorUncheckedCreateInput> = {}) =>
+        tx.colaborador.create({
+          data: {
+            nome,
+            empresaId: empresa.id,
+            setorId: setor.id,
+            posicaoId: posicao.id,
+            telegramChatId: `__smoke_manual_${carimbo}_${nome}`,
+            telefone: "11999990000",
+            ...dados,
+          },
+        });
+
+      const pessoa = await criar("incompleto");
+      const r1 = await cobrarCadastroAgora([pessoa.id], "Fulana do RH", tx, HOJE);
+      ok(r1.length === 1 && r1[0].enviado, `envia na hora (${r1[0]?.motivo ?? "ok"})`);
+
+      const linha = await tx.cobrancaCadastro.findFirstOrThrow({ where: { colaboradorId: pessoa.id } });
+      ok(linha.manual === true, "grava a linha como manual");
+      ok(linha.solicitadaPorNome === "Fulana do RH", `guarda quem clicou (achou "${linha.solicitadaPorNome}")`);
+
+      // O ponto central: cobrar à mão hoje NÃO pode fazer o cron pular a pessoa.
+      const auto = await executarCobrancaCadastro(tx, HOJE, [pessoa.id]);
+      ok(
+        auto.enviados === 1 && auto.aguardandoPrazo === 0,
+        `o cron continua cobrando normalmente no mesmo dia (enviados=${auto.enviados}, aguardando=${auto.aguardandoPrazo})`,
+      );
+
+      const linhas = await tx.cobrancaCadastro.findMany({
+        where: { colaboradorId: pessoa.id },
+        orderBy: { rodada: "asc" },
+      });
+      ok(linhas.length === 2, `as duas linhas convivem (${linhas.length})`);
+      ok(
+        linhas[1].rodada === 2 && linhas[1].manual === false,
+        "a automática numera na sequência do histórico, sem repetir a rodada 1",
+      );
+
+      // E a manual não gasta rodada do teto: com MAX manuais no histórico, o
+      // cron ainda tem as suas.
+      const teimoso = await criar("cobrado_a_mao_varias_vezes");
+      for (let i = 0; i < MAX_COBRANCAS; i++) {
+        await cobrarCadastroAgora([teimoso.id], "Fulana do RH", tx, HOJE);
+      }
+      const aindaAutomatica = await executarCobrancaCadastro(tx, HOJE, [teimoso.id]);
+      ok(
+        aindaAutomatica.enviados === 1 && aindaAutomatica.esgotados === 0,
+        `${MAX_COBRANCAS} cobranças manuais não esgotam o teto automático (enviados=${aindaAutomatica.enviados}, esgotados=${aindaAutomatica.esgotados})`,
+      );
+
+      // Casos em que o botão recusa, com motivo legível na tela.
+      const completo = await criar("completo", {
+        rg: "1", logradouro: "R", numeroEndereco: "1", bairro: "B", uf: "SP",
+        bancoNome: "X", bancoAgencia: "1", bancoConta: "1",
+      });
+      for (const tipo of ["RG", "CPF", "CTPS", "COMPROVANTE_RESIDENCIA"]) {
+        await tx.documentoColaborador.create({
+          data: { empresaId: empresa.id, colaboradorId: completo.id, tipo, origem: "COLABORADOR" },
+        });
+      }
+      const rCompleto = await cobrarCadastroAgora([completo.id], "Fulana do RH", tx, HOJE);
+      ok(
+        !rCompleto[0].enviado && !!rCompleto[0].motivo?.includes("completo"),
+        `ficha completa recusa com motivo ("${rCompleto[0]?.motivo}")`,
+      );
+
+      const semCanal = await criar("sem_canal", { telegramChatId: null, email: null });
+      const rSemCanal = await cobrarCadastroAgora([semCanal.id], "Fulana do RH", tx, HOJE);
+      ok(
+        !rSemCanal[0].enviado && !!rSemCanal[0].motivo?.includes("por onde falar"),
+        `sem canal recusa com motivo ("${rSemCanal[0]?.motivo}")`,
+      );
+
+      // Lote: devolve uma linha por pessoa, na ordem em que dá para mostrar
+      // quem falhou — é disso que a tela monta o aviso.
+      const rLote = await cobrarCadastroAgora([pessoa.id, completo.id, semCanal.id], "Fulana do RH", tx, HOJE);
+      ok(rLote.length === 3, `lote devolve resultado por pessoa (${rLote.length})`);
+      ok(
+        rLote.filter((r) => r.enviado).length === 1 && rLote.filter((r) => !r.enviado).length === 2,
+        "no lote, sucesso e recusa vêm separados para a tela avisar",
+      );
+
+      throw new RollbackProposital();
+    });
+  } finally {
+    globalThis.fetch = fetchReal;
+    if (tokenReal === undefined) delete process.env.TELEGRAM_BOT_TOKEN;
+    else process.env.TELEGRAM_BOT_TOKEN = tokenReal;
+  }
+}
+
 async function main() {
   console.log("Cobrança de cadastro do colaborador (Telegram + e-mail)\n");
   testarRegras();
   await testarSelecao();
   await testarCaminhoFeliz();
+  await testarCobrancaManual();
 
   console.log(falhas === 0 ? "\nTodos os testes passaram." : `\n${falhas} teste(s) falharam.`);
   await prisma.$disconnect();

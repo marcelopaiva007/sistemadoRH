@@ -26,6 +26,19 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.76.0",
+    data: "12/08/2026",
+    horario: "01:30",
+    titulo: "Cobrar o cadastro na hora, sem esperar o automático",
+    itens: [
+      "Até agora só a rotina automática cobrava o colaborador a completar a ficha. Quem quisesse mandar na hora — porque está falando com a pessoa, ou porque ela pediu de novo — não tinha por onde.",
+      "Três lugares novos: botão \"Cobrar cadastro\" na ficha do colaborador, seleção em lote na lista de Colaboradores, e \"Rodar agora\" em Configuração → Lembretes.",
+      "O botão de uma pessoa manda mesmo que ela já tenha sido cobrada há pouco: se alguém do RH clicou, decidiu cobrar. Já o \"Rodar agora\" respeita o intervalo normal — ali não é decisão sobre uma pessoa, é adiantar o relógio de todo mundo.",
+      "Cobrar à mão não consome as tentativas da campanha automática nem adia a próxima. Sem essa separação, cobrar alguém pelo botão faria essa pessoa parar de receber os avisos automáticos, e ninguém perceberia.",
+      "Quando alguém do lote não recebe, a tela diz quem e por quê — ficha já completa, ou sem Telegram e sem e-mail. Um \"pronto!\" que esconde falhas faria o RH acreditar que cobrou quem não cobrou.",
+    ],
+  },
+  {
     versao: "1.75.0",
     data: "12/08/2026",
     horario: "00:20",

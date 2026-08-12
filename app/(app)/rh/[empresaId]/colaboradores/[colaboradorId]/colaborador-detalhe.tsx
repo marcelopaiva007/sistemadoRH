@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { ClipboardList } from "lucide-react";
+import { ClipboardList, Send } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -11,6 +11,7 @@ import { formatarData, tempoDeCasa } from "@/lib/datas";
 import type { ResumoFerias } from "@/lib/ferias";
 import type { ConformidadeColaborador, SituacaoExame } from "@/lib/conformidade";
 import { AtivarDesativarButton } from "../ativar-desativar-button";
+import { CobrarCadastroButton } from "../cobrar-cadastro-button";
 import { FichaBlocos } from "./ficha-blocos";
 import { DependentesCard } from "./dependentes-card";
 import { DocumentosCard } from "./documentos-card";
@@ -72,6 +73,7 @@ export function ColaboradorDetalhe({
   participacoesTreinamento,
   treinamentosAtivos,
   admissao,
+  cobrancaCadastro,
   checklistIntegracao,
   ocorrenciasDisciplinares,
 }: {
@@ -113,6 +115,7 @@ export function ColaboradorDetalhe({
     vaga: { id: string; titulo: string };
     pendencias: { chave: string; descricao: string }[];
   } | null;
+  cobrancaCadastro: { faltas: string[]; temCanal: boolean };
   checklistIntegracao: Parameters<typeof IntegracaoCard>[0]["itens"];
   ocorrenciasDisciplinares: Parameters<typeof DisciplinarCard>[0]["ocorrencias"];
 }) {
@@ -176,6 +179,37 @@ export function ColaboradorDetalhe({
         />
         <Resumo label="Pendências de aprovação" valor={pendencias > 0 ? `${pendencias}` : "nenhuma"} />
       </div>
+
+      {/* O que a cobrança automática pediria a esta pessoa, com o botão de
+          mandar agora. Só para quem está ativo: cobrar cadastro de desligado
+          não tem destino. Sem canal, o alerta continua aparecendo (o RH precisa
+          saber que a ficha está incompleta) e o botão dá lugar ao motivo. */}
+      {colaborador.ativo && cobrancaCadastro.faltas.length > 0 && (
+        <Alert>
+          <Send className="size-4" />
+          <AlertDescription>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <span className="font-medium">
+                  Cadastro incompleto — {cobrancaCadastro.faltas.length} item(ns) que o próprio colaborador resolve:
+                </span>
+                <ul className="mt-1 list-inside list-disc text-sm">
+                  {cobrancaCadastro.faltas.map((f) => (
+                    <li key={f}>{f}</li>
+                  ))}
+                </ul>
+              </div>
+              {cobrancaCadastro.temCanal ? (
+                <CobrarCadastroButton empresaId={empresaId} colaboradorIds={[colaborador.id]} />
+              ) : (
+                <span className="text-xs text-muted-foreground">
+                  Sem Telegram e sem e-mail — não há por onde cobrar.
+                </span>
+              )}
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {admissao && admissao.pendencias.length > 0 && (
         <Alert>
