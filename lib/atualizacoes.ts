@@ -26,6 +26,19 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.79.2",
+    data: "12/08/2026",
+    horario: "05:40",
+    titulo: "Correção séria: o arquivo fiscal do ponto saía com 3 horas de diferença",
+    itens: [
+      "O AFD e o AEJ — os arquivos que se entregam à fiscalização do trabalho — gravavam as marcações no fuso do servidor, que é UTC. Na prática: quem bateu às 08:00 aparecia no arquivo como tendo batido às 11:00. Em TODAS as marcações.",
+      "Havia um segundo efeito, pior perto da meia-noite: a marcação das 23:30 era gravada com a data do dia seguinte, porque o arquivo tirava a data de um relógio e a hora de outro.",
+      "Os dois arquivos passam a gravar no horário de Brasília. Nada muda nas telas: o ponto sempre foi mostrado certo para o RH e para o colaborador — o erro estava só no arquivo de exportação fiscal.",
+      "O teste automático não pegava porque só conferia se o CPF e o CNPJ apareciam no texto, sem olhar data e hora. Agora ele confere as duas coisas, inclusive na virada do dia.",
+      "Quem já entregou arquivo AFD à contabilidade ou à fiscalização deve gerar de novo, pela mesma tela, e substituir.",
+    ],
+  },
+  {
     versao: "1.79.1",
     data: "12/08/2026",
     horario: "05:20",

@@ -98,13 +98,21 @@ function testar() {
 
   // 6. Teste de Arquivo Fiscal AFD (Portaria 671)
   console.log("\n5. Testando Gerador de AFD (Portaria MTP 671/2021):");
+  // 11:00Z é 08:00 em Brasília. O arquivo fiscal precisa dizer 08:00 — é o
+  // horário em que a pessoa bateu, e é o que a fiscalização confere contra a
+  // jornada. Até 12/08/2026 saía 11:00: o gerador usava getHours(), que
+  // responde no fuso do processo, e o processo roda em UTC na Vercel.
+  //
+  // Este teste passava mesmo com o erro, porque só conferia se o CPF e o CNPJ
+  // apareciam em algum lugar do texto. Um teste que não olha o campo que
+  // importa não protege o campo que importa.
   const afdTexto = gerarConteudoAFD(
     { razaoSocial: "EMPRESA TESTE LTDA", cnpj: "12.345.678/0001-90" },
     [
       {
         nsr: 1,
         tipo: "ENTRADA_1",
-        dataHora: new Date("2026-08-10T08:00:00Z"),
+        dataHora: new Date("2026-08-10T11:00:00Z"),
         cpfColaborador: "123.456.789-00",
         hashSHA256: hash,
       },
@@ -112,7 +120,36 @@ function testar() {
   );
   console.assert(afdTexto.includes("12345678000190"), "Erro CNPJ no AFD");
   console.assert(afdTexto.includes("12345678900"), "Erro CPF no AFD");
-  console.log(" - Estrutura do arquivo fiscal AFD gerada conforme Portaria MTP 671.");
+
+  // Linha tipo 3: NSR(9) + "3" + DDMMAAAA(8) + HHMM(4) + CPF(11)
+  const linhaMarcacao = afdTexto.split("\r\n")[1];
+  const dataNoAfd = linhaMarcacao.slice(10, 18);
+  const horaNoAfd = linhaMarcacao.slice(18, 22);
+  console.assert(dataNoAfd === "10082026", `Erro data no AFD: ${dataNoAfd} (esperado 10082026)`);
+  console.assert(horaNoAfd === "0800", `Erro hora no AFD: ${horaNoAfd} (esperado 0800, Brasília)`);
+  console.log(` - AFD grava no horário de Brasília (${dataNoAfd} ${horaNoAfd}) -> OK`);
+
+  // Meia-noite em Brasília cai no dia seguinte em UTC. Sem fuso explícito, a
+  // marcação das 23:30 de um dia era gravada com a data do dia seguinte.
+  const afdVirada = gerarConteudoAFD(
+    { razaoSocial: "EMPRESA TESTE LTDA", cnpj: "12345678000190" },
+    [
+      {
+        nsr: 2,
+        tipo: "SAIDA_2",
+        // 02:30Z do dia 11 = 23:30 do dia 10 em Brasília.
+        dataHora: new Date("2026-08-11T02:30:00Z"),
+        cpfColaborador: "12345678900",
+        hashSHA256: hash,
+      },
+    ]
+  );
+  const linhaVirada = afdVirada.split("\r\n")[1];
+  console.assert(
+    linhaVirada.slice(10, 22) === "100820262330",
+    `Erro na virada do dia: ${linhaVirada.slice(10, 22)} (esperado 100820262330)`,
+  );
+  console.log(" - AFD na virada do dia (23:30 de Brasília) mantém a data certa -> OK");
 
   console.log("\n=== TODOS OS TESTES PASSARAM COM SUCESSO ===");
 }
