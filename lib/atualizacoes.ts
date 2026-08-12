@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.79.1",
+    data: "12/08/2026",
+    horario: "05:20",
+    titulo: "Próximas atualizações: o que falta em biometria e folha ficou específico",
+    itens: [
+      "Folha: o sistema da contabilidade é o Domínio, e isso deixou de ser pergunta. O que falta agora vem de lá — um arquivo de importação de exemplo e a lista de códigos de rubrica que o escritório usa (qual código é hora extra 50%, adicional noturno, falta, DSR). Esses códigos são cadastrados escritório a escritório; sem eles o arquivo sairia com o número certo na rubrica errada.",
+      "Biometria: a ligação com o sistema não depende da marca do equipamento, como estava escrito antes. Todo relógio de ponto legal no Brasil é obrigado a gerar o arquivo AFD no formato da Portaria 671 — é esse arquivo que o sistema passaria a ler, venha ele de leitor digital ou de reconhecimento facial. O que a escolha do equipamento decide é preço e instalação, não o trabalho de integrar.",
+      "Nada disso muda tela nenhuma: é a lista de \"Próximas atualizações\" deixando de dizer \"depende de escolher\" e passando a dizer exatamente o que pedir e a quem.",
+    ],
+  },
+  {
     versao: "1.79.0",
     data: "12/08/2026",
     horario: "05:00",

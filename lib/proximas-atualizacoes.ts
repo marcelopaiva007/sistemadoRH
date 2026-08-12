@@ -44,14 +44,15 @@ export const PROXIMAS_ATUALIZACOES: ProximaAtualizacao[] = [
       "Registrar a batida sem digitar nada, direto no equipamento. Hoje o ponto é registrado pelo sistema, e a conferência de quem bateu depende de IP e localização.",
     situacao: "AGUARDANDO_DECISAO",
     bloqueio:
-      "Depende de escolher o equipamento. Leitor biométrico e reconhecimento facial têm custo, instalação e integração diferentes — o prazo só existe depois dessa escolha.",
+      "Depende de escolher e comprar o equipamento — custo e instalação. A ligação com o sistema, essa não depende da marca: todo relógio de ponto legal no Brasil é obrigado a gerar o arquivo AFD no formato da Portaria 671, e é esse arquivo que o sistema passaria a ler. O sistema já GERA o AFD (para a fiscalização); falta LER o que vem do equipamento.",
   },
   {
     titulo: "Envio automático para a folha de pagamento",
     descricao:
       "Os eventos do mês saindo do sistema direto para o escritório de contabilidade, sem exportar e reenviar o CSV à mão.",
     situacao: "AGUARDANDO_DECISAO",
-    bloqueio: "Depende de saber qual sistema de folha o escritório usa e se ele aceita integração.",
+    bloqueio:
+      "O sistema da contabilidade é o Domínio (Thomson Reuters) — isso já está respondido. O que falta vem de lá, não daqui: um arquivo de importação de exemplo e a lista de códigos de rubrica que o escritório usa (qual código é hora extra 50%, adicional noturno, falta, DSR). Esses códigos são cadastrados por escritório, não são iguais para todo mundo — sem eles, o arquivo sairia com número certo na rubrica errada.",
   },
   {
     titulo: "Avisos automáticos para o gestor",
