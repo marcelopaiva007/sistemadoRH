@@ -1,6 +1,11 @@
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
-import { LEMBRETES_CONFIGURAVEIS, type ChaveLembrete } from "@/lib/cron-horario";
+import {
+  LEMBRETES_CONFIGURAVEIS,
+  LEMBRETES_QUE_NASCEM_DESLIGADOS,
+  envioAutomaticoLigado,
+  type ChaveLembrete,
+} from "@/lib/cron-horario";
 import { PAPEIS_QUE_CONFIGURAM } from "@/lib/segredos";
 import { LembretesView } from "./lembretes-view";
 
@@ -32,6 +37,10 @@ export default async function LembretesPage({
     horarios: linhas
       .filter((l) => l.chave === chave)
       .map((l) => ({ id: l.id, horario: l.horario, ativo: l.ativo })),
+    // O estado do interruptor sai da MESMA função que o cron consulta para
+    // decidir se roda — tela e comportamento não podem discordar.
+    precisaDecisaoDaGestao: LEMBRETES_QUE_NASCEM_DESLIGADOS.has(chave),
+    ligado: envioAutomaticoLigado(chave, linhas),
   }));
 
   return (

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Clock, Play, Plus, X } from "lucide-react";
+import { Clock, Play, Power, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,7 @@ import {
   adicionarHorarioLembrete,
   alternarHorarioLembrete,
   removerHorarioLembrete,
+  definirEnvioAutomatico,
 } from "@/lib/actions/rh-lembretes";
 import { rodarCobrancaAgora } from "@/lib/actions/rh-cobranca-cadastro";
 import type { ChaveLembrete } from "@/lib/cron-horario";
@@ -22,6 +23,9 @@ type Lembrete = {
   label: string;
   padroes: readonly string[];
   horarios: { id: string; horario: string; ativo: boolean }[];
+  /** Nasce desligado: sem decisão da gestão, o envio automático não acontece. */
+  precisaDecisaoDaGestao: boolean;
+  ligado: boolean;
 };
 
 export function LembretesView({
@@ -132,18 +136,72 @@ function CartaoLembrete({
     }
   }
 
+  async function ligarDesligar(ligado: boolean) {
+    setOcupado(true);
+    try {
+      const r = await definirEnvioAutomatico(empresaId, lembrete.chave, ligado);
+      if (r.ok) {
+        toast.success(
+          ligado
+            ? `Envio automático de "${lembrete.label}" ligado.`
+            : `Envio automático de "${lembrete.label}" desligado.`,
+        );
+        router.refresh();
+      } else {
+        toast.error(r.error);
+      }
+    } catch {
+      toast.error("Não foi possível salvar — verifique a conexão e tente de novo.");
+    } finally {
+      setOcupado(false);
+    }
+  }
+
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <Clock className="size-4" />
           {lembrete.label}
+          {lembrete.precisaDecisaoDaGestao && (
+            <Badge variant={lembrete.ligado ? "default" : "outline"} className="ml-auto">
+              {lembrete.ligado ? "Automático ligado" : "Automático desligado"}
+            </Badge>
+          )}
         </CardTitle>
-        {usandoPadrao && (
+        {/* Para quem nasce desligado, "usando o padrão" seria mentira: sem
+            decisão da gestão o horário padrão não vale como autorização e nada
+            sai. Só os demais mostram aquele aviso. */}
+        {usandoPadrao && !lembrete.precisaDecisaoDaGestao && (
           <CardDescription>Usando o horário padrão — ainda não foi ajustado pela tela.</CardDescription>
+        )}
+        {lembrete.precisaDecisaoDaGestao && (
+          <CardDescription>
+            {lembrete.ligado
+              ? "O sistema envia sozinho, nos horários abaixo."
+              : "O sistema NÃO envia sozinho. O RH continua podendo cobrar à mão, pela ficha do colaborador e pela lista."}
+          </CardDescription>
         )}
       </CardHeader>
       <CardContent className="space-y-3">
+        {lembrete.precisaDecisaoDaGestao && podeConfigurar && (
+          <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/40 px-3 py-2">
+            <Power className="size-4 text-muted-foreground" />
+            <span className="text-sm">
+              Envio automático: <b>{lembrete.ligado ? "ligado" : "desligado"}</b>
+            </span>
+            <Button
+              size="sm"
+              variant={lembrete.ligado ? "outline" : "default"}
+              disabled={ocupado}
+              onClick={() => ligarDesligar(!lembrete.ligado)}
+              className="ml-auto"
+            >
+              {lembrete.ligado ? "Desligar" : "Ligar"}
+            </Button>
+          </div>
+        )}
+
         <div className="flex flex-wrap gap-2">
           {exibidos.map((h) => (
             <Badge

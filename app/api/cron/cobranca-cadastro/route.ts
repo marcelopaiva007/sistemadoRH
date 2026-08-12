@@ -22,11 +22,16 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // vercel.json chama esta rota a cada 15 min; só roda de fato perto do
-  // horário configurado em Configuração → Lembretes (padrão 11:00). Disparo
-  // manual (?secret=) ignora o horário de propósito — ver lib/cron-horario.ts.
+  // Esta rota NASCE INERTE. `deveRodarAgora` devolve false enquanto a gestão
+  // não ligar o envio automático em Configuração → Lembretes — a linha em
+  // vercel.json continua batendo aqui a cada 15 min e saindo sem fazer nada.
+  //
+  // Deixar o cron agendado e desligado, em vez de tirá-lo do vercel.json, é o
+  // que faz o interruptor da tela valer sozinho: ligar não precisa de deploy,
+  // e é justamente disso que uma decisão de gestão precisa — poder ser tomada
+  // (e desfeita) por quem a toma, na hora em que a toma.
   if (origem === "cron" && !(await deveRodarAgora("cobranca-cadastro"))) {
-    return NextResponse.json({ ok: true, pulado: true, motivo: "fora do horário configurado" });
+    return NextResponse.json({ ok: true, pulado: true, motivo: "envio automático desligado ou fora do horário" });
   }
 
   try {

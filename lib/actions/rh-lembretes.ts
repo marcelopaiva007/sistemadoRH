@@ -89,6 +89,64 @@ export async function removerHorarioLembrete(empresaId: string, id: string): Pro
   return { ok: true };
 }
 
+/**
+ * Liga ou desliga o envio automático de um lembrete inteiro — o interruptor da
+ * gestão, para quem não quer (nem precisa) pensar em horário.
+ *
+ * LIGAR: se nunca houve horário, cria o padrão do lembrete; se havia e estava
+ * tudo pausado, reativa. DESLIGAR: pausa tudo, sem apagar — religar devolve o
+ * horário que a gestão tinha escolhido, em vez de voltar ao padrão de fábrica.
+ *
+ * Existe separado de `adicionarHorarioLembrete` porque a pergunta é outra.
+ * "Adicionar 09:30" é ajuste fino de quem já decidiu que o envio acontece;
+ * "ligar" é a decisão em si, e para os lembretes de
+ * LEMBRETES_QUE_NASCEM_DESLIGADOS é ela que autoriza o sistema a falar com
+ * colaborador. Espremer as duas no mesmo botão faria a decisão parecer
+ * configuração.
+ */
+export async function definirEnvioAutomatico(
+  empresaId: string,
+  chave: string,
+  ligado: boolean,
+): Promise<ActionResult> {
+  const permissao = await exigirPapel();
+  if (!permissao.ok) return permissao;
+  if (!ehChaveLembrete(chave)) return { ok: false, error: "Lembrete desconhecido." };
+
+  const porQuem = permissao.user.nome ?? permissao.user.id;
+  const existentes = await prisma.configuracaoLembrete.findMany({ where: { chave } });
+
+  if (ligado) {
+    if (existentes.length === 0) {
+      const padrao = LEMBRETES_CONFIGURAVEIS[chave].padroes[0];
+      await prisma.configuracaoLembrete.create({
+        data: { chave, horario: padrao, ativo: true, atualizadoPor: porQuem },
+      });
+    } else {
+      await prisma.configuracaoLembrete.updateMany({
+        where: { chave },
+        data: { ativo: true, atualizadoPor: porQuem },
+      });
+    }
+  } else {
+    await prisma.configuracaoLembrete.updateMany({
+      where: { chave },
+      data: { ativo: false, atualizadoPor: porQuem },
+    });
+  }
+
+  await registrarAuditoria({
+    empresaId,
+    acao: "ATUALIZAR",
+    entidade: "ConfiguracaoLembrete",
+    entidadeId: chave,
+    resumo: `Envio automático de "${LEMBRETES_CONFIGURAVEIS[chave].label}" ${ligado ? "LIGADO" : "DESLIGADO"}.`,
+  });
+
+  revalidatePath(`/rh/${empresaId}/lembretes`);
+  return { ok: true };
+}
+
 export async function alternarHorarioLembrete(
   empresaId: string,
   id: string,
