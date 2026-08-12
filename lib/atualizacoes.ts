@@ -24,6 +24,28 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.57.0",
+    data: "12/08/2026",
+    titulo: "Sistema de ponto com selfie e localização",
+    itens: [
+      "Novo módulo Ponto no portal do colaborador: clique em 'Entrada' ou 'Saída' para registrar o horário com selfie, localização e hora automática.",
+      "O sistema valida se o colaborador está dentro da janela de ponto permitida (até 1 hora antes ou depois do horário de trabalho definido na escala).",
+      "RH vê todos os pontos em um novo módulo 'Ponto' (menu Departamento Pessoal), com filtros por colaborador, tipo e data, além de opção para exportar em CSV.",
+      "Cada registro inclui foto, coordenadas de GPS e status de conformidade com o horário esperado.",
+    ],
+  },
+  {
+    versao: "1.56.0",
+    data: "08/08/2026",
+    titulo: 'Guia "Como usar esta tela" em todas as telas do RH',
+    itens: [
+      'Cada tela do módulo RH ganhou um botão "Como usar esta tela" no canto inferior direito. Ele abre um guia que passa sozinho, como um vídeo, explicando para que a tela serve, o que se alimenta nela e o que acontece se o dado faltar.',
+      "São 41 guias, um por aba — de Colaboradores e Férias a Conformidade, Folha e Auditoria. O guia tem play, pausa, voltar e avançar, e cada passo pode ser aberto direto pela barra de progresso.",
+      'Abaixo do guia fica sempre visível a linha "O que você alimenta aqui", para responder a dúvida mais comum sem precisar assistir até o fim.',
+      "O botão fica com um ponto azul na primeira vez que você entra numa tela e apaga depois que o guia é aberto.",
+    ],
+  },
+  {
     versao: "1.55.2",
     data: "07/08/2026",
     titulo: "Filtro por empresa na Produtividade RH",

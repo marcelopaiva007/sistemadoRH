@@ -1,0 +1,15 @@
+# Normaliza quebras de linha para LF no repositorio, independente do SO de quem edita
+* text=auto eol=lf
+
+# Garante que binarios nunca sejam tocados na normalizacao
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.pdf binary

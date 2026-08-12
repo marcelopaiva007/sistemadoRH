@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, LogOut, MessageCircle, PencilLine, Star, Stethoscope, Upload, User, UsersRound } from "lucide-react";
+import { Clock, FileText, LogOut, MessageCircle, PencilLine, Star, Stethoscope, Upload, User, UsersRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +9,7 @@ import { MeuCadastro, EnviarDocumento } from "./meu-cadastro";
 import { FaleComRh, type MensagemDoPortal } from "./fale-com-rh";
 import { MinhasAvaliacoes, type MinhaAvaliacao, type EquipeDoGerente } from "./minhas-avaliacoes";
 import { MeuTimeDoGestor, type MeuTimePortal } from "./meu-time";
+import { PontoWidget } from "./ponto-widget";
 import { sairDoPortal } from "@/lib/actions/portal";
 import { formatarTamanho } from "@/lib/anexos";
 // Mesma máscara usada na listagem interna — o portal confirma identidade,
@@ -164,6 +165,10 @@ export function PortalInicio({
           {/* "Atualizar" primeiro e como padrão: hoje o que o RH precisa de
               cada pessoa é a ficha completa, e a aba que abre é a que é usada.
               Atestados fica por último — é consulta, não tarefa pendente. */}
+          <TabsTrigger value="ponto">
+            <Clock />
+            Ponto
+          </TabsTrigger>
           <TabsTrigger value="atualizar">
             <PencilLine />
             Atualizar
@@ -201,6 +206,10 @@ export function PortalInicio({
             <MeuTimeDoGestor time={meuTime} />
           </TabsContent>
         )}
+
+        <TabsContent value="ponto" className="pt-4">
+          <PontoWidget />
+        </TabsContent>
 
         <TabsContent value="mensagens" className="pt-4">
           <FaleComRh mensagens={mensagens} />

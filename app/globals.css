@@ -169,20 +169,34 @@
 
   /* Número em coluna precisa alinhar. Aplicado onde há dado numérico —
      tabela, indicador, badge — em vez de caso a caso pelo código. */
-  table, .tabular, [data-slot="badge"] {
+  table,
+  .tabular,
+  [data-slot="badge"] {
     font-variant-numeric: tabular-nums;
   }
 
   /* Hierarquia por peso e cor, não só por tamanho: escala curta evita a
      inflação de títulos que vinha acontecendo (text-2xl, text-xl e text-lg
      disputando o mesmo papel em telas diferentes). */
-  h1 { @apply text-xl font-semibold tracking-tight; }
-  h2 { @apply text-lg font-semibold tracking-tight; }
-  h3 { @apply text-sm font-semibold; }
+  h1 {
+    @apply text-xl font-semibold tracking-tight;
+  }
+  h2 {
+    @apply text-lg font-semibold tracking-tight;
+  }
+  h3 {
+    @apply text-sm font-semibold;
+  }
 
   /* Texto longo não deve atravessar a tela inteira. */
-  p { text-wrap: pretty; }
-  h1, h2, h3 { text-wrap: balance; }
+  p {
+    text-wrap: pretty;
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
 }
 
 /* Foco visível e na cor da identidade. Antes havia uma regra que forçava
@@ -216,9 +230,97 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ─────────────────── Animações dos guias de tela ───────────────────
+   Usadas só por components/guia-cena.tsx, o desenho esquemático que o guia
+   "Como usar esta tela" anima passo a passo. Ficam aqui e não em style inline
+   porque cada cena aplica a mesma animação em N elementos com atraso diferente
+   (`animation-delay` inline), e keyframes não podem morar no atributo style.
+
+   `both` no fill-mode é o que faz o atraso funcionar: sem ele o elemento
+   aparece, espera o delay e SÓ ENTÃO some para animar — o efeito fica piscando.
+
+   O bloco global de prefers-reduced-motion no fim deste arquivo já zera todas
+   elas; quem pede menos movimento vê a cena montada, estática, e continua
+   lendo a narração normalmente. */
+@keyframes guia-surgir {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes guia-crescer {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+@keyframes guia-digitar {
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
+}
+@keyframes guia-pulsar {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--destructive) 45%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 6px color-mix(in oklab, var(--destructive) 0%, transparent);
+  }
+}
+@keyframes guia-marcar {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes guia-percorrer {
+  from {
+    transform: translateX(-120%);
+  }
+  to {
+    transform: translateX(320%);
+  }
+}
+
+.guia-surgir {
+  animation: guia-surgir 0.45s ease-out both;
+}
+.guia-crescer {
+  animation: guia-crescer 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  transform-origin: bottom;
+}
+.guia-digitar {
+  animation: guia-digitar 0.8s ease-out both;
+}
+.guia-pulsar {
+  animation: guia-pulsar 1.8s ease-in-out infinite;
+}
+.guia-marcar {
+  animation: guia-marcar 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.guia-percorrer {
+  animation: guia-percorrer 1.6s ease-in-out infinite;
 }

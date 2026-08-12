@@ -3,6 +3,7 @@ import { requireEmpresaAccess, empresasVisiveis } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
 import { RHEmpresaNav } from "./rh-empresa-nav";
 import { ListaEmpresas } from "./lista-empresas";
+import { GuiaTela } from "@/components/guia-tela";
 
 /**
  * Branco em cima da cor da marca, ou quase-preto se a cor for clara demais
@@ -87,6 +88,12 @@ export default async function RHEmpresaLayout({
         </div>
         {children}
       </div>
+
+      {/* Uma vez aqui e vale para as ~40 telas do módulo: o guia se resolve pela
+          rota (lib/guias.ts::guiaDaRota). Tela sem roteiro não mostra botão
+          nenhum, então plugar aqui não obriga a escrever guia para tudo de uma
+          vez — e tela nova ganha o guia só escrevendo o roteiro. */}
+      <GuiaTela empresaId={empresaId} />
     </div>
   );
 }
