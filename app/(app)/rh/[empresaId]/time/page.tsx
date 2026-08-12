@@ -8,13 +8,15 @@ import { TimeView } from "./time-view";
 // avaliação do ciclo, ficha e acesso ao portal, com o bloco dos primeiros 90
 // dias dentro dela.
 //
-// POR QUE A TELA MORA NO MÓDULO RH, E NÃO NUMA "TELA DO GESTOR": não existe
-// usuário com papel de gestor de setor, e User não tem vínculo com Colaborador
-// — uma tela que dependesse desse papel nasceria sem ninguém para abri-la. As
-// duas portas que JÁ funcionam: esta rota (gestor de RH e admin, com seletor de
-// setor) e o portal do colaborador (o gestor real logado vê o recorte pelo
-// próprio supervisorId — ver app/portal/page.tsx). As duas usam o MESMO motor
-// (lib/meu-time.ts), então RH e gestor leem os mesmos números.
+// POR QUE A TELA MORA NO MÓDULO RH: aqui é a visão do RH — a equipe inteira do
+// escopo, com seletor de setor. São TRÊS portas para a mesma leitura, e todas
+// usam o MESMO motor (lib/meu-time.ts), então RH e gestor nunca leem números
+// diferentes da mesma equipe:
+//   1. esta rota — RH e admin, equipe toda;
+//   2. /rh/meu-setor — o gestor logado, recorte pelo próprio supervisorId
+//      (possível desde 12/08/2026, quando User ganhou colaboradorId);
+//   3. o portal do colaborador — o mesmo recorte, para quem entra por Telegram
+//      e não tem usuário do sistema (ver app/portal/page.tsx).
 //
 // ESCOPO: `empresasVisiveis` + filtro ?empresas= da lateral, como Férias e
 // Liderança — equipe cruza CNPJ neste grupo. O recorte por setor é decisão da

@@ -6,6 +6,7 @@ import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireGestaoUsuarios } from "@/lib/auth-guard";
+import { empresasVisiveis } from "@/lib/rh-auth-guard";
 import { auth } from "@/auth";
 import { sendEmail } from "@/lib/email";
 import { registrarAuditoria, diffCampos } from "@/lib/audit";
@@ -529,6 +530,163 @@ export async function reativarVinculoMarca(userId: string, marcaId: string): Pro
   });
 
   revalidatePath("/cadastros/usuarios");
+  return { ok: true };
+}
+
+/** Quantas fichas a busca do diálogo devolve. Lista longa não se lê. */
+const LIMITE_BUSCA_FICHAS = 20;
+
+// Fichas que PODEM virar o login deste usuário: ativas, dentro do alcance de
+// empresas dele e ainda sem login próprio. A busca é por nome ou CPF porque é
+// o que o RH tem em mãos — matrícula nem sempre está preenchida.
+export async function buscarColaboradoresParaVincular(
+  userId: string,
+  termo: string,
+): Promise<{ id: string; nome: string; empresaNome: string; setorNome: string }[]> {
+  await requireGestaoUsuarios();
+
+  const busca = termo.trim();
+  if (busca.length < 2) return [];
+
+  const alvo = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, role: true, empresas: { select: { empresaId: true, ativo: true } } },
+  });
+  if (!alvo) return [];
+
+  const alcance = await empresasVisiveis(alvo);
+  if (alcance.length === 0) return [];
+
+  // Só entra a cláusula de CPF se o termo tiver dígito: `contains: ""` casa com
+  // qualquer CPF preenchido e devolveria a base inteira para quem digitou letra.
+  const digitos = busca.replace(/\D/g, "");
+  const porNomeOuCpf = [
+    { nome: { contains: busca, mode: "insensitive" as const } },
+    ...(digitos.length >= 2 ? [{ cpf: { contains: digitos } }] : []),
+  ];
+
+  const achados = await prisma.colaborador.findMany({
+    where: {
+      empresaId: { in: alcance },
+      ativo: true,
+      // `usuario: null` some com quem já tem login — vincular por cima daria
+      // erro de unique só depois do clique, sem explicar o motivo.
+      usuario: { is: null },
+      OR: porNomeOuCpf,
+    },
+    select: {
+      id: true,
+      nome: true,
+      empresa: { select: { nome: true } },
+      setor: { select: { nome: true } },
+    },
+    orderBy: { nome: "asc" },
+    take: LIMITE_BUSCA_FICHAS,
+  });
+
+  return achados.map((c) => ({
+    id: c.id,
+    nome: c.nome,
+    empresaNome: c.empresa.nome,
+    setorNome: c.setor.nome,
+  }));
+}
+
+// Aponta qual ficha de colaborador é este login.
+//
+// POR QUE ISTO EXISTE. `User` e `Colaborador` nasceram como dois cadastros sem
+// ponte. Consequência prática: um gestor logado no sistema não tinha como o
+// servidor descobrir quem ele é, e por isso nenhuma tela com login conseguia
+// mostrar "meu time" — que sai de `Colaborador.supervisorId`. O time só
+// aparecia no portal, que entra por Telegram e não usa `User`.
+//
+// O vínculo é apontado à mão, um a um, e não adivinhado: `username` não tem
+// relação nenhuma com o nome da ficha, e errar aqui mostra o time errado para
+// a pessoa errada.
+export async function vincularColaboradorAoUsuario(
+  userId: string,
+  colaboradorId: string,
+): Promise<ActionResult> {
+  await requireGestaoUsuarios();
+
+  const [alvo, colaborador] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        role: true,
+        nome: true,
+        colaboradorId: true,
+        empresas: { select: { empresaId: true, ativo: true } },
+      },
+    }),
+    prisma.colaborador.findUnique({
+      where: { id: colaboradorId },
+      select: { id: true, nome: true, empresaId: true, ativo: true },
+    }),
+  ]);
+  if (!alvo) return { ok: false, error: "Usuário não encontrado." };
+  if (!colaborador) return { ok: false, error: "Colaborador não encontrado." };
+
+  // A checagem que sustenta o resto: a ficha precisa estar numa empresa que o
+  // PRÓPRIO usuário alcança. Sem isto, vincular um gestor da empresa A a uma
+  // ficha da empresa B faria "meu time" mostrar gente de outro CNPJ — um
+  // vazamento entre empresas aberto pela tela de cadastro, não por invasão.
+  const alcance = await empresasVisiveis(alvo);
+  if (!alcance.includes(colaborador.empresaId)) {
+    return {
+      ok: false,
+      error: "Este colaborador está numa empresa que o usuário não acessa.",
+    };
+  }
+
+  // O @unique do banco já barraria, mas o erro que ele devolve é ilegível para
+  // quem está na tela. Aqui dá para dizer de quem é a ficha.
+  const jaUsada = await prisma.user.findUnique({
+    where: { colaboradorId },
+    select: { id: true, nome: true },
+  });
+  if (jaUsada && jaUsada.id !== userId) {
+    return { ok: false, error: `Esta ficha já é o login de ${jaUsada.nome}.` };
+  }
+
+  await prisma.user.update({ where: { id: userId }, data: { colaboradorId } });
+
+  await registrarAuditoria({
+    acao: "VINCULAR",
+    entidade: "User",
+    entidadeId: userId,
+    empresaId: colaborador.empresaId,
+    resumo: `Vinculou o login ${alvo.nome} à ficha de ${colaborador.nome}`,
+  });
+
+  revalidatePath("/cadastros/usuarios");
+  revalidatePath("/rh/meu-setor");
+  return { ok: true };
+}
+
+export async function desvincularColaboradorDoUsuario(userId: string): Promise<ActionResult> {
+  await requireGestaoUsuarios();
+
+  const alvo = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, nome: true, colaborador: { select: { nome: true, empresaId: true } } },
+  });
+  if (!alvo) return { ok: false, error: "Usuário não encontrado." };
+  if (!alvo.colaborador) return { ok: false, error: "Este usuário não tem ficha vinculada." };
+
+  await prisma.user.update({ where: { id: userId }, data: { colaboradorId: null } });
+
+  await registrarAuditoria({
+    acao: "DESVINCULAR",
+    entidade: "User",
+    entidadeId: userId,
+    empresaId: alvo.colaborador.empresaId,
+    resumo: `Desvinculou o login ${alvo.nome} da ficha de ${alvo.colaborador.nome}`,
+  });
+
+  revalidatePath("/cadastros/usuarios");
+  revalidatePath("/rh/meu-setor");
   return { ok: true };
 }
 

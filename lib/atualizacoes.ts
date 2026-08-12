@@ -26,6 +26,30 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.78.0",
+    data: "12/08/2026",
+    horario: "04:10",
+    titulo: "O gestor passa a ver o próprio time ao entrar no sistema",
+    itens: [
+      "Até agora o sistema tinha dois cadastros que não se conheciam: o de usuários (quem tem login) e o de colaboradores (quem está na folha). Ninguém ligava um ao outro, então quando um gestor entrava com o login dele o sistema não sabia qual pessoa da folha ele era — e por isso nenhuma tela conseguia mostrar a equipe dele.",
+      "Agora existe essa ligação. Em Cadastros → Usuários → Vincular, o RH aponta qual ficha de colaborador é cada login, buscando por nome ou CPF.",
+      "Com o vínculo feito, a tela \"Meu Setor\" do gestor passa a abrir com o time dele — tempo de casa, férias a vencer, avaliação do ciclo, quem ainda não acessou o portal e quem está nos primeiros meses. São os mesmos números que o RH vê, saídos da mesma conta: gestor e RH não leem versões diferentes da mesma equipe.",
+      "Quem monta o time é o campo \"Reporta a\" da ficha de cada colaborador, e não o setor. São coisas diferentes: um gestor pode liderar gente de mais de um setor.",
+      "O vínculo é opcional e não muda permissão nenhuma. Quem é só do RH normalmente não tem ficha na empresa que administra e continua trabalhando igual. Sem vínculo, a tela explica o que falta em vez de aparecer vazia.",
+    ],
+  },
+  {
+    versao: "1.77.2",
+    data: "12/08/2026",
+    horario: "03:20",
+    titulo: "A cobrança automática de cadastro nasce desligada",
+    itens: [
+      "Configurar um horário para a cobrança de cadastro não liga mais o envio sozinho. Ligar virou uma decisão à parte, com chave própria na tela de Lembretes — porque escolher quando algo sairia não é o mesmo que decidir que ele vai sair.",
+      "A tela e o robô que dispara as mensagens passaram a consultar a mesma chave. Antes eram duas leituras separadas, e elas podiam discordar: a tela mostrar desligado e a mensagem sair mesmo assim.",
+      "(Entrada escrita depois, em 12/08/2026: esta versão foi publicada sem registro aqui.)",
+    ],
+  },
+  {
     versao: "1.77.1",
     data: "12/08/2026",
     horario: "02:50",

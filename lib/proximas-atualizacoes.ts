@@ -68,14 +68,6 @@ export const PROXIMAS_ATUALIZACOES: ProximaAtualizacao[] = [
     situacao: "EM_ANDAMENTO",
   },
   {
-    titulo: "Painel próprio do gestor de setor",
-    descricao:
-      "Uma tela com o time da pessoa e o que ela precisa decidir, sem passar pelos módulos do RH inteiro.",
-    situacao: "AGUARDANDO_DECISAO",
-    bloqueio:
-      "Hoje o gestor entra pelo portal, como colaborador, e vê a equipe por quem tem ele como supervisor. Não existe login com papel de gestor: o cadastro de usuários e o de colaboradores não são ligados entre si. Uma tela nova exigiria decidir se cada gestor ganha login próprio e como esse login se liga à ficha dele — antes disso, a tela nasceria sem ninguém para abri-la.",
-  },
-  {
     titulo: "Vídeos curtos de treinamento",
     descricao:
       "Complemento ao \"Como usar\" que já existe em cada tela. O texto continua sendo a referência — o vídeo ajuda em fluxo longo, como a admissão completa.",
