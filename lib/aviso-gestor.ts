@@ -99,7 +99,6 @@ export type ResultadoAvisoGestor = {
   simulacao: { gestor: string; mensagem: string }[];
 };
 
-/** Monta a mensagem do Telegram. Uma só por gestor, com tudo do time dele. */
 /**
  * "MARCELO" -> "Marcelo". O cadastro guarda nome em maiúsculas, e numa
  * saudação pessoal isso soa como grito.
@@ -109,6 +108,7 @@ function comoSeChama(nome: string): string {
   return primeiro.charAt(0).toUpperCase() + primeiro.slice(1).toLowerCase();
 }
 
+/** Monta a mensagem do Telegram. Uma só por gestor, com tudo do time dele. */
 export function montarMensagemDoGestor(gestorNome: string, itens: ItemDeAviso[]): string {
   const primeiroNome = comoSeChama(gestorNome);
   const linhas = itens.map((i) => `• ${i.texto}`).join("\n");

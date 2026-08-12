@@ -26,6 +26,29 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.77.1",
+    data: "12/08/2026",
+    horario: "02:50",
+    titulo: "Verificação automática completa em todo PR",
+    itens: [
+      "A verificação automática que passou a rodar hoje ganhou também a checagem de estilo de código. Ela ficou desligada nas primeiras horas porque havia 10 erros antigos no projeto — e portão que nasce vermelho é portão que todo mundo aprende a ignorar. Os 10 foram corrigidos e o portão está ligado.",
+      "Entre eles havia um problema real no portal: quem abria a tela de bater ponto e saía antes de a resposta chegar deixava o sistema tentando atualizar uma tela que não existia mais.",
+      "Nada muda no que você vê. É a rede de proteção que impede uma correção nova de quebrar algo antigo sem ninguém perceber.",
+    ],
+  },
+  {
+    versao: "1.77.0",
+    data: "12/08/2026",
+    horario: "02:20",
+    titulo: "\"Cadastros incompletos\" deixa de apontar para quase todo mundo",
+    itens: [
+      "O cartão marcava 163 dos 170 colaboradores ativos — 96% da base. Contador que aponta para quase todo mundo não é fila de trabalho, é ruído: ninguém abre uma lista de 163 pessoas, e o cartão acaba sendo ignorado junto com os que estão ao lado dele.",
+      "A régua passou a ser só o que TRAVA alguma coisa: sem CPF ou data de admissão não há eSocial; sem dados bancários não há como pagar; sem nenhum contato não há como falar com a pessoa.",
+      "RG e endereço saíram da conta. Continuam faltando e continuam visíveis na ficha de cada um — só deixaram de disputar atenção na tela de Pendências.",
+      "A tela \"Avisos ao gestor\", quando não tem nada a mostrar, agora diz quantos colaboradores ativos estão sem supervisor na ficha. Sem esse número, tela vazia podia significar duas coisas opostas — não há situação a avisar, ou não há a quem avisar.",
+    ],
+  },
+  {
     versao: "1.76.1",
     data: "12/08/2026",
     horario: "01:50",

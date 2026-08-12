@@ -87,7 +87,7 @@ async function checarVersaoOnline() {
         "Confira se versaoDoSistema() está sendo renderizado corretamente na tela de login."
       );
     }
-  } catch (erro: any) {
+  } catch (erro) {
     registrar(
       "Conexão com Produção",
       false,
@@ -123,7 +123,7 @@ async function checarRotasCriticas() {
           `A rota ${r.path} retornou erro. Cheque os logs de SSR ou variáveis na Vercel.`
         );
       }
-    } catch (err: any) {
+    } catch (err) {
       registrar(
         `Rota ${r.label}`,
         false,
@@ -140,7 +140,7 @@ function checarVariaveisEBanco() {
   try {
     execSync("node validate-env.mjs", { stdio: "pipe" });
     registrar("Validação de Variáveis (.env)", true, "Todas as variáveis obrigatórias estão presentes");
-  } catch (err: any) {
+  } catch (err) {
     registrar(
       "Validação de Variáveis (.env)",
       false,
@@ -152,7 +152,7 @@ function checarVariaveisEBanco() {
   try {
     execSync("npm run type-check", { stdio: "pipe" });
     registrar("Checagem de Tipos (TypeScript)", true, "0 erros de compilação TS");
-  } catch (err: any) {
+  } catch (err) {
     registrar(
       "Checagem de Tipos (TypeScript)",
       false,

@@ -11,6 +11,7 @@ import {
   type PerguntaCalc,
   type RespostaCalc,
 } from "@/lib/nr01";
+import { canonizarCargo } from "@/lib/de-para-rotulos";
 import { PERGUNTAS_NR01 } from "@/lib/nr01-modelo";
 import { gerarHtmlRelatorioNR01 } from "@/lib/nr01-relatorio";
 
@@ -94,7 +95,14 @@ ok(miniGrupo.amostraInsuficiente === true, "setor com 2 respostas: amostra insuf
 ok(resultado.porSetor[0].grupo === "Campo", "ordenação: pior setor primeiro");
 const geral = resultado.geral;
 ok(Math.abs(geral.dimensoes[0].pctExpostos - 60) < 0.01, "geral: 60% expostos (4 pior + 2 mini de 10)");
-ok(resultado.porCargo.some((c) => c.grupo === "Técnico"), "agregação por cargo presente");
+// "Técnico Instalador", e não "Técnico": `canonizarCargo` normaliza pelo
+// de-para de lib/de-para-rotulos.ts, e é o nome canônico que vai para o
+// relatório. Este teste procurava o rótulo cru e falhava desde que o de-para
+// passou a reconhecer "Técnico" — sem CI, ficou vermelho sem ninguém ver.
+ok(
+  resultado.porCargo.some((c) => c.grupo === canonizarCargo("Técnico").nome),
+  "agregação por cargo presente",
+);
 
 console.log("4. Fumaça do relatório HTML/PDF");
 const html = gerarHtmlRelatorioNR01({

@@ -106,7 +106,10 @@ export function apurarJornadaDiaria(
     minutosTrabalhadosBruto += diffMin;
 
     // Checar faixa noturna (22:00 às 05:00)
-    let curr = new Date(entrada.getTime());
+    // `const` porque a variavel nunca e reatribuida: `setMinutes` muta o
+    // proprio objeto Date. Trocar por `let` sugeria uma reatribuicao que nao
+    // existe.
+    const curr = new Date(entrada.getTime());
     while (curr < saida) {
       const hora = curr.getHours();
       if (hora >= 22 || hora < 5) {

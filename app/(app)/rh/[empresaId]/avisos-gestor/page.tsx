@@ -2,6 +2,7 @@ import { empresasVisiveis, requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { prisma } from "@/lib/prisma";
 import { levantarAvisos, DIAS_ENTRE_AVISOS, montarMensagemDoGestor } from "@/lib/aviso-gestor";
 
 // Prévia dos avisos automáticos ao gestor: exatamente o que o bot mandaria
@@ -34,7 +35,17 @@ export default async function AvisosGestorPage({
   const pedidas = (empresasParam ?? "").split(",").filter(Boolean);
   const escopo = pedidas.length === 0 ? visiveis : pedidas.filter((id) => visiveis.includes(id));
 
-  const avisos = await levantarAvisos(undefined, undefined, escopo);
+  // O `semSupervisor` existe por causa de uma pergunta real: em 12/08/2026 a
+  // tela de Pendências mostrava "22 férias vencidas" e esta aqui, vazia. Sem
+  // este número, "vazio" é ambíguo — não dá para saber se não há situação a
+  // avisar ou se não há a QUEM avisar. Silêncio que pode significar duas
+  // coisas opostas é pior que número nenhum.
+  const [avisos, semSupervisor] = await Promise.all([
+    levantarAvisos(undefined, undefined, escopo),
+    prisma.colaborador.count({
+      where: { empresaId: { in: escopo }, ativo: true, supervisorId: null },
+    }),
+  ]);
   const semCanal = avisos.filter((a) => !a.telegramChatId);
 
   return (
@@ -60,10 +71,17 @@ export default async function AvisosGestorPage({
       </Alert>
 
       {avisos.length === 0 ? (
-        <p className="py-8 text-center text-sm text-muted-foreground">
-          Nenhum gestor tem aviso pendente no momento. Ou não há situação a avisar, ou ninguém está
-          marcado como supervisor de outra pessoa na ficha.
-        </p>
+        <div className="space-y-2 py-8 text-center text-sm text-muted-foreground">
+          <p>Nenhum gestor tem aviso pendente no momento.</p>
+          {semSupervisor > 0 && (
+            <p>
+              Atenção: <strong>{semSupervisor}</strong> colaborador(es) ativo(s) estão sem
+              supervisor na ficha (campo &ldquo;Reporta a&rdquo;). Ninguém é avisado sobre eles,
+              porque o sistema não sabe a quem avisar — mesmo que tenham férias vencendo ou
+              contrato a terminar.
+            </p>
+          )}
+        </div>
       ) : (
         <div className="space-y-4">
           {avisos.map((a) => (
@@ -90,6 +108,13 @@ export default async function AvisosGestorPage({
             </Card>
           ))}
         </div>
+      )}
+
+      {semSupervisor > 0 && avisos.length > 0 && (
+        <p className="text-xs text-muted-foreground">
+          {semSupervisor} colaborador(es) ativo(s) estão sem supervisor na ficha e por isso não
+          geram aviso para ninguém.
+        </p>
       )}
 
       {semCanal.length > 0 && (
