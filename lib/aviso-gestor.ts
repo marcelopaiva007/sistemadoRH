@@ -41,6 +41,22 @@ import { sendTelegramMessage } from "@/lib/telegram";
 export const DIAS_AVISO_CONTRATO = 30;
 
 /**
+ * Só avisa de férias quando falta ISTO ou menos.
+ *
+ * 45, e não os 90 de `DIAS_ALERTA_FERIAS`. Aquele é a régua da TELA de Férias,
+ * onde o RH olha a lista quando quer — aqui é um empurrão no Telegram que se
+ * repete a cada `DIAS_ENTRE_AVISOS`. Começando a 90 dias, o gestor receberia a
+ * mesma linha umas 12 vezes antes de a data chegar, e passaria a ignorar o bot
+ * — a falha cara deste recurso, porque o aviso continua saindo e ninguém lê.
+ *
+ * 45 dá tempo de programar férias sem virar goteira, e é o mesmo raciocínio do
+ * contrato acima: avisar cedo demais é avisar para ser arquivado.
+ *
+ * Férias JÁ VENCIDAS ignoram este corte — ver o uso abaixo.
+ */
+export const DIAS_AVISO_FERIAS = 45;
+
+/**
  * Intervalo mínimo entre dois avisos do MESMO assunto sobre a MESMA pessoa.
  *
  * Sem isto o cron avisaria todo dia sobre o mesmo contrato até a data chegar, e
@@ -84,8 +100,17 @@ export type ResultadoAvisoGestor = {
 };
 
 /** Monta a mensagem do Telegram. Uma só por gestor, com tudo do time dele. */
+/**
+ * "MARCELO" -> "Marcelo". O cadastro guarda nome em maiúsculas, e numa
+ * saudação pessoal isso soa como grito.
+ */
+function comoSeChama(nome: string): string {
+  const primeiro = nome.trim().split(/\s+/)[0] ?? "";
+  return primeiro.charAt(0).toUpperCase() + primeiro.slice(1).toLowerCase();
+}
+
 export function montarMensagemDoGestor(gestorNome: string, itens: ItemDeAviso[]): string {
-  const primeiroNome = gestorNome.trim().split(/\s+/)[0];
+  const primeiroNome = comoSeChama(gestorNome);
   const linhas = itens.map((i) => `• ${i.texto}`).join("\n");
   return (
     `Olá, ${primeiroNome}. Sobre o seu time:\n\n${linhas}\n\n` +
@@ -195,7 +220,13 @@ export async function levantarAvisos(
     if (l.dataAdmissao) {
       const resumo = calcularFerias(l.dataAdmissao, l.ferias, hoje);
       const urgente = resumo.periodoMaisUrgente;
-      if (urgente && (resumo.temVencendo || resumo.temVencido)) {
+      // Vencido entra SEMPRE (já custa em dobro; não avisar o caso mais caro
+      // seria o inverso do propósito). A vencer, só dentro de
+      // DIAS_AVISO_FERIAS — ver o comentário da constante.
+      const noPrazoDeAviso =
+        urgente !== null &&
+        (urgente.diasAteLimite < 0 || urgente.diasAteLimite <= DIAS_AVISO_FERIAS);
+      if (urgente && noPrazoDeAviso && (resumo.temVencendo || resumo.temVencido)) {
         somar(gestorId, {
           tipo: "FERIAS_VENCENDO",
           colaboradorId: l.id,

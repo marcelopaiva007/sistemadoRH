@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.76.1",
+    data: "12/08/2026",
+    horario: "01:50",
+    titulo: "Avisos ao gestor: régua de férias mais perto e saudação sem gritar",
+    itens: [
+      "O aviso de férias ao gestor passa a sair a 45 dias do prazo, e não a 90. A 90 dias a mesma linha se repetiria umas 12 vezes antes de a data chegar, e o gestor aprenderia a ignorar o bot — que é a pior falha possível aqui, porque o aviso continua saindo e ninguém lê. Férias já vencidas continuam avisando sempre.",
+      "A saudação escrevia \"Olá, MARCELO\", porque o cadastro guarda nome em maiúsculas. Agora escreve \"Olá, Marcelo\".",
+      "Os dois ajustes vieram de olhar a prévia com dados reais — o envio automático continua desligado.",
+    ],
+  },
+  {
     versao: "1.76.0",
     data: "12/08/2026",
     horario: "01:30",
