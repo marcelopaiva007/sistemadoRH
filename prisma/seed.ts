@@ -116,3 +116,35 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
+
+// Seed para Atualizacoes
+if (!await prisma.atualizacao.findUnique({ where: { versao: "1.65.1" } })) {
+  await prisma.atualizacao.create({
+    data: {
+      versao: "1.65.1",
+      titulo: "Cadastros Incompletos",
+      descricao: `**✨ Novidades:**
+- Novo card "Cadastros Incompletos" na tela de Pendências
+- Rastreamento automático de funcionários com dados faltando
+- Filtro rápido para acessar registros incompletos
+
+**🔍 Campos verificados:**
+- CPF
+- Contato (email ou telefone)
+- Data de admissão
+- RG, PIS, CTPS, título de eleitor
+- Endereço completo (logradouro, número, bairro, UF)
+- Dados bancários (banco, agência, conta)
+
+**🐛 Correções:**
+- Fix: TypeScript compilation error em lib/cobranca-rh-pendencias.ts
+
+**📊 Impacto:**
+O RH agora consegue visualizar em tempo real quais funcionários têm cadastros incompletos e corrigir rapidamente.`,
+      dataSaida: new Date("2026-08-11"),
+      autor: "Claude Code",
+      commit: "bc071d75c85edf049f44ab3c17a2b1259948c0d2",
+    },
+  });
+  console.log("✅ Atualizacao v1.65.1 criada");
+}

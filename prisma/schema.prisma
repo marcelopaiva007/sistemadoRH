@@ -2125,3 +2125,18 @@ model ConfiguracaoPontoEmpresa {
   @@schema("rh")
 }
 
+// Histórico de atualizações/releases do sistema
+model Atualizacao {
+  id          String   @id @default(cuid())
+  versao      String   @unique // ex: "1.65.1"
+  titulo      String   // ex: "Cadastros Incompletos"
+  descricao   String // Markdown com detalhes das mudanças
+  dataSaida   DateTime // Data de lançamento
+  autor       String? // Quem fez o deploy
+  commit      String? // SHA do commit do GitHub
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([dataSaida])
+  @@schema("rh")
+}

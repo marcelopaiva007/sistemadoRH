@@ -1,50 +1,97 @@
-import { requireGestaoUsuarios } from "@/lib/auth-guard";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ATUALIZACOES } from "@/lib/atualizacoes";
-import { versaoDoSistema } from "@/lib/versao";
+"use client";
 
-// Auditoria das atualizações do sistema: o que cada versão publicada mudou e
-// quando. A fonte é lib/atualizacoes.ts, mantido a cada entrega (AGENTS.md) —
-// registro editorial versionado no git, não tabela de banco: a trilha de quem
-// escreveu o quê já é o próprio histórico de commits do arquivo.
-export default async function AtualizacoesPage() {
-  await requireGestaoUsuarios();
-  const { numero } = versaoDoSistema();
+import { useEffect, useState } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { listarAtualizacoes } from "@/lib/actions/atualizacoes";
+
+type Atualizacao = {
+  id: string;
+  versao: string;
+  titulo: string;
+  descricao: string;
+  dataSaida: string;
+  autor: string | null;
+  commit: string | null;
+};
+
+export default function AtualizacoesPage() {
+  const [atualizacoes, setAtualizacoes] = useState<Atualizacao[]>([]);
+  const [carregando, setCarregando] = useState(true);
+
+  useEffect(() => {
+    async function carregar() {
+      const resultado = await listarAtualizacoes();
+      if (resultado.ok) {
+        setAtualizacoes(resultado.data || []);
+      }
+      setCarregando(false);
+    }
+    carregar();
+  }, []);
+
+  if (carregando) {
+    return (
+      <div className="container py-10">
+        <div className="text-center">Carregando...</div>
+      </div>
+    );
+  }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">Atualizações do sistema</h1>
-        <p className="text-sm text-muted-foreground">
-          Histórico das versões publicadas: número, data, horário e o que mudou em cada uma. A
-          versão no ar é a mesma da etiqueta no topo da tela.
-        </p>
+    <div className="container py-10">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold tracking-tight">Histórico de Atualizações</h1>
+        <p className="text-muted-foreground mt-2">Veja as novidades e mudanças do sistema</p>
       </div>
 
-      <div className="space-y-4">
-        {ATUALIZACOES.map((a) => (
-          <Card key={a.versao}>
-            <CardHeader>
-              <CardTitle className="flex flex-wrap items-center gap-2">
-                <span className="font-mono">v{a.versao}</span>
-                {a.versao === numero && <Badge>No ar</Badge>}
-                <span className="ml-auto text-sm font-normal text-muted-foreground tabular-nums">
-                  {a.data}
-                  {a.horario && ` · ${a.horario}`}
-                </span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm font-medium">{a.titulo}</p>
-              <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-                {a.itens.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
+      <div className="space-y-6">
+        {atualizacoes.length === 0 ? (
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-muted-foreground text-center">Nenhuma atualização registrada ainda</p>
             </CardContent>
           </Card>
-        ))}
+        ) : (
+          atualizacoes.map((atualizacao) => (
+            <Card key={atualizacao.id} className="overflow-hidden">
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3">
+                      <span className="inline-flex items-center rounded-md bg-blue-50 px-3 py-1 text-sm font-semibold text-blue-700">
+                        v{atualizacao.versao}
+                      </span>
+                      <h3 className="text-xl font-semibold">{atualizacao.titulo}</h3>
+                    </div>
+                    <CardDescription className="mt-2">
+                      <div className="flex flex-wrap items-center gap-4 text-sm">
+                        <span>
+                          📅{" "}
+                          {new Date(atualizacao.dataSaida).toLocaleDateString("pt-BR", {
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                          })}
+                        </span>
+                        {atualizacao.autor && <span>👤 {atualizacao.autor}</span>}
+                        {atualizacao.commit && (
+                          <span className="font-mono text-xs text-muted-foreground">
+                            #{atualizacao.commit.slice(0, 7)}
+                          </span>
+                        )}
+                      </div>
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-sm text-foreground/90 whitespace-pre-wrap">
+                  {atualizacao.descricao}
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        )}
       </div>
     </div>
   );
