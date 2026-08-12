@@ -272,7 +272,7 @@ export function PendenciasView({
     {
       chave: "cadastrosIncompletos",
       titulo: "Cadastros incompletos",
-      descricao: "Funcionários com dados faltando: CPF, contato, data de admissão, documentos, endereço ou banco.",
+      descricao: "Funcionários sem CPF, sem contato, sem data de admissão ou sem dados bancários — o que trava pagamento e eSocial.",
       href: comFiltro(`/rh/${empresaId}/colaboradores`, "lacuna=incompleto"),
       icon: AlertCircle,
     },

@@ -71,6 +71,17 @@ export type Pendencias = {
  * operacional, onde a maioria só tem telefone. Falta de contato é não ter
  * nenhum dos dois.
  *
+ * A RÉGUA ENCOLHEU EM 12/08/2026, e o motivo é o número: com RG, endereço
+ * (logradouro, número, bairro, UF) na conta, o cartão marcava 163 de 170
+ * ativos — 96% da base. Contador que aponta para quase todo mundo não é fila
+ * de trabalho, é ruído: ninguém abre uma lista de 163 pessoas, e o cartão
+ * inteiro passa a ser ignorado junto com os outros ao lado dele.
+ *
+ * Ficou o que TRAVA alguma coisa: sem CPF ou data de admissão não há eSocial;
+ * sem dados bancários não há como pagar; sem nenhum contato não há como falar
+ * com a pessoa. RG e endereço continuam faltando e continuam visíveis na
+ * própria ficha — só deixaram de disputar atenção na tela de Pendências.
+ *
  * Só `null`, sem `""`: mesmo critério de lib/dashboard.ts::lacunasDaBase, que
  * também trata string vazia à parte apenas no telegramChatId, onde ela de fato
  * aparece nos dados importados.
@@ -81,11 +92,6 @@ export const CADASTRO_INCOMPLETO_WHERE: Prisma.ColaboradorWhereInput = {
   OR: [
     { cpf: null },
     { dataAdmissao: null },
-    { rg: null },
-    { logradouro: null },
-    { numeroEndereco: null },
-    { bairro: null },
-    { uf: null },
     { bancoNome: null },
     { bancoAgencia: null },
     { bancoConta: null },
@@ -113,11 +119,6 @@ export function cadastroIncompleto(c: CamposDoCadastro): boolean {
   return (
     c.cpf === null ||
     c.dataAdmissao === null ||
-    c.rg === null ||
-    c.logradouro === null ||
-    c.numeroEndereco === null ||
-    c.bairro === null ||
-    c.uf === null ||
     c.bancoNome === null ||
     c.bancoAgencia === null ||
     c.bancoConta === null ||
