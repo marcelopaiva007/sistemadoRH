@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.80.2",
+    data: "12/08/2026",
+    horario: "09:20",
+    titulo: "Envio de documentos pelo portal ativado — e as fotos do ponto começam a valer",
+    itens: [
+      "Dois colaboradores avisaram de manhã que o portal recusava documentos com a mensagem \"Armazenamento de arquivos não configurado\". Era exatamente isso: o cofre de arquivos — privado, fora do banco — nunca tinha sido ligado em produção. Foi ligado hoje.",
+      "O envio de documentos pelo portal passa a funcionar. Quem tentou e não conseguiu só precisa reenviar — nenhum arquivo foi perdido, porque o sistema recusou antes de aceitar qualquer coisa.",
+      "A foto da batida de ponto, publicada hoje mais cedo, dependia desse mesmo cofre. A partir de agora as fotos ficam guardadas e aparecem no Monitor de Presença. Batidas feitas antes deste momento continuam \"sem foto\", e isso é esperado.",
+    ],
+  },
+  {
     versao: "1.80.1",
     data: "12/08/2026",
     horario: "08:10",
