@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.77.1",
+    data: "12/08/2026",
+    horario: "02:50",
+    titulo: "Verificação automática completa em todo PR",
+    itens: [
+      "A verificação automática que passou a rodar hoje ganhou também a checagem de estilo de código. Ela ficou desligada nas primeiras horas porque havia 10 erros antigos no projeto — e portão que nasce vermelho é portão que todo mundo aprende a ignorar. Os 10 foram corrigidos e o portão está ligado.",
+      "Entre eles havia um problema real no portal: quem abria a tela de bater ponto e saía antes de a resposta chegar deixava o sistema tentando atualizar uma tela que não existia mais.",
+      "Nada muda no que você vê. É a rede de proteção que impede uma correção nova de quebrar algo antigo sem ninguém perceber.",
+    ],
+  },
+  {
     versao: "1.77.0",
     data: "12/08/2026",
     horario: "02:20",

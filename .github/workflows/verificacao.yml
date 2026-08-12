@@ -41,16 +41,15 @@ jobs:
       - name: Type-check
         run: npm run type-check
 
-      # O LINT FICA DE FORA, por enquanto — e isso é decisão, não esquecimento.
-      # Em 12/08/2026 `npm run lint` acusava 10 erros pré-existentes: dois
-      # `setState` síncrono dentro de efeito (que mexem em comportamento e não
-      # se corrigem às pressas), cinco `any`, dois `"` sem escape e um
-      # `prefer-const` em lib/ponto-regras.ts. Ligar o portão hoje deixaria o CI
-      # vermelho desde o primeiro dia — e CI que nasce vermelho é CI que todo
-      # mundo aprende a ignorar, que é exatamente a doença que este arquivo
-      # existe para curar.
+      # Ligado em 12/08/2026, depois de zerar os 10 erros que existiam quando
+      # este arquivo nasceu. O portão ficou desligado nas primeiras horas de
+      # propósito: CI que nasce vermelho é CI que todo mundo aprende a ignorar.
       #
-      # Zerar os 10 e ligar esta etapa é a próxima parada.
+      # Restam 43 AVISOS (imports sem uso, sobretudo), que não quebram o passo.
+      # Transformá-los em erro é decisão para outro dia — e, se for tomada,
+      # zerar antes de ligar, como foi feito aqui.
+      - name: Lint
+        run: npm run lint
 
       # Um passo por script, e não um laço: com laço, o log mostra só "falhou"
       # e alguém precisa abrir o output inteiro para achar qual. Aqui o próprio

@@ -118,7 +118,7 @@ export function EscalasView({ empresaId, jornadas }: { empresaId: string; jornad
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {jornadas.length === 0 ? (
           <Card className="col-span-2 p-6 text-center text-xs text-muted-foreground">
-            Nenhuma jornada cadastrada. Clique em "Nova Escala / Jornada" para cadastrar os horários padrão da empresa.
+            Nenhuma jornada cadastrada. Clique em &ldquo;Nova Escala / Jornada&rdquo; para cadastrar os horários padrão da empresa.
           </Card>
         ) : (
           jornadas.map((j) => (
