@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { LogOut, KeyRound, Sun, Moon } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useState, useEffect } from "react";
+import { useSyncExternalStore } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { navByRole, diretoriaNav } from "@/components/nav-config";
@@ -18,15 +18,33 @@ const ROLE_LABELS: Record<string, string> = {
   GESTOR_SETOR: "Gestor de Setor",
 };
 
+/**
+ * "Já hidratou?" sem `setState` dentro de efeito.
+ *
+ * O padrão antigo era `useState(false)` + `useEffect(() => setMounted(true))`,
+ * que dispara uma segunda renderização logo depois da primeira e é o que o
+ * eslint acusa (cascading renders). `useSyncExternalStore` responde a mesma
+ * pergunta pelo caminho previsto pelo React: o snapshot do SERVIDOR devolve
+ * `false`, o do cliente devolve `true`, e a troca acontece na hidratação, sem
+ * efeito nenhum. O `subscribe` é vazio de propósito — o valor nunca muda
+ * depois de hidratar, então não há a que se inscrever.
+ */
+function useHidratado() {
+  return useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
+}
+
 function SeletorTema() {
   const { theme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
+  const hidratado = useHidratado();
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  if (!mounted) {
+  // O tema real só é conhecido no cliente (vem do localStorage). Renderizar o
+  // ícone antes disso mostraria o do tema errado por um instante — daí o
+  // espaço reservado do mesmo tamanho, que evita o pulo do layout.
+  if (!hidratado) {
     return <div className="size-8" />;
   }
 

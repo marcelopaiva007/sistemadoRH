@@ -69,8 +69,25 @@ export function BaterPontoCard() {
     }
   };
 
+  // Busca de dados em efeito, com guarda de "ainda montado".
+  //
+  // Era `useEffect(() => { carregarRegistrosHoje(); }, [])`. Além de o eslint
+  // acusar setState em efeito, havia um problema real: quem abre o portal e sai
+  // da tela antes de a resposta chegar recebia um `setState` num componente que
+  // já não existe. A flag `ativo` corta isso.
   useEffect(() => {
-    carregarRegistrosHoje();
+    let ativo = true;
+    void (async () => {
+      try {
+        const regs = await buscarRegistrosPontoHojePortal();
+        if (ativo) setRegistrosHoje(regs);
+      } catch (e) {
+        console.error(e);
+      }
+    })();
+    return () => {
+      ativo = false;
+    };
   }, []);
 
   // Determinar próximo tipo de batida sugerido
@@ -101,7 +118,7 @@ export function BaterPontoCard() {
         setSucessoComprovante(res.comprovante);
         await carregarRegistrosHoje();
       }
-    } catch (e: any) {
+    } catch {
       setErro("Falha de conexão ao registrar ponto. Tente novamente.");
     } finally {
       setLoading(false);
