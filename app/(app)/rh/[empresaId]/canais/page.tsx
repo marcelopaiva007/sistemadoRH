@@ -1,5 +1,6 @@
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { CHAVE_TELEGRAM, PAPEIS_QUE_CONFIGURAM, statusDoSegredo, statusDoSmtp } from "@/lib/segredos";
+import { blobConfigurado } from "@/lib/blob";
 import { CanaisView } from "./canais-view";
 
 // Canais de envio: token do bot do Telegram e SMTP, hoje só configuráveis
@@ -22,6 +23,7 @@ export default async function CanaisPage({
       empresaId={empresaId}
       telegram={telegram}
       smtp={smtp}
+      arquivosLigado={blobConfigurado()}
       podeConfigurar={PAPEIS_QUE_CONFIGURAM.includes(user.role as string)}
     />
   );

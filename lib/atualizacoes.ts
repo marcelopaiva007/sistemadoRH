@@ -26,6 +26,19 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.81.0",
+    data: "12/08/2026",
+    horario: "12:30",
+    titulo: "Telegram \"vinculado a outro colaborador\": o bot agora diz a quem, e destrava sozinho os casos de ficha duplicada",
+    itens: [
+      "Um colaborador ficou travado hoje: ao enviar o CPF, o bot respondia \"este Telegram já está vinculado a outro colaborador — procure o RH\". Só que o RH não tinha como ajudar: o bot sabia em qual ficha o vínculo estava, mas não dizia, e ninguém acharia a ficha certa entre centenas na base.",
+      "Agora o bot diz o primeiro nome de quem está com o vínculo. Com o nome, o RH abre a ficha da pessoa e ajusta o campo de Telegram — o caminho que a mensagem sempre prometeu passa a existir de verdade.",
+      "Casos de cadastro duplicado se resolvem sozinhos: quando o \"outro colaborador\" tem o MESMO CPF — a mesma pessoa cadastrada em dois CNPJs do grupo — não é conflito, e o bot passa a responder \"você já está vinculado\" em vez de recusar.",
+      "A escolha da ficha pelo CPF ficou previsível: preferência para a ficha que já tem este Telegram, depois para uma sem vínculo nenhum. Antes a escolha era imprevisível e podia cair exatamente na ficha errada.",
+      "A tela Canais ganhou o cartão \"Armazenamento de arquivos\": o problema do envio de documentos desta manhã não aparecia em tela nenhuma do sistema — o RH soube por print. Agora, se o armazenamento estiver desligado, a tela mostra em vermelho, explica o efeito e o caminho exato para ligar.",
+    ],
+  },
+  {
     versao: "1.80.2",
     data: "12/08/2026",
     horario: "09:20",
