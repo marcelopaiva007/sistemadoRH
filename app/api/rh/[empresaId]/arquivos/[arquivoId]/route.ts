@@ -68,7 +68,19 @@ export async function GET(
   // pessoal — um redirect entregaria o arquivo sem passar pelo guarda.
   if (arquivo.blobUrl) {
     const doBlob = await baixarDoBlob(arquivo.blobUrl);
-    if (!doBlob.ok) return new NextResponse(doBlob.error, { status: 404 });
+    // Registro sem conteúdo: a linha existe no banco, o arquivo não existe
+    // mais no armazenamento. Aconteceu de verdade em 11–12/08/2026 — o store
+    // foi esvaziado e reconectado, e os anexos enviados antes disso ficaram
+    // órfãos. Quem abre precisa saber O QUE FAZER, não só que "deu 404":
+    // devolver o documento pela fila avisa o colaborador para reenviar.
+    if (!doBlob.ok) {
+      return new NextResponse(
+        `O anexo "${arquivo.nome}" não está mais no armazenamento de arquivos — a linha ficou, o conteúdo se perdeu ` +
+          `(isso atingiu documentos enviados antes de 12/08/2026, quando o armazenamento foi esvaziado e religado). ` +
+          `Não há como recuperar este arquivo: use "Devolver" na Central de Aprovações para o colaborador ser avisado e reenviar.`,
+        { status: 404, headers: { "Content-Type": "text/plain; charset=utf-8" } },
+      );
+    }
     return new NextResponse(doBlob.bytes, {
       headers: {
         "Content-Type": arquivo.mimeType,

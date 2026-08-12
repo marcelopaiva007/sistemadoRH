@@ -26,6 +26,18 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.81.1",
+    data: "12/08/2026",
+    horario: "17:30",
+    titulo: "Anexos enviados antes de 12/08 se perderam no armazenamento — a tela agora explica e diz o que fazer",
+    itens: [
+      "Ao abrir certos anexos na Central de Aprovações aparecia só um erro seco. A investigação (pelos registros do servidor) mostrou o motivo: entre a noite de 11/08 e a manhã de 12/08, o armazenamento de arquivos foi esvaziado e desconectado do sistema — os documentos enviados pelo portal antes disso perderam o conteúdo, embora continuem listados na fila.",
+      "Esses arquivos não têm como ser recuperados. O caminho certo já existia na própria fila: o botão \"Devolver\", que remove o item e avisa o colaborador pelo Telegram para reenviar — e o reenvio funciona, porque o armazenamento foi religado hoje.",
+      "O que muda nesta versão é a mensagem: em vez de um erro técnico, quem abre um anexo perdido lê o que aconteceu e o que fazer — o RH é orientado a devolver; o colaborador, a reenviar.",
+      "Documentos enviados a partir de 12/08 à tarde não são afetados e abrem normalmente.",
+    ],
+  },
+  {
     versao: "1.81.0",
     data: "12/08/2026",
     horario: "12:30",
