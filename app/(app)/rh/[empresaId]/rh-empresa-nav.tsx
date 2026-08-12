@@ -68,6 +68,7 @@ const GRUPOS = [
       { slug: "ponto", label: "Ponto Eletrônico", icon: Clock },
       { slug: "aprovacoes", label: "Aprovações", icon: CheckSquare },
       { slug: "mensagens", label: "Mensagens", icon: MessageCircle },
+      { slug: "avisos-gestor", label: "Avisos ao gestor", icon: BellRing },
       { slug: "vencimentos", label: "Vencimentos", icon: CalendarDays },
       { slug: "ferias", label: "Férias", icon: Palmtree },
       { slug: "escalas", label: "Escalas", icon: ClipboardCheck },

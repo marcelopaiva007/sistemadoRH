@@ -335,6 +335,11 @@ model Colaborador {
   supervisorId   String?
   supervisor     Colaborador?  @relation("SupervisorDoColaborador", fields: [supervisorId], references: [id], onDelete: SetNull)
   subordinados   Colaborador[] @relation("SupervisorDoColaborador")
+  // Avisos automáticos: os que ESTA pessoa recebeu como gestor, e os que foram
+  // enviados SOBRE ela. Duas relações porque AvisoGestor liga dois
+  // colaboradores — quem lidera e quem é o assunto.
+  avisosComoGestor AvisoGestor[] @relation("AvisosRecebidosComoGestor")
+  avisosSobreMim   AvisoGestor[] @relation("AvisosSobreMim")
   // Quem avalia a equipe no ciclo de desempenho. É outra pergunta que a de
   // cima: `supervisorId` diz a quem a pessoa reporta; aqui quem avalia é o
   // gerente, que pode ter muito mais gente do que o organograma mostra — e em
@@ -2173,3 +2178,25 @@ model ConfiguracaoPontoEmpresa {
   @@schema("rh")
 }
 
+/// Um aviso já enviado a um gestor sobre uma pessoa do time dele.
+///
+/// Existe só para SILENCIAR repetição: sem esta tabela o cron avisaria todo dia
+/// sobre o mesmo contrato até a data chegar, e o gestor aprenderia a ignorar o
+/// bot — a única forma de falha realmente cara aqui, porque o aviso continua
+/// saindo e ninguém mais lê. Ver DIAS_ENTRE_AVISOS em lib/aviso-gestor.ts.
+model AvisoGestor {
+  id            String   @id @default(cuid())
+  /// O gestor é um Colaborador (quem tem outros apontando para si em
+  /// `supervisorId`), não um User: não existe login com papel de gestor.
+  gestorId      String
+  gestor        Colaborador @relation("AvisosRecebidosComoGestor", fields: [gestorId], references: [id], onDelete: Cascade)
+  colaboradorId String
+  colaborador   Colaborador @relation("AvisosSobreMim", fields: [colaboradorId], references: [id], onDelete: Cascade)
+  /// CONTRATO_VENCENDO | FERIAS_VENCENDO | HORA_EXTRA_ACIMA
+  tipo          String
+  enviadoEm     DateTime @default(now())
+
+  @@index([gestorId, colaboradorId, tipo, enviadoEm])
+  @@index([enviadoEm])
+  @@schema("rh")
+}
