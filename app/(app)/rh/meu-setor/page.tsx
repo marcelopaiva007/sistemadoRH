@@ -4,6 +4,7 @@ import { hojeUTC } from "@/lib/datas";
 import { AMOSTRA_MINIMA_ANONIMATO } from "@/lib/constants-rh";
 import { montarMeuTime, type ColaboradorParaTime } from "@/lib/meu-time";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AjudaDaTela } from "@/components/ajuda-da-tela";
 import { TimeView } from "../[empresaId]/time/time-view";
 import { MeuSetorView } from "./meu-setor-view";
 
@@ -60,7 +61,10 @@ export default async function MeuSetorPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Meu Setor — {setor.nome}</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-2xl font-semibold tracking-tight">Meu Setor — {setor.nome}</h1>
+          <AjudaDaTela modulo="meu-setor" />
+        </div>
         <p className="text-muted-foreground">
           O seu time e os resultados agregados das pesquisas de clima do setor.
         </p>

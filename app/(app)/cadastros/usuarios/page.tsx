@@ -1,5 +1,6 @@
 import { requireGestaoUsuarios } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
+import { AjudaDaTela } from "@/components/ajuda-da-tela";
 import { UsuariosTable } from "./usuarios-table";
 
 export default async function UsuariosPage() {
@@ -65,7 +66,10 @@ export default async function UsuariosPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Usuários</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-2xl font-semibold tracking-tight">Usuários</h1>
+          <AjudaDaTela modulo="usuarios" />
+        </div>
         <p className="text-muted-foreground">
           Contas de acesso ao sistema. ADMIN e Diretoria são perfis globais.
           Gestores de RH e de Setor ficam vinculados a uma marca inteira ou a
