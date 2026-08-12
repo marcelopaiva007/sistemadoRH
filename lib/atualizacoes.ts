@@ -26,6 +26,67 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.79.2",
+    data: "12/08/2026",
+    horario: "05:40",
+    titulo: "Correção séria: o arquivo fiscal do ponto saía com 3 horas de diferença",
+    itens: [
+      "O AFD e o AEJ — os arquivos que se entregam à fiscalização do trabalho — gravavam as marcações no fuso do servidor, que é UTC. Na prática: quem bateu às 08:00 aparecia no arquivo como tendo batido às 11:00. Em TODAS as marcações.",
+      "Havia um segundo efeito, pior perto da meia-noite: a marcação das 23:30 era gravada com a data do dia seguinte, porque o arquivo tirava a data de um relógio e a hora de outro.",
+      "Os dois arquivos passam a gravar no horário de Brasília. Nada muda nas telas: o ponto sempre foi mostrado certo para o RH e para o colaborador — o erro estava só no arquivo de exportação fiscal.",
+      "O teste automático não pegava porque só conferia se o CPF e o CNPJ apareciam no texto, sem olhar data e hora. Agora ele confere as duas coisas, inclusive na virada do dia.",
+      "Quem já entregou arquivo AFD à contabilidade ou à fiscalização deve gerar de novo, pela mesma tela, e substituir.",
+    ],
+  },
+  {
+    versao: "1.79.1",
+    data: "12/08/2026",
+    horario: "05:20",
+    titulo: "Próximas atualizações: o que falta em biometria e folha ficou específico",
+    itens: [
+      "Folha: o sistema da contabilidade é o Domínio, e isso deixou de ser pergunta. O que falta agora vem de lá — um arquivo de importação de exemplo e a lista de códigos de rubrica que o escritório usa (qual código é hora extra 50%, adicional noturno, falta, DSR). Esses códigos são cadastrados escritório a escritório; sem eles o arquivo sairia com o número certo na rubrica errada.",
+      "Biometria: a ligação com o sistema não depende da marca do equipamento, como estava escrito antes. Todo relógio de ponto legal no Brasil é obrigado a gerar o arquivo AFD no formato da Portaria 671 — é esse arquivo que o sistema passaria a ler, venha ele de leitor digital ou de reconhecimento facial. O que a escolha do equipamento decide é preço e instalação, não o trabalho de integrar.",
+      "Nada disso muda tela nenhuma: é a lista de \"Próximas atualizações\" deixando de dizer \"depende de escolher\" e passando a dizer exatamente o que pedir e a quem.",
+    ],
+  },
+  {
+    versao: "1.79.0",
+    data: "12/08/2026",
+    horario: "05:00",
+    titulo: "O portal vira aplicativo na tela do celular",
+    itens: [
+      "O colaborador pode instalar o portal no celular e passar a abrir por um ícone, sem digitar endereço nem procurar o link antigo no Telegram. Aberto assim, ocupa a tela inteira e parece um aplicativo.",
+      "No Android aparece um botão \"Instalar\" dentro do portal. No iPhone o convite explica o caminho — Compartilhar → Adicionar à Tela de Início — porque lá isso é sempre feito à mão, por decisão da Apple.",
+      "É o mesmo portal de sempre: bater ponto, holerite, documentos, férias e falar com o RH. Nada muda para quem preferir continuar usando pelo navegador, e o convite some depois de dispensado.",
+      "Continua exigindo internet, de propósito. O portal existe para bater ponto, e uma tela guardada no aparelho poderia aceitar uma batida que nunca chegou ao servidor — o colaborador iria embora achando que bateu.",
+      "Entre as duas formas possíveis de app — publicar nas lojas ou instalar direto do site — foi feita a segunda: usa o portal que já existe, não depende de aprovação de loja e a correção chega na hora. Publicar nas lojas continua sendo possível mais adiante.",
+    ],
+  },
+  {
+    versao: "1.78.0",
+    data: "12/08/2026",
+    horario: "04:10",
+    titulo: "O gestor passa a ver o próprio time ao entrar no sistema",
+    itens: [
+      "Até agora o sistema tinha dois cadastros que não se conheciam: o de usuários (quem tem login) e o de colaboradores (quem está na folha). Ninguém ligava um ao outro, então quando um gestor entrava com o login dele o sistema não sabia qual pessoa da folha ele era — e por isso nenhuma tela conseguia mostrar a equipe dele.",
+      "Agora existe essa ligação. Em Cadastros → Usuários → Vincular, o RH aponta qual ficha de colaborador é cada login, buscando por nome ou CPF.",
+      "Com o vínculo feito, a tela \"Meu Setor\" do gestor passa a abrir com o time dele — tempo de casa, férias a vencer, avaliação do ciclo, quem ainda não acessou o portal e quem está nos primeiros meses. São os mesmos números que o RH vê, saídos da mesma conta: gestor e RH não leem versões diferentes da mesma equipe.",
+      "Quem monta o time é o campo \"Reporta a\" da ficha de cada colaborador, e não o setor. São coisas diferentes: um gestor pode liderar gente de mais de um setor.",
+      "O vínculo é opcional e não muda permissão nenhuma. Quem é só do RH normalmente não tem ficha na empresa que administra e continua trabalhando igual. Sem vínculo, a tela explica o que falta em vez de aparecer vazia.",
+    ],
+  },
+  {
+    versao: "1.77.2",
+    data: "12/08/2026",
+    horario: "03:20",
+    titulo: "A cobrança automática de cadastro nasce desligada",
+    itens: [
+      "Configurar um horário para a cobrança de cadastro não liga mais o envio sozinho. Ligar virou uma decisão à parte, com chave própria na tela de Lembretes — porque escolher quando algo sairia não é o mesmo que decidir que ele vai sair.",
+      "A tela e o robô que dispara as mensagens passaram a consultar a mesma chave. Antes eram duas leituras separadas, e elas podiam discordar: a tela mostrar desligado e a mensagem sair mesmo assim.",
+      "(Entrada escrita depois, em 12/08/2026: esta versão foi publicada sem registro aqui.)",
+    ],
+  },
+  {
     versao: "1.77.1",
     data: "12/08/2026",
     horario: "02:50",

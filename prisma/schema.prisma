@@ -68,6 +68,23 @@ model User {
   empresaId String?
   setorId   String?
 
+  // Qual pessoa da folha é este login. Até 12/08/2026 não existia resposta:
+  // `User` e `Colaborador` eram dois cadastros sem ponte, então um gestor que
+  // entrava pelo sistema não tinha como o servidor saber quem ele é — e
+  // portanto não dava para mostrar "meu time" (que sai de
+  // `Colaborador.supervisorId`) em nenhuma tela com login.
+  //
+  // OPCIONAL de propósito, e assim fica: ADMIN e o pessoal do RH costumam não
+  // ter ficha na empresa que administram, e exigir vínculo os trancaria para
+  // fora. Só quem precisa ver o próprio time precisa disto preenchido.
+  //
+  // @unique porque é 1:1 — duas contas apontando para a mesma ficha fariam
+  // "meu time" responder coisas diferentes conforme o login usado.
+  // onDelete: SetNull — desligar alguém não pode apagar o login (que carrega
+  // auditoria); o vínculo cai e o acesso vira decisão explícita do RH.
+  colaboradorId String?      @unique
+  colaborador   Colaborador? @relation("LoginDoColaborador", fields: [colaboradorId], references: [id], onDelete: SetNull)
+
   // Pivô: lista de empresas onde este usuário tem papel. ADMIN/DIRETORIA
   // permanecem com este array vazio (papel é global). RH_MANAGER e
   // GESTOR_SETOR têm 1+ linhas, com exatamente uma marcada papelPrincipal.
@@ -340,6 +357,10 @@ model Colaborador {
   // colaboradores — quem lidera e quem é o assunto.
   avisosComoGestor AvisoGestor[] @relation("AvisosRecebidosComoGestor")
   avisosSobreMim   AvisoGestor[] @relation("AvisosSobreMim")
+  // O login desta pessoa no sistema, quando existe — ver User.colaboradorId.
+  // A maioria das fichas não tem: colaborador de chão de fábrica entra pelo
+  // portal, pelo Telegram, sem usuário e sem senha.
+  usuario          User?         @relation("LoginDoColaborador")
   // Quem avalia a equipe no ciclo de desempenho. É outra pergunta que a de
   // cima: `supervisorId` diz a quem a pessoa reporta; aqui quem avalia é o
   // gerente, que pode ter muito mais gente do que o organograma mostra — e em

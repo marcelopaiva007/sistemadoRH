@@ -176,12 +176,12 @@ export default async function PortalPage() {
     ),
   );
 
-  // A porta do gestor para "Meu time": o recorte é quem tem supervisorId
-  // apontando para a pessoa logada — o organograma real, não papel de sistema
-  // (não existe usuário GESTOR_SETOR, e User não tem vínculo com Colaborador;
-  // é por isso que a tela do gestor entra pelo portal). A conta é a MESMA da
-  // tela /rh/[empresaId]/time — lib/meu-time.ts — para gestor e RH nunca
-  // lerem números diferentes da mesma equipe.
+  // A porta do gestor SEM usuário do sistema para "Meu time": o recorte é quem
+  // tem supervisorId apontando para a pessoa logada — o organograma real, não
+  // papel de sistema. Continua sendo a única porta para quem entra por
+  // Telegram; quem tem login próprio vê o mesmo em /rh/meu-setor desde
+  // 12/08/2026 (User.colaboradorId). A conta é a MESMA das duas telas —
+  // lib/meu-time.ts — para gestor e RH nunca lerem números diferentes.
   const subordinados = await prisma.colaborador.findMany({
     where: { supervisorId: colaborador.id, ativo: true },
     orderBy: { nome: "asc" },

@@ -23,6 +23,17 @@ export default async function UsuariosPage() {
           orderBy: { createdAt: "asc" },
           include: { marca: { select: { id: true, nome: true } } },
         },
+        // Qual pessoa da folha é este login. Diferente dos vínculos acima: eles
+        // dizem ONDE o usuário mexe, este diz QUEM ele é — é o que permite a
+        // tela mostrar o time dele.
+        colaborador: {
+          select: {
+            id: true,
+            nome: true,
+            empresa: { select: { nome: true } },
+            setor: { select: { nome: true } },
+          },
+        },
       },
     }),
     // O User não tem @relation com Empresa/Setor — só as colunas
@@ -85,6 +96,12 @@ export default async function UsuariosPage() {
             marcaNome: m.marca.nome,
             ativo: m.ativo,
           })),
+          ficha: u.colaborador && {
+            id: u.colaborador.id,
+            nome: u.colaborador.nome,
+            empresaNome: u.colaborador.empresa.nome,
+            setorNome: u.colaborador.setor.nome,
+          },
         }))}
         empresas={empresas}
         setores={setores}

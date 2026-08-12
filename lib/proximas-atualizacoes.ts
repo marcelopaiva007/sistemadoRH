@@ -44,36 +44,21 @@ export const PROXIMAS_ATUALIZACOES: ProximaAtualizacao[] = [
       "Registrar a batida sem digitar nada, direto no equipamento. Hoje o ponto é registrado pelo sistema, e a conferência de quem bateu depende de IP e localização.",
     situacao: "AGUARDANDO_DECISAO",
     bloqueio:
-      "Depende de escolher o equipamento. Leitor biométrico e reconhecimento facial têm custo, instalação e integração diferentes — o prazo só existe depois dessa escolha.",
-  },
-  {
-    titulo: "Aplicativo no celular para o colaborador",
-    descricao:
-      "O portal do colaborador como aplicativo, com bater ponto, ver holerite e enviar documento pelo telefone. Hoje tudo isso funciona no navegador.",
-    situacao: "AGUARDANDO_DECISAO",
-    bloqueio:
-      "Falta definir o essencial: aplicativo de loja ou site instalável no celular. São esforços e prazos bem diferentes.",
+      "Depende de escolher e comprar o equipamento — custo e instalação. A ligação com o sistema, essa não depende da marca: todo relógio de ponto legal no Brasil é obrigado a gerar o arquivo AFD no formato da Portaria 671, e é esse arquivo que o sistema passaria a ler. O sistema já GERA o AFD (para a fiscalização); falta LER o que vem do equipamento.",
   },
   {
     titulo: "Envio automático para a folha de pagamento",
     descricao:
       "Os eventos do mês saindo do sistema direto para o escritório de contabilidade, sem exportar e reenviar o CSV à mão.",
     situacao: "AGUARDANDO_DECISAO",
-    bloqueio: "Depende de saber qual sistema de folha o escritório usa e se ele aceita integração.",
+    bloqueio:
+      "O sistema da contabilidade é o Domínio (Thomson Reuters) — isso já está respondido. O que falta vem de lá, não daqui: um arquivo de importação de exemplo e a lista de códigos de rubrica que o escritório usa (qual código é hora extra 50%, adicional noturno, falta, DSR). Esses códigos são cadastrados por escritório, não são iguais para todo mundo — sem eles, o arquivo sairia com número certo na rubrica errada.",
   },
   {
     titulo: "Avisos automáticos para o gestor",
     descricao:
       "O gestor recebe, pelo Telegram, o que sai do previsto no time dele — contrato de experiência vencendo, férias a vencer, hora extra acima do limite — em vez de depender de alguém abrir a tela e reparar.",
     situacao: "EM_ANDAMENTO",
-  },
-  {
-    titulo: "Painel próprio do gestor de setor",
-    descricao:
-      "Uma tela com o time da pessoa e o que ela precisa decidir, sem passar pelos módulos do RH inteiro.",
-    situacao: "AGUARDANDO_DECISAO",
-    bloqueio:
-      "Hoje o gestor entra pelo portal, como colaborador, e vê a equipe por quem tem ele como supervisor. Não existe login com papel de gestor: o cadastro de usuários e o de colaboradores não são ligados entre si. Uma tela nova exigiria decidir se cada gestor ganha login próprio e como esse login se liga à ficha dele — antes disso, a tela nasceria sem ninguém para abri-la.",
   },
   {
     titulo: "Vídeos curtos de treinamento",
