@@ -39,6 +39,10 @@ export default async function PontoEletronicoPage({
             },
           },
           orderBy: { dataHora: "asc" },
+          // `select` explícito: a linha inteira tem IP, GPS e hash, que o
+          // monitor não usa — e `fotoUrl` só vira o booleano abaixo, a URL do
+          // Blob não atravessa para o cliente.
+          select: { id: true, tipo: true, dataHora: true, fotoUrl: true },
         },
       },
     }),
@@ -90,8 +94,19 @@ export default async function PontoEletronicoPage({
     nome: string;
     setor: { nome: string };
     posicao: { nome: string };
-    registrosPonto: Array<{ dataHora: Date }>;
+    registrosPonto: Array<{ id: string; tipo: string; dataHora: Date; fotoUrl: string | null }>;
   };
+
+  // Fuso explícito, sempre: sem ele o toLocaleTimeString responde no fuso do
+  // PROCESSO — UTC na Vercel — e o monitor mostrava toda batida com 3 horas a
+  // mais. Mesmo defeito corrigido no arquivo fiscal AFD em 12/08/2026; a tela
+  // do portal sempre esteve certa porque roda no navegador da pessoa.
+  const horaBrasilia = (d: Date) =>
+    new Date(d).toLocaleTimeString("pt-BR", {
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "America/Sao_Paulo",
+    });
 
   const presentesLista = (colaboradores as ColaboradorComPonto[]).map((c) => {
     const batidas = c.registrosPonto;
@@ -100,9 +115,9 @@ export default async function PontoEletronicoPage({
     let ultimaSaida: string | null = null;
 
     if (batidas.length > 0) {
-      primeiraEntrada = new Date(batidas[0].dataHora).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+      primeiraEntrada = horaBrasilia(batidas[0].dataHora);
       const ultimaBatida = batidas[batidas.length - 1];
-      ultimaSaida = new Date(ultimaBatida.dataHora).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+      ultimaSaida = horaBrasilia(ultimaBatida.dataHora);
 
       if (batidas.length % 2 !== 0) {
         status = "PRESENTE";
@@ -119,6 +134,11 @@ export default async function PontoEletronicoPage({
       status,
       primeiraEntrada,
       ultimaSaida,
+      batidas: batidas.map((b) => ({
+        id: b.id,
+        hora: horaBrasilia(b.dataHora),
+        temFoto: b.fotoUrl !== null,
+      })),
     };
   });
 
@@ -154,7 +174,7 @@ export default async function PontoEletronicoPage({
         </TabsList>
 
         <TabsContent value="presenca" className="pt-4">
-          <PainelPresencaView colaboradores={presentesLista} />
+          <PainelPresencaView colaboradores={presentesLista} empresaId={empresaId} />
         </TabsContent>
 
         <TabsContent value="tratamento" className="pt-4">

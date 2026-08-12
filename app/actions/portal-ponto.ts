@@ -3,9 +3,57 @@
 import { prisma } from "@/lib/prisma";
 import { lerSessaoPortal } from "@/lib/portal-auth";
 import { gerarHashPontoSHA256, validarIpPonto, validarGeofencingGps } from "@/lib/ponto-seguranca";
+import { enviarParaBlob } from "@/lib/blob";
 import { revalidatePath } from "next/cache";
 
 import { headers } from "next/headers";
+
+// Teto do payload da foto (data URL). O cartão reduz a selfie para ~640px
+// antes de enviar (~60 KB); 1,5 MB de base64 já é chamada direta à action com
+// payload anormal, não foto de batida.
+const LIMITE_FOTO_DATA_URL = 1_500_000;
+
+// Guarda a selfie da batida no Blob privado e devolve a URL — ou null.
+//
+// NUNCA lança e nunca devolve erro: foto é evidência de quem bateu, não
+// condição para bater. Se a câmera falhou, o Blob está fora do ar ou o token
+// não existe, o ponto registra do mesmo jeito e a linha fica "sem foto" no
+// painel do RH — que aí cobra. Bloquear a batida por causa do acessório
+// inverteria a importância das duas coisas.
+//
+// Antes desta função o `fotoBase64` ia INTEIRO para a coluna `fotoUrl` do
+// Postgres — o exato caminho que lib/blob.ts existe para evitar (banco de
+// 18 MB virando GB). Nenhuma tela enviava foto ainda, então nenhuma linha
+// antiga tem base64 salvo — mas a rota que serve a foto trata esse caso
+// mesmo assim, porque a coluna aceitava.
+async function guardarFotoDaBatida(params: {
+  empresaId: string;
+  colaboradorId: string;
+  nsr: bigint;
+  tipo: string;
+  fotoBase64: string | null | undefined;
+}): Promise<string | null> {
+  const dataUrl = params.fotoBase64;
+  if (!dataUrl || dataUrl.length > LIMITE_FOTO_DATA_URL) return null;
+
+  const casado = /^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl);
+  if (!casado) return null;
+
+  try {
+    const bytes = new Uint8Array(Buffer.from(casado[1], "base64"));
+    if (bytes.byteLength === 0) return null;
+    const envio = await enviarParaBlob({
+      empresaId: params.empresaId,
+      colaboradorId: params.colaboradorId,
+      nome: `ponto-${params.nsr}-${params.tipo}.jpg`,
+      mimeType: "image/jpeg",
+      bytes,
+    });
+    return envio.ok ? envio.url : null;
+  } catch {
+    return null;
+  }
+}
 
 export type RegistrarPontoInput = {
   tipo: "ENTRADA_1" | "SAIDA_1" | "ENTRADA_2" | "SAIDA_2";
@@ -86,6 +134,16 @@ export async function registrarPontoPortal(input: RegistrarPontoInput) {
     longitude: input.longitude,
   });
 
+  // A foto vai para o Blob privado ANTES do create, para a URL entrar na
+  // mesma linha. Falha aqui não impede nada — ver guardarFotoDaBatida.
+  const fotoUrl = await guardarFotoDaBatida({
+    empresaId: colaborador.empresaId,
+    colaboradorId: colaborador.id,
+    nsr,
+    tipo: input.tipo,
+    fotoBase64: input.fotoBase64,
+  });
+
   // Criar RegistroPonto (Append-Only)
   const novoRegistro = await prisma.registroPonto.create({
     data: {
@@ -100,7 +158,7 @@ export async function registrarPontoPortal(input: RegistrarPontoInput) {
       longitude: input.longitude,
       precisaoGps: input.precisaoGps,
       gpsValido,
-      fotoUrl: input.fotoBase64 || null,
+      fotoUrl,
       hashSHA256,
       dispositivoInfo: input.dispositivoInfo || null,
     },
@@ -115,6 +173,9 @@ export async function registrarPontoPortal(input: RegistrarPontoInput) {
       dataHora: novoRegistro.dataHora.toISOString(),
       tipo: novoRegistro.tipo,
       hashSHA256: novoRegistro.hashSHA256,
+      // O comprovante diz se a foto entrou: quem bateu precisa saber na hora
+      // se vai aparecer "sem foto" para o RH — e não descobrir depois.
+      comFoto: fotoUrl !== null,
     },
   };
 }
