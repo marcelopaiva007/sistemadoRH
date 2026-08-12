@@ -47,14 +47,6 @@ export const PROXIMAS_ATUALIZACOES: ProximaAtualizacao[] = [
       "Depende de escolher o equipamento. Leitor biométrico e reconhecimento facial têm custo, instalação e integração diferentes — o prazo só existe depois dessa escolha.",
   },
   {
-    titulo: "Aplicativo no celular para o colaborador",
-    descricao:
-      "O portal do colaborador como aplicativo, com bater ponto, ver holerite e enviar documento pelo telefone. Hoje tudo isso funciona no navegador.",
-    situacao: "AGUARDANDO_DECISAO",
-    bloqueio:
-      "Falta definir o essencial: aplicativo de loja ou site instalável no celular. São esforços e prazos bem diferentes.",
-  },
-  {
     titulo: "Envio automático para a folha de pagamento",
     descricao:
       "Os eventos do mês saindo do sistema direto para o escritório de contabilidade, sem exportar e reenviar o CSV à mão.",

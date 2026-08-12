@@ -26,6 +26,19 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.79.0",
+    data: "12/08/2026",
+    horario: "05:00",
+    titulo: "O portal vira aplicativo na tela do celular",
+    itens: [
+      "O colaborador pode instalar o portal no celular e passar a abrir por um ícone, sem digitar endereço nem procurar o link antigo no Telegram. Aberto assim, ocupa a tela inteira e parece um aplicativo.",
+      "No Android aparece um botão \"Instalar\" dentro do portal. No iPhone o convite explica o caminho — Compartilhar → Adicionar à Tela de Início — porque lá isso é sempre feito à mão, por decisão da Apple.",
+      "É o mesmo portal de sempre: bater ponto, holerite, documentos, férias e falar com o RH. Nada muda para quem preferir continuar usando pelo navegador, e o convite some depois de dispensado.",
+      "Continua exigindo internet, de propósito. O portal existe para bater ponto, e uma tela guardada no aparelho poderia aceitar uma batida que nunca chegou ao servidor — o colaborador iria embora achando que bateu.",
+      "Entre as duas formas possíveis de app — publicar nas lojas ou instalar direto do site — foi feita a segunda: usa o portal que já existe, não depende de aprovação de loja e a correção chega na hora. Publicar nas lojas continua sendo possível mais adiante.",
+    ],
+  },
+  {
     versao: "1.78.0",
     data: "12/08/2026",
     horario: "04:10",
