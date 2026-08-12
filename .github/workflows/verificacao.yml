@@ -1,0 +1,77 @@
+# Verificação automática em todo PR e no master.
+#
+# POR QUE ISTO EXISTE. Em 12/08/2026 o `scripts/test-nr01.ts` estava vermelho
+# havia cinco dias e ninguém sabia: os testes só rodavam quando um humano
+# lembrava de digitar o comando. Num sistema que calcula férias, ponto e risco
+# psicossocial, "alguém lembra de rodar" não é verificação — é sorte.
+#
+# O QUE RODA. Só o que roda SEM BANCO. Dos 40 scripts de teste do repositório,
+# 10 são de regra pura (cálculo de férias, jornada CLT, NR-01, BI…) e não
+# tocam o Prisma. Os outros 30 são smoke contra Postgres real e continuam
+# sendo rodados à mão por quem tem banco — colocá-los aqui exigiria um serviço
+# de banco no CI, que é outra decisão.
+#
+# NÃO substitui o `next build` da Vercel: aquele é a compilação de verdade e já
+# roda em todo deploy. Aqui é o que a Vercel não checa — type-check, lint e as
+# regras de negócio.
+
+name: Verificação
+
+on:
+  pull_request:
+  push:
+    branches: [master, main]
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # `--ignore-scripts` não serve: o postinstall roda `prisma generate`, e
+      # sem o client gerado o type-check falha em todo arquivo que importa
+      # @/app/generated/prisma.
+      - run: npm ci
+
+      - name: Type-check
+        run: npm run type-check
+
+      # O LINT FICA DE FORA, por enquanto — e isso é decisão, não esquecimento.
+      # Em 12/08/2026 `npm run lint` acusava 10 erros pré-existentes: dois
+      # `setState` síncrono dentro de efeito (que mexem em comportamento e não
+      # se corrigem às pressas), cinco `any`, dois `"` sem escape e um
+      # `prefer-const` em lib/ponto-regras.ts. Ligar o portão hoje deixaria o CI
+      # vermelho desde o primeiro dia — e CI que nasce vermelho é CI que todo
+      # mundo aprende a ignorar, que é exatamente a doença que este arquivo
+      # existe para curar.
+      #
+      # Zerar os 10 e ligar esta etapa é a próxima parada.
+
+      # Um passo por script, e não um laço: com laço, o log mostra só "falhou"
+      # e alguém precisa abrir o output inteiro para achar qual. Aqui o próprio
+      # nome do passo que fica vermelho já diz o que quebrou.
+      - name: Regras de férias (CLT art. 130, 134, 137, 143)
+        run: npx tsx scripts/test-ferias.ts
+      - name: Regras de ponto (CLT art. 58, 59, 73 e Portaria MTP 671)
+        run: npx tsx scripts/test-ponto.ts
+      - name: Risco psicossocial (NR-01)
+        run: npx tsx scripts/test-nr01.ts
+      - name: Conformidade (ASO, NR, EPI)
+        run: npx tsx scripts/test-conformidade.ts
+      - name: Escala de trabalho
+        run: npx tsx scripts/test-escala.ts
+      - name: Admissão
+        run: npx tsx scripts/test-admissao.ts
+      - name: Indicadores (BI)
+        run: npx tsx scripts/test-bi.ts
+      - name: Produtividade
+        run: npx tsx scripts/test-produtividade.ts
+      - name: Bloqueio por tentativas de login
+        run: npx tsx scripts/test-login-tentativas.ts
+      - name: Resultado de pesquisa eNPS
+        run: npx tsx scripts/test-pesquisa-enps-resultado.ts
