@@ -1524,6 +1524,14 @@ model CobrancaCadastro {
   /// ACEITARAM o envio entram — a linha é prova de que a pessoa foi avisada, e
   /// registrar um canal que recusou transformaria a prova em ficção.
   canais        String      @default("TELEGRAM")
+  /// Disparada por alguém do RH pela tela, em vez do cron. Não conta para o
+  /// teto de MAX_COBRANCAS nem mexe no relógio da cobrança automática: é um
+  /// extra por cima dela, decidido por uma pessoa, e não pode encurtar a
+  /// campanha de quem foi cobrado à mão uma vez.
+  manual        Boolean     @default(false)
+  /// Quem clicou, quando `manual`. Snapshot do nome, como no resto da trilha:
+  /// apagar o usuário não pode apagar a autoria do que ele disparou.
+  solicitadaPorNome String?
   enviadaEm     DateTime    @default(now())
 
   @@index([colaboradorId, enviadaEm])

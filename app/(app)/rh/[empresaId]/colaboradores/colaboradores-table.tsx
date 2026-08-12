@@ -60,6 +60,7 @@ import {
   deleteColaborador,
 } from "@/lib/actions/rh-colaboradores";
 import { AtivarDesativarButton } from "./ativar-desativar-button";
+import { CobrarCadastroButton } from "./cobrar-cadastro-button";
 import { AlertaDuplicados } from "./alerta-duplicados";
 import { ConferirCpfs } from "./conferir-cpfs";
 import { formatarCpf, mascararCpf } from "@/lib/cpf";
@@ -458,6 +459,41 @@ export function ColaboradoresTable({
   const paginaAtual = Math.min(pagina, totalPaginas);
   const visiveis = filtrados.slice((paginaAtual - 1) * POR_PAGINA, paginaAtual * POR_PAGINA);
 
+  // Seleção para a cobrança de cadastro em lote. Guarda IDs, não índices: a
+  // ordenação e a paginação reordenam a lista embaixo do usuário, e índice
+  // sobrevivente de uma ordenação anterior selecionaria outra pessoa.
+  //
+  // A seleção NÃO é limpa ao trocar de página de propósito — montar um lote de
+  // 30 pessoas que caem em três páginas é exatamente o caso de uso. Quem quiser
+  // zerar tem o botão na barra.
+  const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
+
+  const alternarUm = (id: string) =>
+    setSelecionados((atual) => {
+      const proximo = new Set(atual);
+      if (!proximo.delete(id)) proximo.add(id);
+      return proximo;
+    });
+
+  const todosVisiveisMarcados = visiveis.length > 0 && visiveis.every((c) => selecionados.has(c.id));
+
+  const alternarTodosVisiveis = () =>
+    setSelecionados((atual) => {
+      const proximo = new Set(atual);
+      // "Todos" é sempre "todos DESTA página", nunca a base inteira: marcar 800
+      // pessoas com um clique e mandar mensagem para elas não pode ser um
+      // acidente de meio segundo.
+      if (todosVisiveisMarcados) visiveis.forEach((c) => proximo.delete(c.id));
+      else visiveis.forEach((c) => proximo.add(c.id));
+      return proximo;
+    });
+
+  // Aviso honesto na barra: quem não tem canal vai ser recusado no envio, e é
+  // melhor dizer antes do clique do que depois, num toast de erro.
+  const selecionadosSemCanal = colaboradores.filter(
+    (c) => selecionados.has(c.id) && !c.telegramChatId && !c.email,
+  ).length;
+
   const aoOrdenar = (campo: CampoOrdenavel) => {
     setOrdem((o) => (o.campo === campo ? { campo, desc: !o.desc } : { campo, desc: false }));
     setPagina(1);
@@ -646,10 +682,43 @@ export function ColaboradoresTable({
         </div>
       </div>
 
+      {/* Barra de ação da seleção. Só aparece com alguém marcado — uma barra
+          permanente vazia vira ruído em cima da tabela. */}
+      {selecionados.size > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-muted/40 px-4 py-2.5">
+          <span className="text-sm">
+            <b>{selecionados.size}</b> selecionado(s)
+            {selecionadosSemCanal > 0 && (
+              <span className="text-muted-foreground">
+                {" "}· {selecionadosSemCanal} sem Telegram nem e-mail, que não recebem
+              </span>
+            )}
+          </span>
+          <div className="flex items-center gap-2">
+            <CobrarCadastroButton
+              empresaId={empresaId}
+              colaboradorIds={[...selecionados]}
+              rotulo={`Cobrar cadastro (${selecionados.size})`}
+              onEnviado={() => setSelecionados(new Set())}
+            />
+            <Button type="button" variant="ghost" size="sm" onClick={() => setSelecionados(new Set())}>
+              Limpar seleção
+            </Button>
+          </div>
+        </div>
+      )}
+
       <div className="rounded-xl border bg-card shadow-xs">
         <Table compacta>
           <TableHeader>
             <TableRow className="bg-muted/40 hover:bg-muted/40">
+              <TableHead className="w-10">
+                <Checkbox
+                  aria-label="Selecionar todos os visíveis"
+                  checked={todosVisiveisMarcados}
+                  onCheckedChange={alternarTodosVisiveis}
+                />
+              </TableHead>
               <ColunaOrdenavel campo="nome" rotulo="Colaborador" ordem={ordem} aoOrdenar={aoOrdenar} />
               <TableHead>CPF</TableHead>
               <TableHead>E-mail</TableHead>
@@ -663,7 +732,7 @@ export function ColaboradoresTable({
           <TableBody>
             {visiveis.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8} className="py-12 text-center">
+                <TableCell colSpan={9} className="py-12 text-center">
                   <div className="mx-auto flex max-w-sm flex-col items-center gap-2">
                     <span className="flex size-12 items-center justify-center rounded-full bg-muted">
                       <Users className="size-6 text-muted-foreground" />
@@ -685,6 +754,13 @@ export function ColaboradoresTable({
             )}
             {visiveis.map((c) => (
               <TableRow key={c.id} className="group">
+                <TableCell className="py-2">
+                  <Checkbox
+                    aria-label={`Selecionar ${c.nome}`}
+                    checked={selecionados.has(c.id)}
+                    onCheckedChange={() => alternarUm(c.id)}
+                  />
+                </TableCell>
                 <TableCell className="py-2">
                   <Link
                     // A lista traz colaboradores de TODAS as marcas visíveis ao
