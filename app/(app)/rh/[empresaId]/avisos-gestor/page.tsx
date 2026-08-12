@@ -1,4 +1,5 @@
 import { empresasVisiveis, requireEmpresaAccess } from "@/lib/rh-auth-guard";
+import { AjudaDaTela } from "@/components/ajuda-da-tela";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -51,7 +52,10 @@ export default async function AvisosGestorPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight">Avisos automáticos ao gestor</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-xl font-semibold tracking-tight">Avisos automáticos ao gestor</h1>
+          <AjudaDaTela modulo="avisos-gestor" />
+        </div>
         <p className="text-sm text-muted-foreground">
           O que cada gestor receberia por Telegram sobre o time dele — contrato por prazo vencendo,
           férias a vencer e hora extra acima do limite do mês.

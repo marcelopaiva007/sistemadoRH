@@ -26,6 +26,20 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.80.1",
+    data: "12/08/2026",
+    horario: "08:10",
+    titulo: "\"Como usar\" nas telas novas: vínculo de login, Meu Setor e avisos ao gestor",
+    itens: [
+      "As telas que nasceram hoje ganharam o botão \"?\" ao lado do título, com o passo a passo de como trabalhar nelas.",
+      "Usuários: como ligar o login de um gestor à ficha dele para o time aparecer em \"Meu Setor\" — e o aviso de que quem monta o time é o campo \"Reporta a\" das fichas, não o setor.",
+      "Meu Setor: o que o gestor vê, por que a tela pode abrir vazia (e qual dos dois motivos é o seu), e o que de propósito NÃO aparece ali (salário, CPF, documentos).",
+      "Avisos ao gestor: como ler a prévia, o que significa \"Sem Telegram\" e a garantia de que nada é enviado por aquela tela.",
+      "A ajuda do Ponto foi atualizada com a foto na batida: como conferir a foto de cada batida no Monitor de Presença e o que significa a câmera cortada (\"sem foto\").",
+      "No portal do colaborador o caminho é outro, de propósito: as instruções aparecem na própria tela, na hora em que fazem falta — no convite de instalar e no aviso de foto pendente.",
+    ],
+  },
+  {
     versao: "1.80.0",
     data: "12/08/2026",
     horario: "06:20",

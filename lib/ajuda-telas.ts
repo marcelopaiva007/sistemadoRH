@@ -36,8 +36,17 @@ export type AjudaDaTelaConteudo = {
 export const AJUDA_DAS_TELAS = {
   ponto: {
     oQueFaz:
-      "Acompanha as batidas do dia, trata ajustes de ponto (PTRP), organiza jornadas e escalas e gera os arquivos fiscais AFD e AEJ exigidos pela Portaria MTP nº 671/2021.",
+      "Acompanha as batidas do dia — cada uma com a foto de quem bateu —, trata ajustes de ponto (PTRP), organiza jornadas e escalas e gera os arquivos fiscais AFD e AEJ exigidos pela Portaria MTP nº 671/2021.",
     comoFazer: [
+      {
+        acao: "Conferir a foto de quem bateu o ponto",
+        passos: [
+          "Abra a aba \"Monitor de Presença\".",
+          "Embaixo do nome de cada pessoa aparecem as batidas do dia, com o horário.",
+          "Batida com ícone de câmera tem foto: clique no horário para abrir a foto tirada naquele momento.",
+          "Batida com câmera cortada foi registrada SEM foto — o colaborador cancelou ou a câmera falhou. Vale perguntar o porquê.",
+        ],
+      },
       {
         acao: "Corrigir ou abonar a batida de alguém",
         passos: [
@@ -70,6 +79,8 @@ export const AJUDA_DAS_TELAS = {
       "O motivo da rejeição fica em campo próprio, separado do texto de quem pediu. Ninguém reescreve o pedido do outro.",
       "Colaborador desligado continua aparecendo na lista de ajuste — é durante o cálculo da rescisão que a correção de ponto costuma ser feita.",
       "Ajustes anteriores a 11/08/2026 constam como aprovados por \"Gestor de RH\", um texto fixo que não corresponde a pessoa nenhuma. Não foram reescritos: adulterar histórico de auditoria seria pior que deixá-lo documentado.",
+      "Desde 12/08/2026 o portal pede uma foto ao bater o ponto. A batida NUNCA é impedida pela câmera — sem foto ela vale igual, só aparece marcada aqui. A foto é dado pessoal: cada visualização fica registrada na auditoria, como RG e atestado.",
+      "Batidas anteriores a 12/08/2026 não têm foto, e isso é esperado — a câmera não existia no fluxo.",
     ],
   },
 
@@ -223,6 +234,91 @@ export const AJUDA_DAS_TELAS = {
       "A rubrica define natureza (provento ou desconto) e unidade. Rubrica trocada vira dinheiro a mais ou a menos.",
       "Hora extra acima do limite mensal vira pendência na tela de Pendências — é aviso, não bloqueio.",
       "Depois de fechada, a competência é referência do que foi pago. Reabrir muda o histórico.",
+    ],
+  },
+
+  usuarios: {
+    oQueFaz:
+      "Cria e administra os logins do sistema: papel de cada um, quais empresas ou marcas a pessoa acessa e — desde 12/08/2026 — qual ficha de colaborador é aquele login, o que faz o gestor ver o próprio time.",
+    comoFazer: [
+      {
+        acao: "Fazer um gestor ver o time dele na tela \"Meu Setor\"",
+        passos: [
+          "Na linha do usuário, clique no ícone de corrente (\"Vincular empresa\").",
+          "No topo do diálogo, em \"Ficha de colaborador\", busque a pessoa pelo nome ou CPF e clique em \"Vincular\".",
+          "Confira nas fichas dos colaboradores o campo \"Reporta a\": é ele que diz quem faz parte do time — não o setor.",
+          "Pronto: no próximo acesso do gestor, \"Meu Setor\" abre com o time dele.",
+        ],
+      },
+      {
+        acao: "Dar acesso a uma empresa ou marca",
+        passos: [
+          "No mesmo diálogo \"Vincular\", abaixo da ficha, escolha o escopo: marca inteira ou CNPJ específico.",
+          "Marca cobre todos os CNPJs dela, inclusive os cadastrados depois. CNPJ é pontual — e é o único que comporta Gestor de Setor.",
+          "Salve. Os acessos aparecem como etiquetas na coluna \"Acesso\".",
+        ],
+      },
+      {
+        acao: "Desfazer um vínculo de ficha",
+        passos: [
+          "Abra \"Vincular\" no usuário e clique em \"Desvincular\" ao lado da ficha.",
+          "O login continua funcionando normalmente — só deixa de ter time na tela \"Meu Setor\".",
+        ],
+      },
+    ],
+    cuidados: [
+      "Vincular a ficha NÃO muda permissão nenhuma. Acesso é decidido pelos vínculos de empresa e marca; a ficha só responde \"quem é esta pessoa na folha\".",
+      "A ficha é opcional de propósito: ADMIN e o pessoal do RH normalmente não têm ficha na empresa que administram, e continuam trabalhando sem ela.",
+      "Uma ficha só pode ser o login de UMA conta. Se a busca não encontra alguém, ou a pessoa está inativa, ou já tem login, ou está numa empresa que este usuário não acessa.",
+      "A busca por CPF funciona com pedaço do número, sem pontos. Por nome, bastam 2 letras.",
+      "Quem monta o time do gestor é o campo \"Reporta a\" na ficha de cada colaborador — vincular a ficha do gestor sem preencher o \"Reporta a\" do time dele resulta numa tela vazia.",
+    ],
+  },
+
+  "meu-setor": {
+    oQueFaz:
+      "A tela do gestor de setor: o time dele — tempo de casa, férias, avaliação, primeiros meses — e o clima do setor nas pesquisas, sem passar pelos módulos do RH inteiro.",
+    comoFazer: [
+      {
+        acao: "Ler a situação do time",
+        passos: [
+          "O bloco \"Meu time\" lista quem reporta a você, com tempo de casa, férias a vencer, avaliação do ciclo e quem nunca acessou o portal.",
+          "Use os filtros de setor, sinal e busca para achar alguém específico.",
+          "Os números são os MESMOS que o RH vê na tela \"Time\" — vocês nunca leem versões diferentes da mesma equipe.",
+        ],
+      },
+      {
+        acao: "Acompanhar o clima do setor",
+        passos: [
+          "O bloco \"Clima do setor\" mostra as médias por dimensão das pesquisas ativas e encerradas.",
+          "Os números só aparecem com um mínimo de respostas — é o que preserva o anonimato de quem respondeu.",
+        ],
+      },
+    ],
+    cuidados: [
+      "Tela vazia tem dois motivos diferentes, e ela diz qual é: ou o seu login ainda não foi ligado à sua ficha (peça ao RH: Cadastros → Usuários → Vincular), ou ninguém tem você no campo \"Reporta a\" da ficha.",
+      "O time vem do \"Reporta a\", não do setor. Você pode liderar gente de outro setor — ela aparece aqui do mesmo jeito.",
+      "Salário, CPF e documentos do time NÃO aparecem nesta tela, de propósito. Gestor vê sinal de gestão, não ficha completa.",
+    ],
+  },
+
+  "avisos-gestor": {
+    oQueFaz:
+      "Mostra exatamente o que cada gestor receberia pelo Telegram sobre o time dele — contrato por prazo vencendo, férias a vencer, hora extra acima do limite — antes de o envio automático ser ligado.",
+    comoFazer: [
+      {
+        acao: "Conferir o que sairia hoje",
+        passos: [
+          "Cada cartão é um gestor; o texto no cartão é a mensagem literal, como chegaria no celular dele.",
+          "\"Sem Telegram\" no cartão significa que aquele gestor não receberia nada — falta vincular o Telegram na ficha dele.",
+          "O rodapé diz quantos colaboradores ativos estão sem supervisor na ficha: sobre esses, ninguém é avisado, porque o sistema não sabe a quem avisar.",
+        ],
+      },
+    ],
+    cuidados: [
+      "NADA é enviado por esta tela, nem ao abri-la. O envio automático está desligado e ligá-lo é uma decisão à parte.",
+      "Quando o envio for ligado, o mesmo assunto sobre a mesma pessoa não se repete antes de 7 dias — o gestor não é bombardeado.",
+      "A tela continua útil depois de ligar: é onde se responde \"por que fulano recebeu isso?\" sem abrir log nenhum.",
     ],
   },
 } as const satisfies Record<string, AjudaDaTelaConteudo>;
