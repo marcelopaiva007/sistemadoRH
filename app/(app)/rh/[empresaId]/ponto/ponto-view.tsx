@@ -92,6 +92,33 @@ export function PontoView({
         </p>
       </div>
 
+      <Card className="border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950">
+        <CardHeader>
+          <CardTitle className="text-base text-green-900 dark:text-green-100">
+            Como funciona o fluxo
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2 text-sm text-green-800 dark:text-green-200">
+          <div>
+            <strong>1. RH define escalas:</strong> Acesse{" "}
+            <em>Departamento Pessoal → Escalas</em> e atribua os turnos/horários para cada
+            colaborador por dia.
+          </div>
+          <div>
+            <strong>2. RH configura tolerância:</strong> (Opcional) Clique em &quot;Configuração&quot;
+            para ajustar janela de ponto antes/depois do horário (padrão: ±60min).
+          </div>
+          <div>
+            <strong>3. Colaborador bate ponto:</strong> No portal, aba &quot;Ponto&quot;, clica
+            &quot;Entrada&quot;/&quot;Saída&quot;, captura selfie e autoriza localização.
+          </div>
+          <div>
+            <strong>4. RH valida:</strong> Visualiza aqui todos os pontos, vê quem bateu fora
+            da janela (⚠) e exporta para folha/relatório.
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="flex flex-col gap-4">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <div>
