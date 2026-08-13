@@ -5,11 +5,13 @@
 # lembrava de digitar o comando. Num sistema que calcula férias, ponto e risco
 # psicossocial, "alguém lembra de rodar" não é verificação — é sorte.
 #
-# O QUE RODA. Só o que roda SEM BANCO. Dos 40 scripts de teste do repositório,
-# 10 são de regra pura (cálculo de férias, jornada CLT, NR-01, BI…) e não
-# tocam o Prisma. Os outros 30 são smoke contra Postgres real e continuam
-# sendo rodados à mão por quem tem banco — colocá-los aqui exigiria um serviço
-# de banco no CI, que é outra decisão.
+# O QUE RODA. Dois jogos: as regras puras (job `verificar`, sem banco) e os 27
+# smokes contra um Postgres de verdade (job `smokes-com-banco`, serviço de
+# banco descartável). Os smokes ficaram de fora até 12/08/2026 "porque exigiria
+# um serviço de banco no CI, que é outra decisão" — a decisão foi tomada, e a
+# primeira rodada em banco novo já pagou o ingresso: dois smokes reprovaram
+# porque o banco de CI não tinha as regras escritas em SQL à mão (CHECK do alvo
+# da meta, índice parcial de rascunho) — ver scripts/ci-extras-banco.sql.
 #
 # NÃO substitui o `next build` da Vercel: aquele é a compilação de verdade e já
 # roda em todo deploy. Aqui é o que a Vercel não checa — type-check, lint e as
@@ -74,3 +76,104 @@ jobs:
         run: npx tsx scripts/test-login-tentativas.ts
       - name: Resultado de pesquisa eNPS
         run: npx tsx scripts/test-pesquisa-enps-resultado.ts
+
+  # Os 27 smokes contra Postgres de verdade. O banco nasce vazio a cada
+  # execução: schema gerado do prisma/schema.prisma via `migrate diff` (o
+  # `migrate deploy` não serve — o histórico de migrations não é reproduzível
+  # do zero, ver prisma/checar-migracoes.mjs), MAIS as regras de SQL manual que
+  # o schema não expressa (scripts/ci-extras-banco.sql), MAIS a empresa-palco
+  # mínima que scripts/_empresa-de-teste.ts exige (scripts/ci-fixture-banco.ts).
+  # Receita validada localmente em 12/08/2026: 27/27.
+  smokes-com-banco:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: rhci
+          POSTGRES_PASSWORD: rhci
+          POSTGRES_DB: rhtest
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U rhci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://rhci:rhci@localhost:5432/rhtest
+      PGPASSWORD: rhci
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Criar o schema no banco descartável
+        run: |
+          npx prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script > /tmp/schema.sql
+          psql -h localhost -U rhci -d rhtest -q -v ON_ERROR_STOP=1 -f /tmp/schema.sql
+          psql -h localhost -U rhci -d rhtest -q -v ON_ERROR_STOP=1 -f scripts/ci-extras-banco.sql
+
+      - name: Semear a empresa-palco
+        run: npx tsx scripts/ci-fixture-banco.ts
+
+      # Um passo por smoke, e não um laço — mesmo motivo do job acima: o nome
+      # do passo vermelho já diz o que quebrou.
+      - name: Alertas de RH
+        run: npx tsx scripts/smoke-alertas-rh.ts
+      - name: Recrutamento (ATS)
+        run: npx tsx scripts/smoke-ats.ts
+      - name: Avaliação de desempenho
+        run: npx tsx scripts/smoke-avaliacao.ts
+      - name: Benefícios
+        run: npx tsx scripts/smoke-beneficios.ts
+      - name: Acidente de trabalho (CAT)
+        run: npx tsx scripts/smoke-cat.ts
+      - name: Ciclo de pesquisas
+        run: npx tsx scripts/smoke-ciclo-pesquisa.ts
+      - name: Cobrança de cadastro
+        run: npx tsx scripts/smoke-cobranca-cadastro.ts
+      - name: Departamento pessoal
+        run: npx tsx scripts/smoke-dp.ts
+      - name: Entrega de EPI
+        run: npx tsx scripts/smoke-epi.ts
+      - name: Escalas
+        run: npx tsx scripts/smoke-escala.ts
+      - name: Estrutura (marca, empresa, setor)
+        run: npx tsx scripts/smoke-estrutura.ts
+      - name: Folha (eventos variáveis)
+        run: npx tsx scripts/smoke-folha.ts
+      - name: Importação de colaboradores
+        run: npx tsx scripts/smoke-importacao.ts
+      - name: Login e usuários
+        run: npx tsx scripts/smoke-login.ts
+      - name: Metas e PDI
+        run: npx tsx scripts/smoke-metas.ts
+      - name: Movimentações
+        run: npx tsx scripts/smoke-movimentacoes.ts
+      - name: Offboarding
+        run: npx tsx scripts/smoke-offboarding.ts
+      - name: Onboarding
+        run: npx tsx scripts/smoke-onboarding.ts
+      - name: Pendências
+        run: npx tsx scripts/smoke-pendencias.ts
+      - name: Pesquisa de desligamento
+        run: npx tsx scripts/smoke-pesquisa-desligamento.ts
+      - name: Pesquisa eNPS
+        run: npx tsx scripts/smoke-pesquisa-enps.ts
+      - name: Pesquisa de onboarding
+        run: npx tsx scripts/smoke-pesquisa-onboarding.ts
+      - name: Vínculo de pesquisa
+        run: npx tsx scripts/smoke-pesquisa-vinculo.ts
+      - name: Reconhecimento
+        run: npx tsx scripts/smoke-reconhecimento.ts
+      - name: Régua de cobrança
+        run: npx tsx scripts/smoke-regua-cobranca.ts
+      - name: Segurança do trabalho (SST)
+        run: npx tsx scripts/smoke-sst.ts
+      - name: Treinamentos
+        run: npx tsx scripts/smoke-treinamentos.ts
