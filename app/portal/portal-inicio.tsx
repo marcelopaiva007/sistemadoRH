@@ -52,11 +52,6 @@ type Colaborador = {
   ctpsSerie: string | null;
   ctpsUf: string | null;
   tituloEleitor: string | null;
-  bancoNome: string | null;
-  bancoAgencia: string | null;
-  bancoConta: string | null;
-  bancoTipoConta: string | null;
-  chavePix: string | null;
   setor: { nome: string };
   posicao: { nome: string };
 };
@@ -116,7 +111,9 @@ export function PortalInicio({
     colaborador.escolaridade, colaborador.nomeMae, colaborador.nacionalidade,
     colaborador.cep, colaborador.logradouro, colaborador.bairro,
     colaborador.emergenciaNome, colaborador.emergenciaTelefone,
-    colaborador.chavePix,
+    // Sem chavePix desde 13/08/2026: a chave passou a ser o CPF, que o portal
+    // mostra pronto e não deixa editar. Contar um campo que não existe mais no
+    // formulário deixaria o convite "faltam 3 dados" impossível de zerar.
   ].filter((v) => !v).length;
 
   return (

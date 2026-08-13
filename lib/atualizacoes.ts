@@ -26,6 +26,21 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.85.0",
+    data: "13/08/2026",
+    horario: "08:52",
+    titulo: "Pagamento por PIX-CPF, Telegram que se desvincula e busca por telefone",
+    itens: [
+      "O bloco \"Dados bancários\" saiu da ficha e do portal. No lugar entra o PIX, e a chave é o CPF do próprio colaborador — já preenchido, sem nada a digitar. O CPF é a única chave que não pode ser apontada para a conta de outra pessoa.",
+      "Fica com o RH a parte que sobra: avisar o colaborador para deixar o CPF cadastrado como chave PIX na conta onde ele quer receber o salário.",
+      "Por que isso é mais seguro: enquanto o portal aceitava banco, agência e conta, quem tomasse o Telegram de alguém podia trocar a conta de destino do próprio salário — e o RH só descobriria pelo aviso por e-mail, depois do fato. Não há mais o que trocar.",
+      "A ficha ganhou o botão de DESVINCULAR o Telegram. Quando o bot recusa um colaborador com \"este Telegram já está vinculado a Fulano\", é aqui que se resolve: abra a ficha do Fulano que o bot nomeou e solte o vínculo — o aparelho fica livre na hora. Antes a mensagem mandava procurar o RH para uma correção que não existia em tela nenhuma.",
+      "A busca de Colaboradores passa a achar por TELEFONE, colando o número em qualquer formato — com ou sem DDD, com ou sem o nono dígito. É como se descobre se um número está preso em outra ficha.",
+      "E se a ficha que segura o número for de alguém já desligado, a busca avisa: \"mais 1 ficha casa com essa busca em desligados\", com um clique para mostrá-la. Antes a lista vinha vazia e parecia dizer que o número não estava em lugar nenhum.",
+      "\"Cadastros incompletos\" parou de cobrar banco, agência e conta — dado que nenhuma tela aceita mais. O bot também parou de pedir isso por Telegram.",
+    ],
+  },
+  {
     versao: "1.84.0",
     data: "13/08/2026",
     horario: "05:00",

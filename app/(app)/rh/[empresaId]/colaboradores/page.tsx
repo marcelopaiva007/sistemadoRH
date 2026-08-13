@@ -67,19 +67,17 @@ export default async function ColaboradoresPage({
         dataAdmissao: true,
         dataDesligamento: true,
         motivoDesligamento: true,
-        // RG, endereço e banco entram AQUI e param aqui: viram um único
-        // booleano `semCadastroCompleto` logo abaixo. Mandá-los para a tabela
-        // colocaria documento, endereço e conta bancária de toda a base no HTML
-        // da página — é exatamente o que o comentário do tipo `Colaborador` em
-        // colaboradores-table.tsx proíbe.
+        // RG e endereço entram AQUI e param aqui: viram um único booleano
+        // `semCadastroCompleto` logo abaixo. Mandá-los para a tabela colocaria
+        // documento e endereço de toda a base no HTML da página — é exatamente
+        // o que o comentário do tipo `Colaborador` em colaboradores-table.tsx
+        // proíbe. Os campos bancários saíram da consulta em 13/08/2026, quando
+        // deixaram de pesar na regra de cadastro completo.
         rg: true,
         logradouro: true,
         numeroEndereco: true,
         bairro: true,
         uf: true,
-        bancoNome: true,
-        bancoAgencia: true,
-        bancoConta: true,
         _count: { select: { ferias: true } },
       },
     }),
@@ -109,7 +107,7 @@ export default async function ColaboradoresPage({
   const colaboradores = linhas.map(
     ({
       salarioBase, dataAdmissao, dataDesligamento, motivoDesligamento, _count,
-      rg, logradouro, numeroEndereco, bairro, uf, bancoNome, bancoAgencia, bancoConta,
+      rg, logradouro, numeroEndereco, bairro, uf,
       ...c
     }) => ({
       ...c,
@@ -120,7 +118,7 @@ export default async function ColaboradoresPage({
       // cartão e o tamanho desta lista nunca discordarem.
       semCadastroCompleto: cadastroIncompleto({
         cpf: c.cpf, email: c.email, telefone: c.telefone, dataAdmissao,
-        rg, logradouro, numeroEndereco, bairro, uf, bancoNome, bancoAgencia, bancoConta,
+        rg, logradouro, numeroEndereco, bairro, uf,
       }),
       // Mesma regra de lib/dashboard.ts::lacunasDaBase e
       // lib/ferias-passivo.ts::semHistoricoDeFerias: 1+ ano de casa e nenhuma

@@ -78,9 +78,16 @@ export type Pendencias = {
  * inteiro passa a ser ignorado junto com os outros ao lado dele.
  *
  * Ficou o que TRAVA alguma coisa: sem CPF ou data de admissão não há eSocial;
- * sem dados bancários não há como pagar; sem nenhum contato não há como falar
- * com a pessoa. RG e endereço continuam faltando e continuam visíveis na
- * própria ficha — só deixaram de disputar atenção na tela de Pendências.
+ * sem nenhum contato não há como falar com a pessoa. RG e endereço continuam
+ * faltando e continuam visíveis na própria ficha — só deixaram de disputar
+ * atenção na tela de Pendências.
+ *
+ * BANCO SAIU EM 13/08/2026, junto com os campos bancários da tela. A chave de
+ * pagamento passou a ser o CPF do próprio colaborador (PIX-CPF), e "sem dados
+ * bancários não há como pagar" virou "sem CPF não há como pagar" — que a
+ * primeira condição desta lista já cobre. Manter banco aqui cobraria um dado
+ * que nenhuma tela do sistema aceita mais: o RH veria a pendência, abriria a
+ * ficha e não acharia onde preencher.
  *
  * Só `null`, sem `""`: mesmo critério de lib/dashboard.ts::lacunasDaBase, que
  * também trata string vazia à parte apenas no telegramChatId, onde ela de fato
@@ -92,9 +99,6 @@ export const CADASTRO_INCOMPLETO_WHERE: Prisma.ColaboradorWhereInput = {
   OR: [
     { cpf: null },
     { dataAdmissao: null },
-    { bancoNome: null },
-    { bancoAgencia: null },
-    { bancoConta: null },
     { AND: [{ email: null }, { telefone: null }] },
   ],
 };
@@ -110,18 +114,12 @@ export type CamposDoCadastro = {
   numeroEndereco: string | null;
   bairro: string | null;
   uf: string | null;
-  bancoNome: string | null;
-  bancoAgencia: string | null;
-  bancoConta: string | null;
 };
 
 export function cadastroIncompleto(c: CamposDoCadastro): boolean {
   return (
     c.cpf === null ||
     c.dataAdmissao === null ||
-    c.bancoNome === null ||
-    c.bancoAgencia === null ||
-    c.bancoConta === null ||
     (c.email === null && c.telefone === null)
   );
 }

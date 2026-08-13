@@ -55,11 +55,10 @@ export default async function PortalPage() {
       ctpsSerie: true,
       ctpsUf: true,
       tituloEleitor: true,
-      bancoNome: true,
-      bancoAgencia: true,
-      bancoConta: true,
-      bancoTipoConta: true,
-      chavePix: true,
+      // Os campos bancários saíram desta consulta em 13/08/2026, com o fim do
+      // bloco "Dados bancários". Nada na tela os usava mais, e continuar
+      // buscando-os mandaria banco, agência e conta de cada colaborador para o
+      // HTML do navegador dele — dado sensível trafegando sem ninguém ler.
       empresaId: true,
       gerente: true,
       setor: { select: { nome: true } },
