@@ -26,6 +26,19 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.86.0",
+    data: "13/08/2026",
+    horario: "09:40",
+    titulo: "Varredura de duplicados agora cruza CPF, telefone e Telegram — e enxerga os desligados",
+    itens: [
+      "O aviso de prováveis duplicatas no topo de Colaboradores passa a procurar por CPF repetido, não só por telefone e nome parecido. CPF igual não é indício, é prova: é a mesma pessoa em duas fichas.",
+      "E passa a incluir os DESLIGADOS na comparação. Era o buraco que importava: a ficha duplicada quase sempre é a antiga, encerrada — e é ela que fica segurando o Telegram da pessoa. A tela que deveria mostrar o conflito jurava que não havia nenhum.",
+      "Cada achado vem com etiqueta do que fazer. \"Resolver agora\" é o que trava alguém hoje: duas fichas ativas com o mesmo CPF, ou uma ficha desligada segurando o Telegram — a causa exata do \"já está vinculado a outro colaborador\".",
+      "\"Provável recontratação\" desce para o fim da lista. Uma ficha ativa e uma encerrada com o mesmo CPF costuma ser cadastro certo, não erro, e misturar isso com o resto encheria a tela de casos que não são problema.",
+      "Quem segura Telegram aparece marcado na lista, em vermelho quando é uma ficha desligada. Dali é um clique até a ficha e outro no botão Desvincular.",
+    ],
+  },
+  {
     versao: "1.85.0",
     data: "13/08/2026",
     horario: "08:52",

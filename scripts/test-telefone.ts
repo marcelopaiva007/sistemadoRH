@@ -54,10 +54,20 @@ ok(
 );
 
 console.log("\nDuplicatas usam a MESMA regra\n");
+const pessoa = (p: Partial<PessoaParaComparar> & { id: string }): PessoaParaComparar => ({
+  nome: `Pessoa ${p.id}`,
+  telefone: null,
+  cpf: null,
+  setorNome: "Operações",
+  ativo: true,
+  temTelegram: false,
+  ...p,
+});
+
 const pessoas: PessoaParaComparar[] = [
-  { id: "a", nome: "Nicollas Cardoso", telefone: "83981456383", cpf: "71493065432", setorNome: "Operações" },
-  { id: "b", nome: "N. Cardoso", telefone: "(83) 98145-6383", cpf: null, setorNome: "Operações" },
-  { id: "c", nome: "Edalysson Figueiredo", telefone: "83993219261", cpf: "09428744476", setorNome: "Operações" },
+  pessoa({ id: "a", nome: "Nicollas Cardoso", telefone: "83981456383", cpf: "71493065432" }),
+  pessoa({ id: "b", nome: "N. Cardoso", telefone: "(83) 98145-6383" }),
+  pessoa({ id: "c", nome: "Edalysson Figueiredo", telefone: "83993219261", cpf: "09428744476" }),
 ];
 const grupos = encontrarDuplicados(pessoas);
 const porTelefone = grupos.filter((g) => g.motivo === "Mesmo telefone");
@@ -74,12 +84,64 @@ ok(
 // A ficha truncada não pode arrastar ninguém para um grupo de duplicata.
 const comTruncado = encontrarDuplicados([
   ...pessoas,
-  { id: "d", nome: "Fulano Truncado", telefone: "8398", cpf: null, setorNome: "Operações" },
-  { id: "e", nome: "Sicrano Truncado", telefone: "8399", cpf: null, setorNome: "Operações" },
+  pessoa({ id: "d", telefone: "8398" }),
+  pessoa({ id: "e", telefone: "8399" }),
 ]);
 ok(
   !comTruncado.some((g) => g.motivo === "Mesmo telefone" && g.pessoas.some((p) => p.id === "d" || p.id === "e")),
   "telefones truncados não formam duplicata entre si nem com ninguém",
+);
+
+console.log("\nVarredura por CPF\n");
+const porCpf = encontrarDuplicados([
+  pessoa({ id: "x1", nome: "Maria Sousa", cpf: "71493065432" }),
+  pessoa({ id: "x2", nome: "Maria Souza", cpf: "714.930.654-32" }),
+]);
+ok(porCpf.length === 1 && porCpf[0].motivo === "Mesmo CPF", "CPF com e sem máscara é o mesmo CPF");
+ok(porCpf[0].gravidade === "alta", "duas fichas ATIVAS com o mesmo CPF é gravidade alta");
+
+// CPF é prova e roda primeiro: quem ele junta não reaparece como "mesmo
+// telefone". Ficha duplicada repete os dois, e o par sairia duas vezes na tela.
+const cpfEtelefone = encontrarDuplicados([
+  pessoa({ id: "y1", cpf: "71493065432", telefone: "83981456383" }),
+  pessoa({ id: "y2", cpf: "71493065432", telefone: "83981456383" }),
+]);
+ok(cpfEtelefone.length === 1, "mesmo CPF E mesmo telefone viram UM grupo, não dois");
+ok(cpfEtelefone[0].motivo === "Mesmo CPF", "e o motivo é o mais forte dos dois");
+
+console.log("\nGravidade: o que trava alguém hoje vem primeiro\n");
+
+// O caso que motivou a varredura: a ficha DESLIGADA está com o Telegram, e o
+// bot recusa quem está na ativa com "já vinculado a outro colaborador".
+const telegramPreso = encontrarDuplicados([
+  pessoa({ id: "z1", nome: "Nicollas Cardoso", cpf: "71493065432", ativo: true }),
+  pessoa({ id: "z2", nome: "Nicolas Cardozo", cpf: "71493065432", ativo: false, temTelegram: true }),
+]);
+ok(telegramPreso[0]?.gravidade === "alta", "desligado segurando o Telegram é gravidade alta");
+
+// Recontratação normal: mesma pessoa, ficha velha encerrada, nada preso.
+const recontratado = encontrarDuplicados([
+  pessoa({ id: "r1", cpf: "09428744476", ativo: true }),
+  pessoa({ id: "r2", cpf: "09428744476", ativo: false }),
+]);
+ok(recontratado[0]?.gravidade === "baixa", "ativo + desligado sem Telegram preso é baixa (recontratação)");
+
+// Sem desligados na comparação, o caso do Nicollas seria invisível — que era
+// exatamente o estado da tela até 13/08/2026.
+ok(
+  encontrarDuplicados([pessoa({ id: "s1", cpf: "71493065432", ativo: true })]).length === 0,
+  "ficha sozinha não é duplicata de ninguém",
+);
+
+const ordenados = encontrarDuplicados([
+  pessoa({ id: "b1", cpf: "11111111111", ativo: true }),
+  pessoa({ id: "b2", cpf: "11111111111", ativo: false }),
+  pessoa({ id: "a1", cpf: "22222222222", ativo: true }),
+  pessoa({ id: "a2", cpf: "22222222222", ativo: true }),
+]);
+ok(
+  ordenados[0].gravidade === "alta" && ordenados[ordenados.length - 1].gravidade === "baixa",
+  "a lista sai ordenada: resolver agora no topo, recontratação no fim",
 );
 
 console.log(falhas === 0 ? "\n✅ Telefone: tudo certo\n" : `\n❌ ${falhas} falha(s)\n`);
