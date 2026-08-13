@@ -4,6 +4,44 @@ import { prisma } from "@/lib/prisma";
 import { registrarAuditoria } from "@/lib/audit";
 import { lerSessaoPortal } from "@/lib/portal-auth";
 
+async function calcularHorasTrabalhadas(
+  colaboradorId: string,
+  dataInicio: Date,
+  dataFim: Date
+) {
+  const pontos = await prisma.ponto.findMany({
+    where: {
+      colaboradorId,
+      dataHora: { gte: dataInicio, lt: dataFim },
+    },
+    orderBy: { dataHora: "asc" },
+  });
+
+  let horasTotais = 0;
+  let entradaPendente: typeof pontos[0] | null = null;
+
+  for (const ponto of pontos) {
+    if (ponto.tipo === "ENTRADA") {
+      entradaPendente = ponto;
+    } else if (ponto.tipo === "SAÍDA" && entradaPendente) {
+      const diffMs = ponto.dataHora.getTime() - entradaPendente.dataHora.getTime();
+      horasTotais += diffMs / (1000 * 60 * 60);
+      entradaPendente = null;
+    }
+  }
+
+  return horasTotais;
+}
+
+function obterSegundaFeira(data: Date): Date {
+  const segunda = new Date(data);
+  const dia = segunda.getUTCDay();
+  const diff = segunda.getUTCDate() - dia + (dia === 0 ? -6 : 1);
+  segunda.setUTCDate(diff);
+  segunda.setUTCHours(0, 0, 0, 0);
+  return segunda;
+}
+
 export type RegistroPontoInput = {
   tipo: "ENTRADA" | "SAÍDA";
   selfieBase64: string;
@@ -25,6 +63,7 @@ export async function registrarPonto(input: RegistroPontoInput) {
       id: true,
       nome: true,
       empresaId: true,
+      tipoContrato: true,
       setor: { select: { nome: true } },
     },
   });
@@ -86,6 +125,53 @@ export async function registrarPonto(input: RegistroPontoInput) {
       ok: false,
       error: `${input.tipo === "ENTRADA" ? "Entrada" : "Saída"} já registrada hoje`,
     };
+  }
+
+  // Validação de horário para estágiarios (5h/dia, 30h/semana)
+  if (colaborador.tipoContrato === "ESTAGIO" && input.tipo === "SAÍDA") {
+    // Calcular horas do dia (entrada até agora)
+    const entradaHoje = await prisma.ponto.findFirst({
+      where: {
+        colaboradorId: colaborador.id,
+        tipo: "ENTRADA",
+        dataHora: {
+          gte: hoje,
+          lt: amanhã,
+        },
+      },
+      orderBy: { dataHora: "asc" },
+    });
+
+    if (entradaHoje) {
+      const horasHoje =
+        (new Date().getTime() - entradaHoje.dataHora.getTime()) /
+        (1000 * 60 * 60);
+      if (horasHoje > 5) {
+        return {
+          ok: false,
+          error: `Estágiário não pode trabalhar mais de 5 horas por dia (já tem ${horasHoje.toFixed(1)}h)`,
+        };
+      }
+
+      // Calcular horas da semana
+      const segundaFeira = obterSegundaFeira(hoje);
+      const proximaSegunda = new Date(segundaFeira);
+      proximaSegunda.setDate(proximaSegunda.getDate() + 7);
+
+      const horasSemana = await calcularHorasTrabalhadas(
+        colaborador.id,
+        segundaFeira,
+        proximaSegunda
+      );
+
+      const horasComSaida = horasSemana + horasHoje;
+      if (horasComSaida > 30) {
+        return {
+          ok: false,
+          error: `Estágiário não pode trabalhar mais de 30 horas por semana (já tem ${horasSemana.toFixed(1)}h, com hoje seriam ${horasComSaida.toFixed(1)}h)`,
+        };
+      }
+    }
   }
 
   // Registrar o ponto

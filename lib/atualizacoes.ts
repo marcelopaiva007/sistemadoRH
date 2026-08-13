@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.87.0",
+    data: "13/08/2026",
+    horario: "10:15",
+    titulo: "Estágiarios: limite de 5h/dia e 30h/semana reforçado no ponto",
+    itens: [
+      "Estágiarios agora têm validação obrigatória ao registrar ponto de saída: o sistema recusa se houver tentativa de trabalhar mais de 5 horas num dia ou mais de 30 horas na semana.",
+      "O tipo de contrato \"Estágio\" já existia; agora tem as restrições de jornada automáticas. O portal mostra a classificação de estágiario em destaque na ficha.",
+      "Estágiarios continuam excluídos do controle de férias CLT — já estava correto. A restrição é apenas na quantidade de horas trabalhadas.",
+    ],
+  },
+  {
     versao: "1.86.0",
     data: "13/08/2026",
     horario: "09:40",
