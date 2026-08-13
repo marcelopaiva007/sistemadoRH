@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import {
   pendenciasPorEmpresa,
   empresasComRegistro,
+  porNatureza,
   semRegistroNoEscopo,
   totalPendencias,
   zeradas,
@@ -13,6 +14,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Indicador } from "@/components/indicador";
+import { primeiroNome, saudacao } from "@/lib/saudacao";
 import { PendenciasIndicador } from "./pendencias-indicador";
 
 // Tela inicial do grupo: quantas pessoas, o que está pendente e por onde
@@ -101,7 +103,22 @@ export default async function HomePage() {
   const totalColaboradores = resumos.reduce((a, r) => a + r.ativos, 0);
   const totalVagas = resumos.reduce((a, r) => a + r.vagasAbertas, 0);
   const totalIntegracoes = resumos.reduce((a, r) => a + r.integracoesAbertas, 0);
-  const totalPend = resumos.reduce((a, r) => a + totalPendencias(r.pendencias), 0);
+  // As 19 pendências separadas por natureza (lib/pendencias.ts). O total
+  // continua existindo — a soma por marca, os cartões e o popover seguem
+  // usando ele —, mas o TOPO da tela passa a mostrar os três grupos, porque
+  // "6 documentos esperando conferência" e "163 cadastros incompletos" não
+  // pedem a mesma coisa de quem abriu o sistema.
+  const naturezas = resumos.reduce(
+    (acc, r) => {
+      const n = porNatureza(r.pendencias);
+      return {
+        decidir: acc.decidir + n.decidir,
+        prazo: acc.prazo + n.prazo,
+        cadastro: acc.cadastro + n.cadastro,
+      };
+    },
+    { decidir: 0, prazo: 0, cadastro: 0 },
+  );
 
   // Resumo por marca calculado uma vez só, fora do JSX: o card de cada marca e
   // o link do indicador "Pendências" do topo precisam do mesmo número.
@@ -135,20 +152,63 @@ export default async function HomePage() {
 
   return (
     <div className="space-y-6">
+      {/* O cabeçalho diz o que espera ESTA pessoa hoje, e não o nome do
+          sistema (que já está na barra de cima). Antes era "Sistema de RH /
+          Visão do grupo" — uma legenda: verdadeira, e inútil para decidir o
+          que fazer no primeiro minuto depois do login. */}
       <div>
-        <h1 className="text-xl font-semibold tracking-tight">Sistema de RH</h1>
+        <h1 className="text-xl font-semibold tracking-tight">
+          {saudacao()}
+          {primeiroNome(user.name) ? `, ${primeiroNome(user.name)}` : ""}
+        </h1>
         <p className="text-sm text-muted-foreground">
-          {empresas.length > 1
-            ? "Visão do grupo. Escolha uma empresa para entrar."
-            : "Visão geral. Entre na empresa para operar."}
+          {naturezas.decidir > 0 ? (
+            <>
+              <strong className="text-foreground">
+                {naturezas.decidir}{" "}
+                {naturezas.decidir === 1 ? "item espera" : "itens esperam"} sua decisão
+              </strong>{" "}
+              — aprovações, documentos a conferir e CAT a emitir.
+            </>
+          ) : (
+            <>
+              Nada esperando decisão do RH agora.
+              {empresas.length > 1 ? " Escolha uma empresa para entrar." : ""}
+            </>
+          )}
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Indicador variante="cartao" icone={<Users className="size-4" />} rotulo="Colaboradores ativos" valor={totalColaboradores} />
-        <PendenciasIndicador total={totalPend} itens={marcasComPendencia} />
-        <Indicador variante="cartao" icone={<Briefcase className="size-4" />} rotulo="Vagas abertas" valor={totalVagas} />
-        <Indicador variante="cartao" icone={<Rocket className="size-4" />} rotulo="Integrações em aberto" valor={totalIntegracoes} />
+      {/* Três grupos, não um número só: "decidir" é fila do dia (gente
+          esperando), "prazo" é data correndo contra, "cadastro" é qualidade de
+          base sem data fatal. Somados, eram o mesmo "Pendências" de antes —
+          e o item acionável sumia dentro do maior. */}
+      <div className="grid gap-4 sm:grid-cols-3">
+        <PendenciasIndicador
+          rotulo="Esperando sua decisão"
+          total={naturezas.decidir}
+          itens={marcasComPendencia}
+          destaque
+        />
+        <PendenciasIndicador
+          rotulo="Prazo correndo"
+          total={naturezas.prazo}
+          itens={marcasComPendencia}
+        />
+        <PendenciasIndicador
+          rotulo="Cadastro a completar"
+          total={naturezas.cadastro}
+          itens={marcasComPendencia}
+          neutro
+        />
+      </div>
+
+      {/* Os números de contexto descem de posição, de propósito: quantos
+          colaboradores o grupo tem não muda o que se faz agora. */}
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Indicador icone={<Users className="size-4" />} rotulo="Colaboradores ativos" valor={totalColaboradores} />
+        <Indicador icone={<Briefcase className="size-4" />} rotulo="Vagas abertas" valor={totalVagas} />
+        <Indicador icone={<Rocket className="size-4" />} rotulo="Integrações em aberto" valor={totalIntegracoes} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">

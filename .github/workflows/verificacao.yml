@@ -76,6 +76,8 @@ jobs:
         run: npx tsx scripts/test-login-tentativas.ts
       - name: Resultado de pesquisa eNPS
         run: npx tsx scripts/test-pesquisa-enps-resultado.ts
+      - name: Pendências por natureza e saudação
+        run: npx tsx scripts/test-pendencias-natureza.ts
 
   # Os 27 smokes contra Postgres de verdade. O banco nasce vazio a cada
   # execução: schema gerado do prisma/schema.prisma via `migrate diff` (o

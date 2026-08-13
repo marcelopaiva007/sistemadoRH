@@ -26,6 +26,20 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.83.0",
+    data: "13/08/2026",
+    horario: "01:10",
+    titulo: "A tela inicial separa o que espera decisão do que é só acompanhamento",
+    itens: [
+      "O número \"Pendências\" somava 19 situações diferentes num só. Na prática isso escondia o que importa: hoje mesmo, \"163 cadastros incompletos\" e \"6 documentos esperando conferência\" moravam dentro do mesmo total de 169 — e o item que tinha gente esperando resposta sumia dentro do que não tem prazo nenhum.",
+      "Agora são três blocos, cada um com uma pergunta: ESPERANDO SUA DECISÃO (aprovações, documentos a conferir, CAT a emitir — alguém está parado esperando o RH), PRAZO CORRENDO (ASO, NR, EPI, férias, contratos — a data é que aperta) e CADASTRO A COMPLETAR (falta dado, mas nada trava hoje).",
+      "A cor acompanha a urgência: vermelho só onde há gente esperando, âmbar para o que vence, cor normal para cadastro. Assim um número alto de cadastro não parece incêndio.",
+      "O cabeçalho deixou de dizer \"Sistema de RH — visão do grupo\" (que a barra de cima já informa) e passa a cumprimentar pelo nome, dizendo de imediato quantos itens esperam decisão. Quando não há nenhum, ele diz isso com todas as letras.",
+      "Os números de contexto — colaboradores ativos, vagas abertas, integrações — continuam na tela, um pouco mais abaixo: são úteis para saber o tamanho do grupo, mas não mudam o que se faz agora.",
+      "Nada foi retirado da conta: os três blocos somados dão exatamente o total de antes, e há teste automático garantindo que nenhuma pendência fique fora de um dos grupos.",
+    ],
+  },
+  {
     versao: "1.82.0",
     data: "12/08/2026",
     horario: "19:30",
