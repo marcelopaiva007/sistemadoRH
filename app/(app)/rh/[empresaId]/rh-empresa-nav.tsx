@@ -65,8 +65,10 @@ const GRUPOS = [
   {
     titulo: "Departamento pessoal",
     itens: [
+      { slug: "ponto", label: "Ponto Eletrônico", icon: Clock },
       { slug: "aprovacoes", label: "Aprovações", icon: CheckSquare },
       { slug: "mensagens", label: "Mensagens", icon: MessageCircle },
+      { slug: "avisos-gestor", label: "Avisos ao gestor", icon: BellRing },
       { slug: "vencimentos", label: "Vencimentos", icon: CalendarDays },
       { slug: "ferias", label: "Férias", icon: Palmtree },
       { slug: "escalas", label: "Escalas", icon: ClipboardCheck },
@@ -155,6 +157,18 @@ const GRUPOS = [
     ],
   },
 ] as const;
+
+/**
+ * slug → rótulo do módulo, derivado dos MESMOS GRUPOS que desenham o menu.
+ *
+ * A trilha (components/trilha.tsx) lê daqui em vez de manter uma segunda
+ * lista: nomear o módulo em dois lugares garante que um dia o menu diga
+ * "Talentos" e a trilha diga "Candidatos" — o slug é o mesmo, o usuário é que
+ * fica sem saber se está na mesma tela.
+ */
+export const ROTULO_DO_MODULO: Record<string, string> = Object.fromEntries(
+  GRUPOS.flatMap(g => g.itens.map(i => [i.slug, i.label]))
+);
 
 export function RHEmpresaNav({ empresaId }: { empresaId: string }) {
   const pathname = usePathname();

@@ -7,7 +7,19 @@
 import { prisma, type Cliente } from "@/lib/prisma";
 import { hojeUTC } from "@/lib/datas";
 import { analisarDesligamentos, type VinculoParaAnomalia } from "@/lib/anomalias";
-import { decidirRegistro, type CandidatoSinal } from "@/lib/sinais";
+import { decidirRegistro, type CandidatoSinal, type NivelUnidadeSinal } from "@/lib/sinais";
+
+/**
+ * lib/anomalias.ts tem seu próprio NivelUnidade (5 valores, minúsculo, usado
+ * em todo aquele módulo) — não é o mesmo tipo de lib/sinais.ts::NivelUnidadeSinal,
+ * só coincide em parte. Mapeia só no limite entre os dois, sem tocar o módulo
+ * de anomalias por causa disto.
+ */
+const NIVEL_ANOMALIA_PARA_SINAL: Record<"grupo" | "marca" | "empresa", NivelUnidadeSinal> = {
+  grupo: "GRUPO",
+  marca: "MARCA",
+  empresa: "EMPRESA",
+};
 
 /**
  * O radar sempre varre 24 meses — mesma constante e mesmo motivo de
@@ -165,7 +177,7 @@ export async function coletarCandidatosDeAnomalias(
       // Mesma chave do radar na tela (`nivel:unidadeId:mes`) — evento datado:
       // junho/2026 e julho/2026 na mesma unidade são ocorrências distintas.
       chaveDedupe: `anomalia:${a.nivel}:${a.unidadeId}:${a.mes}`,
-      nivelUnidade: a.nivel,
+      nivelUnidade: NIVEL_ANOMALIA_PARA_SINAL[a.nivel],
       unidadeId: a.unidadeId,
       unidadeNome: a.unidadeNome,
       empresaId: a.nivel === "empresa" ? a.unidadeId : null,
@@ -176,7 +188,7 @@ export async function coletarCandidatosDeAnomalias(
           ? `~${a.esperado.toFixed(1).replace(".", ",")} pela média dos ${a.mesesDeBaseline} meses anteriores`
           : `nenhum nos ${a.mesesDeBaseline} meses anteriores`,
       recorte,
-      gravidade: "critica",
+      gravidade: "CRITICA",
     });
   }
   return candidatos;

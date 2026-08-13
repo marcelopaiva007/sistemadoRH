@@ -6,17 +6,30 @@ export default async function PosicoesPage({ params }: { params: Promise<{ empre
   const { empresaId } = await params;
   const usuario = await requireEmpresaAccess(empresaId);
 
-  // Buscar de todas as empresas que o usuário tem acesso
   const empresasDoUsuario = await empresasVisiveis(usuario);
 
-  const posicoes = await prisma.posicao.findMany({
-    where: { empresaId: { in: empresasDoUsuario } },
-    orderBy: [{ ativo: "desc" }, { empresaId: "asc" }, { nome: "asc" }],
-    include: {
-      _count: { select: { colaboradores: true } },
-      empresa: { select: { id: true, nome: true } },
-    },
-  });
+  const [posicoes, empresas] = await Promise.all([
+    prisma.posicao.findMany({
+      where: { empresaId: { in: empresasDoUsuario } },
+      orderBy: [{ ativo: "desc" }, { empresaId: "asc" }, { nome: "asc" }],
+      include: {
+        _count: { select: { colaboradores: true, vagas: true } },
+        empresa: { select: { id: true, nome: true } },
+      },
+    }),
+    prisma.empresa.findMany({
+      where: { id: { in: empresasDoUsuario } },
+      select: { id: true, nome: true },
+      orderBy: { nome: "asc" },
+    }),
+  ]);
 
-  return <PosicoesTable empresaId={empresaId} empresasDoUsuario={empresasDoUsuario} posicoes={posicoes} />;
+  return (
+    <PosicoesTable
+      empresaId={empresaId}
+      empresasDoUsuario={empresasDoUsuario}
+      posicoes={posicoes}
+      empresas={empresas}
+    />
+  );
 }

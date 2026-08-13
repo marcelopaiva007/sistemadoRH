@@ -28,7 +28,13 @@ export async function solicitarRecuperacaoSenha(_prev: ActionResult, formData: F
 
   const user = await prisma.user.findUnique({
     where: { email },
-    select: { id: true, nome: true, ativo: true },
+    select: {
+      id: true,
+      nome: true,
+      ativo: true,
+      recuperacaoSenhaTokenHash: true,
+      recuperacaoSenhaExpiraEm: true,
+    },
   });
 
   if (user && user.ativo) {
@@ -36,6 +42,10 @@ export async function solicitarRecuperacaoSenha(_prev: ActionResult, formData: F
     const tokenHash = hashToken(token);
     const expiraEm = new Date(Date.now() + RECUPERACAO_EXPIRA_EM_HORAS * 60 * 60 * 1000);
 
+    // O token é salvo antes do envio para que o link seja utilizável assim que
+    // a mensagem chegar. Se o SMTP falhar, o estado anterior é restaurado
+    // abaixo: pedir recuperação não pode invalidar um link que ainda funciona
+    // sem conseguir entregar o substituto.
     await prisma.user.update({
       where: { id: user.id },
       data: { recuperacaoSenhaTokenHash: tokenHash, recuperacaoSenhaExpiraEm: expiraEm },
@@ -56,14 +66,15 @@ export async function solicitarRecuperacaoSenha(_prev: ActionResult, formData: F
       <p>Se você não pediu isso, pode ignorar este e-mail — sua senha continua a mesma.</p>
     `.trim();
 
-    // Dedupe por hora: evita gastar cota de e-mail em quem aperta "reenviar"
-    // várias vezes seguidas — o link mais recente é sempre o que vale.
+    // A chave inclui o hash deste token. Um novo pedido invalida o anterior,
+    // portanto deduplicar apenas por e-mail deixaria o usuário com o token novo
+    // salvo no banco, mas sem receber um e-mail contendo esse token.
     const envio = await sendEmail({
       to: email,
       subject: "Redefinição de senha — Sistema de RH",
       html,
       text: `Acesse ${link} para redefinir sua senha. O link expira em ${RECUPERACAO_EXPIRA_EM_HORAS} hora.`,
-      chave: `recuperacao-senha:${email}`,
+      chave: `recuperacao-senha:${tokenHash}`,
     });
 
     if (envio.ok) {
@@ -73,6 +84,18 @@ export async function solicitarRecuperacaoSenha(_prev: ActionResult, formData: F
         entidadeId: user.id,
         resumo: `Solicitou redefinição de senha por e-mail (${email})`,
       });
+    } else {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          recuperacaoSenhaTokenHash: user.recuperacaoSenhaTokenHash,
+          recuperacaoSenhaExpiraEm: user.recuperacaoSenhaExpiraEm,
+        },
+      });
+      // Não revelamos se o endereço existe, mas uma falha operacional precisa
+      // aparecer para quem fez o pedido; caso contrário o fluxo parece concluído
+      // quando o SMTP está desligado ou indisponível.
+      return { ok: false, error: "Não foi possível enviar o link agora. Tente novamente em alguns minutos." };
     }
   }
 

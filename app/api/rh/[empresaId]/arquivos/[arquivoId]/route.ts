@@ -5,6 +5,7 @@
 // cada download entra na trilha de auditoria.
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { usuarioAlcancaEmpresa } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
 import { baixarDoBlob } from "@/lib/blob";
 import { registrarAuditoria } from "@/lib/audit";
@@ -23,9 +24,13 @@ export async function GET(
   const session = await auth();
   const user = session?.user;
   if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-  const autorizado =
-    user.role === "ADMIN" || user.empresas.some((e) => e.empresaId === empresaId && e.ativo);
-  if (!autorizado) return NextResponse.json({ error: "Sem acesso a esta empresa." }, { status: 403 });
+  // Uma linha, uma regra: `usuarioAlcancaEmpresa` de lib/rh-auth-guard.ts, a
+  // MESMA que decide o acesso às páginas. Aqui havia uma checagem escrita à
+  // mão — cinco variantes diferentes conviviam em nove rotas, e duas delas
+  // esqueciam DIRETORIA, cujo pivô `UserEmpresa` é vazio por desenho.
+  if (!(await usuarioAlcancaEmpresa(user, empresaId))) {
+    return NextResponse.json({ error: "Sem acesso a esta empresa." }, { status: 403 });
+  }
 
   const arquivo = await prisma.arquivo.findFirst({
     where: { id: arquivoId, empresaId },
@@ -63,7 +68,19 @@ export async function GET(
   // pessoal — um redirect entregaria o arquivo sem passar pelo guarda.
   if (arquivo.blobUrl) {
     const doBlob = await baixarDoBlob(arquivo.blobUrl);
-    if (!doBlob.ok) return new NextResponse(doBlob.error, { status: 404 });
+    // Registro sem conteúdo: a linha existe no banco, o arquivo não existe
+    // mais no armazenamento. Aconteceu de verdade em 11–12/08/2026 — o store
+    // foi esvaziado e reconectado, e os anexos enviados antes disso ficaram
+    // órfãos. Quem abre precisa saber O QUE FAZER, não só que "deu 404":
+    // devolver o documento pela fila avisa o colaborador para reenviar.
+    if (!doBlob.ok) {
+      return new NextResponse(
+        `O anexo "${arquivo.nome}" não está mais no armazenamento de arquivos — a linha ficou, o conteúdo se perdeu ` +
+          `(isso atingiu documentos enviados antes de 12/08/2026, quando o armazenamento foi esvaziado e religado). ` +
+          `Não há como recuperar este arquivo: use "Devolver" na Central de Aprovações para o colaborador ser avisado e reenviar.`,
+        { status: 404, headers: { "Content-Type": "text/plain; charset=utf-8" } },
+      );
+    }
     return new NextResponse(doBlob.bytes, {
       headers: {
         "Content-Type": arquivo.mimeType,

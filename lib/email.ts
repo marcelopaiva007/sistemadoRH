@@ -103,6 +103,13 @@ export async function sendEmail(params: {
    * Omitir a chave desliga o dedupe (use quando o reenvio é o objetivo).
    */
   chave?: string;
+  /**
+   * Cópia — endereço inválido é descartado em silêncio (quem importa para o
+   * dedupe/teto/supressão é `to`; `cc` nunca bloqueia nem conta feedback de
+   * erro próprio). Usado hoje só pela cobrança de pendências do RH
+   * (lib/cobranca-rh-pendencias.ts), para o gestor acompanhar em cópia.
+   */
+  cc?: string[];
 }): Promise<ResultadoEnvio> {
   const [host, portRaw, user, pass, fromRaw] = await Promise.all([
     segredo(CHAVE_SMTP_HOST),
@@ -170,12 +177,14 @@ export async function sendEmail(params: {
     const remetente = params.fromName
       ? `${params.fromName} <${String(from).match(/<(.+)>/)?.[1] ?? from}>`
       : from;
+    const cc = params.cc?.map(normalizarEmail).filter((e) => FORMATO_EMAIL.test(e));
     await transporter.sendMail({
       from: remetente,
       to: para,
       subject: params.subject,
       html: params.html,
       ...(params.text ? { text: params.text } : {}),
+      ...(cc && cc.length > 0 ? { cc } : {}),
     });
   } catch (e) {
     erro = `Falha ao enviar e-mail: ${e instanceof Error ? e.message : String(e)}`;

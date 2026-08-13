@@ -75,7 +75,16 @@ export async function GET(
   // pessoal — um redirect entregaria o arquivo sem passar pelo guarda.
   if (arquivo.blobUrl) {
     const doBlob = await baixarDoBlob(arquivo.blobUrl);
-    if (!doBlob.ok) return new NextResponse(doBlob.error, { status: 404 });
+    // Mesmo caso da rota do RH: linha sem conteúdo, porque o armazenamento foi
+    // esvaziado em 11–12/08/2026. Aqui quem lê é o colaborador — a instrução é
+    // reenviar, sem jargão nenhum.
+    if (!doBlob.ok) {
+      return new NextResponse(
+        `Este arquivo ("${arquivo.nome}") se perdeu no armazenamento e não abre mais. ` +
+          `Envie o documento de novo pela aba "Enviar documentos" — desculpe o transtorno.`,
+        { status: 404, headers: { "Content-Type": "text/plain; charset=utf-8" } },
+      );
+    }
     return new NextResponse(doBlob.bytes, {
       headers: {
         "Content-Type": arquivo.mimeType,

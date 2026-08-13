@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ChevronLeft, ChevronRight, IdCard, Pencil } from "lucide-react";
+import { IdCard, Pencil } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -13,10 +13,8 @@ import { corrigirDadosDesligamento } from "@/lib/actions/rh-offboarding";
 import { formatarData } from "@/lib/datas";
 import { Indicador } from "@/components/indicador";
 import { CampoData, CampoSelect, FormularioAction } from "../colaboradores/[colaboradorId]/campos";
-
-// A lista cobre o recorte inteiro (105+ desligados) — sem paginação virava
-// rolagem infinita. Mesmo tamanho de página da tela de Férias.
-const ITENS_POR_PAGINA = 20;
+import { Paginacao } from "@/components/paginacao";
+import { usePaginacao } from "@/lib/use-paginacao";
 
 type Desligamento = {
   id: string;
@@ -40,17 +38,8 @@ export function DesligamentosView({
   resumo: { total: number; semChecklist: number; checklistPendente: number; semEntrevista: number };
 }) {
   const router = useRouter();
-  const [pagina, setPagina] = useState(1);
-  // Quem está sendo editado no diálogo de data/motivo — null fecha o diálogo.
   const [editando, setEditando] = useState<Desligamento | null>(null);
-
-  const totalPaginas = Math.max(1, Math.ceil(desligamentos.length / ITENS_POR_PAGINA));
-  // Clampa em vez de useEffect — mesmo motivo da tela de Férias: a lista pode
-  // encolher entre renders (filtro de marca na lateral) e a página não pode
-  // ficar presa além do fim.
-  const paginaAtual = Math.min(pagina, totalPaginas);
-  const inicioPagina = (paginaAtual - 1) * ITENS_POR_PAGINA;
-  const visiveisNaPagina = desligamentos.slice(inicioPagina, inicioPagina + ITENS_POR_PAGINA);
+  const { itensDaPagina: desligamentosNaPagina, ...paginacao } = usePaginacao(desligamentos);
 
   return (
     <div className="space-y-6">
@@ -84,7 +73,7 @@ export function DesligamentosView({
             </p>
           ) : (
             <div className="rounded-md border">
-              <Table>
+              <Table compacta>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Colaborador</TableHead>
@@ -98,7 +87,7 @@ export function DesligamentosView({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {visiveisNaPagina.map((d) => (
+                  {desligamentosNaPagina.map((d) => (
                     <TableRow key={d.id}>
                       <TableCell>
                         <Link
@@ -168,40 +157,15 @@ export function DesligamentosView({
               </Table>
             </div>
           )}
-
-          {desligamentos.length > 0 && (
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm text-muted-foreground">
-                {inicioPagina + 1}–{Math.min(inicioPagina + ITENS_POR_PAGINA, desligamentos.length)}{" "}
-                de {desligamentos.length}
-              </p>
-              {totalPaginas > 1 && (
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setPagina(paginaAtual - 1)}
-                    disabled={paginaAtual <= 1}
-                    className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
-                  >
-                    <ChevronLeft className="size-4" />
-                    Anterior
-                  </button>
-                  <span className="text-sm text-muted-foreground tabular-nums">
-                    Página {paginaAtual} de {totalPaginas}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setPagina(paginaAtual + 1)}
-                    disabled={paginaAtual >= totalPaginas}
-                    className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
-                  >
-                    Próxima
-                    <ChevronRight className="size-4" />
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
+          <div className="mt-4">
+            <Paginacao
+              total={paginacao.total}
+              porPagina={paginacao.porPagina}
+              paginaAtual={paginacao.paginaAtual}
+              totalPaginas={paginacao.totalPaginas}
+              onMudarPagina={paginacao.irPara}
+            />
+          </div>
         </CardContent>
       </Card>
 
@@ -247,4 +211,3 @@ export function DesligamentosView({
     </div>
   );
 }
-

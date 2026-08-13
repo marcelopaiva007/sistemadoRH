@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useFiltroEmpresas } from "../filtro-empresas";
@@ -60,12 +60,15 @@ import {
   deleteColaborador,
 } from "@/lib/actions/rh-colaboradores";
 import { AtivarDesativarButton } from "./ativar-desativar-button";
+import { CobrarCadastroButton } from "./cobrar-cadastro-button";
 import { AlertaDuplicados } from "./alerta-duplicados";
 import { ConferirCpfs } from "./conferir-cpfs";
 import { formatarCpf, mascararCpf } from "@/lib/cpf";
+import { telefoneCasaBusca } from "@/lib/telefone";
 import type { ActionResult } from "@/lib/constants";
 import { TIPOS_CONTRATO, CONTRATOS_POR_PRAZO } from "@/lib/constants-dp";
 import { cn } from "@/lib/utils";
+import { AjudaDaTela } from "@/components/ajuda-da-tela";
 
 // Rótulos das lacunas — os mesmos textos do bloco na tela inicial, para quem
 // clica reconhecer onde chegou.
@@ -79,6 +82,7 @@ const ROTULO_LACUNA: Record<string, string> = {
   ferias: "sem nenhuma férias registrada",
   desligamento_data: "sem data de desligamento",
   desligamento_motivo: "sem motivo de desligamento",
+  incompleto: "com cadastro incompleto",
 };
 
 function temLacuna(
@@ -92,6 +96,7 @@ function temLacuna(
     posicao: { nome: string };
     semDataDesligamento?: boolean;
     semMotivoDesligamento?: boolean;
+    semCadastroCompleto: boolean;
   },
   chave: string,
 ): boolean {
@@ -108,7 +113,16 @@ function temLacuna(
     // lista inteira apareceria como lacuna.
     case "desligamento_data": return Boolean(c.semDataDesligamento);
     case "desligamento_motivo": return Boolean(c.semMotivoDesligamento);
-    default: return true;
+    // Booleano montado no servidor (colaboradores/page.tsx) com a mesma função
+    // que conta o cartão: `cadastroIncompleto` de lib/pendencias.ts. RG,
+    // endereço e banco não chegam neste componente.
+    case "incompleto": return c.semCadastroCompleto;
+    // Chave desconhecida esconde todo mundo, em vez de mostrar todo mundo.
+    // Era o contrário, e foi assim que um cartão novo apontando para uma chave
+    // sem `case` foi parar em revisão parecendo funcionar: ele abria a lista
+    // COMPLETA, e lista completa é indistinguível de "filtro que não filtra
+    // nada". Lista vazia dói na hora, que é quando ainda dá para consertar.
+    default: return false;
   }
 }
 
@@ -133,6 +147,7 @@ type Colaborador = {
   semFerias: boolean;
   semDataDesligamento: boolean;
   semMotivoDesligamento: boolean;
+  semCadastroCompleto: boolean;
   gerente: boolean;
   ativo: boolean;
   empresaId: string;
@@ -328,19 +343,23 @@ function Kpi({
 
 export function ColaboradoresTable({
   empresaId,
-  empresasDoUsuario,
+  empresasDoEscopo,
   colaboradores,
   setores,
   posicoes,
+  marcaPorEmpresa,
 }: {
   empresaId: string;
-  empresasDoUsuario: string[];
+  // Era `empresasDoUsuario` (tudo que a pessoa enxerga) até 10/08/2026; o
+  // servidor agora manda só a MARCA do caminho, já cruzada com ?empresas=.
+  empresasDoEscopo: string[];
   colaboradores: Colaborador[];
   setores: Setor[];
   posicoes: Posicao[];
+  marcaPorEmpresa: Record<string, string>;
 }) {
   // Aplicar filtro de marcas/empresas selecionadas
-  const empresasSelecionadas = useFiltroEmpresas(empresasDoUsuario);
+  const empresasSelecionadas = useFiltroEmpresas(empresasDoEscopo);
   // Estado DERIVADO do filtro: useMemo, não useState + useEffect.
   // A forma anterior (setState dentro de effect) dispara render em cascata — o
   // lint barra, e com razão: foi essa mesma forma que congelou esta tela em
@@ -358,6 +377,20 @@ export function ColaboradoresTable({
     () => posicoes.filter((p) => empresasSelecionadas.includes(p.empresaId)),
     [posicoes, empresasSelecionadas],
   );
+
+  // Listas do FORMULÁRIO de novo/editar: só a marca da empresa-alvo. O
+  // catálogo de setores/cargos foi unificado por marca e o servidor valida
+  // nesse escopo — oferecer outra marca aqui (um ADMIN enxerga todas) faria a
+  // tela mostrar uma escolha que o Salvar recusa. Os filtros da TABELA acima
+  // continuam com o recorte inteiro: filtrar pode cruzar marcas, salvar não.
+  const listasDaMarca = (alvoEmpresaId: string) => {
+    const marca = marcaPorEmpresa[alvoEmpresaId];
+    return {
+      setores: setores.filter((s) => marcaPorEmpresa[s.empresaId] === marca),
+      posicoes: posicoes.filter((p) => marcaPorEmpresa[p.empresaId] === marca),
+      lideres: colaboradores.filter((c) => marcaPorEmpresa[c.empresaId] === marca),
+    };
+  };
   const [createOpen, setCreateOpen] = useState(false);
   const [editColaborador, setEditColaborador] = useState<Colaborador | null>(null);
   const [busca, setBusca] = useState("");
@@ -391,24 +424,36 @@ export function ColaboradoresTable({
     return { total: colaboradoresFiltrados.length, ativos, telegram, semSetor };
   }, [colaboradoresFiltrados]);
 
-  const filtrados = useMemo(() => {
-    const termo = busca.trim().toLowerCase();
-    const termoDigitos = termo.replace(/\D/g, "");
+  const casaComBusca = useCallback(
+    (c: Colaborador) => {
+      const termo = busca.trim().toLowerCase();
+      if (!termo) return true;
+      const termoDigitos = termo.replace(/\D/g, "");
+      return (
+        c.nome.toLowerCase().includes(termo) ||
+        Boolean(termoDigitos && c.cpf?.includes(termoDigitos)) ||
+        // Telefone entra na busca porque é a pergunta que o RH faz quando o bot
+        // recusa um vínculo: "esse número está cadastrado em outra ficha?". O
+        // alerta de duplicatas já respondia parte disso, mas só entre ativos —
+        // e número velho costuma ficar preso exatamente numa ficha desligada.
+        // Mínimo de 4 dígitos: "8" casaria com meia empresa.
+        Boolean(termoDigitos.length >= 4 && telefoneCasaBusca(c.telefone, termoDigitos)) ||
+        Boolean(c.email?.toLowerCase().includes(termo)) ||
+        c.setor.nome.toLowerCase().includes(termo) ||
+        c.posicao.nome.toLowerCase().includes(termo)
+      );
+    },
+    [busca],
+  );
 
+  const filtrados = useMemo(() => {
     const lista = colaboradoresFiltrados.filter((c) => {
       if (filtroStatus === "ativos" && !c.ativo) return false;
       if (filtroStatus === "inativos" && c.ativo) return false;
       if (filtroSetor !== "todos" && c.setorId !== filtroSetor) return false;
       if (filtroPosicao !== "todos" && c.posicaoId !== filtroPosicao) return false;
       if (lacuna && !temLacuna(c, lacuna)) return false;
-      if (!termo) return true;
-      return (
-        c.nome.toLowerCase().includes(termo) ||
-        Boolean(termoDigitos && c.cpf?.includes(termoDigitos)) ||
-        Boolean(c.email?.toLowerCase().includes(termo)) ||
-        c.setor.nome.toLowerCase().includes(termo) ||
-        c.posicao.nome.toLowerCase().includes(termo)
-      );
+      return casaComBusca(c);
     });
 
     // localeCompare com "pt-BR": sem isso, "Ávila" cairia depois de "Zuza",
@@ -419,13 +464,65 @@ export function ColaboradoresTable({
       const r = valor(a).localeCompare(valor(b), "pt-BR", { sensitivity: "base" });
       return ordem.desc ? -r : r;
     });
-  }, [colaboradoresFiltrados, busca, filtroSetor, filtroPosicao, filtroStatus, ordem, lacuna]);
+  }, [colaboradoresFiltrados, casaComBusca, filtroSetor, filtroPosicao, filtroStatus, ordem, lacuna]);
+
+  // Quantos casam com a busca mas o filtro de status está escondendo.
+  //
+  // Silêncio é a pior resposta possível aqui: quem digita um telefone está
+  // perguntando "esse número está em outra ficha?", e uma lista vazia por causa
+  // do filtro padrão ("ativos") responde "não" quando a resposta é "sim, na
+  // ficha de um desligado". O aviso só aparece quando existe alguém escondido.
+  const escondidosPeloStatus = useMemo(() => {
+    if (!busca.trim() || filtroStatus === "todos") return 0;
+    return colaboradoresFiltrados.filter((c) => {
+      if (filtroStatus === "ativos" ? c.ativo : !c.ativo) return false;
+      if (filtroSetor !== "todos" && c.setorId !== filtroSetor) return false;
+      if (filtroPosicao !== "todos" && c.posicaoId !== filtroPosicao) return false;
+      if (lacuna && !temLacuna(c, lacuna)) return false;
+      return casaComBusca(c);
+    }).length;
+  }, [colaboradoresFiltrados, casaComBusca, busca, filtroSetor, filtroPosicao, filtroStatus, lacuna]);
 
   const totalPaginas = Math.max(1, Math.ceil(filtrados.length / POR_PAGINA));
   // Mudar filtro pode encolher a lista para menos páginas do que a atual;
   // sem isso a tela ficaria vazia sem explicação.
   const paginaAtual = Math.min(pagina, totalPaginas);
   const visiveis = filtrados.slice((paginaAtual - 1) * POR_PAGINA, paginaAtual * POR_PAGINA);
+
+  // Seleção para a cobrança de cadastro em lote. Guarda IDs, não índices: a
+  // ordenação e a paginação reordenam a lista embaixo do usuário, e índice
+  // sobrevivente de uma ordenação anterior selecionaria outra pessoa.
+  //
+  // A seleção NÃO é limpa ao trocar de página de propósito — montar um lote de
+  // 30 pessoas que caem em três páginas é exatamente o caso de uso. Quem quiser
+  // zerar tem o botão na barra.
+  const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
+
+  const alternarUm = (id: string) =>
+    setSelecionados((atual) => {
+      const proximo = new Set(atual);
+      if (!proximo.delete(id)) proximo.add(id);
+      return proximo;
+    });
+
+  const todosVisiveisMarcados = visiveis.length > 0 && visiveis.every((c) => selecionados.has(c.id));
+
+  const alternarTodosVisiveis = () =>
+    setSelecionados((atual) => {
+      const proximo = new Set(atual);
+      // "Todos" é sempre "todos DESTA página", nunca a base inteira: marcar 800
+      // pessoas com um clique e mandar mensagem para elas não pode ser um
+      // acidente de meio segundo.
+      if (todosVisiveisMarcados) visiveis.forEach((c) => proximo.delete(c.id));
+      else visiveis.forEach((c) => proximo.add(c.id));
+      return proximo;
+    });
+
+  // Aviso honesto na barra: quem não tem canal vai ser recusado no envio, e é
+  // melhor dizer antes do clique do que depois, num toast de erro.
+  const selecionadosSemCanal = colaboradores.filter(
+    (c) => selecionados.has(c.id) && !c.telegramChatId && !c.email,
+  ).length;
 
   const aoOrdenar = (campo: CampoOrdenavel) => {
     setOrdem((o) => (o.campo === campo ? { campo, desc: !o.desc } : { campo, desc: false }));
@@ -450,6 +547,11 @@ export function ColaboradoresTable({
     setPagina(1);
   }
 
+  // Criação sempre grava na empresa da rota; edição, na empresa do próprio
+  // colaborador (que pode ser de outra marca para quem enxerga o grupo todo).
+  const listasCriacao = listasDaMarca(empresaId);
+  const listasEdicao = editColaborador ? listasDaMarca(editColaborador.empresaId) : null;
+
   return (
     <div className="space-y-4">
       <AlertaDuplicados empresaId={empresaId} colaboradores={colaboradores} />
@@ -460,10 +562,13 @@ export function ColaboradoresTable({
       <div className="rounded-xl border bg-card p-4 shadow-xs">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="space-y-0.5">
-            <h2 className="flex items-center gap-2 text-lg font-semibold">
-              <Users className="size-5 text-primary" />
-              Equipe
-            </h2>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="flex items-center gap-2 text-lg font-semibold">
+                <Users className="size-5 text-primary" />
+                Equipe
+              </h2>
+              <AjudaDaTela modulo="colaboradores" />
+            </div>
             {/* "no recorte atual", nunca "na empresa atual": aberta pelo menu,
                 esta tela soma TUDO que o usuário enxerga (para ADMIN, o grupo
                 inteiro) — dizer "empresa" fazia o KPI de Telegram parecer
@@ -486,9 +591,9 @@ export function ColaboradoresTable({
               <ColaboradorForm
                 action={createColaborador.bind(null, empresaId)}
                 title="Novo Colaborador"
-                setores={setoresFiltrados}
-                posicoes={posicoesFiltradas}
-                candidatosSupervisor={colaboradores}
+                setores={listasCriacao.setores}
+                posicoes={listasCriacao.posicoes}
+                candidatosSupervisor={listasCriacao.lideres}
                 onSuccess={() => setCreateOpen(false)}
               />
             </DialogContent>
@@ -545,7 +650,7 @@ export function ColaboradoresTable({
           <div className="relative min-w-0 flex-1 sm:max-w-xs">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Buscar por nome, CPF, e-mail, setor ou cargo..."
+              placeholder="Buscar por nome, CPF, telefone, e-mail, setor ou cargo..."
               value={busca}
               onChange={(e) => {
                 setBusca(e.target.value);
@@ -605,12 +710,59 @@ export function ColaboradoresTable({
             </Button>
           )}
         </div>
+        {escondidosPeloStatus > 0 && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            Mais {escondidosPeloStatus} ficha{escondidosPeloStatus > 1 ? "s" : ""} casa
+            {escondidosPeloStatus > 1 ? "m" : ""} com essa busca em{" "}
+            {filtroStatus === "ativos" ? "desligados" : "ativos"}.{" "}
+            <button
+              type="button"
+              onClick={() => aoFiltrar(setFiltroStatus)("todos")}
+              className="underline underline-offset-2 hover:text-foreground"
+            >
+              Mostrar ativos e inativos
+            </button>
+          </p>
+        )}
       </div>
+
+      {/* Barra de ação da seleção. Só aparece com alguém marcado — uma barra
+          permanente vazia vira ruído em cima da tabela. */}
+      {selecionados.size > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-muted/40 px-4 py-2.5">
+          <span className="text-sm">
+            <b>{selecionados.size}</b> selecionado(s)
+            {selecionadosSemCanal > 0 && (
+              <span className="text-muted-foreground">
+                {" "}· {selecionadosSemCanal} sem Telegram nem e-mail, que não recebem
+              </span>
+            )}
+          </span>
+          <div className="flex items-center gap-2">
+            <CobrarCadastroButton
+              empresaId={empresaId}
+              colaboradorIds={[...selecionados]}
+              rotulo={`Cobrar cadastro (${selecionados.size})`}
+              onEnviado={() => setSelecionados(new Set())}
+            />
+            <Button type="button" variant="ghost" size="sm" onClick={() => setSelecionados(new Set())}>
+              Limpar seleção
+            </Button>
+          </div>
+        </div>
+      )}
 
       <div className="rounded-xl border bg-card shadow-xs">
         <Table compacta>
           <TableHeader>
             <TableRow className="bg-muted/40 hover:bg-muted/40">
+              <TableHead className="w-10">
+                <Checkbox
+                  aria-label="Selecionar todos os visíveis"
+                  checked={todosVisiveisMarcados}
+                  onCheckedChange={alternarTodosVisiveis}
+                />
+              </TableHead>
               <ColunaOrdenavel campo="nome" rotulo="Colaborador" ordem={ordem} aoOrdenar={aoOrdenar} />
               <TableHead>CPF</TableHead>
               <TableHead>E-mail</TableHead>
@@ -624,7 +776,7 @@ export function ColaboradoresTable({
           <TableBody>
             {visiveis.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8} className="py-12 text-center">
+                <TableCell colSpan={9} className="py-12 text-center">
                   <div className="mx-auto flex max-w-sm flex-col items-center gap-2">
                     <span className="flex size-12 items-center justify-center rounded-full bg-muted">
                       <Users className="size-6 text-muted-foreground" />
@@ -646,6 +798,13 @@ export function ColaboradoresTable({
             )}
             {visiveis.map((c) => (
               <TableRow key={c.id} className="group">
+                <TableCell className="py-2">
+                  <Checkbox
+                    aria-label={`Selecionar ${c.nome}`}
+                    checked={selecionados.has(c.id)}
+                    onCheckedChange={() => alternarUm(c.id)}
+                  />
+                </TableCell>
                 <TableCell className="py-2">
                   <Link
                     // A lista traz colaboradores de TODAS as marcas visíveis ao
@@ -769,13 +928,13 @@ export function ColaboradoresTable({
 
       <Dialog open={!!editColaborador} onOpenChange={(open) => !open && setEditColaborador(null)}>
         <DialogContent>
-          {editColaborador && (
+          {editColaborador && listasEdicao && (
             <ColaboradorForm
               action={updateColaborador.bind(null, editColaborador.empresaId, editColaborador.id)}
               title="Editar Colaborador"
-              setores={setoresFiltrados}
-              posicoes={posicoesFiltradas}
-              candidatosSupervisor={colaboradores}
+              setores={listasEdicao.setores}
+              posicoes={listasEdicao.posicoes}
+              candidatosSupervisor={listasEdicao.lideres}
               defaultValues={editColaborador}
               onSuccess={() => setEditColaborador(null)}
             />

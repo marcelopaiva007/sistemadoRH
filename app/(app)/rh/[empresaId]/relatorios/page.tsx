@@ -203,7 +203,11 @@ export default async function RelatoriosPage({
                           size="sm"
                           render={
                             <a
-                              href={`/api/rh/${empresaId}/pesquisas/${p.id}/relatorio-pdf`}
+                              href={
+                                p.modelo === "CLIMA"
+                                  ? `/api/rh/${empresaId}/pesquisas/${p.id}/relatorio-clima-pdf`
+                                  : `/api/rh/${empresaId}/pesquisas/${p.id}/relatorio-pdf`
+                              }
                               target="_blank"
                               rel="noreferrer"
                             />

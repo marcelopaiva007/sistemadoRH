@@ -1,7 +1,17 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["@sparticuz/chromium", "playwright-core"],
+  serverExternalPackages: [
+    "@sparticuz/chromium",
+    "playwright-core",
+    "@prisma/adapter-pg",
+    "pg",
+    "pg-connection-string",
+    "pgpass",
+  ],
+  turbopack: {
+    root: __dirname,
+  },
   // O tracer não detecta os arquivos auxiliares do playwright/chromium
   // (browsers.json, binário) — inclui o pacote inteiro na função do relatório
   // PDF.
@@ -9,7 +19,7 @@ const nextConfig: NextConfig = {
   // escape, então usamos `**` no lugar dos segmentos dinâmicos. O sufixo importa
   // — sem ele, o Chromium entraria também na função de download de anexos.
   outputFileTracingIncludes: {
-    "/api/rh/**/relatorio-pdf": [
+    "/api/rh/**/relatorio*pdf": [
       "./node_modules/playwright-core/**/*",
       "./node_modules/@sparticuz/chromium/**/*",
     ],

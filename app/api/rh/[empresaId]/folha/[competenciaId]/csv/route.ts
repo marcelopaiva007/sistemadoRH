@@ -11,6 +11,7 @@
 // Como todo download de dado pessoal no sistema, entra na trilha de auditoria.
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { usuarioAlcancaEmpresa } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
 import { registrarAuditoria } from "@/lib/audit";
 import { formatarCompetencia, rubricaLabel, rubricaNatureza, rubricaUnidade } from "@/lib/constants-folha";
@@ -32,10 +33,13 @@ export async function GET(
   const session = await auth();
   const user = session?.user;
   if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-  const autorizado =
-    user.role === "ADMIN" ||
-    user.empresas.some((e) => e.empresaId === empresaId && e.ativo);
-  if (!autorizado) return NextResponse.json({ error: "Sem acesso a esta empresa." }, { status: 403 });
+  // Uma linha, uma regra: `usuarioAlcancaEmpresa` de lib/rh-auth-guard.ts, a
+  // MESMA que decide o acesso às páginas. Aqui havia uma checagem escrita à
+  // mão — cinco variantes diferentes conviviam em nove rotas, e duas delas
+  // esqueciam DIRETORIA, cujo pivô `UserEmpresa` é vazio por desenho.
+  if (!(await usuarioAlcancaEmpresa(user, empresaId))) {
+    return NextResponse.json({ error: "Sem acesso a esta empresa." }, { status: 403 });
+  }
 
   const competencia = await prisma.competenciaFolha.findFirst({
     where: { id: competenciaId, empresaId },

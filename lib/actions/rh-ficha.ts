@@ -3,10 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
+import { empresasDaMesmaMarca } from "@/lib/escopo-marca";
 import { registrarAuditoria, diffCampos } from "@/lib/audit";
 import { violouUnique } from "@/lib/prisma-erros";
 import { criariCiclo } from "@/lib/organograma";
-import { dataDoFormulario } from "@/lib/datas";
+import { dataDoFormulario, inicioDoDiaUTC, mesmoDiaUTC } from "@/lib/datas";
 import type { ActionResult } from "@/lib/constants";
 
 // A ficha é editada por blocos (identificação, endereço, emergência, banco,
@@ -50,12 +51,13 @@ const CAMPOS: Record<string, Tipo> = {
   emergenciaNome: "texto",
   emergenciaParentesco: "texto",
   emergenciaTelefone: "texto",
-  // dados bancários
-  bancoNome: "texto",
-  bancoAgencia: "texto",
-  bancoConta: "texto",
-  bancoTipoConta: "texto",
-  chavePix: "texto",
+  // Os campos bancários saíram desta tabela em 13/08/2026, com o bloco de
+  // pagamento da ficha. A chave passou a ser o CPF do colaborador (PIX-CPF), e
+  // esta tabela é a lista do que a ficha ACEITA gravar: manter banco, agência,
+  // conta e chavePix aqui deixaria um caminho de escrita aberto para campos que
+  // nenhuma tela mostra — server action é endpoint público, e o que continua
+  // aceito continua gravável por um POST à mão. As colunas seguem no banco com
+  // o histórico; só não há mais como escrever nelas.
   // vínculo
   dataAdmissao: "data",
   dataDesligamento: "data",
@@ -72,8 +74,9 @@ const SO_DIGITOS = new Set(["cpf", "pis", "tituloEleitor", "cep"]);
 
 // Sentinela do <select> de líder: campo ausente = bloco não postou isso;
 // string vazia = "sem líder". Fora da tabela CAMPOS porque setor/cargo/líder
-// são chaves estrangeiras — precisam ser conferidas contra a empresa antes de
-// gravar, e um id inválido aqui é erro de escopo, não texto livre.
+// são chaves estrangeiras — precisam ser conferidas contra a marca (setor e
+// cargo) ou a empresa (líder) antes de gravar, e um id inválido aqui é erro
+// de escopo, não texto livre.
 const CAMPOS_ESTRUTURA = ["setorId", "posicaoId", "supervisorId"] as const;
 
 function lerCampo(formData: FormData, campo: string, tipo: Tipo): unknown | undefined {
@@ -96,8 +99,14 @@ function lerCampo(formData: FormData, campo: string, tipo: Tipo): unknown | unde
 }
 
 /**
- * Confere setor/cargo/líder contra a empresa da rota e escreve em `data`.
- * Devolve a mensagem de erro, ou null se está tudo certo.
+ * Confere setor/cargo/líder e escreve em `data`. Devolve a mensagem de erro,
+ * ou null se está tudo certo.
+ *
+ * Setor e cargo são conferidos contra a MARCA, não contra o CNPJ da rota: a
+ * higienização das telas de Setores/Cargos unificou os nomes duplicados numa
+ * linha só por grupo, então o cargo de um colaborador da BRNET pode viver
+ * cadastrado na RSM — validar por empresa recusava a própria lista que a tela
+ * oferece (ver validarSetorEPosicaoDaMarca em rh-colaboradores.ts).
  *
  * Setor e cargo são obrigatórios no banco (NOT NULL): a ficha corrige quem
  * ficou em "Não definido" na importação, nunca esvazia. Líder é opcional e
@@ -114,20 +123,27 @@ async function validarEstrutura(
   data: Record<string, unknown>,
 ): Promise<string | null> {
   const colaboradorId = colaborador.id;
+  const escopoMarca = await empresasDaMesmaMarca(empresaId);
 
   const setorId = String(formData.get("setorId") ?? "").trim();
   if (formData.has("setorId")) {
     if (!setorId) return "Selecione o setor.";
-    const setor = await prisma.setor.findFirst({ where: { id: setorId, empresaId }, select: { id: true } });
-    if (!setor) return "Setor inválido para esta empresa.";
+    const setor = await prisma.setor.findFirst({
+      where: { id: setorId, empresaId: { in: escopoMarca } },
+      select: { id: true },
+    });
+    if (!setor) return "Setor inválido para esta marca.";
     data.setorId = setorId;
   }
 
   const posicaoId = String(formData.get("posicaoId") ?? "").trim();
   if (formData.has("posicaoId")) {
     if (!posicaoId) return "Selecione o cargo.";
-    const posicao = await prisma.posicao.findFirst({ where: { id: posicaoId, empresaId }, select: { id: true } });
-    if (!posicao) return "Cargo inválido para esta empresa.";
+    const posicao = await prisma.posicao.findFirst({
+      where: { id: posicaoId, empresaId: { in: escopoMarca } },
+      select: { id: true },
+    });
+    if (!posicao) return "Cargo inválido para esta marca.";
     data.posicaoId = posicaoId;
   }
 
@@ -196,10 +212,14 @@ export async function atualizarFicha(
   if (typeof data.email === "string" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
     return { ok: false, error: "E-mail inválido." };
   }
+  // Comparações de data SEMPRE por dia de calendário (inicioDoDiaUTC), nunca
+  // por timestamp: o formulário posta meia-noite UTC, mas as importações
+  // gravaram admissão/desligamento ao meio-dia UTC ("T12:00:00Z"). Comparar
+  // getTime() fazia a data parecer alterada num salvar que só mexeu no motivo.
   if (
     data.dataDesligamento instanceof Date &&
     (data.dataAdmissao ?? atual.dataAdmissao) instanceof Date &&
-    data.dataDesligamento < ((data.dataAdmissao ?? atual.dataAdmissao) as Date)
+    inicioDoDiaUTC(data.dataDesligamento) < inicioDoDiaUTC((data.dataAdmissao ?? atual.dataAdmissao) as Date)
   ) {
     return { ok: false, error: "O desligamento não pode ser anterior à admissão." };
   }
@@ -213,7 +233,7 @@ export async function atualizarFicha(
   const desligamentoMudou =
     data.dataDesligamento instanceof Date &&
     (!(atual.dataDesligamento instanceof Date) ||
-      data.dataDesligamento.getTime() !== atual.dataDesligamento.getTime());
+      !mesmoDiaUTC(data.dataDesligamento, atual.dataDesligamento));
   if (desligamentoMudou) {
     const motivo = typeof data.motivoDesligamento === "string" ? data.motivoDesligamento : atual.motivoDesligamento;
     if (!motivo) return { ok: false, error: "Informe o motivo do desligamento." };

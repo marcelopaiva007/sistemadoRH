@@ -1,34 +1,16 @@
 // Gera o Relatório de Clima Organizacional (GPTW) em PDF.
 // Mesmo padrão do relatorio-pdf de NR-01.
 import { NextRequest, NextResponse } from "next/server";
-import chromiumServerless from "@sparticuz/chromium";
-import { chromium, type Browser } from "playwright-core";
 import { auth } from "@/auth";
+import { usuarioAlcancaEmpresa } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
 import { CONVITES_NA_PESQUISA } from "@/lib/pesquisa-numeros";
 import { gerarHtmlRelatorioClima } from "@/lib/clima-relatorio";
 import { calcularClima, compararCiclos, extrairEvolucao, gerarAnaliseExecutiva, type RespostaPrisma } from "@/lib/clima";
+import { responderComHtmlRelatorio } from "@/lib/pdf-browser";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
-
-async function launchChromium(): Promise<Browser> {
-  if (process.platform === "linux") {
-    return chromium.launch({
-      args: chromiumServerless.args,
-      executablePath: await chromiumServerless.executablePath(),
-      headless: true,
-    });
-  }
-  for (const channel of ["chrome", "msedge"] as const) {
-    try {
-      return await chromium.launch({ headless: true, channel });
-    } catch {
-      /* tenta o próximo */
-    }
-  }
-  return chromium.launch({ headless: true });
-}
 
 export async function GET(
   _req: NextRequest,
@@ -39,9 +21,12 @@ export async function GET(
   const session = await auth();
   const user = session?.user;
   if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-  const autorizado =
-    user.role === "ADMIN" || user.empresas.some((e) => e.empresaId === empresaId && e.ativo);
-  if (!autorizado) {
+
+  // Uma linha, uma regra: `usuarioAlcancaEmpresa` de lib/rh-auth-guard.ts, a
+  // MESMA que decide o acesso às páginas. Aqui havia uma checagem escrita à
+  // mão — cinco variantes diferentes conviviam em nove rotas, e duas delas
+  // esqueciam DIRETORIA, cujo pivô `UserEmpresa` é vazio por desenho.
+  if (!(await usuarioAlcancaEmpresa(user, empresaId))) {
     return NextResponse.json({ error: "Sem acesso a esta empresa." }, { status: 403 });
   }
 
@@ -166,32 +151,5 @@ export async function GET(
     evolucao,
   });
 
-  let browser: Browser | undefined;
-  try {
-    browser = await launchChromium();
-    const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: "load", timeout: 30_000 });
-    const pdf = await page.pdf({
-      format: "A4",
-      printBackground: true,
-      margin: { top: "12mm", bottom: "14mm", left: "10mm", right: "10mm" },
-    });
-
-    const nomeArquivo = `relatorio-clima-${pesquisa.empresa.nome.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${new Date().toISOString().slice(0, 10)}.pdf`;
-    return new NextResponse(new Uint8Array(pdf), {
-      headers: {
-        "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${nomeArquivo}"`,
-        "Cache-Control": "no-store",
-      },
-    });
-  } catch (e) {
-    console.error("relatorio-clima-pdf:", e);
-    return NextResponse.json(
-      { error: `Falha ao gerar o PDF: ${e instanceof Error ? e.message : String(e)}` },
-      { status: 500 },
-    );
-  } finally {
-    await browser?.close().catch(() => {});
-  }
+  return responderComHtmlRelatorio(html, `Relatório Clima Organizacional - ${pesquisa.empresa.nome}`);
 }

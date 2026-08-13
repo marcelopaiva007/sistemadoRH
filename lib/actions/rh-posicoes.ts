@@ -10,17 +10,22 @@ const posicaoSchema = z.object({
   nome: z.string().trim().min(2, "Informe o nome da posição"),
 });
 
-export async function createPosicao(empresaId: string, _prev: ActionResult, formData: FormData): Promise<ActionResult> {
-  await requireEmpresaAccess(empresaId);
+export async function createPosicao(
+  empresaIdDefault: string,
+  _prev: ActionResult,
+  formData: FormData
+): Promise<ActionResult> {
+  const targetEmpresaId = (formData.get("empresaId") as string) || empresaIdDefault;
+  await requireEmpresaAccess(targetEmpresaId);
   const parsed = posicaoSchema.safeParse({ nome: formData.get("nome") });
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
 
   try {
-    await prisma.posicao.create({ data: { empresaId, nome: parsed.data.nome } });
+    await prisma.posicao.create({ data: { empresaId: targetEmpresaId, nome: parsed.data.nome } });
   } catch {
     return { ok: false, error: "Já existe uma posição com esse nome nessa empresa." };
   }
-  revalidatePath(`/rh/${empresaId}/posicoes`);
+  revalidatePath(`/rh/${empresaIdDefault}/posicoes`);
   return { ok: true };
 }
 
@@ -60,3 +65,199 @@ export async function deletePosicao(empresaId: string, id: string): Promise<Acti
   revalidatePath(`/rh/${empresaId}/posicoes`);
   return { ok: true };
 }
+
+export async function unificarPosicoes(
+  empresaId: string,
+  origemId: string,
+  destinoId: string
+): Promise<ActionResult> {
+  if (origemId === destinoId) {
+    return { ok: false, error: "O cargo de origem e destino não podem ser os mesmos." };
+  }
+  await requireEmpresaAccess(empresaId);
+
+  const [origem, destino] = await Promise.all([
+    prisma.posicao.findUnique({ where: { id: origemId } }),
+    prisma.posicao.findUnique({ where: { id: destinoId } }),
+  ]);
+
+  if (!origem || !destino) {
+    return { ok: false, error: "Cargo de origem ou destino não encontrado." };
+  }
+
+  await prisma.$transaction(async (tx) => {
+    // 1. Reatribui colaboradores
+    await tx.colaborador.updateMany({
+      where: { posicaoId: origemId },
+      data: { posicaoId: destinoId },
+    });
+
+    // 2. Reatribui requisitos NR
+    await tx.requisitoNR.updateMany({
+      where: { posicaoId: origemId },
+      data: { posicaoId: destinoId },
+    });
+
+    // 3. Reatribui vagas
+    await tx.vaga.updateMany({
+      where: { posicaoId: origemId },
+      data: { posicaoId: destinoId },
+    });
+
+    // 4. Remove a posição duplicada
+    await tx.posicao.delete({ where: { id: origemId } });
+  });
+
+  revalidatePath(`/rh/${empresaId}/posicoes`);
+  return { ok: true };
+}
+
+export async function limparDuplicatasPosicoesAuto(empresaId: string): Promise<{ ok: boolean; removidos: number; error?: string }> {
+  await requireEmpresaAccess(empresaId);
+
+  const posicoes = await prisma.posicao.findMany({
+    where: { empresaId },
+    include: {
+      _count: { select: { colaboradores: true, vagas: true, requisitosNR: true } },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+
+  const porNome = new Map<string, typeof posicoes>();
+  for (const p of posicoes) {
+    const chave = p.nome.trim().toLowerCase();
+    const list = porNome.get(chave) ?? [];
+    list.push(p);
+    porNome.set(chave, list);
+  }
+
+  let removidos = 0;
+
+  for (const list of porNome.values()) {
+    if (list.length <= 1) continue;
+
+    // Escolhe o item principal: com mais colaboradores ou ativo mais antigo
+    const ordenados = [...list].sort((a, b) => {
+      const diffColabs = (b._count?.colaboradores ?? 0) - (a._count?.colaboradores ?? 0);
+      if (diffColabs !== 0) return diffColabs;
+      if (a.ativo !== b.ativo) return a.ativo ? -1 : 1;
+      return a.createdAt.getTime() - b.createdAt.getTime();
+    });
+
+    const mestre = ordenados[0];
+    const duplicadas = ordenados.slice(1);
+
+    for (const dup of duplicadas) {
+      await prisma.$transaction(async (tx) => {
+        await tx.colaborador.updateMany({
+          where: { posicaoId: dup.id },
+          data: { posicaoId: mestre.id },
+        });
+        await tx.requisitoNR.updateMany({
+          where: { posicaoId: dup.id },
+          data: { posicaoId: mestre.id },
+        });
+        await tx.vaga.updateMany({
+          where: { posicaoId: dup.id },
+          data: { posicaoId: mestre.id },
+        });
+        await tx.posicao.delete({ where: { id: dup.id } });
+      });
+      removidos++;
+    }
+
+    // Normaliza nome do mestre caso tenha espaço sobrando
+    if (mestre.nome !== mestre.nome.trim()) {
+      await prisma.posicao.update({
+        where: { id: mestre.id },
+        data: { nome: mestre.nome.trim() },
+      });
+    }
+  }
+
+  revalidatePath(`/rh/${empresaId}/posicoes`);
+  return { ok: true, removidos };
+}
+
+export async function unificarGrupoPosicoes(
+  empresaId: string,
+  origemIds: string[],
+  destinoId: string,
+  novoNome?: string,
+): Promise<ActionResult> {
+  if (origemIds.length === 0) {
+    return { ok: false, error: "Nenhum cargo selecionado para unificação." };
+  }
+  await requireEmpresaAccess(empresaId);
+
+  const destino = await prisma.posicao.findUnique({ where: { id: destinoId } });
+  if (!destino) {
+    return { ok: false, error: "Cargo de destino não encontrado." };
+  }
+
+  const idsParaMigrar = origemIds.filter((id) => id !== destinoId);
+
+  await prisma.$transaction(async (tx) => {
+    for (const id of idsParaMigrar) {
+      await tx.colaborador.updateMany({
+        where: { posicaoId: id },
+        data: { posicaoId: destinoId },
+      });
+      await tx.requisitoNR.updateMany({
+        where: { posicaoId: id },
+        data: { posicaoId: destinoId },
+      });
+      await tx.vaga.updateMany({
+        where: { posicaoId: id },
+        data: { posicaoId: destinoId },
+      });
+      await tx.posicao.delete({ where: { id } });
+    }
+
+    if (novoNome && novoNome.trim() !== "" && novoNome.trim() !== destino.nome) {
+      await tx.posicao.update({
+        where: { id: destinoId },
+        data: { nome: novoNome.trim() },
+      });
+    }
+  });
+
+  revalidatePath(`/rh/${empresaId}/posicoes`);
+  return { ok: true };
+}
+
+export async function removerPosicoesSemColaboradores(
+  empresaId: string,
+): Promise<{ ok: boolean; removidos: number; error?: string }> {
+  await requireEmpresaAccess(empresaId);
+
+  try {
+    const posicoesSemColab = await prisma.posicao.findMany({
+      where: {
+        empresaId,
+        colaboradores: { none: {} },
+      },
+      select: { id: true },
+    });
+
+    if (posicoesSemColab.length === 0) {
+      return { ok: true, removidos: 0 };
+    }
+
+    const ids = posicoesSemColab.map((p) => p.id);
+
+    await prisma.$transaction(async (tx) => {
+      // Limpa requisitos NR e vagas vinculadas a cargos vagos sem colaboradores
+      await tx.requisitoNR.deleteMany({ where: { posicaoId: { in: ids } } });
+      await tx.vaga.deleteMany({ where: { posicaoId: { in: ids } } });
+      await tx.posicao.deleteMany({ where: { id: { in: ids } } });
+    });
+
+    revalidatePath(`/rh/${empresaId}/posicoes`);
+    return { ok: true, removidos: ids.length };
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : "Erro ao remover cargos sem colaboradores.";
+    return { ok: false, removidos: 0, error: errorMsg };
+  }
+}
+

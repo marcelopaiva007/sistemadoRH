@@ -49,6 +49,7 @@ import {
   criarConviteUsuario,
 } from "@/lib/actions/usuarios";
 import { ROLES, ROLE_LABEL, type ActionResult } from "@/lib/constants";
+import { FichaVinculada } from "./ficha-vinculada";
 
 type EmpresaResumo = { id: string; nome: string; ativo: boolean; marcaId: string };
 type SetorResumo = { id: string; nome: string; empresaId: string; ativo: boolean };
@@ -74,7 +75,16 @@ type VinculoMarca = {
   ativo: boolean;
 };
 
-type Usuario = {
+// A ficha de colaborador que este login representa, quando existe. `null` é o
+// caso comum: ADMIN e RH em geral não têm ficha na empresa que administram.
+export type FichaDoUsuario = {
+  id: string;
+  nome: string;
+  empresaNome: string;
+  setorNome: string;
+};
+
+export type Usuario = {
   id: string;
   nome: string;
   username: string;
@@ -84,6 +94,7 @@ type Usuario = {
   ativo: boolean;
   empresas: Vinculo[];
   marcasVinculadas: VinculoMarca[];
+  ficha: FichaDoUsuario | null;
 };
 
 const initialState: ActionResult = { ok: true };
@@ -185,6 +196,14 @@ export function UsuariosTable({
                   {u.nome}
                   {u.id === currentUserId && (
                     <span className="ml-2 text-xs text-muted-foreground">(você)</span>
+                  )}
+                  {/* Mostrado só quando a ficha tem outro nome: repetir o mesmo
+                      nome duas vezes na célula não informa nada. O que importa
+                      aqui é ver de relance quem NÃO tem ficha ligada. */}
+                  {u.ficha && (
+                    <p className="text-xs font-normal text-muted-foreground">
+                      ficha: {u.ficha.nome === u.nome ? u.ficha.setorNome : u.ficha.nome}
+                    </p>
                   )}
                 </TableCell>
                 <TableCell>{u.username}</TableCell>
@@ -716,6 +735,13 @@ function VincularForm({
         <DialogTitle>Vincular {usuario.nome}</DialogTitle>
       </DialogHeader>
 
+      {/* Primeiro QUEM a pessoa é, depois ONDE ela mexe. Nesta ordem porque o
+          vínculo com a ficha é o que decide se ela enxerga o próprio time —
+          o acesso por empresa/marca já existia e não responde essa pergunta. */}
+      <FichaVinculada usuario={usuario} onSuccess={onSuccess} />
+
+      <div className="border-t" />
+
       {/* O seletor fica fora dos dois forms — ele escolhe qual form aparece,
           não é campo enviado. */}
       <div className="space-y-2">
@@ -973,7 +999,7 @@ function VincularForm({
                 <div>
                   <div className="font-medium">
                     {v.empresaNome}{" "}
-                    {v.papelPrincipal && <span className="text-xs text-amber-600">(principal)</span>}
+                    {v.papelPrincipal && <span className="text-xs text-amber-600 dark:text-amber-400">(principal)</span>}
                     {!v.ativo && <span className="ml-2 text-xs text-muted-foreground">(desativado)</span>}
                   </div>
                   <div className="text-xs text-muted-foreground">

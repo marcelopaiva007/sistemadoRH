@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, CalendarClock, ClipboardList } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -23,33 +23,62 @@ import { Card, CardContent } from "@/components/ui/card";
  * escolher onde entrar, em vez de cair em uma ao acaso.
  */
 export function PendenciasIndicador({
+  rotulo = "Pendências",
   total,
   itens,
+  destaque = false,
+  neutro = false,
 }: {
+  /** O que este grupo de pendências pede de quem lê. */
+  rotulo?: string;
   total: number;
   itens: { nome: string; pend: number; href: string }[];
+  /** Fila do dia (gente esperando): número maior e moldura marcada. */
+  destaque?: boolean;
+  /** Sem data fatal: número em cor normal, para não competir com o que urge. */
+  neutro?: boolean;
 }) {
+  // A cor é o que separa "resolva agora" de "está no radar". Vermelho só onde
+  // há alguém esperando; o grupo de cadastro fica em cor de texto comum mesmo
+  // com número alto — foi o caso dos "163 cadastros incompletos" de
+  // 12/08/2026, que em vermelho parecia incêndio e não era.
+  const corDoNumero = total === 0 ? "" : neutro ? "" : destaque ? "text-destructive" : "text-amber-600 dark:text-amber-400";
+
   const cartao = (
     <Card
       size="sm"
-      className={
-        itens.length > 0 ? "h-full cursor-pointer transition-colors hover:bg-accent/40" : "h-full"
-      }
+      className={[
+        "h-full",
+        itens.length > 0 ? "cursor-pointer transition-colors hover:bg-accent/40" : "",
+        destaque && total > 0 ? "border-destructive/40 bg-destructive/5" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
     >
       <CardContent>
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <AlertTriangle aria-hidden className="size-4" />
-          Pendências
+          {destaque ? (
+            <AlertTriangle aria-hidden className="size-4" />
+          ) : neutro ? (
+            <ClipboardList aria-hidden className="size-4" />
+          ) : (
+            <CalendarClock aria-hidden className="size-4" />
+          )}
+          {rotulo}
         </div>
-        <p className={`text-2xl font-semibold tabular-nums ${total > 0 ? "text-destructive" : ""}`}>
+        <p
+          className={`font-semibold tabular-nums ${destaque ? "text-4xl" : "text-2xl"} ${corDoNumero}`}
+        >
           {total}
         </p>
       </CardContent>
     </Card>
   );
 
-  // Nada pendente: nem vale abrir um popover vazio.
-  if (itens.length === 0) return cartao;
+  // Nada pendente: nem vale abrir um popover vazio. Idem quando ESTE grupo
+  // está zerado — o popover lista as empresas pelo TOTAL, e abri-lo num grupo
+  // vazio mostraria números que não são deste cartão.
+  if (itens.length === 0 || total === 0) return cartao;
 
   return (
     <Popover>

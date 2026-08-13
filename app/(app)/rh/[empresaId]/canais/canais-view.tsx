@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { KeyRound, Mail, Send } from "lucide-react";
+import { FolderLock, KeyRound, Mail, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -27,11 +27,13 @@ export function CanaisView({
   empresaId,
   telegram,
   smtp,
+  arquivosLigado,
   podeConfigurar,
 }: {
   empresaId: string;
   telegram: StatusTelegram;
   smtp: StatusSmtp;
+  arquivosLigado: boolean;
   podeConfigurar: boolean;
 }) {
   return (
@@ -59,7 +61,63 @@ export function CanaisView({
           <CartaoSmtp empresaId={empresaId} status={smtp} />
         </>
       )}
+
+      <CartaoArquivos ligado={arquivosLigado} />
     </div>
+  );
+}
+
+// Status do armazenamento de arquivos (Vercel Blob) — só leitura, de propósito.
+//
+// Diferente do Telegram e do SMTP, o token do Blob não se digita: ele nasce no
+// painel da Vercel, no ato de conectar um store ao projeto, e o código o lê
+// direto do ambiente (lib/blob.ts). Um campo de texto aqui convidaria a colar
+// um token que não funcionaria.
+//
+// POR QUE O CARTÃO EXISTE. Em 12/08/2026 dois colaboradores ficaram sem
+// conseguir enviar documento pelo portal porque o store nunca tinha sido
+// conectado em produção — e não havia NENHUMA tela onde essa falta aparecesse:
+// o RH só soube por print de Telegram. Configuração que só se descobre quando
+// quebra na mão do colaborador não é configuração, é armadilha.
+function CartaoArquivos({ ligado }: { ligado: boolean }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <FolderLock className="size-4" />
+          Armazenamento de arquivos
+          <span
+            className={
+              ligado
+                ? "rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-400"
+                : "rounded-full bg-destructive/15 px-2 py-0.5 text-xs font-medium text-destructive"
+            }
+          >
+            {ligado ? "Ligado" : "Desligado"}
+          </span>
+        </CardTitle>
+        <CardDescription>
+          Onde ficam os documentos enviados pelo portal e as fotos das batidas de ponto —
+          armazenamento privado, fora do banco.
+        </CardDescription>
+      </CardHeader>
+      {!ligado && (
+        <CardContent className="space-y-2 text-sm">
+          <p>
+            <strong>Com ele desligado, o portal recusa documentos</strong> (&ldquo;Armazenamento de
+            arquivos não configurado&rdquo;) e as batidas de ponto ficam sem foto. As batidas em si
+            continuam valendo.
+          </p>
+          <p className="text-muted-foreground">
+            Para ligar, no painel da Vercel: <strong>Storage</strong> → abra (ou crie) o store
+            Blob → <strong>Connect Project</strong> → projeto <strong>sistemado-rh</strong> →
+            marque <strong>All Environments</strong>. Isso cria a variável{" "}
+            <code className="rounded bg-muted px-1">BLOB_READ_WRITE_TOKEN</code> sozinho. Depois é
+            preciso um deploy novo para valer.
+          </p>
+        </CardContent>
+      )}
+    </Card>
   );
 }
 

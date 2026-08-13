@@ -36,8 +36,21 @@ import {
 import { dimensaoGPTWLabel } from "@/lib/constants-rh";
 
 const CORES_DIM = [
-  "#3b82f6", "#8b5cf6", "#06b6d4", "#f59e0b", "#10b981", "#6b7280",
+  "var(--chart-1)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
+  "var(--chart-5)",
+  "var(--muted-foreground)",
 ];
+
+const estiloTooltip = {
+  backgroundColor: "var(--card)",
+  borderColor: "var(--border)",
+  color: "var(--card-foreground)",
+  borderRadius: "var(--radius)",
+  boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+} as const;
 
 const CORES_NIVEL: Record<string, string> = {
   critico: "#dc2626",
@@ -153,7 +166,7 @@ export function DashboardClimaView({
           </div>
 
           {resultado.analiseExecutiva.alertasTexto.length > 0 && (
-            <div className="rounded-lg border-2 border-amber-300 bg-amber-50 dark:bg-amber-950/30 p-3">
+            <div className="rounded-lg border-2 border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 p-3">
               <h4 className="font-semibold text-sm mb-2 text-amber-900 dark:text-amber-200">⚠️ Alertas</h4>
               <ul className="space-y-1 text-sm text-amber-900 dark:text-amber-100">
                 {resultado.analiseExecutiva.alertasTexto.map((a, i) => (
@@ -169,7 +182,7 @@ export function DashboardClimaView({
               <ul className="space-y-1 text-sm">
                 {resultado.analiseExecutiva.pontosFortes.map((p, i) => (
                   <li key={i} className="flex gap-2">
-                    <span className="text-green-600">•</span>
+                    <span className="text-green-600 dark:text-green-400">•</span>
                     <span>{p}</span>
                   </li>
                 ))}
@@ -183,7 +196,7 @@ export function DashboardClimaView({
               <ul className="space-y-1 text-sm">
                 {resultado.analiseExecutiva.pontosCriticos.map((p, i) => (
                   <li key={i} className="flex gap-2">
-                    <span className="text-red-600">•</span>
+                    <span className="text-red-600 dark:text-red-400">•</span>
                     <span>{p}</span>
                   </li>
                 ))}
@@ -197,7 +210,7 @@ export function DashboardClimaView({
               <ul className="space-y-1 text-sm">
                 {resultado.analiseExecutiva.setoresEmRisco.map((s, i) => (
                   <li key={i} className="flex gap-2">
-                    <span className="text-red-600">•</span>
+                    <span className="text-red-600 dark:text-red-400">•</span>
                     <span>{s}</span>
                   </li>
                 ))}
@@ -211,7 +224,7 @@ export function DashboardClimaView({
               <ul className="space-y-1 text-sm">
                 {resultado.analiseExecutiva.setoresEmAlta.map((s, i) => (
                   <li key={i} className="flex gap-2">
-                    <span className="text-green-600">•</span>
+                    <span className="text-green-600 dark:text-green-400">•</span>
                     <span>{s}</span>
                   </li>
                 ))}

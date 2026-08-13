@@ -1,36 +1,223 @@
 import { prisma } from "@/lib/prisma";
-import { PontoView } from "./ponto-view";
+import { PainelPresencaView } from "./painel-presenca";
+import { EscalasView } from "./escalas-view";
+import { TratamentoView } from "./tratamento-view";
+import { RelatoriosPontoView } from "./relatorios-view";
+import { DashboardDiretoriaPontoView } from "./dashboard-diretoria";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Clock, ShieldCheck, FileEdit, FileSpreadsheet, BarChart3 } from "lucide-react";
+import { AjudaDaTela } from "@/components/ajuda-da-tela";
 
-export default async function PontoPage({ params }: { params: Promise<{ empresaId: string }> }) {
+export default async function PontoEletronicoPage({
+  params,
+}: {
+  params: Promise<{ empresaId: string }>;
+}) {
   const { empresaId } = await params;
 
-  const [pontos, colaboradores, config] = await Promise.all([
-    prisma.ponto.findMany({
-      where: { empresaId },
-      include: {
-        colaborador: {
-          select: { id: true, nome: true, setor: { select: { nome: true } } },
-        },
-      },
-      orderBy: { dataHora: "desc" },
-      take: 500,
+  // Buscar empresa e jornadas
+  const [empresa, jornadas, colaboradores, pendentes, historico, paraSelecao] = await Promise.all([
+    prisma.empresa.findUnique({
+      where: { id: empresaId },
+      select: { id: true, nome: true },
+    }),
+    prisma.jornadaTrabalho.findMany({
+      where: { empresaId, ativo: true },
+      orderBy: { nome: "asc" },
     }),
     prisma.colaborador.findMany({
       where: { empresaId, ativo: true },
-      select: { id: true, nome: true },
-      orderBy: { nome: "asc" },
+      select: {
+        id: true,
+        nome: true,
+        setor: { select: { nome: true } },
+        posicao: { select: { nome: true } },
+        // A referência com que o RH compara a selfie da batida. Só o booleano
+        // atravessa para o cliente — a URL do Blob nunca sai do servidor; quem
+        // serve a imagem é a rota autenticada, que audita quem viu.
+        fotoUrl: true,
+        fotoConferidaPeloRh: true,
+        registrosPonto: {
+          where: {
+            dataHora: {
+              gte: new Date(new Date().setHours(0, 0, 0, 0)),
+            },
+          },
+          orderBy: { dataHora: "asc" },
+          // `select` explícito: a linha inteira tem IP, GPS e hash, que o
+          // monitor não usa — e `fotoUrl` só vira o booleano abaixo, a URL do
+          // Blob não atravessa para o cliente.
+          select: { id: true, tipo: true, dataHora: true, fotoUrl: true },
+        },
+      },
     }),
-    prisma.configuracaoPonto.findUnique({
+    // Duas consultas, não uma com `take`: os PENDENTES vêm inteiros, porque
+    // desde 11/08/2026 é nesta lista que se aprova ou rejeita — com o corte de
+    // 20 que existia aqui, um ajuste que passasse dessa posição ficaria sem
+    // nenhuma tela onde decidir. O corte continua valendo para o histórico já
+    // decidido, que é só leitura.
+    prisma.tratamentoPonto.findMany({
+      where: { empresaId, status: "PENDENTE" },
+      orderBy: { createdAt: "desc" },
+      include: {
+        colaborador: {
+          select: {
+            nome: true,
+            setor: { select: { nome: true } },
+            posicao: { select: { nome: true } },
+          },
+        },
+      },
+    }),
+    prisma.tratamentoPonto.findMany({
+      where: { empresaId, status: { not: "PENDENTE" } },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+      include: {
+        colaborador: {
+          select: {
+            nome: true,
+            setor: { select: { nome: true } },
+            posicao: { select: { nome: true } },
+          },
+        },
+      },
+    }),
+    // Para o seletor do formulário: inclui DESLIGADOS. O ajuste de ponto de
+    // quem saiu é justamente o que se faz durante o cálculo da rescisão — com
+    // a lista só de ativos, esse caso ficava sem caminho na tela.
+    prisma.colaborador.findMany({
       where: { empresaId },
+      orderBy: [{ ativo: "desc" }, { nome: "asc" }],
+      select: { id: true, nome: true, ativo: true },
     }),
   ]);
 
+  // Montar lista de presença em tempo real
+  type ColaboradorComPonto = {
+    id: string;
+    nome: string;
+    setor: { nome: string };
+    posicao: { nome: string };
+    fotoUrl: string | null;
+    fotoConferidaPeloRh: boolean;
+    registrosPonto: Array<{ id: string; tipo: string; dataHora: Date; fotoUrl: string | null }>;
+  };
+
+  // Fuso explícito, sempre: sem ele o toLocaleTimeString responde no fuso do
+  // PROCESSO — UTC na Vercel — e o monitor mostrava toda batida com 3 horas a
+  // mais. Mesmo defeito corrigido no arquivo fiscal AFD em 12/08/2026; a tela
+  // do portal sempre esteve certa porque roda no navegador da pessoa.
+  const horaBrasilia = (d: Date) =>
+    new Date(d).toLocaleTimeString("pt-BR", {
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "America/Sao_Paulo",
+    });
+
+  const presentesLista = (colaboradores as ColaboradorComPonto[]).map((c) => {
+    const batidas = c.registrosPonto;
+    let status: "PRESENTE" | "EM_INTERVALO" | "ATRASADO" | "AUSENTE" = "AUSENTE";
+    let primeiraEntrada: string | null = null;
+    let ultimaSaida: string | null = null;
+
+    if (batidas.length > 0) {
+      primeiraEntrada = horaBrasilia(batidas[0].dataHora);
+      const ultimaBatida = batidas[batidas.length - 1];
+      ultimaSaida = horaBrasilia(ultimaBatida.dataHora);
+
+      if (batidas.length % 2 !== 0) {
+        status = "PRESENTE";
+      } else {
+        status = "EM_INTERVALO";
+      }
+    }
+
+    return {
+      colaboradorId: c.id,
+      nome: c.nome,
+      setor: c.setor.nome,
+      cargo: c.posicao.nome,
+      status,
+      primeiraEntrada,
+      ultimaSaida,
+      temReferencia: c.fotoUrl !== null,
+      referenciaConferida: c.fotoConferidaPeloRh,
+      batidas: batidas.map((b) => ({
+        id: b.id,
+        hora: horaBrasilia(b.dataHora),
+        temFoto: b.fotoUrl !== null,
+      })),
+    };
+  });
+
   return (
-    <PontoView
-      pontos={pontos}
-      colaboradores={colaboradores}
-      config={config}
-      empresaId={empresaId}
-    />
+    <div className="space-y-6">
+      <div>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-xl font-semibold tracking-tight">Ponto Eletrônico & Gestão de Jornada (REP-P)</h1>
+          <AjudaDaTela modulo="ponto" />
+        </div>
+        <p className="text-sm text-muted-foreground">
+          {empresa?.nome || "Empresa"} · Portaria MTP nº 671/2021 & CLT
+        </p>
+      </div>
+
+      <Tabs defaultValue="presenca" className="w-full">
+        <TabsList className="w-full flex flex-wrap h-auto justify-start gap-1.5 p-1.5 bg-muted/60 rounded-lg">
+          <TabsTrigger value="presenca" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background">
+            <Clock className="w-3.5 h-3.5 mr-1" /> Presença em Tempo Real
+          </TabsTrigger>
+          <TabsTrigger value="tratamento" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background">
+            <FileEdit className="w-3.5 h-3.5 mr-1" /> Tratamento (PTRP)
+          </TabsTrigger>
+          <TabsTrigger value="escalas" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background">
+            <ShieldCheck className="w-3.5 h-3.5 mr-1" /> Jornadas & Escalas
+          </TabsTrigger>
+          <TabsTrigger value="relatorios" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background">
+            <FileSpreadsheet className="w-3.5 h-3.5 mr-1" /> Relatórios & Fiscal (AFD)
+          </TabsTrigger>
+          <TabsTrigger value="diretoria" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background">
+            <BarChart3 className="w-3.5 h-3.5 mr-1" /> Dashboard Diretoria
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="presenca" className="pt-4">
+          <PainelPresencaView colaboradores={presentesLista} empresaId={empresaId} />
+        </TabsContent>
+
+        <TabsContent value="tratamento" className="pt-4">
+          <TratamentoView
+            empresaId={empresaId}
+            // Pendentes primeiro e sempre: são os que exigem ação.
+            tratamentos={[...pendentes, ...historico]}
+            colaboradores={paraSelecao}
+          />
+        </TabsContent>
+
+        <TabsContent value="escalas" className="pt-4">
+          <EscalasView empresaId={empresaId} jornadas={jornadas} />
+        </TabsContent>
+
+        <TabsContent value="relatorios" className="pt-4">
+          <RelatoriosPontoView empresaId={empresaId} />
+        </TabsContent>
+
+        <TabsContent value="diretoria" className="pt-4">
+          <DashboardDiretoriaPontoView
+            dados={{
+              custoEstimadoHE: 1450.0,
+              totalHorasExtras50Min: 320,
+              totalHorasExtras100Min: 120,
+              passivoBancoHorasMin: 840,
+              valorPassivoBancoHorasR$: 3800.0,
+              violacoesLimite2h: 2,
+              supressoesIntervalo: 1,
+              taxaAbsenteismoPct: 1.8,
+            }}
+          />
+        </TabsContent>
+      </Tabs>
+    </div>
   );
 }

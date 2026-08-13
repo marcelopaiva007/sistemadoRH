@@ -1,6 +1,7 @@
 // Listas do Departamento Pessoal (Fase 1). Como no resto do schema, os "enums"
 // são colunas TEXT — estas listas são a fonte de verdade dos valores aceitos e
 // dos rótulos exibidos.
+import type { BadgeVariant, StatusBadgeMap } from "@/components/status-badge";
 
 export const TIPOS_DOCUMENTO = [
   { value: "RG", label: "RG" },
@@ -108,6 +109,26 @@ export const STATUS_SOLICITACAO = [
   { value: "CANCELADA", label: "Cancelada" },
 ] as const;
 
+/**
+ * Ao lado de STATUS_SOLICITACAO para os dois nunca divergirem — consumido por
+ * StatusBadge (components/status-badge.tsx). Substitui VariantePorStatus
+ * (ferias-card.tsx) e varianteStatus (portal-inicio.tsx), que reimplementavam
+ * a mesma tradução com nomes diferentes.
+ *
+ * O label vem do próprio catálogo acima, não de uma cópia: renomear "Pendente"
+ * lá muda o badge junto.
+ */
+const VARIANTE_SOLICITACAO: Record<(typeof STATUS_SOLICITACAO)[number]["value"], BadgeVariant> = {
+  PENDENTE: "secondary",
+  APROVADA: "default",
+  REPROVADA: "destructive",
+  CANCELADA: "destructive",
+};
+
+export const STATUS_SOLICITACAO_BADGE = Object.fromEntries(
+  STATUS_SOLICITACAO.map((s) => [s.value, { label: s.label, variant: VARIANTE_SOLICITACAO[s.value] }]),
+) as StatusBadgeMap<(typeof STATUS_SOLICITACAO)[number]["value"]>;
+
 export const MOTIVOS_DESLIGAMENTO = [
   { value: "PEDIDO_DEMISSAO", label: "Pedido de demissão" },
   { value: "SEM_JUSTA_CAUSA", label: "Dispensa sem justa causa" },
@@ -129,7 +150,6 @@ export const estadoCivilLabel = rotulo(ESTADOS_CIVIS);
 export const escolaridadeLabel = rotulo(ESCOLARIDADES);
 export const parentescoLabel = rotulo(PARENTESCOS);
 export const tipoContaLabel = rotulo(TIPOS_CONTA_BANCARIA);
-export const statusSolicitacaoLabel = rotulo(STATUS_SOLICITACAO);
 export const motivoDesligamentoLabel = rotulo(MOTIVOS_DESLIGAMENTO);
 
 // Tamanho máximo de anexo. Vercel limita o corpo de uma requisição de função a

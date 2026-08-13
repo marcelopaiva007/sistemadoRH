@@ -67,40 +67,48 @@ export function ArvoreVisual({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setZoom((z) => Math.max(50, z - 10))}
-          disabled={zoom <= 50}
-          aria-label="Diminuir zoom"
-        >
-          <ZoomOut className="size-4" />
-        </Button>
-        <span className="w-12 text-center text-xs tabular-nums text-muted-foreground">{zoom}%</span>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setZoom((z) => Math.min(150, z + 10))}
-          disabled={zoom >= 150}
-          aria-label="Aumentar zoom"
-        >
-          <ZoomIn className="size-4" />
-        </Button>
-        <span className="ml-2 text-xs text-muted-foreground">
-          Clique numa caixa com subordinados para recolher o ramo.
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-card p-2.5 shadow-2xs">
+        <div className="flex items-center gap-1.5">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setZoom((z) => Math.max(40, z - 10))}
+            disabled={zoom <= 40}
+            aria-label="Diminuir zoom"
+            className="h-8 text-xs"
+          >
+            <ZoomOut className="size-3.5" />
+          </Button>
+          <span className="w-12 text-center text-xs font-medium tabular-nums text-foreground">{zoom}%</span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setZoom((z) => Math.min(150, z + 10))}
+            disabled={zoom >= 150}
+            aria-label="Aumentar zoom"
+            className="h-8 text-xs"
+          >
+            <ZoomIn className="size-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setZoom(100)}
+            className="h-8 text-xs text-muted-foreground hover:text-foreground"
+          >
+            Resetar (100%)
+          </Button>
+        </div>
+        <span className="text-xs text-muted-foreground font-medium">
+          Clique nos botões de equipe para expandir ou recolher ramos.
         </span>
       </div>
 
-      {/* A árvore é mais larga que a tela em estrutura grande: rola na
-          horizontal dentro da própria caixa, sem empurrar a página. */}
-      <div className="max-h-[75vh] overflow-auto rounded-lg border bg-muted/20 p-6">
-        {/* Alinhado à esquerda, não centralizado: centralizar num conteúdo mais
-            largo que a tela fazia a página abrir num pedaço qualquer do meio,
-            sem a raiz à vista. */}
+      {/* Árvore interativa com rolagem interna */}
+      <div className="max-h-[78vh] overflow-auto rounded-xl border border-border/80 bg-muted/20 p-6 shadow-inner">
         <div
-          className="flex origin-top-left flex-col items-start gap-8"
-          style={{ zoom: `${zoom}%` }}
+          className="flex origin-top-left flex-col items-start gap-8 transition-transform duration-100 ease-out"
+          style={{ transform: `scale(${zoom / 100})` }}
         >
           {arvores.map((raiz) => (
             <Ramo key={raiz.id} empresaId={empresaId} no={raiz} />
@@ -237,31 +245,47 @@ function Caixa({
   aberto: boolean;
   onAlternar?: () => void;
 }) {
+  const codigo = [...no.id].reduce((acc, ch) => (acc * 31 + ch.charCodeAt(0)) >>> 0, 7);
+  const cores = [
+    "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20",
+    "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20",
+    "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+    "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
+    "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20",
+    "bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20",
+  ];
+  const corAvatar = cores[codigo % cores.length];
+
   return (
-    <div className="w-52 shrink-0 rounded-lg border bg-background p-3 shadow-sm">
-      <div className="flex items-start gap-2">
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-[11px] font-semibold text-muted-foreground">
+    <div className="w-56 shrink-0 rounded-xl border border-border/80 bg-card p-3.5 shadow-xs transition-all hover:border-primary/40 hover:shadow-md">
+      <div className="flex items-start gap-2.5">
+        <span
+          className={cn(
+            "flex size-9 shrink-0 items-center justify-center rounded-lg border text-xs font-bold shadow-2xs",
+            corAvatar,
+          )}
+        >
           {iniciais(no.nome)}
         </span>
         <div className="min-w-0 flex-1">
           <Link
             href={`/rh/${empresaId}/colaboradores/${no.id}`}
-            className="block truncate text-sm font-medium leading-tight hover:underline"
+            className="block truncate text-sm font-semibold leading-tight text-foreground transition-colors hover:text-primary hover:underline"
             title={no.nome}
           >
             {nomeExibicao(no.nome)}
           </Link>
-          <p className="truncate text-xs text-muted-foreground" title={no.posicao.nome}>
+          <p className="mt-0.5 truncate text-xs font-medium text-muted-foreground" title={no.posicao.nome}>
             {no.posicao.nome}
           </p>
-          <p className="truncate text-[11px] text-muted-foreground/80" title={no.setor.nome}>
-            {no.setor.nome}
-          </p>
-          {/* Com varios CNPJs na mesma arvore, de qual empresa a pessoa e
-              deixa de ser detalhe e vira informacao. */}
-          <p className="truncate text-[11px] text-muted-foreground/60" title={no.empresa.nome}>
-            {no.empresa.nome}
-          </p>
+          <div className="mt-1 flex flex-wrap items-center gap-1">
+            <span className="inline-block truncate rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground" title={no.setor.nome}>
+              {no.setor.nome}
+            </span>
+            <span className="inline-block truncate rounded-md bg-muted/60 px-1.5 py-0.5 text-[10px] text-muted-foreground/80" title={no.empresa.nome}>
+              {no.empresa.nome}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -269,11 +293,13 @@ function Caixa({
         <button
           type="button"
           onClick={onAlternar}
-          className="mt-2 flex w-full items-center justify-center gap-1 rounded border-t pt-2 text-xs text-muted-foreground hover:text-foreground"
+          className="mt-2.5 flex w-full items-center justify-between rounded-lg border border-border/60 bg-muted/40 px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
-          {aberto ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
-          <Users className="size-3" />
-          {total}
+          <span className="flex items-center gap-1.5">
+            <Users className="size-3.5 text-primary" />
+            {total} subordinado(s)
+          </span>
+          {aberto ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
         </button>
       )}
     </div>

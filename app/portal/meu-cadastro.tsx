@@ -10,12 +10,15 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { atualizarMeusDados, enviarMeuDocumento } from "@/lib/actions/portal-cadastro";
-import { TIPOS_DOCUMENTO, TIPOS_CONTA_BANCARIA } from "@/lib/constants-dp";
+import { formatarCpf } from "@/lib/cpf";
+import { TIPOS_DOCUMENTO } from "@/lib/constants-dp";
 import type { ActionResult } from "@/lib/constants";
 
 const inicial: ActionResult = { ok: true };
 
 export type MeusDados = {
+  /** É a chave PIX do salário desde 13/08/2026 — ver a seção "Como você recebe". */
+  cpf: string | null;
   email: string | null;
   telefone: string | null;
   estadoCivil: string | null;
@@ -42,11 +45,6 @@ export type MeusDados = {
   ctpsSerie: string | null;
   ctpsUf: string | null;
   tituloEleitor: string | null;
-  bancoNome: string | null;
-  bancoAgencia: string | null;
-  bancoConta: string | null;
-  bancoTipoConta: string | null;
-  chavePix: string | null;
 };
 
 function Campo({
@@ -156,38 +154,33 @@ export function MeuCadastro({ dados, faltando }: { dados: MeusDados; faltando: n
             </div>
           </Secao>
 
-          {/* Usados para pagamento — errar aqui não é como errar o bairro.
-              Grava direto, como o resto desta tela, mas o RH recebe aviso a
-              cada mudança para poder confirmar com a pessoa antes do próximo
-              pagamento. */}
-          <Secao titulo="Dados bancários">
-            <p className="text-xs text-muted-foreground">
-              Usados para pagamento. O RH é avisado sempre que algo aqui muda pelo portal.
-            </p>
-            <div className="grid gap-3 sm:grid-cols-6">
-              <Campo name="bancoNome" label="Banco" defaultValue={dados.bancoNome} className="sm:col-span-3" />
-              <div className="sm:col-span-3">
-                <Label htmlFor="bancoTipoConta" className="text-xs font-medium text-muted-foreground">
-                  Tipo de conta
-                </Label>
-                <select
-                  id="bancoTipoConta"
-                  name="bancoTipoConta"
-                  defaultValue={dados.bancoTipoConta ?? ""}
-                  className="mt-1.5 h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:bg-input/30"
-                >
-                  <option value="">Selecione...</option>
-                  {TIPOS_CONTA_BANCARIA.map((t) => (
-                    <option key={t.value} value={t.value}>
-                      {t.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <Campo name="bancoAgencia" label="Agência" defaultValue={dados.bancoAgencia} className="sm:col-span-2" />
-              <Campo name="bancoConta" label="Conta" defaultValue={dados.bancoConta} className="sm:col-span-2" />
-              <Campo name="chavePix" label="Chave PIX" defaultValue={dados.chavePix} className="sm:col-span-2" />
+          {/* Pagamento: nada a digitar, e é isso que protege.
+              Enquanto isto era formulário, o colaborador podia trocar a conta
+              pelo celular e o dinheiro do mês seguinte ia para onde ele
+              digitasse — o RH só recebia um aviso depois do fato. Agora a
+              chave é o CPF dele, que ninguém troca por outro. */}
+          <Secao titulo="Como você recebe">
+            <div className="rounded-lg border bg-muted/40 p-3">
+              <p className="text-xs text-muted-foreground">Sua chave PIX para o salário</p>
+              <p className="font-mono text-lg font-semibold tabular-nums">
+                {dados.cpf ? formatarCpf(dados.cpf) : "—"}
+              </p>
             </div>
+            {dados.cpf ? (
+              <p className="text-xs text-muted-foreground">
+                O salário é pago por PIX no seu CPF.{" "}
+                <strong className="text-foreground">
+                  Cadastre esse CPF como chave PIX no banco em que você quer receber
+                </strong>{" "}
+                — é você quem escolhe a conta, e só você consegue cadastrar o seu CPF nela. Se
+                mudar de banco, basta cadastrar a chave lá; não precisa avisar o RH.
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Seu CPF ainda não está no cadastro, e ele é a sua chave de pagamento. Preencha o
+                CPF acima ou procure o RH.
+              </p>
+            )}
           </Secao>
 
           <Secao titulo="Endereço">

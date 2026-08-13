@@ -55,11 +55,10 @@ export default async function PortalPage() {
       ctpsSerie: true,
       ctpsUf: true,
       tituloEleitor: true,
-      bancoNome: true,
-      bancoAgencia: true,
-      bancoConta: true,
-      bancoTipoConta: true,
-      chavePix: true,
+      // Os campos bancários saíram desta consulta em 13/08/2026, com o fim do
+      // bloco "Dados bancários". Nada na tela os usava mais, e continuar
+      // buscando-os mandaria banco, agência e conta de cada colaborador para o
+      // HTML do navegador dele — dado sensível trafegando sem ninguém ler.
       empresaId: true,
       gerente: true,
       setor: { select: { nome: true } },
@@ -72,7 +71,7 @@ export default async function PortalPage() {
     return <ConfirmarCpf primeiroNome={colaborador.nome.split(" ")[0]} />;
   }
 
-  const [documentos, ausencias, mensagens, avaliacoes] = await Promise.all([
+  const [documentos, ausencias, mensagens, avaliacoes, bancoHoras] = await Promise.all([
     prisma.documentoColaborador.findMany({
       where: { colaboradorId: colaborador.id, arquivoId: { not: null } },
       orderBy: { createdAt: "desc" },
@@ -105,14 +104,8 @@ export default async function PortalPage() {
         createdAt: true,
       },
     }),
-    // O que ESTA pessoa tem para responder: a própria autoavaliação e, se for
-    // gestor (ou tiver sido escolhida como par/subordinado), as dos outros.
-    // Filtra por `avaliadorId` — nunca por colaboradorId, que traria de volta o
-    // que o chefe escreveu sobre ela.
     prisma.avaliacaoDesempenho.findMany({
       where: { avaliadorId: colaborador.id, ciclo: { encerrado: false } },
-      // Ordem de exibição é decidida na tela (pendente, depois a própria, depois
-      // por nome); aqui só um critério estável para a lista não dançar.
       orderBy: { createdAt: "asc" },
       select: {
         id: true,
@@ -127,6 +120,19 @@ export default async function PortalPage() {
         colaborador: { select: { nome: true } },
         ciclo: { select: { nome: true, dataFim: true } },
         notas: { select: { competencia: true, nota: true } },
+      },
+    }),
+    prisma.bancoHoras.findMany({
+      where: { colaboradorId: colaborador.id },
+      orderBy: { competencia: "desc" },
+      take: 6,
+      select: {
+        competencia: true,
+        saldoAnterior: true,
+        creditosMes: true,
+        debitosMes: true,
+        saldoAtual: true,
+        expiraEm: true,
       },
     }),
   ]);
@@ -169,12 +175,12 @@ export default async function PortalPage() {
     ),
   );
 
-  // A porta do gestor para "Meu time": o recorte é quem tem supervisorId
-  // apontando para a pessoa logada — o organograma real, não papel de sistema
-  // (não existe usuário GESTOR_SETOR, e User não tem vínculo com Colaborador;
-  // é por isso que a tela do gestor entra pelo portal). A conta é a MESMA da
-  // tela /rh/[empresaId]/time — lib/meu-time.ts — para gestor e RH nunca
-  // lerem números diferentes da mesma equipe.
+  // A porta do gestor SEM usuário do sistema para "Meu time": o recorte é quem
+  // tem supervisorId apontando para a pessoa logada — o organograma real, não
+  // papel de sistema. Continua sendo a única porta para quem entra por
+  // Telegram; quem tem login próprio vê o mesmo em /rh/meu-setor desde
+  // 12/08/2026 (User.colaboradorId). A conta é a MESMA das duas telas —
+  // lib/meu-time.ts — para gestor e RH nunca lerem números diferentes.
   const subordinados = await prisma.colaborador.findMany({
     where: { supervisorId: colaborador.id, ativo: true },
     orderBy: { nome: "asc" },
@@ -305,6 +311,7 @@ export default async function PortalPage() {
         notas: a.notas,
         competenciasDisponiveis: competenciasPorEmpresa.get(a.empresaId) ?? [],
       }))}
+      bancoHoras={bancoHoras.length > 0 ? bancoHoras[0] : null}
     />
   );
 }

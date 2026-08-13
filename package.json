@@ -1,6 +1,6 @@
 {
   "name": "sistema-rh",
-  "version": "1.57.0",
+  "version": "1.86.0",
   "private": true,
   "scripts": {
     "// ━━━━━━━━━━━━━━━━ DESENVOLVIMENTO ━━━━━━━━━━━━━━━━": "",
@@ -24,10 +24,16 @@
     "// ━━━━━━━━━━━━━━━━ RELEASE ━━━━━━━━━━━━━━━━": "",
     "release": "node scripts/release.mjs",
     "// ━━━━━━━━━━━━━━━━ DIAGNÓSTICOS ━━━━━━━━━━━━━━━━": "",
+    "verificar:deploy": "node --import tsx scripts/motor-verificacao-deploy.ts",
     "diag:envios": "tsx scripts/diag-envios.ts",
     "verificar:assistente": "tsx scripts/verificar-assistente.ts",
     "verificar:dashboard": "tsx scripts/verificar-dashboard.ts",
     "verificar:bi": "tsx scripts/verificar-bi.ts",
+    "// ━━━━━━━━━━━━━━━━ BANCO DESCARTÁVEL PARA OS SMOKES ━━━━━━━━━━━━━━━━": "",
+    "banco:schema": "prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script > /tmp/schema-ci.sql && psql \"$DATABASE_URL\" -q -v ON_ERROR_STOP=1 -f /tmp/schema-ci.sql && psql \"$DATABASE_URL\" -q -v ON_ERROR_STOP=1 -f scripts/ci-extras-banco.sql",
+    "banco:fixture": "tsx scripts/ci-fixture-banco.ts",
+    "banco:preparar": "npm run banco:schema && npm run banco:fixture",
+    "smokes": "for s in scripts/smoke-*.ts; do echo \"— $s\"; tsx \"$s\" || exit 1; done",
     "// ━━━━━━━━━━━━━━━━ TESTES FUNCIONAIS ━━━━━━━━━━━━━━━━": "",
     "test:login-tentativas": "tsx scripts/test-login-tentativas.ts",
     "test:ferias": "tsx scripts/test-ferias.ts",
@@ -64,7 +70,9 @@
     "smoke:onboarding": "tsx scripts/smoke-onboarding.ts",
     "smoke:folha": "tsx scripts/smoke-folha.ts",
     "smoke:pendencias": "tsx scripts/smoke-pendencias.ts",
-    "smoke:login": "tsx scripts/smoke-login.ts"
+    "smoke:cobranca-cadastro": "tsx scripts/smoke-cobranca-cadastro.ts",
+    "smoke:login": "tsx scripts/smoke-login.ts",
+    "simular:avisos-gestor": "tsx scripts/simular-avisos-gestor.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",

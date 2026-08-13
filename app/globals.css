@@ -55,77 +55,130 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* Tema claro: fundo off-white azulado, texto slate, azul como cor primária.
-   O sistema roda só no claro — não existe bloco .dark (o antigo foi removido
-   por nunca ativar). Se um dia entrar tema escuro, cada token abaixo precisa
-   de par próprio e de nova conferência de contraste, não de inversão.
+/* Tema claro (o padrão): fundo off-white azulado, texto slate, índigo como cor
+   primária. O tema escuro existe e mora no bloco `.dark` logo abaixo — os dois
+   ficam colados de propósito, para comparar token a token.
+
+   ESTE COMENTÁRIO JÁ MENTIU: até 10/08/2026 ele dizia "o sistema roda só no
+   claro, não existe bloco .dark". Era verdade quando foi escrito (v1.52.0) e
+   deixou de ser na v1.58.0, quando o tema escuro entrou — mas ninguém voltou
+   aqui. Ficou seis versões afirmando o contrário do arquivo em que estava, a
+   46 linhas do bloco que negava. Quem mexer em cor, mexa aqui também.
 
    Os valores aqui foram escolhidos por MEDIÇÃO, não por gosto: cada um passa
    nos limites da WCAG AA no uso que tem (4,5:1 para texto, 3:1 para
    controle). Antes de trocar qualquer cor, remedir — vários tons "bonitos"
-   dessa paleta reprovam por pouco. */
+   dessa paleta reprovam por pouco, e dois deles reprovavam de fato até
+   11/08/2026 (ver --input e --sidebar-ring). */
 :root {
-  --background: #f6f8fb;
-  --foreground: #1f2937;
+  --background: #f8fafc;
+  --foreground: #0f172a;
   --card: #ffffff;
-  --card-foreground: #1f2937;
+  --card-foreground: #0f172a;
   --popover: #ffffff;
-  --popover-foreground: #1f2937;
-  /* blue-600, não blue-500. O 500 dava 3,68:1 contra branco — reprova no AA
-     (4,5:1) nos três usos que fazemos dele: texto de link, item ativo do menu
-     e rótulo branco dentro do botão principal. O 600 dá 5,17:1 e mantém o
-     mesmo azul de identidade. */
-  --primary: #2563eb;
+  --popover-foreground: #0f172a;
+  --primary: #4f46e5;
   --primary-foreground: #ffffff;
-  --secondary: #e8eef7;
-  --secondary-foreground: #1f2937;
-  --muted: #eef2f7;
-  /* slate-600. O 500 dava 4,47:1 contra o fundo da página — reprovava por
-     três centésimos, e é a cor de quase todo texto de apoio do sistema
-     (descrições, legendas, células secundárias de tabela). */
+  --secondary: #f1f5f9;
+  --secondary-foreground: #0f172a;
+  --muted: #f1f5f9;
   --muted-foreground: #475569;
-  --accent: #e0f2fe;
-  --accent-foreground: #0c4a6e;
-  /* destructive fica no red-600: já passa (4,83:1 como texto, 4,83:1 com o
-     branco por cima). Não se mexe em token que passa. */
+  --accent: #e0e7ff;
+  --accent-foreground: #3730a3;
   --destructive: #dc2626;
-  /* success sobe para emerald-700: o 600 dava 3,77:1, e ele carrega
-     informação ("em dia", "aprovado") — não é enfeite. */
   --success: #047857;
-  /* amber-700. Aviso é o caso em que reprovar dói mais: é a cor de "vence
-     hoje", de EPI vencido, de integração atrasada — texto pequeno que a
-     pessoa precisa ler para agir. O amber-600 que estava espalhado pelas
-     telas dava 2,99:1 contra o fundo da página. */
   --warning: #b45309;
-
-  /* border e input eram a MESMA cor, e têm papéis diferentes: um é traço
-     decorativo entre linhas de tabela, o outro delimita um campo onde a
-     pessoa precisa clicar. Só o segundo é um controle. */
   --border: #e2e8f0;
-  /* Fora da escala do Tailwind de propósito: o slate-400 dá 2,56:1 e o
-     slate-500 dá 4,76:1 (pesado demais para contornar todo campo). Este é o
-     tom mais CLARO que ainda cumpre os 3:1 exigidos de um controle. */
-  --input: #8794a9;
-
-  /* O anel de foco em blue-200 dava 1,8:1 — invisível para quem navega por
-     teclado. Vai para a mesma cor da primária: os componentes aplicam
-     `border-ring` sólido junto do halo translúcido, e é a borda sólida que
-     cumpre os 3:1 exigidos para indicador de foco. */
-  --ring: #2563eb;
-  --chart-1: #2563eb;
-  --chart-2: #0ea5e9;
-  --chart-3: #10b981;
-  --chart-4: #f59e0b;
-  --chart-5: #ec4899;
+  /* 11/08/2026: era #8794a9, que media 3,07:1 sobre o cartão branco (passa) mas
+     2,93:1 sobre o --background (reprova o 3:1 da WCAG 1.4.11). O tom tinha
+     sido afinado só contra o cartão, e todo campo solto na página ficava
+     abaixo do mínimo. #7c8a9f passa nos dois: 3,50 no cartão, 3,35 no fundo. */
+  --input: #7c8a9f;
+  --ring: #4f46e5;
+  --chart-1: #4f46e5;
+  --chart-2: #0284c7;
+  --chart-3: #059669;
+  --chart-4: #d97706;
+  --chart-5: #db2777;
   --radius: 0.625rem;
   --sidebar: #ffffff;
-  --sidebar-foreground: #1f2937;
-  --sidebar-primary: #3b82f6;
+  --sidebar-foreground: #0f172a;
+  --sidebar-primary: #4f46e5;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #eef2f7;
-  --sidebar-accent-foreground: #1f2937;
+  --sidebar-accent: #f1f5f9;
+  --sidebar-accent-foreground: #0f172a;
   --sidebar-border: #e2e8f0;
-  --sidebar-ring: #93c5fd;
+  /* 11/08/2026: era #818cf8, 2,98:1 sobre branco — anel de foco reprovando o
+     3:1 por 0,02. Indicador de foco invisível é barreira de teclado, não
+     detalhe estético. #6d78ee mantém o índigo claro e mede 3,77. */
+  --sidebar-ring: #6d78ee;
+}
+
+/* Tema escuro. Entrou na v1.58.0 e é alcançável de dois jeitos: pelo botão da
+   barra de topo (SeletorTema, em components/app-topbar.tsx) e sozinho, para
+   quem tem o sistema operacional no escuro — o ThemeProvider de
+   app/providers.tsx roda com defaultTheme="system".
+
+   Os tokens nasceram espelhando o :root acima, mas SEM passar pela medição de
+   contraste que o :root teve. Em 11/08/2026 a conta foi feita e quatro deles
+   reprovavam; estão marcados um a um abaixo. Vale para este bloco a mesma
+   regra do :root: antes de trocar qualquer cor, remedir — no escuro os pares
+   que mais apertam são texto sobre --card (a superfície de quase tudo) e
+   borda de campo, não o texto sobre o fundo da página. */
+.dark {
+  --background: #0f172a;
+  --foreground: #f8fafc;
+  --card: #1e293b;
+  --card-foreground: #f8fafc;
+  --popover: #1e293b;
+  --popover-foreground: #f8fafc;
+  /* Era #6366f1: o branco por cima media 4,4669:1 e reprovava o 4,5 por 0,03 —
+     o rótulo de TODO botão primário. Escurecer resolve um lado e ameaça o
+     outro (o preenchimento precisa de 3:1 contra a superfície); #6062ef é o
+     ponto que segura os dois — branco 4,68, botão 3,13 sobre o cartão. Não
+     escurecer mais: em #5d5eea o botão cai para 2,96 e reprova. */
+  --primary: #6062ef;
+  --primary-foreground: #ffffff;
+  --secondary: #334155;
+  --secondary-foreground: #f8fafc;
+  --muted: #1e293b;
+  /* Era #94a3b8, que passa sobre o fundo e sobre o cartão mas dá 4,04:1 sobre
+     --secondary #334155 — que é botão secundário, item de menu em hover e
+     linha alternada de tabela. Com `text-muted-foreground` em 846 lugares, o
+     par acontece. #a3b4c8 dá 4,89 ali e continua folgado no resto (6,91 no
+     cartão, 8,43 no fundo). */
+  --muted-foreground: #a3b4c8;
+  --accent: #312e81;
+  --accent-foreground: #e0e7ff;
+  /* Era #ef4444: 3,89:1 sobre o cartão, reprovação de verdade (não por pouco).
+     `text-destructive` aparece 55 vezes e quase sempre dentro de cartão — que
+     é justamente onde falhava, enquanto sobre o fundo da página passava. Erro
+     que aparece em metade das telas é pior que erro que aparece em todas.
+     #f87171 dá 5,29 no cartão e 6,45 no fundo. */
+  --destructive: #f87171;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --border: #334155;
+  /* Era #475569: 1,93:1 sobre o cartão. A borda do campo é a única pista de
+     onde o formulário começa, então aqui não vale a isenção de "divisória
+     decorativa" da WCAG 1.4.11 — e formulário dentro de cartão é o padrão do
+     sistema. #687892 dá 3,27 no cartão e 3,99 no fundo. */
+  --input: #687892;
+  --ring: #6062ef;
+  --chart-1: #6366f1;
+  --chart-2: #38bdf8;
+  --chart-3: #34d399;
+  --chart-4: #fbbf24;
+  --chart-5: #f472b6;
+  --sidebar: #1e293b;
+  --sidebar-foreground: #f8fafc;
+  /* Mesmo caso do --primary acima: o branco por cima reprovava por 0,03. */
+  --sidebar-primary: #6062ef;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #334155;
+  --sidebar-accent-foreground: #f8fafc;
+  --sidebar-border: #334155;
+  --sidebar-ring: #6062ef;
 }
 
 /* Largura de leitura confortável — 45 a 75 caracteres por linha.
@@ -142,11 +195,13 @@
   max-width: 34em;
 }
 
-/* Não há tema escuro. Existia um bloco .dark aqui, herdado de um visual
-   neon anterior (ciano #00d4ff, fundo #0a0e27) que o sistema abandonou ao
-   virar claro — e que nunca era aplicado, porque nada põe a classe `dark`
-   no documento. Foi removido em vez de mantido quebrado: se um dia houver
-   modo escuro, ele nasce dos tokens do :root acima, não dessa herança. */
+/* O tema escuro está no bloco `.dark` lá em cima, junto do `:root`.
+
+   Aqui havia um aviso de que ele não existia — verdadeiro até a v1.57.x, e
+   falso desde a v1.58.0. O aviso descrevia a remoção de um `.dark` ANTIGO,
+   herdado de um visual neon (ciano #00d4ff, fundo #0a0e27) que o sistema
+   abandonou ao virar claro. Essa parte continua valendo como história: o
+   `.dark` de hoje nasceu dos tokens do `:root`, não daquela herança. */
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -175,8 +230,41 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* Hierarquia por peso e cor, não só por tamanho: escala curta evita a
-     inflação de títulos que vinha acontecendo (text-2xl, text-xl e text-lg
+  /* ESCALA TIPOGRÁFICA — três degraus, e o porquê de cada um.
+     Ela não está declarada em lugar nenhum como token: vive nos componentes.
+     Documentada aqui porque estava só na cabeça de quem escreveu.
+
+       16px (base)  corpo de texto e campo de formulário.
+       14px (sm)    superfície densa: Card (card.tsx) e Table (table.tsx)
+                    nascem em text-sm porque esta tela é lista e formulário,
+                    não artigo — o corpo aqui é dado, e dado em 16px rende
+                    metade das linhas por tela. É por isso que `text-sm`
+                    aparece ~500 vezes e `text-base` ~70: o corpo REAL do
+                    sistema é 14px, e text-base é a exceção que sobe.
+       12px (xs)    texto de apoio e interior de controle pequeno.
+
+     O degrau de 12px tem DOIS donos, e eles não se mexem juntos:
+
+       - Texto solto: o par `text-xs text-muted-foreground`, ~250 lugares.
+         Tamanho e cor juntos é que dizem "isto é secundário".
+       - Interior de controle: Badge (h-5), Button size="xs" (h-6), Table
+         `compacta` (th h-8), Avatar size="sm". Nesses a ALTURA É FIXA e foi
+         calibrada com a fonte de 12px dentro — subir o text-xs deles não
+         aumenta a caixa, transborda.
+
+     Por isso não existe um utilitário único cobrindo os dois: seriam duas
+     regras com o mesmo nome, e a primeira troca "inofensiva" quebraria a
+     barra de botões. Também não vale nomear só o texto de apoio: `text-xs
+     text-muted-foreground` já são dois tokens de design, e um apelido em
+     cima não carregaria informação nova (compare com `medida-de-leitura`
+     acima, que se paga porque codifica uma medição não-óbvia).
+
+     Abaixo de 12px não há degrau nomeado, de propósito: os ~50
+     `text-[10px]`/`text-[11px]` espalhados são pedido de densidade de tela
+     específica, não escala. Enquanto forem exceção, ficam locais e visíveis.
+
+     Nos títulos, hierarquia por peso e cor, não só por tamanho: escala curta
+     evita a inflação que vinha acontecendo (text-2xl, text-xl e text-lg
      disputando o mesmo papel em telas diferentes). */
   h1 {
     @apply text-xl font-semibold tracking-tight;

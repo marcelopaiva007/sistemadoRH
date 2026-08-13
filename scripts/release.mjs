@@ -41,13 +41,41 @@ function run(cmd) {
   execSync(cmd, { stdio: "inherit" });
 }
 
-const diff = execSync("git diff --name-only").toString().trim().split("\n").filter(Boolean);
-if (diff.length === 0) {
-  console.error("Nada pra commitar (working tree limpo).");
+// 1. Checagem de TypeScript antes de soltar release
+console.log("🔍 Validando compilação de TypeScript...");
+try {
+  execSync("npx tsc --noEmit", { stdio: "inherit" });
+} catch {
+  console.error("❌ Falha na compilação do TypeScript. Release abortada.");
   process.exit(1);
 }
 
-run("git add package.json");
+// 2. Trava anti-vazamento de imports de banco em componentes de cliente ("use client")
+console.log("🛡️ Verificando segurança de bundling dos componentes de cliente...");
+const arquivos = execSync('grep -rnw "use client" app/ components/ | cut -d: -f1 | sort -u', { encoding: "utf-8" })
+  .trim()
+  .split("\n")
+  .filter(Boolean);
+
+let violacoes = 0;
+for (const arquivo of arquivos) {
+  const conteudo = readFileSync(arquivo, "utf8");
+  // Só considera componente de cliente se "use client" estiver nas primeiras linhas (diretiva do React)
+  const primeiraLinha = conteudo.split("\n").slice(0, 5).join("\n");
+  if (/['"]use client['"]/.test(primeiraLinha)) {
+    if (/import.*from.*(@\/lib\/prisma|lib\/prisma|pg|@prisma\/adapter-pg)/.test(conteudo)) {
+      console.error(`❌ ERRO: Componente de cliente ("use client") importando banco de dados: ${arquivo}`);
+      violacoes++;
+    }
+  }
+}
+
+if (violacoes > 0) {
+  console.error(`\n❌ Encontradas ${violacoes} violação(ões) de bundling. Release cancelada.`);
+  process.exit(1);
+}
+
+run("git add -A");
 run(`git commit -m "chore: bump version ${pkg.version.replace(proximo, "")} → ${proximo}"`);
 run("git push origin master");
 console.log(`\nDeploy disparado em ${proximo}.`);

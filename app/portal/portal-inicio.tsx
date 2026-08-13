@@ -1,7 +1,10 @@
 "use client";
 
 import { Clock, FileText, LogOut, MessageCircle, PencilLine, Star, Stethoscope, Upload, User, UsersRound } from "lucide-react";
+import { BaterPontoCard } from "./bater-ponto-card";
+import { MeuBancoHorasCard } from "./meu-banco-horas-card";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -9,13 +12,12 @@ import { MeuCadastro, EnviarDocumento } from "./meu-cadastro";
 import { FaleComRh, type MensagemDoPortal } from "./fale-com-rh";
 import { MinhasAvaliacoes, type MinhaAvaliacao, type EquipeDoGerente } from "./minhas-avaliacoes";
 import { MeuTimeDoGestor, type MeuTimePortal } from "./meu-time";
-import { PontoWidget } from "./ponto-widget";
 import { sairDoPortal } from "@/lib/actions/portal";
 import { formatarTamanho } from "@/lib/anexos";
 // Mesma máscara usada na listagem interna — o portal confirma identidade,
 // não serve para descobrir o CPF de ninguém.
 import { mascararCpf } from "@/lib/cpf";
-import { statusSolicitacaoLabel, tipoAusenciaLabel, tipoContratoLabel, tipoDocumentoLabel } from "@/lib/constants-dp";
+import { STATUS_SOLICITACAO_BADGE, tipoAusenciaLabel, tipoContratoLabel, tipoDocumentoLabel } from "@/lib/constants-dp";
 import { formatarData, tempoDeCasa } from "@/lib/datas";
 
 type Colaborador = {
@@ -50,11 +52,6 @@ type Colaborador = {
   ctpsSerie: string | null;
   ctpsUf: string | null;
   tituloEleitor: string | null;
-  bancoNome: string | null;
-  bancoAgencia: string | null;
-  bancoConta: string | null;
-  bancoTipoConta: string | null;
-  chavePix: string | null;
   setor: { nome: string };
   posicao: { nome: string };
 };
@@ -78,12 +75,6 @@ type Ausencia = {
   status: string;
 };
 
-function varianteStatus(status: string) {
-  if (status === "APROVADA") return "default" as const;
-  if (status === "REPROVADA" || status === "CANCELADA") return "destructive" as const;
-  return "secondary" as const;
-}
-
 export function PortalInicio({
   colaborador,
   documentos,
@@ -92,6 +83,7 @@ export function PortalInicio({
   avaliacoes,
   equipe,
   meuTime,
+  bancoHoras,
 }: {
   colaborador: Colaborador;
   documentos: Documento[];
@@ -99,8 +91,15 @@ export function PortalInicio({
   mensagens: MensagemDoPortal[];
   avaliacoes: MinhaAvaliacao[];
   equipe: EquipeDoGerente | null;
-  /** Só para quem tem gente com supervisorId apontando para si — a aba some para o resto. */
   meuTime: MeuTimePortal | null;
+  bancoHoras?: {
+    competencia: string;
+    saldoAnterior: number;
+    creditosMes: number;
+    debitosMes: number;
+    saldoAtual: number;
+    expiraEm: Date | null;
+  } | null;
 }) {
   const avaliacoesPendentes = avaliacoes.filter((a) => a.status !== "CONCLUIDA").length;
   // Gerente vê a aba mesmo sem nada na lista — é onde ele monta a lista.
@@ -112,7 +111,9 @@ export function PortalInicio({
     colaborador.escolaridade, colaborador.nomeMae, colaborador.nacionalidade,
     colaborador.cep, colaborador.logradouro, colaborador.bairro,
     colaborador.emergenciaNome, colaborador.emergenciaTelefone,
-    colaborador.chavePix,
+    // Sem chavePix desde 13/08/2026: a chave passou a ser o CPF, que o portal
+    // mostra pronto e não deixa editar. Contar um campo que não existe mais no
+    // formulário deixaria o convite "faltam 3 dados" impossível de zerar.
   ].filter((v) => !v).length;
 
   return (
@@ -123,6 +124,9 @@ export function PortalInicio({
           {colaborador.setor.nome} · {colaborador.posicao.nome}
         </p>
       </div>
+
+      {/* Card de Ponto Eletrônico PWA / Mobile */}
+      <BaterPontoCard />
 
       <div className="grid grid-cols-1 gap-3">
         <Destaque
@@ -167,7 +171,7 @@ export function PortalInicio({
               Atestados fica por último — é consulta, não tarefa pendente. */}
           <TabsTrigger value="ponto">
             <Clock />
-            Ponto
+            Ponto Eletrônico
           </TabsTrigger>
           <TabsTrigger value="atualizar">
             <PencilLine />
@@ -195,6 +199,20 @@ export function PortalInicio({
           </TabsTrigger>
         </TabsList>
 
+        <TabsContent value="ponto" className="space-y-4 pt-4">
+          <BaterPontoCard />
+          <MeuBancoHorasCard
+            dados={{
+              competencia: bancoHoras?.competencia || new Date().toLocaleDateString("pt-BR", { month: "2-digit", year: "numeric" }),
+              saldoAnteriorMin: bancoHoras?.saldoAnterior || 0,
+              creditosMesMin: bancoHoras?.creditosMes || 0,
+              debitosMesMin: bancoHoras?.debitosMes || 0,
+              saldoAtualMin: bancoHoras?.saldoAtual || 0,
+              historicoMensal: [],
+            }}
+          />
+        </TabsContent>
+
         {temAvaliacao && (
           <TabsContent value="avaliacao" className="pt-4">
             <MinhasAvaliacoes avaliacoes={avaliacoes} equipe={equipe} />
@@ -206,10 +224,6 @@ export function PortalInicio({
             <MeuTimeDoGestor time={meuTime} />
           </TabsContent>
         )}
-
-        <TabsContent value="ponto" className="pt-4">
-          <PontoWidget />
-        </TabsContent>
 
         <TabsContent value="mensagens" className="pt-4">
           <FaleComRh mensagens={mensagens} />
@@ -238,7 +252,7 @@ export function PortalInicio({
                         {formatarData(a.dataInicio)} — {formatarData(a.dataFim)} · {a.dias} dia(s)
                       </span>
                     </div>
-                    <Badge variant={varianteStatus(a.status)}>{statusSolicitacaoLabel(a.status)}</Badge>
+                    <StatusBadge status={a.status} map={STATUS_SOLICITACAO_BADGE} />
                   </div>
                 ))
               )}

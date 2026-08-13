@@ -4,6 +4,7 @@ import {
   pendenciasDaEmpresa,
   modulosSemRegistro,
   pesquisasAbertasDaEmpresa,
+  ciclosAEncerrarDaEmpresa,
 } from "@/lib/pendencias";
 import { resumoDaEmpresa, lacunasDaBase, lacunasDosDesligados } from "@/lib/dashboard";
 import { empresasDaMesmaMarca } from "@/lib/escopo-marca";
@@ -11,6 +12,7 @@ import { DashboardEmpresa } from "./dashboard-empresa";
 import { PendenciasView } from "./pendencias-view";
 import { LacunasView } from "./lacunas-view";
 import { LacunasDosDesligadosView } from "./lacunas-desligados-view";
+import { HRWelcomeBanner } from "@/app/components/HRIllustrations";
 
 // Tela inicial da empresa: os números no topo (o retrato) e logo abaixo o que
 // exige ação hoje (a lista de tarefas). Nessa ordem de propósito — quem abre
@@ -50,7 +52,7 @@ export default async function InicioDaEmpresaPage({
   const empresas =
     pedidas.length === 0 ? daMarcaVisiveis : daMarcaVisiveis.filter((id) => pedidas.includes(id));
 
-  const [resumo, pendencias, base, semRegistro, baseDesligados, pesquisasAbertas] =
+  const [resumo, pendencias, base, semRegistro, baseDesligados, pesquisasAbertas, ciclosAEncerrar] =
     await Promise.all([
       resumoDaEmpresa(empresas),
       pendenciasDaEmpresa(empresas),
@@ -61,10 +63,12 @@ export default async function InicioDaEmpresaPage({
       modulosSemRegistro(empresas),
       lacunasDosDesligados(empresas),
       pesquisasAbertasDaEmpresa(empresas),
+      ciclosAEncerrarDaEmpresa(empresas),
     ]);
 
   return (
     <div className="space-y-8">
+      <HRWelcomeBanner />
       <DashboardEmpresa empresaId={empresaId} resumo={resumo} />
       <PendenciasView
         empresaId={empresaId}
@@ -73,6 +77,7 @@ export default async function InicioDaEmpresaPage({
         semRegistro={[...semRegistro]}
         diasAlerta={DIAS_ALERTA_VENCIMENTO}
         pesquisasAbertas={pesquisasAbertas}
+        ciclosAEncerrar={ciclosAEncerrar}
       />
       {/* Por último: pendência é o que exige ação HOJE; preenchimento da base
           é o trabalho de fundo que faz os módulos valerem. */}

@@ -6,6 +6,7 @@ import { useActionState } from "react";
 import { toast } from "sonner";
 import { Plus, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -13,9 +14,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { definirRequisitoNR, removerRequisitoNR } from "@/lib/actions/rh-sst";
 import { NORMAS_REGULAMENTADORAS, validadePadraoDaNorma } from "@/lib/constants-sst";
-import { SITUACAO_LABEL, type ConformidadeColaborador, type SituacaoExame, type SituacaoItem } from "@/lib/conformidade";
+import { SITUACAO_BADGE, type ConformidadeColaborador, type SituacaoExame } from "@/lib/conformidade";
 import type { ActionResult } from "@/lib/constants";
 import { Indicador } from "@/components/indicador";
+import { Paginacao } from "@/components/paginacao";
+import { usePaginacao } from "@/lib/use-paginacao";
 
 type Posicao = {
   id: string;
@@ -32,13 +35,6 @@ type Linha = {
   setorNome: string;
   conformidade: ConformidadeColaborador;
   situacaoExame: SituacaoExame;
-};
-
-const VARIANTE: Record<SituacaoItem, "default" | "secondary" | "destructive" | "outline"> = {
-  EM_DIA: "default",
-  VENCENDO: "secondary",
-  VENCIDO: "destructive",
-  NUNCA_FEITO: "destructive",
 };
 
 const estadoInicial: ActionResult = { ok: true };
@@ -60,7 +56,7 @@ export function ConformidadeView({
     examesEmDia: number;
   };
 }) {
-  const [filtro, setFiltro] = useState<"todos" | "irregulares">("irregulares");
+  const [filtro, setFiltroBruto] = useState<"todos" | "irregulares">("irregulares");
 
   const linhasFiltradas = useMemo(() => {
     const ordenadas = [...linhas].sort((a, b) => {
@@ -76,6 +72,12 @@ export function ConformidadeView({
         l.situacaoExame.situacao === "NUNCA_FEITO",
     );
   }, [linhas, filtro]);
+
+  const { itensDaPagina: linhasNaPagina, resetar, ...paginacao } = usePaginacao(linhasFiltradas);
+  const setFiltro = (v: "todos" | "irregulares") => {
+    setFiltroBruto(v);
+    resetar();
+  };
 
   const percentualNR = resumo.totalComRequisito > 0 ? Math.round((resumo.regularesNR / resumo.totalComRequisito) * 100) : null;
   const percentualExame = resumo.totalComExameExigivel > 0 ? Math.round((resumo.examesEmDia / resumo.totalComExameExigivel) * 100) : null;
@@ -156,7 +158,7 @@ export function ConformidadeView({
             </p>
           ) : (
             <div className="rounded-md border">
-              <Table>
+              <Table compacta>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Colaborador</TableHead>
@@ -167,7 +169,7 @@ export function ConformidadeView({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {linhasFiltradas.map((l) => (
+                  {linhasNaPagina.map((l) => (
                     <TableRow key={l.id}>
                       <TableCell>
                         <Link href={`/rh/${l.empresaId}/colaboradores/${l.id}`} className="font-medium hover:underline">
@@ -186,17 +188,15 @@ export function ConformidadeView({
                         ) : (
                           <div className="flex flex-wrap gap-1">
                             {l.conformidade.pendencias.map((p) => (
-                              <Badge key={p.norma} variant={VARIANTE[p.situacao]}>
-                                {p.norma} · {SITUACAO_LABEL[p.situacao]}
+                              <Badge key={p.norma} variant={SITUACAO_BADGE[p.situacao]?.variant ?? "outline"}>
+                                {p.norma} · {SITUACAO_BADGE[p.situacao]?.label ?? p.situacao}
                               </Badge>
                             ))}
                           </div>
                         )}
                       </TableCell>
                       <TableCell>
-                        <Badge variant={VARIANTE[l.situacaoExame.situacao]}>
-                          {SITUACAO_LABEL[l.situacaoExame.situacao]}
-                        </Badge>
+                        <StatusBadge status={l.situacaoExame.situacao} map={SITUACAO_BADGE} />
                       </TableCell>
                     </TableRow>
                   ))}
@@ -204,6 +204,15 @@ export function ConformidadeView({
               </Table>
             </div>
           )}
+          <div className="mt-4">
+            <Paginacao
+              total={paginacao.total}
+              porPagina={paginacao.porPagina}
+              paginaAtual={paginacao.paginaAtual}
+              totalPaginas={paginacao.totalPaginas}
+              onMudarPagina={paginacao.irPara}
+            />
+          </div>
         </CardContent>
       </Card>
     </div>

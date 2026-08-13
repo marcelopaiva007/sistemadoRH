@@ -77,16 +77,16 @@ function ehVivo(status: string): boolean {
 }
 
 function corDaGravidade(gravidade: string): "destructive" | "default" | "secondary" {
-  if (gravidade === "critica") return "destructive";
-  if (gravidade === "alta") return "default";
+  if (gravidade === "CRITICA") return "destructive";
+  if (gravidade === "ALTA") return "default";
   return "secondary";
 }
 
 function rotuloDoNivel(nivel: string): string {
-  if (nivel === "grupo") return "Grupo";
-  if (nivel === "marca") return "Marca";
-  if (nivel === "empresa") return "CNPJ";
-  if (nivel === "setor") return "Setor";
+  if (nivel === "GRUPO") return "Grupo";
+  if (nivel === "MARCA") return "Marca";
+  if (nivel === "EMPRESA") return "CNPJ";
+  if (nivel === "SETOR") return "Setor";
   return nivel;
 }
 
@@ -237,7 +237,7 @@ function CartaoSinal({
   }
 
   return (
-    <Card className={cn(sinal.gravidade === "critica" && ehVivo(sinal.status) && "border-destructive/40")}>
+    <Card className={cn(sinal.gravidade === "CRITICA" && ehVivo(sinal.status) && "border-destructive/40")}>
       <CardContent className="space-y-3 py-4">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant={corDaGravidade(sinal.gravidade)}>{gravidadeSinalLabel(sinal.gravidade)}</Badge>

@@ -1,16 +1,24 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
+import { empresasDaMesmaMarca } from "@/lib/escopo-marca";
 import { prisma } from "@/lib/prisma";
 import { calcularFerias } from "@/lib/ferias";
 import { conformidadeDoColaborador, situacaoDoExame } from "@/lib/conformidade";
 import { pendenciasDaAdmissao } from "@/lib/admissao";
+import { faltasNaFicha, documentosFaltando } from "@/lib/cobranca-cadastro-colaborador";
 import { opcoesDoCatalogo } from "@/lib/catalogos";
 import { ColaboradorDetalhe } from "./colaborador-detalhe";
+import { Trilha } from "@/components/trilha";
 
 // Ficha completa do colaborador: dados cadastrais, dependentes, dossiê digital,
 // férias e ausências. Sempre escopada à empresa da rota — o id do colaborador
 // sozinho nunca abre a ficha de outra empresa.
+// A cobrança de cadastro é disparada desta tela por server action, e o laço
+// dela é o MESMO do cron (uma chamada ao Telegram mais uma ao SMTP por
+// pessoa, em série) — que declara 300 pelo mesmo motivo. Sem isto a action
+// herda o padrão da plataforma e morre no meio do lote.
+export const maxDuration = 300;
+
 export default async function ColaboradorPage({
   params,
 }: {
@@ -29,6 +37,12 @@ export default async function ColaboradorPage({
     },
   });
   if (!colaborador) notFound();
+
+  // Setores e cargos são oferecidos no escopo da MARCA: o catálogo foi
+  // unificado por grupo (telas de Setores/Cargos), então a linha do cargo de
+  // quem é deste CNPJ pode viver num CNPJ irmão — buscar só por empresaId
+  // deixava os seletores da ficha e da Carreira quase vazios.
+  const escopoMarca = await empresasDaMesmaMarca(empresaId);
 
   const [dependentes, documentos, ferias, ausencias, requisitos, certificados, exames, setores, posicoes, candidatosSupervisor, movimentacoes, beneficios, entregasEpi, acidentes, ausenciasElegiveis, checklistDesligamento, entrevistaDesligamento, avaliacoes, metas, pdi, participacoesTreinamento, treinamentosAtivos, candidaturaDeOrigem, checklistIntegracao] =
     await Promise.all([
@@ -104,8 +118,8 @@ export default async function ColaboradorPage({
         arquivo: { select: { id: true, nome: true } },
       },
     }),
-    prisma.setor.findMany({ where: { empresaId, ativo: true }, orderBy: { nome: "asc" } }),
-    prisma.posicao.findMany({ where: { empresaId, ativo: true }, orderBy: { nome: "asc" } }),
+    prisma.setor.findMany({ where: { empresaId: { in: escopoMarca }, ativo: true }, orderBy: { nome: "asc" } }),
+    prisma.posicao.findMany({ where: { empresaId: { in: escopoMarca }, ativo: true }, orderBy: { nome: "asc" } }),
     prisma.colaborador.findMany({
       where: { empresaId, ativo: true, id: { not: colaboradorId } },
       orderBy: { nome: "asc" },
@@ -298,6 +312,7 @@ export default async function ColaboradorPage({
     tiposMovimentacaoDisponiveis,
     statusMetaDisponiveis,
     competenciasDisponiveis,
+    ocorrenciasDisciplinares,
   ] = await Promise.all([
     opcoesDoCatalogo(empresaId, "TIPO_EPI"),
     opcoesDoCatalogo(empresaId, "MOTIVO_ENTREGA_EPI"),
@@ -305,7 +320,23 @@ export default async function ColaboradorPage({
     opcoesDoCatalogo(empresaId, "TIPO_MOVIMENTACAO"),
     opcoesDoCatalogo(empresaId, "STATUS_META"),
     opcoesDoCatalogo(empresaId, "COMPETENCIA"),
+    prisma.ocorrenciaDisciplinar.findMany({
+      where: { colaboradorId },
+      orderBy: [{ dataFato: "desc" }],
+      // Só os metadados da via assinada — o conteúdo do arquivo desce pela
+      // rota /api/rh/[empresaId]/arquivos/[arquivoId], sob autorização, e não
+      // no HTML desta página.
+      include: { arquivo: { select: { id: true, nome: true, tamanhoBytes: true } } },
+    }),
   ]);
+
+  // O que a cobrança de cadastro pediria a esta pessoa se saísse agora — a
+  // MESMA regra do cron (lib/cobranca-cadastro-colaborador.ts), para a ficha
+  // não prometer uma lista e a mensagem mandar outra.
+  const cobrancaCadastro = {
+    faltas: [...faltasNaFicha(colaborador), ...documentosFaltando(documentos.map((d) => d.tipo))],
+    temCanal: Boolean(colaborador.telegramChatId || colaborador.email),
+  };
 
   const admissao = candidaturaDeOrigem
     ? {
@@ -322,12 +353,7 @@ export default async function ColaboradorPage({
 
   return (
     <div className="space-y-4">
-      <Link
-        href={`/rh/${empresaId}/colaboradores`}
-        className="text-sm text-muted-foreground hover:underline"
-      >
-        ← Colaboradores
-      </Link>
+      <Trilha empresaId={empresaId} atual={colaborador.nome} />
       <ColaboradorDetalhe
         empresaId={empresaId}
         colaborador={colaborador}
@@ -364,7 +390,9 @@ export default async function ColaboradorPage({
         participacoesTreinamento={participacoesTreinamento}
         treinamentosAtivos={treinamentosAtivos}
         admissao={admissao}
+        cobrancaCadastro={cobrancaCadastro}
         checklistIntegracao={checklistIntegracao}
+        ocorrenciasDisciplinares={ocorrenciasDisciplinares}
       />
     </div>
   );

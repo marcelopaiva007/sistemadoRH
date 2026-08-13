@@ -1,5 +1,6 @@
 import { requireGestaoUsuarios } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
+import { AjudaDaTela } from "@/components/ajuda-da-tela";
 import { UsuariosTable } from "./usuarios-table";
 
 export default async function UsuariosPage() {
@@ -22,6 +23,17 @@ export default async function UsuariosPage() {
         marcas: {
           orderBy: { createdAt: "asc" },
           include: { marca: { select: { id: true, nome: true } } },
+        },
+        // Qual pessoa da folha é este login. Diferente dos vínculos acima: eles
+        // dizem ONDE o usuário mexe, este diz QUEM ele é — é o que permite a
+        // tela mostrar o time dele.
+        colaborador: {
+          select: {
+            id: true,
+            nome: true,
+            empresa: { select: { nome: true } },
+            setor: { select: { nome: true } },
+          },
         },
       },
     }),
@@ -54,7 +66,10 @@ export default async function UsuariosPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Usuários</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-2xl font-semibold tracking-tight">Usuários</h1>
+          <AjudaDaTela modulo="usuarios" />
+        </div>
         <p className="text-muted-foreground">
           Contas de acesso ao sistema. ADMIN e Diretoria são perfis globais.
           Gestores de RH e de Setor ficam vinculados a uma marca inteira ou a
@@ -85,6 +100,12 @@ export default async function UsuariosPage() {
             marcaNome: m.marca.nome,
             ativo: m.ativo,
           })),
+          ficha: u.colaborador && {
+            id: u.colaborador.id,
+            nome: u.colaborador.nome,
+            empresaNome: u.colaborador.empresa.nome,
+            setorNome: u.colaborador.setor.nome,
+          },
         }))}
         empresas={empresas}
         setores={setores}

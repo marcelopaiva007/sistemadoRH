@@ -16,6 +16,7 @@ import { abrirCompetencia } from "@/lib/actions/rh-folha";
 import { formatarCompetencia } from "@/lib/constants-folha";
 import { formatarData } from "@/lib/datas";
 import type { ActionResult } from "@/lib/constants";
+import { AjudaDaTela } from "@/components/ajuda-da-tela";
 
 const initialState: ActionResult = { ok: true };
 
@@ -43,7 +44,10 @@ export function FolhaView({
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
+          <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-xl font-semibold tracking-tight">Folha — eventos variáveis</h2>
+          <AjudaDaTela modulo="folha" />
+        </div>
           <p className="text-sm text-muted-foreground">
             O que muda todo mês e a contabilidade precisa receber. Este sistema não calcula folha —
             informa quantidade e valor; quem transforma em salário é o escritório.

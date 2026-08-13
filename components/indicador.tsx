@@ -87,14 +87,14 @@ export function Indicador({
 
   if (variante === "cartao") {
     return (
-      <Card size="sm" className={className}>
+      <Card size="sm" className={cn("transition-all hover:shadow-xs hover:border-primary/30", className)}>
         <CardContent>{conteudo}</CardContent>
       </Card>
     );
   }
 
   return (
-    <div className={cn("rounded-lg bg-card px-4 py-3 ring-1 ring-foreground/10", className)}>
+    <div className={cn("rounded-xl bg-card px-4 py-3.5 border border-border/80 shadow-2xs hover:shadow-xs hover:border-primary/30 transition-all", className)}>
       {conteudo}
     </div>
   );

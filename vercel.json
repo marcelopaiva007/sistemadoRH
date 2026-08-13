@@ -3,9 +3,12 @@
     { "path": "/api/cron/backup-db", "schedule": "0 6 * * *" },
     { "path": "/api/cron/gestao-ciclo-pesquisas", "schedule": "45 11 * * *" },
     { "path": "/api/cron/foto-mensal", "schedule": "30 6 5-9 * *" },
-    { "path": "/api/cron/alertas-rh", "schedule": "*/15 * * * *" },
-    { "path": "/api/cron/enviar-convites", "schedule": "*/15 * * * *" },
-    { "path": "/api/cron/lembrete-pesquisa", "schedule": "*/15 * * * *" },
-    { "path": "/api/cron/lembrete-portal", "schedule": "*/15 * * * *" }
+    { "path": "/api/cron/alertas-rh", "schedule": "0,15,30,45 * * * *" },
+    { "path": "/api/cron/enviar-convites", "schedule": "3,18,33,48 * * * *" },
+    { "path": "/api/cron/lembrete-pesquisa", "schedule": "6,21,36,51 * * * *" },
+    { "path": "/api/cron/lembrete-portal", "schedule": "9,24,39,54 * * * *" },
+    { "path": "/api/cron/cobranca-rh-pendencias", "schedule": "12,27,42,57 * * * *" },
+    { "path": "/api/cron/cobranca-cadastro", "schedule": "5,20,35,50 * * * *" },
+    { "path": "/api/cron/avisos-gestor", "schedule": "8,23,38,53 * * * *" }
   ]
 }

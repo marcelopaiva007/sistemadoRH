@@ -61,6 +61,56 @@ export async function criarTreinamento(
   return { ok: true };
 }
 
+export async function editarTreinamento(
+  empresaId: string,
+  treinamentoId: string,
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  await requireEmpresaAccess(empresaId);
+
+  const existente = await prisma.treinamento.findFirst({ where: { id: treinamentoId, empresaId } });
+  if (!existente) return { ok: false, error: "Treinamento não encontrado." };
+
+  const nome = String(formData.get("nome") ?? "").trim();
+  if (!nome) return { ok: false, error: "Dê um nome ao treinamento." };
+
+  const cargaTexto = String(formData.get("cargaHoraria") ?? "").trim();
+  const cargaHoraria = cargaTexto ? Number.parseInt(cargaTexto, 10) : null;
+  if (cargaHoraria !== null && (!Number.isInteger(cargaHoraria) || cargaHoraria <= 0)) {
+    return { ok: false, error: "Carga horária deve ser um número positivo." };
+  }
+
+  try {
+    await prisma.treinamento.update({
+      where: { id: treinamentoId },
+      data: {
+        nome,
+        descricao: String(formData.get("descricao") ?? "").trim() || null,
+        categoria: String(formData.get("categoria") ?? "").trim() || null,
+        cargaHoraria,
+        competencias: await lerCompetencias(empresaId, formData),
+      },
+    });
+
+    await registrarAuditoria({
+      empresaId,
+      acao: "ATUALIZAR",
+      entidade: "Treinamento",
+      entidadeId: treinamentoId,
+      resumo: `Treinamento "${nome}" atualizado.`,
+    });
+  } catch (e) {
+    if (violouUnique(e, "Treinamento_empresaId_nome_key")) {
+      return { ok: false, error: "Já existe outro treinamento com este nome." };
+    }
+    throw e;
+  }
+
+  revalidatePath(`/rh/${empresaId}/treinamentos`);
+  return { ok: true };
+}
+
 export async function alternarTreinamentoAtivo(empresaId: string, treinamentoId: string): Promise<ActionResult> {
   await requireEmpresaAccess(empresaId);
 

@@ -1,6 +1,11 @@
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
-import { LEMBRETES_CONFIGURAVEIS, type ChaveLembrete } from "@/lib/cron-horario";
+import {
+  LEMBRETES_CONFIGURAVEIS,
+  LEMBRETES_QUE_NASCEM_DESLIGADOS,
+  envioAutomaticoLigado,
+  type ChaveLembrete,
+} from "@/lib/cron-horario";
 import { PAPEIS_QUE_CONFIGURAM } from "@/lib/segredos";
 import { LembretesView } from "./lembretes-view";
 
@@ -9,6 +14,12 @@ import { LembretesView } from "./lembretes-view";
 // acessada por uma rota de empresa como as demais telas deste grupo (ver
 // lib/actions/rh-lembretes.ts sobre o porquê de não ser escopado por
 // empresaId).
+// A cobrança de cadastro é disparada desta tela por server action, e o laço
+// dela é o MESMO do cron (uma chamada ao Telegram mais uma ao SMTP por
+// pessoa, em série) — que declara 300 pelo mesmo motivo. Sem isto a action
+// herda o padrão da plataforma e morre no meio do lote.
+export const maxDuration = 300;
+
 export default async function LembretesPage({
   params,
 }: {
@@ -26,6 +37,10 @@ export default async function LembretesPage({
     horarios: linhas
       .filter((l) => l.chave === chave)
       .map((l) => ({ id: l.id, horario: l.horario, ativo: l.ativo })),
+    // O estado do interruptor sai da MESMA função que o cron consulta para
+    // decidir se roda — tela e comportamento não podem discordar.
+    precisaDecisaoDaGestao: LEMBRETES_QUE_NASCEM_DESLIGADOS.has(chave),
+    ligado: envioAutomaticoLigado(chave, linhas),
   }));
 
   return (

@@ -1,15 +1,17 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { atualizarFicha } from "@/lib/actions/rh-ficha";
 import {
   ESCOLARIDADES,
   ESTADOS_CIVIS,
   MOTIVOS_DESLIGAMENTO,
-  TIPOS_CONTA_BANCARIA,
   TIPOS_CONTRATO,
 } from "@/lib/constants-dp";
 import { Campo, CampoData, CampoSelect, CampoTexto, FormularioAction } from "./campos";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { formatarCpf } from "@/lib/cpf";
 
 // A ficha é dividida em blocos e cada bloco posta só os seus campos — a action
 // grava apenas o que veio no FormData, então um bloco nunca apaga o outro.
@@ -47,11 +49,6 @@ type Colaborador = {
   emergenciaNome: string | null;
   emergenciaParentesco: string | null;
   emergenciaTelefone: string | null;
-  bancoNome: string | null;
-  bancoAgencia: string | null;
-  bancoConta: string | null;
-  bancoTipoConta: string | null;
-  chavePix: string | null;
   dataAdmissao: Date | null;
   dataDesligamento: Date | null;
   motivoDesligamento: string | null;
@@ -101,6 +98,7 @@ function Bloco({
   children: React.ReactNode;
   acao: (prev: import("@/lib/constants").ActionResult, fd: FormData) => Promise<import("@/lib/constants").ActionResult>;
 }) {
+  const router = useRouter();
   return (
     <Card>
       <CardHeader>
@@ -108,7 +106,11 @@ function Bloco({
         {descricao && <CardDescription>{descricao}</CardDescription>}
       </CardHeader>
       <CardContent>
-        <FormularioAction action={acao} mensagemSucesso="Ficha atualizada.">
+        <FormularioAction
+          action={acao}
+          mensagemSucesso="Ficha atualizada."
+          onSuccess={() => router.refresh()}
+        >
           {children}
         </FormularioAction>
       </CardContent>
@@ -269,24 +271,64 @@ export function FichaBlocos({
         </div>
       </Bloco>
 
-      <Bloco
-        titulo="Dados bancários"
-        descricao="Usados para pagamento. A trilha de auditoria registra a alteração, nunca o valor."
-        acao={acao}
-      >
-        <div className="grid gap-4 sm:grid-cols-2">
-          <CampoTexto name="bancoNome" label="Banco" defaultValue={c.bancoNome} />
-          <CampoSelect
-            name="bancoTipoConta"
-            label="Tipo de conta"
-            opcoes={TIPOS_CONTA_BANCARIA}
-            defaultValue={c.bancoTipoConta}
-          />
-          <CampoTexto name="bancoAgencia" label="Agência" defaultValue={c.bancoAgencia} />
-          <CampoTexto name="bancoConta" label="Conta" defaultValue={c.bancoConta} />
-          <CampoTexto name="chavePix" label="Chave PIX" defaultValue={c.chavePix} className="sm:col-span-2" />
-        </div>
-      </Bloco>
+      <PagamentoPix cpf={c.cpf} />
     </div>
+  );
+}
+
+/**
+ * Pagamento por PIX — chave é SEMPRE o CPF do colaborador.
+ *
+ * POR QUE NÃO SE DIGITA. Chave PIX de telefone, e-mail ou aleatória pode ser
+ * cadastrada por qualquer pessoa e movida de conta a qualquer momento; a de
+ * CPF, não — ela só existe numa conta cujo titular é aquele CPF. Aceitando só
+ * ela, o salário não tem como cair na conta de outra pessoa, e não há campo
+ * onde alguém erre ou troque um dígito.
+ *
+ * Não é campo de formulário nem coluna nova: a chave É o CPF que já está na
+ * ficha. Guardar de novo criaria duas verdades sobre a mesma coisa, e o dia em
+ * que divergissem o dinheiro iria para o número errado.
+ *
+ * O QUE PASSA A SER TRABALHO DO RH: avisar o colaborador para cadastrar esse
+ * CPF como chave PIX na conta em que ele quer receber. O sistema não tem como
+ * saber se a chave existe do lado do banco — quem confirma isso é a pessoa.
+ */
+function PagamentoPix({ cpf }: { cpf: string | null }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Pagamento</CardTitle>
+        <CardDescription>
+          O salário é pago por PIX, e a chave é sempre o CPF do colaborador.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {cpf ? (
+          <>
+            <div className="rounded-lg border bg-muted/40 p-3">
+              <p className="text-xs text-muted-foreground">Chave PIX</p>
+              <p className="font-mono text-lg font-semibold tabular-nums">{formatarCpf(cpf)}</p>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              <strong className="text-foreground">O RH precisa avisar o colaborador</strong> para
+              cadastrar esse CPF como chave PIX na conta em que ele quer receber o salário. O
+              sistema não consegue verificar isso do lado do banco — quem confirma é a pessoa.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Só chave de CPF é aceita. Telefone, e-mail e chave aleatória podem ser cadastrados
+              por qualquer um e movidos de conta; a de CPF só existe em conta do próprio titular —
+              é o que garante que o salário não caia na conta de outra pessoa.
+            </p>
+          </>
+        ) : (
+          <Alert variant="destructive">
+            <AlertDescription>
+              <strong>Sem CPF na ficha não há como pagar.</strong> A chave PIX é o CPF — preencha o
+              CPF no bloco &ldquo;Documentos&rdquo; acima para este colaborador entrar na folha.
+            </AlertDescription>
+          </Alert>
+        )}
+      </CardContent>
+    </Card>
   );
 }

@@ -11,6 +11,8 @@ import { empresasDaMesmaMarca, marcaDaEmpresa } from "@/lib/escopo-marca";
 import { invalidarConvitesDeDesligados } from "@/lib/pesquisa-vinculo";
 import { convidarParaPesquisaDesligamento } from "@/lib/pesquisa-desligamento";
 import { hojeUTC } from "@/lib/datas";
+import { lerAnexo } from "@/lib/anexos";
+import { enviarParaBlob } from "@/lib/blob";
 import { MOTIVOS_DESLIGAMENTO, TIPOS_CONTRATO, CONTRATOS_POR_PRAZO } from "@/lib/constants-dp";
 import type { ActionResult } from "@/lib/constants";
 
@@ -60,13 +62,23 @@ async function validarSupervisor(
   return null;
 }
 
-async function validarSetorEPosicaoDaEmpresa(empresaId: string, setorId: string, posicaoId: string) {
+/**
+ * Setor e cargo valem para a MARCA inteira, igual ao líder logo acima: a
+ * higienização das telas de Setores/Cargos (unificar duplicatas + remover os
+ * sem colaboradores) deixou cada nome vivo numa única linha do grupo, e as
+ * próprias unificações já apontam colaboradores de vários CNPJs para essa
+ * linha. Validando por empresaId, o cargo aparecia no seletor mas o Salvar
+ * respondia "Posição inválida para essa empresa" — a tela oferecia uma escolha
+ * que o servidor recusava, e cadastrar colaborador novo ficou impossível.
+ */
+async function validarSetorEPosicaoDaMarca(empresaId: string, setorId: string, posicaoId: string) {
+  const escopo = await empresasDaMesmaMarca(empresaId);
   const [setor, posicao] = await Promise.all([
-    prisma.setor.findFirst({ where: { id: setorId, empresaId } }),
-    prisma.posicao.findFirst({ where: { id: posicaoId, empresaId } }),
+    prisma.setor.findFirst({ where: { id: setorId, empresaId: { in: escopo } } }),
+    prisma.posicao.findFirst({ where: { id: posicaoId, empresaId: { in: escopo } } }),
   ]);
-  if (!setor) return "Setor inválido para essa empresa.";
-  if (!posicao) return "Posição inválida para essa empresa.";
+  if (!setor) return "Setor inválido para essa marca.";
+  if (!posicao) return "Posição inválida para essa marca.";
   return null;
 }
 
@@ -135,7 +147,7 @@ export async function createColaborador(
     return { ok: false, error: "Informe a data de fim do contrato." };
   }
 
-  const erroEscopo = await validarSetorEPosicaoDaEmpresa(empresaId, parsed.data.setorId, parsed.data.posicaoId);
+  const erroEscopo = await validarSetorEPosicaoDaMarca(empresaId, parsed.data.setorId, parsed.data.posicaoId);
   if (erroEscopo) return { ok: false, error: erroEscopo };
 
   if (parsed.data.telegramChatId) {
@@ -206,7 +218,7 @@ export async function updateColaborador(
   const parsed = colaboradorSchema.safeParse(raw);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
 
-  const erroEscopo = await validarSetorEPosicaoDaEmpresa(empresaId, parsed.data.setorId, parsed.data.posicaoId);
+  const erroEscopo = await validarSetorEPosicaoDaMarca(empresaId, parsed.data.setorId, parsed.data.posicaoId);
   if (erroEscopo) return { ok: false, error: erroEscopo };
 
   if (parsed.data.telegramChatId) {
@@ -466,5 +478,154 @@ export async function deleteColaborador(empresaId: string, id: string): Promise<
   revalidatePath(`/rh/${empresaId}/colaboradores`);
   revalidatePath(`/rh/${empresaId}`, "layout");
   revalidatePath("/");
+  return { ok: true };
+}
+
+/**
+ * Foto de referência do colaborador — o rosto contra o qual o RH compara a
+ * selfie de cada batida de ponto.
+ *
+ * Ela se preenche sozinha na primeira batida de quem ainda não tem (ver
+ * app/actions/portal-ponto.ts), e nesse caso nasce NÃO CONFERIDA. Esta action
+ * é o outro caminho: o RH manda uma foto boa e ela já vale como conferida.
+ *
+ * A foto vai para o Blob privado; o banco guarda só a URL — mesma regra dos
+ * documentos e da foto de batida.
+ */
+export async function enviarFotoReferencia(
+  empresaId: string,
+  colaboradorId: string,
+  formData: FormData,
+): Promise<ActionResult> {
+  await requireEmpresaAccess(empresaId);
+
+  const colaborador = await prisma.colaborador.findFirst({
+    where: { id: colaboradorId, empresaId },
+    select: { id: true, nome: true },
+  });
+  if (!colaborador) return { ok: false, error: "Colaborador não encontrado." };
+
+  const leitura = await lerAnexo(formData, "foto");
+  if (!leitura.ok) return { ok: false, error: leitura.error };
+  if (!leitura.anexo) return { ok: false, error: "Escolha a foto." };
+  // PDF passa no `lerAnexo` (ele serve documento também) e aqui não serve:
+  // referência de rosto é imagem, e um PDF quebraria a comparação lado a lado.
+  if (!leitura.anexo.mimeType.startsWith("image/")) {
+    return { ok: false, error: "A referência precisa ser uma imagem (JPG, PNG ou WEBP)." };
+  }
+
+  const envio = await enviarParaBlob({
+    empresaId,
+    colaboradorId,
+    nome: `referencia-${leitura.anexo.nome}`,
+    mimeType: leitura.anexo.mimeType,
+    bytes: leitura.anexo.bytes,
+  });
+  if (!envio.ok) return { ok: false, error: envio.error };
+
+  await prisma.colaborador.update({
+    where: { id: colaboradorId },
+    data: { fotoUrl: envio.url, fotoConferidaPeloRh: true },
+  });
+
+  await registrarAuditoria({
+    empresaId,
+    acao: "ATUALIZAR",
+    entidade: "Colaborador",
+    entidadeId: colaboradorId,
+    resumo: `Foto de referência de ${colaborador.nome} enviada pelo RH.`,
+  });
+
+  revalidatePath(`/rh/${empresaId}/colaboradores/${colaboradorId}`);
+  revalidatePath(`/rh/${empresaId}/ponto`);
+  return { ok: true };
+}
+
+/**
+ * Confirma a foto que entrou sozinha na primeira batida.
+ *
+ * O clique que fecha o risco da promoção automática: alguém do RH olhou e diz
+ * que aquele rosto é mesmo o da pessoa. Sem isto, a referência serviria de
+ * comparação sem nunca ter passado por um par de olhos — e se a primeira
+ * batida tivesse sido feita por outra pessoa, validaria a fraude para sempre.
+ */
+export async function confirmarFotoReferencia(
+  empresaId: string,
+  colaboradorId: string,
+): Promise<ActionResult> {
+  await requireEmpresaAccess(empresaId);
+
+  const colaborador = await prisma.colaborador.findFirst({
+    where: { id: colaboradorId, empresaId },
+    select: { id: true, nome: true, fotoUrl: true, fotoConferidaPeloRh: true },
+  });
+  if (!colaborador) return { ok: false, error: "Colaborador não encontrado." };
+  if (!colaborador.fotoUrl) return { ok: false, error: "Não há foto de referência para confirmar." };
+  if (colaborador.fotoConferidaPeloRh) return { ok: true };
+
+  await prisma.colaborador.update({
+    where: { id: colaboradorId },
+    data: { fotoConferidaPeloRh: true },
+  });
+
+  await registrarAuditoria({
+    empresaId,
+    acao: "ATUALIZAR",
+    entidade: "Colaborador",
+    entidadeId: colaboradorId,
+    resumo: `Foto de referência de ${colaborador.nome} conferida pelo RH.`,
+  });
+
+  revalidatePath(`/rh/${empresaId}/colaboradores/${colaboradorId}`);
+  revalidatePath(`/rh/${empresaId}/ponto`);
+  return { ok: true };
+}
+
+/**
+ * Solta o Telegram da ficha — o conserto do "já está vinculado a outro".
+ *
+ * POR QUE ISTO EXISTE. Em 12/08/2026 o bot passou a dizer o NOME de quem
+ * segura o Telegram, com a instrução "procure o RH — o vínculo é ajustado na
+ * ficha do colaborador". Só que esse ajuste não existia em tela nenhuma: a
+ * ficha mostrava a etiqueta "Telegram vinculado" e nada mais. A mensagem
+ * mandava fazer algo impossível — o mesmo defeito que ela tinha vindo corrigir,
+ * um degrau adiante.
+ *
+ * Quando usar: dois colaboradores dividiram um aparelho, alguém entrou com o
+ * CPF errado, ou a ficha é duplicata de outra. Soltar aqui libera o chat para
+ * a pessoa certa vincular no próximo /start.
+ */
+export async function desvincularTelegram(
+  empresaId: string,
+  colaboradorId: string,
+): Promise<ActionResult> {
+  await requireEmpresaAccess(empresaId);
+
+  const colaborador = await prisma.colaborador.findFirst({
+    where: { id: colaboradorId, empresaId },
+    select: { id: true, nome: true, telegramChatId: true },
+  });
+  if (!colaborador) return { ok: false, error: "Colaborador não encontrado." };
+  if (!colaborador.telegramChatId) {
+    return { ok: false, error: "Esta ficha não tem Telegram vinculado." };
+  }
+
+  await prisma.colaborador.update({
+    where: { id: colaboradorId },
+    data: { telegramChatId: null },
+  });
+
+  await registrarAuditoria({
+    empresaId,
+    acao: "DESVINCULAR",
+    entidade: "Colaborador",
+    entidadeId: colaboradorId,
+    // O chat_id entra na trilha porque é ele que identifica QUAL aparelho foi
+    // solto — sem isso, não dá para reconstruir quem estava com o quê.
+    resumo: `Telegram (chat ${colaborador.telegramChatId}) desvinculado da ficha de ${colaborador.nome}.`,
+  });
+
+  revalidatePath(`/rh/${empresaId}/colaboradores/${colaboradorId}`);
+  revalidatePath(`/rh/${empresaId}/colaboradores`);
   return { ok: true };
 }

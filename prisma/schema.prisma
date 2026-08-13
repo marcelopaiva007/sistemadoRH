@@ -23,10 +23,12 @@ datasource db {
 // since SQLite does not support native enums.
 // Role: "ADMIN" | "DIRETORIA" | "RH_MANAGER" | "GESTOR_SETOR"
 // StatusPesquisa: "DRAFT" | "ACTIVE" | "FINISHED" | "ARCHIVED"
-// TipoPergunta: "LIKERT_5" | "NPS_10" | "MULTIPLE_CHOICE" | "TEXT"
+// TipoPergunta: "LIKERT_5" | "FREQ_0_4" | "NPS_10" | "MULTIPLE_CHOICE" | "TEXT" (ver lib/constants-rh.ts)
 // DimensaoGPTW: "CREDIBILIDADE" | "RESPEITO" | "IMPARCIALIDADE" | "ORGULHO" | "CAMARADAGEM" | "GERAL"
-// CanalToken: "TELEGRAM" | "LINK_PUBLICO"
-// StatusToken: "PENDING" | "SENT" | "DELIVERED" | "FAILED" | "RESPONDED"
+// CanalToken: não é um domínio único — cada model que reaproveita a coluna `canal`
+//   tem seu próprio conjunto: SurveyToken usa "TELEGRAM" | "EMAIL", PortalAcesso usa
+//   "TELEGRAM" | "RH", Reconhecimento só grava "TELEGRAM" hoje.
+// StatusToken: "PENDING" | "SENT" | "DELIVERED" | "FAILED" | "RESPONDED" | "EXCLUIDO" (ver lib/constants-rh.ts)
 // TipoDocumento / TipoAusencia / TipoContrato: ver lib/constants-dp.ts
 // StatusSolicitacao: "PENDENTE" | "APROVADA" | "REPROVADA" | "CANCELADA"
 
@@ -65,6 +67,23 @@ model User {
   // remoção fica para a Fase 8 do plano multi-empresa.
   empresaId String?
   setorId   String?
+
+  // Qual pessoa da folha é este login. Até 12/08/2026 não existia resposta:
+  // `User` e `Colaborador` eram dois cadastros sem ponte, então um gestor que
+  // entrava pelo sistema não tinha como o servidor saber quem ele é — e
+  // portanto não dava para mostrar "meu time" (que sai de
+  // `Colaborador.supervisorId`) em nenhuma tela com login.
+  //
+  // OPCIONAL de propósito, e assim fica: ADMIN e o pessoal do RH costumam não
+  // ter ficha na empresa que administram, e exigir vínculo os trancaria para
+  // fora. Só quem precisa ver o próprio time precisa disto preenchido.
+  //
+  // @unique porque é 1:1 — duas contas apontando para a mesma ficha fariam
+  // "meu time" responder coisas diferentes conforme o login usado.
+  // onDelete: SetNull — desligar alguém não pode apagar o login (que carrega
+  // auditoria); o vínculo cai e o acesso vira decisão explícita do RH.
+  colaboradorId String?      @unique
+  colaborador   Colaborador? @relation("LoginDoColaborador", fields: [colaboradorId], references: [id], onDelete: SetNull)
 
   // Pivô: lista de empresas onde este usuário tem papel. ADMIN/DIRETORIA
   // permanecem com este array vazio (papel é global). RH_MANAGER e
@@ -197,14 +216,16 @@ model Empresa {
   uf                String?
 
   marca          Marca           @relation(fields: [marcaId], references: [id])
-  setores        Setor[]
-  posicoes       Posicao[]
-  colaboradores  Colaborador[]
-  pesquisas      Pesquisa[]
-  userEmpresas   UserEmpresa[]
-  planosAcao     PlanoAcao[]
-  tiposBeneficio TipoBeneficio[]
-  catalogoItens  CatalogoItem[]
+  setores                Setor[]
+  posicoes               Posicao[]
+  colaboradores          Colaborador[]
+  pesquisas              Pesquisa[]
+  userEmpresas           UserEmpresa[]
+  planosAcao             PlanoAcao[]
+  tiposBeneficio         TipoBeneficio[]
+  catalogoItens          CatalogoItem[]
+  ocorrenciasDisciplinares OcorrenciaDisciplinar[]
+  configuracaoPonto      ConfiguracaoPontoEmpresa?
 
   @@index([marcaId])
   @@schema("rh")
@@ -331,6 +352,15 @@ model Colaborador {
   supervisorId   String?
   supervisor     Colaborador?  @relation("SupervisorDoColaborador", fields: [supervisorId], references: [id], onDelete: SetNull)
   subordinados   Colaborador[] @relation("SupervisorDoColaborador")
+  // Avisos automáticos: os que ESTA pessoa recebeu como gestor, e os que foram
+  // enviados SOBRE ela. Duas relações porque AvisoGestor liga dois
+  // colaboradores — quem lidera e quem é o assunto.
+  avisosComoGestor AvisoGestor[] @relation("AvisosRecebidosComoGestor")
+  avisosSobreMim   AvisoGestor[] @relation("AvisosSobreMim")
+  // O login desta pessoa no sistema, quando existe — ver User.colaboradorId.
+  // A maioria das fichas não tem: colaborador de chão de fábrica entra pelo
+  // portal, pelo Telegram, sem usuário e sem senha.
+  usuario          User?         @relation("LoginDoColaborador")
   // Quem avalia a equipe no ciclo de desempenho. É outra pergunta que a de
   // cima: `supervisorId` diz a quem a pessoa reporta; aqui quem avalia é o
   // gerente, que pode ter muito mais gente do que o organograma mostra — e em
@@ -341,6 +371,23 @@ model Colaborador {
   // pro colaborador dar /start no bot e lê o chat_id via Bot API getUpdates).
   // Sem isso, o convite da pesquisa não pode ser enviado automaticamente.
   telegramChatId String?
+  // Foto de referência: o rosto contra o qual o RH compara a selfie de cada
+  // batida de ponto. Sem ela a conferência humana não fecha — quem abre a foto
+  // de uma batida não tem com o que comparar, e ninguém reconhece 170 pessoas
+  // de memória. Decidido em 13/08/2026, junto com a escolha de NÃO contratar
+  // comparação automática de rosto (ver lib/atualizacoes.ts v1.83.2).
+  //
+  // Guarda a URL do Blob privado, como `RegistroPonto.fotoUrl` — nunca o
+  // conteúdo. Servida só por rota autenticada, que audita quem viu.
+  fotoUrl        String?
+  // Se a foto de referência foi posta ou confirmada por uma pessoa do RH.
+  //
+  // `false` = veio da promoção automática da primeira selfie de batida (o
+  // sistema não tinha nada e adotou a primeira que chegou). É útil e imediato,
+  // mas carrega um risco lógico: se ESSA primeira batida tiver sido feita por
+  // outra pessoa, a referência nasce errada e passa a validar a fraude. Por
+  // isso o painel marca a referência não conferida, e conferir é um clique.
+  fotoConferidaPeloRh Boolean  @default(false)
   ativo          Boolean       @default(true)
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
@@ -445,6 +492,11 @@ model Colaborador {
   metas                    Meta[]
   pdi                      PlanoDesenvolvimento[]
   participacoesTreinamento ParticipacaoTreinamento[]
+  ocorrenciasDisciplinares OcorrenciaDisciplinar[]
+  registrosPonto           RegistroPonto[]
+  tratamentosPonto         TratamentoPonto[]
+  bancosHoras              BancoHoras[]
+  cobrancasCadastro        CobrancaCadastro[]
 
   // Registros de ponto (entrada/saída)
   pontos Ponto[]
@@ -516,6 +568,8 @@ model Arquivo {
   acidente                AcidenteTrabalho?
   participacaoTreinamento ParticipacaoTreinamento?
   curriculo               Candidato?
+  tratamentoPonto         TratamentoPonto?
+  ocorrenciaDisciplinar   OcorrenciaDisciplinar?
 
   @@index([empresaId])
   @@schema("rh")
@@ -1378,6 +1432,54 @@ model EventoCandidatura {
   @@schema("rh")
 }
 
+// Módulo de Medidas Disciplinares e Ocorrências em desfavor do colaborador
+model OcorrenciaDisciplinar {
+  id                String   @id @default(cuid())
+  empresaId         String
+  colaboradorId     String
+  emitidoPorId      String?
+  emitidoPorNome    String?
+
+  // ADVERTENCIA_VERBAL | ADVERTENCIA_ESCRITA | SUSPENSAO | JUSTA_CAUSA |
+  // ABANDONO_EMPREGO | USO_INDEVIDO_EPI | DANO_PATRIMONIAL | RECUSA_EXAME
+  tipo              String
+  motivo            String
+  detalhes          String?
+  dataFato          DateTime
+
+  diasSuspensao     Int?
+  valorDesconto     Float?
+
+  // PENDENTE | ASSINADO | RECUSADO_COM_TESTEMUNHAS
+  statusAssinatura  String   @default("PENDENTE")
+  dataAssinatura    DateTime?
+
+  testemunha1Nome   String?
+  testemunha1Cpf    String?
+  testemunha2Nome   String?
+  testemunha2Cpf    String?
+
+  documentoUrl      String?
+
+  // A VIA ASSINADA, digitalizada. O sistema gera o documento em branco e
+  // registra `statusAssinatura`, mas até 11/08/2026 não havia onde guardar o
+  // papel de volta: o RH imprimia, colhia a assinatura e o comprovante ficava
+  // na pasta física. Numa reclamatória o que se pede é justamente esse papel —
+  // o status sozinho é a afirmação de que ele existe, não a prova.
+  arquivoId         String?  @unique
+  arquivo           Arquivo? @relation(fields: [arquivoId], references: [id], onDelete: SetNull)
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  empresa     Empresa     @relation(fields: [empresaId], references: [id])
+  colaborador Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+
+  @@index([empresaId, tipo])
+  @@index([colaboradorId])
+  @@schema("rh")
+}
+
 // ------------------------------------------------------
 // PORTAL DO COLABORADOR — acesso sem senha
 // ------------------------------------------------------
@@ -1439,6 +1541,42 @@ model MensagemPortal {
 
   @@index([empresaId, respondidaEm])
   @@index([colaboradorId])
+  @@schema("rh")
+}
+
+// Uma linha por cobrança de cadastro enviada ao colaborador pelo Telegram
+// (lib/cobranca-cadastro-colaborador.ts). É o relógio da cadência: sem ela o
+// cron não sabe quem já foi cobrado e mandaria a mesma mensagem todo dia.
+//
+// Histórico, não estado: linha por envio em vez de dois campos na ficha
+// ("últimaCobrançaEm", "rodadas"). Quando o colaborador reclamar que "o RH
+// nunca me avisou", o que responde é a lista do que foi pedido e quando —
+// `itens` guarda exatamente o que estava faltando naquele dia.
+model CobrancaCadastro {
+  id            String      @id @default(cuid())
+  colaboradorId String
+  colaborador   Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  empresaId     String
+  /// 1ª, 2ª… cobrança desta pessoa. Para em MAX_COBRANCAS.
+  rodada        Int
+  /// O que faltava no momento do envio, nos mesmos rótulos que a pessoa leu.
+  itens         String
+  /// Por onde saiu: "TELEGRAM", "EMAIL" ou "TELEGRAM,EMAIL". Só canais que
+  /// ACEITARAM o envio entram — a linha é prova de que a pessoa foi avisada, e
+  /// registrar um canal que recusou transformaria a prova em ficção.
+  canais        String      @default("TELEGRAM")
+  /// Disparada por alguém do RH pela tela, em vez do cron. Não conta para o
+  /// teto de MAX_COBRANCAS nem mexe no relógio da cobrança automática: é um
+  /// extra por cima dela, decidido por uma pessoa, e não pode encurtar a
+  /// campanha de quem foi cobrado à mão uma vez.
+  manual        Boolean     @default(false)
+  /// Quem clicou, quando `manual`. Snapshot do nome, como no resto da trilha:
+  /// apagar o usuário não pode apagar a autoria do que ele disparou.
+  solicitadaPorNome String?
+  enviadaEm     DateTime    @default(now())
+
+  @@index([colaboradorId, enviadaEm])
+  @@index([empresaId, enviadaEm])
   @@schema("rh")
 }
 
@@ -1608,7 +1746,7 @@ model Sinal {
   // DESLIGAMENTOS_CONCENTRADOS | TAXA_RESPOSTA_BAIXA (ver lib/sinais.ts).
   tipo String
 
-  // Onde: grupo | marca | empresa | setor, com snapshot do nome.
+  // Onde: GRUPO | MARCA | EMPRESA | SETOR, com snapshot do nome.
   nivelUnidade String
   unidadeId    String
   unidadeNome  String
@@ -1629,7 +1767,7 @@ model Sinal {
   // O que ficou fora da conta, no rodapé do cartão. Honestidade de dado.
   recorte   String?
 
-  gravidade String // critica | alta | atencao
+  gravidade String // CRITICA | ALTA | ATENCAO
   status    String @default("ABERTO") // ABERTO | RECONHECIDO | EM_PLANO | DESCARTADO | SILENCIADO
 
   // Preenchido só em DESCARTADO — descartar sem motivo escrito não existe.
@@ -2011,5 +2149,153 @@ model FotoMensal {
   // tempo" — as duas perguntas que a tela vai fazer.
   @@index([competencia])
   @@index([empresaId, competencia])
+  @@schema("rh")
+}
+
+// ---------------------------------------------------------------------------
+// PONTO ELETRÔNICO & GESTÃO DE JORNADA (REP-P / Portaria MTP 671/2021)
+// ---------------------------------------------------------------------------
+
+// Cadastro da escala / jornada contratual de trabalho
+model JornadaTrabalho {
+  id              String   @id @default(cuid())
+  empresaId       String
+  nome            String   // Ex: "Administrativo 08h às 18h", "Turno 12x36"
+  entrada1        String   // "08:00"
+  saida1          String   // "12:00"
+  entrada2        String?  // "13:00"
+  saida2          String?  // "17:00"
+  cargaDiariaMin  Int      @default(480) // Carga diária contratual em minutos (ex: 480 min = 8h)
+  toleranciaMin   Int      @default(10)  // Tolerância diária em minutos (Art. 58 § 1º CLT)
+  sabadoUtil      Boolean  @default(false)
+  domingoUtil     Boolean  @default(false)
+  ativo           Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([empresaId, ativo])
+  @@schema("rh")
+}
+
+// Registro inalterável da batida de ponto (REP-P / Append-Only Log)
+// Proibido UPDATE ou DELETE nas colunas de marcação original por exigência fiscal MTE.
+model RegistroPonto {
+  id               String      @id @default(cuid())
+  empresaId        String
+  colaboradorId    String
+  colaborador      Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  dataHora         DateTime    // Instante exato oficial (NTP/UTC-3)
+  tipo             String      // "ENTRADA_1" | "SAIDA_1" | "ENTRADA_2" | "SAIDA_2"
+  nsr              BigInt      // Número Sequencial de Registro (crescente por empresa)
+  ipOrigem         String?     // Endereço IP público do batimento
+  ipValido         Boolean     @default(true)
+  latitude         Float?      // Coordenada GPS
+  longitude        Float?      // Coordenada GPS
+  precisaoGps      Float?      // Precisão em metros
+  gpsValido        Boolean     @default(true)
+  fotoUrl          String?     // URL do Blob da foto tirada no momento (opcional)
+  hashSHA256       String      // Criptografia e integridade da marcação
+  dispositivoInfo  String?     // User-agent / Navegador / SO
+  createdAt        DateTime    @default(now())
+
+  tratamentos      TratamentoPonto[]
+
+  @@index([empresaId, dataHora])
+  @@index([colaboradorId, dataHora])
+  @@index([empresaId, nsr])
+  @@schema("rh")
+}
+
+// Tratamento de Inconsistências (PTRP - Programa de Tratamento de Registro de Ponto)
+model TratamentoPonto {
+  id               String         @id @default(cuid())
+  empresaId        String
+  colaboradorId    String
+  colaborador      Colaborador    @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  registroPontoId  String?
+  registroPonto    RegistroPonto? @relation(fields: [registroPontoId], references: [id], onDelete: SetNull)
+  dataFato         DateTime       // Dia a que se refere a ocorrência
+  tipo             String         // "INCLUSAO_MANUAL" | "ABONO_ATESTADO" | "JUSTIFICATIVA" | "CORRECAO" (ver app/actions/rh-ponto.ts)
+  motivo           String         // Texto justificando a alteração
+  arquivoId        String?        @unique
+  arquivo          Arquivo?       @relation(fields: [arquivoId], references: [id], onDelete: SetNull)
+  status           String         @default("PENDENTE") // "PENDENTE" | "APROVADO" | "REJEITADO"
+  aprovadoPorId    String?
+  aprovadoPorNome  String?
+  aprovadoEm       DateTime?
+  // Justificativa de QUEM DECIDIU, separada do `motivo` de quem pediu. Até
+  // 11/08/2026 a recusa era concatenada dentro de `motivo` — o texto original
+  // do solicitante era reescrito a cada rejeição, e num módulo fiscalizável
+  // (Portaria MTP 671/2021) o registro do pedido não pode ser alterado por
+  // quem o julga.
+  motivoDecisao    String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@index([empresaId, dataFato])
+  @@index([colaboradorId, dataFato])
+  // A fila de pendentes é lida a cada abertura da tela de Ponto e da Central
+  // de Aprovações, sempre filtrando por empresa + status.
+  @@index([empresaId, status])
+  @@schema("rh")
+}
+
+// Extrato & Saldo de Banco de Horas
+model BancoHoras {
+  id             String      @id @default(cuid())
+  empresaId      String
+  colaboradorId  String
+  colaborador    Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  competencia    String      // "AAAA-MM"
+  saldoAnterior  Int         @default(0) // Saldo acumulado em minutos
+  creditosMes    Int         @default(0) // Horas extras enviadas ao banco no mês (minutos)
+  debitosMes     Int         @default(0) // Faltas/atrasos/folgas compensadas no mês (minutos)
+  saldoAtual     Int         @default(0) // Saldo final do mês (minutos)
+  expiraEm       DateTime?   // Prazo limite para compensação (6 a 12 meses)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@unique([colaboradorId, competencia])
+  @@index([empresaId, competencia])
+  @@schema("rh")
+}
+
+// Configurações de Trava de Ponto da Empresa (IP, GPS, Cercos)
+model ConfiguracaoPontoEmpresa {
+  id                String   @id @default(cuid())
+  empresaId         String   @unique
+  empresa           Empresa  @relation(fields: [empresaId], references: [id])
+  ipsAutorizados    String?  // Lista de IPs públicos separados por vírgula
+  exigirIp          Boolean  @default(false)
+  latitudeEmpresa   Float?   // Latitude da sede/unidade
+  longitudeEmpresa  Float?   // Longitude da sede/unidade
+  raioPermitidoMtrs Int      @default(200) // Raio do cerco em metros
+  exigirGps         Boolean  @default(true)
+  exigirFoto        Boolean  @default(false)
+  updatedAt         DateTime @updatedAt
+
+  @@schema("rh")
+}
+
+/// Um aviso já enviado a um gestor sobre uma pessoa do time dele.
+///
+/// Existe só para SILENCIAR repetição: sem esta tabela o cron avisaria todo dia
+/// sobre o mesmo contrato até a data chegar, e o gestor aprenderia a ignorar o
+/// bot — a única forma de falha realmente cara aqui, porque o aviso continua
+/// saindo e ninguém mais lê. Ver DIAS_ENTRE_AVISOS em lib/aviso-gestor.ts.
+model AvisoGestor {
+  id            String   @id @default(cuid())
+  /// O gestor é um Colaborador (quem tem outros apontando para si em
+  /// `supervisorId`), não um User: não existe login com papel de gestor.
+  gestorId      String
+  gestor        Colaborador @relation("AvisosRecebidosComoGestor", fields: [gestorId], references: [id], onDelete: Cascade)
+  colaboradorId String
+  colaborador   Colaborador @relation("AvisosSobreMim", fields: [colaboradorId], references: [id], onDelete: Cascade)
+  /// CONTRATO_VENCENDO | FERIAS_VENCENDO | HORA_EXTRA_ACIMA
+  tipo          String
+  enviadoEm     DateTime @default(now())
+
+  @@index([gestorId, colaboradorId, tipo, enviadoEm])
+  @@index([enviadoEm])
   @@schema("rh")
 }

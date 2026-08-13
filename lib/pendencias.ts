@@ -1,4 +1,5 @@
 import { prisma, type Cliente } from "@/lib/prisma";
+import type { Prisma } from "@/app/generated/prisma/client";
 import { DIAS_ALERTA_VENCIMENTO, CONTRATOS_POR_PRAZO } from "@/lib/constants-dp";
 import { RUBRICAS_HORA_EXTRA, LIMITE_HORAS_EXTRAS_MES } from "@/lib/constants-folha";
 import { hojeUTC, somarDiasUTC, diferencaEmDiasUTC } from "@/lib/datas";
@@ -17,7 +18,13 @@ export type Pendencias = {
   feriasVencidas: number;
   avisoPrevio: number;
   desligamentosIncompletos: number;
-  avaliacoesAtrasadas: number;
+  // Era `avaliacoesAtrasadas` (cada avaliação PENDENTE de ciclo com janela
+  // fechada) até 10/08/2026. Um ciclo esquecido com 235 avaliações pendentes
+  // virava 235 itens no total — como se o RH tivesse 235 ações separadas. A
+  // ação é UMA por ciclo: cobrar os avaliadores e encerrar (encerrarCiclo em
+  // lib/actions/rh-avaliacao.ts). Mesma régua de `pesquisasAbertas`, logo
+  // abaixo: conta a unidade que o RH fecha, nunca pessoa a pessoa.
+  ciclosAvaliacaoAEncerrar: number;
   // Era `convitesSemResposta` (pessoa com convite de pesquisa ativa e ainda sem
   // responder) até 06/08/2026. Responder pesquisa é OPCIONAL: parte do time
   // nunca responde, por direito, e isso não é falha do RH nem tem ação do RH
@@ -46,9 +53,163 @@ export type Pendencias = {
   // ao portal — é cobrança do RH, não estatística. Mesma condição da lacuna e
   // da lista (?lacuna=telegram): ativo com telegramChatId nulo OU vazio.
   semTelegram: number;
+  // Ficha de colaborador ativo com campo essencial em branco. Ver
+  // CADASTRO_INCOMPLETO_WHERE / cadastroIncompleto logo abaixo: a regra é uma
+  // só, usada pela contagem e pelo filtro da lista.
+  cadastrosIncompletos: number;
 };
 
+/**
+ * Ficha incompleta: a MESMA regra em dois formatos — filtro do Prisma (para
+ * contar) e predicado (para a lista `?lacuna=incompleto` marcar as linhas).
+ *
+ * As duas TÊM que andar juntas. Se divergirem, o cartão diz "12 cadastros
+ * incompletos", o RH clica e a lista mostra 40 — e a tela de pendências perde
+ * a credibilidade inteira, não só este número.
+ *
+ * Contato é o único par: exigir email E telefone marcaria quase toda base
+ * operacional, onde a maioria só tem telefone. Falta de contato é não ter
+ * nenhum dos dois.
+ *
+ * A RÉGUA ENCOLHEU EM 12/08/2026, e o motivo é o número: com RG, endereço
+ * (logradouro, número, bairro, UF) na conta, o cartão marcava 163 de 170
+ * ativos — 96% da base. Contador que aponta para quase todo mundo não é fila
+ * de trabalho, é ruído: ninguém abre uma lista de 163 pessoas, e o cartão
+ * inteiro passa a ser ignorado junto com os outros ao lado dele.
+ *
+ * Ficou o que TRAVA alguma coisa: sem CPF ou data de admissão não há eSocial;
+ * sem nenhum contato não há como falar com a pessoa. RG e endereço continuam
+ * faltando e continuam visíveis na própria ficha — só deixaram de disputar
+ * atenção na tela de Pendências.
+ *
+ * BANCO SAIU EM 13/08/2026, junto com os campos bancários da tela. A chave de
+ * pagamento passou a ser o CPF do próprio colaborador (PIX-CPF), e "sem dados
+ * bancários não há como pagar" virou "sem CPF não há como pagar" — que a
+ * primeira condição desta lista já cobre. Manter banco aqui cobraria um dado
+ * que nenhuma tela do sistema aceita mais: o RH veria a pendência, abriria a
+ * ficha e não acharia onde preencher.
+ *
+ * Só `null`, sem `""`: mesmo critério de lib/dashboard.ts::lacunasDaBase, que
+ * também trata string vazia à parte apenas no telegramChatId, onde ela de fato
+ * aparece nos dados importados.
+ */
+// Sem `as const`: o Prisma exige `OR` como array mutável, e um literal
+// readonly não é atribuível a `ColaboradorWhereInput[]`.
+export const CADASTRO_INCOMPLETO_WHERE: Prisma.ColaboradorWhereInput = {
+  OR: [
+    { cpf: null },
+    { dataAdmissao: null },
+    { AND: [{ email: null }, { telefone: null }] },
+  ],
+};
+
+/** Campos lidos por `cadastroIncompleto`. Só o servidor os enxerga. */
+export type CamposDoCadastro = {
+  cpf: string | null;
+  email: string | null;
+  telefone: string | null;
+  dataAdmissao: Date | null;
+  rg: string | null;
+  logradouro: string | null;
+  numeroEndereco: string | null;
+  bairro: string | null;
+  uf: string | null;
+};
+
+export function cadastroIncompleto(c: CamposDoCadastro): boolean {
+  return (
+    c.cpf === null ||
+    c.dataAdmissao === null ||
+    (c.email === null && c.telefone === null)
+  );
+}
+
 export const totalPendencias = (p: Pendencias) => Object.values(p).reduce((s, n) => s + n, 0);
+
+/**
+ * As 19 pendências separadas por NATUREZA DA AÇÃO.
+ *
+ * POR QUE ISTO EXISTE. A tela inicial mostrava as 19 somadas num número só. O
+ * efeito ficou evidente em 12/08/2026: "163 cadastros incompletos" e "6
+ * documentos aguardando conferência" moravam dentro do mesmo total — e o
+ * segundo, que é gente esperando resposta do RH hoje, sumia dentro do
+ * primeiro, que não tem data fatal nenhuma. Número que mistura urgência com
+ * ruído não é fila de trabalho; é um número grande que se aprende a ignorar.
+ *
+ * A régua de cada grupo é UMA pergunta:
+ *   DECIDIR  — "tem alguém esperando uma resposta minha?" (o RH é o gargalo)
+ *   PRAZO    — "tem data correndo contra?" (a data é o gargalo)
+ *   CADASTRO — "falta dado?" (nada trava hoje; é qualidade de base)
+ *
+ * `satisfies` com a lista de chaves obriga o TypeScript a cobrar: pendência
+ * nova que não entre em exatamente um grupo não compila. Sem isso, a próxima
+ * pendência entraria no total e não apareceria em grupo nenhum — que é
+ * justamente o tipo de omissão silenciosa que esta separação veio corrigir.
+ */
+export const PENDENCIAS_DECIDIR = [
+  "aprovacoes",
+  "documentosAConferir",
+  // CAT tem prazo legal de 1 dia útil (Lei 8.213/91, art. 22) — é decisão que
+  // não espera, não "acompanhamento".
+  "catPendente",
+] as const;
+
+export const PENDENCIAS_PRAZO = [
+  "asoVencendo",
+  "certificadosVencendo",
+  "epiVencido",
+  "feriasVencidas",
+  "contratosVencendo",
+  "avisoPrevio",
+  "integracoesAtrasadas",
+  "desligamentosIncompletos",
+  "ciclosAvaliacaoAEncerrar",
+  "horasExtrasExcedidas",
+] as const;
+
+export const PENDENCIAS_CADASTRO = [
+  "cadastrosIncompletos",
+  "fichasDesatualizadas",
+  "dependentesSemCpf",
+  "atestadosSemDocumento",
+  "semTelegram",
+  "pesquisasAbertas",
+] as const;
+
+// A prova de cobertura: o tipo abaixo só resolve para `true` se a união dos
+// três grupos for exatamente as chaves de Pendencias — nem faltando, nem
+// sobrando, nem repetida.
+type ChavesAgrupadas =
+  | (typeof PENDENCIAS_DECIDIR)[number]
+  | (typeof PENDENCIAS_PRAZO)[number]
+  | (typeof PENDENCIAS_CADASTRO)[number];
+type CoberturaCompleta = [ChavesAgrupadas] extends [keyof Pendencias]
+  ? [keyof Pendencias] extends [ChavesAgrupadas]
+    ? true
+    : never
+  : never;
+const _todasAsPendenciasAgrupadas: CoberturaCompleta = true;
+void _todasAsPendenciasAgrupadas;
+
+export type PendenciasPorNatureza = {
+  /** Alguém espera uma resposta do RH. É a fila do dia. */
+  decidir: number;
+  /** Data correndo contra: vence, venceu ou atrasou. */
+  prazo: number;
+  /** Falta dado. Não trava nada hoje. */
+  cadastro: number;
+};
+
+const somarGrupo = (p: Pendencias, chaves: readonly (keyof Pendencias)[]) =>
+  chaves.reduce((s, c) => s + p[c], 0);
+
+export function porNatureza(p: Pendencias): PendenciasPorNatureza {
+  return {
+    decidir: somarGrupo(p, PENDENCIAS_DECIDIR),
+    prazo: somarGrupo(p, PENDENCIAS_PRAZO),
+    cadastro: somarGrupo(p, PENDENCIAS_CADASTRO),
+  };
+}
 
 export const zeradas = (): Pendencias => ({
   aprovacoes: 0,
@@ -61,7 +222,7 @@ export const zeradas = (): Pendencias => ({
   feriasVencidas: 0,
   avisoPrevio: 0,
   desligamentosIncompletos: 0,
-  avaliacoesAtrasadas: 0,
+  ciclosAvaliacaoAEncerrar: 0,
   pesquisasAbertas: 0,
   fichasDesatualizadas: 0,
   contratosVencendo: 0,
@@ -69,6 +230,7 @@ export const zeradas = (): Pendencias => ({
   dependentesSemCpf: 0,
   atestadosSemDocumento: 0,
   semTelegram: 0,
+  cadastrosIncompletos: 0,
 });
 
 type LinhaAgrupada = { empresaId: string; _count?: { _all?: number } };
@@ -108,10 +270,10 @@ export async function pendenciasPorEmpresa(
   const [
     feriasPendentes, ausenciasPendentes, documentosAConferir, asoVencendo,
     certificadosVencendo, catPendente, integracoesAtrasadas, epiVencido,
-    feriasVencidas, avisoPrevio, desligamentosIncompletos, avaliacoesAtrasadas,
+    feriasVencidas, avisoPrevio, desligamentosIncompletos, ciclosAvaliacaoAEncerrar,
     pesquisasAbertas, fichasDesatualizadas,
     contratosVencendo, dependentesSemCpf, atestadosSemDocumento, horasExtras,
-    semTelegram,
+    semTelegram, cadastrosIncompletos,
   ] =
     await Promise.all([
       cliente.solicitacaoFerias.groupBy({ by: [...por], _count: contar, where: { empresaId, status: "PENDENTE" } }),
@@ -169,11 +331,13 @@ export async function pendenciasPorEmpresa(
         _count: contar,
         where: { empresaId, concluido: false, colaborador: { ativo: false } },
       }),
-      // Avaliação pendente de ciclo cuja janela já fechou e ninguém encerrou.
-      cliente.avaliacaoDesempenho.groupBy({
+      // Ciclo de avaliação com a janela fechada e ainda aberto — falta cobrar
+      // quem não avaliou e encerrar. Conta o CICLO, não as avaliações pendentes
+      // dentro dele (ver o comentário do tipo).
+      cliente.cicloAvaliacao.groupBy({
         by: [...por],
         _count: contar,
-        where: { empresaId, status: "PENDENTE", ciclo: { dataFim: { lt: hoje }, encerrado: false } },
+        where: { empresaId, encerrado: false, dataFim: { lt: hoje } },
       }),
       // Pesquisa ainda ACTIVE — aberta para os colaboradores responderem e
       // esperando o RH encerrar. Só ACTIVE: DRAFT não chegou a ninguém e
@@ -247,6 +411,13 @@ export async function pendenciasPorEmpresa(
         _count: contar,
         where: { empresaId, ativo: true, OR: [{ telegramChatId: null }, { telegramChatId: "" }] },
       }),
+      // Ficha com campo essencial em branco. A regra vive em
+      // CADASTRO_INCOMPLETO_WHERE, ao lado do predicado que a lista usa.
+      cliente.colaborador.groupBy({
+        by: [...por],
+        _count: contar,
+        where: { empresaId, ativo: true, ...CADASTRO_INCOMPLETO_WHERE },
+      }),
     ]);
 
   const somar = (linhas: LinhaAgrupada[], aplicar: (p: Pendencias, n: number) => void) => {
@@ -268,13 +439,14 @@ export async function pendenciasPorEmpresa(
   somar(feriasVencidas, (p, n) => (p.feriasVencidas = n));
   somar(avisoPrevio, (p, n) => (p.avisoPrevio = n));
   somar(desligamentosIncompletos, (p, n) => (p.desligamentosIncompletos = n));
-  somar(avaliacoesAtrasadas, (p, n) => (p.avaliacoesAtrasadas = n));
+  somar(ciclosAvaliacaoAEncerrar, (p, n) => (p.ciclosAvaliacaoAEncerrar = n));
   somar(pesquisasAbertas, (p, n) => (p.pesquisasAbertas = n));
   somar(fichasDesatualizadas, (p, n) => (p.fichasDesatualizadas = n));
   somar(contratosVencendo, (p, n) => (p.contratosVencendo = n));
   somar(dependentesSemCpf, (p, n) => (p.dependentesSemCpf = n));
   somar(atestadosSemDocumento, (p, n) => (p.atestadosSemDocumento = n));
   somar(semTelegram, (p, n) => (p.semTelegram = n));
+  somar(cadastrosIncompletos, (p, n) => (p.cadastrosIncompletos = n));
 
   // Uma linha por colaborador que lançou hora extra no mês aberto; conta quem
   // passou do teto. `_sum` volta null quando todas as quantidades da pessoa são
@@ -338,6 +510,49 @@ export async function pesquisasAbertasDaEmpresa(
   );
 }
 
+export type CicloAEncerrar = {
+  id: string;
+  nome: string;
+  /** Dias desde que a janela do ciclo fechou. */
+  diasVencido: number;
+  /** Avaliações ainda PENDENTES dentro dele — contexto da cobrança, não pendência. */
+  avaliacoesPendentes: number;
+};
+
+/**
+ * Os ciclos de avaliação vencidos e não encerrados, com o tamanho do atraso e
+ * quantas avaliações ainda faltam. O cartão mostra só a contagem de ciclos;
+ * quem vai agir precisa saber QUAL ciclo e o tamanho da cobrança — o número
+ * que era o próprio contador até 10/08/2026 vira contexto aqui.
+ */
+export async function ciclosAEncerrarDaEmpresa(
+  empresaIds: string[],
+  cliente: Cliente = prisma,
+): Promise<CicloAEncerrar[]> {
+  if (empresaIds.length === 0) return [];
+  const hoje = hojeUTC();
+
+  const ciclos = await cliente.cicloAvaliacao.findMany({
+    where: { empresaId: { in: empresaIds }, encerrado: false, dataFim: { lt: hoje } },
+    select: {
+      id: true,
+      nome: true,
+      dataFim: true,
+      _count: { select: { avaliacoes: { where: { status: "PENDENTE" } } } },
+    },
+  });
+
+  return ciclos
+    .map((c) => ({
+      id: c.id,
+      nome: c.nome,
+      diasVencido: Math.max(0, diferencaEmDiasUTC(hoje, c.dataFim)),
+      avaliacoesPendentes: c._count.avaliacoes,
+    }))
+    // Mais atrasado primeiro — é o que o RH precisa fechar antes.
+    .sort((a, b) => b.diasVencido - a.diasVencido);
+}
+
 /**
  * Os módulos que não têm NENHUM registro nestas empresas.
  *
@@ -377,8 +592,8 @@ export async function empresasComRegistro(
   const chaves = [
     "asoVencendo", "certificadosVencendo", "epiVencido", "catPendente",
     "integracoesAtrasadas", "desligamentosIncompletos", "documentosAConferir",
-    "avaliacoesAtrasadas", "atestadosSemDocumento", "horasExtrasExcedidas",
-    "dependentesSemCpf", "contratosVencendo", "pesquisasAbertas",
+    "ciclosAvaliacaoAEncerrar", "atestadosSemDocumento", "horasExtrasExcedidas",
+    "dependentesSemCpf", "contratosVencendo", "pesquisasAbertas", "cadastrosIncompletos",
   ] as const satisfies readonly (keyof Pendencias)[];
 
   const achados = await Promise.all([
@@ -389,7 +604,9 @@ export async function empresasComRegistro(
     cliente.checklistIntegracao.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
     cliente.checklistDesligamento.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
     cliente.documentoColaborador.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
-    cliente.avaliacaoDesempenho.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
+    // Ciclo, não avaliação: é o que a pendência conta desde 10/08/2026, e uma
+    // empresa que criou ciclo mas ainda não gerou avaliação já usa o módulo.
+    cliente.cicloAvaliacao.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
     cliente.ausencia.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
     cliente.eventoFolha.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
     // Dependente não tem empresaId — só colaboradorId. A pergunta vira "quais
@@ -412,6 +629,14 @@ export async function empresasComRegistro(
     // as pesquisas "em dia", está sem o módulo. Sem isto, marca que nunca abriu
     // pesquisa apareceria no verde junto de quem encerra tudo em prazo.
     cliente.pesquisa.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
+    // Qualquer colaborador ativo: se não tem ninguém, o módulo de cadastros
+    // nunca foi aberto. Com isto a verificação de "tem registro" e "precisa de
+    // ação" ficam alinhadas para cadastrosIncompletos.
+    cliente.colaborador.groupBy({
+      by: [...por],
+      _count: contar,
+      where: { empresaId, ativo: true },
+    }),
   ]);
 
   achados.forEach((linhas: LinhaAgrupada[], i) => {

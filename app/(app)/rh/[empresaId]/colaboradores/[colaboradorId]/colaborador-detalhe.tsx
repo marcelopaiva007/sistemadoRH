@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { ClipboardList } from "lucide-react";
+import { ClipboardList, Send } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -11,6 +11,8 @@ import { formatarData, tempoDeCasa } from "@/lib/datas";
 import type { ResumoFerias } from "@/lib/ferias";
 import type { ConformidadeColaborador, SituacaoExame } from "@/lib/conformidade";
 import { AtivarDesativarButton } from "../ativar-desativar-button";
+import { DesvincularTelegramButton } from "../desvincular-telegram-button";
+import { CobrarCadastroButton } from "../cobrar-cadastro-button";
 import { FichaBlocos } from "./ficha-blocos";
 import { DependentesCard } from "./dependentes-card";
 import { DocumentosCard } from "./documentos-card";
@@ -26,6 +28,7 @@ import { DesempenhoCard } from "./desempenho-card";
 import { MetasPdiCard } from "./metas-pdi-card";
 import { TreinamentosCard } from "./treinamentos-card";
 import { IntegracaoCard } from "./integracao-card";
+import { DisciplinarCard } from "./disciplinar-card";
 
 type Colaborador = Parameters<typeof FichaBlocos>[0]["colaborador"] & {
   ativo: boolean;
@@ -71,7 +74,9 @@ export function ColaboradorDetalhe({
   participacoesTreinamento,
   treinamentosAtivos,
   admissao,
+  cobrancaCadastro,
   checklistIntegracao,
+  ocorrenciasDisciplinares,
 }: {
   empresaId: string;
   colaborador: Colaborador;
@@ -111,7 +116,9 @@ export function ColaboradorDetalhe({
     vaga: { id: string; titulo: string };
     pendencias: { chave: string; descricao: string }[];
   } | null;
+  cobrancaCadastro: { faltas: string[]; temCanal: boolean };
   checklistIntegracao: Parameters<typeof IntegracaoCard>[0]["itens"];
+  ocorrenciasDisciplinares: Parameters<typeof DisciplinarCard>[0]["ocorrencias"];
 }) {
   const pendencias =
     ferias.filter((f) => f.status === "PENDENTE").length +
@@ -152,7 +159,13 @@ export function ColaboradorDetalhe({
           {colaborador.tipoContrato && (
             <Badge variant="outline">{tipoContratoLabel(colaborador.tipoContrato)}</Badge>
           )}
-          {colaborador.telegramChatId && <Badge variant="secondary">Telegram vinculado</Badge>}
+          {colaborador.telegramChatId && (
+            <DesvincularTelegramButton
+              empresaId={empresaId}
+              colaboradorId={colaborador.id}
+              nome={colaborador.nome}
+            />
+          )}
           {resumoFerias?.temVencido && <Badge variant="destructive">Férias vencidas</Badge>}
           {!resumoFerias?.temVencido && resumoFerias?.temVencendo && (
             <Badge variant="secondary">Férias vencendo</Badge>
@@ -174,6 +187,37 @@ export function ColaboradorDetalhe({
         <Resumo label="Pendências de aprovação" valor={pendencias > 0 ? `${pendencias}` : "nenhuma"} />
       </div>
 
+      {/* O que a cobrança automática pediria a esta pessoa, com o botão de
+          mandar agora. Só para quem está ativo: cobrar cadastro de desligado
+          não tem destino. Sem canal, o alerta continua aparecendo (o RH precisa
+          saber que a ficha está incompleta) e o botão dá lugar ao motivo. */}
+      {colaborador.ativo && cobrancaCadastro.faltas.length > 0 && (
+        <Alert>
+          <Send className="size-4" />
+          <AlertDescription>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <span className="font-medium">
+                  Cadastro incompleto — {cobrancaCadastro.faltas.length} item(ns) que o próprio colaborador resolve:
+                </span>
+                <ul className="mt-1 list-inside list-disc text-sm">
+                  {cobrancaCadastro.faltas.map((f) => (
+                    <li key={f}>{f}</li>
+                  ))}
+                </ul>
+              </div>
+              {cobrancaCadastro.temCanal ? (
+                <CobrarCadastroButton empresaId={empresaId} colaboradorIds={[colaborador.id]} />
+              ) : (
+                <span className="text-xs text-muted-foreground">
+                  Sem Telegram e sem e-mail — não há por onde cobrar.
+                </span>
+              )}
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {admissao && admissao.pendencias.length > 0 && (
         <Alert>
           <ClipboardList className="size-4" />
@@ -194,25 +238,60 @@ export function ColaboradorDetalhe({
         </Alert>
       )}
 
-      <Tabs defaultValue={abaPadrao}>
-        <TabsList variant="line">
-          <TabsTrigger value="ficha">Ficha</TabsTrigger>
-          <TabsTrigger value="dependentes">Dependentes ({dependentes.length})</TabsTrigger>
-          <TabsTrigger value="dossie">Dossiê ({documentos.length})</TabsTrigger>
-          <TabsTrigger value="ferias">Férias</TabsTrigger>
-          <TabsTrigger value="ausencias">Ausências ({ausencias.length})</TabsTrigger>
-          <TabsTrigger value="seguranca">
-            Segurança {irregular && <Badge variant="destructive">!</Badge>}
+      <Tabs defaultValue={abaPadrao} className="w-full">
+        <TabsList variant="default" className="w-full flex flex-wrap h-auto justify-start gap-1.5 p-1.5 bg-muted/60 rounded-lg">
+          <TabsTrigger value="ficha" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
+            Ficha
           </TabsTrigger>
-          <TabsTrigger value="carreira">Carreira ({movimentacoes.length})</TabsTrigger>
-          <TabsTrigger value="beneficios">Benefícios ({beneficios.length})</TabsTrigger>
-          <TabsTrigger value="epis">EPIs ({entregasEpi.length})</TabsTrigger>
-          <TabsTrigger value="acidentes">Acidentes ({acidentes.length})</TabsTrigger>
-          <TabsTrigger value="desempenho">Desempenho ({avaliacoes.length})</TabsTrigger>
-          <TabsTrigger value="metas-pdi">Metas &amp; PDI</TabsTrigger>
-          <TabsTrigger value="treinamentos">Treinamentos ({participacoesTreinamento.length})</TabsTrigger>
-          {colaborador.ativo && <TabsTrigger value="integracao">Integração</TabsTrigger>}
-          {colaborador.dataDesligamento && <TabsTrigger value="desligamento">Desligamento</TabsTrigger>}
+          <TabsTrigger value="dependentes" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
+            Dependentes ({dependentes.length})
+          </TabsTrigger>
+          <TabsTrigger value="dossie" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
+            Dossiê ({documentos.length})
+          </TabsTrigger>
+          <TabsTrigger value="ferias" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
+            Férias
+          </TabsTrigger>
+          <TabsTrigger value="ausencias" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
+            Ausências ({ausencias.length})
+          </TabsTrigger>
+          <TabsTrigger value="seguranca" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
+            Segurança {irregular && <Badge variant="destructive" className="ml-1 px-1 py-0 text-[10px]">!</Badge>}
+          </TabsTrigger>
+          <TabsTrigger value="carreira" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
+            Carreira ({movimentacoes.length})
+          </TabsTrigger>
+          <TabsTrigger value="beneficios" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
+            Benefícios ({beneficios.length})
+          </TabsTrigger>
+          <TabsTrigger value="epis" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
+            EPIs ({entregasEpi.length})
+          </TabsTrigger>
+          <TabsTrigger value="acidentes" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
+            Acidentes ({acidentes.length})
+          </TabsTrigger>
+          <TabsTrigger value="desempenho" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
+            Desempenho ({avaliacoes.length})
+          </TabsTrigger>
+          <TabsTrigger value="metas-pdi" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
+            Metas &amp; PDI
+          </TabsTrigger>
+          <TabsTrigger value="treinamentos" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
+            Treinamentos ({participacoesTreinamento.length})
+          </TabsTrigger>
+          <TabsTrigger value="disciplinar" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
+            Disciplinar ({ocorrenciasDisciplinares.length})
+          </TabsTrigger>
+          {colaborador.ativo && (
+            <TabsTrigger value="integracao" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
+              Integração
+            </TabsTrigger>
+          )}
+          {colaborador.dataDesligamento && (
+            <TabsTrigger value="desligamento" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
+              Desligamento
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="ficha" className="pt-4">
@@ -316,6 +395,13 @@ export function ColaboradorDetalhe({
             colaboradorId={colaborador.id}
             participacoes={participacoesTreinamento}
             treinamentosAtivos={treinamentosAtivos}
+          />
+        </TabsContent>
+        <TabsContent value="disciplinar" className="pt-4">
+          <DisciplinarCard
+            empresaId={empresaId}
+            colaboradorId={colaborador.id}
+            ocorrencias={ocorrenciasDisciplinares}
           />
         </TabsContent>
         {colaborador.ativo && (
