@@ -70,7 +70,36 @@ console.log("\n4. CAT conta como decisão, não como acompanhamento:");
   ok(n.decidir === 2 && n.prazo === 0, "2 CAT pendentes entram em 'decidir'");
 }
 
-console.log("\n5. Saudação no horário de Brasília (e não no fuso do servidor):");
+console.log("\n5. O número do cartão fecha com o da lista que ele abre:");
+{
+  // Regressão de 13/08/2026: os três cartões do topo abriam a MESMA lista,
+  // montada pelo TOTAL. O cartão dizia "6" e a lista embaixo dizia "169".
+  // Aqui a soma por grupo, marca a marca, tem que bater com o total do grupo.
+  const marcaA: Pendencias = { ...zeradas(), documentosAConferir: 4, cadastrosIncompletos: 100 };
+  const marcaB: Pendencias = { ...zeradas(), aprovacoes: 2, asoVencendo: 7, cadastrosIncompletos: 63 };
+  const porMarca = [marcaA, marcaB].map(porNatureza);
+
+  const topo = porMarca.reduce(
+    (a, n) => ({
+      decidir: a.decidir + n.decidir,
+      prazo: a.prazo + n.prazo,
+      cadastro: a.cadastro + n.cadastro,
+    }),
+    { decidir: 0, prazo: 0, cadastro: 0 },
+  );
+
+  // A lista de cada cartão mostra só as marcas com item NAQUELE grupo.
+  const listaDe = (g: "decidir" | "prazo" | "cadastro") =>
+    porMarca.filter((n) => n[g] > 0).map((n) => n[g]);
+  const soma = (ns: number[]) => ns.reduce((a, n) => a + n, 0);
+
+  ok(soma(listaDe("decidir")) === topo.decidir, `decidir: cartão ${topo.decidir} = lista ${soma(listaDe("decidir"))}`);
+  ok(soma(listaDe("prazo")) === topo.prazo, `prazo: cartão ${topo.prazo} = lista ${soma(listaDe("prazo"))}`);
+  ok(soma(listaDe("cadastro")) === topo.cadastro, `cadastro: cartão ${topo.cadastro} = lista ${soma(listaDe("cadastro"))}`);
+  ok(listaDe("prazo").length === 1, "marca sem item no grupo não aparece na lista dele");
+}
+
+console.log("\n6. Saudação no horário de Brasília (e não no fuso do servidor):");
 {
   // 11:00Z = 08:00 em Brasília. Sem fuso explícito, o servidor em UTC diria
   // "Bom dia" às 11h e "Boa tarde" às 8h da manhã de quem está aqui.
@@ -81,7 +110,7 @@ console.log("\n5. Saudação no horário de Brasília (e não no fuso do servido
   ok(saudacao(new Date("2026-08-13T02:00:00Z")) === "Boa noite", "23:00 BRT → Boa noite");
 }
 
-console.log("\n6. Primeiro nome: cadastro em caixa alta não vira grito:");
+console.log("\n7. Primeiro nome: cadastro em caixa alta não vira grito:");
 {
   ok(primeiroNome("MARCELO PAIVA SANTOS") === "Marcelo", "MARCELO PAIVA SANTOS → Marcelo");
   ok(primeiroNome("luana gomes marinho") === "Luana", "luana gomes marinho → Luana");

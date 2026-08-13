@@ -128,12 +128,28 @@ export default async function HomePage() {
       comRegistro,
       marca.itens.map((r) => r.empresa.id),
     ).size;
+    // Por natureza também, e não só o total: cada um dos três cartões do topo
+    // abre a MESMA lista de marcas, e ela precisa mostrar o número DAQUELE
+    // grupo. Sem isto o cartão diz "6" e a lista embaixo dele diz "169" — a
+    // contradição que esta tela existe para acabar.
+    const natureza = marca.itens.reduce(
+      (acc, r) => {
+        const n = porNatureza(r.pendencias);
+        return {
+          decidir: acc.decidir + n.decidir,
+          prazo: acc.prazo + n.prazo,
+          cadastro: acc.cadastro + n.cadastro,
+        };
+      },
+      { decidir: 0, prazo: 0, cadastro: 0 },
+    );
     return {
       marca,
       ativos: marca.itens.reduce((a, r) => a + r.ativos, 0),
       vagasAbertas: marca.itens.reduce((a, r) => a + r.vagasAbertas, 0),
       integracoesAbertas: marca.itens.reduce((a, r) => a + r.integracoesAbertas, 0),
       pend,
+      natureza,
       semCadastro: marca.itens.reduce((a, r) => a + r.ativos, 0) === 0,
       semBase,
       // Visão consolidada da marca (mesmo padrão do organograma). Qualquer
@@ -144,11 +160,14 @@ export default async function HomePage() {
     };
   });
 
-  // Itens do popover do indicador "Pendências" do topo: só as marcas que têm
-  // algo pendente, cada uma já com o link pronto pra tela de resolução.
-  const marcasComPendencia = marcasComResumo
-    .filter((m) => m.pend > 0)
-    .map((m) => ({ nome: m.marca.nome, pend: m.pend, href: m.href }));
+  // Itens do popover de cada indicador do topo: só as marcas que têm algo
+  // NAQUELE grupo, cada uma já com o link pronto pra tela de resolução. Uma
+  // lista por grupo, e não uma lista do total para os três — o número da lista
+  // tem que fechar com o número do cartão que a abriu.
+  const marcasNo = (grupo: "decidir" | "prazo" | "cadastro") =>
+    marcasComResumo
+      .filter((m) => m.natureza[grupo] > 0)
+      .map((m) => ({ nome: m.marca.nome, pend: m.natureza[grupo], href: m.href }));
 
   return (
     <div className="space-y-6">
@@ -187,18 +206,18 @@ export default async function HomePage() {
         <PendenciasIndicador
           rotulo="Esperando sua decisão"
           total={naturezas.decidir}
-          itens={marcasComPendencia}
+          itens={marcasNo("decidir")}
           destaque
         />
         <PendenciasIndicador
           rotulo="Prazo correndo"
           total={naturezas.prazo}
-          itens={marcasComPendencia}
+          itens={marcasNo("prazo")}
         />
         <PendenciasIndicador
           rotulo="Cadastro a completar"
           total={naturezas.cadastro}
-          itens={marcasComPendencia}
+          itens={marcasNo("cadastro")}
           neutro
         />
       </div>

@@ -11,6 +11,7 @@
 //
 //   npx tsx scripts/ci-fixture-banco.ts
 import "dotenv/config";
+import bcrypt from "bcryptjs";
 import { PrismaClient } from "../app/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 
@@ -74,10 +75,32 @@ async function main() {
     });
   }
 
+  // Um usuário ADMIN. Não é enfeite: `test-desacoplamento.ts` prova que o
+  // login resolve em rh."User" e que a senha está guardada como hash bcrypt —
+  // sem nenhuma linha na tabela, ele reprova por falta de dado, não por
+  // defeito. A senha é fixa e pública de propósito: este banco nasce e morre
+  // dentro da execução do CI, e um segredo de verdade aqui daria a falsa
+  // impressão de que protege alguma coisa.
+  const username = process.env.SEED_ADMIN_USERNAME ?? "admin.ci";
+  await prisma.user.upsert({
+    where: { username },
+    update: {},
+    create: {
+      username,
+      nome: "Administrador CI",
+      passwordHash: await bcrypt.hash("senha-de-teste-do-ci", 10),
+      role: "ADMIN",
+      ativo: true,
+    },
+  });
+
   const ativos = await prisma.colaborador.count({
     where: { empresaId: empresa.id, ativo: true },
   });
-  console.log(`Fixture pronta: empresa "${empresa.nome}" com ${ativos} colaborador(es) ativo(s).`);
+  console.log(
+    `Fixture pronta: empresa "${empresa.nome}" com ${ativos} colaborador(es) ativo(s) ` +
+      `e usuário "${username}".`,
+  );
 }
 
 main()
