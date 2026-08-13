@@ -26,6 +26,18 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.83.2",
+    data: "13/08/2026",
+    horario: "03:00",
+    titulo: "Conferência de rosto no ponto: fica humana, e o porquê da decisão",
+    itens: [
+      "Foi decidido não contratar o serviço automático de comparação de rosto. A conferência das fotos de batida continua sendo feita por pessoa, no painel do Ponto — e o item sai da lista de próximas atualizações.",
+      "O custo não foi o motivo: a comparação automática sairia por volta de R$ 85 por mês no volume atual (cerca de 15 mil batidas). O que pesou foi outra coisa — rosto processado por algoritmo é dado pessoal sensível pela LGPD, e exige consentimento específico de cada colaborador, política de retenção e de exclusão. A foto que uma pessoa do RH olha é bem mais simples juridicamente.",
+      "A decisão pode ser revista a qualquer momento: se aparecer alguém batendo ponto pelo outro, o gasto se justifica com um caso concreto na mão.",
+      "Fica registrada uma condição para essa conferência funcionar: a ficha do colaborador ainda não tem foto de referência, então quem confere não tem com o que comparar. Resolver isso é o próximo passo natural.",
+    ],
+  },
+  {
     versao: "1.83.1",
     data: "13/08/2026",
     horario: "02:00",
