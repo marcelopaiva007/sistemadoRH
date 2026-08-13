@@ -3,9 +3,10 @@
 import { useRef, useState, useTransition } from "react";
 import Image from "next/image";
 import { toast } from "sonner";
-import { Camera, MapPin, Clock } from "lucide-react";
+import { Camera, MapPin, Clock, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { registrarPonto, type RegistroPontoInput } from "@/lib/actions/portal-ponto";
 
 type PontoRecord = {
@@ -223,6 +224,15 @@ export function PontoWidget({ pontos: pontosinicial = [] }: { pontos?: PontoReco
 
   return (
     <div className="space-y-4">
+      <Alert className="border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950">
+        <Info className="size-4 text-blue-600 dark:text-blue-400" />
+        <AlertDescription className="text-sm text-blue-800 dark:text-blue-200">
+          <strong>Como funciona:</strong> O RH define sua escala de horários (entrada/saída) no módulo{" "}
+          <em>Escalas</em>. Você bate ponto aqui marcando entrada e saída com selfie e localização.
+          O sistema valida se você está dentro da janela permitida (±1h do horário programado).
+        </AlertDescription>
+      </Alert>
+
       <Card>
         <CardHeader>
           <CardTitle>Bater Ponto</CardTitle>
