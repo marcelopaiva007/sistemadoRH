@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.83.1",
+    data: "13/08/2026",
+    horario: "02:00",
+    titulo: "Vídeos de treinamento saem da lista: o texto nas telas resolveu",
+    itens: [
+      "O item \"Vídeos curtos de treinamento\" estava em Próximas atualizações desde que o assunto surgiu. A decisão foi outra e já foi entregue: o botão \"Como usar\", com o passo a passo escrito, em cada tela do sistema.",
+      "O texto se mostrou melhor que o vídeo para o uso real: dá para ler no meio de uma tarefa, buscar direto o trecho que interessa e corrigir na hora em que a tela muda — o que aconteceu várias vezes nesta semana.",
+      "Nada some com isso. A ajuda continua no mesmo lugar de sempre, no \"?\" ao lado do título de cada tela.",
+    ],
+  },
+  {
     versao: "1.83.0",
     data: "13/08/2026",
     horario: "01:10",

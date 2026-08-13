@@ -60,11 +60,4 @@ export const PROXIMAS_ATUALIZACOES: ProximaAtualizacao[] = [
       "O gestor recebe, pelo Telegram, o que sai do previsto no time dele — contrato de experiência vencendo, férias a vencer, hora extra acima do limite — em vez de depender de alguém abrir a tela e reparar.",
     situacao: "EM_ANDAMENTO",
   },
-  {
-    titulo: "Vídeos curtos de treinamento",
-    descricao:
-      "Complemento ao \"Como usar\" que já existe em cada tela. O texto continua sendo a referência — o vídeo ajuda em fluxo longo, como a admissão completa.",
-    situacao: "AGUARDANDO_DECISAO",
-    bloqueio: "Depende de alguém gravar. Nada no sistema trava por causa disso.",
-  },
 ];
