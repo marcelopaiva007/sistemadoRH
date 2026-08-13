@@ -11,6 +11,8 @@ import { empresasDaMesmaMarca, marcaDaEmpresa } from "@/lib/escopo-marca";
 import { invalidarConvitesDeDesligados } from "@/lib/pesquisa-vinculo";
 import { convidarParaPesquisaDesligamento } from "@/lib/pesquisa-desligamento";
 import { hojeUTC } from "@/lib/datas";
+import { lerAnexo } from "@/lib/anexos";
+import { enviarParaBlob } from "@/lib/blob";
 import { MOTIVOS_DESLIGAMENTO, TIPOS_CONTRATO, CONTRATOS_POR_PRAZO } from "@/lib/constants-dp";
 import type { ActionResult } from "@/lib/constants";
 
@@ -476,5 +478,105 @@ export async function deleteColaborador(empresaId: string, id: string): Promise<
   revalidatePath(`/rh/${empresaId}/colaboradores`);
   revalidatePath(`/rh/${empresaId}`, "layout");
   revalidatePath("/");
+  return { ok: true };
+}
+
+/**
+ * Foto de referência do colaborador — o rosto contra o qual o RH compara a
+ * selfie de cada batida de ponto.
+ *
+ * Ela se preenche sozinha na primeira batida de quem ainda não tem (ver
+ * app/actions/portal-ponto.ts), e nesse caso nasce NÃO CONFERIDA. Esta action
+ * é o outro caminho: o RH manda uma foto boa e ela já vale como conferida.
+ *
+ * A foto vai para o Blob privado; o banco guarda só a URL — mesma regra dos
+ * documentos e da foto de batida.
+ */
+export async function enviarFotoReferencia(
+  empresaId: string,
+  colaboradorId: string,
+  formData: FormData,
+): Promise<ActionResult> {
+  await requireEmpresaAccess(empresaId);
+
+  const colaborador = await prisma.colaborador.findFirst({
+    where: { id: colaboradorId, empresaId },
+    select: { id: true, nome: true },
+  });
+  if (!colaborador) return { ok: false, error: "Colaborador não encontrado." };
+
+  const leitura = await lerAnexo(formData, "foto");
+  if (!leitura.ok) return { ok: false, error: leitura.error };
+  if (!leitura.anexo) return { ok: false, error: "Escolha a foto." };
+  // PDF passa no `lerAnexo` (ele serve documento também) e aqui não serve:
+  // referência de rosto é imagem, e um PDF quebraria a comparação lado a lado.
+  if (!leitura.anexo.mimeType.startsWith("image/")) {
+    return { ok: false, error: "A referência precisa ser uma imagem (JPG, PNG ou WEBP)." };
+  }
+
+  const envio = await enviarParaBlob({
+    empresaId,
+    colaboradorId,
+    nome: `referencia-${leitura.anexo.nome}`,
+    mimeType: leitura.anexo.mimeType,
+    bytes: leitura.anexo.bytes,
+  });
+  if (!envio.ok) return { ok: false, error: envio.error };
+
+  await prisma.colaborador.update({
+    where: { id: colaboradorId },
+    data: { fotoUrl: envio.url, fotoConferidaPeloRh: true },
+  });
+
+  await registrarAuditoria({
+    empresaId,
+    acao: "ATUALIZAR",
+    entidade: "Colaborador",
+    entidadeId: colaboradorId,
+    resumo: `Foto de referência de ${colaborador.nome} enviada pelo RH.`,
+  });
+
+  revalidatePath(`/rh/${empresaId}/colaboradores/${colaboradorId}`);
+  revalidatePath(`/rh/${empresaId}/ponto`);
+  return { ok: true };
+}
+
+/**
+ * Confirma a foto que entrou sozinha na primeira batida.
+ *
+ * O clique que fecha o risco da promoção automática: alguém do RH olhou e diz
+ * que aquele rosto é mesmo o da pessoa. Sem isto, a referência serviria de
+ * comparação sem nunca ter passado por um par de olhos — e se a primeira
+ * batida tivesse sido feita por outra pessoa, validaria a fraude para sempre.
+ */
+export async function confirmarFotoReferencia(
+  empresaId: string,
+  colaboradorId: string,
+): Promise<ActionResult> {
+  await requireEmpresaAccess(empresaId);
+
+  const colaborador = await prisma.colaborador.findFirst({
+    where: { id: colaboradorId, empresaId },
+    select: { id: true, nome: true, fotoUrl: true, fotoConferidaPeloRh: true },
+  });
+  if (!colaborador) return { ok: false, error: "Colaborador não encontrado." };
+  if (!colaborador.fotoUrl) return { ok: false, error: "Não há foto de referência para confirmar." };
+  if (colaborador.fotoConferidaPeloRh) return { ok: true };
+
+  await prisma.colaborador.update({
+    where: { id: colaboradorId },
+    data: { fotoConferidaPeloRh: true },
+  });
+
+  await registrarAuditoria({
+    empresaId,
+    acao: "ATUALIZAR",
+    entidade: "Colaborador",
+    entidadeId: colaboradorId,
+    resumo: `Foto de referência de ${colaborador.nome} conferida pelo RH.`,
+  });
+
+  revalidatePath(`/rh/${empresaId}/colaboradores/${colaboradorId}`);
+  revalidatePath(`/rh/${empresaId}/ponto`);
   return { ok: true };
 }

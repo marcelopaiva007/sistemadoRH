@@ -84,7 +84,9 @@ export async function registrarPontoPortal(input: RegistrarPontoInput) {
 
   const colaborador = await prisma.colaborador.findUnique({
     where: { id: sessao.colaboradorId },
-    select: { id: true, empresaId: true, ativo: true },
+    // `fotoUrl` entra para saber se esta pessoa já tem foto de referência —
+    // se não tiver, a selfie desta batida vira a referência (ver adiante).
+    select: { id: true, empresaId: true, ativo: true, fotoUrl: true },
   });
 
   if (!colaborador || !colaborador.ativo) {
@@ -152,6 +154,31 @@ export async function registrarPontoPortal(input: RegistrarPontoInput) {
     tipo: input.tipo,
     fotoBase64: input.fotoBase64,
   });
+
+  // Primeira selfie de quem ainda não tem foto de referência vira a
+  // referência, marcada como NÃO CONFERIDA.
+  //
+  // POR QUE AUTOMÁTICO. A conferência humana precisa de algo com que comparar,
+  // e esperar o RH reunir 170 fotos deixaria a conferência sem funcionar por
+  // semanas. Assim a cobertura começa na primeira batida de cada um.
+  //
+  // POR QUE "NÃO CONFERIDA". Se justamente esta primeira batida tiver sido
+  // feita por outra pessoa, a referência nasce errada e passaria a validar a
+  // fraude para sempre. O painel marca isso e o RH confirma (ou substitui) com
+  // um clique — o risco fica visível em vez de escondido.
+  //
+  // Best-effort: falhar aqui não pode derrubar a batida, que é a obrigação
+  // legal. Sem referência hoje, a próxima batida tenta de novo.
+  if (fotoUrl && !colaborador.fotoUrl) {
+    try {
+      await prisma.colaborador.update({
+        where: { id: colaborador.id },
+        data: { fotoUrl, fotoConferidaPeloRh: false },
+      });
+    } catch {
+      /* silêncio proposital — ver comentário acima */
+    }
+  }
 
   // Criar RegistroPonto (Append-Only)
   const novoRegistro = await prisma.registroPonto.create({
