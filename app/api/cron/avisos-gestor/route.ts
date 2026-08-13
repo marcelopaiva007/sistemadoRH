@@ -1,18 +1,18 @@
 // Avisos automáticos ao gestor sobre o time dele (lib/aviso-gestor.ts).
 //
-// ⚠️ NÃO ESTÁ EM vercel.json DE PROPÓSITO. A rota existe e funciona, mas
-// nenhum cron a chama ainda: este motor manda mensagem para pessoas, e ligar o
-// disparo automático antes de alguém ler a saída da simulação é como se erra
-// caro aqui — mensagem enviada não volta.
+// Desde 12/08/2026 o cron ESTÁ em vercel.json (minuto 8,23,38,53 — livre dos
+// demais; ver o histórico da v1.69.1, quando cinco crons juntos esgotavam a
+// conexão com o banco). Mas o lembrete NASCE DESLIGADO
+// (LEMBRETES_QUE_NASCEM_DESLIGADOS em lib/cron-horario.ts): cada chamada do
+// agendador cai no `deveRodarAgora` e sai como "pulado" até alguém LIGAR o
+// interruptor na tela de Lembretes. Este motor manda mensagem para a chefia, e
+// mandar é decisão de gestão, não efeito colateral de deploy — o dono do
+// sistema disse "vou decidir no dia a dia", e o interruptor é esse dia a dia.
 //
-// COMO LIGAR, na ordem:
-//   1. `npx tsx scripts/simular-avisos-gestor.ts` e leia mensagem por mensagem;
-//   2. dispare manualmente uma vez: `/api/cron/avisos-gestor?secret=...`;
-//   3. só então acrescente a linha em vercel.json:
-//      { "path": "/api/cron/avisos-gestor", "schedule": "8,23,38,53 * * * *" }
-//      (minutos livres: os outros crons ocupam 5,6,9,12 e múltiplos de 15 —
-//      ver o histórico da v1.69.1, quando cinco rodando juntos esgotavam a
-//      conexão com o banco e derrubavam envio em silêncio.)
+// Antes de ligar, a prévia mora na tela "Avisos ao gestor" (o que sairia,
+// mensagem por mensagem) — e um disparo manual de teste continua possível:
+// `/api/cron/avisos-gestor?secret=...` (ignora o interruptor de propósito;
+// `?simular=1` mostra sem enviar).
 
 import { NextRequest, NextResponse } from "next/server";
 import { executarAvisosDoGestor } from "@/lib/aviso-gestor";

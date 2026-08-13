@@ -12,8 +12,20 @@ declare global {
   var prismaGlobal: PrismaClient | undefined;
 }
 
+// Torna explícito o modo de TLS que o `pg` v8 JÁ aplica: 'prefer', 'require' e
+// 'verify-ca' são tratados como apelidos de 'verify-full' — e o driver avisava
+// isso em TODA subida de função (373 vezes só em 12/08/2026, poluindo os logs
+// de produção). No pg v9 os apelidos passarão a valer com semântica mais
+// fraca; fixar 'verify-full' na URL mantém a verificação completa de
+// certificado de hoje e silencia o aviso. Comportamento em produção não muda —
+// é o mesmo modo, agora dito com todas as letras.
+function comSslVerifyFull(url: string): string {
+  if (!url.startsWith("postgres")) return url;
+  return url.replace(/sslmode=(prefer|require|verify-ca)\b/, "sslmode=verify-full");
+}
+
 function createPrismaClient() {
-  const url = process.env.DATABASE_URL ?? "file:./prisma/dev.db";
+  const url = comSslVerifyFull(process.env.DATABASE_URL ?? "file:./prisma/dev.db");
 
   // Durante o build do Next.js (coleta de páginas) a DATABASE_URL pode não
   // estar disponível no ambiente. Se cair no fallback SQLite, o adapter

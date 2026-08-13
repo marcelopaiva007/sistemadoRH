@@ -26,8 +26,9 @@ export const LEMBRETES_CONFIGURAVEIS = {
   //
   // Às 08:00 de propósito: o gestor lê antes de a operação começar. Avisado no
   // meio da tarde, ele adia para o dia seguinte — e o que este aviso cobre tem
-  // data fatal. A rota existe mas AINDA NÃO está em vercel.json: ver o
-  // comentário em app/api/cron/avisos-gestor/route.ts.
+  // data fatal. Desde 12/08/2026 o cron está em vercel.json, mas o lembrete
+  // NASCE DESLIGADO (ver LEMBRETES_QUE_NASCEM_DESLIGADOS): ligar é o
+  // interruptor na tela de Lembretes, e a prévia mora em Avisos ao gestor.
   "avisos-gestor": { label: "Avisos ao gestor sobre o time", padroes: ["08:00"] },
 } as const;
 
@@ -48,7 +49,14 @@ export type ChaveLembrete = keyof typeof LEMBRETES_CONFIGURAVEIS;
  * Ligar é adicionar/reativar um horário em Configuração → Lembretes, tela que
  * já é restrita a ADMIN e DIRETORIA — a mesma gestão. Desligar é pausar todos.
  */
-export const LEMBRETES_QUE_NASCEM_DESLIGADOS = new Set<ChaveLembrete>(["cobranca-cadastro"]);
+export const LEMBRETES_QUE_NASCEM_DESLIGADOS = new Set<ChaveLembrete>([
+  "cobranca-cadastro",
+  // Mensagem para a CHEFIA, decisão explícita do dono do sistema em 12/08/2026:
+  // "vou decidir no dia a dia". O cron está registrado no vercel.json, mas sem
+  // o interruptor da tela de Lembretes ligado nada sai — sem esta linha, o
+  // registro do cron já teria começado a enviar às 08:00 sem ninguém decidir.
+  "avisos-gestor",
+]);
 
 /**
  * Se o envio automático deste lembrete está ligado AGORA — a pergunta que a

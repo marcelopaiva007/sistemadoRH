@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.82.0",
+    data: "12/08/2026",
+    horario: "19:30",
+    titulo: "Verificação com banco de verdade no CI, avisos ao gestor prontos para ligar pela tela, e conexão com o banco sem avisos",
+    itens: [
+      "Os 27 testes de fumaça que exigiam um banco Postgres — e por isso só rodavam quando alguém lembrava — agora rodam sozinhos em todo PR, num banco descartável criado na hora, e passaram 27 de 27 na estreia. Antes disso já se pagaram: dois deles reprovaram no primeiro ensaio porque o banco novo não tinha regras que só existiam em SQL manual (o alvo único da meta e o título único de rascunho de pesquisa) — regras que agora são aplicadas e conferidas sempre.",
+      "Ligar os avisos automáticos ao gestor virou um interruptor na tela de Lembretes — sem mexer em código. O disparo ficou agendado (8h, com prévia na tela Avisos ao gestor), mas NASCE DESLIGADO: nada é enviado até alguém ligar. Antes, o primeiro registro do agendador teria começado a enviar sozinho, sem essa escolha.",
+      "A conexão com o banco passou a declarar por extenso o modo de segurança que já usava (verificação completa de certificado). Era a causa de um aviso técnico que apareceu 373 vezes só hoje nos registros do servidor, enterrando os erros de verdade no meio do ruído.",
+    ],
+  },
+  {
     versao: "1.81.1",
     data: "12/08/2026",
     horario: "17:30",

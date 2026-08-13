@@ -1,6 +1,6 @@
 {
   "name": "sistema-rh",
-  "version": "1.81.1",
+  "version": "1.82.0",
   "private": true,
   "scripts": {
     "// ━━━━━━━━━━━━━━━━ DESENVOLVIMENTO ━━━━━━━━━━━━━━━━": "",
@@ -29,6 +29,11 @@
     "verificar:assistente": "tsx scripts/verificar-assistente.ts",
     "verificar:dashboard": "tsx scripts/verificar-dashboard.ts",
     "verificar:bi": "tsx scripts/verificar-bi.ts",
+    "// ━━━━━━━━━━━━━━━━ BANCO DESCARTÁVEL PARA OS SMOKES ━━━━━━━━━━━━━━━━": "",
+    "banco:schema": "prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script > /tmp/schema-ci.sql && psql \"$DATABASE_URL\" -q -v ON_ERROR_STOP=1 -f /tmp/schema-ci.sql && psql \"$DATABASE_URL\" -q -v ON_ERROR_STOP=1 -f scripts/ci-extras-banco.sql",
+    "banco:fixture": "tsx scripts/ci-fixture-banco.ts",
+    "banco:preparar": "npm run banco:schema && npm run banco:fixture",
+    "smokes": "for s in scripts/smoke-*.ts; do echo \"— $s\"; tsx \"$s\" || exit 1; done",
     "// ━━━━━━━━━━━━━━━━ TESTES FUNCIONAIS ━━━━━━━━━━━━━━━━": "",
     "test:login-tentativas": "tsx scripts/test-login-tentativas.ts",
     "test:ferias": "tsx scripts/test-ferias.ts",
