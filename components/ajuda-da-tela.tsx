@@ -44,7 +44,6 @@ export function AjudaDaTela({ modulo }: { modulo: ChaveAjuda }) {
         size="sm"
         onClick={() => setAberto(true)}
         className="h-7 gap-1.5 px-2 text-xs text-muted-foreground"
-        aria-label="Como usar esta tela"
       >
         <HelpCircle className="size-4" />
         Como usar
