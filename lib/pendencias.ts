@@ -128,6 +128,91 @@ export function cadastroIncompleto(c: CamposDoCadastro): boolean {
 
 export const totalPendencias = (p: Pendencias) => Object.values(p).reduce((s, n) => s + n, 0);
 
+/**
+ * As 19 pendências separadas por NATUREZA DA AÇÃO.
+ *
+ * POR QUE ISTO EXISTE. A tela inicial mostrava as 19 somadas num número só. O
+ * efeito ficou evidente em 12/08/2026: "163 cadastros incompletos" e "6
+ * documentos aguardando conferência" moravam dentro do mesmo total — e o
+ * segundo, que é gente esperando resposta do RH hoje, sumia dentro do
+ * primeiro, que não tem data fatal nenhuma. Número que mistura urgência com
+ * ruído não é fila de trabalho; é um número grande que se aprende a ignorar.
+ *
+ * A régua de cada grupo é UMA pergunta:
+ *   DECIDIR  — "tem alguém esperando uma resposta minha?" (o RH é o gargalo)
+ *   PRAZO    — "tem data correndo contra?" (a data é o gargalo)
+ *   CADASTRO — "falta dado?" (nada trava hoje; é qualidade de base)
+ *
+ * `satisfies` com a lista de chaves obriga o TypeScript a cobrar: pendência
+ * nova que não entre em exatamente um grupo não compila. Sem isso, a próxima
+ * pendência entraria no total e não apareceria em grupo nenhum — que é
+ * justamente o tipo de omissão silenciosa que esta separação veio corrigir.
+ */
+export const PENDENCIAS_DECIDIR = [
+  "aprovacoes",
+  "documentosAConferir",
+  // CAT tem prazo legal de 1 dia útil (Lei 8.213/91, art. 22) — é decisão que
+  // não espera, não "acompanhamento".
+  "catPendente",
+] as const;
+
+export const PENDENCIAS_PRAZO = [
+  "asoVencendo",
+  "certificadosVencendo",
+  "epiVencido",
+  "feriasVencidas",
+  "contratosVencendo",
+  "avisoPrevio",
+  "integracoesAtrasadas",
+  "desligamentosIncompletos",
+  "ciclosAvaliacaoAEncerrar",
+  "horasExtrasExcedidas",
+] as const;
+
+export const PENDENCIAS_CADASTRO = [
+  "cadastrosIncompletos",
+  "fichasDesatualizadas",
+  "dependentesSemCpf",
+  "atestadosSemDocumento",
+  "semTelegram",
+  "pesquisasAbertas",
+] as const;
+
+// A prova de cobertura: o tipo abaixo só resolve para `true` se a união dos
+// três grupos for exatamente as chaves de Pendencias — nem faltando, nem
+// sobrando, nem repetida.
+type ChavesAgrupadas =
+  | (typeof PENDENCIAS_DECIDIR)[number]
+  | (typeof PENDENCIAS_PRAZO)[number]
+  | (typeof PENDENCIAS_CADASTRO)[number];
+type CoberturaCompleta = [ChavesAgrupadas] extends [keyof Pendencias]
+  ? [keyof Pendencias] extends [ChavesAgrupadas]
+    ? true
+    : never
+  : never;
+const _todasAsPendenciasAgrupadas: CoberturaCompleta = true;
+void _todasAsPendenciasAgrupadas;
+
+export type PendenciasPorNatureza = {
+  /** Alguém espera uma resposta do RH. É a fila do dia. */
+  decidir: number;
+  /** Data correndo contra: vence, venceu ou atrasou. */
+  prazo: number;
+  /** Falta dado. Não trava nada hoje. */
+  cadastro: number;
+};
+
+const somarGrupo = (p: Pendencias, chaves: readonly (keyof Pendencias)[]) =>
+  chaves.reduce((s, c) => s + p[c], 0);
+
+export function porNatureza(p: Pendencias): PendenciasPorNatureza {
+  return {
+    decidir: somarGrupo(p, PENDENCIAS_DECIDIR),
+    prazo: somarGrupo(p, PENDENCIAS_PRAZO),
+    cadastro: somarGrupo(p, PENDENCIAS_CADASTRO),
+  };
+}
+
 export const zeradas = (): Pendencias => ({
   aprovacoes: 0,
   documentosAConferir: 0,

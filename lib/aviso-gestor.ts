@@ -30,6 +30,7 @@ import { LIMITE_HORAS_EXTRAS_MES, RUBRICAS_HORA_EXTRA } from "@/lib/constants-fo
 import { calcularFerias } from "@/lib/ferias";
 import { diferencaEmDiasUTC, formatarData, hojeUTC, somarDiasUTC } from "@/lib/datas";
 import { sendTelegramMessage } from "@/lib/telegram";
+import { primeiroNome } from "@/lib/saudacao";
 
 /**
  * Só avisa de contrato quando falta ISTO ou menos.
@@ -103,10 +104,10 @@ export type ResultadoAvisoGestor = {
  * "MARCELO" -> "Marcelo". O cadastro guarda nome em maiúsculas, e numa
  * saudação pessoal isso soa como grito.
  */
-function comoSeChama(nome: string): string {
-  const primeiro = nome.trim().split(/\s+/)[0] ?? "";
-  return primeiro.charAt(0).toUpperCase() + primeiro.slice(1).toLowerCase();
-}
+// Vivia aqui como função privada; virou lib/saudacao.ts em 12/08/2026, quando
+// a tela inicial passou a cumprimentar a pessoa pelo nome e precisou da mesma
+// regra. Duas cópias divergiriam no primeiro ajuste.
+const comoSeChama = primeiroNome;
 
 /** Monta a mensagem do Telegram. Uma só por gestor, com tudo do time dele. */
 export function montarMensagemDoGestor(gestorNome: string, itens: ItemDeAviso[]): string {
