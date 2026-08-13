@@ -20,6 +20,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendTelegramMessage, telegramWebhookSecret } from "@/lib/telegram";
 import { criarLinkDeAcesso, MINUTOS_VALIDADE_LINK } from "@/lib/portal-auth";
+import { sufixoTelefone } from "@/lib/telefone";
 
 export const runtime = "nodejs";
 
@@ -62,12 +63,6 @@ const MSG_CPF_NAO_ENCONTRADO =
 
 function digitos(s: string): string {
   return (s || "").replace(/\D/g, "");
-}
-
-// Últimos 8 dígitos: parte "local" do número BR, estável entre formatos com/sem
-// +55, DDD e o nono dígito.
-function sufixoTelefone(s: string): string {
-  return digitos(s).slice(-8);
 }
 
 /**
@@ -207,12 +202,12 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: true });
       }
       const sufixo = sufixoTelefone(message.contact.phone_number);
-      if (sufixo.length === 8) {
+      if (sufixo) {
         const colaboradores = await prisma.colaborador.findMany({
           where: { ativo: true, telefone: { not: null } },
           select: { id: true, nome: true, cpf: true, telefone: true, telegramChatId: true },
         });
-        const matches = colaboradores.filter((c) => sufixoTelefone(c.telefone!) === sufixo);
+        const matches = colaboradores.filter((c) => sufixoTelefone(c.telefone) === sufixo);
         if (matches.length === 1) {
           await vincular(chatId, matches[0]);
           return NextResponse.json({ ok: true });

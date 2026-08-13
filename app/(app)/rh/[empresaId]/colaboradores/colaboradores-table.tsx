@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useFiltroEmpresas } from "../filtro-empresas";
@@ -64,6 +64,7 @@ import { CobrarCadastroButton } from "./cobrar-cadastro-button";
 import { AlertaDuplicados } from "./alerta-duplicados";
 import { ConferirCpfs } from "./conferir-cpfs";
 import { formatarCpf, mascararCpf } from "@/lib/cpf";
+import { telefoneCasaBusca } from "@/lib/telefone";
 import type { ActionResult } from "@/lib/constants";
 import { TIPOS_CONTRATO, CONTRATOS_POR_PRAZO } from "@/lib/constants-dp";
 import { cn } from "@/lib/utils";
@@ -423,24 +424,36 @@ export function ColaboradoresTable({
     return { total: colaboradoresFiltrados.length, ativos, telegram, semSetor };
   }, [colaboradoresFiltrados]);
 
-  const filtrados = useMemo(() => {
-    const termo = busca.trim().toLowerCase();
-    const termoDigitos = termo.replace(/\D/g, "");
+  const casaComBusca = useCallback(
+    (c: Colaborador) => {
+      const termo = busca.trim().toLowerCase();
+      if (!termo) return true;
+      const termoDigitos = termo.replace(/\D/g, "");
+      return (
+        c.nome.toLowerCase().includes(termo) ||
+        Boolean(termoDigitos && c.cpf?.includes(termoDigitos)) ||
+        // Telefone entra na busca porque é a pergunta que o RH faz quando o bot
+        // recusa um vínculo: "esse número está cadastrado em outra ficha?". O
+        // alerta de duplicatas já respondia parte disso, mas só entre ativos —
+        // e número velho costuma ficar preso exatamente numa ficha desligada.
+        // Mínimo de 4 dígitos: "8" casaria com meia empresa.
+        Boolean(termoDigitos.length >= 4 && telefoneCasaBusca(c.telefone, termoDigitos)) ||
+        Boolean(c.email?.toLowerCase().includes(termo)) ||
+        c.setor.nome.toLowerCase().includes(termo) ||
+        c.posicao.nome.toLowerCase().includes(termo)
+      );
+    },
+    [busca],
+  );
 
+  const filtrados = useMemo(() => {
     const lista = colaboradoresFiltrados.filter((c) => {
       if (filtroStatus === "ativos" && !c.ativo) return false;
       if (filtroStatus === "inativos" && c.ativo) return false;
       if (filtroSetor !== "todos" && c.setorId !== filtroSetor) return false;
       if (filtroPosicao !== "todos" && c.posicaoId !== filtroPosicao) return false;
       if (lacuna && !temLacuna(c, lacuna)) return false;
-      if (!termo) return true;
-      return (
-        c.nome.toLowerCase().includes(termo) ||
-        Boolean(termoDigitos && c.cpf?.includes(termoDigitos)) ||
-        Boolean(c.email?.toLowerCase().includes(termo)) ||
-        c.setor.nome.toLowerCase().includes(termo) ||
-        c.posicao.nome.toLowerCase().includes(termo)
-      );
+      return casaComBusca(c);
     });
 
     // localeCompare com "pt-BR": sem isso, "Ávila" cairia depois de "Zuza",
@@ -451,7 +464,24 @@ export function ColaboradoresTable({
       const r = valor(a).localeCompare(valor(b), "pt-BR", { sensitivity: "base" });
       return ordem.desc ? -r : r;
     });
-  }, [colaboradoresFiltrados, busca, filtroSetor, filtroPosicao, filtroStatus, ordem, lacuna]);
+  }, [colaboradoresFiltrados, casaComBusca, filtroSetor, filtroPosicao, filtroStatus, ordem, lacuna]);
+
+  // Quantos casam com a busca mas o filtro de status está escondendo.
+  //
+  // Silêncio é a pior resposta possível aqui: quem digita um telefone está
+  // perguntando "esse número está em outra ficha?", e uma lista vazia por causa
+  // do filtro padrão ("ativos") responde "não" quando a resposta é "sim, na
+  // ficha de um desligado". O aviso só aparece quando existe alguém escondido.
+  const escondidosPeloStatus = useMemo(() => {
+    if (!busca.trim() || filtroStatus === "todos") return 0;
+    return colaboradoresFiltrados.filter((c) => {
+      if (filtroStatus === "ativos" ? c.ativo : !c.ativo) return false;
+      if (filtroSetor !== "todos" && c.setorId !== filtroSetor) return false;
+      if (filtroPosicao !== "todos" && c.posicaoId !== filtroPosicao) return false;
+      if (lacuna && !temLacuna(c, lacuna)) return false;
+      return casaComBusca(c);
+    }).length;
+  }, [colaboradoresFiltrados, casaComBusca, busca, filtroSetor, filtroPosicao, filtroStatus, lacuna]);
 
   const totalPaginas = Math.max(1, Math.ceil(filtrados.length / POR_PAGINA));
   // Mudar filtro pode encolher a lista para menos páginas do que a atual;
@@ -620,7 +650,7 @@ export function ColaboradoresTable({
           <div className="relative min-w-0 flex-1 sm:max-w-xs">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Buscar por nome, CPF, e-mail, setor ou cargo..."
+              placeholder="Buscar por nome, CPF, telefone, e-mail, setor ou cargo..."
               value={busca}
               onChange={(e) => {
                 setBusca(e.target.value);
@@ -680,6 +710,20 @@ export function ColaboradoresTable({
             </Button>
           )}
         </div>
+        {escondidosPeloStatus > 0 && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            Mais {escondidosPeloStatus} ficha{escondidosPeloStatus > 1 ? "s" : ""} casa
+            {escondidosPeloStatus > 1 ? "m" : ""} com essa busca em{" "}
+            {filtroStatus === "ativos" ? "desligados" : "ativos"}.{" "}
+            <button
+              type="button"
+              onClick={() => aoFiltrar(setFiltroStatus)("todos")}
+              className="underline underline-offset-2 hover:text-foreground"
+            >
+              Mostrar ativos e inativos
+            </button>
+          </p>
+        )}
       </div>
 
       {/* Barra de ação da seleção. Só aparece com alguém marcado — uma barra

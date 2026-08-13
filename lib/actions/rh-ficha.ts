@@ -51,12 +51,13 @@ const CAMPOS: Record<string, Tipo> = {
   emergenciaNome: "texto",
   emergenciaParentesco: "texto",
   emergenciaTelefone: "texto",
-  // dados bancários
-  bancoNome: "texto",
-  bancoAgencia: "texto",
-  bancoConta: "texto",
-  bancoTipoConta: "texto",
-  chavePix: "texto",
+  // Os campos bancários saíram desta tabela em 13/08/2026, com o bloco de
+  // pagamento da ficha. A chave passou a ser o CPF do colaborador (PIX-CPF), e
+  // esta tabela é a lista do que a ficha ACEITA gravar: manter banco, agência,
+  // conta e chavePix aqui deixaria um caminho de escrita aberto para campos que
+  // nenhuma tela mostra — server action é endpoint público, e o que continua
+  // aceito continua gravável por um POST à mão. As colunas seguem no banco com
+  // o histórico; só não há mais como escrever nelas.
   // vínculo
   dataAdmissao: "data",
   dataDesligamento: "data",

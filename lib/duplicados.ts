@@ -8,6 +8,8 @@
 // Puro e sem I/O de propósito: roda no cliente, sobre a mesma lista que a
 // tela de Colaboradores já carregou — nenhuma consulta a mais ao banco.
 
+import { sufixoTelefone } from "@/lib/telefone";
+
 export type PessoaParaComparar = {
   id: string;
   nome: string;
@@ -28,12 +30,6 @@ function normalizarNome(nome: string): string {
     .toUpperCase()
     .replace(/\s+/g, " ")
     .trim();
-}
-
-function ultimos8(telefone: string | null): string | null {
-  if (!telefone) return null;
-  const d = telefone.replace(/\D/g, "");
-  return d.length >= 8 ? d.slice(-8) : null;
 }
 
 /** Distância de Levenshtein — número mínimo de edições para uma string virar a outra. */
@@ -73,7 +69,7 @@ export function encontrarDuplicados(pessoas: PessoaParaComparar[]): GrupoDuplica
   // 1) Mesmo telefone — sinal forte e barato (agrupamento, não O(n²)).
   const porTelefone = new Map<string, PessoaParaComparar[]>();
   for (const p of pessoas) {
-    const chave = ultimos8(p.telefone);
+    const chave = sufixoTelefone(p.telefone);
     if (!chave) continue;
     (porTelefone.get(chave) ?? porTelefone.set(chave, []).get(chave)!).push(p);
   }

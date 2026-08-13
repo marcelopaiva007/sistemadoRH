@@ -580,3 +580,52 @@ export async function confirmarFotoReferencia(
   revalidatePath(`/rh/${empresaId}/ponto`);
   return { ok: true };
 }
+
+/**
+ * Solta o Telegram da ficha — o conserto do "já está vinculado a outro".
+ *
+ * POR QUE ISTO EXISTE. Em 12/08/2026 o bot passou a dizer o NOME de quem
+ * segura o Telegram, com a instrução "procure o RH — o vínculo é ajustado na
+ * ficha do colaborador". Só que esse ajuste não existia em tela nenhuma: a
+ * ficha mostrava a etiqueta "Telegram vinculado" e nada mais. A mensagem
+ * mandava fazer algo impossível — o mesmo defeito que ela tinha vindo corrigir,
+ * um degrau adiante.
+ *
+ * Quando usar: dois colaboradores dividiram um aparelho, alguém entrou com o
+ * CPF errado, ou a ficha é duplicata de outra. Soltar aqui libera o chat para
+ * a pessoa certa vincular no próximo /start.
+ */
+export async function desvincularTelegram(
+  empresaId: string,
+  colaboradorId: string,
+): Promise<ActionResult> {
+  await requireEmpresaAccess(empresaId);
+
+  const colaborador = await prisma.colaborador.findFirst({
+    where: { id: colaboradorId, empresaId },
+    select: { id: true, nome: true, telegramChatId: true },
+  });
+  if (!colaborador) return { ok: false, error: "Colaborador não encontrado." };
+  if (!colaborador.telegramChatId) {
+    return { ok: false, error: "Esta ficha não tem Telegram vinculado." };
+  }
+
+  await prisma.colaborador.update({
+    where: { id: colaboradorId },
+    data: { telegramChatId: null },
+  });
+
+  await registrarAuditoria({
+    empresaId,
+    acao: "DESVINCULAR",
+    entidade: "Colaborador",
+    entidadeId: colaboradorId,
+    // O chat_id entra na trilha porque é ele que identifica QUAL aparelho foi
+    // solto — sem isso, não dá para reconstruir quem estava com o quê.
+    resumo: `Telegram (chat ${colaborador.telegramChatId}) desvinculado da ficha de ${colaborador.nome}.`,
+  });
+
+  revalidatePath(`/rh/${empresaId}/colaboradores/${colaboradorId}`);
+  revalidatePath(`/rh/${empresaId}/colaboradores`);
+  return { ok: true };
+}

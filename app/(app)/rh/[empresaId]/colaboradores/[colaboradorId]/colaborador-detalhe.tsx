@@ -11,6 +11,7 @@ import { formatarData, tempoDeCasa } from "@/lib/datas";
 import type { ResumoFerias } from "@/lib/ferias";
 import type { ConformidadeColaborador, SituacaoExame } from "@/lib/conformidade";
 import { AtivarDesativarButton } from "../ativar-desativar-button";
+import { DesvincularTelegramButton } from "../desvincular-telegram-button";
 import { CobrarCadastroButton } from "../cobrar-cadastro-button";
 import { FichaBlocos } from "./ficha-blocos";
 import { DependentesCard } from "./dependentes-card";
@@ -158,7 +159,13 @@ export function ColaboradorDetalhe({
           {colaborador.tipoContrato && (
             <Badge variant="outline">{tipoContratoLabel(colaborador.tipoContrato)}</Badge>
           )}
-          {colaborador.telegramChatId && <Badge variant="secondary">Telegram vinculado</Badge>}
+          {colaborador.telegramChatId && (
+            <DesvincularTelegramButton
+              empresaId={empresaId}
+              colaboradorId={colaborador.id}
+              nome={colaborador.nome}
+            />
+          )}
           {resumoFerias?.temVencido && <Badge variant="destructive">Férias vencidas</Badge>}
           {!resumoFerias?.temVencido && resumoFerias?.temVencendo && (
             <Badge variant="secondary">Férias vencendo</Badge>

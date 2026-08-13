@@ -6,10 +6,8 @@ import { lerSessaoPortal } from "@/lib/portal-auth";
 import { registrarAuditoria } from "@/lib/audit";
 import { lerAnexo } from "@/lib/anexos";
 import { enviarParaBlob } from "@/lib/blob";
-import { sendEmail } from "@/lib/email";
-import { buscarDestinatarios } from "@/lib/pesquisa-notificacoes";
 import { dataDoFormulario } from "@/lib/datas";
-import { TIPOS_DOCUMENTO, TIPOS_CONTA_BANCARIA, tipoContaLabel } from "@/lib/constants-dp";
+import { TIPOS_DOCUMENTO } from "@/lib/constants-dp";
 import type { ActionResult } from "@/lib/constants";
 
 // Autoatendimento cadastral do colaborador.
@@ -57,10 +55,7 @@ export async function atualizarMeusDados(
 
   const colaborador = await prisma.colaborador.findUnique({
     where: { id: sessao.colaboradorId },
-    select: {
-      id: true, nome: true, empresaId: true,
-      bancoNome: true, bancoAgencia: true, bancoConta: true, bancoTipoConta: true, chavePix: true,
-    },
+    select: { id: true, nome: true, empresaId: true },
   });
   if (!colaborador) return { ok: false, error: "Cadastro não encontrado." };
 
@@ -79,32 +74,24 @@ export async function atualizarMeusDados(
     return { ok: false, error: "PIS/PASEP inválido — confira os números no documento." };
   }
 
-  const bancoTipoConta = String(formData.get("bancoTipoConta") ?? "").trim() || null;
-  if (bancoTipoConta && !TIPOS_CONTA_BANCARIA.some((t) => t.value === bancoTipoConta)) {
-    return { ok: false, error: "Selecione um tipo de conta válido." };
-  }
-  const dadosBancarios = {
-    bancoNome: texto(formData, "bancoNome", 60),
-    bancoTipoConta,
-    bancoAgencia: texto(formData, "bancoAgencia", 20),
-    bancoConta: texto(formData, "bancoConta", 30),
-    chavePix: texto(formData, "chavePix", 140),
-  };
-  // Dado bancário é o que move dinheiro — só ele justifica avisar o RH. Compara
-  // com o que já estava salvo para não gerar e-mail toda vez que a pessoa só
-  // corrige o telefone e reenvia o formulário inteiro.
-  const bancoMudou =
-    dadosBancarios.bancoNome !== colaborador.bancoNome ||
-    dadosBancarios.bancoTipoConta !== colaborador.bancoTipoConta ||
-    dadosBancarios.bancoAgencia !== colaborador.bancoAgencia ||
-    dadosBancarios.bancoConta !== colaborador.bancoConta ||
-    dadosBancarios.chavePix !== colaborador.chavePix;
+  // DADO BANCÁRIO NÃO ENTRA MAIS POR AQUI, e a ausência é a regra.
+  //
+  // Até 13/08/2026 esta action gravava banco, agência, conta e chave PIX que
+  // viessem no formulário. Como todo arquivo "use server", ela é um endpoint
+  // público: tirar os campos da tela não bastaria — bastaria um POST à mão
+  // para trocar a conta de destino do próprio salário, e o RH só saberia pelo
+  // e-mail de aviso, depois do fato.
+  //
+  // Agora a chave de pagamento é o CPF do próprio colaborador (ver a seção
+  // "Como você recebe" no portal), que é justamente a chave que ninguém
+  // consegue apontar para a conta de outra pessoa. Não há o que digitar, e o
+  // que não se digita não se falsifica. O CPF em si continua sendo alterável
+  // só pelo RH, na ficha.
 
   await prisma.colaborador.update({
     where: { id: colaborador.id },
     data: {
       email,
-      ...dadosBancarios,
       telefone: texto(formData, "telefone", 40),
       estadoCivil: texto(formData, "estadoCivil", 40),
       escolaridade: texto(formData, "escolaridade", 60),
@@ -140,40 +127,22 @@ export async function atualizarMeusDados(
     acao: "ATUALIZAR",
     entidade: "Colaborador",
     entidadeId: colaborador.id,
-    resumo: bancoMudou
-      ? `${colaborador.nome} atualizou os próprios dados cadastrais pelo portal, incluindo dado bancário/PIX.`
-      : `${colaborador.nome} atualizou os próprios dados cadastrais pelo portal.`,
+    resumo: `${colaborador.nome} atualizou os próprios dados cadastrais pelo portal.`,
   });
 
-  // Dado bancário mudou: o RH precisa saber AGORA, não no próximo relatório —
-  // é a janela entre a troca e o próximo pagamento que decide se dá tempo de
-  // confirmar com a pessoa antes de uma chave PIX trocada desviar o valor.
-  if (bancoMudou) {
-    const linhas = [
-      dadosBancarios.bancoNome && `Banco: ${dadosBancarios.bancoNome}`,
-      dadosBancarios.bancoTipoConta && `Tipo de conta: ${tipoContaLabel(dadosBancarios.bancoTipoConta)}`,
-      dadosBancarios.bancoAgencia && `Agência: ${dadosBancarios.bancoAgencia}`,
-      dadosBancarios.bancoConta && `Conta: ${dadosBancarios.bancoConta}`,
-      dadosBancarios.chavePix && `Chave PIX: ${dadosBancarios.chavePix}`,
-    ].filter(Boolean).join(" · ") || "todos os campos foram apagados";
-    const mensagem =
-      `${colaborador.nome} alterou os dados bancários pelo portal. Novo valor — ${linhas}. ` +
-      `Confirme com a pessoa por um canal à parte antes do próximo pagamento.`;
-
-    const destinatarios = await buscarDestinatarios(colaborador.empresaId);
-    for (const d of destinatarios) {
-      if (!d.email) continue;
-      const resultado = await sendEmail({
-        to: d.email,
-        subject: `[RH] Dado bancário alterado — ${colaborador.nome}`,
-        text: mensagem,
-        html: `<p>${mensagem}</p>`,
-      });
-      if (!resultado.ok) {
-        console.error(`[portal-cadastro] falha ao avisar ${d.email} sobre troca de dado bancário:`, resultado.error);
-      }
-    }
-  }
+  // O aviso por e-mail ao RH a cada troca de dado bancário saiu junto com os
+  // campos, em 13/08/2026 — e a razão é que ele deixou de ter o que avisar.
+  //
+  // Ele existia para cobrir uma janela real: entre o colaborador trocar a
+  // conta pelo portal e o próximo pagamento, alguém do RH precisava confirmar
+  // por outro canal que a troca era mesmo dele. Com a chave sendo o CPF, essa
+  // janela não existe — não há conta a trocar, e o CPF só o RH altera, na
+  // ficha, onde a mudança já entra na trilha de auditoria.
+  //
+  // Efeito colateral bem-vindo: em 12/08/2026 esse aviso estourou o teto
+  // diário de 85 e-mails do provedor, com 98 falhas de envio nos registros —
+  // um formulário reenviado inteiro disparava o alerta mesmo quando só o
+  // telefone mudava.
 
   revalidatePath("/portal");
   return { ok: true };

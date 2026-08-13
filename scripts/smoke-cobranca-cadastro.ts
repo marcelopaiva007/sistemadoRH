@@ -66,9 +66,6 @@ const FICHA_COMPLETA = {
   numeroEndereco: "10",
   bairro: "Centro",
   uf: "SP",
-  bancoNome: "Banco X",
-  bancoAgencia: "0001",
-  bancoConta: "12345-6",
 };
 
 function testarRegras() {
@@ -89,9 +86,12 @@ function testarRegras() {
     faltasNaFicha({ ...FICHA_COMPLETA, logradouro: null, bairro: null, uf: null }).length === 1,
     "endereço pela metade vira UMA linha, não uma por campo",
   );
+  // Regressão do PIX-CPF (13/08/2026): a ficha sem nenhum dado bancário está
+  // COMPLETA. Se alguém reintroduzir a regra antiga, o bot volta a pedir por
+  // Telegram uma conta que o portal não tem mais onde receber.
   ok(
-    faltasNaFicha({ ...FICHA_COMPLETA, bancoAgencia: null, bancoConta: null }).length === 1,
-    "dados bancários pela metade viram UMA linha",
+    faltasNaFicha({ ...FICHA_COMPLETA }).length === 0,
+    "sem dados bancários a ficha continua completa — a chave de pagamento é o CPF",
   );
 
   // O recorte que dá razão de existir a este motor: só se cobra o que a pessoa
@@ -498,7 +498,6 @@ async function testarCobrancaManual() {
       // Casos em que o botão recusa, com motivo legível na tela.
       const completo = await criar("completo", {
         rg: "1", logradouro: "R", numeroEndereco: "1", bairro: "B", uf: "SP",
-        bancoNome: "X", bancoAgencia: "1", bancoConta: "1",
       });
       for (const tipo of ["RG", "CPF", "CTPS", "COMPROVANTE_RESIDENCIA"]) {
         await tx.documentoColaborador.create({

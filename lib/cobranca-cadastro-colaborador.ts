@@ -117,9 +117,6 @@ type FichaParaCobranca = {
   numeroEndereco: string | null;
   bairro: string | null;
   uf: string | null;
-  bancoNome: string | null;
-  bancoAgencia: string | null;
-  bancoConta: string | null;
 };
 
 /**
@@ -139,9 +136,10 @@ export function faltasNaFicha(c: FichaParaCobranca): string[] {
   if (c.logradouro === null || c.numeroEndereco === null || c.bairro === null || c.uf === null) {
     faltas.push("Endereço completo (rua, número, bairro e estado)");
   }
-  if (c.bancoNome === null || c.bancoAgencia === null || c.bancoConta === null) {
-    faltas.push("Dados bancários para o pagamento");
-  }
+  // Dado bancário saiu da cobrança em 13/08/2026 junto com os campos: a chave
+  // de pagamento agora é o CPF do próprio colaborador, e não há tela onde ele
+  // possa responder isso. Pedir por Telegram um dado que o portal não aceita é
+  // o jeito mais rápido de ensinar as pessoas a ignorar o bot.
 
   return faltas;
 }
@@ -368,9 +366,6 @@ const SELECAO_DA_COBRANCA = {
   numeroEndereco: true,
   bairro: true,
   uf: true,
-  bancoNome: true,
-  bancoAgencia: true,
-  bancoConta: true,
   documentos: { select: { tipo: true } },
   // Para assinar o e-mail com a marca certa (ver montarEmail).
   empresa: { select: { marca: { select: { nome: true } } } },
