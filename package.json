@@ -74,7 +74,7 @@
     "@prisma/adapter-pg": "^7.9.1",
     "@prisma/client": "^7.9.1",
     "@react-three/drei": "^10.7.7",
-    "@react-three/fiber": "^9.6.1",
+    "@react-three/fiber": "^9.7.0",
     "@sparticuz/chromium": "^149.0.0",
     "@types/nodemailer": "^8.0.1",
     "@vercel/blob": "^2.6.1",
