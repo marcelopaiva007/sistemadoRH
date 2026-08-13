@@ -69,7 +69,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",
     "@base-ui/react": "^1.6.0",
-    "@hookform/resolvers": "^5.4.0",
+    "@hookform/resolvers": "^5.7.1",
     "@prisma/adapter-better-sqlite3": "^7.9.1",
     "@prisma/adapter-pg": "^7.9.1",
     "@prisma/client": "^7.9.1",
