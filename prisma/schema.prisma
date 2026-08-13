@@ -371,6 +371,23 @@ model Colaborador {
   // pro colaborador dar /start no bot e lê o chat_id via Bot API getUpdates).
   // Sem isso, o convite da pesquisa não pode ser enviado automaticamente.
   telegramChatId String?
+  // Foto de referência: o rosto contra o qual o RH compara a selfie de cada
+  // batida de ponto. Sem ela a conferência humana não fecha — quem abre a foto
+  // de uma batida não tem com o que comparar, e ninguém reconhece 170 pessoas
+  // de memória. Decidido em 13/08/2026, junto com a escolha de NÃO contratar
+  // comparação automática de rosto (ver lib/atualizacoes.ts v1.83.2).
+  //
+  // Guarda a URL do Blob privado, como `RegistroPonto.fotoUrl` — nunca o
+  // conteúdo. Servida só por rota autenticada, que audita quem viu.
+  fotoUrl        String?
+  // Se a foto de referência foi posta ou confirmada por uma pessoa do RH.
+  //
+  // `false` = veio da promoção automática da primeira selfie de batida (o
+  // sistema não tinha nada e adotou a primeira que chegou). É útil e imediato,
+  // mas carrega um risco lógico: se ESSA primeira batida tiver sido feita por
+  // outra pessoa, a referência nasce errada e passa a validar a fraude. Por
+  // isso o painel marca a referência não conferida, e conferir é um clique.
+  fotoConferidaPeloRh Boolean  @default(false)
   ativo          Boolean       @default(true)
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt

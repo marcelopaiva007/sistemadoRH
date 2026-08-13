@@ -32,6 +32,11 @@ export default async function PontoEletronicoPage({
         nome: true,
         setor: { select: { nome: true } },
         posicao: { select: { nome: true } },
+        // A referência com que o RH compara a selfie da batida. Só o booleano
+        // atravessa para o cliente — a URL do Blob nunca sai do servidor; quem
+        // serve a imagem é a rota autenticada, que audita quem viu.
+        fotoUrl: true,
+        fotoConferidaPeloRh: true,
         registrosPonto: {
           where: {
             dataHora: {
@@ -94,6 +99,8 @@ export default async function PontoEletronicoPage({
     nome: string;
     setor: { nome: string };
     posicao: { nome: string };
+    fotoUrl: string | null;
+    fotoConferidaPeloRh: boolean;
     registrosPonto: Array<{ id: string; tipo: string; dataHora: Date; fotoUrl: string | null }>;
   };
 
@@ -134,6 +141,8 @@ export default async function PontoEletronicoPage({
       status,
       primeiraEntrada,
       ultimaSaida,
+      temReferencia: c.fotoUrl !== null,
+      referenciaConferida: c.fotoConferidaPeloRh,
       batidas: batidas.map((b) => ({
         id: b.id,
         hora: horaBrasilia(b.dataHora),

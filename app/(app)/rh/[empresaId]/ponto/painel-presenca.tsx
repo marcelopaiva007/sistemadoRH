@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Clock, UserCheck, AlertTriangle, UserX, Search, ShieldCheck, Camera, CameraOff } from "lucide-react";
+import { Clock, UserCheck, AlertTriangle, UserX, Search, ShieldCheck, Camera, CameraOff, UserRound } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +17,10 @@ export type PresenteItem = {
   // Cada batida do dia, com hora e se tem foto. A foto é o que responde "foi
   // ele mesmo que bateu?" — clicar abre pela rota autenticada, que audita.
   batidas: Array<{ id: string; hora: string; temFoto: boolean }>;
+  /** Tem foto de referência na ficha — sem ela não há com o que comparar. */
+  temReferencia: boolean;
+  /** A referência já passou por um par de olhos do RH (ver Colaborador.fotoConferidaPeloRh). */
+  referenciaConferida: boolean;
 };
 
 export function PainelPresencaView({
@@ -129,9 +133,43 @@ export function PainelPresencaView({
                     </span>
                     {/* As batidas do dia, com a foto de cada uma. Batida sem
                         foto fica visível de propósito: silêncio aqui faria
-                        "sem foto" parecer "está tudo bem". */}
+                        "sem foto" parecer "está tudo bem".
+
+                        A referência vem PRIMEIRO na linha, e não por capricho
+                        de layout: comparar exige ter o rosto certo à esquerda
+                        antes de olhar os da direita. */}
                     {item.batidas.length > 0 && (
-                      <span className="mt-1 flex flex-wrap gap-1.5">
+                      <span className="mt-1 flex flex-wrap items-center gap-1.5">
+                        {item.temReferencia ? (
+                          <a
+                            href={`/api/rh/${empresaId}/colaboradores/${item.colaboradorId}/foto`}
+                            target="_blank"
+                            rel="noreferrer"
+                            title={
+                              item.referenciaConferida
+                                ? "Foto de referência da ficha (conferida pelo RH)"
+                                : "Foto de referência adotada da 1ª batida — ainda NÃO conferida pelo RH"
+                            }
+                            className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] hover:bg-accent ${
+                              item.referenciaConferida
+                                ? "border-primary/40 text-foreground"
+                                : "border-amber-500/50 text-amber-700 dark:text-amber-400"
+                            }`}
+                          >
+                            <UserRound className="w-3 h-3" />
+                            referência
+                            {!item.referenciaConferida && " (a conferir)"}
+                          </a>
+                        ) : (
+                          <span
+                            title="Sem foto de referência na ficha — não há com o que comparar as batidas"
+                            className="inline-flex items-center gap-1 rounded border border-dashed px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                          >
+                            <UserRound className="w-3 h-3" />
+                            sem referência
+                          </span>
+                        )}
+                        <span className="text-muted-foreground">·</span>
                         {item.batidas.map((b) =>
                           b.temFoto ? (
                             <a

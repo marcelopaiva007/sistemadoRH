@@ -26,6 +26,19 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.84.0",
+    data: "13/08/2026",
+    horario: "05:00",
+    titulo: "Foto de referência na ficha: agora dá para comparar a batida com o rosto certo",
+    itens: [
+      "Faltava a outra metade da conferência de ponto. A foto da batida existia desde ontem, mas quem abria não tinha com o que comparar — ninguém reconhece 170 pessoas de memória.",
+      "A ficha do colaborador passa a ter foto de referência, e ela se preenche sozinha: a primeira batida de cada pessoa vira a referência. Não é preciso reunir foto de ninguém para começar a usar.",
+      "No Monitor de Presença, a referência aparece à esquerda das batidas do dia — é só clicar para ver o rosto e comparar.",
+      "Referência que entrou sozinha fica marcada como \"a conferir\", em âmbar. É proposital: se justamente a primeira batida da pessoa tiver sido feita por outra, a referência nasceria errada e passaria a validar a fraude. Um clique do RH confirma, ou o RH envia uma foto melhor pela ficha — e aí ela já vale como conferida.",
+      "A foto fica em armazenamento privado, fora do banco, e só abre para quem tem acesso à empresa. Cada visualização entra na trilha de auditoria, como RG e atestado.",
+    ],
+  },
+  {
     versao: "1.83.3",
     data: "13/08/2026",
     horario: "04:00",
