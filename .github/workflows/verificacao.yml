@@ -122,6 +122,21 @@ jobs:
 
       - name: Semear a empresa-palco
         run: npx tsx scripts/ci-fixture-banco.ts
+        env:
+          SEED_ADMIN_USERNAME: admin.ci
+
+      # Estes três precisam de banco e por isso não cabiam no job de cima —
+      # mas também não são smoke, então em 13/08/2026 estavam em job NENHUM:
+      # rodavam só quando alguém lembrava, que é a situação que este workflow
+      # nasceu para acabar (ver o cabeçalho sobre o test-nr01).
+      - name: Desacoplamento do banco (tabela de usuários própria)
+        run: npx tsx scripts/test-desacoplamento.ts
+        env:
+          SEED_ADMIN_USERNAME: admin.ci
+      - name: Portal do colaborador (link e sessão)
+        run: npx tsx scripts/test-portal.ts
+      - name: Reconhecimento (aniversários e tempo de casa)
+        run: npx tsx scripts/test-reconhecimento.ts
 
       # Um passo por smoke, e não um laço — mesmo motivo do job acima: o nome
       # do passo vermelho já diz o que quebrou.

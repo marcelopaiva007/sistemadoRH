@@ -36,17 +36,26 @@ async function guardarFotoDaBatida(params: {
   const dataUrl = params.fotoBase64;
   if (!dataUrl || dataUrl.length > LIMITE_FOTO_DATA_URL) return null;
 
-  const casado = /^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl);
+  // JPEG **ou PNG**, e a lista fechada continua sendo o que protege: nada de
+  // aceitar `data:` genérico. O PNG entrou na auditoria de 13/08/2026 por um
+  // motivo concreto — quando o navegador não suporta o tipo pedido em
+  // `toDataURL`, a especificação manda cair para PNG em silêncio. Aceitando só
+  // JPEG, essa batida chegaria "sem foto" ao painel e ninguém saberia por quê:
+  // a falha não aparece em lugar nenhum, e a foto é justamente o ponto do
+  // recurso.
+  const casado = /^data:image\/(jpeg|png);base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl);
   if (!casado) return null;
 
+  const ehPng = casado[1] === "png";
+
   try {
-    const bytes = new Uint8Array(Buffer.from(casado[1], "base64"));
+    const bytes = new Uint8Array(Buffer.from(casado[2], "base64"));
     if (bytes.byteLength === 0) return null;
     const envio = await enviarParaBlob({
       empresaId: params.empresaId,
       colaboradorId: params.colaboradorId,
-      nome: `ponto-${params.nsr}-${params.tipo}.jpg`,
-      mimeType: "image/jpeg",
+      nome: `ponto-${params.nsr}-${params.tipo}.${ehPng ? "png" : "jpg"}`,
+      mimeType: ehPng ? "image/png" : "image/jpeg",
       bytes,
     });
     return envio.ok ? envio.url : null;

@@ -56,9 +56,10 @@ export async function GET(
   // custa três linhas e garante que linha antiga nenhuma fique sem abrir.
   if (registro.fotoUrl.startsWith("data:")) {
     const virgula = registro.fotoUrl.indexOf(",");
+    const tipoNoDataUrl = /^data:(image\/(?:jpeg|png))/.exec(registro.fotoUrl)?.[1] ?? "image/jpeg";
     const bytes = Buffer.from(registro.fotoUrl.slice(virgula + 1), "base64");
     return new NextResponse(new Uint8Array(bytes), {
-      headers: { "Content-Type": "image/jpeg", "Cache-Control": "private, no-store" },
+      headers: { "Content-Type": tipoNoDataUrl, "Cache-Control": "private, no-store" },
     });
   }
 
@@ -67,9 +68,15 @@ export async function GET(
     return NextResponse.json({ error: resultado.error }, { status: 502 });
   }
 
+  // O tipo vem da extensão que a action gravou, e não fixo em jpeg: desde a
+  // auditoria de 13/08/2026 a selfie pode chegar em PNG (fallback do navegador
+  // quando `toDataURL` não suporta jpeg). Servir PNG rotulado como jpeg faria
+  // o navegador adivinhar — funciona quase sempre, o que é pior que falhar.
+  const ehPng = /\.png(\?|$)/i.test(registro.fotoUrl);
+
   return new NextResponse(resultado.bytes, {
     headers: {
-      "Content-Type": "image/jpeg",
+      "Content-Type": ehPng ? "image/png" : "image/jpeg",
       "Content-Disposition": "inline",
       // Foto de rosto não pode parar em cache compartilhado; `private` deixa o
       // navegador de quem conferiu guardar só para si.

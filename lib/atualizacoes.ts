@@ -26,6 +26,18 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.83.3",
+    data: "13/08/2026",
+    horario: "04:00",
+    titulo: "Auditoria do que foi entregue: três correções e a verificação automática completa",
+    itens: [
+      "Na tela inicial, clicar em \"Esperando sua decisão\" abria uma lista com o número TOTAL de pendências da marca — o cartão dizia 6 e a lista dizia 169. Agora cada cartão abre a lista do próprio grupo, e os dois números fecham.",
+      "A foto da batida de ponto passou a aceitar também o formato PNG. Alguns celulares entregam a foto nesse formato quando não conseguem gerar o outro, e nesses casos a batida chegava marcada como \"sem foto\" sem que ninguém soubesse o motivo.",
+      "Três verificações automáticas do sistema (desacoplamento do banco, portal do colaborador e reconhecimento) não estavam em nenhuma rotina: rodavam só quando alguém lembrava. Entraram para a verificação que roda a cada mudança — que é justamente o problema que essa rotina existe para acabar.",
+      "Resultado da auditoria completa: 41 verificações automáticas, todas passando.",
+    ],
+  },
+  {
     versao: "1.83.2",
     data: "13/08/2026",
     horario: "03:00",
