@@ -84,6 +84,8 @@ jobs:
         run: npx tsx scripts/test-ponto-duplicado.ts
       - name: Teto de jornada do estagiário (5h/dia, 30h/semana)
         run: npx tsx scripts/test-ponto-estagio.ts
+      - name: Permissões de usuário (sistema nunca fica sem ADMIN)
+        run: npx tsx scripts/test-usuarios-permissoes.ts
 
   # Os 27 smokes contra Postgres de verdade. O banco nasce vazio a cada
   # execução: schema gerado do prisma/schema.prisma via `migrate diff` (o
