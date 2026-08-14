@@ -9,10 +9,41 @@
  * 5. Reflexo de Horas Extras no Descanso Semanal Remunerado (DSR - Lei 605/1949 / Súmula 172 TST).
  */
 
+import { diaBrasilia } from "@/lib/datas";
+
 export type BatidaPonto = {
   tipo: "ENTRADA_1" | "SAIDA_1" | "ENTRADA_2" | "SAIDA_2";
   dataHora: Date;
 };
+
+/**
+ * Esta marcação já foi registrada hoje?
+ *
+ * O modelo tem quatro marcações por dia — entrada, saída para o almoço, volta
+ * e saída — e cada uma acontece UMA vez. Repetir não é jornada possível: é
+ * toque duplo no celular, rede lenta que reenvia, ou chamada direta à action.
+ *
+ * POR QUE NO SERVIDOR. Até 14/08/2026 a única trava era o botão desabilitado
+ * na tela (`bater-ponto-card.tsx`), e `registrarPontoPortal` é `"use server"` —
+ * ou seja, endpoint POST público. Um POST à mão registrava dez ENTRADA_1 no
+ * mesmo dia, todas com hash válido e NSR próprio, e o RH tinha que limpar a
+ * sujeira pelo tratamento de ponto. Trava que só existe no navegador não é
+ * trava. A implementação antiga do ponto tinha esta checagem no servidor; ela
+ * se perdeu na migração para o modelo novo.
+ *
+ * O DIA É O DE BRASÍLIA, não o do processo. Na Vercel o servidor roda em UTC:
+ * comparar pelo dia UTC deixaria a marcação das 21h30 cair no dia seguinte, e
+ * quem batesse duas vezes depois das 21h passaria pela trava — exatamente no
+ * horário do segundo turno.
+ */
+export function jaBateuHoje(
+  batidasRecentes: BatidaPonto[],
+  tipo: BatidaPonto["tipo"],
+  agora: Date,
+): boolean {
+  const hoje = diaBrasilia(agora);
+  return batidasRecentes.some((b) => b.tipo === tipo && diaBrasilia(b.dataHora) === hoje);
+}
 
 export type HorarioContratual = {
   entrada1: string; // "08:00"

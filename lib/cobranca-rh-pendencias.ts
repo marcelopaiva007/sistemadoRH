@@ -12,6 +12,7 @@
 // dias como a régua de pesquisa: aqui "parado" é medido pela repetição — se a
 // pendência não sumir, o e-mail volta amanhã, até alguém resolver. O gestor
 // (role ADMIN) entra em cópia em toda cobrança.
+import { diaBrasilia } from "@/lib/datas";
 import { prisma, type Cliente } from "@/lib/prisma";
 import { sendEmail } from "@/lib/email";
 import { empresasDaMesmaMarca } from "@/lib/escopo-marca";
@@ -121,7 +122,7 @@ export async function executarCobrancaPendenciasRH(
         `<ul>${itensHtml}</ul>` +
         `<p><a href="${linkEmpresa}">Abrir o sistema</a></p>`;
 
-      const diaChave = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(hoje);
+      const diaChave = diaBrasilia(hoje);
       const r = await sendEmail({
         to: dados.email,
         cc: copiaGestores,

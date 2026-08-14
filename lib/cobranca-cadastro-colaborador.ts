@@ -51,6 +51,7 @@
 //             escreveu o código.
 //
 // O motor é o mesmo nos dois casos; só muda quem apertou o botão.
+import { diaBrasilia } from "@/lib/datas";
 import { prisma, type Cliente } from "@/lib/prisma";
 import { sendTelegramMessage } from "@/lib/telegram";
 import { sendEmail, orcamentoRestanteHoje } from "@/lib/email";
@@ -295,7 +296,7 @@ async function entregar(
 
     if (!semOrcamento) {
       const { assunto, texto, html } = montarEmail(pessoa.nome, itens, rodada, pessoa.empresa.marca.nome);
-      const diaChave = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+      const diaChave = diaBrasilia(new Date());
       const r = await sendEmail({
         to: pessoa.email,
         subject: assunto,

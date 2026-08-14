@@ -84,6 +84,25 @@ export function formatarData(d: Date | null | undefined): string {
 }
 
 /** Data + hora de um instante, no fuso de Brasília (para telas de auditoria). */
+/**
+ * O DIA em Brasília, como "2026-08-13" — a chave para agrupar ou comparar
+ * "aconteceu no mesmo dia?".
+ *
+ * POR QUE NÃO DÁ PARA USAR A DATA CRUA. Na Vercel o processo roda em UTC, e
+ * `toISOString().slice(0, 10)` de uma batida às 21h30 de Brasília devolve o dia
+ * SEGUINTE. Toda regra que pergunta "já aconteceu hoje?" erra no fim do
+ * expediente — justamente quando o segundo turno está batendo o ponto.
+ *
+ * "en-CA" porque é o locale que formata como aaaa-mm-dd; o idioma não importa,
+ * o formato sim. Comparar essas strings é comparar dias.
+ *
+ * Estava copiada em três arquivos (produtividade, cobrança de cadastro e
+ * cobrança de pendências) antes de virar isto.
+ */
+export function diaBrasilia(d: Date): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(d);
+}
+
 export function formatarDataHoraBrasilia(d: Date): string {
   return d.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
 }

@@ -16,13 +16,10 @@
 // "Trilha" da mesma tela) fica de propósito por CNPJ — telas diferentes,
 // perguntas diferentes.
 import { prisma, type Cliente } from "@/lib/prisma";
+import { diaBrasilia } from "@/lib/datas";
 import type { LinhaProdutividadeDia, ResumoProdutividadePessoa } from "@/lib/produtividade-rh-utils";
 
 export type { LinhaProdutividadeDia, ResumoProdutividadePessoa } from "@/lib/produtividade-rh-utils";
-
-function diaBrasilia(d: Date): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(d);
-}
 
 /**
  * Detalhe dia a dia: uma linha por (pessoa, dia) com atividade — dia sem

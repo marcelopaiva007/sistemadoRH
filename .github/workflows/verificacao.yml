@@ -80,6 +80,8 @@ jobs:
         run: npx tsx scripts/test-pendencias-natureza.ts
       - name: Telefone, CPF e varredura de duplicados
         run: npx tsx scripts/test-telefone.ts
+      - name: Marcação de ponto repetida no mesmo dia (fuso de Brasília)
+        run: npx tsx scripts/test-ponto-duplicado.ts
 
   # Os 27 smokes contra Postgres de verdade. O banco nasce vazio a cada
   # execução: schema gerado do prisma/schema.prisma via `migrate diff` (o
