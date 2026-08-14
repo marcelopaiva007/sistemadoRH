@@ -12,6 +12,7 @@ import { sendEmail } from "@/lib/email";
 import { registrarAuditoria, diffCampos } from "@/lib/audit";
 import { escreverCookieEmpresaAtiva } from "@/lib/empresa-ativa";
 import type { ActionResult } from "@/lib/constants";
+import { deixariaSistemaSemAdmin } from "@/lib/usuarios-regras";
 
 const ROLES = ["ADMIN", "DIRETORIA", "RH_MANAGER", "GESTOR_SETOR"] as const;
 type Role = (typeof ROLES)[number];
@@ -174,7 +175,7 @@ export async function createUsuario(_prev: ActionResult, formData: FormData): Pr
 }
 
 export async function updateUsuario(id: string, _prev: ActionResult, formData: FormData): Promise<ActionResult> {
-  await requireGestaoUsuarios();
+  const admin = await requireGestaoUsuarios();
 
   const parsed = editarSchema.safeParse({
     nome: formData.get("nome"),
@@ -191,6 +192,29 @@ export async function updateUsuario(id: string, _prev: ActionResult, formData: F
     select: { nome: true, username: true, email: true, telefone: true, role: true, ativo: true },
   });
   if (!antes) return { ok: false, error: "Usuário não encontrado." };
+
+  // A MESMA TRAVA DO `deleteUsuario`, e por um motivo simples: editar leva ao
+  // mesmo lugar que excluir. Desmarcar "ativo" ou trocar o papel do único
+  // ADMIN tranca o sistema exatamente como apagá-lo — a porta é outra, o
+  // resultado é o mesmo. Até 14/08/2026 só a exclusão era protegida.
+  if (antes.role === "ADMIN" && antes.ativo) {
+    const outrosAdmins = await prisma.user.count({
+      where: { role: "ADMIN", ativo: true, NOT: { id } },
+    });
+    if (deixariaSistemaSemAdmin(antes, parsed.data, outrosAdmins)) {
+      return {
+        ok: false,
+        error: "Não é possível rebaixar ou desativar o único ADMIN ativo do sistema.",
+      };
+    }
+  }
+
+  // Desativar a si mesmo derruba o próprio acesso no próximo login, e quem faz
+  // isso quase sempre queria desativar outra pessoa — a lista tem uma linha por
+  // usuário e o engano é de um clique.
+  if (admin.id === id && !parsed.data.ativo) {
+    return { ok: false, error: "Você não pode desativar seu próprio usuário." };
+  }
 
   try {
     const depois = await prisma.user.update({

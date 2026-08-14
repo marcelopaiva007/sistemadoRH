@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.90.1",
+    data: "14/08/2026",
+    horario: "04:06",
+    titulo: "O sistema não pode mais ficar sem ADMIN por um clique na edição",
+    itens: [
+      "Excluir o último ADMIN ativo já era barrado. EDITAR não era: desmarcar \"ativo\" ou trocar o papel dele chegava ao mesmo lugar — sistema sem ninguém que administre empresas, sem tela para sair disso.",
+      "Agora as três portas estão fechadas, com a mesma mensagem. Promover alguém a ADMIN continua sempre liberado: é a saída caso o sistema já esteja nessa situação.",
+      "Também não dá mais para desativar o próprio usuário. A lista tem uma linha por pessoa e o engano é de um clique.",
+    ],
+  },
+  {
     versao: "1.90.0",
     data: "14/08/2026",
     horario: "03:40",
