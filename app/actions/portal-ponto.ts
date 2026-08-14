@@ -2,7 +2,12 @@
 
 import { prisma } from "@/lib/prisma";
 import { violouUnique } from "@/lib/prisma-erros";
-import { jaBateuHoje, type BatidaPonto } from "@/lib/ponto-regras";
+import {
+  apurarLimiteEstagio,
+  avisoDeLimiteEstagio,
+  jaBateuHoje,
+  type BatidaPonto,
+} from "@/lib/ponto-regras";
 import { lerSessaoPortal } from "@/lib/portal-auth";
 import { gerarHashPontoSHA256, validarIpPonto, validarGeofencingGps } from "@/lib/ponto-seguranca";
 import { enviarParaBlob } from "@/lib/blob";
@@ -104,7 +109,7 @@ export async function registrarPontoPortal(input: RegistrarPontoInput) {
     where: { id: sessao.colaboradorId },
     // `fotoUrl` entra para saber se esta pessoa já tem foto de referência —
     // se não tiver, a selfie desta batida vira a referência (ver adiante).
-    select: { id: true, empresaId: true, ativo: true, fotoUrl: true },
+    select: { id: true, empresaId: true, ativo: true, fotoUrl: true, tipoContrato: true },
   });
 
   if (!colaborador || !colaborador.ativo) {
@@ -152,17 +157,32 @@ export async function registrarPontoPortal(input: RegistrarPontoInput) {
   //
   // Fica ANTES do upload da foto de propósito: batida recusada não pode deixar
   // selfie órfã no Blob.
-  const batidasRecentes = await prisma.registroPonto.findMany({
+  //
+  // A janela é de 8 dias, e não de 48h, porque o teto do estagiário é semanal:
+  // a semana começa na segunda, e uma marcação de segunda-feira precisa estar
+  // aqui quando a de domingo chega. Para a trava de repetição, sobra histórico.
+  const batidasRecentes = (await prisma.registroPonto.findMany({
     where: {
       colaboradorId: colaborador.id,
-      dataHora: { gte: new Date(dataHoraAtual.getTime() - 48 * 60 * 60 * 1000) },
+      dataHora: { gte: new Date(dataHoraAtual.getTime() - 8 * 24 * 60 * 60 * 1000) },
     },
     select: { tipo: true, dataHora: true },
-  });
+  })) as BatidaPonto[];
 
-  if (jaBateuHoje(batidasRecentes as BatidaPonto[], input.tipo, dataHoraAtual)) {
+  if (jaBateuHoje(batidasRecentes, input.tipo, dataHoraAtual)) {
     return { erro: `Você já registrou "${rotuloDaMarcacao(input.tipo)}" hoje.` };
   }
+
+  // Teto de jornada do estagiário — AVISA, NÃO BLOQUEIA. Ver
+  // avisoDeLimiteEstagio: recusar a saída deixaria a pessoa sem registro da
+  // hora em que foi embora, que é o oposto do que um controle de ponto serve.
+  //
+  // O cálculo entra aqui e não depois do insert porque a marcação atual não
+  // precisa estar gravada: um período aberto conta até agora.
+  const avisoEstagio =
+    colaborador.tipoContrato === "ESTAGIO"
+      ? avisoDeLimiteEstagio(apurarLimiteEstagio(batidasRecentes, dataHoraAtual))
+      : null;
 
   // A foto vai para o Blob privado ANTES do create, para a URL entrar na
   // mesma linha. Falha aqui não impede nada — ver guardarFotoDaBatida.
@@ -293,6 +313,8 @@ export async function registrarPontoPortal(input: RegistrarPontoInput) {
       // se vai aparecer "sem foto" para o RH — e não descobrir depois.
       comFoto: fotoUrl !== null,
     },
+    // Vem JUNTO com o comprovante, nunca no lugar dele: a marcação valeu.
+    aviso: avisoEstagio,
   };
 }
 
