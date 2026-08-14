@@ -180,6 +180,8 @@ jobs:
         run: npx tsx scripts/smoke-onboarding.ts
       - name: Pendências
         run: npx tsx scripts/smoke-pendencias.ts
+      - name: NSR do ponto não repete (corrida na virada de turno)
+        run: npx tsx scripts/smoke-ponto-nsr.ts
       - name: Pesquisa de desligamento
         run: npx tsx scripts/smoke-pesquisa-desligamento.ts
       - name: Pesquisa eNPS

@@ -26,6 +26,18 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.87.1",
+    data: "13/08/2026",
+    horario: "21:56",
+    titulo: "Ponto: o número do registro (NSR) não pode mais repetir",
+    itens: [
+      "Duas pessoas batendo o ponto no mesmo instante podiam receber o MESMO número sequencial de registro. O sistema lia \"qual o maior número até agora\" e somava 1 — e entre a leitura e a gravação cabia outra batida. Na virada de turno, com o time inteiro marcando junto, isso acontecia.",
+      "Por que importa: o NSR é exigência da Portaria MTP 671/2021 e é ele que identifica cada linha no arquivo AFD entregue à fiscalização. Número repetido é arquivo malformado.",
+      "Agora o banco recusa a repetição, e a batida que perder a disputa tenta de novo sozinha — o colaborador não vê erro nenhum, só o comprovante normal.",
+      "Batidas já gravadas não foram renumeradas de propósito: o NSR faz parte do código de segurança (hash) de cada marcação, e reescrevê-lo em massa invalidaria registros de jornada que já existem. Se houver repetição antiga, a tela de exportação avisa na hora de gerar o AFD/AEJ, com o número exato, para o RH decidir antes de entregar à contabilidade.",
+    ],
+  },
+  {
     versao: "1.87.0",
     data: "13/08/2026",
     horario: "10:15",

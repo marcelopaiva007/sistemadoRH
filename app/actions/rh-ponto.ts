@@ -24,6 +24,47 @@ const TIPOS_TRATAMENTO_VALIDOS = new Set([
 ]);
 const DECISOES_VALIDAS = new Set(["APROVADO", "REJEITADO"]);
 
+/**
+ * NSRs repetidos na empresa — defeito herdado, conferido na hora de exportar.
+ *
+ * POR QUE AQUI. Até 13/08/2026 o NSR era calculado como "maior da empresa + 1"
+ * sem restrição no banco, e duas batidas simultâneas gravavam com o mesmo
+ * número. A migração 20260813180000 fechou a porta para as batidas novas, mas
+ * de propósito NÃO renumerou as antigas: o NSR entra no hash SHA-256 de cada
+ * linha, e reescrevê-lo em massa invalidaria a integridade de registros de
+ * jornada já gravados — decisão de quem responde pelo RH, com o caso à vista.
+ *
+ * A exportação é onde a repetição faz dano de verdade: o NSR identifica a
+ * linha no AFD entregue à fiscalização, e número repetido é arquivo
+ * malformado. Avisar aqui alcança quem pode agir, no momento em que importa —
+ * um script de linha de comando não alcança ninguém neste time.
+ *
+ * Avisa, não bloqueia: segurar o arquivo deixaria o RH sem entregar nada, o
+ * que é pior do que entregar com um defeito conhecido e datado.
+ */
+async function nsrsRepetidos(empresaId: string): Promise<bigint[]> {
+  const linhas = await prisma.$queryRaw<{ nsr: bigint }[]>`
+    SELECT "nsr" FROM "rh"."RegistroPonto"
+    WHERE "empresaId" = ${empresaId}
+    GROUP BY "nsr" HAVING COUNT(*) > 1
+    ORDER BY "nsr" ASC
+  `;
+  return linhas.map((l) => l.nsr);
+}
+
+/** Frase pronta para a tela, ou null quando não há repetição. */
+function avisoDeNsrRepetido(repetidos: bigint[]): string | null {
+  if (repetidos.length === 0) return null;
+  const lista = repetidos.slice(0, 5).map(String).join(", ");
+  const resto = repetidos.length > 5 ? ` e mais ${repetidos.length - 5}` : "";
+  return (
+    `Atenção: ${repetidos.length} número(s) de registro (NSR) aparecem repetidos nesta empresa — ${lista}${resto}. ` +
+    "São batidas gravadas antes da correção de 13/08/2026, quando marcações simultâneas podiam receber o mesmo número. " +
+    "O arquivo foi gerado assim mesmo, mas o NSR repetido pode ser questionado numa fiscalização. " +
+    "Procure a TI antes de entregar: renumerar altera registro de jornada e precisa da sua decisão."
+  );
+}
+
 export async function exportarArquivoAFDRH(empresaId: string) {
   await requireEmpresaAccess(empresaId);
   const empresa = await prisma.empresa.findUnique({
@@ -54,7 +95,12 @@ export async function exportarArquivoAFDRH(empresaId: string) {
     registrosFormatados
   );
 
-  return { sucesso: true, conteudoAFD, nomeArquivo: `AFD_${empresa.cnpj || empresaId}.txt` };
+  return {
+    sucesso: true,
+    conteudoAFD,
+    nomeArquivo: `AFD_${empresa.cnpj || empresaId}.txt`,
+    aviso: avisoDeNsrRepetido(await nsrsRepetidos(empresaId)),
+  };
 }
 
 export async function exportarArquivoAEJRH(empresaId: string) {
@@ -87,7 +133,12 @@ export async function exportarArquivoAEJRH(empresaId: string) {
     registrosFormatados
   );
 
-  return { sucesso: true, conteudoAEJ, nomeArquivo: `AEJ_${empresa.cnpj || empresaId}.txt` };
+  return {
+    sucesso: true,
+    conteudoAEJ,
+    nomeArquivo: `AEJ_${empresa.cnpj || empresaId}.txt`,
+    aviso: avisoDeNsrRepetido(await nsrsRepetidos(empresaId)),
+  };
 }
 
 export type CriarJornadaInput = {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Download, FileSpreadsheet, ShieldCheck, Printer, CheckCircle2 } from "lucide-react";
+import { AlertTriangle, Download, FileSpreadsheet, ShieldCheck, Printer } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
@@ -10,10 +10,15 @@ import { exportarArquivoAFDRH, exportarArquivoAEJRH } from "@/app/actions/rh-pon
 export function RelatoriosPontoView({ empresaId }: { empresaId: string }) {
   const [downloadingAFD, setDownloadingAFD] = useState(false);
   const [downloadingAEJ, setDownloadingAEJ] = useState(false);
+  // Aviso de NSR repetido — vem junto com o arquivo, não no lugar dele. Fica na
+  // tela depois do download porque é isso que a pessoa precisa ler ANTES de
+  // entregar o arquivo à contabilidade (ver avisoDeNsrRepetido em rh-ponto.ts).
+  const [aviso, setAviso] = useState<string | null>(null);
 
   const handleDownloadAFD = async () => {
     setDownloadingAFD(true);
     const res = await exportarArquivoAFDRH(empresaId);
+    setAviso(res.aviso ?? null);
     if (res.sucesso && res.conteudoAFD) {
       const blob = new Blob([res.conteudoAFD], { type: "text/plain;charset=utf-8" });
       const url = URL.createObjectURL(blob);
@@ -31,6 +36,7 @@ export function RelatoriosPontoView({ empresaId }: { empresaId: string }) {
   const handleDownloadAEJ = async () => {
     setDownloadingAEJ(true);
     const res = await exportarArquivoAEJRH(empresaId);
+    setAviso(res.aviso ?? null);
     if (res.sucesso && res.conteudoAEJ) {
       const blob = new Blob([res.conteudoAEJ], { type: "text/plain;charset=utf-8" });
       const url = URL.createObjectURL(blob);
@@ -47,6 +53,15 @@ export function RelatoriosPontoView({ empresaId }: { empresaId: string }) {
 
   return (
     <div className="space-y-4">
+      {aviso && (
+        <div className="rounded-md border border-destructive/50 bg-destructive/5 p-3 text-sm">
+          <p className="flex items-start gap-2">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" />
+            <span>{aviso}</span>
+          </p>
+        </div>
+      )}
+
       <div>
         <h2 className="text-base font-semibold">Relatórios & Exportações Fiscais de Ponto</h2>
         <p className="text-xs text-muted-foreground">
