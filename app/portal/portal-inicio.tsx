@@ -199,8 +199,12 @@ export function PortalInicio({
           </TabsTrigger>
         </TabsList>
 
+        {/* Sem BaterPontoCard aqui: ele já fica no topo da tela, sempre
+            visível. Até 14/08/2026 aparecia nos dois lugares, e quem abria
+            esta aba via dois cartões de bater ponto na mesma tela. O de cima
+            é o que fica — marcar o ponto é a ação mais frequente do portal, e
+            exigir um clique em aba antes é atrito no celular. */}
         <TabsContent value="ponto" className="space-y-4 pt-4">
-          <BaterPontoCard />
           <MeuBancoHorasCard
             dados={{
               competencia: bancoHoras?.competencia || new Date().toLocaleDateString("pt-BR", { month: "2-digit", year: "numeric" }),
