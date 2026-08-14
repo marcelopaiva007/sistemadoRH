@@ -46,17 +46,52 @@ export function jaBateuHoje(
 }
 
 /**
- * Teto de jornada do estagiário — minutos por dia e por semana.
+ * TETO LEGAL da jornada de estágio — Lei 11.788/2008, art. 10, II: 6h por dia
+ * e 30h por semana, para estudantes do ensino superior, do ensino médio regular
+ * e da educação profissional de nível médio.
  *
- * SOBRE OS NÚMEROS. A Lei 11.788/2008, art. 10, fixa 6h/dia e 30h/semana para
- * ensino superior, médio regular e educação profissional de nível médio; e
- * 4h/20h para educação especial e anos finais do fundamental na modalidade EJA.
- * Os 5h aqui são POLÍTICA DA EMPRESA, mais restritiva que a lei — foi o valor
- * definido junto com a regra, em 13/08/2026. Se um dia virar "o que a lei
- * manda", o número muda aqui e em lugar nenhum mais.
+ * Não é configurável, e é isso que o distingue do limite da empresa: o RH pode
+ * APERTAR a régua (política interna mais restritiva é direito da empresa), mas
+ * nenhuma configuração afrouxa além daqui.
+ *
+ * DUAS SITUAÇÕES QUE ESTE NÚMERO NÃO COBRE, e que o sistema hoje não distingue:
+ * o inciso I do mesmo artigo fixa 4h/20h para educação especial e anos finais
+ * do fundamental na modalidade EJA; e o § 1º admite até 40h semanais em cursos
+ * que alternam teoria e prática, nos períodos sem aula presencial, desde que
+ * previsto no projeto pedagógico. Se algum desses casos aparecer no quadro, a
+ * régua precisa deixar de ser por empresa e passar a ser por estagiário.
  */
-export const LIMITE_ESTAGIO_MIN_DIA = 5 * 60;
-export const LIMITE_ESTAGIO_MIN_SEMANA = 30 * 60;
+export const TETO_LEGAL_ESTAGIO_MIN_DIA = 6 * 60;
+export const TETO_LEGAL_ESTAGIO_MIN_SEMANA = 30 * 60;
+
+/** Menos de uma hora não é jornada — é configuração que alerta sempre. */
+export const MINIMO_ESTAGIO_MIN_DIA = 60;
+
+export type LimitesEstagio = { dia: number; semana: number };
+
+/**
+ * Os limites que valem para uma empresa, a partir do que está configurado.
+ *
+ * TRUNCA NO TETO LEGAL AO LER, e não só na hora de salvar. A coluna pode ser
+ * alterada por fora da tela — SQL direto, restauração de backup antigo, uma
+ * action futura que esqueça de validar — e uma proteção que depende de todo
+ * caminho de escrita se comportar não protege. Aqui é o último ponto antes de
+ * a regra ser aplicada, então é aqui que o teto tem de valer.
+ *
+ * Sem configuração (empresa que nunca abriu a tela), vale o teto legal: o
+ * sistema não inventa uma política mais dura do que a empresa escolheu.
+ */
+export function limitesDeEstagio(config?: {
+  estagioMinDia?: number | null;
+  estagioMinSemana?: number | null;
+} | null): LimitesEstagio {
+  const dia = config?.estagioMinDia ?? TETO_LEGAL_ESTAGIO_MIN_DIA;
+  const semana = config?.estagioMinSemana ?? TETO_LEGAL_ESTAGIO_MIN_SEMANA;
+  return {
+    dia: Math.min(Math.max(dia, MINIMO_ESTAGIO_MIN_DIA), TETO_LEGAL_ESTAGIO_MIN_DIA),
+    semana: Math.min(Math.max(semana, MINIMO_ESTAGIO_MIN_DIA), TETO_LEGAL_ESTAGIO_MIN_SEMANA),
+  };
+}
 
 export type ApuracaoEstagio = {
   minutosHoje: number;
@@ -125,10 +160,7 @@ function minutosDoDia(batidasDoDia: BatidaPonto[], agora: Date, ehHoje: boolean)
 export function apurarLimiteEstagio(
   batidas: BatidaPonto[],
   agora: Date,
-  limites: { dia: number; semana: number } = {
-    dia: LIMITE_ESTAGIO_MIN_DIA,
-    semana: LIMITE_ESTAGIO_MIN_SEMANA,
-  },
+  limites: LimitesEstagio = limitesDeEstagio(null),
 ): ApuracaoEstagio {
   const hoje = diaBrasilia(agora);
   const segunda = segundaDaSemana(hoje);
@@ -179,15 +211,15 @@ export function emHorasEMinutos(minutos: number): string {
  * ponto — e põe o excesso à vista de quem pode agir: o estagiário na hora, o
  * RH na tela de ponto e no tratamento (PTRP).
  */
-export function avisoDeLimiteEstagio(a: ApuracaoEstagio): string | null {
+export function avisoDeLimiteEstagio(a: ApuracaoEstagio, limites: LimitesEstagio): string | null {
   if (a.excedeuDia && a.excedeuSemana) {
-    return `Você já tem ${emHorasEMinutos(a.minutosHoje)} hoje e ${emHorasEMinutos(a.minutosSemana)} na semana — acima do limite de estágio (${emHorasEMinutos(LIMITE_ESTAGIO_MIN_DIA)} por dia, ${emHorasEMinutos(LIMITE_ESTAGIO_MIN_SEMANA)} por semana). Sua marcação foi registrada. Avise seu supervisor e o RH.`;
+    return `Você já tem ${emHorasEMinutos(a.minutosHoje)} hoje e ${emHorasEMinutos(a.minutosSemana)} na semana — acima do limite de estágio (${emHorasEMinutos(limites.dia)} por dia, ${emHorasEMinutos(limites.semana)} por semana). Sua marcação foi registrada. Avise seu supervisor e o RH.`;
   }
   if (a.excedeuDia) {
-    return `Você já tem ${emHorasEMinutos(a.minutosHoje)} hoje — acima do limite de ${emHorasEMinutos(LIMITE_ESTAGIO_MIN_DIA)} por dia do estágio. Sua marcação foi registrada. Avise seu supervisor.`;
+    return `Você já tem ${emHorasEMinutos(a.minutosHoje)} hoje — acima do limite de ${emHorasEMinutos(limites.dia)} por dia do estágio. Sua marcação foi registrada. Avise seu supervisor.`;
   }
   if (a.excedeuSemana) {
-    return `Você já tem ${emHorasEMinutos(a.minutosSemana)} nesta semana — acima do limite de ${emHorasEMinutos(LIMITE_ESTAGIO_MIN_SEMANA)} do estágio. Sua marcação foi registrada. Avise seu supervisor.`;
+    return `Você já tem ${emHorasEMinutos(a.minutosSemana)} nesta semana — acima do limite de ${emHorasEMinutos(limites.semana)} do estágio. Sua marcação foi registrada. Avise seu supervisor.`;
   }
   return null;
 }

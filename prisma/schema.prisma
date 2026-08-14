@@ -2225,6 +2225,13 @@ model ConfiguracaoPontoEmpresa {
   raioPermitidoMtrs Int      @default(200) // Raio do cerco em metros
   exigirGps         Boolean  @default(true)
   exigirFoto        Boolean  @default(false)
+  // Teto de jornada do estagiário, em minutos. Configurável pelo RH na tela de
+  // Ponto, mas NUNCA acima do teto legal (Lei 11.788/2008, art. 10: 6h/dia e
+  // 30h/semana) — a validação está em lib/ponto-regras.ts::limitesDeEstagio, e
+  // é ela que manda, não o valor da coluna: linha adulterada direto no banco
+  // não afrouxa a regra.
+  estagioMinDia     Int      @default(360)
+  estagioMinSemana  Int      @default(1800)
   updatedAt         DateTime @updatedAt
 
   @@schema("rh")
