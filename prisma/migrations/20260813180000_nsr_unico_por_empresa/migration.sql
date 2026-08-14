@@ -1,0 +1,50 @@
+-- NSR único por empresa — fecha a corrida que deixava duas batidas com o mesmo
+-- número sequencial.
+--
+-- O DEFEITO. `registrarPontoPortal` calcula o NSR lendo o maior valor da
+-- empresa e somando 1, fora de transação:
+--
+--     const ultimo = await prisma.registroPonto.findFirst({ orderBy: { nsr: "desc" } });
+--     const nsr = (ultimo?.nsr ?? 0n) + 1n;
+--
+-- Entre a leitura e a escrita cabe outra batida. Duas pessoas da mesma empresa
+-- marcando no mesmo instante recebem o MESMO NSR, e as duas gravam — a tabela
+-- só tinha índice comum em ("empresaId", nsr), não índice único. Na virada de
+-- turno, com 170 pessoas batendo, a colisão não é hipótese.
+--
+-- POR QUE IMPORTA. O NSR é o Número Sequencial de Registro da Portaria MTP
+-- 671/2021, e o AFD o escreve como identificador da linha
+-- (lib/ponto-afdaej.ts). NSR repetido é arquivo fiscal malformado, entregue à
+-- fiscalização. Nenhuma lógica de aplicação resolve corrida sozinha: só a
+-- restrição no banco garante.
+--
+-- POR QUE O ÍNDICE É PARCIAL, e esta é a parte que exige explicação:
+--
+--   1. Se JÁ existirem NSRs duplicados nesta base, um índice único comum falha
+--      ao ser criado. E migração que falha aqui derruba o deploy de produção
+--      inteiro (prisma/checar-migracoes.mjs), levando junto tudo que não tem
+--      relação com ponto.
+--
+--   2. A saída óbvia — renumerar as duplicatas antes de criar o índice — não
+--      serve. O NSR é o primeiro campo da cadeia que gera o hash SHA-256 de
+--      cada batida (lib/ponto-seguranca.ts): trocar o número invalida o hash
+--      gravado, e reconstruí-lo em SQL exigiria reproduzir `toISOString()` e
+--      `toFixed(6)` exatamente. Errar por um dígito produz um hash que parece
+--      certo e não é — pior do que não mexer.
+--
+--   3. Renumerar batida já registrada altera documento de jornada. Isso é
+--      decisão de quem responde pelo RH, com o caso à vista, não efeito
+--      colateral de um deploy de madrugada.
+--
+-- Então a trava vale do momento desta migração em diante, que é onde estão as
+-- batidas futuras — as que ainda podem ser evitadas. O passado, se tiver
+-- duplicata, fica visível por scripts/checar-nsr-duplicado.ts em vez de ser
+-- silenciosamente reescrito.
+--
+-- O corte é por `createdAt` (quando a linha foi gravada), não por `dataHora`
+-- (quando a pessoa bateu): tratamento de ponto pode inserir batida com data
+-- retroativa, e essas linhas nascem depois daqui — precisam da trava também.
+
+CREATE UNIQUE INDEX IF NOT EXISTS "RegistroPonto_empresaId_nsr_key"
+  ON "rh"."RegistroPonto" ("empresaId", "nsr")
+  WHERE "createdAt" >= TIMESTAMP '2026-08-13 18:00:00';

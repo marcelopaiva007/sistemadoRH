@@ -30,6 +30,14 @@ CREATE UNIQUE INDEX IF NOT EXISTS "Pesquisa_marcaId_titulo_key"
   ON "rh"."Pesquisa"("marcaId", "titulo")
   WHERE status = 'DRAFT';
 
+-- De prisma/migrations/20260813180000_nsr_unico_por_empresa/migration.sql:
+-- NSR único por empresa, da migração em diante (ver lá o porquê do recorte).
+-- No banco do CI, que nasce vazio, o recorte não exclui nada: toda linha
+-- criada pelos testes é posterior à data e cai sob a trava.
+CREATE UNIQUE INDEX IF NOT EXISTS "RegistroPonto_empresaId_nsr_key"
+  ON "rh"."RegistroPonto" ("empresaId", "nsr")
+  WHERE "createdAt" >= TIMESTAMP '2026-08-13 18:00:00';
+
 -- De prisma/migrations/20260725240000_fase3_metas_pdi/migration.sql:
 -- meta tem exatamente UM alvo — colaborador OU setor, nunca ambos nem nenhum.
 DO $$

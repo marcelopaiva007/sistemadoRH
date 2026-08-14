@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { violouUnique } from "@/lib/prisma-erros";
 import { lerSessaoPortal } from "@/lib/portal-auth";
 import { gerarHashPontoSHA256, validarIpPonto, validarGeofencingGps } from "@/lib/ponto-seguranca";
 import { enviarParaBlob } from "@/lib/blob";
@@ -26,10 +27,15 @@ const LIMITE_FOTO_DATA_URL = 1_500_000;
 // 18 MB virando GB). Nenhuma tela enviava foto ainda, então nenhuma linha
 // antiga tem base64 salvo — mas a rota que serve a foto trata esse caso
 // mesmo assim, porque a coluna aceitava.
+// `referencia` compõe o nome do arquivo no Blob. Era o NSR até 13/08/2026,
+// quando o NSR passou a ser atribuído dentro do laço de tentativa do insert —
+// não existe mais no momento do upload. O instante da batida identifica igual
+// e não colide: duas batidas do mesmo colaborador no mesmo milissegundo não
+// acontecem, e o vínculo verdadeiro é a coluna `fotoUrl` da linha, não o nome.
 async function guardarFotoDaBatida(params: {
   empresaId: string;
   colaboradorId: string;
-  nsr: bigint;
+  referencia: string;
   tipo: string;
   fotoBase64: string | null | undefined;
 }): Promise<string | null> {
@@ -54,7 +60,7 @@ async function guardarFotoDaBatida(params: {
     const envio = await enviarParaBlob({
       empresaId: params.empresaId,
       colaboradorId: params.colaboradorId,
-      nome: `ponto-${params.nsr}-${params.tipo}.${ehPng ? "png" : "jpg"}`,
+      nome: `ponto-${params.referencia}-${params.tipo}.${ehPng ? "png" : "jpg"}`,
       mimeType: ehPng ? "image/png" : "image/jpeg",
       bytes,
     });
@@ -123,34 +129,18 @@ export async function registrarPontoPortal(input: RegistrarPontoInput) {
     return { erro: `Fora do raio de localização permitido pela empresa.` };
   }
 
-  // Buscar último NSR da empresa para incrementar atomicamente
-  const ultimoPonto = await prisma.registroPonto.findFirst({
-    where: { empresaId: colaborador.empresaId },
-    orderBy: { nsr: "desc" },
-    select: { nsr: true },
-  });
-
-  const nsr = (ultimoPonto?.nsr || BigInt(0)) + BigInt(1);
   const dataHoraAtual = new Date();
-
-  // Gerar Hash SHA-256 de inviolabilidade
-  const hashSHA256 = gerarHashPontoSHA256({
-    nsr,
-    colaboradorId: colaborador.id,
-    empresaId: colaborador.empresaId,
-    dataHoraISO: dataHoraAtual.toISOString(),
-    tipo: input.tipo,
-    ipOrigem: ipCliente,
-    latitude: input.latitude,
-    longitude: input.longitude,
-  });
 
   // A foto vai para o Blob privado ANTES do create, para a URL entrar na
   // mesma linha. Falha aqui não impede nada — ver guardarFotoDaBatida.
+  //
+  // Fica FORA do laço de tentativa do NSR de propósito: a foto não depende do
+  // número, e reenviar a mesma selfie a cada colisão deixaria cópias órfãs no
+  // Blob, que ninguém apaga.
   const fotoUrl = await guardarFotoDaBatida({
     empresaId: colaborador.empresaId,
     colaboradorId: colaborador.id,
-    nsr,
+    referencia: String(dataHoraAtual.getTime()),
     tipo: input.tipo,
     fotoBase64: input.fotoBase64,
   });
@@ -180,25 +170,82 @@ export async function registrarPontoPortal(input: RegistrarPontoInput) {
     }
   }
 
-  // Criar RegistroPonto (Append-Only)
-  const novoRegistro = await prisma.registroPonto.create({
-    data: {
-      empresaId: colaborador.empresaId,
-      colaboradorId: colaborador.id,
-      dataHora: dataHoraAtual,
-      tipo: input.tipo,
+  // Criar RegistroPonto (Append-Only), com o NSR resolvido a cada tentativa.
+  //
+  // O NSR é "maior da empresa + 1", e ler-depois-escrever é corrida: entre a
+  // consulta e o insert cabe outra batida. Até 13/08/2026 as duas gravavam com
+  // o MESMO número, porque a tabela só tinha índice comum em (empresaId, nsr).
+  // NSR repetido é arquivo AFD malformado — o NSR identifica a linha no arquivo
+  // entregue à fiscalização (Portaria MTP 671/2021).
+  //
+  // Agora existe índice ÚNICO (migração 20260813180000): a segunda gravação é
+  // recusada pelo banco em vez de aceita. É o banco que garante — nenhuma
+  // lógica de aplicação resolve corrida sozinha.
+  //
+  // Daí o laço: recusa não pode virar "não consegui bater o ponto". Cada volta
+  // relê o maior NSR e tenta de novo. O hash entra aqui dentro porque o NSR é o
+  // primeiro campo da cadeia — número novo, hash novo.
+  //
+  // Cinco tentativas: cada colisão significa outra batida ganhando a corrida, e
+  // cinco perdas seguidas na mesma empresa já não é concorrência normal.
+  const TENTATIVAS = 5;
+  let novoRegistro = null as Awaited<ReturnType<typeof prisma.registroPonto.create>> | null;
+
+  for (let tentativa = 1; tentativa <= TENTATIVAS; tentativa++) {
+    const ultimoPonto = await prisma.registroPonto.findFirst({
+      where: { empresaId: colaborador.empresaId },
+      orderBy: { nsr: "desc" },
+      select: { nsr: true },
+    });
+    const nsr = (ultimoPonto?.nsr ?? BigInt(0)) + BigInt(1);
+
+    const hashSHA256 = gerarHashPontoSHA256({
       nsr,
+      colaboradorId: colaborador.id,
+      empresaId: colaborador.empresaId,
+      dataHoraISO: dataHoraAtual.toISOString(),
+      tipo: input.tipo,
       ipOrigem: ipCliente,
-      ipValido,
       latitude: input.latitude,
       longitude: input.longitude,
-      precisaoGps: input.precisaoGps,
-      gpsValido,
-      fotoUrl,
-      hashSHA256,
-      dispositivoInfo: input.dispositivoInfo || null,
-    },
-  });
+    });
+
+    try {
+      novoRegistro = await prisma.registroPonto.create({
+        data: {
+          empresaId: colaborador.empresaId,
+          colaboradorId: colaborador.id,
+          dataHora: dataHoraAtual,
+          tipo: input.tipo,
+          nsr,
+          ipOrigem: ipCliente,
+          ipValido,
+          latitude: input.latitude,
+          longitude: input.longitude,
+          precisaoGps: input.precisaoGps,
+          gpsValido,
+          fotoUrl,
+          hashSHA256,
+          dispositivoInfo: input.dispositivoInfo || null,
+        },
+      });
+      break;
+    } catch (e) {
+      // Só a violação DESTE índice conta como corrida. Sem o nome, qualquer
+      // P2002 da linha viraria "tente de novo" — inclusive um que repetisse
+      // para sempre. Qualquer outro erro é problema de verdade e sobe.
+      if (!violouUnique(e, "RegistroPonto_empresaId_nsr_key")) throw e;
+      if (tentativa === TENTATIVAS) {
+        return {
+          erro: "O sistema está recebendo muitas marcações ao mesmo tempo. Tente de novo em alguns segundos.",
+        };
+      }
+    }
+  }
+
+  if (!novoRegistro) {
+    return { erro: "Não foi possível registrar o ponto. Tente de novo." };
+  }
 
   revalidatePath("/portal");
 
