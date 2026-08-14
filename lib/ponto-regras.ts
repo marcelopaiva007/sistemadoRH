@@ -84,10 +84,10 @@ function segundaDaSemana(diaISO: string): string {
  * Minutos trabalhados num dia, somando os PARES de marcação.
  *
  * POR QUE PARES, e não "agora menos a primeira entrada": o intervalo de almoço
- * fica no meio. A regra antiga (lib/actions/portal-ponto.ts, caminho morto)
- * fazia `agora - primeiraEntrada` e contava o almoço como hora trabalhada —
- * quem entrasse às 8h e saísse às 13h com uma hora de intervalo aparecia com
- * 5h em vez de 4h, e era barrado sem ter estourado nada.
+ * fica no meio. A regra da primeira implementação do ponto, removida em
+ * 14/08/2026, fazia `agora - primeiraEntrada` e contava o almoço como hora
+ * trabalhada: quem entrasse às 8h e saísse às 13h com uma hora de intervalo
+ * aparecia com 5h em vez de 4h, e era barrado sem ter estourado nada.
  *
  * Período aberto (entrou e ainda não saiu) conta até `agora` SÓ no dia de hoje.
  * Num dia passado, entrada sem saída é esquecimento — contar até agora daria

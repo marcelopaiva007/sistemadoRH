@@ -26,6 +26,18 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.89.0",
+    data: "14/08/2026",
+    horario: "03:24",
+    titulo: "Fim da primeira versão do ponto: um sistema só, e o cartão de bater ponto aparece uma vez",
+    itens: [
+      "Existiam DUAS versões do ponto eletrônico convivendo no sistema, gravando em tabelas diferentes. A primeira, mais simples, não tinha número de registro nem código de segurança e não aparecia em tela nenhuma — mas continuava aceitando gravação. Uma batida que caísse lá ficaria invisível para o RH e fora dos arquivos AFD e AEJ.",
+      "Ela foi removida por inteiro, com as tabelas. Deu para apagar porque o ponto ainda está em implantação e nenhuma batida foi registrada — não havia registro de jornada a perder.",
+      "O cartão de bater ponto aparecia duas vezes na tela inicial do portal: solto no topo e de novo dentro da aba \"Ponto Eletrônico\". Ficou só o do topo, sempre visível — marcar o ponto é a ação mais frequente, e exigir um clique em aba antes é atrito no celular. A aba segue com o banco de horas.",
+      "Fecha a auditoria do ponto começada ontem: número de registro que podia repetir, marcação repetida sem trava no servidor, regra de estagiário que não rodava e agora a versão duplicada.",
+    ],
+  },
+  {
     versao: "1.88.0",
     data: "14/08/2026",
     horario: "02:58",

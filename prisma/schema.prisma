@@ -499,7 +499,6 @@ model Colaborador {
   cobrancasCadastro        CobrancaCadastro[]
 
   // Registros de ponto (entrada/saída)
-  pontos Ponto[]
 
   @@unique([empresaId, cpf])
   @@unique([telegramChatId])
@@ -2040,53 +2039,7 @@ model TentativaLogin {
 // auditoria deste schema: um snapshot que muda quando o RH renomeia um setor
 // SISTEMA DE PONTO — entrada/saída com selfie e localização
 // Configuração da tolerância de horário por empresa
-model ConfiguracaoPonto {
-  id                 String   @id @default(cuid())
-  empresaId          String   @unique
-  // Minutos antes do início do turno que permite bater ponto (ex: 60 = 1h antes)
-  minutosAntecipacao Int      @default(60)
-  // Minutos depois do fim do turno que permite bater ponto (ex: 60 = 1h depois)
-  minutosTolerancia  Int      @default(60)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
 
-  @@index([empresaId])
-  @@schema("rh")
-}
-
-// Registro individual de entrada/saída
-model Ponto {
-  id                    String      @id @default(cuid())
-  empresaId             String
-  colaboradorId         String
-  colaborador           Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
-  // ENTRADA ou SAÍDA
-  tipo                  String
-  // Horário que foi registrado (UTC)
-  dataHora              DateTime
-  // Selfie em base64 ou URL
-  selfieBase64          String?
-  // Localização
-  latitude              Float?
-  longitude             Float?
-  // Referência aproximada (cidade, bairro, endereço) extraída da localização
-  localizacao           String?
-  // Observação opcional do colaborador
-  observacao            String?
-  // Validação: se está dentro da janela esperada
-  dentro_janela         Boolean     @default(true)
-  // Dados da escala esperada neste dia (denormalizado para auditoria)
-  turnoEsperado         String?
-  horarioEsperadoInicio DateTime?
-  horarioEsperadoFim    DateTime?
-
-  createdAt DateTime @default(now())
-
-  @@index([empresaId, colaboradorId])
-  @@index([empresaId, dataHora])
-  @@index([colaboradorId, dataHora])
-  @@schema("rh")
-}
 
 // ou apaga um cargo não é snapshot. O nome gravado aqui é o nome que aquele
 // setor tinha NAQUELE mês; o id serve para reagrupar quando ele ainda existe.
