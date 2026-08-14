@@ -42,6 +42,9 @@ export function BaterPontoCard() {
   // (ou a escolha explícita de seguir sem ela) registra o ponto.
   const [tipoPendente, setTipoPendente] = useState<TipoBatida | null>(null);
   const inputFotoRef = useRef<HTMLInputElement>(null);
+  // Aviso do teto de estágio. Separado do erro DE PROPÓSITO: a marcação foi
+  // registrada: ver avisoDeLimiteEstagio em lib/ponto-regras.ts.
+  const [aviso, setAviso] = useState<string | null>(null);
   const [sucessoComprovante, setSucessoComprovante] = useState<{
     nsr: number;
     dataHora: string;
@@ -135,6 +138,7 @@ export function BaterPontoCard() {
   const handleBaterPonto = async (tipo: TipoBatida, fotoBase64: string | null) => {
     setLoading(true);
     setErro(null);
+    setAviso(null);
     setSucessoComprovante(null);
 
     try {
@@ -151,6 +155,7 @@ export function BaterPontoCard() {
         setErro(res.erro);
       } else if (res.sucesso && res.comprovante) {
         setSucessoComprovante(res.comprovante);
+        setAviso(res.aviso ?? null);
         await carregarRegistrosHoje();
       }
     } catch {
@@ -167,6 +172,7 @@ export function BaterPontoCard() {
   // por causa de acessório, mas a linha chega "sem foto" ao painel do RH.
   const iniciarBatida = (tipo: TipoBatida) => {
     setErro(null);
+    setAviso(null);
     setSucessoComprovante(null);
     setTipoPendente(tipo);
     inputFotoRef.current?.click();
@@ -299,6 +305,18 @@ export function BaterPontoCard() {
               <span>{sucessoComprovante.comFoto ? "Foto anexada ao registro" : "Registrado sem foto"}</span>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Teto de jornada do estagiário. Fica ABAIXO do comprovante, em âmbar e
+          não em vermelho: a marcação valeu, e o que precisa de ação é a
+          jornada — conversa com o supervisor, não com o sistema. */}
+      {aviso && (
+        <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg text-xs">
+          <p className="flex items-start gap-1.5 text-amber-700 dark:text-amber-400">
+            <AlertTriangle className="mt-0.5 w-4 h-4 shrink-0" />
+            <span>{aviso}</span>
+          </p>
         </div>
       )}
 

@@ -45,6 +45,153 @@ export function jaBateuHoje(
   return batidasRecentes.some((b) => b.tipo === tipo && diaBrasilia(b.dataHora) === hoje);
 }
 
+/**
+ * Teto de jornada do estagiário — minutos por dia e por semana.
+ *
+ * SOBRE OS NÚMEROS. A Lei 11.788/2008, art. 10, fixa 6h/dia e 30h/semana para
+ * ensino superior, médio regular e educação profissional de nível médio; e
+ * 4h/20h para educação especial e anos finais do fundamental na modalidade EJA.
+ * Os 5h aqui são POLÍTICA DA EMPRESA, mais restritiva que a lei — foi o valor
+ * definido junto com a regra, em 13/08/2026. Se um dia virar "o que a lei
+ * manda", o número muda aqui e em lugar nenhum mais.
+ */
+export const LIMITE_ESTAGIO_MIN_DIA = 5 * 60;
+export const LIMITE_ESTAGIO_MIN_SEMANA = 30 * 60;
+
+export type ApuracaoEstagio = {
+  minutosHoje: number;
+  /** Inclui hoje. */
+  minutosSemana: number;
+  excedeuDia: boolean;
+  excedeuSemana: boolean;
+};
+
+/** O dia da semana (0=domingo) da data de Brasília, sem sofrer com fuso. */
+function diaDaSemanaBr(diaISO: string): number {
+  return new Date(`${diaISO}T12:00:00Z`).getUTCDay();
+}
+
+/** A segunda-feira da semana daquele dia, como "2026-08-10". */
+function segundaDaSemana(diaISO: string): string {
+  const dow = diaDaSemanaBr(diaISO);
+  const recuo = dow === 0 ? 6 : dow - 1; // domingo fecha a semana da segunda anterior
+  const d = new Date(`${diaISO}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - recuo);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Minutos trabalhados num dia, somando os PARES de marcação.
+ *
+ * POR QUE PARES, e não "agora menos a primeira entrada": o intervalo de almoço
+ * fica no meio. A regra antiga (lib/actions/portal-ponto.ts, caminho morto)
+ * fazia `agora - primeiraEntrada` e contava o almoço como hora trabalhada —
+ * quem entrasse às 8h e saísse às 13h com uma hora de intervalo aparecia com
+ * 5h em vez de 4h, e era barrado sem ter estourado nada.
+ *
+ * Período aberto (entrou e ainda não saiu) conta até `agora` SÓ no dia de hoje.
+ * Num dia passado, entrada sem saída é esquecimento — contar até agora daria
+ * centenas de horas. Ali vale zero, e o caso é do tratamento de ponto (PTRP).
+ */
+function minutosDoDia(batidasDoDia: BatidaPonto[], agora: Date, ehHoje: boolean): number {
+  const em = (t: BatidaPonto["tipo"]) =>
+    batidasDoDia.find((b) => b.tipo === t)?.dataHora ?? null;
+
+  let minutos = 0;
+  for (const [entrada, saida] of [
+    ["ENTRADA_1", "SAIDA_1"],
+    ["ENTRADA_2", "SAIDA_2"],
+  ] as const) {
+    const ini = em(entrada);
+    if (!ini) continue;
+    const fim = em(saida) ?? (ehHoje ? agora : null);
+    if (!fim) continue;
+    const diff = fim.getTime() - ini.getTime();
+    if (diff > 0) minutos += diff / 60000;
+  }
+  return Math.round(minutos);
+}
+
+/**
+ * Quanto o estagiário já trabalhou hoje e na semana, e se passou do teto.
+ *
+ * A marcação que está sendo feita AGORA não precisa entrar na lista: um período
+ * aberto conta até `agora`, então bater a saída neste instante dá o mesmo
+ * número que já está aqui.
+ *
+ * A semana começa na segunda, em Brasília — não no dia do processo, que na
+ * Vercel é UTC e vira antes.
+ */
+export function apurarLimiteEstagio(
+  batidas: BatidaPonto[],
+  agora: Date,
+  limites: { dia: number; semana: number } = {
+    dia: LIMITE_ESTAGIO_MIN_DIA,
+    semana: LIMITE_ESTAGIO_MIN_SEMANA,
+  },
+): ApuracaoEstagio {
+  const hoje = diaBrasilia(agora);
+  const segunda = segundaDaSemana(hoje);
+
+  const porDia = new Map<string, BatidaPonto[]>();
+  for (const b of batidas) {
+    const dia = diaBrasilia(b.dataHora);
+    (porDia.get(dia) ?? porDia.set(dia, []).get(dia)!).push(b);
+  }
+
+  let minutosHoje = 0;
+  let minutosSemana = 0;
+  for (const [dia, doDia] of porDia) {
+    const m = minutosDoDia(doDia, agora, dia === hoje);
+    if (dia === hoje) minutosHoje = m;
+    // `>= segunda && <= hoje` compara strings aaaa-mm-dd, que ordenam como data.
+    if (dia >= segunda && dia <= hoje) minutosSemana += m;
+  }
+
+  return {
+    minutosHoje,
+    minutosSemana,
+    excedeuDia: minutosHoje > limites.dia,
+    excedeuSemana: minutosSemana > limites.semana,
+  };
+}
+
+/** "4h30" — para a frase que o estagiário lê, não "270 minutos". */
+export function emHorasEMinutos(minutos: number): string {
+  const h = Math.floor(minutos / 60);
+  const m = minutos % 60;
+  return m === 0 ? `${h}h` : `${h}h${String(m).padStart(2, "0")}`;
+}
+
+/**
+ * O aviso para o estagiário, ou null quando está dentro do teto.
+ *
+ * AVISA E NÃO BLOQUEIA, e esta é a diferença mais importante em relação à
+ * regra antiga, que recusava a marcação de saída.
+ *
+ * Recusar a saída não impede ninguém de trabalhar — a pessoa já trabalhou
+ * quando o sistema descobre. O que a recusa produz é uma jornada com entrada e
+ * SEM saída: o estagiário fica sem registro da hora em que foi embora, e a
+ * empresa fica com uma inconsistência aberta no lugar de um fato datado. Quem
+ * mais perde é justamente quem a regra queria proteger.
+ *
+ * Registrar e avisar mantém o espelho fiel — que é a função de um registro de
+ * ponto — e põe o excesso à vista de quem pode agir: o estagiário na hora, o
+ * RH na tela de ponto e no tratamento (PTRP).
+ */
+export function avisoDeLimiteEstagio(a: ApuracaoEstagio): string | null {
+  if (a.excedeuDia && a.excedeuSemana) {
+    return `Você já tem ${emHorasEMinutos(a.minutosHoje)} hoje e ${emHorasEMinutos(a.minutosSemana)} na semana — acima do limite de estágio (${emHorasEMinutos(LIMITE_ESTAGIO_MIN_DIA)} por dia, ${emHorasEMinutos(LIMITE_ESTAGIO_MIN_SEMANA)} por semana). Sua marcação foi registrada. Avise seu supervisor e o RH.`;
+  }
+  if (a.excedeuDia) {
+    return `Você já tem ${emHorasEMinutos(a.minutosHoje)} hoje — acima do limite de ${emHorasEMinutos(LIMITE_ESTAGIO_MIN_DIA)} por dia do estágio. Sua marcação foi registrada. Avise seu supervisor.`;
+  }
+  if (a.excedeuSemana) {
+    return `Você já tem ${emHorasEMinutos(a.minutosSemana)} nesta semana — acima do limite de ${emHorasEMinutos(LIMITE_ESTAGIO_MIN_SEMANA)} do estágio. Sua marcação foi registrada. Avise seu supervisor.`;
+  }
+  return null;
+}
+
 export type HorarioContratual = {
   entrada1: string; // "08:00"
   saida1: string;   // "12:00"

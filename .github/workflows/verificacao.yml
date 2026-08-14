@@ -82,6 +82,8 @@ jobs:
         run: npx tsx scripts/test-telefone.ts
       - name: Marcação de ponto repetida no mesmo dia (fuso de Brasília)
         run: npx tsx scripts/test-ponto-duplicado.ts
+      - name: Teto de jornada do estagiário (5h/dia, 30h/semana)
+        run: npx tsx scripts/test-ponto-estagio.ts
 
   # Os 27 smokes contra Postgres de verdade. O banco nasce vazio a cada
   # execução: schema gerado do prisma/schema.prisma via `migrate diff` (o

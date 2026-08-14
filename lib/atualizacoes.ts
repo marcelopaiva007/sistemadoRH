@@ -26,6 +26,19 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.88.0",
+    data: "14/08/2026",
+    horario: "02:58",
+    titulo: "Teto de jornada do estagiário passa a valer de verdade — avisando, não bloqueando",
+    itens: [
+      "A regra de 5h por dia e 30h por semana existia no código mas não rodava: ela estava na versão antiga do ponto, que nenhuma tela usa desde o mês passado. Na prática, um estagiário fechava 8 horas e o sistema aceitava calado.",
+      "O cálculo também estava errado: contava da primeira entrada até agora, o que inclui o almoço. Quem entrasse às 8h e saísse às 13h com uma hora de intervalo aparecia com 5h em vez de 4h — e era barrado sem ter passado de nada. Agora soma os pares de marcação, como manda a jornada real.",
+      "MUDANÇA DE COMPORTAMENTO: o sistema avisa, mas não recusa mais a marcação. Recusar a saída não impede ninguém de trabalhar — quando o sistema descobre, a pessoa já trabalhou. O que a recusa produzia era uma jornada com entrada e sem saída: o estagiário ficava sem registro da hora em que foi embora, e a empresa com uma pendência aberta no lugar de um fato datado.",
+      "O aviso aparece para o estagiário na hora, dizendo quantas horas ele já tem e pedindo que fale com o supervisor. A marcação entra normalmente, e o excesso fica visível no ponto e no tratamento (PTRP).",
+      "A semana conta de segunda a domingo, no horário de Brasília — não no do servidor, que roda em UTC e viraria o dia três horas antes.",
+    ],
+  },
+  {
     versao: "1.87.2",
     data: "13/08/2026",
     horario: "22:25",
