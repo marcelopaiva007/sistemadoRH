@@ -6,6 +6,7 @@ import {
   apurarLimiteEstagio,
   avisoDeLimiteEstagio,
   jaBateuHoje,
+  limitesDeEstagio,
   type BatidaPonto,
 } from "@/lib/ponto-regras";
 import { lerSessaoPortal } from "@/lib/portal-auth";
@@ -179,9 +180,19 @@ export async function registrarPontoPortal(input: RegistrarPontoInput) {
   //
   // O cálculo entra aqui e não depois do insert porque a marcação atual não
   // precisa estar gravada: um período aberto conta até agora.
+  //
+  // Os limites vêm da configuração da empresa (Ponto → Configurações), e
+  // `limitesDeEstagio` trunca no teto legal ao ler — coluna adulterada por fora
+  // da tela não afrouxa a regra.
   const avisoEstagio =
     colaborador.tipoContrato === "ESTAGIO"
-      ? avisoDeLimiteEstagio(apurarLimiteEstagio(batidasRecentes, dataHoraAtual))
+      ? (() => {
+          const limites = limitesDeEstagio(config);
+          return avisoDeLimiteEstagio(
+            apurarLimiteEstagio(batidasRecentes, dataHoraAtual, limites),
+            limites,
+          );
+        })()
       : null;
 
   // A foto vai para o Blob privado ANTES do create, para a URL entrar na

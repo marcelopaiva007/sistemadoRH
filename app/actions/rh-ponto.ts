@@ -7,6 +7,11 @@ import { registrarAuditoria } from "@/lib/audit";
 import type { ActionResult } from "@/lib/constants";
 import { formatarData } from "@/lib/datas";
 import { gerarConteudoAFD, gerarConteudoAEJ } from "@/lib/ponto-afdaej";
+import {
+  MINIMO_ESTAGIO_MIN_DIA,
+  TETO_LEGAL_ESTAGIO_MIN_DIA,
+  TETO_LEGAL_ESTAGIO_MIN_SEMANA,
+} from "@/lib/ponto-regras";
 
 /**
  * O union de TypeScript some na compilação: `decisao` e `tipo` chegam do
@@ -345,3 +350,66 @@ export async function decidirTratamentoPonto(input: {
 // navegador. Endpoint que ninguém usa é superfície de ataque que ninguém
 // revisa. As duas telas que precisam desses dados os buscam direto no
 // ponto/page.tsx, no mesmo Promise.all das outras consultas.
+
+/**
+ * Salva o teto de jornada de estágio da empresa.
+ *
+ * O TETO LEGAL É VALIDADO AQUI, no servidor, e não só no formulário: este
+ * arquivo é `"use server"`, então esta função é um endpoint POST público. Um
+ * `<input max="360">` na tela não impede um POST à mão com 480 — e o valor
+ * gravado passaria a valer para todo estagiário da empresa.
+ *
+ * A régua pode APERTAR (política interna mais restritiva é direito da empresa),
+ * nunca afrouxar: o limite da Lei 11.788/2008, art. 10, II é 6h/dia e
+ * 30h/semana. `limitesDeEstagio` ainda trunca na LEITURA, para o caso de a
+ * coluna ser alterada por fora deste caminho.
+ */
+export async function salvarLimiteEstagio(input: {
+  empresaId: string;
+  minutosDia: number;
+  minutosSemana: number;
+}): Promise<ActionResult> {
+  await requireEmpresaAccess(input.empresaId);
+
+  const dia = Math.trunc(Number(input.minutosDia));
+  const semana = Math.trunc(Number(input.minutosSemana));
+
+  if (!Number.isFinite(dia) || !Number.isFinite(semana)) {
+    return { ok: false, error: "Informe os limites em minutos." };
+  }
+  if (dia < MINIMO_ESTAGIO_MIN_DIA || semana < MINIMO_ESTAGIO_MIN_DIA) {
+    return { ok: false, error: "O limite mínimo é de 1 hora." };
+  }
+  if (dia > TETO_LEGAL_ESTAGIO_MIN_DIA) {
+    return {
+      ok: false,
+      error: `O limite diário não pode passar de ${TETO_LEGAL_ESTAGIO_MIN_DIA / 60}h — é o teto da Lei 11.788/2008 para estágio. Você pode reduzir, nunca aumentar.`,
+    };
+  }
+  if (semana > TETO_LEGAL_ESTAGIO_MIN_SEMANA) {
+    return {
+      ok: false,
+      error: `O limite semanal não pode passar de ${TETO_LEGAL_ESTAGIO_MIN_SEMANA / 60}h — é o teto da Lei 11.788/2008 para estágio. Você pode reduzir, nunca aumentar.`,
+    };
+  }
+
+  // `upsert` porque a linha de configuração pode não existir: ela nasce quando
+  // alguém abre esta tela pela primeira vez, não junto com a empresa.
+  await prisma.configuracaoPontoEmpresa.upsert({
+    where: { empresaId: input.empresaId },
+    create: { empresaId: input.empresaId, estagioMinDia: dia, estagioMinSemana: semana },
+    update: { estagioMinDia: dia, estagioMinSemana: semana },
+  });
+
+  await registrarAuditoria({
+    empresaId: input.empresaId,
+    acao: "ATUALIZAR",
+    entidade: "ConfiguracaoPontoEmpresa",
+    entidadeId: input.empresaId,
+    resumo: `Limite de jornada de estágio ajustado para ${dia / 60}h por dia e ${semana / 60}h por semana.`,
+    detalhes: { estagioMinDia: dia, estagioMinSemana: semana },
+  });
+
+  revalidatePath(`/rh/${input.empresaId}/ponto`);
+  return { ok: true };
+}

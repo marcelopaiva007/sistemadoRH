@@ -26,6 +26,19 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.90.0",
+    data: "14/08/2026",
+    horario: "03:40",
+    titulo: "Limite de jornada do estagiário agora é configurável na tela — com teto de 6h",
+    itens: [
+      "O RH define o limite em Ponto → Configurações, em horas por dia e por semana. Antes o número estava fixo no código e mudar dependia de uma nova versão do sistema.",
+      "O teto é 6h por dia e 30h por semana — o que a Lei 11.788/2008 permite. Dá para REDUZIR como política da empresa; aumentar, não. Tentar salvar 8h devolve o motivo na tela.",
+      "A trava vale mesmo se o número for alterado por fora da tela: o sistema trunca no teto legal toda vez que aplica a regra, não só na hora de salvar.",
+      "MUDANÇA NO NÚMERO EM USO: até ontem o limite era 5h fixo. As empresas passam a 6h, que é o teto da lei. Quem quiser manter 5h, é só ajustar na tela — leva um minuto.",
+      "A tela mostra a regra ao lado do campo, não só na mensagem de erro: quem preenche precisa saber o limite antes de tentar.",
+    ],
+  },
+  {
     versao: "1.89.0",
     data: "14/08/2026",
     horario: "03:24",

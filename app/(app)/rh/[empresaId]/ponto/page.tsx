@@ -1,11 +1,13 @@
 import { prisma } from "@/lib/prisma";
+import { limitesDeEstagio } from "@/lib/ponto-regras";
 import { PainelPresencaView } from "./painel-presenca";
 import { EscalasView } from "./escalas-view";
 import { TratamentoView } from "./tratamento-view";
 import { RelatoriosPontoView } from "./relatorios-view";
 import { DashboardDiretoriaPontoView } from "./dashboard-diretoria";
+import { ConfiguracoesPontoView } from "./configuracoes-view";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Clock, ShieldCheck, FileEdit, FileSpreadsheet, BarChart3 } from "lucide-react";
+import { Clock, ShieldCheck, FileEdit, FileSpreadsheet, BarChart3, Settings } from "lucide-react";
 import { AjudaDaTela } from "@/components/ajuda-da-tela";
 
 export default async function PontoEletronicoPage({
@@ -16,7 +18,7 @@ export default async function PontoEletronicoPage({
   const { empresaId } = await params;
 
   // Buscar empresa e jornadas
-  const [empresa, jornadas, colaboradores, pendentes, historico, paraSelecao] = await Promise.all([
+  const [empresa, jornadas, colaboradores, pendentes, historico, paraSelecao, configPonto] = await Promise.all([
     prisma.empresa.findUnique({
       where: { id: empresaId },
       select: { id: true, nome: true },
@@ -91,7 +93,14 @@ export default async function PontoEletronicoPage({
       orderBy: [{ ativo: "desc" }, { nome: "asc" }],
       select: { id: true, nome: true, ativo: true },
     }),
+    // Configuração de ponto da empresa. Pode não existir: a linha nasce
+    // quando alguém salva a aba Configurações pela primeira vez.
+    prisma.configuracaoPontoEmpresa.findUnique({ where: { empresaId } }),
   ]);
+
+  // Truncado no teto legal aqui também — a tela nunca mostra um número que
+  // a apuração não vá aplicar (ver limitesDeEstagio).
+  const limitesEstagio = limitesDeEstagio(configPonto);
 
   // Montar lista de presença em tempo real
   type ColaboradorComPonto = {
@@ -180,6 +189,9 @@ export default async function PontoEletronicoPage({
           <TabsTrigger value="diretoria" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background">
             <BarChart3 className="w-3.5 h-3.5 mr-1" /> Dashboard Diretoria
           </TabsTrigger>
+          <TabsTrigger value="config" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background">
+            <Settings className="w-3.5 h-3.5 mr-1" /> Configurações
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="presenca" className="pt-4">
@@ -215,6 +227,14 @@ export default async function PontoEletronicoPage({
               supressoesIntervalo: 1,
               taxaAbsenteismoPct: 1.8,
             }}
+          />
+        </TabsContent>
+
+        <TabsContent value="config" className="pt-4">
+          <ConfiguracoesPontoView
+            empresaId={empresaId}
+            minutosDia={limitesEstagio.dia}
+            minutosSemana={limitesEstagio.semana}
           />
         </TabsContent>
       </Tabs>
