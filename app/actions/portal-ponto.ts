@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { violouUnique } from "@/lib/prisma-erros";
+import { jaBateuHoje, type BatidaPonto } from "@/lib/ponto-regras";
 import { lerSessaoPortal } from "@/lib/portal-auth";
 import { gerarHashPontoSHA256, validarIpPonto, validarGeofencingGps } from "@/lib/ponto-seguranca";
 import { enviarParaBlob } from "@/lib/blob";
@@ -13,6 +14,17 @@ import { headers } from "next/headers";
 // antes de enviar (~60 KB); 1,5 MB de base64 já é chamada direta à action com
 // payload anormal, não foto de batida.
 const LIMITE_FOTO_DATA_URL = 1_500_000;
+
+// Nome de cada marcação em português, para a recusa dizer o que a pessoa vê no
+// botão em vez de "SAIDA_2".
+const ROTULO_DA_MARCACAO: Record<RegistrarPontoInput["tipo"], string> = {
+  ENTRADA_1: "Entrada",
+  SAIDA_1: "Saída para o intervalo",
+  ENTRADA_2: "Volta do intervalo",
+  SAIDA_2: "Saída",
+};
+
+const rotuloDaMarcacao = (tipo: RegistrarPontoInput["tipo"]) => ROTULO_DA_MARCACAO[tipo];
 
 // Guarda a selfie da batida no Blob privado e devolve a URL — ou null.
 //
@@ -130,6 +142,27 @@ export async function registrarPontoPortal(input: RegistrarPontoInput) {
   }
 
   const dataHoraAtual = new Date();
+
+  // Esta marcação já foi feita hoje? Ver jaBateuHoje — a trava existia só no
+  // botão da tela, e action "use server" é endpoint público.
+  //
+  // A janela de 48h cobre o dia de Brasília inteiro sem depender de calcular
+  // fronteira em UTC: o dia certo é decidido em JS, comparando chaves de dia.
+  // São poucas linhas por colaborador, então a consulta é barata.
+  //
+  // Fica ANTES do upload da foto de propósito: batida recusada não pode deixar
+  // selfie órfã no Blob.
+  const batidasRecentes = await prisma.registroPonto.findMany({
+    where: {
+      colaboradorId: colaborador.id,
+      dataHora: { gte: new Date(dataHoraAtual.getTime() - 48 * 60 * 60 * 1000) },
+    },
+    select: { tipo: true, dataHora: true },
+  });
+
+  if (jaBateuHoje(batidasRecentes as BatidaPonto[], input.tipo, dataHoraAtual)) {
+    return { erro: `Você já registrou "${rotuloDaMarcacao(input.tipo)}" hoje.` };
+  }
 
   // A foto vai para o Blob privado ANTES do create, para a URL entrar na
   // mesma linha. Falha aqui não impede nada — ver guardarFotoDaBatida.

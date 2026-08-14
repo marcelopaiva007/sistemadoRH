@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.87.2",
+    data: "13/08/2026",
+    horario: "22:25",
+    titulo: "Ponto: a mesma marcação não entra duas vezes no mesmo dia",
+    itens: [
+      "A trava contra bater a mesma marcação duas vezes existia só no botão da tela — o servidor aceitava tudo. Toque duplo no celular, rede lenta reenviando ou uma chamada direta ao sistema registravam dez \"Entrada\" no mesmo dia, e sobrava para o RH limpar pelo tratamento de ponto.",
+      "Agora o servidor confere antes de gravar, e a recusa diz o que a pessoa vê no botão: \"Você já registrou Entrada hoje\" — não um código.",
+      "O dia considerado é o de Brasília, não o do servidor. Isso não é detalhe: o sistema roda em UTC, onde 21h de Brasília já é o dia seguinte. Uma trava que olhasse o dia do servidor deixaria passar a batida repetida de quem marca à noite — justamente o segundo turno.",
+    ],
+  },
+  {
     versao: "1.87.1",
     data: "13/08/2026",
     horario: "21:56",
