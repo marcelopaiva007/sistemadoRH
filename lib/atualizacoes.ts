@@ -26,6 +26,19 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.91.0",
+    data: "15/08/2026",
+    horario: "10:25",
+    titulo: "Resultados agora mostram cada pergunta — inclusive múltipla escolha e texto livre",
+    itens: [
+      "A tela de Resultados só mostrava média por dimensão e por setor, que serve para pesquisa de clima. Pesquisa com múltipla escolha — \"você usou o benefício?\" — dava para criar, enviar e responder, e não dava para LER: a tela ficava vazia.",
+      "Agora cada pergunta aparece com sua distribuição: quantos escolheram cada opção e o percentual, na ordem do formulário. E as respostas de texto livre aparecem uma a uma — é onde mora o motivo por trás do número.",
+      "Nas perguntas de nota, a distribuição vem JUNTO da média. Média 5 pode ser \"todo mundo achou mediano\" ou \"metade odiou e metade adorou\", e as duas pedem decisões opostas.",
+      "O menu deixou de se chamar \"Pesquisas de clima\" e passou a ser só \"Pesquisas\": a ferramenta sempre serviu para qualquer pergunta ao time — desligamento e eNPS já estavam lá —, mas o nome fazia parecer que não.",
+      "A opção \"pesquisa anônima\" parou de dizer apenas \"recomendado\" e passou a explicar quando cada escolha serve. Anônima é certa para clima e risco psicossocial; para uso de benefício ela atrapalha, porque o valor está justamente em saber quem não usa.",
+    ],
+  },
+  {
     versao: "1.90.1",
     data: "14/08/2026",
     horario: "04:06",
