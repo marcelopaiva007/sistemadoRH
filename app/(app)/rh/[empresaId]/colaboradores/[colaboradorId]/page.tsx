@@ -312,6 +312,8 @@ export default async function ColaboradorPage({
     tiposMovimentacaoDisponiveis,
     statusMetaDisponiveis,
     competenciasDisponiveis,
+    tiposEntregaDisponiveis,
+    entregas,
     ocorrenciasDisciplinares,
   ] = await Promise.all([
     opcoesDoCatalogo(empresaId, "TIPO_EPI"),
@@ -320,6 +322,23 @@ export default async function ColaboradorPage({
     opcoesDoCatalogo(empresaId, "TIPO_MOVIMENTACAO"),
     opcoesDoCatalogo(empresaId, "STATUS_META"),
     opcoesDoCatalogo(empresaId, "COMPETENCIA"),
+    opcoesDoCatalogo(empresaId, "TIPO_ENTREGA"),
+    // O inventário da pessoa: mesma tabela da tela de Entregas da empresa,
+    // recortada por colaborador. Aguardando primeiro, porque é o que se cobra.
+    prisma.entregaAoColaborador.findMany({
+      where: { colaboradorId },
+      orderBy: [{ confirmadoEm: "asc" }, { dataEntrega: "desc" }],
+      select: {
+        id: true,
+        tipo: true,
+        descricao: true,
+        dataEntrega: true,
+        confirmadoEm: true,
+        devolvidoEm: true,
+        entreguePorNome: true,
+        observacoes: true,
+      },
+    }),
     prisma.ocorrenciaDisciplinar.findMany({
       where: { colaboradorId },
       orderBy: [{ dataFato: "desc" }],
@@ -379,6 +398,8 @@ export default async function ColaboradorPage({
         statusMetaDisponiveis={statusMetaDisponiveis}
         dependentesNoPlanoSaude={colaborador._count.dependentes}
         entregasEpi={entregasEpi}
+        entregas={entregas}
+        tiposEntregaDisponiveis={tiposEntregaDisponiveis}
         acidentes={acidentes}
         ausenciasElegiveisAcidente={ausenciasElegiveis}
         checklistDesligamento={checklistDesligamento}

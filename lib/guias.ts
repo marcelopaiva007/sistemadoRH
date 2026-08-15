@@ -468,9 +468,9 @@ export const GUIAS: Guia[] = [
       },
       {
         titulo: "Quem confirma é o colaborador",
-        fala: "Assim que você registra, aparece um aviso no topo do portal da pessoa pedindo para confirmar. Enquanto ela não clicar, a linha fica vermelha aqui.",
-        cena: "fluxo",
-        rotulos: ["RH registra", "Aviso no portal", "Pessoa confirma", "Linha fica verde"],
+        fala: "Assim que você registra, a pessoa recebe uma mensagem do bot no Telegram pedindo para confirmar, e o aviso fica no topo do portal dela até ela tocar em Recebi. Enquanto isso não acontece, a linha fica vermelha aqui. Quem não tem Telegram vinculado não recebe aviso — a tela conta quantos ficaram de fora.",
+        cena: "envio",
+        rotulos: ["Sistema de RH", "O RH registrou uma entrega em seu nome — confirme no portal", "Colaborador"],
       },
       {
         titulo: "A tela abre no que falta",
@@ -490,9 +490,15 @@ export const GUIAS: Guia[] = [
       },
       {
         titulo: "Falta um tipo de item na lista?",
-        fala: "Cadeira, chip de celular, ferramenta: cadastre em Configuração, Catálogos, tipos de entrega. A lista é sua, não precisa esperar ninguém.",
-        cena: "checklist",
-        rotulos: ["Cartão de benefícios", "Notebook", "Uniforme", "Crachá", "+ o que você cadastrar"],
+        fala: "Cadeira, chip de celular, ferramenta: clique em novo tipo, ali mesmo no formulário, dê o nome e salve. O tipo entra no catálogo da empresa na hora — sem sair da tela e sem perder quem você já marcou.",
+        cena: "formulario",
+        rotulos: ["+ novo tipo", "Nome do tipo", "Salvar"],
+      },
+      {
+        titulo: "O histórico de cada pessoa fica na ficha",
+        fala: "Na ficha do colaborador, a aba Entregas lista tudo que aquela pessoa recebeu, com a situação de cada item. É onde se olha no desligamento — e dá para registrar uma entrega individual por lá também.",
+        cena: "tabela",
+        rotulos: ["Item", "Entregue em", "Situação"],
       },
     ],
   },

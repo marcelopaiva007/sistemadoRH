@@ -71,6 +71,28 @@ export function situacaoDaEntrega(entrega: {
   return "AGUARDANDO";
 }
 
+/**
+ * O texto que chega no Telegram da pessoa na hora do registro.
+ *
+ * Vive aqui (e não no arquivo "use server" que o envia) por dois motivos: todo
+ * export de arquivo "use server" precisa ser função async, e o teste precisa
+ * ler o contrato desta mensagem — o /portal tem que estar nela (é o único
+ * caminho até o botão "Recebi"), e a ressalva "ainda não recebeu? fale com o
+ * RH" também: sem ela a mensagem vira ordem de confirmar, e confirmação sob
+ * ordem não prova nada.
+ */
+export function mensagemDeEntrega(nome: string, tipo: string, descricao: string | null): string {
+  const primeiro = nome.split(" ")[0];
+  const item = `${tipoEntregaLabel(tipo)}${descricao ? ` — ${descricao}` : ""}`;
+  return (
+    `Oi, ${primeiro}! 👋\n\n` +
+    `O RH registrou uma entrega em seu nome:\n\n• ${item}\n\n` +
+    `Se o item já está com você, envie /portal aqui neste chat e toque em ` +
+    `"Recebi" no aviso do topo — essa é a sua confirmação de recebimento.\n\n` +
+    `Ainda não recebeu? Fale com o RH antes de confirmar.`
+  );
+}
+
 export const SITUACAO_ENTREGA_BADGE: StatusBadgeMap<SituacaoEntrega> = {
   // `destructive` de propósito: falta de confirmação não é neutra. É o cartão
   // onde cai comissão sem ninguém ter dito que recebeu — o vermelho é o que
