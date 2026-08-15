@@ -88,14 +88,16 @@ jobs:
         run: npx tsx scripts/test-usuarios-permissoes.ts
       - name: Apuração de pesquisa pergunta a pergunta
         run: npx tsx scripts/test-pesquisa-apuracao.ts
+      - name: Entregas ao colaborador (confirmação e devolução)
+        run: npx tsx scripts/test-entregas.ts
 
-  # Os 27 smokes contra Postgres de verdade. O banco nasce vazio a cada
+  # Os 29 smokes contra Postgres de verdade. O banco nasce vazio a cada
   # execução: schema gerado do prisma/schema.prisma via `migrate diff` (o
   # `migrate deploy` não serve — o histórico de migrations não é reproduzível
   # do zero, ver prisma/checar-migracoes.mjs), MAIS as regras de SQL manual que
   # o schema não expressa (scripts/ci-extras-banco.sql), MAIS a empresa-palco
   # mínima que scripts/_empresa-de-teste.ts exige (scripts/ci-fixture-banco.ts).
-  # Receita validada localmente em 12/08/2026: 27/27.
+  # Receita validada localmente em 15/08/2026: 29/29.
   smokes-com-banco:
     runs-on: ubuntu-latest
     services:
@@ -168,6 +170,8 @@ jobs:
         run: npx tsx scripts/smoke-dp.ts
       - name: Entrega de EPI
         run: npx tsx scripts/smoke-epi.ts
+      - name: Entregas ao colaborador (lote, confirmação, devolução)
+        run: npx tsx scripts/smoke-entregas.ts
       - name: Escalas
         run: npx tsx scripts/smoke-escala.ts
       - name: Estrutura (marca, empresa, setor)

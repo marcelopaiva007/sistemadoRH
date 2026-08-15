@@ -67,6 +67,15 @@ export default async function PortalPage() {
   });
   if (!colaborador) return <PortalSemSessao />;
 
+  // Entregas que o RH registrou e a pessoa ainda não confirmou. Item já
+  // devolvido não entra: cobrar confirmação de recebimento de um notebook que
+  // já voltou é pedir para assinar o passado (ver lib/constants-entregas.ts).
+  const entregasAConfirmar = await prisma.entregaAoColaborador.findMany({
+    where: { colaboradorId: colaborador.id, confirmadoEm: null, devolvidoEm: null },
+    select: { id: true, tipo: true, descricao: true, dataEntrega: true },
+    orderBy: { dataEntrega: "desc" },
+  });
+
   if (!sessao.verificado) {
     return <ConfirmarCpf primeiroNome={colaborador.nome.split(" ")[0]} />;
   }
@@ -275,6 +284,7 @@ export default async function PortalPage() {
 
   return (
     <PortalInicio
+      entregasAConfirmar={entregasAConfirmar}
       colaborador={colaborador}
       documentos={documentos}
       ausencias={ausencias}

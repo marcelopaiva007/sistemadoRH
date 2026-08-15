@@ -1,6 +1,6 @@
 {
   "name": "sistema-rh",
-  "version": "1.91.0",
+  "version": "1.92.0",
   "private": true,
   "scripts": {
     "// ━━━━━━━━━━━━━━━━ DESENVOLVIMENTO ━━━━━━━━━━━━━━━━": "",
@@ -46,6 +46,7 @@
     "test:escala": "tsx scripts/test-escala.ts",
     "test:admissao": "tsx scripts/test-admissao.ts",
     "test:pesquisa-enps-resultado": "tsx scripts/test-pesquisa-enps-resultado.ts",
+    "test:entregas": "tsx scripts/test-entregas.ts",
     "// ━━━━━━━━━━━━━━━━ SMOKE TESTS ━━━━━━━━━━━━━━━━": "",
     "smoke:dp": "tsx scripts/smoke-dp.ts",
     "smoke:sst": "tsx scripts/smoke-sst.ts",
@@ -54,6 +55,7 @@
     "smoke:reconhecimento": "tsx scripts/smoke-reconhecimento.ts",
     "smoke:ciclo": "tsx scripts/smoke-ciclo-pesquisa.ts",
     "smoke:epi": "tsx scripts/smoke-epi.ts",
+    "smoke:entregas": "tsx scripts/smoke-entregas.ts",
     "smoke:cat": "tsx scripts/smoke-cat.ts",
     "smoke:escala": "tsx scripts/smoke-escala.ts",
     "smoke:offboarding": "tsx scripts/smoke-offboarding.ts",

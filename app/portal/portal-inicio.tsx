@@ -2,6 +2,7 @@
 
 import { Clock, FileText, LogOut, MessageCircle, PencilLine, Star, Stethoscope, Upload, User, UsersRound } from "lucide-react";
 import { BaterPontoCard } from "./bater-ponto-card";
+import { ConfirmarEntregasCard, type EntregaAConfirmar } from "./confirmar-entregas-card";
 import { MeuBancoHorasCard } from "./meu-banco-horas-card";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/status-badge";
@@ -76,6 +77,7 @@ type Ausencia = {
 };
 
 export function PortalInicio({
+  entregasAConfirmar,
   colaborador,
   documentos,
   ausencias,
@@ -85,6 +87,8 @@ export function PortalInicio({
   meuTime,
   bancoHoras,
 }: {
+  /** Entregas que o RH registrou e a pessoa ainda não confirmou. */
+  entregasAConfirmar: EntregaAConfirmar[];
   colaborador: Colaborador;
   documentos: Documento[];
   ausencias: Ausencia[];
@@ -124,6 +128,11 @@ export function PortalInicio({
           {colaborador.setor.nome} · {colaborador.posicao.nome}
         </p>
       </div>
+
+      {/* Vem ANTES do ponto: some assim que a pessoa confirma, então ocupar o
+          topo custa pouco e é o único jeito de a confirmação acontecer no dia
+          da entrega em vez de na semana seguinte. */}
+      <ConfirmarEntregasCard entregas={entregasAConfirmar} />
 
       {/* Card de Ponto Eletrônico PWA / Mobile */}
       <BaterPontoCard />

@@ -26,6 +26,21 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.92.0",
+    data: "15/08/2026",
+    horario: "11:13",
+    titulo: "Entregas ao colaborador: o cartão de benefícios sai com confirmação de quem recebeu",
+    itens: [
+      "Tela nova em Departamento pessoal → Entregas. Serve para cartão de benefícios, notebook, uniforme, crachá, chip de celular — qualquer coisa que a empresa entrega e precisa saber que chegou.",
+      "O registro é EM LOTE: escolhe o tipo, a data e marca todo mundo que recebeu. Cento e setenta e um cartões entregues no mesmo dia viram um lançamento, não cento e setenta e um formulários.",
+      "Quem confirma é o colaborador, no portal — não o RH. Assim que a entrega é registrada, aparece um aviso no topo do portal dele com o botão \"Recebi\". No cartão de benefícios isso deixa de ser burocracia e vira controle financeiro: é o cartão onde caem comissão e premiação, e a prova de recebimento tem que vir de quem recebeu.",
+      "A tela abre já filtrada em \"aguardando confirmação\", porque é essa a pergunta do dia a dia: quem ainda não confirmou. Linha sem confirmação fica em vermelho.",
+      "Entrega já confirmada não pode ser apagada — apagar seria apagar a prova. Se o item voltou (notebook, crachá), o caminho é registrar a devolução, que deixa rastro dos dois lados.",
+      "A lista de tipos é sua: cadeira ergonômica, ferramenta, o que for — cadastre em Configuração → Catálogos → tipos de entrega, sem depender de nova versão do sistema.",
+      "Também corrigido: o menu lateral mostrava \"Ponto Eletrônico\" e \"Ponto\" como dois itens, os dois abrindo a mesma tela.",
+    ],
+  },
+  {
     versao: "1.91.0",
     data: "15/08/2026",
     horario: "10:25",

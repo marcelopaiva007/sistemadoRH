@@ -10,6 +10,7 @@ import { ORIGENS_CANDIDATO } from "@/lib/constants-ats";
 import { TIPOS_ACIDENTE } from "@/lib/constants-cat";
 import { TIPOS_EPI, MOTIVOS_ENTREGA_EPI } from "@/lib/constants-epi";
 import { TIPOS_MOVIMENTACAO } from "@/lib/constants-movimentacao";
+import { TIPOS_ENTREGA } from "@/lib/constants-entregas";
 
 export const CATEGORIAS_CATALOGO = {
   DIMENSAO_GPTW: { label: "Dimensões GPTW (pesquisas de clima)", padroes: DIMENSOES_GPTW },
@@ -21,6 +22,7 @@ export const CATEGORIAS_CATALOGO = {
   TIPO_EPI: { label: "Tipos de EPI", padroes: TIPOS_EPI, temValidade: true },
   MOTIVO_ENTREGA_EPI: { label: "Motivos de entrega de EPI", padroes: MOTIVOS_ENTREGA_EPI },
   TIPO_MOVIMENTACAO: { label: "Tipos de movimentação", padroes: TIPOS_MOVIMENTACAO },
+  TIPO_ENTREGA: { label: "Tipos de entrega ao colaborador", padroes: TIPOS_ENTREGA },
 } as const;
 
 export type CategoriaCatalogo = keyof typeof CATEGORIAS_CATALOGO;
