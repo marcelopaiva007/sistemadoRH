@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -40,6 +41,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { Paginacao } from "@/components/paginacao";
 import { usePaginacao } from "@/lib/use-paginacao";
 import { registrarEntregas, registrarDevolucao, excluirEntrega } from "@/lib/actions/rh-entregas";
+import { createCatalogoItem } from "@/lib/actions/rh-catalogos";
 import {
   SITUACAO_ENTREGA_BADGE,
   situacaoDaEntrega,
@@ -382,6 +384,7 @@ function RegistrarEntregaDialog({
   tipos: { value: string; label: string }[];
   aoRegistrar: () => void;
 }) {
+  const router = useRouter();
   const [tipo, setTipo] = useState(tipos[0]?.value ?? "");
   const [descricao, setDescricao] = useState("");
   const [dataEntrega, setDataEntrega] = useState(paraInputDate(new Date()));
@@ -389,6 +392,45 @@ function RegistrarEntregaDialog({
   const [selecionados, setSelecionados] = useState<string[]>([]);
   const [buscaPessoa, setBuscaPessoa] = useState("");
   const [salvando, setSalvando] = useState(false);
+
+  // Cadastro de tipo SEM SAIR DO FORMULÁRIO. Mandar a pessoa para
+  // Configuração → Catálogos no meio de um lote de 171 seleções descartaria
+  // tudo que ela já marcou — então o catálogo vem até aqui. `tiposExtras`
+  // espelha na hora o que a action gravou; o router.refresh() por trás
+  // realinha com o servidor.
+  const [criandoTipo, setCriandoTipo] = useState(false);
+  const [nomeNovoTipo, setNomeNovoTipo] = useState("");
+  const [salvandoTipo, setSalvandoTipo] = useState(false);
+  const [tiposExtras, setTiposExtras] = useState<{ value: string; label: string }[]>([]);
+  const todosOsTipos = useMemo(
+    () => [...tipos, ...tiposExtras.filter((e) => !tipos.some((t) => t.value === e.value))],
+    [tipos, tiposExtras],
+  );
+
+  async function criarTipo() {
+    const nome = nomeNovoTipo.trim();
+    if (nome.length < 2) {
+      toast.error("Dê um nome ao tipo (ao menos 2 letras).");
+      return;
+    }
+    setSalvandoTipo(true);
+    const fd = new FormData();
+    fd.set("nome", nome);
+    // Mesma action da tela de Catálogos — categoria TIPO_ENTREGA. O item nasce
+    // no catálogo da empresa, não numa lista paralela só desta tela.
+    const r = await createCatalogoItem(empresaId, "TIPO_ENTREGA", { ok: true }, fd);
+    setSalvandoTipo(false);
+    if (r.ok) {
+      setTiposExtras((atual) => [...atual, { value: nome, label: nome }]);
+      setTipo(nome);
+      setCriandoTipo(false);
+      setNomeNovoTipo("");
+      toast.success(`Tipo "${nome}" cadastrado no catálogo da empresa.`);
+      router.refresh();
+    } else {
+      toast.error(r.error);
+    }
+  }
 
   const visiveis = useMemo(() => {
     const termo = buscaPessoa.trim().toLowerCase();
@@ -436,8 +478,13 @@ function RegistrarEntregaDialog({
     });
     setSalvando(false);
     if (r.ok) {
+      const semCanal = r.semCanal ?? 0;
       toast.success(
-        `${r.criadas} entrega(s) registrada(s). Cada pessoa verá o pedido de confirmação ao abrir o portal.`,
+        `${r.criadas} entrega(s) registrada(s) · ${r.avisados ?? 0} avisado(s) pelo Telegram.` +
+          (semCanal > 0
+            ? ` ${semCanal} pessoa(s) sem Telegram não receberam aviso — cobre a confirmação pessoalmente.`
+            : ""),
+        { duration: semCanal > 0 ? 10000 : 5000 },
       );
       limpar();
       aoRegistrar();
@@ -463,21 +510,58 @@ function RegistrarEntregaDialog({
         <div className="space-y-4">
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label required>Tipo</Label>
-              <Select value={tipo} onValueChange={(v) => setTipo(v ?? "")}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Escolha o tipo…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {tipos.map((t) => (
-                    <SelectItem key={t.value} value={t.value}>
-                      {t.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex items-center justify-between">
+                <Label required>Tipo</Label>
+                <button
+                  type="button"
+                  onClick={() => setCriandoTipo((v) => !v)}
+                  className="text-xs text-primary hover:underline"
+                >
+                  {criandoTipo ? "cancelar" : "+ novo tipo"}
+                </button>
+              </div>
+              {criandoTipo ? (
+                <div className="flex gap-1.5">
+                  <Input
+                    value={nomeNovoTipo}
+                    onChange={(e) => setNomeNovoTipo(e.target.value)}
+                    placeholder="Ex.: Cadeira ergonômica"
+                    maxLength={60}
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        criarTipo();
+                      }
+                    }}
+                  />
+                  <Button type="button" size="sm" disabled={salvandoTipo} onClick={criarTipo}>
+                    {salvandoTipo ? "Salvando…" : "Salvar"}
+                  </Button>
+                </div>
+              ) : (
+                <Select value={tipo} onValueChange={(v) => setTipo(v ?? "")}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Escolha o tipo…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {todosOsTipos.map((t) => (
+                      <SelectItem key={t.value} value={t.value}>
+                        {t.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
               <p className="text-xs text-muted-foreground">
-                Falta um tipo? Cadastre em Configuração → Catálogos.
+                O tipo novo vale para a empresa toda. Para renomear ou pausar um,{" "}
+                <Link
+                  href={`/rh/${empresaId}/catalogos?categoria=TIPO_ENTREGA`}
+                  className="underline hover:text-foreground"
+                >
+                  abra o catálogo
+                </Link>
+                .
               </p>
             </div>
             <div className="space-y-1.5">

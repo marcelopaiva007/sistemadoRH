@@ -22,6 +22,7 @@ import { SegurancaCard } from "./seguranca-card";
 import { MovimentacoesCard } from "./movimentacoes-card";
 import { BeneficiosCard } from "./beneficios-card";
 import { EpisCard } from "./epis-card";
+import { EntregasCard } from "./entregas-card";
 import { AcidentesCard } from "./acidentes-card";
 import { OffboardingCard } from "./offboarding-card";
 import { DesempenhoCard } from "./desempenho-card";
@@ -60,6 +61,8 @@ export function ColaboradorDetalhe({
   entregasEpi,
   tiposEpiDisponiveis,
   motivosEntregaDisponiveis,
+  entregas,
+  tiposEntregaDisponiveis,
   acidentes,
   ausenciasElegiveisAcidente,
   tiposAcidenteDisponiveis,
@@ -99,6 +102,8 @@ export function ColaboradorDetalhe({
   entregasEpi: Parameters<typeof EpisCard>[0]["entregas"];
   tiposEpiDisponiveis: Parameters<typeof EpisCard>[0]["tiposEpiDisponiveis"];
   motivosEntregaDisponiveis: Parameters<typeof EpisCard>[0]["motivosEntregaDisponiveis"];
+  entregas: Parameters<typeof EntregasCard>[0]["entregas"];
+  tiposEntregaDisponiveis: Parameters<typeof EntregasCard>[0]["tiposEntregaDisponiveis"];
   acidentes: Parameters<typeof AcidentesCard>[0]["acidentes"];
   ausenciasElegiveisAcidente: Parameters<typeof AcidentesCard>[0]["ausenciasElegiveis"];
   tiposAcidenteDisponiveis: Parameters<typeof AcidentesCard>[0]["tiposAcidenteDisponiveis"];
@@ -267,6 +272,9 @@ export function ColaboradorDetalhe({
           <TabsTrigger value="epis" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
             EPIs ({entregasEpi.length})
           </TabsTrigger>
+          <TabsTrigger value="entregas" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
+            Entregas ({entregas.length})
+          </TabsTrigger>
           <TabsTrigger value="acidentes" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
             Acidentes ({acidentes.length})
           </TabsTrigger>
@@ -361,6 +369,14 @@ export function ColaboradorDetalhe({
             entregas={entregasEpi}
             tiposEpiDisponiveis={tiposEpiDisponiveis}
             motivosEntregaDisponiveis={motivosEntregaDisponiveis}
+          />
+        </TabsContent>
+        <TabsContent value="entregas" className="pt-4">
+          <EntregasCard
+            empresaId={empresaId}
+            colaboradorId={colaborador.id}
+            entregas={entregas}
+            tiposEntregaDisponiveis={tiposEntregaDisponiveis}
           />
         </TabsContent>
         <TabsContent value="acidentes" className="pt-4">

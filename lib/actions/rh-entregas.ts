@@ -6,6 +6,8 @@ import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { empresasVisiveis } from "@/lib/rh-auth-guard";
 import { registrarAuditoria } from "@/lib/audit";
 import { dataDoFormulario } from "@/lib/datas";
+import { sendTelegramMessage } from "@/lib/telegram";
+import { mensagemDeEntrega } from "@/lib/constants-entregas";
 import type { ActionResult } from "@/lib/constants";
 
 // Entregas ao colaborador — cartão de benefícios, notebook, uniforme, crachá.
@@ -34,7 +36,7 @@ export async function registrarEntregas(input: {
   descricao?: string | null;
   dataEntrega?: string | null;
   observacoes?: string | null;
-}): Promise<ActionResult & { criadas?: number }> {
+}): Promise<ActionResult & { criadas?: number; avisados?: number; semCanal?: number }> {
   const usuario = await requireEmpresaAccess(input.empresaId);
 
   const tipo = (input.tipo ?? "").trim();
@@ -52,7 +54,7 @@ export async function registrarEntregas(input: {
   const visiveis = await empresasVisiveis(usuario);
   const alvos = await prisma.colaborador.findMany({
     where: { id: { in: ids }, empresaId: { in: visiveis } },
-    select: { id: true, empresaId: true },
+    select: { id: true, empresaId: true, nome: true, telegramChatId: true },
   });
   if (alvos.length === 0) {
     return { ok: false, error: "Nenhum dos colaboradores selecionados está no seu acesso." };
@@ -79,17 +81,40 @@ export async function registrarEntregas(input: {
     })),
   });
 
+  // O AVISO ATIVO: sem ele, "confirmar pelo portal" espera a pessoa abrir o
+  // portal por conta própria — e ninguém abre. A mensagem sai do mesmo bot em
+  // que a pessoa pede /portal, então o caminho até o botão "Recebi" está no
+  // próprio chat. Em série, como a cobrança de cadastro (uma chamada por
+  // pessoa); a página da tela declara maxDuration=300 pelo mesmo motivo.
+  //
+  // Falha de envio NÃO desfaz o registro: a entrega aconteceu no mundo real.
+  // Quem não tem Telegram fica no contador `semCanal`, que a tela mostra para
+  // o RH saber de quem cobrar assinatura em papel.
+  let avisados = 0;
+  let semCanal = 0;
+  for (const alvo of alvos) {
+    if (!alvo.telegramChatId) {
+      semCanal++;
+      continue;
+    }
+    const r = await sendTelegramMessage(
+      alvo.telegramChatId,
+      mensagemDeEntrega(alvo.nome, tipo, descricao),
+    );
+    if (r.ok) avisados++;
+  }
+
   await registrarAuditoria({
     empresaId: input.empresaId,
     acao: "CRIAR",
     entidade: "EntregaAoColaborador",
     entidadeId: input.empresaId,
-    resumo: `Registrou entrega de ${tipo}${descricao ? ` (${descricao})` : ""} para ${alvos.length} colaborador(es).`,
-    detalhes: { tipo, descricao, quantidade: alvos.length },
+    resumo: `Registrou entrega de ${tipo}${descricao ? ` (${descricao})` : ""} para ${alvos.length} colaborador(es); ${avisados} avisado(s) pelo Telegram.`,
+    detalhes: { tipo, descricao, quantidade: alvos.length, avisados, semCanal },
   });
 
   revalidatePath(`/rh/${input.empresaId}/entregas`);
-  return { ok: true, criadas: alvos.length };
+  return { ok: true, criadas: alvos.length, avisados, semCanal };
 }
 
 /**

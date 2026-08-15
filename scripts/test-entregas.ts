@@ -11,6 +11,7 @@
 import {
   aguardandoConfirmacao,
   estaEmPoderDoColaborador,
+  mensagemDeEntrega,
   situacaoDaEntrega,
   tipoEntregaLabel,
   SITUACAO_ENTREGA_BADGE,
@@ -102,6 +103,31 @@ ok(
 ok(
   new Set(TIPOS_ENTREGA.map((t) => t.value)).size === TIPOS_ENTREGA.length,
   "nenhum tipo padrão repetido (dois itens iguais no catálogo da empresa)",
+);
+
+console.log("\nAviso de Telegram na hora do registro\n");
+const msg = mensagemDeEntrega("Maria Souza Lima", "CARTAO_BENEFICIOS", "Cartão Flash · agosto");
+ok(msg.includes("Oi, Maria!"), "chama pelo primeiro nome, não pelo nome completo");
+ok(
+  msg.includes("Cartão de benefícios — Cartão Flash · agosto"),
+  "o item aparece com rótulo legível e a descrição que o RH escreveu",
+);
+// O contrato da mensagem: sem o /portal ela não leva a lugar nenhum — é o
+// único caminho até o botão "Recebi".
+ok(msg.includes("/portal"), "ensina o /portal — o único caminho até o botão Recebi");
+ok(
+  msg.includes("Ainda não recebeu? Fale com o RH"),
+  "traz a ressalva de não confirmar o que não chegou — sem ela vira ordem, e confirmação sob ordem não prova nada",
+);
+// O travessão do texto fixo ("— essa é a sua confirmação") não conta: o que
+// não pode sobrar é travessão na LINHA DO ITEM quando não há descrição.
+const linhaDoItem = mensagemDeEntrega("João Alves", "NOTEBOOK", null)
+  .split("\n")
+  .find((l) => l.startsWith("•"));
+ok(linhaDoItem === "• Notebook", "sem descrição o item sai limpo, sem travessão pendurado");
+ok(
+  mensagemDeEntrega("Ana Reis", "CADEIRA_ERGONOMICA", null).includes("CADEIRA_ERGONOMICA"),
+  "tipo cadastrado pelo RH aparece na mensagem como está, em vez de sumir",
 );
 
 console.log(falhas === 0 ? "\n✅ Entregas: tudo certo\n" : `\n❌ ${falhas} falha(s)\n`);

@@ -33,18 +33,29 @@ type Categoria = {
 
 const initialState: ActionResult = { ok: true };
 
-export function CatalogosView({ empresaId, categorias }: { empresaId: string; categorias: Categoria[] }) {
+export function CatalogosView({
+  empresaId,
+  categorias,
+  categoriaInicial,
+}: {
+  empresaId: string;
+  categorias: Categoria[];
+  /** Aba a abrir, vinda de ?categoria= — validada no servidor contra as chaves reais. */
+  categoriaInicial?: string;
+}) {
   return (
     <div className="space-y-4">
       <div>
         <h2 className="text-xl font-semibold tracking-tight">Catálogos</h2>
         <p className="text-sm text-muted-foreground">
-          9 listas usadas em telas de todo o sistema. O catálogo padrão de cada uma continua
-          disponível sempre — aqui é só pra somar itens próprios desta empresa.
+          {/* Contado, não escrito: o número dizia "9" enquanto a décima lista
+              (tipos de entrega) já estava na tela. */}
+          {categorias.length} listas usadas em telas de todo o sistema. O catálogo padrão de cada
+          uma continua disponível sempre — aqui é só pra somar itens próprios desta empresa.
         </p>
       </div>
 
-      <Tabs defaultValue={categorias[0]?.chave}>
+      <Tabs defaultValue={categoriaInicial ?? categorias[0]?.chave}>
         <TabsList variant="line" className="flex-wrap">
           {categorias.map((c) => (
             <TabsTrigger key={c.chave} value={c.chave}>

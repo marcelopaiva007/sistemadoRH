@@ -26,6 +26,19 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.94.0",
+    data: "15/08/2026",
+    horario: "12:30",
+    titulo: "Entregas: aviso no Telegram, aba na ficha e cadastro de tipo sem sair do formulário",
+    itens: [
+      "Registrou a entrega, a pessoa é avisada NA HORA pelo Telegram: o bot manda o que foi registrado e ensina o /portal para tocar em \"Recebi\". Antes o pedido de confirmação só aparecia quando ela abrisse o portal por conta própria — e ninguém abre. A tela passa a dizer quantos foram avisados e quantos não têm Telegram (desses, cobre a assinatura pessoalmente).",
+      "A ficha do colaborador ganhou a aba Entregas, ao lado de EPIs: tudo que aquela pessoa recebeu, com a situação de cada item — aguardando confirmação, confirmada ou devolvida. É o relatório que se olha no desligamento, e onde o próprio RH responde \"o que fulano tem da empresa?\".",
+      "Dá para registrar uma entrega individual direto da ficha — o notebook do recém-chegado se registra ali, sem ir à tela de lote.",
+      "No formulário de registrar entrega, o botão \"+ novo tipo\" cadastra um tipo novo na hora (cadeira ergonômica, chip, ferramenta) sem sair da tela — e sem perder as pessoas que você já tinha marcado. O tipo entra no catálogo da empresa, o mesmo de Configuração → Catálogos.",
+      "A tela de Catálogos agora abre direto na lista certa quando se chega por um link de outra tela, e o texto dela dizia \"9 listas\" com dez na tela — o número agora é contado, não escrito.",
+    ],
+  },
+  {
     versao: "1.93.0",
     data: "15/08/2026",
     horario: "12:05",

@@ -11,6 +11,13 @@ import { EntregasView } from "./entregas-view";
  * do RH; a ficha de EPI é da NR-06. Nenhum dos dois diz o que a pessoa tem
  * hoje nem traz confirmação vinda dela.
  */
+
+// O registro em lote manda um aviso de Telegram POR PESSOA, em série (ver
+// registrarEntregas) — mesmo laço e mesmo teto da cobrança de cadastro na
+// ficha. Sem isto, um lote de 171 morre no timeout padrão da plataforma com
+// metade dos avisos enviada.
+export const maxDuration = 300;
+
 export default async function EntregasPage({
   params,
 }: {
