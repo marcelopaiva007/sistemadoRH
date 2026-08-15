@@ -12,7 +12,7 @@ import { sendEmail } from "@/lib/email";
 import { registrarAuditoria, diffCampos } from "@/lib/audit";
 import { escreverCookieEmpresaAtiva } from "@/lib/empresa-ativa";
 import type { ActionResult } from "@/lib/constants";
-import { deixariaSistemaSemAdmin } from "@/lib/usuarios-regras";
+import { deixariaSistemaSemAdmin, promoveriaAGestorSemSetor } from "@/lib/usuarios-regras";
 
 const ROLES = ["ADMIN", "DIRETORIA", "RH_MANAGER", "GESTOR_SETOR"] as const;
 type Role = (typeof ROLES)[number];
@@ -189,9 +189,30 @@ export async function updateUsuario(id: string, _prev: ActionResult, formData: F
 
   const antes = await prisma.user.findUnique({
     where: { id },
-    select: { nome: true, username: true, email: true, telefone: true, role: true, ativo: true },
+    select: {
+      nome: true,
+      username: true,
+      email: true,
+      telefone: true,
+      role: true,
+      ativo: true,
+      empresas: { select: { ativo: true, setorId: true } },
+    },
   });
   if (!antes) return { ok: false, error: "Usuário não encontrado." };
+
+  // Promover a gestor de setor por AQUI não conclui o cadastro: esta tela não
+  // tem campo de setor, e gestor sem setor entra no sistema sem nada para ver.
+  // A mensagem cita o tooltip real do botão ("Vincular empresa", o ícone de
+  // corrente na linha do usuário) — e esse formulário aceita empresa já
+  // vinculada justamente para este caso (atualiza o vínculo existente).
+  if (promoveriaAGestorSemSetor(antes, parsed.data, antes.empresas)) {
+    return {
+      ok: false,
+      error:
+        "Gestor de setor precisa de um setor. Abra “Vincular empresa” neste usuário, salve o vínculo como Gestor(a) de Setor com o setor escolhido — e então mude o papel aqui.",
+    };
+  }
 
   // A MESMA TRAVA DO `deleteUsuario`, e por um motivo simples: editar leva ao
   // mesmo lugar que excluir. Desmarcar "ativo" ou trocar o papel do único
@@ -731,13 +752,22 @@ export async function trocarEmpresaAtiva(empresaId: string, setorId?: string | n
   return { ok: true };
 }
 
-const conviteSchema = z.object({
-  email: z.string().trim().email("E-mail inválido"),
-  nome: z.string().trim().min(2, "Informe o nome"),
-  role: z.enum(ROLES_COM_EMPRESA),
-  empresaId: z.string().trim().min(1, "Selecione a empresa"),
-  setorId: z.string().trim().optional(),
-});
+const conviteSchema = z
+  .object({
+    email: z.string().trim().email("E-mail inválido"),
+    nome: z.string().trim().min(2, "Informe o nome"),
+    role: z.enum(ROLES_COM_EMPRESA),
+    empresaId: z.string().trim().min(1, "Selecione a empresa"),
+    setorId: z.string().trim().optional(),
+  })
+  // A mesma exigência de `criarSchema` e `vincularSchema`. Faltava só aqui, e o
+  // convite é justamente a porta que cria gestor sem ninguém revisar depois:
+  // quem aceitava entrava com papel de gestor e setor nenhum, e "Meu Setor" não
+  // tinha o que mostrar. Ver `gestorSetorPodeAbrirMeuSetor`.
+  .refine((d) => d.role !== "GESTOR_SETOR" || !!d.setorId, {
+    message: "Selecione o setor do gestor",
+    path: ["setorId"],
+  });
 
 export async function criarConviteUsuario(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   await requireGestaoUsuarios();
