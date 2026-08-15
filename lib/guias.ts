@@ -586,7 +586,7 @@ export const GUIAS: Guia[] = [
   },
   {
     slug: "pesquisas",
-    titulo: "Pesquisas de clima",
+    titulo: "Pesquisas",
     paraQue: "Cria e acompanha as pesquisas: clima, eNPS, integração e desligamento.",
     alimenta: "Título, tipo, perguntas e opções de cada pesquisa — e o disparo dos convites.",
     passos: [

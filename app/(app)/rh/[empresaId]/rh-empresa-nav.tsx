@@ -84,7 +84,7 @@ const GRUPOS = [
       { slug: "metas", label: "Metas & PDI", icon: Target },
       { slug: "treinamentos", label: "Treinamentos", icon: GraduationCap },
       { slug: "reconhecimento", label: "Reconhecimento", icon: Award },
-      { slug: "pesquisas", label: "Pesquisas de clima", icon: Activity },
+      { slug: "pesquisas", label: "Pesquisas", icon: Activity },
       // "Planos de ação" saiu daqui para "Gestão": ele deixou de ser o destino
       // do que sai de uma avaliação e virou o destino de tudo — anomalia de
       // desligamento, span sobrecarregado, férias vencidas. Enquanto morava em

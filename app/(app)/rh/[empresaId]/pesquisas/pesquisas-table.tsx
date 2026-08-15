@@ -304,7 +304,16 @@ function NovaPesquisaForm({ empresaId }: { empresaId: string }) {
       </DialogHeader>
       <div className="space-y-2">
         <Label htmlFor="titulo">Título</Label>
-        <Input id="titulo" name="titulo" required autoFocus placeholder="Pesquisa de Clima Organizacional 2026" />
+        <Input
+          id="titulo"
+          name="titulo"
+          required
+          autoFocus
+          // O exemplo mistura clima com uso de benefício DE PROPÓSITO: esta tela
+          // serve para qualquer pergunta ao time, e um exemplo só de clima fazia
+          // parecer que era a única coisa que ela faz.
+          placeholder="Ex.: Clima 2026, Uso da Telemedicina, Pulso do trimestre"
+        />
       </div>
       <div className="space-y-2">
         <Label htmlFor="descricao">Descrição (opcional)</Label>
@@ -313,9 +322,18 @@ function NovaPesquisaForm({ empresaId }: { empresaId: string }) {
       <div className="flex items-center gap-2">
         <Checkbox id="anonima" checked={anonima} onCheckedChange={(v) => setAnonima(v === true)} />
         <Label htmlFor="anonima" className="font-normal">
-          Pesquisa anônima (recomendado — respostas nunca identificam o colaborador)
+          Pesquisa anônima — respostas nunca identificam o colaborador
         </Label>
       </div>
+      {/* A escolha do anonimato muda o que a pesquisa entrega, então a tela diz
+          quando cada um serve. Antes o rótulo dizia só "recomendado", e isso
+          empurra para anônima até quando ela destrói o objetivo: numa pesquisa
+          de uso de benefício, o valor está em saber QUEM não usa. */}
+      <p className="text-xs text-muted-foreground">
+        {anonima
+          ? "Boa para clima, eNPS e risco psicossocial, onde a sinceridade depende de ninguém se expor. Você verá os números do grupo, nunca quem respondeu o quê."
+          : "Boa para uso de benefício, adesão e preferências — casos em que agir depende de saber quem respondeu o quê. Evite em pesquisa sobre chefia ou satisfação."}
+      </p>
       {!state.ok && (
         <Alert variant="destructive">
           <AlertDescription>{state.error}</AlertDescription>

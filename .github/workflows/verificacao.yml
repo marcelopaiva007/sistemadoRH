@@ -86,6 +86,8 @@ jobs:
         run: npx tsx scripts/test-ponto-estagio.ts
       - name: Permissões de usuário (sistema nunca fica sem ADMIN)
         run: npx tsx scripts/test-usuarios-permissoes.ts
+      - name: Apuração de pesquisa pergunta a pergunta
+        run: npx tsx scripts/test-pesquisa-apuracao.ts
 
   # Os 27 smokes contra Postgres de verdade. O banco nasce vazio a cada
   # execução: schema gerado do prisma/schema.prisma via `migrate diff` (o
