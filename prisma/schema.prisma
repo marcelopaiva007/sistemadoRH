@@ -215,17 +215,17 @@ model Empresa {
   cidade            String?
   uf                String?
 
-  marca          Marca           @relation(fields: [marcaId], references: [id])
-  setores                Setor[]
-  posicoes               Posicao[]
-  colaboradores          Colaborador[]
-  pesquisas              Pesquisa[]
-  userEmpresas           UserEmpresa[]
-  planosAcao             PlanoAcao[]
-  tiposBeneficio         TipoBeneficio[]
-  catalogoItens          CatalogoItem[]
+  marca                    Marca                     @relation(fields: [marcaId], references: [id])
+  setores                  Setor[]
+  posicoes                 Posicao[]
+  colaboradores            Colaborador[]
+  pesquisas                Pesquisa[]
+  userEmpresas             UserEmpresa[]
+  planosAcao               PlanoAcao[]
+  tiposBeneficio           TipoBeneficio[]
+  catalogoItens            CatalogoItem[]
   ocorrenciasDisciplinares OcorrenciaDisciplinar[]
-  configuracaoPonto      ConfiguracaoPontoEmpresa?
+  configuracaoPonto        ConfiguracaoPontoEmpresa?
 
   @@index([marcaId])
   @@schema("rh")
@@ -321,56 +321,56 @@ model Posicao {
 }
 
 model Colaborador {
-  id             String        @id @default(cuid())
-  empresaId      String
-  empresa        Empresa       @relation(fields: [empresaId], references: [id])
-  nome           String
-  cpf            String?
-  email          String?
+  id                  String        @id @default(cuid())
+  empresaId           String
+  empresa             Empresa       @relation(fields: [empresaId], references: [id])
+  nome                String
+  cpf                 String?
+  email               String?
   // Telefone/celular de contato (formato livre, como veio do elleven) — usado
   // pelo RH para contato e envio de convites de pesquisa (WhatsApp/Telegram).
-  telefone       String?
+  telefone            String?
   // "Masculino" | "Feminino" | outro texto livre (importado do elleven) —
   // usado apenas em agregados demográficos das pesquisas (snapshot na Resposta).
-  sexo           String?
-  cidade         String?
-  dataNascimento DateTime?
+  sexo                String?
+  cidade              String?
+  dataNascimento      DateTime?
   // "Cod Pessoa" do cadastro no elleven (ERP) — chave para re-sincronizar sem
   // depender de CPF preenchido.
-  ellevenCodigo  String?
+  ellevenCodigo       String?
   // Razão social do CNPJ que assina a carteira. A planilha do DP traz 11 delas
   // para 3 marcas — guardar aqui evita multiplicar Empresa, que 33 tabelas
   // referenciam por empresaId.
-  razaoSocial    String?
-  setorId        String
-  setor          Setor         @relation(fields: [setorId], references: [id])
-  posicaoId      String
-  posicao        Posicao       @relation(fields: [posicaoId], references: [id])
+  razaoSocial         String?
+  setorId             String
+  setor               Setor         @relation(fields: [setorId], references: [id])
+  posicaoId           String
+  posicao             Posicao       @relation(fields: [posicaoId], references: [id])
   // A quem reporta — base do organograma. Sem @relation nomeada explícita não
   // dá porque é auto-relacionamento; onDelete SetNull: se o supervisor sai, o
   // time não é apagado, só fica temporariamente sem líder até o RH realocar.
-  supervisorId   String?
-  supervisor     Colaborador?  @relation("SupervisorDoColaborador", fields: [supervisorId], references: [id], onDelete: SetNull)
-  subordinados   Colaborador[] @relation("SupervisorDoColaborador")
+  supervisorId        String?
+  supervisor          Colaborador?  @relation("SupervisorDoColaborador", fields: [supervisorId], references: [id], onDelete: SetNull)
+  subordinados        Colaborador[] @relation("SupervisorDoColaborador")
   // Avisos automáticos: os que ESTA pessoa recebeu como gestor, e os que foram
   // enviados SOBRE ela. Duas relações porque AvisoGestor liga dois
   // colaboradores — quem lidera e quem é o assunto.
-  avisosComoGestor AvisoGestor[] @relation("AvisosRecebidosComoGestor")
-  avisosSobreMim   AvisoGestor[] @relation("AvisosSobreMim")
+  avisosComoGestor    AvisoGestor[] @relation("AvisosRecebidosComoGestor")
+  avisosSobreMim      AvisoGestor[] @relation("AvisosSobreMim")
   // O login desta pessoa no sistema, quando existe — ver User.colaboradorId.
   // A maioria das fichas não tem: colaborador de chão de fábrica entra pelo
   // portal, pelo Telegram, sem usuário e sem senha.
-  usuario          User?         @relation("LoginDoColaborador")
+  usuario             User?         @relation("LoginDoColaborador")
   // Quem avalia a equipe no ciclo de desempenho. É outra pergunta que a de
   // cima: `supervisorId` diz a quem a pessoa reporta; aqui quem avalia é o
   // gerente, que pode ter muito mais gente do que o organograma mostra — e em
   // parte das empresas o organograma nem existe. Marcado pelo RH; o gerente
   // monta a própria lista de avaliados pelo portal.
-  gerente        Boolean       @default(false)
+  gerente             Boolean       @default(false)
   // Chat ID numérico do Telegram do colaborador, obtido manualmente (RH pede
   // pro colaborador dar /start no bot e lê o chat_id via Bot API getUpdates).
   // Sem isso, o convite da pesquisa não pode ser enviado automaticamente.
-  telegramChatId String?
+  telegramChatId      String?
   // Foto de referência: o rosto contra o qual o RH compara a selfie de cada
   // batida de ponto. Sem ela a conferência humana não fecha — quem abre a foto
   // de uma batida não tem com o que comparar, e ninguém reconhece 170 pessoas
@@ -379,7 +379,7 @@ model Colaborador {
   //
   // Guarda a URL do Blob privado, como `RegistroPonto.fotoUrl` — nunca o
   // conteúdo. Servida só por rota autenticada, que audita quem viu.
-  fotoUrl        String?
+  fotoUrl             String?
   // Se a foto de referência foi posta ou confirmada por uma pessoa do RH.
   //
   // `false` = veio da promoção automática da primeira selfie de batida (o
@@ -387,10 +387,10 @@ model Colaborador {
   // mas carrega um risco lógico: se ESSA primeira batida tiver sido feita por
   // outra pessoa, a referência nasce errada e passa a validar a fraude. Por
   // isso o painel marca a referência não conferida, e conferir é um clique.
-  fotoConferidaPeloRh Boolean  @default(false)
-  ativo          Boolean       @default(true)
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  fotoConferidaPeloRh Boolean       @default(false)
+  ativo               Boolean       @default(true)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
 
   // ---- Ficha completa (Core HR) ----
   // Tudo opcional: a base veio do elleven só com nome/CPF/contato e vai sendo
@@ -482,6 +482,7 @@ model Colaborador {
   beneficios               BeneficioColaborador[]
   reconhecimentos          Reconhecimento[]
   entregasEpi              EntregaEPI[]
+  entregas                 EntregaAoColaborador[]
   acidentes                AcidenteTrabalho[]
   escalas                  EscalaTurno[]
   eventosFolha             EventoFolha[]
@@ -891,6 +892,61 @@ model EntregaEPI {
 
   @@index([colaboradorId, tipo])
   @@index([empresaId, validoAte])
+  @@schema("rh")
+}
+
+// Coisas que a empresa ENTREGA ao colaborador — cartão de benefícios,
+// notebook, uniforme, crachá, chip — com a confirmação de recebimento vinda
+// DA PESSOA, não do RH.
+//
+// POR QUE NÃO REAPROVEITOU O EntregaEPI. Aquela é a ficha da NR-06: tem CA e
+// fabricante, e é o que a fiscalização do trabalho lê. Enfiar cartão de
+// benefício ali polui um registro legal com dado que não é dele.
+//
+// POR QUE NÃO É O CHECKLIST DE ADMISSÃO. O checklist tem "Entrega do
+// notebook" como TAREFA a fazer, marcada pelo RH. Isto é INVENTÁRIO: o que a
+// pessoa tem agora, e a prova de que ela mesma confirmou ter recebido. São
+// perguntas diferentes, e a segunda ninguém respondia.
+//
+// A CONFIRMAÇÃO É DO COLABORADOR, pelo portal. O cartão de benefícios recebe
+// comissão e premiação: a confirmação deixa de ser burocracia e vira controle
+// financeiro — prova de que a pessoa recebeu o cartão onde o dinheiro dela
+// cai. RH marcando "entreguei" sozinho prova o que o RH diz, não o que a
+// pessoa recebeu.
+//
+// `devolvidoEm` existe porque notebook volta e cartão não. Sem ele, "o que
+// esta pessoa tem hoje" não teria resposta — e é justamente o que o checklist
+// de desligamento precisa perguntar.
+model EntregaAoColaborador {
+  id              String      @id @default(cuid())
+  empresaId       String
+  colaboradorId   String
+  colaborador     Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  /// Rótulo livre vindo do catálogo TIPO_ENTREGA (CatalogoItem) — nenhum
+  /// código compara o valor para decidir fluxo, então o RH cadastra novos
+  /// tipos sem deploy.
+  tipo            String
+  /// O item concreto: "Alelo final 4472", "Dell i5 · patrimônio 118".
+  descricao       String?
+  quantidade      Int         @default(1)
+  dataEntrega     DateTime
+  observacoes     String?
+  /// Quando o COLABORADOR confirmou pelo portal. Nulo = ainda não confirmou.
+  confirmadoEm    DateTime?
+  /// Evidência de onde veio a confirmação — a mesma ideia do ponto.
+  confirmadoIp    String?
+  /// Preenchido quando o item volta (notebook, crachá). Cartão e uniforme
+  /// ficam nulos para sempre.
+  devolvidoEm     DateTime?
+  entreguePorId   String?
+  entreguePorNome String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([empresaId, tipo])
+  @@index([colaboradorId])
+  /// A fila "quem ainda não confirmou" é lida a cada abertura da tela.
+  @@index([empresaId, confirmadoEm])
   @@schema("rh")
 }
 
@@ -1433,43 +1489,43 @@ model EventoCandidatura {
 
 // Módulo de Medidas Disciplinares e Ocorrências em desfavor do colaborador
 model OcorrenciaDisciplinar {
-  id                String   @id @default(cuid())
-  empresaId         String
-  colaboradorId     String
-  emitidoPorId      String?
-  emitidoPorNome    String?
+  id             String  @id @default(cuid())
+  empresaId      String
+  colaboradorId  String
+  emitidoPorId   String?
+  emitidoPorNome String?
 
   // ADVERTENCIA_VERBAL | ADVERTENCIA_ESCRITA | SUSPENSAO | JUSTA_CAUSA |
   // ABANDONO_EMPREGO | USO_INDEVIDO_EPI | DANO_PATRIMONIAL | RECUSA_EXAME
-  tipo              String
-  motivo            String
-  detalhes          String?
-  dataFato          DateTime
+  tipo     String
+  motivo   String
+  detalhes String?
+  dataFato DateTime
 
-  diasSuspensao     Int?
-  valorDesconto     Float?
+  diasSuspensao Int?
+  valorDesconto Float?
 
   // PENDENTE | ASSINADO | RECUSADO_COM_TESTEMUNHAS
-  statusAssinatura  String   @default("PENDENTE")
-  dataAssinatura    DateTime?
+  statusAssinatura String    @default("PENDENTE")
+  dataAssinatura   DateTime?
 
-  testemunha1Nome   String?
-  testemunha1Cpf    String?
-  testemunha2Nome   String?
-  testemunha2Cpf    String?
+  testemunha1Nome String?
+  testemunha1Cpf  String?
+  testemunha2Nome String?
+  testemunha2Cpf  String?
 
-  documentoUrl      String?
+  documentoUrl String?
 
   // A VIA ASSINADA, digitalizada. O sistema gera o documento em branco e
   // registra `statusAssinatura`, mas até 11/08/2026 não havia onde guardar o
   // papel de volta: o RH imprimia, colhia a assinatura e o comprovante ficava
   // na pasta física. Numa reclamatória o que se pede é justamente esse papel —
   // o status sozinho é a afirmação de que ele existe, não a prova.
-  arquivoId         String?  @unique
-  arquivo           Arquivo? @relation(fields: [arquivoId], references: [id], onDelete: SetNull)
+  arquivoId String?  @unique
+  arquivo   Arquivo? @relation(fields: [arquivoId], references: [id], onDelete: SetNull)
 
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   empresa     Empresa     @relation(fields: [empresaId], references: [id])
   colaborador Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
@@ -1552,27 +1608,27 @@ model MensagemPortal {
 // nunca me avisou", o que responde é a lista do que foi pedido e quando —
 // `itens` guarda exatamente o que estava faltando naquele dia.
 model CobrancaCadastro {
-  id            String      @id @default(cuid())
-  colaboradorId String
-  colaborador   Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
-  empresaId     String
+  id                String      @id @default(cuid())
+  colaboradorId     String
+  colaborador       Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  empresaId         String
   /// 1ª, 2ª… cobrança desta pessoa. Para em MAX_COBRANCAS.
-  rodada        Int
+  rodada            Int
   /// O que faltava no momento do envio, nos mesmos rótulos que a pessoa leu.
-  itens         String
+  itens             String
   /// Por onde saiu: "TELEGRAM", "EMAIL" ou "TELEGRAM,EMAIL". Só canais que
   /// ACEITARAM o envio entram — a linha é prova de que a pessoa foi avisada, e
   /// registrar um canal que recusou transformaria a prova em ficção.
-  canais        String      @default("TELEGRAM")
+  canais            String      @default("TELEGRAM")
   /// Disparada por alguém do RH pela tela, em vez do cron. Não conta para o
   /// teto de MAX_COBRANCAS nem mexe no relógio da cobrança automática: é um
   /// extra por cima dela, decidido por uma pessoa, e não pode encurtar a
   /// campanha de quem foi cobrado à mão uma vez.
-  manual        Boolean     @default(false)
+  manual            Boolean     @default(false)
   /// Quem clicou, quando `manual`. Snapshot do nome, como no resto da trilha:
   /// apagar o usuário não pode apagar a autoria do que ele disparou.
   solicitadaPorNome String?
-  enviadaEm     DateTime    @default(now())
+  enviadaEm         DateTime    @default(now())
 
   @@index([colaboradorId, enviadaEm])
   @@index([empresaId, enviadaEm])
@@ -2040,7 +2096,6 @@ model TentativaLogin {
 // SISTEMA DE PONTO — entrada/saída com selfie e localização
 // Configuração da tolerância de horário por empresa
 
-
 // ou apaga um cargo não é snapshot. O nome gravado aqui é o nome que aquele
 // setor tinha NAQUELE mês; o id serve para reagrupar quando ele ainda existe.
 // `marcaId`/`marcaNome` vêm junto pelo mesmo motivo — a tela filtra por marca
@@ -2111,20 +2166,20 @@ model FotoMensal {
 
 // Cadastro da escala / jornada contratual de trabalho
 model JornadaTrabalho {
-  id              String   @id @default(cuid())
-  empresaId       String
-  nome            String   // Ex: "Administrativo 08h às 18h", "Turno 12x36"
-  entrada1        String   // "08:00"
-  saida1          String   // "12:00"
-  entrada2        String?  // "13:00"
-  saida2          String?  // "17:00"
-  cargaDiariaMin  Int      @default(480) // Carga diária contratual em minutos (ex: 480 min = 8h)
-  toleranciaMin   Int      @default(10)  // Tolerância diária em minutos (Art. 58 § 1º CLT)
-  sabadoUtil      Boolean  @default(false)
-  domingoUtil     Boolean  @default(false)
-  ativo           Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id             String   @id @default(cuid())
+  empresaId      String
+  nome           String // Ex: "Administrativo 08h às 18h", "Turno 12x36"
+  entrada1       String // "08:00"
+  saida1         String // "12:00"
+  entrada2       String? // "13:00"
+  saida2         String? // "17:00"
+  cargaDiariaMin Int      @default(480) // Carga diária contratual em minutos (ex: 480 min = 8h)
+  toleranciaMin  Int      @default(10) // Tolerância diária em minutos (Art. 58 § 1º CLT)
+  sabadoUtil     Boolean  @default(false)
+  domingoUtil    Boolean  @default(false)
+  ativo          Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@index([empresaId, ativo])
   @@schema("rh")
@@ -2133,25 +2188,25 @@ model JornadaTrabalho {
 // Registro inalterável da batida de ponto (REP-P / Append-Only Log)
 // Proibido UPDATE ou DELETE nas colunas de marcação original por exigência fiscal MTE.
 model RegistroPonto {
-  id               String      @id @default(cuid())
-  empresaId        String
-  colaboradorId    String
-  colaborador      Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
-  dataHora         DateTime    // Instante exato oficial (NTP/UTC-3)
-  tipo             String      // "ENTRADA_1" | "SAIDA_1" | "ENTRADA_2" | "SAIDA_2"
-  nsr              BigInt      // Número Sequencial de Registro (crescente por empresa)
-  ipOrigem         String?     // Endereço IP público do batimento
-  ipValido         Boolean     @default(true)
-  latitude         Float?      // Coordenada GPS
-  longitude        Float?      // Coordenada GPS
-  precisaoGps      Float?      // Precisão em metros
-  gpsValido        Boolean     @default(true)
-  fotoUrl          String?     // URL do Blob da foto tirada no momento (opcional)
-  hashSHA256       String      // Criptografia e integridade da marcação
-  dispositivoInfo  String?     // User-agent / Navegador / SO
-  createdAt        DateTime    @default(now())
+  id              String      @id @default(cuid())
+  empresaId       String
+  colaboradorId   String
+  colaborador     Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  dataHora        DateTime // Instante exato oficial (NTP/UTC-3)
+  tipo            String // "ENTRADA_1" | "SAIDA_1" | "ENTRADA_2" | "SAIDA_2"
+  nsr             BigInt // Número Sequencial de Registro (crescente por empresa)
+  ipOrigem        String? // Endereço IP público do batimento
+  ipValido        Boolean     @default(true)
+  latitude        Float? // Coordenada GPS
+  longitude       Float? // Coordenada GPS
+  precisaoGps     Float? // Precisão em metros
+  gpsValido       Boolean     @default(true)
+  fotoUrl         String? // URL do Blob da foto tirada no momento (opcional)
+  hashSHA256      String // Criptografia e integridade da marcação
+  dispositivoInfo String? // User-agent / Navegador / SO
+  createdAt       DateTime    @default(now())
 
-  tratamentos      TratamentoPonto[]
+  tratamentos TratamentoPonto[]
 
   @@index([empresaId, dataHora])
   @@index([colaboradorId, dataHora])
@@ -2161,29 +2216,29 @@ model RegistroPonto {
 
 // Tratamento de Inconsistências (PTRP - Programa de Tratamento de Registro de Ponto)
 model TratamentoPonto {
-  id               String         @id @default(cuid())
-  empresaId        String
-  colaboradorId    String
-  colaborador      Colaborador    @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
-  registroPontoId  String?
-  registroPonto    RegistroPonto? @relation(fields: [registroPontoId], references: [id], onDelete: SetNull)
-  dataFato         DateTime       // Dia a que se refere a ocorrência
-  tipo             String         // "INCLUSAO_MANUAL" | "ABONO_ATESTADO" | "JUSTIFICATIVA" | "CORRECAO" (ver app/actions/rh-ponto.ts)
-  motivo           String         // Texto justificando a alteração
-  arquivoId        String?        @unique
-  arquivo          Arquivo?       @relation(fields: [arquivoId], references: [id], onDelete: SetNull)
-  status           String         @default("PENDENTE") // "PENDENTE" | "APROVADO" | "REJEITADO"
-  aprovadoPorId    String?
-  aprovadoPorNome  String?
-  aprovadoEm       DateTime?
+  id              String         @id @default(cuid())
+  empresaId       String
+  colaboradorId   String
+  colaborador     Colaborador    @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  registroPontoId String?
+  registroPonto   RegistroPonto? @relation(fields: [registroPontoId], references: [id], onDelete: SetNull)
+  dataFato        DateTime // Dia a que se refere a ocorrência
+  tipo            String // "INCLUSAO_MANUAL" | "ABONO_ATESTADO" | "JUSTIFICATIVA" | "CORRECAO" (ver app/actions/rh-ponto.ts)
+  motivo          String // Texto justificando a alteração
+  arquivoId       String?        @unique
+  arquivo         Arquivo?       @relation(fields: [arquivoId], references: [id], onDelete: SetNull)
+  status          String         @default("PENDENTE") // "PENDENTE" | "APROVADO" | "REJEITADO"
+  aprovadoPorId   String?
+  aprovadoPorNome String?
+  aprovadoEm      DateTime?
   // Justificativa de QUEM DECIDIU, separada do `motivo` de quem pediu. Até
   // 11/08/2026 a recusa era concatenada dentro de `motivo` — o texto original
   // do solicitante era reescrito a cada rejeição, e num módulo fiscalizável
   // (Portaria MTP 671/2021) o registro do pedido não pode ser alterado por
   // quem o julga.
-  motivoDecisao    String?
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
+  motivoDecisao   String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
   @@index([empresaId, dataFato])
   @@index([colaboradorId, dataFato])
@@ -2195,18 +2250,18 @@ model TratamentoPonto {
 
 // Extrato & Saldo de Banco de Horas
 model BancoHoras {
-  id             String      @id @default(cuid())
-  empresaId      String
-  colaboradorId  String
-  colaborador    Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
-  competencia    String      // "AAAA-MM"
-  saldoAnterior  Int         @default(0) // Saldo acumulado em minutos
-  creditosMes    Int         @default(0) // Horas extras enviadas ao banco no mês (minutos)
-  debitosMes     Int         @default(0) // Faltas/atrasos/folgas compensadas no mês (minutos)
-  saldoAtual     Int         @default(0) // Saldo final do mês (minutos)
-  expiraEm       DateTime?   // Prazo limite para compensação (6 a 12 meses)
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
+  id            String      @id @default(cuid())
+  empresaId     String
+  colaboradorId String
+  colaborador   Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  competencia   String // "AAAA-MM"
+  saldoAnterior Int         @default(0) // Saldo acumulado em minutos
+  creditosMes   Int         @default(0) // Horas extras enviadas ao banco no mês (minutos)
+  debitosMes    Int         @default(0) // Faltas/atrasos/folgas compensadas no mês (minutos)
+  saldoAtual    Int         @default(0) // Saldo final do mês (minutos)
+  expiraEm      DateTime? // Prazo limite para compensação (6 a 12 meses)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
 
   @@unique([colaboradorId, competencia])
   @@index([empresaId, competencia])
@@ -2218,10 +2273,10 @@ model ConfiguracaoPontoEmpresa {
   id                String   @id @default(cuid())
   empresaId         String   @unique
   empresa           Empresa  @relation(fields: [empresaId], references: [id])
-  ipsAutorizados    String?  // Lista de IPs públicos separados por vírgula
+  ipsAutorizados    String? // Lista de IPs públicos separados por vírgula
   exigirIp          Boolean  @default(false)
-  latitudeEmpresa   Float?   // Latitude da sede/unidade
-  longitudeEmpresa  Float?   // Longitude da sede/unidade
+  latitudeEmpresa   Float? // Latitude da sede/unidade
+  longitudeEmpresa  Float? // Longitude da sede/unidade
   raioPermitidoMtrs Int      @default(200) // Raio do cerco em metros
   exigirGps         Boolean  @default(true)
   exigirFoto        Boolean  @default(false)
@@ -2244,7 +2299,7 @@ model ConfiguracaoPontoEmpresa {
 /// bot — a única forma de falha realmente cara aqui, porque o aviso continua
 /// saindo e ninguém mais lê. Ver DIAS_ENTRE_AVISOS em lib/aviso-gestor.ts.
 model AvisoGestor {
-  id            String   @id @default(cuid())
+  id            String      @id @default(cuid())
   /// O gestor é um Colaborador (quem tem outros apontando para si em
   /// `supervisorId`), não um User: não existe login com papel de gestor.
   gestorId      String
@@ -2253,7 +2308,7 @@ model AvisoGestor {
   colaborador   Colaborador @relation("AvisosSobreMim", fields: [colaboradorId], references: [id], onDelete: Cascade)
   /// CONTRATO_VENCENDO | FERIAS_VENCENDO | HORA_EXTRA_ACIMA
   tipo          String
-  enviadoEm     DateTime @default(now())
+  enviadoEm     DateTime    @default(now())
 
   @@index([gestorId, colaboradorId, tipo, enviadoEm])
   @@index([enviadoEm])

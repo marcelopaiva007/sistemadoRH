@@ -28,6 +28,7 @@ import {
   LogOut,
   MessageCircle,
   Network,
+  PackageCheck,
   Palmtree,
   Receipt,
   Rocket,
@@ -72,8 +73,10 @@ const GRUPOS = [
       { slug: "vencimentos", label: "Vencimentos", icon: CalendarDays },
       { slug: "ferias", label: "Férias", icon: Palmtree },
       { slug: "escalas", label: "Escalas", icon: ClipboardCheck },
-      { slug: "ponto", label: "Ponto", icon: Clock },
       { slug: "beneficios", label: "Benefícios", icon: CreditCard },
+      // Ao lado de Benefícios porque o caso que a criou é o cartão de
+      // benefícios — mas a tela serve para notebook, uniforme e crachá igual.
+      { slug: "entregas", label: "Entregas", icon: PackageCheck },
       { slug: "folha", label: "Folha", icon: Receipt },
     ],
   },

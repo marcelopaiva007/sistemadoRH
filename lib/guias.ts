@@ -453,6 +453,50 @@ export const GUIAS: Guia[] = [
     ],
   },
   {
+    slug: "entregas",
+    titulo: "Entregas ao colaborador",
+    paraQue:
+      "Registra o que a empresa entregou a cada pessoa e cobra dela a confirmação de que recebeu.",
+    alimenta:
+      "O tipo do item, a data da entrega e para quem foi. A confirmação não se preenche aqui: ela chega quando o colaborador clica em Recebi no portal.",
+    passos: [
+      {
+        titulo: "Entrega de muita gente de uma vez",
+        fala: "Escolha o tipo, a data e marque todo mundo que recebeu. Cento e setenta cartões entregues no mesmo dia viram um lançamento só, não cento e setenta formulários.",
+        cena: "formulario",
+        rotulos: ["Tipo", "Data da entrega", "Descrição", "Colaboradores"],
+      },
+      {
+        titulo: "Quem confirma é o colaborador",
+        fala: "Assim que você registra, aparece um aviso no topo do portal da pessoa pedindo para confirmar. Enquanto ela não clicar, a linha fica vermelha aqui.",
+        cena: "fluxo",
+        rotulos: ["RH registra", "Aviso no portal", "Pessoa confirma", "Linha fica verde"],
+      },
+      {
+        titulo: "A tela abre no que falta",
+        fala: "O filtro já vem em aguardando confirmação, porque é essa a pergunta do dia a dia: quem ainda não confirmou. Para ver tudo, troque o filtro para todas.",
+        cena: "busca",
+        rotulos: ["Aguardando confirmação", "Maria Souza · Cartão", "João Lima · Notebook"],
+      },
+      {
+        titulo: "Devolução e engano são coisas diferentes",
+        fala: "Notebook e crachá voltam no desligamento: use devolvido. Lançou para a pessoa errada e ela ainda não confirmou? Aí sim apague. Depois de confirmada, o sistema não deixa apagar — a confirmação é a prova de que ela recebeu.",
+        cena: "alerta",
+        rotulos: [
+          "Entrega já confirmada",
+          "Não pode ser apagada — registre a devolução",
+          "Registrar devolução",
+        ],
+      },
+      {
+        titulo: "Falta um tipo de item na lista?",
+        fala: "Cadeira, chip de celular, ferramenta: cadastre em Configuração, Catálogos, tipos de entrega. A lista é sua, não precisa esperar ninguém.",
+        cena: "checklist",
+        rotulos: ["Cartão de benefícios", "Notebook", "Uniforme", "Crachá", "+ o que você cadastrar"],
+      },
+    ],
+  },
+  {
     slug: "folha",
     titulo: "Folha",
     paraQue: "Guarda os eventos variáveis de cada mês antes de mandar para a contabilidade.",
