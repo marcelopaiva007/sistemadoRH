@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
+import { gestorSetorPodeAbrirMeuSetor } from "@/lib/usuarios-regras";
 
 // DIRETORIA entra na lista: o papel é global e de consulta — barrá-lo aqui
 // fazia todo clique em empresa voltar para a home, sem mensagem nenhuma.
@@ -94,17 +95,37 @@ async function empresasDasMarcasDoUsuario(userId?: string): Promise<string[]> {
   return empresas.map((e) => e.id);
 }
 
-// GESTOR_SETOR com empresa ativa + setor ativo no JWT. Se faltarem (cookie
-// expirado, pivô desativado), manda pra home — UI de troca fica na Fase 7.
+/**
+ * Guarda de "Meu Setor" — a tela do GESTOR_SETOR.
+ *
+ * NÃO devolve o gestor para a home quando falta empresa/setor no vínculo, e é
+ * isso que importa aqui: a home MANDA todo GESTOR_SETOR para esta tela
+ * (`app/(app)/page.tsx`, `app/(app)/rh/page.tsx`, e o fallback de
+ * `requireEmpresaAccess` logo acima). Até 15/08/2026 esta função respondia com
+ * `redirect("/")`, e as duas pontas ficavam se empurrando: a home mandava para
+ * cá, daqui voltava para a home, sem fim. Quem via isso via a TELA EM BRANCO —
+ * o navegador nunca chegava a renderizar página nenhuma, e não havia mensagem
+ * de erro em lugar nenhum para explicar o que faltava.
+ *
+ * Agora esta rota é TERMINAL para quem é GESTOR_SETOR: com vínculo completo
+ * mostra o setor, sem vínculo completo mostra o que falta e a quem pedir.
+ * Redirecionar daqui só acontece para quem NÃO é gestor de setor — e a home
+ * renderiza normalmente para todos os outros papéis, então não há volta.
+ *
+ * Como o vínculo fica incompleto: convite de gestor sem setor, promoção a
+ * gestor pela tela de edição, ou o único vínculo desativado depois. As duas
+ * primeiras portas foram fechadas em `lib/actions/usuarios.ts`; esta função
+ * cobre o que já existe no banco e o que a desativação ainda cria.
+ */
 export async function requireGestorSetor() {
   const user = await requireUser();
-  if (
-    user.role !== "GESTOR_SETOR" ||
-    !user.empresaAtivaId ||
-    !user.setorAtivaId ||
-    !user.empresas.some((e) => e.empresaId === user.empresaAtivaId && e.ativo)
-  ) {
-    redirect("/");
+  if (user.role !== "GESTOR_SETOR") redirect("/");
+
+  if (!gestorSetorPodeAbrirMeuSetor(user)) {
+    return { pronto: false as const, user };
   }
-  return user as typeof user & { empresaAtivaId: string; setorAtivaId: string };
+  return {
+    pronto: true as const,
+    user: user as typeof user & { empresaAtivaId: string; setorAtivaId: string },
+  };
 }

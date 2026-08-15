@@ -684,21 +684,44 @@ function VincularForm({
   marcas: MarcaResumo[];
   onSuccess: () => void;
 }) {
-  const empresasDisponiveis = empresas.filter(
-    (e) => e.ativo && !usuario.empresas.some((v) => v.empresaId === e.id && v.ativo),
+  // Empresa com vínculo ATIVO não some da lista: selecioná-la vira EDIÇÃO do
+  // vínculo (a action já faz upsert de papel/setor). O filtro que as excluía
+  // criava um beco sem saída — o estado que a tela Meu Setor manda consertar
+  // aqui (vínculo ativo sem setor) era justamente o que este formulário se
+  // recusava a mostrar, e desativar-para-revincular é barrado quando o vínculo
+  // é o único ativo.
+  const vinculoAtivoPorEmpresa = new Map(
+    usuario.empresas.filter((v) => v.ativo).map((v) => [v.empresaId, v]),
   );
+  const empresasDisponiveis = empresas.filter((e) => e.ativo);
   // Marca já vinculada e ativa sai da lista: revincular a mesma marca não
-  // acrescenta acesso nenhum.
+  // acrescenta acesso nenhum (vínculo de marca não tem papel nem setor a editar).
   const marcasDisponiveis = marcas.filter(
     (m) => !usuario.marcasVinculadas.some((v) => v.marcaId === m.id && v.ativo),
   );
 
+  // Começa na primeira empresa SEM vínculo (o caso comum: dar acesso novo);
+  // quando todas já têm, começa na primeira mesmo — aí o form abre em edição.
+  const empresaInicial = (
+    empresasDisponiveis.find((e) => !vinculoAtivoPorEmpresa.has(e.id)) ?? empresasDisponiveis[0]
+  )?.id ?? "";
+  const vinculoInicial = vinculoAtivoPorEmpresa.get(empresaInicial);
+
   const [escopo, setEscopo] = useState<Escopo>("CNPJ");
   const [marcaId, setMarcaId] = useState<string>(marcasDisponiveis[0]?.id ?? "");
-  const [empresaId, setEmpresaId] = useState<string>(empresasDisponiveis[0]?.id ?? "");
-  const [role, setRole] = useState<"RH_MANAGER" | "GESTOR_SETOR">("RH_MANAGER");
-  const [setorId, setSetorId] = useState<string>("");
-  const [papelPrincipal, setPapelPrincipal] = useState<boolean>(false);
+  const [empresaId, setEmpresaId] = useState<string>(empresaInicial);
+  // Editar começa do que está salvo. Sem este prefill, salvar uma empresa já
+  // vinculada com o papel default (RH) apagaria o setor de um gestor sem
+  // ninguém perceber.
+  const [role, setRole] = useState<"RH_MANAGER" | "GESTOR_SETOR">(
+    vinculoInicial?.role === "GESTOR_SETOR" ? "GESTOR_SETOR" : "RH_MANAGER",
+  );
+  const [setorId, setSetorId] = useState<string>(vinculoInicial?.setorId ?? "");
+  const [papelPrincipal, setPapelPrincipal] = useState<boolean>(
+    vinculoInicial?.papelPrincipal ?? false,
+  );
+
+  const vinculoSelecionado = vinculoAtivoPorEmpresa.get(empresaId);
 
   const setoresFiltrados = setores.filter((s) => s.empresaId === empresaId && s.ativo);
 
@@ -828,7 +851,7 @@ function VincularForm({
           <input type="hidden" name="userId" value={usuario.id} />
           {empresasDisponiveis.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Este usuário já está vinculado a todas as empresas ativas do grupo.
+              Nenhuma empresa ativa no grupo para vincular.
               {desativados.length > 0 && " Use a lista abaixo para reativar um vínculo desativado."}
             </p>
           ) : (
@@ -838,11 +861,23 @@ function VincularForm({
                 <Select
                   value={empresaId}
                   onValueChange={(v) => {
-                    setEmpresaId(v ?? "");
-                    setSetorId("");
+                    const id = v ?? "";
+                    setEmpresaId(id);
+                    // Trocar de empresa recarrega papel/setor do vínculo dela
+                    // (edição) ou zera (vínculo novo) — nunca carrega o setor
+                    // de uma empresa para dentro de outra.
+                    const atual = vinculoAtivoPorEmpresa.get(id);
+                    setRole(atual?.role === "GESTOR_SETOR" ? "GESTOR_SETOR" : "RH_MANAGER");
+                    setSetorId(atual?.setorId ?? "");
+                    setPapelPrincipal(atual?.papelPrincipal ?? false);
                   }}
                   name="empresaId"
-                  items={Object.fromEntries(empresasDisponiveis.map((e) => [e.id, e.nome]))}
+                  items={Object.fromEntries(
+                    empresasDisponiveis.map((e) => [
+                      e.id,
+                      vinculoAtivoPorEmpresa.has(e.id) ? `${e.nome} · já vinculado` : e.nome,
+                    ]),
+                  )}
                 >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Selecione" />
@@ -853,13 +888,26 @@ function VincularForm({
                         <SelectLabel>{g.nome}</SelectLabel>
                         {g.empresas.map((e) => (
                           <SelectItem key={e.id} value={e.id}>
-                            {e.nome}
+                            {vinculoAtivoPorEmpresa.has(e.id) ? `${e.nome} · já vinculado` : e.nome}
                           </SelectItem>
                         ))}
                       </SelectGroup>
                     ))}
                   </SelectContent>
                 </Select>
+                {vinculoSelecionado && (
+                  <p className="text-xs text-muted-foreground">
+                    Já vinculado como{" "}
+                    {vinculoSelecionado.role === "GESTOR_SETOR"
+                      ? `Gestor(a) de Setor${
+                          vinculoSelecionado.setorNome
+                            ? ` — ${vinculoSelecionado.setorNome}`
+                            : " (sem setor)"
+                        }`
+                      : "Gestor(a) de RH"}
+                    . Salvar atualiza este vínculo.
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label>Papel</Label>
@@ -927,7 +975,7 @@ function VincularForm({
           {empresasDisponiveis.length > 0 && (
             <DialogFooter>
               <Button type="submit" disabled={isPending}>
-                {isPending ? "Salvando..." : "Vincular"}
+                {isPending ? "Salvando..." : vinculoSelecionado ? "Atualizar vínculo" : "Vincular"}
               </Button>
             </DialogFooter>
           )}

@@ -3,17 +3,26 @@ import { prisma } from "@/lib/prisma";
 import { hojeUTC } from "@/lib/datas";
 import { AMOSTRA_MINIMA_ANONIMATO } from "@/lib/constants-rh";
 import { montarMeuTime, type ColaboradorParaTime } from "@/lib/meu-time";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AjudaDaTela } from "@/components/ajuda-da-tela";
 import { TimeView } from "../[empresaId]/time/time-view";
 import { MeuSetorView } from "./meu-setor-view";
 
 export default async function MeuSetorPage() {
-  const user = await requireGestorSetor();
+  const acesso = await requireGestorSetor();
+
+  // Sem empresa/setor no vínculo não há o que mostrar — mas TAMBÉM não há para
+  // onde mandar esta pessoa: a home devolve todo GESTOR_SETOR para cá. Esta
+  // tela é o fim da linha, então ela precisa dizer o que falta. Ver o comentário
+  // longo em `requireGestorSetor`.
+  if (!acesso.pronto) {
+    return <AcessoIncompleto nome={acesso.user.name ?? acesso.user.username} />;
+  }
+  const user = acesso.user;
 
   const setor = await prisma.setor.findUnique({ where: { id: user.setorAtivaId } });
   if (!setor) {
-    return <p className="text-muted-foreground">Setor não encontrado.</p>;
+    return <AcessoIncompleto nome={user.name ?? user.username} />;
   }
 
   // Quem é esta pessoa na folha. Lido do banco a cada request, e não do JWT:
@@ -76,9 +85,9 @@ export default async function MeuSetorPage() {
           <Alert>
             <AlertDescription>
               O seu login ainda não está ligado à sua ficha de colaborador, e por isso o sistema
-              não sabe quem reporta a você. Peça ao RH para fazer a ligação em{" "}
-              <strong>Cadastros → Usuários → Vincular</strong>. Os resultados de clima abaixo não
-              dependem disso e já aparecem.
+              não sabe quem reporta a você. Peça a quem administra o sistema para fazer a ligação
+              na tela <strong>Usuários</strong> (menu de cima), em <strong>Vincular</strong>. Os
+              resultados de clima abaixo não dependem disso e já aparecem.
             </AlertDescription>
           </Alert>
         ) : !time || time.linhas.length === 0 ? (
@@ -101,6 +110,46 @@ export default async function MeuSetorPage() {
         </p>
         <MeuSetorView resultados={resultados} />
       </section>
+    </div>
+  );
+}
+
+// O que o gestor vê quando o cadastro dele está pela metade. Uma tela, e não um
+// redirecionamento: esta rota é o destino de todo GESTOR_SETOR no sistema, então
+// mandá-lo embora daqui é mandá-lo de volta para cá (era a tela em branco).
+//
+// O texto diz o caminho exato da tela que resolve, porque quem lê isto não é
+// quem conserta: o gestor não tem acesso ao cadastro de usuários, e sem o nome
+// do menu a conversa começa por "não está abrindo aqui". Dois cuidados no
+// texto, ambos apanhados em revisão: quem conserta é ADMIN/DIRETORIA — "o RH"
+// (papel RH_MANAGER) não alcança a tela de usuários —, e o item de menu
+// chama-se só "Usuários" (não há menu "Cadastros"; isso é só a URL).
+function AcessoIncompleto({ nome }: { nome: string }) {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Meu Setor</h1>
+        <p className="text-muted-foreground">
+          {nome}, seu acesso ainda não está completo.
+        </p>
+      </div>
+
+      <Alert>
+        <AlertTitle>Falta apontar o seu setor</AlertTitle>
+        <AlertDescription className="space-y-2">
+          <p>
+            Seu login está criado como <strong>gestor de setor</strong>, mas nenhum setor foi
+            apontado para ele — e é o setor que define o time e os resultados que apareceriam
+            nesta tela.
+          </p>
+          <p>
+            Peça a quem administra o sistema (perfil Administrativo ou Diretoria) para abrir a
+            tela <strong>Usuários</strong>, no menu de cima, clicar em <strong>Vincular</strong>{" "}
+            no seu nome e escolher a empresa e o setor. Feito isso, basta recarregar esta página
+            — e, se não aparecer, sair e entrar de novo.
+          </p>
+        </AlertDescription>
+      </Alert>
     </div>
   );
 }
