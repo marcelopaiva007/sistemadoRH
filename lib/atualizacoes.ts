@@ -39,6 +39,16 @@ export const ATUALIZACOES: Atualizacao[] = [
     ],
   },
   {
+    versao: "1.90.2",
+    data: "14/08/2026",
+    horario: "10:45",
+    titulo: "Pendências: números dos cartões batem com a tela de destino",
+    itens: [
+      "Corrigido o bug recorrente onde cartões \"Esperando sua decisão\", \"Prazo correndo\" e \"Cadastro a completar\" mostravam números diferentes da tela que abriam. O link do popover agora passa ?empresas= para manter consistência.",
+      "O filtro de marca viaja junto no clique, garantindo que a lista da empresa abra mostrando os MESMOS CNPJs que geraram o número do cartão.",
+    ],
+  },
+  {
     versao: "1.90.1",
     data: "14/08/2026",
     horario: "04:06",

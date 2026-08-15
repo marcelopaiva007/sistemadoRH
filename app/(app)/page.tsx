@@ -143,6 +143,11 @@ export default async function HomePage() {
       },
       { decidir: 0, prazo: 0, cadastro: 0 },
     );
+    // IDs de todas as empresas nesta marca, para o link do popover manter
+    // consistência com os números do cartão. Sem isto, o cartão diz "6
+    // Esperando decisão" mas a lista abre com números diferentes.
+    const empresasIds = marca.itens.map((r) => r.empresa.id);
+
     return {
       marca,
       ativos: marca.itens.reduce((a, r) => a + r.ativos, 0),
@@ -156,7 +161,9 @@ export default async function HomePage() {
       // CNPJ serve de ponto de entrada — a tela de empresa soma por marca por
       // padrão. Quem clica num CNPJ específico da lista abaixo (ver
       // `hrefCnpj`) entra já filtrado só naquele CNPJ via `?empresas=`.
-      href: `/rh/${marca.itens[0].empresa.id}#pendencias`,
+      // O link aqui TAMBÉM passa `?empresas=` com a marca inteira, para que o
+      // popover (que mostra números da marca) abra a tela já filtrada para a marca.
+      href: `/rh/${marca.itens[0].empresa.id}?empresas=${empresasIds.join(",")}#pendencias`,
     };
   });
 
