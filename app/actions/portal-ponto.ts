@@ -9,7 +9,7 @@ import {
   limitesDeEstagio,
   type BatidaPonto,
 } from "@/lib/ponto-regras";
-import { lerSessaoPortal } from "@/lib/portal-auth";
+import { resolverIdentidadeDePonto } from "@/lib/ponto-identidade";
 import { gerarHashPontoSHA256, validarIpPonto, validarGeofencingGps } from "@/lib/ponto-seguranca";
 import { enviarParaBlob } from "@/lib/blob";
 import { revalidatePath } from "next/cache";
@@ -101,20 +101,30 @@ export async function registrarPontoPortal(input: RegistrarPontoInput) {
   const headersList = await headers();
   const ipCliente = headersList.get("x-forwarded-for")?.split(",")[0] || headersList.get("x-real-ip") || "127.0.0.1";
 
-  const sessao = await lerSessaoPortal();
-  if (!sessao || !sessao.verificado) {
-    return { erro: "Sessão inválida ou CPF não verificado." };
+  // Aceita as DUAS portas de bater ponto — portal via Telegram e app /ponto
+  // via PIN. A regra de quem entra vive só em lib/ponto-identidade.ts.
+  const identidade = await resolverIdentidadeDePonto();
+  if (!identidade) {
+    return { erro: "Sessão inválida ou expirada. Entre de novo para bater o ponto." };
   }
 
   const colaborador = await prisma.colaborador.findUnique({
-    where: { id: sessao.colaboradorId },
+    where: { id: identidade.colaboradorId },
     // `fotoUrl` entra para saber se esta pessoa já tem foto de referência —
     // se não tiver, a selfie desta batida vira a referência (ver adiante).
-    select: { id: true, empresaId: true, ativo: true, fotoUrl: true, tipoContrato: true },
+    select: { id: true, empresaId: true, ativo: true, pontoLiberado: true, fotoUrl: true, tipoContrato: true },
   });
 
   if (!colaborador || !colaborador.ativo) {
     return { erro: "Colaborador não localizado ou inativo." };
+  }
+
+  // Trava por pessoa, não só por empresa (ver ConfiguracaoPontoEmpresa mais
+  // abaixo): esconder o card no portal não basta, porque esta action é
+  // endpoint POST público — uma chamada direta continuaria registrando sem
+  // esta checagem.
+  if (!colaborador.pontoLiberado) {
+    return { erro: "Seu acesso ao ponto eletrônico ainda não foi liberado pelo RH." };
   }
 
   // Buscar configurações de ponto da empresa
@@ -311,7 +321,7 @@ export async function registrarPontoPortal(input: RegistrarPontoInput) {
     return { erro: "Não foi possível registrar o ponto. Tente de novo." };
   }
 
-  revalidatePath("/portal");
+  revalidatePath(identidade.origem === "PIN" ? "/ponto" : "/portal");
 
   return {
     sucesso: true,
@@ -330,8 +340,8 @@ export async function registrarPontoPortal(input: RegistrarPontoInput) {
 }
 
 export async function buscarRegistrosPontoHojePortal() {
-  const sessao = await lerSessaoPortal();
-  if (!sessao) return [];
+  const identidade = await resolverIdentidadeDePonto();
+  if (!identidade) return [];
 
   const hojeInicio = new Date();
   hojeInicio.setHours(0, 0, 0, 0);
@@ -341,7 +351,7 @@ export async function buscarRegistrosPontoHojePortal() {
 
   const registros = await prisma.registroPonto.findMany({
     where: {
-      colaboradorId: sessao.colaboradorId,
+      colaboradorId: identidade.colaboradorId,
       dataHora: { gte: hojeInicio, lte: hojeFim },
     },
     orderBy: { dataHora: "asc" },

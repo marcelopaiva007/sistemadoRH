@@ -55,6 +55,7 @@ type Colaborador = {
   tituloEleitor: string | null;
   setor: { nome: string };
   posicao: { nome: string };
+  pontoLiberado: boolean;
 };
 
 type Documento = {
@@ -134,8 +135,20 @@ export function PortalInicio({
           da entrega em vez de na semana seguinte. */}
       <ConfirmarEntregasCard entregas={entregasAConfirmar} />
 
-      {/* Card de Ponto Eletrônico PWA / Mobile */}
-      <BaterPontoCard />
+      {/* Card de Ponto Eletrônico PWA / Mobile — só para quem o RH já
+          liberou (Colaborador.pontoLiberado). Esconder aqui é conveniência de
+          tela; quem trava de verdade é registrarPontoPortal, porque a action
+          é endpoint público. */}
+      {colaborador.pontoLiberado ? (
+        <BaterPontoCard />
+      ) : (
+        <Card className="border-dashed">
+          <CardContent className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
+            <Clock className="size-4 shrink-0" />
+            Seu acesso ao ponto eletrônico ainda não foi liberado pelo RH.
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 gap-3">
         <Destaque

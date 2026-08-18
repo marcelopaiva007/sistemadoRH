@@ -6,8 +6,9 @@ import { TratamentoView } from "./tratamento-view";
 import { RelatoriosPontoView } from "./relatorios-view";
 import { DashboardDiretoriaPontoView } from "./dashboard-diretoria";
 import { ConfiguracoesPontoView } from "./configuracoes-view";
+import { ColaboradoresPontoView } from "./colaboradores-ponto-view";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Clock, ShieldCheck, FileEdit, FileSpreadsheet, BarChart3, Settings } from "lucide-react";
+import { Clock, ShieldCheck, FileEdit, FileSpreadsheet, BarChart3, Settings, Users } from "lucide-react";
 import { AjudaDaTela } from "@/components/ajuda-da-tela";
 
 export default async function PontoEletronicoPage({
@@ -39,6 +40,9 @@ export default async function PontoEletronicoPage({
         // serve a imagem é a rota autenticada, que audita quem viu.
         fotoUrl: true,
         fotoConferidaPeloRh: true,
+        pontoLiberado: true,
+        // Só o booleano "tem PIN?" atravessa para o cliente — o hash nunca.
+        pontoPinHash: true,
         registrosPonto: {
           where: {
             dataHora: {
@@ -110,6 +114,8 @@ export default async function PontoEletronicoPage({
     posicao: { nome: string };
     fotoUrl: string | null;
     fotoConferidaPeloRh: boolean;
+    pontoLiberado: boolean;
+    pontoPinHash: string | null;
     registrosPonto: Array<{ id: string; tipo: string; dataHora: Date; fotoUrl: string | null }>;
   };
 
@@ -160,6 +166,18 @@ export default async function PontoEletronicoPage({
     };
   });
 
+  // Lista para a aba "Colaboradores": quem já foi liberado a bater ponto e
+  // quem ainda não. Vem do mesmo `colaboradores` do painel de presença acima
+  // — nenhuma consulta nova.
+  const colaboradoresPontoLista = (colaboradores as ColaboradorComPonto[]).map((c) => ({
+    id: c.id,
+    nome: c.nome,
+    setor: c.setor.nome,
+    cargo: c.posicao.nome,
+    pontoLiberado: c.pontoLiberado,
+    temPin: c.pontoPinHash !== null,
+  }));
+
   return (
     <div className="space-y-6">
       <div>
@@ -176,6 +194,9 @@ export default async function PontoEletronicoPage({
         <TabsList className="w-full flex flex-wrap h-auto justify-start gap-1.5 p-1.5 bg-muted/60 rounded-lg">
           <TabsTrigger value="presenca" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background">
             <Clock className="w-3.5 h-3.5 mr-1" /> Presença em Tempo Real
+          </TabsTrigger>
+          <TabsTrigger value="colaboradores" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background">
+            <Users className="w-3.5 h-3.5 mr-1" /> Colaboradores
           </TabsTrigger>
           <TabsTrigger value="tratamento" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background">
             <FileEdit className="w-3.5 h-3.5 mr-1" /> Tratamento (PTRP)
@@ -196,6 +217,10 @@ export default async function PontoEletronicoPage({
 
         <TabsContent value="presenca" className="pt-4">
           <PainelPresencaView colaboradores={presentesLista} empresaId={empresaId} />
+        </TabsContent>
+
+        <TabsContent value="colaboradores" className="pt-4">
+          <ColaboradoresPontoView empresaId={empresaId} colaboradores={colaboradoresPontoLista} />
         </TabsContent>
 
         <TabsContent value="tratamento" className="pt-4">

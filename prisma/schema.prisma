@@ -389,6 +389,11 @@ model Colaborador {
   // isso o painel marca a referência não conferida, e conferir é um clique.
   fotoConferidaPeloRh Boolean       @default(false)
   ativo               Boolean       @default(true)
+  // Se este colaborador pode bater ponto pelo portal. Nasce BLOQUEADO — a
+  // liberação é manual, pessoa por pessoa, na aba "Colaboradores" de Ponto
+  // Eletrônico. Antes deste campo, todo colaborador ativo batia ponto sem
+  // nenhum controle individual.
+  pontoLiberado       Boolean       @default(false)
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
 
@@ -466,6 +471,12 @@ model Colaborador {
   // uma vez, mesmo para quem já vinculou pelo telefone.
   portalVerificadoEm DateTime?
 
+  // PIN do app de ponto (/ponto) — bcrypt, nunca o valor em claro. `null` =
+  // sem PIN definido, login recusado. Quem define/reseta é o RH, na aba
+  // "Colaboradores" de Ponto Eletrônico; o PIN em claro só existe no retorno
+  // daquela action, uma vez (mesmo princípio do link do Telegram).
+  pontoPinHash String?
+
   tokens    SurveyToken[]
   respostas Resposta[]
 
@@ -498,6 +509,7 @@ model Colaborador {
   tratamentosPonto         TratamentoPonto[]
   bancosHoras              BancoHoras[]
   cobrancasCadastro        CobrancaCadastro[]
+  sessoesPonto             PontoSessao[]
 
   // Registros de ponto (entrada/saída)
 
@@ -1573,6 +1585,24 @@ model PortalSessao {
   tentativasCpf  Int         @default(0)
   criadaEm       DateTime    @default(now())
   ultimoAcessoEm DateTime    @default(now())
+
+  @@index([colaboradorId, encerradaEm])
+  @@schema("rh")
+}
+
+// Sessão do app de ponto (/ponto), aberta por CPF + PIN — SEPARADA de
+// PortalSessao de propósito: para o colaborador são dois sistemas (portal =
+// contrato de trabalho, ponto = bater ponto), e esta sessão nunca pode abrir
+// documentos, salário ou o Fale com o RH. Mesmo desenho de segurança do
+// portal: só o SHA-256 do token no banco.
+model PontoSessao {
+  id            String      @id @default(cuid())
+  colaboradorId String
+  colaborador   Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  tokenHash     String      @unique
+  expiraEm      DateTime
+  encerradaEm   DateTime?
+  criadaEm      DateTime    @default(now())
 
   @@index([colaboradorId, encerradaEm])
   @@schema("rh")

@@ -61,6 +61,7 @@ export default async function PortalPage() {
       // HTML do navegador dele — dado sensível trafegando sem ninguém ler.
       empresaId: true,
       gerente: true,
+      pontoLiberado: true,
       setor: { select: { nome: true } },
       posicao: { select: { nome: true } },
     },

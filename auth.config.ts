@@ -27,6 +27,11 @@ export const authConfig = {
       // Passar pelo NextAuth aqui só mandaria o colaborador para uma tela de
       // login que não é dele.
       if (request.nextUrl.pathname.startsWith("/portal")) return true;
+      // /ponto é o app de bater ponto do colaborador — autenticação própria
+      // por CPF + PIN (cookie ponto_sessao, ver lib/ponto-pin-auth.ts), fora
+      // do NextAuth pelo mesmo motivo do /portal: colaborador não tem usuário
+      // no sistema.
+      if (request.nextUrl.pathname.startsWith("/ponto")) return true;
       // /vagas/<slug> é a página pública de inscrição (Fase 4). Quem acessa é
       // candidato, que por definição não tem login. O slug tem sufixo
       // aleatório e a action só aceita vaga ABERTA e publicada

@@ -1,5 +1,7 @@
 "use server";
 
+import { randomInt } from "crypto";
+import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
@@ -341,6 +343,93 @@ export async function decidirTratamentoPonto(input: {
   });
 
   revalidatePath(`/rh/${input.empresaId}/ponto`);
+  return { ok: true };
+}
+
+/**
+ * Gera (ou redefine) o PIN de 6 dígitos do app de ponto (/ponto).
+ *
+ * O PIN em claro só existe no retorno desta chamada — o banco guarda o
+ * bcrypt (Colaborador.pontoPinHash), mesmo princípio do link do Telegram em
+ * lib/portal-auth.ts. A tela mostra o número uma vez, com aviso de que não
+ * aparece de novo; perdeu, gera outro (o anterior morre junto com o hash).
+ *
+ * `randomInt` do crypto, não Math.random: PIN é credencial, ainda que curta —
+ * a proteção real contra força bruta é o rate limit em lib/ponto-pin-auth.ts.
+ */
+export async function gerarPinPonto(
+  empresaId: string,
+  colaboradorId: string,
+): Promise<{ ok: true; pin: string } | { ok: false; error: string }> {
+  await requireEmpresaAccess(empresaId);
+
+  const colaborador = await prisma.colaborador.findFirst({
+    where: { id: colaboradorId, empresaId },
+    select: { id: true, nome: true, cpf: true },
+  });
+  if (!colaborador) return { ok: false, error: "Colaborador não encontrado." };
+  if (!colaborador.cpf) {
+    return { ok: false, error: "Cadastre o CPF na ficha antes: o login do ponto é CPF + PIN." };
+  }
+
+  const pin = String(randomInt(0, 1_000_000)).padStart(6, "0");
+  const pontoPinHash = await bcrypt.hash(pin, 10);
+
+  await prisma.colaborador.update({
+    where: { id: colaboradorId },
+    data: { pontoPinHash },
+  });
+
+  await registrarAuditoria({
+    empresaId,
+    acao: "ATUALIZAR",
+    entidade: "Colaborador",
+    entidadeId: colaboradorId,
+    resumo: `PIN do ponto eletrônico gerado/redefinido para ${colaborador.nome}.`,
+  });
+
+  revalidatePath(`/rh/${empresaId}/ponto`);
+  return { ok: true, pin };
+}
+
+/**
+ * Liga/desliga o acesso de UM colaborador ao ponto eletrônico do portal.
+ *
+ * Toggle direto, sem motivo obrigatório — ao contrário de
+ * `toggleColaboradorAtivo` (desligamento), aqui não há efeito colateral em
+ * cascata (benefícios, férias, convites): é só a trava que
+ * `registrarPontoPortal` (app/actions/portal-ponto.ts) confere a cada
+ * batida. Mesmo padrão de `confirmarFotoReferencia` em rh-colaboradores.ts.
+ */
+export async function alterarPontoLiberado(
+  empresaId: string,
+  colaboradorId: string,
+  liberado: boolean,
+): Promise<ActionResult> {
+  await requireEmpresaAccess(empresaId);
+
+  const colaborador = await prisma.colaborador.findFirst({
+    where: { id: colaboradorId, empresaId },
+    select: { id: true, nome: true, pontoLiberado: true },
+  });
+  if (!colaborador) return { ok: false, error: "Colaborador não encontrado." };
+  if (colaborador.pontoLiberado === liberado) return { ok: true };
+
+  await prisma.colaborador.update({
+    where: { id: colaboradorId },
+    data: { pontoLiberado: liberado },
+  });
+
+  await registrarAuditoria({
+    empresaId,
+    acao: "ATUALIZAR",
+    entidade: "Colaborador",
+    entidadeId: colaboradorId,
+    resumo: `Ponto eletrônico ${liberado ? "liberado" : "bloqueado"} para ${colaborador.nome}.`,
+  });
+
+  revalidatePath(`/rh/${empresaId}/ponto`);
+  revalidatePath(`/rh/${empresaId}/colaboradores/${colaboradorId}`);
   return { ok: true };
 }
 

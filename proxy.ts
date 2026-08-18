@@ -18,7 +18,13 @@ export const config = {
   //
   // Extensões listadas em vez de "qualquer coisa com ponto": é explícito
   // sobre o que se pretende liberar, e nenhuma rota do sistema tem ponto.
+  //
+  // sw.js (nome exato, não a extensão .js inteira) e webmanifest entraram em
+  // 17/08/2026: sem eles o guarda respondia redirect para /login no lugar do
+  // service worker e do manifesto para quem não estava logado no sistema —
+  // e a instalação do PWA do portal falhava em silêncio (o register() tem
+  // .catch vazio de propósito).
   matcher: [
-    "/((?!api|_next/static|_next/image|favicon.ico|login|.*\\.(?:png|jpg|jpeg|gif|svg|webp|ico|glb|woff|woff2|txt|xml)$).*)",
+    "/((?!api|_next/static|_next/image|favicon.ico|sw.js|login|.*\\.(?:png|jpg|jpeg|gif|svg|webp|ico|glb|woff|woff2|txt|xml|webmanifest)$).*)",
   ],
 };
