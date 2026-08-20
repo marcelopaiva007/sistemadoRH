@@ -16,45 +16,19 @@ import { diaBrasilia } from "@/lib/datas";
 import { prisma, type Cliente } from "@/lib/prisma";
 import { sendEmail } from "@/lib/email";
 import { empresasDaMesmaMarca } from "@/lib/escopo-marca";
-import { pendenciasDaEmpresa, totalPendencias, type Pendencias } from "@/lib/pendencias";
+import {
+  pendenciasDaEmpresa,
+  totalPendencias,
+  ROTULOS_PENDENCIA,
+  type Pendencias,
+} from "@/lib/pendencias";
 
-// Mesmos rótulos que a tela de Pendências usa (pendencias-view.tsx) — cópia
-// deliberada, não import: a tela tem também ícone/descrição/href por chave, e
-// aqui só o texto curto interessa. Se um dia divergirem, é porque um dos dois
-// mudou de propósito, não por esquecimento — mantenha os dois em mente juntos.
-export const ROTULOS_PENDENCIA: Record<keyof Pendencias, string> = {
-  catPendente: "CAT sem emitir",
-  aprovacoes: "Aguardando aprovação",
-  documentosAConferir: "Documentos a conferir",
-  asoVencendo: "ASO vencendo",
-  certificadosVencendo: "NR vencendo",
-  epiVencido: "EPI vencido",
-  integracoesAtrasadas: "Integração atrasada",
-  feriasVencidas: "Férias vencidas",
-  avisoPrevio: "Aviso prévio em curso",
-  desligamentosIncompletos: "Desligamento incompleto",
-  ciclosAvaliacaoAEncerrar: "Ciclo de avaliação a encerrar",
-  pesquisasAbertas: "Pesquisa a encerrar",
-  fichasDesatualizadas: "Ficha sem atualização",
-  contratosVencendo: "Contrato vencendo",
-  horasExtrasExcedidas: "Hora extra acima do limite",
-  atestadosSemDocumento: "Atestado sem documento",
-  dependentesSemCpf: "Dependente sem CPF",
-  cadastrosIncompletos: "Cadastros incompletos",
-  semTelegram: "Sem Telegram vinculado",
-  // 19/08/2026 — as oito situações novas de lib/pendencias.ts. O tipo
-  // Record<keyof Pendencias, string> obriga a lista a acompanhar: pendência
-  // sem rótulo aqui não compila, e por isso nenhuma delas pode entrar no
-  // contador e ficar de fora do e-mail diário.
-  ajustesPontoPendentes: "Ajuste de ponto a decidir",
-  mensagensSemResposta: "Mensagem do portal sem resposta",
-  entregasNaoConfirmadas: "Entrega sem confirmação",
-  disciplinarSemAssinatura: "Medida disciplinar sem assinatura",
-  planosAcaoVencidos: "Plano de ação vencido",
-  desligamentosSemChecklist: "Desligado sem checklist de saída",
-  desligamentosSemEntrevista: "Desligado sem entrevista de saída",
-  sinaisAbertos: "Sinal sem triagem",
-};
+// Os rótulos mudaram de casa em 20/08/2026: viviam aqui como "cópia
+// deliberada" dos da tela, até a tela do grupo precisar deles também (o
+// detalhamento do cartão de marca enumerava 6 chaves fixas e ficava vazio
+// quando a pendência era de outro tipo). Três consumidores é registro, não
+// cópia — a fonte é lib/pendencias.ts, ao lado do próprio tipo.
+export { ROTULOS_PENDENCIA };
 
 export type ResultadoCobrancaRH = { avaliados: number; enviados: number; deduplicados: number; erros: number };
 

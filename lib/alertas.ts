@@ -25,8 +25,9 @@
 // o cartão contariam histórias diferentes sobre o mesmo fato.
 import { prisma, type Cliente } from "@/lib/prisma";
 import { sendEmail } from "@/lib/email";
-import { formatarData } from "@/lib/datas";
+import { formatarData, hojeUTC } from "@/lib/datas";
 import { buscarDestinatarios } from "@/lib/pesquisa-notificacoes";
+import { planoAcaoVencidoWhere } from "@/lib/pendencias";
 import type { CandidatoSinal } from "@/lib/sinais";
 
 // regras_globais.n_minimo_exibicao no seed — mesmo corte usado pra não expor
@@ -82,13 +83,21 @@ async function enviarAlerta(opts: {
   return { disparados, erros };
 }
 
-/** AL09 — plano de ação com prazo vencido, ainda não concluído nem cancelado. */
+/**
+ * AL09 — plano de ação com prazo vencido, ainda não concluído nem cancelado.
+ *
+ * A condição vem de planoAcaoVencidoWhere (lib/pendencias.ts), a mesma do
+ * cartão de Pendências. O default de `hoje` era `new Date()` até 20/08/2026 e
+ * fazia o e-mail chamar de "vencido" um plano ainda no dia do prazo, enquanto
+ * o cartão mostrava zero — `hojeUTC()` alinha os dois: vencido é a partir do
+ * dia SEGUINTE ao prazo.
+ */
 export async function verificarPlanosDeAcaoVencidos(
   cliente: Cliente = prisma,
-  hoje: Date = new Date(),
+  hoje: Date = hojeUTC(),
 ): Promise<ResultadoAlertas> {
   const vencidos = await cliente.planoAcao.findMany({
-    where: { status: { notIn: ["CONCLUIDO", "CANCELADO"] }, prazo: { lt: hoje } },
+    where: planoAcaoVencidoWhere(hoje),
     select: {
       id: true,
       empresaId: true,

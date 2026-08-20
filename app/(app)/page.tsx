@@ -10,6 +10,8 @@ import {
   semRegistroNoEscopo,
   totalPendencias,
   zeradas,
+  ROTULOS_PENDENCIA,
+  type Pendencias,
 } from "@/lib/pendencias";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -43,8 +45,8 @@ export default async function HomePage() {
     select: { id: true, nome: true, marca: { select: { id: true, nome: true } } },
   });
 
-  // Tudo agregado de uma vez, não uma rodada de queries por empresa: são 53
-  // idas ao banco no total (3 aqui + 28 em pendenciasPorEmpresa + 22 em
+  // Tudo agregado de uma vez, não uma rodada de queries por empresa: são 52
+  // idas ao banco no total (3 aqui + 28 em pendenciasPorEmpresa + 21 em
   // empresasComRegistro), quantas empresas forem. O laço anterior fazia 11 POR
   // empresa — com os 11 CNPJs do grupo passava de 120, e esta é a primeira
   // tela depois do login.
@@ -194,7 +196,8 @@ export default async function HomePage() {
                 {naturezas.decidir}{" "}
                 {naturezas.decidir === 1 ? "item espera" : "itens esperam"} sua decisão
               </strong>{" "}
-              — aprovações, documentos a conferir e CAT a emitir.
+              — aprovações, ajustes de ponto, documentos, mensagens do portal,
+              disciplinares e CAT a emitir.
             </>
           ) : (
             <>
@@ -295,18 +298,26 @@ export default async function HomePage() {
                     {pend > 0 && (
                       <p className="mt-3 text-xs text-muted-foreground">
                         {(() => {
-                          const soma = (campo: keyof (typeof marca.itens)[0]["pendencias"]) =>
-                            marca.itens.reduce((a, r) => a + (r.pendencias[campo] as number), 0);
-                          return [
-                            soma("catPendente") > 0 && `${soma("catPendente")} CAT sem emitir`,
-                            soma("aprovacoes") > 0 && `${soma("aprovacoes")} aguardando aprovação`,
-                            soma("epiVencido") > 0 && `${soma("epiVencido")} EPI vencido`,
-                            soma("asoVencendo") > 0 && `${soma("asoVencendo")} ASO vencendo`,
-                            soma("certificadosVencendo") > 0 && `${soma("certificadosVencendo")} NR vencendo`,
-                            soma("integracoesAtrasadas") > 0 && `${soma("integracoesAtrasadas")} integração atrasada`,
-                          ]
-                            .filter(Boolean)
+                          // TODAS as chaves, não uma lista fixa: a versão
+                          // anterior enumerava 6 e uma marca cujas pendências
+                          // eram só dos outros tipos mostrava o badge "N
+                          // pendência(s)" seguido de um parágrafo vazio. As
+                          // três maiores explicam o número; o resto vira "+ n".
+                          const somas = (Object.keys(ROTULOS_PENDENCIA) as (keyof Pendencias)[])
+                            .map((chave) => ({
+                              chave,
+                              n: marca.itens.reduce((a, r) => a + r.pendencias[chave], 0),
+                            }))
+                            .filter((s) => s.n > 0)
+                            .sort((a, b) => b.n - a.n);
+                          const topo = somas
+                            .slice(0, 3)
+                            .map((s) => `${s.n} ${ROTULOS_PENDENCIA[s.chave]}`)
                             .join(" · ");
+                          const resto = somas.length - 3;
+                          return resto > 0
+                            ? `${topo} · +${resto} ${resto === 1 ? "situação" : "situações"}`
+                            : topo;
                         })()}
                       </p>
                     )}

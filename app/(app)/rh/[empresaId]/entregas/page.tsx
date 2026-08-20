@@ -20,28 +20,39 @@ export const maxDuration = 300;
 
 export default async function EntregasPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ empresaId: string }>;
+  searchParams: Promise<{ empresas?: string }>;
 }) {
   const { empresaId } = await params;
+  const { empresas: empresasParam } = await searchParams;
   const usuario = await requireEmpresaAccess(empresaId);
   const visiveis = await empresasVisiveis(usuario);
+  // `?empresas=` estreita (interseção, nunca amplia) — é o filtro que o cartão
+  // "Entrega sem confirmação" da tela de Pendências carrega no clique. Sem
+  // honrá-lo, o cartão dizia "4" num CNPJ e esta tela abria com o grupo
+  // inteiro. Regra de filtro-empresas.tsx::useFiltroEmpresas.
+  const pedidas = (empresasParam ?? "").split(",").filter(Boolean);
+  const escopo = pedidas.length === 0 ? visiveis : pedidas.filter((id) => visiveis.includes(id));
 
   const [entregas, colaboradores, tipos, empresa] = await Promise.all([
     // Escopo por empresasVisiveis, não pela empresa da rota: a lista de
     // colaboradores da tela mistura CNPJs da marca, e uma entrega registrada
     // para alguém de outro CNPJ do grupo precisa aparecer para quem a fez.
     prisma.entregaAoColaborador.findMany({
-      where: { empresaId: { in: visiveis } },
+      where: { empresaId: { in: escopo } },
       orderBy: [{ confirmadoEm: "asc" }, { dataEntrega: "desc" }],
       select: {
         id: true, tipo: true, descricao: true, dataEntrega: true,
         confirmadoEm: true, devolvidoEm: true, entreguePorNome: true, observacoes: true,
-        colaborador: { select: { id: true, nome: true, setor: { select: { nome: true } } } },
+        colaborador: {
+          select: { id: true, nome: true, ativo: true, setor: { select: { nome: true } } },
+        },
       },
     }),
     prisma.colaborador.findMany({
-      where: { empresaId: { in: visiveis }, ativo: true },
+      where: { empresaId: { in: escopo }, ativo: true },
       orderBy: { nome: "asc" },
       select: { id: true, nome: true, setor: { select: { nome: true } } },
     }),

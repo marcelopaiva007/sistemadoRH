@@ -138,7 +138,7 @@ permissões — ferramentas e leitura, não configuração).
   não um dashboard: mostra o que exige ação hoje — CAT sem emitir, aprovações
   paradas, ASO/NR vencendo, EPI vencido, integração atrasada — e cada cartão
   leva para onde a coisa se resolve. Item com prazo legal aparece primeiro e
-  em vermelho. São 17 situações (`lib/pendencias.ts`), cobertas por
+  em vermelho. São 27 situações (`lib/pendencias.ts`), cobertas por
   `npm run smoke:pendencias`.
 - **Zero de pendência e zero de registro são coisas diferentes, e a tela
   separa as duas.** "Nenhuma CAT em aberto" tanto pode ser a empresa em dia
@@ -728,7 +728,7 @@ o mesmo que já rodava fixo antes desta tabela existir.
 | `npm run test:admissao`                                     | testes das pendências da admissão — documento faltando, salário zero, documento extra (não toca o banco)                                                                        |
 | `npm run smoke:onboarding`                                  | fumaça da trilha de integração — responsável sugerido, item personalizado com prazo, concluir/reabrir, gerar duas vezes sem duplicar, **sempre em rollback**                    |
 | `npm run smoke:folha`                                       | fumaça dos eventos variáveis — competência única por mês, recálculo preservando lançamento manual, falta abonada fora do desconto, fechamento, **sempre em rollback**           |
-| `npm run smoke:pendencias`                                  | fumaça da tela inicial — contrato vencido que não some, hora extra somada por pessoa, atestado sem dupla contagem, total = soma das 17 chaves, **sempre em rollback**           |
+| `npm run smoke:pendencias`                                  | fumaça da tela inicial — contrato vencido que não some, hora extra somada por pessoa, atestado sem dupla contagem, os 8 contadores de 19/08 por delta, total = soma das 27 chaves, **sempre em rollback**   |
 | `npm run verificar:assistente`                              | confere as ferramentas do assistente contra o banco real, inclusive o isolamento entre empresas — **read-only**, não escreve nada                                               |
 | `npx tsx scripts/aplicar-migracao.ts <nome> [--dry]`        | aplica um `migration.sql` à mão, em transação (ver "Notas sobre o banco")                                                                                                       |
 | `npm run check:migracoes`                                   | aplica no banco, via `prisma migrate deploy`, as migrations do repo que faltam — roda sozinho antes de todo `npm run build`; **não é read-only** desde 04/08/2026               |

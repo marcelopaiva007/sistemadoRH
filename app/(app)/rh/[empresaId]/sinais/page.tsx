@@ -10,18 +10,24 @@ import { SinaisView, type SinalNaTela } from "./sinais-view";
 // alerta não é gestão, é ruído — um alerta sem "eu vi" e sem "virou plano"
 // treina o time a ignorar.
 //
-// ESCOPO: sinais de CNPJ seguem `empresasVisiveis`; sinais de grupo/marca
-// (empresaId nulo) aparecem para todo mundo que entra aqui — o pico do grupo é
-// história de todos os leitores, e escondê-lo de quem só enxerga um CNPJ
-// esconderia o contexto do próprio CNPJ.
+// ESCOPO: sinais de CNPJ seguem `empresasVisiveis` estreitado pelo
+// `?empresas=` da tela de Pendências (interseção, nunca amplia — mesma regra
+// de Aprovações); sinais de grupo/marca (empresaId nulo) aparecem para todo
+// mundo que entra aqui — o pico do grupo é história de todos os leitores, e
+// escondê-lo de quem só enxerga um CNPJ esconderia o contexto do próprio CNPJ.
 export default async function SinaisPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ empresaId: string }>;
+  searchParams: Promise<{ empresas?: string }>;
 }) {
   const { empresaId } = await params;
+  const { empresas: empresasParam } = await searchParams;
   const usuario = await requireEmpresaAccess(empresaId);
   const visiveis = await empresasVisiveis(usuario);
+  const pedidas = (empresasParam ?? "").split(",").filter(Boolean);
+  const escopo = pedidas.length === 0 ? visiveis : pedidas.filter((id) => visiveis.includes(id));
   const hoje = hojeUTC();
 
   const [sinais, usuarios] = await Promise.all([
@@ -29,7 +35,7 @@ export default async function SinaisPage({
     // documento por construção (o Sinal só guarda agregado e frase), mas o
     // contrato de não usar `include` vale igual.
     prisma.sinal.findMany({
-      where: { OR: [{ empresaId: null }, { empresaId: { in: visiveis } }] },
+      where: { OR: [{ empresaId: null }, { empresaId: { in: escopo } }] },
       orderBy: { detectadoEm: "desc" },
       select: {
         id: true,

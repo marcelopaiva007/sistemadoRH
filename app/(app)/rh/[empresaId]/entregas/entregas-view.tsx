@@ -59,7 +59,7 @@ export type EntregaDaTela = {
   devolvidoEm: Date | null;
   entreguePorNome: string | null;
   observacoes: string | null;
-  colaborador: { id: string; nome: string; setor: { nome: string } };
+  colaborador: { id: string; nome: string; ativo: boolean; setor: { nome: string } };
 };
 
 export type ColaboradorDaTela = { id: string; nome: string; setor: { nome: string } };
@@ -127,8 +127,14 @@ export function EntregasView({
     let devolvidas = 0;
     for (const e of entregas) {
       const s = situacaoDaEntrega(e);
-      if (s === "AGUARDANDO") aguardando++;
-      else if (s === "CONFIRMADA") confirmadas++;
+      // "Aguardando" só para colaborador ATIVO — a mesma régua do contador
+      // "Entrega sem confirmação" da tela de Pendências (lib/pendencias.ts):
+      // quem já saiu não tem como confirmar pelo portal, e os dois números
+      // divergiam sempre que uma entrega ficou pendurada num desligado. A
+      // linha continua na tabela; só sai do KPI que pede telefonema.
+      if (s === "AGUARDANDO") {
+        if (e.colaborador.ativo) aguardando++;
+      } else if (s === "CONFIRMADA") confirmadas++;
       else devolvidas++;
     }
     return { total: entregas.length, aguardando, confirmadas, devolvidas };

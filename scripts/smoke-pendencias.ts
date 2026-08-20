@@ -252,6 +252,238 @@ async function main() {
           "o objeto devolvido tem exatamente as chaves declaradas em zeradas()",
         );
 
+        // ------------------------------------------------------------------
+        // 7 em diante: os oito contadores de 19/08/2026, um a um. Entraram sem
+        // teste nenhum — exatamente o buraco que o cabeçalho deste arquivo
+        // registra ter custado deploy caído e semântica invertida duas vezes.
+        // ------------------------------------------------------------------
+
+        console.log("7. Ajuste de ponto conta PENDENTE e some quando decidido");
+        const antesPonto = await pendenciasDaEmpresa(escopo, tx);
+        const tratamento = await tx.tratamentoPonto.create({
+          data: {
+            empresaId: empresa.id,
+            colaboradorId: colaborador.id,
+            dataFato: hoje,
+            tipo: "JUSTIFICATIVA",
+            motivo: "Smoke: esqueci de bater o ponto",
+          },
+        });
+        ok(
+          delta(antesPonto, await pendenciasDaEmpresa(escopo, tx), "ajustesPontoPendentes") === 1,
+          "tratamento PENDENTE conta",
+        );
+        await tx.tratamentoPonto.update({
+          where: { id: tratamento.id },
+          data: { status: "APROVADO" },
+        });
+        ok(
+          delta(antesPonto, await pendenciasDaEmpresa(escopo, tx), "ajustesPontoPendentes") === 0,
+          "aprovado sai da fila",
+        );
+
+        console.log("8. Mensagem do portal conta até ser respondida");
+        const antesMsg = await pendenciasDaEmpresa(escopo, tx);
+        const mensagem = await tx.mensagemPortal.create({
+          data: { empresaId: empresa.id, colaboradorId: colaborador.id, mensagem: "Smoke: dúvida de férias" },
+        });
+        ok(
+          delta(antesMsg, await pendenciasDaEmpresa(escopo, tx), "mensagensSemResposta") === 1,
+          "mensagem sem resposta conta",
+        );
+        await tx.mensagemPortal.update({
+          where: { id: mensagem.id },
+          data: { resposta: "Respondida", respondidaEm: new Date() },
+        });
+        ok(
+          delta(antesMsg, await pendenciasDaEmpresa(escopo, tx), "mensagensSemResposta") === 0,
+          "respondida sai da fila",
+        );
+
+        console.log("9. Entrega conta sem confirmação; devolvida ou de desligado, não");
+        const antesEnt = await pendenciasDaEmpresa(escopo, tx);
+        const entrega = await tx.entregaAoColaborador.create({
+          data: {
+            empresaId: empresa.id,
+            colaboradorId: colaborador.id,
+            tipo: "Uniforme",
+            dataEntrega: hoje,
+          },
+        });
+        ok(
+          delta(antesEnt, await pendenciasDaEmpresa(escopo, tx), "entregasNaoConfirmadas") === 1,
+          "entrega sem confirmação conta",
+        );
+        await tx.colaborador.update({ where: { id: colaborador.id }, data: { ativo: false } });
+        ok(
+          delta(antesEnt, await pendenciasDaEmpresa(escopo, tx), "entregasNaoConfirmadas") === 0,
+          "entrega de colaborador desligado não cobra (ele não tem como confirmar)",
+        );
+        await tx.colaborador.update({ where: { id: colaborador.id }, data: { ativo: true } });
+        await tx.entregaAoColaborador.update({
+          where: { id: entrega.id },
+          data: { devolvidoEm: new Date() },
+        });
+        ok(
+          delta(antesEnt, await pendenciasDaEmpresa(escopo, tx), "entregasNaoConfirmadas") === 0,
+          "devolvida não tem mais o que confirmar",
+        );
+
+        console.log("10. Disciplinar conta enquanto a assinatura não é colhida");
+        const antesDis = await pendenciasDaEmpresa(escopo, tx);
+        const ocorrencia = await tx.ocorrenciaDisciplinar.create({
+          data: {
+            empresaId: empresa.id,
+            colaboradorId: colaborador.id,
+            tipo: "ADVERTENCIA_ESCRITA",
+            motivo: "Smoke: atraso reiterado",
+            dataFato: hoje,
+          },
+        });
+        ok(
+          delta(antesDis, await pendenciasDaEmpresa(escopo, tx), "disciplinarSemAssinatura") === 1,
+          "ocorrência PENDENTE de assinatura conta",
+        );
+        await tx.ocorrenciaDisciplinar.update({
+          where: { id: ocorrencia.id },
+          data: { statusAssinatura: "ASSINADO", dataAssinatura: new Date() },
+        });
+        ok(
+          delta(antesDis, await pendenciasDaEmpresa(escopo, tx), "disciplinarSemAssinatura") === 0,
+          "assinada sai da fila",
+        );
+
+        console.log("11. Plano de ação vence no dia SEGUINTE ao prazo — igual ao AL09");
+        const antesPlano = await pendenciasDaEmpresa(escopo, tx);
+        const plano = await tx.planoAcao.create({
+          data: {
+            empresaId: empresa.id,
+            titulo: "Smoke: plano vencido",
+            prazo: somarDiasUTC(hoje, -1),
+          },
+        });
+        ok(
+          delta(antesPlano, await pendenciasDaEmpresa(escopo, tx), "planosAcaoVencidos") === 1,
+          "prazo ontem conta como vencido",
+        );
+        // A regra do dia-limite que já divergiu entre o cartão e o e-mail da
+        // diretoria (hojeUTC vs new Date): prazo HOJE ainda está no prazo.
+        await tx.planoAcao.update({ where: { id: plano.id }, data: { prazo: hoje } });
+        ok(
+          delta(antesPlano, await pendenciasDaEmpresa(escopo, tx), "planosAcaoVencidos") === 0,
+          "prazo hoje AINDA NÃO é vencido (vence amanhã)",
+        );
+        await tx.planoAcao.update({
+          where: { id: plano.id },
+          data: { prazo: somarDiasUTC(hoje, -1), status: "CONCLUIDO" },
+        });
+        ok(
+          delta(antesPlano, await pendenciasDaEmpresa(escopo, tx), "planosAcaoVencidos") === 0,
+          "concluído não cobra, mesmo com prazo passado",
+        );
+
+        console.log("12. Offboarding: checklist cobra já no aviso prévio; entrevista, só após a saída");
+        // Linha de base limpa: o colaborador de teste pode carregar estado real.
+        await tx.entrevistaDesligamento.deleteMany({ where: { colaboradorId: colaborador.id } });
+        await tx.colaborador.update({
+          where: { id: colaborador.id },
+          data: { dataDesligamento: null, checklistDispensado: false },
+        });
+        const antesOff = await pendenciasDaEmpresa(escopo, tx);
+        // Saída marcada para AMANHÃ (aviso prévio): o checklist já precisa
+        // existir; a entrevista de saída ainda não tem como.
+        await tx.colaborador.update({
+          where: { id: colaborador.id },
+          data: { dataDesligamento: somarDiasUTC(hoje, 1) },
+        });
+        const comAviso = await pendenciasDaEmpresa(escopo, tx);
+        ok(
+          delta(antesOff, comAviso, "desligamentosSemChecklist") === 1 &&
+            delta(antesOff, comAviso, "desligamentosSemEntrevista") === 0,
+          "saída futura: cobra checklist, não cobra entrevista de quem ainda trabalha",
+        );
+        await tx.colaborador.update({
+          where: { id: colaborador.id },
+          data: { dataDesligamento: somarDiasUTC(hoje, -1) },
+        });
+        ok(
+          delta(antesOff, await pendenciasDaEmpresa(escopo, tx), "desligamentosSemEntrevista") === 1,
+          "saída ontem sem entrevista conta",
+        );
+        await tx.entrevistaDesligamento.create({
+          data: { empresaId: empresa.id, colaboradorId: colaborador.id, dataEntrevista: hoje },
+        });
+        ok(
+          delta(antesOff, await pendenciasDaEmpresa(escopo, tx), "desligamentosSemEntrevista") === 0,
+          "entrevista registrada sai da fila",
+        );
+        await tx.colaborador.update({
+          where: { id: colaborador.id },
+          data: { checklistDispensado: true },
+        });
+        ok(
+          delta(antesOff, await pendenciasDaEmpresa(escopo, tx), "desligamentosSemChecklist") === 0,
+          "dispensa zera o checklist (regra dos desligamentos anteriores ao sistema)",
+        );
+        await tx.colaborador.update({
+          where: { id: colaborador.id },
+          data: { dataDesligamento: null, checklistDispensado: false },
+        });
+
+        console.log("13. Sinal sem triagem: só ABERTO, só CRITICA/ALTA, sem plano vencido em dobro");
+        const antesSin = await pendenciasDaEmpresa(escopo, tx);
+        const baseSinal = {
+          nivelUnidade: "EMPRESA",
+          unidadeId: empresa.id,
+          unidadeNome: empresa.nome,
+          titulo: "Smoke: sinal de teste",
+          observado: "observado",
+          esperado: "esperado",
+          gravidade: "ALTA",
+        };
+        const sinal = await tx.sinal.create({
+          data: {
+            ...baseSinal,
+            empresaId: empresa.id,
+            tipo: "ANOMALIA_DESLIGAMENTO",
+            chaveDedupe: "SMOKE:sinal-1",
+          },
+        });
+        ok(
+          delta(antesSin, await pendenciasDaEmpresa(escopo, tx), "sinaisAbertos") === 1,
+          "sinal ABERTO de gravidade ALTA conta",
+        );
+        // PLANO_VENCIDO fica de fora — é o mesmo fato de planosAcaoVencidos.
+        await tx.sinal.create({
+          data: {
+            ...baseSinal,
+            empresaId: empresa.id,
+            tipo: "PLANO_VENCIDO",
+            chaveDedupe: "SMOKE:sinal-2",
+          },
+        });
+        ok(
+          delta(antesSin, await pendenciasDaEmpresa(escopo, tx), "sinaisAbertos") === 1,
+          "sinal de plano vencido NÃO soma (já contado em planosAcaoVencidos)",
+        );
+        // Sinal de grupo/marca (sem CNPJ) não entra na tela por empresa.
+        await tx.sinal.create({
+          data: {
+            ...baseSinal,
+            tipo: "ANOMALIA_DESLIGAMENTO",
+            chaveDedupe: "SMOKE:sinal-3",
+          },
+        });
+        ok(
+          delta(antesSin, await pendenciasDaEmpresa(escopo, tx), "sinaisAbertos") === 1,
+          "sinal de grupo (sem empresaId) não entra na conta por empresa",
+        );
+        await tx.sinal.update({ where: { id: sinal.id }, data: { status: "RECONHECIDO" } });
+        ok(
+          delta(antesSin, await pendenciasDaEmpresa(escopo, tx), "sinaisAbertos") === 0,
+          "reconhecido já teve triagem — sai da fila",
+        );
+
         throw new RollbackProposital();
       },
       { timeout: 60000 },

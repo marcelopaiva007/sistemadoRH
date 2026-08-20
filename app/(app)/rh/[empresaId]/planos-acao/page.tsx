@@ -1,4 +1,4 @@
-import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
+import { empresasVisiveis, requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
 import { PlanosAcaoView } from "./planos-acao-view";
 
@@ -8,17 +8,33 @@ import { PlanosAcaoView } from "./planos-acao-view";
 // pra mexer direto no banco. Fica fora do dashboard do NR-01 de propósito
 // (decisão do Marcelo): não depende de pesquisa nenhuma, cobre planos de
 // qualquer origem (clima, NR-01, ou nenhuma).
+//
+// ESCOPO: `empresasVisiveis` + filtro `?empresas=` — mesmo padrão de
+// Aprovações/Desligamentos. Até 20/08/2026 a lista era só do CNPJ da rota, e
+// o cartão "Plano de ação vencido" da tela de Pendências (que conta a marca e
+// carrega `?empresas=` no clique) dizia "5" para uma lista que abria com 1 —
+// os planos dos CNPJs irmãos ficavam inalcançáveis a partir do cartão.
 export default async function PlanosAcaoPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ empresaId: string }>;
+  searchParams: Promise<{ empresas?: string }>;
 }) {
   const { empresaId } = await params;
-  await requireEmpresaAccess(empresaId);
+  const { empresas: empresasParam } = await searchParams;
+  const usuario = await requireEmpresaAccess(empresaId);
+
+  const visiveis = await empresasVisiveis(usuario);
+  // Mesma regra de filtro-empresas.tsx::useFiltroEmpresas: sem filtro na URL,
+  // tudo que o usuário enxerga; com filtro, a INTERSEÇÃO — id digitado à mão
+  // não vira acesso.
+  const pedidas = (empresasParam ?? "").split(",").filter(Boolean);
+  const escopo = pedidas.length === 0 ? visiveis : pedidas.filter((id) => visiveis.includes(id));
 
   const [planos, setores] = await Promise.all([
     prisma.planoAcao.findMany({
-      where: { empresaId },
+      where: { empresaId: { in: escopo } },
       orderBy: [{ status: "asc" }, { prazo: "asc" }],
       select: {
         id: true,

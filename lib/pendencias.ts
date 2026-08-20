@@ -236,7 +236,62 @@ export function cadastroIncompleto(c: CamposDoCadastro): boolean {
 export const totalPendencias = (p: Pendencias) => Object.values(p).reduce((s, n) => s + n, 0);
 
 /**
- * As 19 pendências separadas por NATUREZA DA AÇÃO.
+ * Plano de ação vencido: a MESMA regra em um lugar só, usada pelo contador
+ * daqui, pelo alerta AL09 (lib/alertas.ts) e — via AL09 — pelo Sinal da
+ * Central. Era uma cópia "palavra por palavra" nos dois arquivos, e as cópias
+ * já tinham divergido no dia-limite: o AL09 comparava com `new Date()` (agora)
+ * e este arquivo com `hojeUTC()` (meia-noite UTC) — no dia do prazo a
+ * diretoria recebia "vencido" por e-mail e a tela de Pendências mostrava zero.
+ *
+ * A régua única é `hojeUTC()`: prazo é DATA (meia-noite UTC no banco), e no
+ * resto do sistema "venceu" começa no dia SEGUINTE ao prazo (`prazo < hoje`,
+ * como integracoesAtrasadas e ciclosAvaliacaoAEncerrar). Quem tem prazo hoje
+ * ainda está no prazo.
+ */
+export const planoAcaoVencidoWhere = (hoje: Date): Prisma.PlanoAcaoWhereInput => ({
+  status: { notIn: ["CONCLUIDO", "CANCELADO"] },
+  prazo: { lt: hoje },
+});
+
+/**
+ * Rótulo humano de cada pendência — vive AQUI, ao lado do tipo, porque o
+ * Record<keyof Pendencias, string> obriga a lista a acompanhar: pendência sem
+ * rótulo não compila. Usado pelo e-mail diário (lib/cobranca-rh-pendencias.ts)
+ * e pelo detalhamento dos cartões de marca na tela do grupo — os dois têm que
+ * chamar a mesma coisa pelo mesmo nome.
+ */
+export const ROTULOS_PENDENCIA: Record<keyof Pendencias, string> = {
+  aprovacoes: "Aguardando aprovação",
+  documentosAConferir: "Documentos a conferir",
+  asoVencendo: "ASO vencendo",
+  certificadosVencendo: "NR vencendo",
+  catPendente: "CAT sem emitir",
+  integracoesAtrasadas: "Integração atrasada",
+  epiVencido: "EPI vencido",
+  feriasVencidas: "Férias vencidas",
+  avisoPrevio: "Aviso prévio em curso",
+  desligamentosIncompletos: "Desligamento incompleto",
+  ciclosAvaliacaoAEncerrar: "Ciclo de avaliação a encerrar",
+  pesquisasAbertas: "Pesquisa a encerrar",
+  fichasDesatualizadas: "Ficha sem atualização",
+  contratosVencendo: "Contrato vencendo",
+  horasExtrasExcedidas: "Hora extra acima do limite",
+  atestadosSemDocumento: "Atestado sem documento",
+  dependentesSemCpf: "Dependente sem CPF",
+  cadastrosIncompletos: "Cadastros incompletos",
+  semTelegram: "Sem Telegram vinculado",
+  ajustesPontoPendentes: "Ajuste de ponto a decidir",
+  mensagensSemResposta: "Mensagem do portal sem resposta",
+  entregasNaoConfirmadas: "Entrega sem confirmação",
+  disciplinarSemAssinatura: "Medida disciplinar sem assinatura",
+  planosAcaoVencidos: "Plano de ação vencido",
+  desligamentosSemChecklist: "Desligado sem checklist de saída",
+  desligamentosSemEntrevista: "Desligado sem entrevista de saída",
+  sinaisAbertos: "Sinal sem triagem",
+};
+
+/**
+ * As 27 pendências separadas por NATUREZA DA AÇÃO.
  *
  * POR QUE ISTO EXISTE. A tela inicial mostrava as 19 somadas num número só. O
  * efeito ficou evidente em 12/08/2026: "163 cadastros incompletos" e "6
@@ -261,12 +316,18 @@ export const PENDENCIAS_DECIDIR = [
   // CAT tem prazo legal de 1 dia útil (Lei 8.213/91, art. 22) — é decisão que
   // não espera, não "acompanhamento".
   "catPendente",
-  // As quatro de 19/08/2026: em todas há uma PESSOA do outro lado esperando o
-  // RH — quem pediu ajuste de ponto, quem escreveu pelo portal, quem recebeu
-  // um equipamento e quem foi advertido. É a definição do grupo.
+  // As três de 19/08/2026: em todas há uma PESSOA do outro lado esperando o
+  // RH — quem pediu ajuste de ponto, quem escreveu pelo portal e quem foi
+  // advertido (a assinatura é do colaborador, mas colhê-la é diligência do
+  // RH). É a definição do grupo.
+  //
+  // `entregasNaoConfirmadas` ENTROU aqui em 19/08 e SAIU em 20/08: confirmar o
+  // recebimento é ação do COLABORADOR no portal, não decisão do RH — um lote
+  // de 171 uniformes registrado de uma vez fazia o "aguardando você" da home e
+  // do e-mail diário saltar +171 sem nenhuma ação do RH capaz de baixar o
+  // número. Foi para PRAZO: a prova da entrega envelhece como um vencimento.
   "ajustesPontoPendentes",
   "mensagensSemResposta",
-  "entregasNaoConfirmadas",
   "disciplinarSemAssinatura",
 ] as const;
 
@@ -281,14 +342,18 @@ export const PENDENCIAS_PRAZO = [
   "desligamentosIncompletos",
   "ciclosAvaliacaoAEncerrar",
   "horasExtrasExcedidas",
-  // 19/08/2026. As três primeiras têm data que já passou (prazo do plano, saída
-  // já registrada); `sinaisAbertos` entra aqui e não em DECIDIR porque o sinal
-  // carrega prazo e gravidade próprios e ninguém, pessoalmente, está do outro
-  // lado esperando — é condição detectada correndo contra o relógio.
+  // 19/08/2026. `planosAcaoVencidos` e `desligamentosSemEntrevista` têm data
+  // que já passou; `desligamentosSemChecklist` cobra também quem está em aviso
+  // prévio (a saída está marcada e o checklist já precisa existir);
+  // `sinaisAbertos` entra aqui e não em DECIDIR porque o sinal carrega prazo e
+  // gravidade próprios e ninguém, pessoalmente, está do outro lado esperando —
+  // é condição detectada correndo contra o relógio. `entregasNaoConfirmadas`
+  // veio de DECIDIR em 20/08 (ver o comentário lá em cima).
   "planosAcaoVencidos",
   "desligamentosSemChecklist",
   "desligamentosSemEntrevista",
   "sinaisAbertos",
+  "entregasNaoConfirmadas",
 ] as const;
 
 export const PENDENCIAS_CADASTRO = [
@@ -370,7 +435,7 @@ type LinhaAgrupada = { empresaId: string; _count?: { _all?: number } };
 /**
  * As pendências de várias empresas de uma vez, já separadas por empresa.
  *
- * São 8 queries agregadas, independente de quantas empresas entrarem: o
+ * São 28 queries agregadas, independente de quantas empresas entrarem: o
  * `groupBy` devolve a contagem por `empresaId` numa tacada. A tela inicial do
  * grupo antes chamava `pendenciasDaEmpresa([id])` dentro de um laço, o que dava
  * 8 queries POR empresa — com os 11 CNPJs do grupo, quase 90 idas ao banco só
@@ -583,14 +648,15 @@ export async function pendenciasPorEmpresa(
         _count: contar,
         where: { empresaId, statusAssinatura: "PENDENTE", colaborador: { ativo: true } },
       }),
-      // Plano de ação vencido — a MESMA condição do alerta AL09
-      // (lib/alertas.ts::verificarPlanosDeAcaoVencidos). Copiada de lá de
-      // propósito: o e-mail da diretoria, o sinal da Central e este cartão têm
-      // que estar falando do mesmo conjunto de planos.
+      // Plano de ação vencido — a regra vive em planoAcaoVencidoWhere, a
+      // mesma que o alerta AL09 usa: o e-mail da diretoria, o sinal da
+      // Central e este cartão têm que estar falando do mesmo conjunto de
+      // planos, e cópia "igual de propósito" já divergiu uma vez (ver o
+      // comentário do helper).
       cliente.planoAcao.groupBy({
         by: [...por],
         _count: contar,
-        where: { empresaId, status: { notIn: ["CONCLUIDO", "CANCELADO"] }, prazo: { lt: hoje } },
+        where: { empresaId, ...planoAcaoVencidoWhere(hoje) },
       }),
       // Desligado sem nenhum item de offboarding criado. Mesma regra do resumo
       // da tela /desligamentos (campo `semChecklist`), dispensa inclusive.
@@ -604,13 +670,17 @@ export async function pendenciasPorEmpresa(
           checklistDesligamento: { none: {} },
         },
       }),
-      // Desligado sem entrevista de saída. Par da anterior, mesma dispensa.
+      // Desligado sem entrevista de saída. Par da anterior, mesma dispensa —
+      // mas SÓ saída que já aconteceu (`lte: hoje`): quem está em aviso prévio
+      // ainda trabalha, e a entrevista de saída dele não tem como existir.
+      // O checklist é diferente de propósito (precisa existir ANTES da saída);
+      // a mesma régua vale no resumo da tela /desligamentos.
       cliente.colaborador.groupBy({
         by: [...por],
         _count: contar,
         where: {
           empresaId,
-          dataDesligamento: { not: null },
+          dataDesligamento: { not: null, lte: hoje },
           checklistDispensado: false,
           entrevistaDesligamento: { is: null },
         },
@@ -813,7 +883,7 @@ export async function empresasComRegistro(
   //
   // `groupBy` e não `findFirst`: a tela do grupo precisa saber isso por MARCA,
   // e uma consulta por marca multiplicaria as idas ao banco na primeira tela
-  // depois do login. Assim são 12, quantas marcas forem.
+  // depois do login. Assim são 21, quantas marcas forem.
   //
   // Chaves e consultas em duas listas paralelas, não numa lista de pares: o
   // `groupBy` do Prisma infere o retorno a partir do argumento, e anotar o par
@@ -831,6 +901,12 @@ export async function empresasComRegistro(
     "disciplinarSemAssinatura", "planosAcaoVencidos", "desligamentosSemChecklist",
     "desligamentosSemEntrevista",
   ] as const satisfies readonly (keyof Pendencias)[];
+
+  const desligadosPorEmpresa = cliente.colaborador.groupBy({
+    by: [...por],
+    _count: contar,
+    where: { empresaId, dataDesligamento: { not: null } },
+  });
 
   const [achados, sinaisDaEmpresa] = await Promise.all([
     Promise.all([
@@ -895,18 +971,11 @@ export async function empresasComRegistro(
       cliente.ocorrenciaDisciplinar.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
       cliente.planoAcao.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
       // As duas de desligamento compartilham a base: quem nunca desligou ninguém
-      // não está com o offboarding "em dia", está sem o módulo. Duas entradas
-      // iguais de propósito — as chaves são duas e o laço abaixo é posicional.
-      cliente.colaborador.groupBy({
-        by: [...por],
-        _count: contar,
-        where: { empresaId, dataDesligamento: { not: null } },
-      }),
-      cliente.colaborador.groupBy({
-        by: [...por],
-        _count: contar,
-        where: { empresaId, dataDesligamento: { not: null } },
-      }),
+      // não está com o offboarding "em dia", está sem o módulo. A MESMA promise
+      // entra duas vezes — as chaves são duas e o laço abaixo é posicional,
+      // mas o banco responde uma vez só (antes eram duas consultas idênticas).
+      desligadosPorEmpresa,
+      desligadosPorEmpresa,
     ]),
     // Qualquer sinal já detectado nesta empresa, em qualquer status ou
     // gravidade: quem nunca teve sinal nenhum não está "sem sinais críticos",
@@ -965,7 +1034,7 @@ export async function pendenciasDaEmpresa(
   const porEmpresa = await pendenciasPorEmpresa(empresaIds, cliente);
 
   const total = zeradas();
-  // Soma genérica: com 17 contadores, esquecer um campo aqui viraria um número
+  // Soma genérica: com 27 contadores, esquecer um campo aqui viraria um número
   // silenciosamente menor na tela — foi assim com os 7 originais escritos à mão.
   for (const p of porEmpresa.values()) {
     for (const chave of Object.keys(total) as (keyof Pendencias)[]) {

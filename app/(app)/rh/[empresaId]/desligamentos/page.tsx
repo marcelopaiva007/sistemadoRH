@@ -1,5 +1,6 @@
 import { empresasVisiveis, requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
+import { hojeUTC } from "@/lib/datas";
 import { DesligamentosView } from "./desligamentos-view";
 
 // Visão consolidada dos desligamentos: quem saiu, quanto do checklist de saída
@@ -65,8 +66,13 @@ export default async function DesligamentosPage({
   const checklistPendente = desligamentos.filter(
     (d) => d.checklistTotal > 0 && d.checklistConcluido < d.checklistTotal,
   ).length;
+  // Só saída que JÁ aconteceu: quem está em aviso prévio ainda trabalha e a
+  // entrevista dele não tem como existir. Mesma régua do contador
+  // `desligamentosSemEntrevista` (lib/pendencias.ts) — o checklist é diferente
+  // de propósito, ele precisa existir ANTES da saída.
+  const hoje = hojeUTC();
   const semEntrevista = desligamentos.filter(
-    (d) => !d.temEntrevista && !d.checklistDispensado,
+    (d) => !d.temEntrevista && !d.checklistDispensado && d.dataDesligamento <= hoje,
   ).length;
 
   return (
