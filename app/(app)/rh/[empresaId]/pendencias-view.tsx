@@ -326,9 +326,10 @@ export function PendenciasView({
       descricao:
         "Advertência ou suspensão emitida e ainda sem assinatura colhida — o documento não sustenta a penalidade.",
       // A ocorrência mora no card Disciplinar dentro da ficha; não há tela de
-      // lista própria. O link leva à lista de colaboradores, que é o caminho
-      // mais curto que existe hoje — uma tela de disciplinar resolveria isto.
-      href: comFiltro(`/rh/${empresaId}/colaboradores`),
+      // lista própria. `?lacuna=disciplinar` isola na lista de colaboradores
+      // exatamente quem tem assinatura pendente — sem o filtro, o cartão dizia
+      // "3" e abria a base inteira, sem apontar quem eram os 3.
+      href: comFiltro(`/rh/${empresaId}/colaboradores`, "lacuna=disciplinar"),
       icon: Gavel,
     },
     {

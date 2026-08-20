@@ -83,6 +83,7 @@ const ROTULO_LACUNA: Record<string, string> = {
   desligamento_data: "sem data de desligamento",
   desligamento_motivo: "sem motivo de desligamento",
   incompleto: "com cadastro incompleto",
+  disciplinar: "com advertência ou suspensão sem assinatura colhida",
 };
 
 function temLacuna(
@@ -97,6 +98,7 @@ function temLacuna(
     semDataDesligamento?: boolean;
     semMotivoDesligamento?: boolean;
     semCadastroCompleto: boolean;
+    comDisciplinarPendente: boolean;
   },
   chave: string,
 ): boolean {
@@ -117,6 +119,11 @@ function temLacuna(
     // que conta o cartão: `cadastroIncompleto` de lib/pendencias.ts. RG,
     // endereço e banco não chegam neste componente.
     case "incompleto": return c.semCadastroCompleto;
+    // Destino do cartão "Disciplinar sem assinatura" (tela de Pendências): a
+    // ocorrência mora no card Disciplinar da ficha, sem tela de lista própria,
+    // e o cartão abria a lista COMPLETA de colaboradores — o número dizia "3"
+    // e nada apontava quem eram os 3.
+    case "disciplinar": return c.comDisciplinarPendente;
     // Chave desconhecida esconde todo mundo, em vez de mostrar todo mundo.
     // Era o contrário, e foi assim que um cartão novo apontando para uma chave
     // sem `case` foi parar em revisão parecendo funcionar: ele abria a lista
@@ -148,6 +155,7 @@ type Colaborador = {
   semDataDesligamento: boolean;
   semMotivoDesligamento: boolean;
   semCadastroCompleto: boolean;
+  comDisciplinarPendente: boolean;
   gerente: boolean;
   ativo: boolean;
   empresaId: string;

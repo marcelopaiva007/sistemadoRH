@@ -253,8 +253,16 @@ export function RHEmpresaNav({ empresaId }: { empresaId: string }) {
                       // Contador, não pontinho: o RH decide se abre agora pela
                       // quantidade. Vermelho porque há uma pessoa esperando do
                       // outro lado — mesma régua do grupo DECIDIR das
-                      // pendências.
-                      <span className="ml-auto shrink-0 rounded-full bg-destructive px-1.5 py-0.5 text-[10px] leading-none font-semibold tabular-nums text-white">
+                      // pendências. O `title` declara o escopo: este número é
+                      // de TODAS as empresas que o usuário enxerga (o mesmo da
+                      // tela que abre ao clicar), enquanto o cartão "Mensagem
+                      // sem resposta" da tela de Pendências soma só a marca ou
+                      // o filtro atual — os dois podem diferir sem estar
+                      // errados, e sem o rótulo isso lia como bug.
+                      <span
+                        title={`${mensagensAbertas} sem resposta em todas as empresas que você enxerga — o cartão de Pendências soma só a marca ou o filtro atual.`}
+                        className="ml-auto shrink-0 rounded-full bg-destructive px-1.5 py-0.5 text-[10px] leading-none font-semibold tabular-nums text-white"
+                      >
                         {mensagensAbertas}
                       </span>
                     )}

@@ -9,27 +9,75 @@ type TipoBatida = "ENTRADA_1" | "SAIDA_1" | "ENTRADA_2" | "SAIDA_2";
 /** Lado maior da selfie enviada. 640px identifica um rosto e pesa ~60 KB. */
 const LADO_MAXIMO_FOTO = 640;
 
+// Decodifica o arquivo da câmera, do caminho mais completo ao mais
+// compatível. Três degraus, e a ORDEM é o ponto: com a foto obrigatória
+// (20/08/2026), decodificação que falha = pessoa sem conseguir bater o ponto
+// — e a revisão do mesmo dia mostrou dois aparelhos onde o degrau 1 falha
+// SEMPRE, não às vezes:
+//
+// 1. createImageBitmap com imageOrientation respeita o EXIF (selfie de iPhone
+//    chega em pé). Mas o valor "from-image" só existe no Chrome 108+ — de 81
+//    a 107 (Android antigo, público típico de bater ponto no celular) a opção
+//    é conhecida e o VALOR é rejeitado com TypeError antes de decodificar.
+// 2. createImageBitmap sem opções cobre esses Chromes. A foto pode chegar
+//    deitada neles; deitada registra e identifica — sem foto, não registra.
+// 3. <img> + object URL cobre navegador sem createImageBitmap nenhum
+//    (Safari de iOS <= 14). O <img> aplica o EXIF sozinho nos iOS modernos.
+async function decodificarFoto(arquivo: File): Promise<ImageBitmap | HTMLImageElement | null> {
+  try {
+    return await createImageBitmap(arquivo, { imageOrientation: "from-image" });
+  } catch {
+    /* degrau 2 */
+  }
+  try {
+    return await createImageBitmap(arquivo);
+  } catch {
+    /* degrau 3 */
+  }
+  try {
+    const url = URL.createObjectURL(arquivo);
+    try {
+      const img = new Image();
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error("imagem não decodificou"));
+        img.src = url;
+      });
+      return img;
+    } finally {
+      // Depois do onload o navegador já decodificou; revogar aqui não
+      // atrapalha o drawImage e não vaza a URL se o load falhar.
+      URL.revokeObjectURL(url);
+    }
+  } catch {
+    return null;
+  }
+}
+
 // Reduz a foto da câmera para um JPEG pequeno, como data URL.
 //
 // A câmera do celular entrega 3–12 MB; subir isso a cada batida estouraria o
 // payload da action e o plano do Blob à toa — para conferir QUEM bateu, 640px
-// basta. `createImageBitmap` com `imageOrientation` respeita o EXIF: sem isso,
-// selfie de iPhone chega deitada.
+// basta.
 async function reduzirFoto(arquivo: File): Promise<string | null> {
+  const imagem = await decodificarFoto(arquivo);
+  if (!imagem) return null;
   try {
-    const bitmap = await createImageBitmap(arquivo, { imageOrientation: "from-image" });
-    const escala = Math.min(1, LADO_MAXIMO_FOTO / Math.max(bitmap.width, bitmap.height));
+    const larguraOriginal = imagem instanceof HTMLImageElement ? imagem.naturalWidth : imagem.width;
+    const alturaOriginal = imagem instanceof HTMLImageElement ? imagem.naturalHeight : imagem.height;
+    if (!larguraOriginal || !alturaOriginal) return null;
+    const escala = Math.min(1, LADO_MAXIMO_FOTO / Math.max(larguraOriginal, alturaOriginal));
     const canvas = document.createElement("canvas");
-    canvas.width = Math.round(bitmap.width * escala);
-    canvas.height = Math.round(bitmap.height * escala);
+    canvas.width = Math.round(larguraOriginal * escala);
+    canvas.height = Math.round(alturaOriginal * escala);
     const ctx = canvas.getContext("2d");
     if (!ctx) return null;
-    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    bitmap.close();
+    ctx.drawImage(imagem, 0, 0, canvas.width, canvas.height);
+    if ("close" in imagem) imagem.close();
     return canvas.toDataURL("image/jpeg", 0.7);
   } catch {
-    // Foto que não abre: devolve null e quem chamou pede OUTRA foto — desde
-    // 20/08/2026 a batida não segue sem ela (a action recusa igual).
+    // Decodificou mas não reduziu: devolve null e quem chamou orienta a
+    // pessoa — desde 20/08/2026 a batida não segue sem foto.
     return null;
   }
 }
@@ -40,8 +88,17 @@ export function BaterPontoCard() {
   const [loading, setLoading] = useState<boolean>(false);
   const [erro, setErro] = useState<string | null>(null);
   // Batida à espera da selfie: o clique no tipo abre a câmera, e só a foto
-  // (ou a escolha explícita de seguir sem ela) registra o ponto.
+  // registra o ponto (obrigatória desde 20/08/2026).
   const [tipoPendente, setTipoPendente] = useState<TipoBatida | null>(null);
+  // O MESMO valor num ref, para o fluxo da foto reconferir DEPOIS do await:
+  // reduzir uma foto de 12 MP leva segundos em aparelho fraco, e sem a
+  // reconferência um "Cancelar" tocado nessa janela não cancelava — a batida
+  // registrava mesmo assim, em registro REP-P que não se desfaz.
+  const tipoPendenteRef = useRef<TipoBatida | null>(null);
+  const mudarTipoPendente = (tipo: TipoBatida | null) => {
+    tipoPendenteRef.current = tipo;
+    setTipoPendente(tipo);
+  };
   const inputFotoRef = useRef<HTMLInputElement>(null);
   // Aviso do teto de estágio. Separado do erro DE PROPÓSITO: a marcação foi
   // registrada: ver avisoDeLimiteEstagio em lib/ponto-regras.ts.
@@ -113,20 +170,34 @@ export function BaterPontoCard() {
   // acusar setState em efeito, havia um problema real: quem abre o portal e sai
   // da tela antes de a resposta chegar recebia um `setState` num componente que
   // já não existe. A flag `ativo` corta isso.
+  //
+  // A dependência é `dataAtual` (a data de Brasília do relógio acima), não []:
+  // no celular a aba/PWA fica aberta e, na virada do dia, a lista de ontem
+  // deixava os 4 botões travados em "Registrado" — a pessoa não conseguia
+  // bater o ponto do dia novo sem dar reload. Quando a data vira, recarrega.
+  // O listener de visibilitychange cobre o caso irmão: app que volta do
+  // segundo plano horas depois pega a lista fresca em vez da congelada.
   useEffect(() => {
+    if (!dataAtual) return;
     let ativo = true;
-    void (async () => {
+    const buscar = async () => {
       try {
         const regs = await buscarRegistrosPontoHojePortal();
         if (ativo) setRegistrosHoje(regs);
       } catch (e) {
         console.error(e);
       }
-    })();
+    };
+    void buscar();
+    const aoVoltarParaATela = () => {
+      if (document.visibilityState === "visible") void buscar();
+    };
+    document.addEventListener("visibilitychange", aoVoltarParaATela);
     return () => {
       ativo = false;
+      document.removeEventListener("visibilitychange", aoVoltarParaATela);
     };
-  }, []);
+  }, [dataAtual]);
 
   // Determinar próximo tipo de batida sugerido
   const sugerirProximoTipo = (): "ENTRADA_1" | "SAIDA_1" | "ENTRADA_2" | "SAIDA_2" => {
@@ -154,6 +225,12 @@ export function BaterPontoCard() {
 
       if (res.erro) {
         setErro(res.erro);
+        // Recarrega a lista TAMBÉM no erro. O caso que dói: rede caiu depois
+        // de o servidor gravar — a retentativa volta "Você já registrou X
+        // hoje", e sem recarregar o botão do tipo continuava habilitado e sem
+        // o selo "Registrado": a pessoa repetia selfie e erro até dar F5,
+        // achando que o ponto dela não existia.
+        await carregarRegistrosHoje();
       } else if (res.sucesso && res.comprovante) {
         setSucessoComprovante(res.comprovante);
         setAviso(res.aviso ?? null);
@@ -177,7 +254,7 @@ export function BaterPontoCard() {
     setErro(null);
     setAviso(null);
     setSucessoComprovante(null);
-    setTipoPendente(tipo);
+    mudarTipoPendente(tipo);
     inputFotoRef.current?.click();
   };
 
@@ -188,14 +265,32 @@ export function BaterPontoCard() {
     e.target.value = "";
     if (!arquivo || !tipoPendente) return;
     const tipo = tipoPendente;
+    // `loading` já durante a REDUÇÃO da foto, não só no envio: a redução leva
+    // segundos em aparelho fraco, e com a tela viva nessa janela o Cancelar e
+    // os outros tipos ficavam clicáveis — cancelamento que não cancelava e
+    // troca de tipo que descartava a selfie em silêncio.
+    setLoading(true);
     const fotoBase64 = await reduzirFoto(arquivo);
-    if (!fotoBase64) {
-      // Foto que não abriu não registra mais (obrigatória desde 20/08/2026):
-      // a batida continua pendente e a pessoa tenta outra foto dali mesmo.
-      setErro("Não foi possível ler a foto. Tire outra para registrar o ponto.");
+    // Reconfere DEPOIS do await (pelo ref, que o estado deste render não vê):
+    // se algo desarmou ou trocou a batida nesse meio-tempo, esta foto morre
+    // aqui — nada registra por baixo de um cancelamento.
+    if (tipoPendenteRef.current !== tipo) {
+      setLoading(false);
       return;
     }
-    setTipoPendente(null);
+    if (!fotoBase64) {
+      // Foto que não abriu não registra (obrigatória desde 20/08/2026): a
+      // batida continua pendente. A mensagem aponta a saída de quem cai aqui
+      // TODA vez — aparelho cujo navegador não decodifica a foto — porque
+      // para essa pessoa "tire outra" sozinho é um beco: nenhuma foto vai
+      // funcionar, e o caminho é o RH registrar a marcação manualmente.
+      setLoading(false);
+      setErro(
+        "Não foi possível ler a foto neste aparelho. Tente de novo — e, se continuar falhando, avise o RH para registrar sua marcação manualmente.",
+      );
+      return;
+    }
+    mudarTipoPendente(null);
     await handleBaterPonto(tipo, fotoBase64);
   };
 
@@ -276,7 +371,13 @@ export function BaterPontoCard() {
               Tirar a foto
             </button>
             <button
-              onClick={() => setTipoPendente(null)}
+              onClick={() => {
+                // Desarma a batida E limpa o erro de foto ilegível: sem isso,
+                // o aviso "tire outra foto" ficava órfão na tela depois de
+                // cancelar, instruindo uma ação que não levava a nada.
+                mudarTipoPendente(null);
+                setErro(null);
+              }}
               className="flex-1 p-2 rounded-md border text-foreground"
             >
               Cancelar

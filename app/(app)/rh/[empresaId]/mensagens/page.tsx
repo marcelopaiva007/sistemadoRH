@@ -22,27 +22,41 @@ export default async function MensagensPage({
   const pedidas = (empresasParam ?? "").split(",").filter(Boolean);
   const escopoIds = pedidas.length === 0 ? visiveis : pedidas.filter((id) => visiveis.includes(id));
 
-  const mensagens = await prisma.mensagemPortal.findMany({
-    where: { empresaId: { in: escopoIds } },
-    // Abertas primeiro (respondidaEm nulo), depois as mais recentes.
-    orderBy: [{ respondidaEm: { sort: "asc", nulls: "first" } }, { createdAt: "desc" }],
-    take: 200,
-    select: {
-      id: true,
-      mensagem: true,
-      resposta: true,
-      respondidaEm: true,
-      respondidaPorNome: true,
-      createdAt: true,
-      colaborador: {
-        select: {
-          nome: true,
-          setor: { select: { nome: true } },
-          empresa: { select: { nome: true } },
-        },
+  const camposDaMensagem = {
+    id: true,
+    mensagem: true,
+    resposta: true,
+    respondidaEm: true,
+    respondidaPorNome: true,
+    createdAt: true,
+    colaborador: {
+      select: {
+        nome: true,
+        setor: { select: { nome: true } },
+        empresa: { select: { nome: true } },
       },
     },
-  });
+  } as const;
+
+  // Duas consultas de propósito: as ABERTAS vêm todas, sem teto — são a fila
+  // que o contador de Pendências e o badge do menu prometem, e um `take: 200`
+  // único fazia o cartão dizer 250 para uma tela que só mostrava 200. O teto
+  // fica onde faz sentido: no histórico já respondido, que só existe como
+  // contexto.
+  const [abertas, respondidas] = await Promise.all([
+    prisma.mensagemPortal.findMany({
+      where: { empresaId: { in: escopoIds }, respondidaEm: null },
+      orderBy: { createdAt: "desc" },
+      select: camposDaMensagem,
+    }),
+    prisma.mensagemPortal.findMany({
+      where: { empresaId: { in: escopoIds }, respondidaEm: { not: null } },
+      orderBy: [{ respondidaEm: "asc" }, { createdAt: "desc" }],
+      take: 200,
+      select: camposDaMensagem,
+    }),
+  ]);
+  const mensagens = [...abertas, ...respondidas];
 
   return (
     <MensagensView

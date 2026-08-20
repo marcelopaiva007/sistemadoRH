@@ -78,7 +78,16 @@ export default async function ColaboradoresPage({
         numeroEndereco: true,
         bairro: true,
         uf: true,
-        _count: { select: { ferias: true } },
+        _count: {
+          select: {
+            ferias: true,
+            // Só as PENDENTES de assinatura — vira o booleano do filtro
+            // ?lacuna=disciplinar, o destino do cartão "Disciplinar sem
+            // assinatura" da tela de Pendências. Mesma condição do contador
+            // (lib/pendencias.ts), para o número e a lista baterem.
+            ocorrenciasDisciplinares: { where: { statusAssinatura: "PENDENTE" } },
+          },
+        },
       },
     }),
     // Buscar setores/posições para TODA a marca, não apenas o escopo filtrado.
@@ -126,6 +135,7 @@ export default async function ColaboradoresPage({
       semFerias: Boolean(dataAdmissao && dataAdmissao < umAnoAtras && _count.ferias === 0),
       semDataDesligamento: !dataDesligamento,
       semMotivoDesligamento: !motivoDesligamento,
+      comDisciplinarPendente: _count.ocorrenciasDisciplinares > 0,
     }),
   );
 

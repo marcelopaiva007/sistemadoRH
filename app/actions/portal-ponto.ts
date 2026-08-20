@@ -11,38 +11,23 @@ import {
 } from "@/lib/ponto-regras";
 import { resolverIdentidadeDePonto } from "@/lib/ponto-identidade";
 import { gerarHashPontoSHA256, validarIpPonto, validarGeofencingGps } from "@/lib/ponto-seguranca";
+import {
+  LIMITE_FOTO_DATA_URL,
+  REGEX_FOTO_DATA_URL,
+  fotoDeBatidaValida,
+} from "@/lib/ponto-foto";
 import { enviarParaBlob } from "@/lib/blob";
 import { revalidatePath } from "next/cache";
 
 import { headers } from "next/headers";
 
-// Teto do payload da foto (data URL). O cartão reduz a selfie para ~640px
-// antes de enviar (~60 KB); 1,5 MB de base64 já é chamada direta à action com
-// payload anormal, não foto de batida.
-const LIMITE_FOTO_DATA_URL = 1_500_000;
-
-// JPEG **ou PNG**, e a lista fechada continua sendo o que protege: nada de
-// aceitar `data:` genérico. O PNG entrou na auditoria de 13/08/2026 por um
-// motivo concreto — quando o navegador não suporta o tipo pedido em
-// `toDataURL`, a especificação manda cair para PNG em silêncio. Aceitando só
-// JPEG, essa batida seria recusada e ninguém saberia por quê.
-const REGEX_FOTO_DATA_URL = /^data:image\/(jpeg|png);base64,([A-Za-z0-9+/=]+)$/;
-
-/**
- * A foto que o colaborador enviou serve para registrar? Presente, dentro do
- * teto e num dos dois formatos aceitos.
- *
- * Desde 20/08/2026 a foto é OBRIGATÓRIA (pedido do RH: confirmar identidade e
- * local da batida) — e a obrigação vive AQUI, no servidor, porque esta action
- * é endpoint POST público: tirar o botão "Registrar sem foto" da tela não
- * impediria uma chamada direta sem foto. A validação fica separada do UPLOAD
- * de propósito: foto inválida é recusa (a pessoa resolve tirando a foto);
- * upload que falha é infraestrutura (ver guardarFotoDaBatida) e não pode
- * bloquear a obrigação legal de registrar a jornada.
- */
-function fotoDeBatidaValida(dataUrl: string | null | undefined): dataUrl is string {
-  return !!dataUrl && dataUrl.length <= LIMITE_FOTO_DATA_URL && REGEX_FOTO_DATA_URL.test(dataUrl);
-}
+// A validação da foto obrigatória (fotoDeBatidaValida) mudou-se para
+// lib/ponto-foto.ts em 20/08/2026: módulo "use server" só exporta função
+// async, e a regra precisa ser exportável para o teste de guarda
+// (scripts/test-ponto-foto.ts). A revisão do mesmo dia também a endureceu —
+// a versão daqui aceitava base64 que decodifica para 0 bytes ou lixo, que
+// registrava batida "sem foto" (ou com "foto" que não abre) por chamada
+// direta à action; agora os magic bytes do formato são conferidos.
 
 // Nome de cada marcação em português, para a recusa dizer o que a pessoa vê no
 // botão em vez de "SAIDA_2".

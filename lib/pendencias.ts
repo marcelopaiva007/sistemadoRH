@@ -433,6 +433,24 @@ export const zeradas = (): Pendencias => ({
 type LinhaAgrupada = { empresaId: string; _count?: { _all?: number } };
 
 /**
+ * `Promise.all` CHAVEADO: espera um objeto de promises preservando o tipo de
+ * cada uma. Existe por causa das listas posicionais que este arquivo tinha —
+ * 28 consultas de tipos quase todos idênticos, destruturadas de um array
+ * pareado só pela ordem: uma transposição (num merge, num rebase) compilava
+ * limpa e o número de um cartão saía no do vizinho. Com chave, é o TypeScript
+ * que faz o pareamento; as consultas continuam disparando juntas (a promise
+ * nasce na construção do objeto).
+ */
+async function todas<T extends Record<string, Promise<unknown>>>(
+  consultas: T,
+): Promise<{ [K in keyof T]: Awaited<T[K]> }> {
+  const pares = await Promise.all(
+    Object.entries(consultas).map(async ([chave, promessa]) => [chave, await promessa] as const),
+  );
+  return Object.fromEntries(pares) as { [K in keyof T]: Awaited<T[K]> };
+}
+
+/**
  * As pendências de várias empresas de uma vez, já separadas por empresa.
  *
  * São 28 queries agregadas, independente de quantas empresas entrarem: o
@@ -464,7 +482,7 @@ export async function pendenciasPorEmpresa(
   const umAnoAtras = somarDiasUTC(hoje, -365);
   const seisMesesAtras = somarDiasUTC(hoje, -180);
 
-  const [
+  const {
     feriasPendentes, ausenciasPendentes, documentosAConferir, asoVencendo,
     certificadosVencendo, catPendente, integracoesAtrasadas, epiVencido,
     feriasVencidas, avisoPrevio, desligamentosIncompletos, ciclosAvaliacaoAEncerrar,
@@ -474,33 +492,33 @@ export async function pendenciasPorEmpresa(
     ajustesPontoPendentes, mensagensSemResposta, entregasNaoConfirmadas,
     disciplinarSemAssinatura, planosAcaoVencidos, desligamentosSemChecklist,
     desligamentosSemEntrevista, sinaisAbertosPorEmpresa,
-  ] =
-    await Promise.all([
-      cliente.solicitacaoFerias.groupBy({ by: [...por], _count: contar, where: { empresaId, status: "PENDENTE" } }),
-      cliente.ausencia.groupBy({ by: [...por], _count: contar, where: { empresaId, status: "PENDENTE" } }),
+    // Chave em cada consulta, não duas listas posicionais — ver `todas`.
+  } = await todas({
+      feriasPendentes: cliente.solicitacaoFerias.groupBy({ by: [...por], _count: contar, where: { empresaId, status: "PENDENTE" } }),
+      ausenciasPendentes: cliente.ausencia.groupBy({ by: [...por], _count: contar, where: { empresaId, status: "PENDENTE" } }),
       // Enviado pelo colaborador no portal e ainda não conferido pelo RH.
-      cliente.documentoColaborador.groupBy({
+      documentosAConferir: cliente.documentoColaborador.groupBy({
         by: [...por],
         _count: contar,
         where: { empresaId, origem: "COLABORADOR", conferidoEm: null },
       }),
-      cliente.exameOcupacional.groupBy({
+      asoVencendo: cliente.exameOcupacional.groupBy({
         by: [...por],
         _count: contar,
         where: { empresaId, validoAte: { not: null, lte: limite }, colaborador: { ativo: true } },
       }),
-      cliente.certificadoNR.groupBy({
+      certificadosVencendo: cliente.certificadoNR.groupBy({
         by: [...por],
         _count: contar,
         where: { empresaId, validoAte: { not: null, lte: limite }, colaborador: { ativo: true } },
       }),
-      cliente.acidenteTrabalho.groupBy({ by: [...por], _count: contar, where: { empresaId, catEmitida: false } }),
-      cliente.checklistIntegracao.groupBy({
+      catPendente: cliente.acidenteTrabalho.groupBy({ by: [...por], _count: contar, where: { empresaId, catEmitida: false } }),
+      integracoesAtrasadas: cliente.checklistIntegracao.groupBy({
         by: [...por],
         _count: contar,
         where: { empresaId, concluido: false, prazo: { not: null, lt: hoje }, colaborador: { ativo: true } },
       }),
-      cliente.entregaEPI.groupBy({
+      epiVencido: cliente.entregaEPI.groupBy({
         by: [...por],
         _count: contar,
         where: { empresaId, validoAte: { not: null, lt: hoje }, colaborador: { ativo: true } },
@@ -508,7 +526,7 @@ export async function pendenciasPorEmpresa(
       // Férias vencidas: 12+ meses de casa sem NENHUMA férias aprovada que
       // tenha começado no último ano. Sem dataAdmissao a pessoa fica de fora —
       // preenchê-la é lacuna da tela inicial, não pendência daqui.
-      cliente.colaborador.groupBy({
+      feriasVencidas: cliente.colaborador.groupBy({
         by: [...por],
         _count: contar,
         where: {
@@ -520,13 +538,13 @@ export async function pendenciasPorEmpresa(
       }),
       // Aviso prévio: desligamento registrado para os próximos 7 dias e a
       // pessoa ainda ativa — a saída está marcada, o processo tem que andar.
-      cliente.colaborador.groupBy({
+      avisoPrevio: cliente.colaborador.groupBy({
         by: [...por],
         _count: contar,
         where: { empresaId, ativo: true, dataDesligamento: { gte: hoje, lte: somarDiasUTC(hoje, 7) } },
       }),
       // Desligado com item de offboarding em aberto (crachá, notebook, acesso…).
-      cliente.checklistDesligamento.groupBy({
+      desligamentosIncompletos: cliente.checklistDesligamento.groupBy({
         by: [...por],
         _count: contar,
         where: { empresaId, concluido: false, colaborador: { ativo: false } },
@@ -534,7 +552,7 @@ export async function pendenciasPorEmpresa(
       // Ciclo de avaliação com a janela fechada e ainda aberto — falta cobrar
       // quem não avaliou e encerrar. Conta o CICLO, não as avaliações pendentes
       // dentro dele (ver o comentário do tipo).
-      cliente.cicloAvaliacao.groupBy({
+      ciclosAvaliacaoAEncerrar: cliente.cicloAvaliacao.groupBy({
         by: [...por],
         _count: contar,
         where: { empresaId, encerrado: false, dataFim: { lt: hoje } },
@@ -547,10 +565,10 @@ export async function pendenciasPorEmpresa(
       // vínculo real é com a MARCA, ver o model). Como quem chama passa os
       // CNPJs da marca inteira, a pesquisa entra uma vez só no total — não
       // multiplica por CNPJ irmão.
-      cliente.pesquisa.groupBy({ by: [...por], _count: contar, where: { empresaId, status: "ACTIVE" } }),
+      pesquisasAbertas: cliente.pesquisa.groupBy({ by: [...por], _count: contar, where: { empresaId, status: "ACTIVE" } }),
       // Ficha sem NENHUMA gravação há 6+ meses. updatedAt é proxy — qualquer
       // edição conta — mas é o campo que existe.
-      cliente.colaborador.groupBy({
+      fichasDesatualizadas: cliente.colaborador.groupBy({
         by: [...por],
         _count: contar,
         where: { empresaId, ativo: true, updatedAt: { lt: seisMesesAtras } },
@@ -559,7 +577,7 @@ export async function pendenciasPorEmpresa(
       // (sem piso na data): passar do termo é justamente o que transforma o
       // contrato em indeterminado, então um vencimento esquecido tem que
       // continuar cobrando, não sumir da tela por ter passado.
-      cliente.colaborador.groupBy({
+      contratosVencendo: cliente.colaborador.groupBy({
         by: [...por],
         _count: contar,
         where: {
@@ -573,7 +591,7 @@ export async function pendenciasPorEmpresa(
       // dependente, de qualquer idade (IN RFB 1.760/2017): sem ele a dedução
       // cai na malha e o desconto vira diferença a pagar pelo colaborador.
       // Conta PESSOAS, não dependentes — é o colaborador que o RH vai chamar.
-      cliente.colaborador.groupBy({
+      dependentesSemCpf: cliente.colaborador.groupBy({
         by: [...por],
         _count: contar,
         where: { empresaId, ativo: true, dependentes: { some: { irrf: true, cpf: null } } },
@@ -584,7 +602,7 @@ export async function pendenciasPorEmpresa(
       // O filtro por APROVADA não é detalhe — é o que impede contar duas vezes.
       // Atestado ainda PENDENTE já entra em `aprovacoes`; sem este recorte, o
       // mesmo item somaria nos dois contadores e inflaria o total da tela.
-      cliente.ausencia.groupBy({
+      atestadosSemDocumento: cliente.ausencia.groupBy({
         by: [...por],
         _count: contar,
         where: { empresaId, tipo: "ATESTADO", status: "APROVADA", abonada: true, arquivoId: null },
@@ -594,7 +612,7 @@ export async function pendenciasPorEmpresa(
       // agregar por empresa antes de comparar diluiria quem estourou sozinho no
       // meio de um time que não fez hora nenhuma. A contagem por empresa sai no
       // pós-processamento, logo abaixo.
-      cliente.eventoFolha.groupBy({
+      horasExtras: cliente.eventoFolha.groupBy({
         by: ["empresaId", "colaboradorId"],
         _sum: { quantidade: true },
         where: {
@@ -606,14 +624,14 @@ export async function pendenciasPorEmpresa(
       // Ativo sem Telegram vinculado — null OU "": mesma condição da lacuna
       // (lib/dashboard.ts) e da lista (?lacuna=telegram), para os três números
       // baterem sempre.
-      cliente.colaborador.groupBy({
+      semTelegram: cliente.colaborador.groupBy({
         by: [...por],
         _count: contar,
         where: { empresaId, ativo: true, OR: [{ telegramChatId: null }, { telegramChatId: "" }] },
       }),
       // Ficha com campo essencial em branco. A regra vive em
       // CADASTRO_INCOMPLETO_WHERE, ao lado do predicado que a lista usa.
-      cliente.colaborador.groupBy({
+      cadastrosIncompletos: cliente.colaborador.groupBy({
         by: [...por],
         _count: contar,
         where: { empresaId, ativo: true, ...CADASTRO_INCOMPLETO_WHERE },
@@ -622,7 +640,7 @@ export async function pendenciasPorEmpresa(
       // Ajuste de ponto esperando decisão. Mesma consulta que a tela de
       // Aprovações faz desde 11/08/2026 — se as duas divergirem, o cartão diz
       // um número e a fila mostra outro.
-      cliente.tratamentoPonto.groupBy({
+      ajustesPontoPendentes: cliente.tratamentoPonto.groupBy({
         by: [...por],
         _count: contar,
         where: { empresaId, status: "PENDENTE" },
@@ -630,20 +648,20 @@ export async function pendenciasPorEmpresa(
       // "Fale com o RH" sem resposta. Sem filtro de `ativo`: a pergunta de
       // quem já saiu continua sendo uma pergunta sem resposta, e a tela
       // /mensagens também a mostra.
-      cliente.mensagemPortal.groupBy({
+      mensagensSemResposta: cliente.mensagemPortal.groupBy({
         by: [...por],
         _count: contar,
         where: { empresaId, respondidaEm: null },
       }),
       // Entrega sem confirmação de quem recebeu. Devolvida sai da conta —
       // não há mais o que confirmar.
-      cliente.entregaAoColaborador.groupBy({
+      entregasNaoConfirmadas: cliente.entregaAoColaborador.groupBy({
         by: [...por],
         _count: contar,
         where: { empresaId, confirmadoEm: null, devolvidoEm: null, colaborador: { ativo: true } },
       }),
       // Advertência/suspensão sem assinatura colhida.
-      cliente.ocorrenciaDisciplinar.groupBy({
+      disciplinarSemAssinatura: cliente.ocorrenciaDisciplinar.groupBy({
         by: [...por],
         _count: contar,
         where: { empresaId, statusAssinatura: "PENDENTE", colaborador: { ativo: true } },
@@ -653,14 +671,14 @@ export async function pendenciasPorEmpresa(
       // Central e este cartão têm que estar falando do mesmo conjunto de
       // planos, e cópia "igual de propósito" já divergiu uma vez (ver o
       // comentário do helper).
-      cliente.planoAcao.groupBy({
+      planosAcaoVencidos: cliente.planoAcao.groupBy({
         by: [...por],
         _count: contar,
         where: { empresaId, ...planoAcaoVencidoWhere(hoje) },
       }),
       // Desligado sem nenhum item de offboarding criado. Mesma regra do resumo
       // da tela /desligamentos (campo `semChecklist`), dispensa inclusive.
-      cliente.colaborador.groupBy({
+      desligamentosSemChecklist: cliente.colaborador.groupBy({
         by: [...por],
         _count: contar,
         where: {
@@ -675,7 +693,7 @@ export async function pendenciasPorEmpresa(
       // ainda trabalha, e a entrevista de saída dele não tem como existir.
       // O checklist é diferente de propósito (precisa existir ANTES da saída);
       // a mesma régua vale no resumo da tela /desligamentos.
-      cliente.colaborador.groupBy({
+      desligamentosSemEntrevista: cliente.colaborador.groupBy({
         by: [...por],
         _count: contar,
         where: {
@@ -690,7 +708,7 @@ export async function pendenciasPorEmpresa(
       // groupBy traz `empresaId: string | null` — Sinal de GRUPO/MARCA não tem
       // CNPJ —, por isso ele é somado num laço próprio lá embaixo em vez de
       // passar pelo helper `somar`, que exige a chave não-nula.
-      cliente.sinal.groupBy({
+      sinaisAbertosPorEmpresa: cliente.sinal.groupBy({
         by: [...por],
         _count: contar,
         where: {
@@ -700,7 +718,7 @@ export async function pendenciasPorEmpresa(
           tipo: { not: "PLANO_VENCIDO" },
         },
       }),
-    ]);
+    });
 
   const somar = (linhas: LinhaAgrupada[], aplicar: (p: Pendencias, n: number) => void) => {
     for (const linha of linhas) {
@@ -885,46 +903,36 @@ export async function empresasComRegistro(
   // e uma consulta por marca multiplicaria as idas ao banco na primeira tela
   // depois do login. Assim são 21, quantas marcas forem.
   //
-  // Chaves e consultas em duas listas paralelas, não numa lista de pares: o
-  // `groupBy` do Prisma infere o retorno a partir do argumento, e anotar o par
-  // como `[chave, Promise<LinhaAgrupada[]>]` faz o TypeScript exigir que o
-  // ARGUMENTO seja um LinhaAgrupada[] também. Compila assim, não com o par.
-  const chaves = [
-    "asoVencendo", "certificadosVencendo", "epiVencido", "catPendente",
-    "integracoesAtrasadas", "desligamentosIncompletos", "documentosAConferir",
-    "ciclosAvaliacaoAEncerrar", "atestadosSemDocumento", "horasExtrasExcedidas",
-    "dependentesSemCpf", "contratosVencendo", "pesquisasAbertas", "cadastrosIncompletos",
-    // 19/08/2026. `sinaisAbertos` NÃO entra nesta lista: o `empresaId` do Sinal
-    // é opcional e o groupBy dele devolve `string | null`, que não encaixa em
-    // LinhaAgrupada — ele é resolvido logo abaixo, fora do laço.
-    "ajustesPontoPendentes", "mensagensSemResposta", "entregasNaoConfirmadas",
-    "disciplinarSemAssinatura", "planosAcaoVencidos", "desligamentosSemChecklist",
-    "desligamentosSemEntrevista",
-  ] as const satisfies readonly (keyof Pendencias)[];
-
+  // Consultas CHAVEADAS pela pendência (helper `todas`) — as duas listas
+  // paralelas pareadas por posição saíram em 20/08/2026: com 21 resultados do
+  // mesmo tipo, inserir uma chave no meio e a consulta no fim compilava limpo
+  // e todas as chaves seguintes liam o conjunto da vizinha. O `satisfies`
+  // garante que cada chave é uma pendência de verdade. `sinaisAbertos`
+  // continua fora: o groupBy dele devolve `empresaId: string | null` (sinal de
+  // GRUPO/MARCA não tem CNPJ) e é resolvido logo abaixo.
   const desligadosPorEmpresa = cliente.colaborador.groupBy({
     by: [...por],
     _count: contar,
     where: { empresaId, dataDesligamento: { not: null } },
   });
 
-  const [achados, sinaisDaEmpresa] = await Promise.all([
-    Promise.all([
-      cliente.exameOcupacional.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
-      cliente.certificadoNR.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
-      cliente.entregaEPI.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
-      cliente.acidenteTrabalho.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
-      cliente.checklistIntegracao.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
-      cliente.checklistDesligamento.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
-      cliente.documentoColaborador.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
+  const [registros, sinaisDaEmpresa] = await Promise.all([
+    todas({
+      asoVencendo: cliente.exameOcupacional.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
+      certificadosVencendo: cliente.certificadoNR.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
+      epiVencido: cliente.entregaEPI.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
+      catPendente: cliente.acidenteTrabalho.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
+      integracoesAtrasadas: cliente.checklistIntegracao.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
+      desligamentosIncompletos: cliente.checklistDesligamento.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
+      documentosAConferir: cliente.documentoColaborador.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
       // Ciclo, não avaliação: é o que a pendência conta desde 10/08/2026, e uma
       // empresa que criou ciclo mas ainda não gerou avaliação já usa o módulo.
-      cliente.cicloAvaliacao.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
-      cliente.ausencia.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
-      cliente.eventoFolha.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
+      ciclosAvaliacaoAEncerrar: cliente.cicloAvaliacao.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
+      atestadosSemDocumento: cliente.ausencia.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
+      horasExtrasExcedidas: cliente.eventoFolha.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
       // Dependente não tem empresaId — só colaboradorId. A pergunta vira "quais
       // empresas têm alguém com dependente".
-      cliente.colaborador.groupBy({
+      dependentesSemCpf: cliente.colaborador.groupBy({
         by: [...por],
         _count: contar,
         where: { empresaId, dependentes: { some: {} } },
@@ -933,7 +941,7 @@ export async function empresasComRegistro(
       // vazia. O que falta é a classificação — ninguém com contrato por prazo
       // marcado significa que o RH ainda não preencheu `tipoContrato`, e a
       // pendência não tem como existir.
-      cliente.colaborador.groupBy({
+      contratosVencendo: cliente.colaborador.groupBy({
         by: [...por],
         _count: contar,
         where: { empresaId, ativo: true, tipoContrato: { in: [...CONTRATOS_POR_PRAZO] } },
@@ -941,17 +949,17 @@ export async function empresasComRegistro(
       // Qualquer pesquisa, em qualquer status: quem nunca criou uma não está com
       // as pesquisas "em dia", está sem o módulo. Sem isto, marca que nunca abriu
       // pesquisa apareceria no verde junto de quem encerra tudo em prazo.
-      cliente.pesquisa.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
+      pesquisasAbertas: cliente.pesquisa.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
       // Qualquer colaborador ativo: se não tem ninguém, o módulo de cadastros
       // nunca foi aberto. Com isto a verificação de "tem registro" e "precisa de
       // ação" ficam alinhadas para cadastrosIncompletos.
-      cliente.colaborador.groupBy({
+      cadastrosIncompletos: cliente.colaborador.groupBy({
         by: [...por],
         _count: contar,
         where: { empresaId, ativo: true },
       }),
       // ---- as sete de 19/08/2026 ----
-        // Ponto: a pergunta é se o módulo é USADO, não se há tratamento pendente —
+      // Ponto: a pergunta é se o módulo é USADO, não se há tratamento pendente —
       // empresa que bate ponto e não tem nenhum ajuste em aberto está em dia de
       // verdade; empresa que nunca bateu não tem o que avaliar.
       //
@@ -961,31 +969,43 @@ export async function empresasComRegistro(
       // pessoa por dia) — varrê-la aqui custaria mais que todas as outras 21
       // somadas. Colaborador tem centenas de linhas e responde a mesma
       // pergunta: sem ninguém com ponto liberado não existe ajuste possível.
-      cliente.colaborador.groupBy({
+      ajustesPontoPendentes: cliente.colaborador.groupBy({
         by: [...por],
         _count: contar,
         where: { empresaId, pontoLiberado: true },
       }),
-      cliente.mensagemPortal.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
-      cliente.entregaAoColaborador.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
-      cliente.ocorrenciaDisciplinar.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
-      cliente.planoAcao.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
+      mensagensSemResposta: cliente.mensagemPortal.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
+      entregasNaoConfirmadas: cliente.entregaAoColaborador.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
+      disciplinarSemAssinatura: cliente.ocorrenciaDisciplinar.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
+      planosAcaoVencidos: cliente.planoAcao.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
       // As duas de desligamento compartilham a base: quem nunca desligou ninguém
       // não está com o offboarding "em dia", está sem o módulo. A MESMA promise
-      // entra duas vezes — as chaves são duas e o laço abaixo é posicional,
-      // mas o banco responde uma vez só (antes eram duas consultas idênticas).
-      desligadosPorEmpresa,
-      desligadosPorEmpresa,
-    ]),
+      // entra nas duas chaves — o banco responde uma vez só.
+      desligamentosSemChecklist: desligadosPorEmpresa,
+      desligamentosSemEntrevista: desligadosPorEmpresa,
+    }),
     // Qualquer sinal já detectado nesta empresa, em qualquer status ou
     // gravidade: quem nunca teve sinal nenhum não está "sem sinais críticos",
     // está sem histórico para o zero significar alguma coisa.
     cliente.sinal.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
   ]);
 
-  achados.forEach((linhas: LinhaAgrupada[], i) => {
-    mapa.set(chaves[i], new Set(linhas.map((l) => l.empresaId)));
-  });
+  // Prova de tipo no padrão de CoberturaCompleta, e não `satisfies` no objeto:
+  // o `satisfies` vira tipo contextual do argumento e vaza para a inferência
+  // do `groupBy` do Prisma, que passa a exigir que o ARGUMENTO seja um
+  // LinhaAgrupada[] (era exatamente o erro que mantinha as listas posicionais).
+  // Checar DEPOIS da inferência valida a mesma coisa sem contaminá-la.
+  type ChaveForaDePendencias = Exclude<keyof typeof registros, keyof Pendencias>;
+  const _sohChavesDePendencia: [ChaveForaDePendencias] extends [never] ? true : never = true;
+  void _sohChavesDePendencia;
+  const _resultadosAgrupados: (typeof registros)[keyof typeof registros] extends LinhaAgrupada[]
+    ? true
+    : never = true;
+  void _resultadosAgrupados;
+
+  for (const [chave, linhas] of Object.entries(registros) as [keyof Pendencias, LinhaAgrupada[]][]) {
+    mapa.set(chave, new Set(linhas.map((l) => l.empresaId)));
+  }
 
   // Fora do laço porque o tipo não bate (ver o comentário na lista de chaves):
   // sinal de GRUPO/MARCA tem `empresaId` nulo e é descartado aqui — não

@@ -90,6 +90,8 @@ jobs:
         run: npx tsx scripts/test-pesquisa-apuracao.ts
       - name: Entregas ao colaborador (confirmação e devolução)
         run: npx tsx scripts/test-entregas.ts
+      - name: Foto obrigatória na batida de ponto
+        run: npx tsx scripts/test-ponto-foto.ts
 
   # Os 29 smokes contra Postgres de verdade. O banco nasce vazio a cada
   # execução: schema gerado do prisma/schema.prisma via `migrate diff` (o
