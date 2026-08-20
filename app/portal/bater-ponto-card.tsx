@@ -28,7 +28,8 @@ async function reduzirFoto(arquivo: File): Promise<string | null> {
     bitmap.close();
     return canvas.toDataURL("image/jpeg", 0.7);
   } catch {
-    // Foto que não abre não pode impedir a batida — segue sem foto.
+    // Foto que não abre: devolve null e quem chamou pede OUTRA foto — desde
+    // 20/08/2026 a batida não segue sem ela (a action recusa igual).
     return null;
   }
 }
@@ -167,9 +168,11 @@ export function BaterPontoCard() {
 
   // Clique no tipo NÃO registra: abre a câmera e deixa a batida pendente. É a
   // foto que confirma — quem bate é identificado no ato, que é o motivo de o
-  // ponto por celular existir. Se a câmera falhar ou a pessoa cancelar, o
-  // aviso pendente oferece "registrar sem foto": batida NUNCA fica impossível
-  // por causa de acessório, mas a linha chega "sem foto" ao painel do RH.
+  // ponto por celular existir. Desde 20/08/2026 a foto é OBRIGATÓRIA (pedido
+  // do RH: confirmar identidade e local da batida): se a câmera falhar ou a
+  // pessoa cancelar, o aviso pendente oferece tentar de novo — sem foto não
+  // registra, e a MESMA regra vale no servidor (registrarPontoPortal recusa),
+  // porque esconder o botão aqui não fecha o endpoint.
   const iniciarBatida = (tipo: TipoBatida) => {
     setErro(null);
     setAviso(null);
@@ -185,8 +188,14 @@ export function BaterPontoCard() {
     e.target.value = "";
     if (!arquivo || !tipoPendente) return;
     const tipo = tipoPendente;
-    setTipoPendente(null);
     const fotoBase64 = await reduzirFoto(arquivo);
+    if (!fotoBase64) {
+      // Foto que não abriu não registra mais (obrigatória desde 20/08/2026):
+      // a batida continua pendente e a pessoa tenta outra foto dali mesmo.
+      setErro("Não foi possível ler a foto. Tire outra para registrar o ponto.");
+      return;
+    }
+    setTipoPendente(null);
     await handleBaterPonto(tipo, fotoBase64);
   };
 
@@ -245,8 +254,10 @@ export function BaterPontoCard() {
       />
 
       {/* Batida à espera da foto: aparece quando a câmera foi aberta. Se a
-          pessoa cancelou (ou a câmera não abriu), é daqui que ela resolve —
-          tentar de novo ou registrar sem foto, com aviso claro do que o RH vê. */}
+          pessoa cancelou (ou a câmera não abriu), é daqui que ela tenta de
+          novo. "Registrar sem foto" saiu em 20/08/2026 — a foto virou
+          obrigatória (confirma identidade e local), e o servidor recusa
+          batida sem ela. Cancelar só desarma a batida pendente. */}
       {tipoPendente && !loading && (
         <div className="p-3 bg-primary/5 border border-primary/30 rounded-lg space-y-2 text-xs">
           <div className="flex items-center gap-1.5 font-medium text-foreground">
@@ -254,8 +265,8 @@ export function BaterPontoCard() {
             <span>Falta a foto para registrar: {formatarTipoLabel(tipoPendente)}</span>
           </div>
           <p className="text-muted-foreground">
-            A foto mostra ao RH que foi você quem bateu. Sem ela o ponto vale do mesmo jeito,
-            mas a batida aparece como &ldquo;sem foto&rdquo; no painel.
+            A foto é obrigatória: ela confirma que foi você quem bateu e de onde. Sem a foto o
+            ponto não é registrado.
           </p>
           <div className="flex gap-2">
             <button
@@ -265,14 +276,10 @@ export function BaterPontoCard() {
               Tirar a foto
             </button>
             <button
-              onClick={() => {
-                const tipo = tipoPendente;
-                setTipoPendente(null);
-                void handleBaterPonto(tipo, null);
-              }}
+              onClick={() => setTipoPendente(null)}
               className="flex-1 p-2 rounded-md border text-foreground"
             >
-              Registrar sem foto
+              Cancelar
             </button>
           </div>
         </div>

@@ -21,6 +21,29 @@ import { headers } from "next/headers";
 // payload anormal, não foto de batida.
 const LIMITE_FOTO_DATA_URL = 1_500_000;
 
+// JPEG **ou PNG**, e a lista fechada continua sendo o que protege: nada de
+// aceitar `data:` genérico. O PNG entrou na auditoria de 13/08/2026 por um
+// motivo concreto — quando o navegador não suporta o tipo pedido em
+// `toDataURL`, a especificação manda cair para PNG em silêncio. Aceitando só
+// JPEG, essa batida seria recusada e ninguém saberia por quê.
+const REGEX_FOTO_DATA_URL = /^data:image\/(jpeg|png);base64,([A-Za-z0-9+/=]+)$/;
+
+/**
+ * A foto que o colaborador enviou serve para registrar? Presente, dentro do
+ * teto e num dos dois formatos aceitos.
+ *
+ * Desde 20/08/2026 a foto é OBRIGATÓRIA (pedido do RH: confirmar identidade e
+ * local da batida) — e a obrigação vive AQUI, no servidor, porque esta action
+ * é endpoint POST público: tirar o botão "Registrar sem foto" da tela não
+ * impediria uma chamada direta sem foto. A validação fica separada do UPLOAD
+ * de propósito: foto inválida é recusa (a pessoa resolve tirando a foto);
+ * upload que falha é infraestrutura (ver guardarFotoDaBatida) e não pode
+ * bloquear a obrigação legal de registrar a jornada.
+ */
+function fotoDeBatidaValida(dataUrl: string | null | undefined): dataUrl is string {
+  return !!dataUrl && dataUrl.length <= LIMITE_FOTO_DATA_URL && REGEX_FOTO_DATA_URL.test(dataUrl);
+}
+
 // Nome de cada marcação em português, para a recusa dizer o que a pessoa vê no
 // botão em vez de "SAIDA_2".
 const ROTULO_DA_MARCACAO: Record<RegistrarPontoInput["tipo"], string> = {
@@ -34,11 +57,13 @@ const rotuloDaMarcacao = (tipo: RegistrarPontoInput["tipo"]) => ROTULO_DA_MARCAC
 
 // Guarda a selfie da batida no Blob privado e devolve a URL — ou null.
 //
-// NUNCA lança e nunca devolve erro: foto é evidência de quem bateu, não
-// condição para bater. Se a câmera falhou, o Blob está fora do ar ou o token
-// não existe, o ponto registra do mesmo jeito e a linha fica "sem foto" no
-// painel do RH — que aí cobra. Bloquear a batida por causa do acessório
-// inverteria a importância das duas coisas.
+// NUNCA lança e nunca devolve erro. Desde 20/08/2026 a foto é obrigatória e a
+// ausência dela é recusada ANTES, por fotoDeBatidaValida — quando o fluxo
+// chega aqui a pessoa JÁ tirou a foto. O que esta função ainda engole é falha
+// de infraestrutura (Blob fora do ar, token ausente): nesse caso o ponto
+// registra do mesmo jeito e a linha fica "sem foto" no painel do RH, porque
+// bloquear a obrigação legal da jornada por causa de um serviço de arquivo
+// puniria quem fez a parte dele.
 //
 // Antes desta função o `fotoBase64` ia INTEIRO para a coluna `fotoUrl` do
 // Postgres — o exato caminho que lib/blob.ts existe para evitar (banco de
@@ -60,14 +85,8 @@ async function guardarFotoDaBatida(params: {
   const dataUrl = params.fotoBase64;
   if (!dataUrl || dataUrl.length > LIMITE_FOTO_DATA_URL) return null;
 
-  // JPEG **ou PNG**, e a lista fechada continua sendo o que protege: nada de
-  // aceitar `data:` genérico. O PNG entrou na auditoria de 13/08/2026 por um
-  // motivo concreto — quando o navegador não suporta o tipo pedido em
-  // `toDataURL`, a especificação manda cair para PNG em silêncio. Aceitando só
-  // JPEG, essa batida chegaria "sem foto" ao painel e ninguém saberia por quê:
-  // a falha não aparece em lugar nenhum, e a foto é justamente o ponto do
-  // recurso.
-  const casado = /^data:image\/(jpeg|png);base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl);
+  // A mesma regex da validação de entrada — ver REGEX_FOTO_DATA_URL acima.
+  const casado = REGEX_FOTO_DATA_URL.exec(dataUrl);
   if (!casado) return null;
 
   const ehPng = casado[1] === "png";
@@ -125,6 +144,17 @@ export async function registrarPontoPortal(input: RegistrarPontoInput) {
   // esta checagem.
   if (!colaborador.pontoLiberado) {
     return { erro: "Seu acesso ao ponto eletrônico ainda não foi liberado pelo RH." };
+  }
+
+  // Foto obrigatória (20/08/2026, pedido do RH): confirma quem bateu e onde.
+  // A checagem fica ANTES das consultas de configuração e histórico — recusa
+  // barata primeiro — e vale para as duas portas (portal e app /ponto), que
+  // usam esta mesma action. Ver fotoDeBatidaValida para o porquê de a regra
+  // morar no servidor.
+  if (!fotoDeBatidaValida(input.fotoBase64)) {
+    return {
+      erro: "A foto é obrigatória para registrar o ponto. Toque em “Tirar a foto” e tente de novo.",
+    };
   }
 
   // Buscar configurações de ponto da empresa

@@ -26,6 +26,62 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.98.0",
+    data: "20/08/2026",
+    horario: "10:45",
+    titulo: "Foto obrigatória ao bater o ponto",
+    itens: [
+      "A foto passou a ser OBRIGATÓRIA no registro do ponto — no portal e no app de ponto (CPF+PIN). O botão \"Registrar sem foto\" saiu: sem a foto, a batida não é registrada. Pedido do RH de 20/08: a foto confirma a identidade de quem bate e o local do registro.",
+      "A regra vale no servidor, não só na tela: uma chamada direta ao sistema sem foto é recusada do mesmo jeito.",
+      "Se a foto não sair (câmera cancelada ou falha), a tela avisa e deixa tentar de novo na hora. Aparelho sem câmera utilizável: o caminho é a inclusão manual pelo RH em Ponto → Tratamento (PTRP), com o motivo registrado.",
+      "Batidas antigas sem foto continuam valendo e seguem marcadas como \"sem foto\" no Monitor de Presença — de 12 a 20/08 a foto era pedida mas opcional, e antes de 12/08 não existia.",
+    ],
+  },
+  // As quatro entradas abaixo foram escritas a posteriori: as versões subiram
+  // no master sem passar por aqui, e sem elas a tela pularia de 1.94.0 para
+  // 1.98.0 — quem estivesse numa das quatro não acharia a própria versão na
+  // lista, exatamente o que a regra do AGENTS.md existe para evitar.
+  {
+    versao: "1.97.1",
+    data: "20/08/2026",
+    horario: "10:20",
+    titulo: "Pendências: cartão e tela de destino contam a mesma coisa",
+    itens: [
+      "Correção nos cartões novos de Pendências: o número de cada cartão passou a bater com a lista da tela que ele abre.",
+      "Desligamentos importados de antes do sistema, que vieram sem o motivo registrado, deixaram de gerar cobrança permanente de checklist e entrevista de saída — a regra de não cobrar offboarding retroativo (07/08) passou a cobrir também esses casos.",
+    ],
+  },
+  {
+    versao: "1.97.0",
+    data: "20/08/2026",
+    horario: "09:58",
+    titulo: "Mensagens do portal entram em Pendências e o menu avisa quando há mensagem sem resposta",
+    itens: [
+      "Mensagem do Fale com o RH sem resposta agora é pendência: aparece como cartão na tela de Pendências, no indicador do topo da tela do grupo e no e-mail diário de cobrança do RH.",
+      "O item Mensagens do menu lateral ganhou um contador vermelho com a quantidade de mensagens sem resposta. Ele se atualiza a cada troca de tela e a cada minuto — mensagem nova aparece sem precisar recarregar.",
+      "Outras sete filas que já existiam em telas do sistema também entraram em Pendências: ajuste de ponto a decidir, entrega sem confirmação, disciplinar sem assinatura, plano de ação vencido, desligado sem checklist, desligado sem entrevista e sinal sem triagem.",
+    ],
+  },
+  {
+    versao: "1.96.1",
+    data: "20/08/2026",
+    horario: "09:51",
+    titulo: "Vínculo do Telegram segue o colaborador na troca de CNPJ",
+    itens: [
+      "Quem trocava de CNPJ dentro do grupo perdia o vínculo do Telegram e parava de receber convites e lembretes. O vínculo agora acompanha a pessoa na movimentação.",
+    ],
+  },
+  {
+    versao: "1.95.0",
+    data: "18/08/2026",
+    horario: "07:59",
+    titulo: "App de ponto separado, com entrada por CPF e PIN",
+    itens: [
+      "O ponto ganhou um endereço próprio (/ponto): o colaborador entra com CPF e um PIN de 6 dígitos, sem precisar do link do portal pelo Telegram. Para quem bate ponto todo dia, é o caminho curto — e dá para deixar como ícone na tela do celular.",
+      "A liberação é individual: o RH libera o ponto pessoa a pessoa na ficha, e só quem está liberado consegue registrar.",
+    ],
+  },
+  {
     versao: "1.94.0",
     data: "15/08/2026",
     horario: "12:30",

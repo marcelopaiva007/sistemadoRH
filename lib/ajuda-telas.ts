@@ -44,7 +44,7 @@ export const AJUDA_DAS_TELAS = {
           "Abra a aba \"Monitor de Presença\".",
           "Embaixo do nome de cada pessoa aparecem as batidas do dia, com o horário.",
           "Batida com ícone de câmera tem foto: clique no horário para abrir a foto tirada naquele momento.",
-          "Batida com câmera cortada foi registrada SEM foto — o colaborador cancelou ou a câmera falhou. Vale perguntar o porquê.",
+          "Batida com câmera cortada foi registrada SEM foto. Desde 20/08/2026 isso não acontece mais em batida nova (a foto é obrigatória); em batida antiga, ou nas raras em que o serviço de arquivos falhou na hora, a marca fica para o RH saber que não há foto a conferir.",
         ],
       },
       {
@@ -79,8 +79,9 @@ export const AJUDA_DAS_TELAS = {
       "O motivo da rejeição fica em campo próprio, separado do texto de quem pediu. Ninguém reescreve o pedido do outro.",
       "Colaborador desligado continua aparecendo na lista de ajuste — é durante o cálculo da rescisão que a correção de ponto costuma ser feita.",
       "Ajustes anteriores a 11/08/2026 constam como aprovados por \"Gestor de RH\", um texto fixo que não corresponde a pessoa nenhuma. Não foram reescritos: adulterar histórico de auditoria seria pior que deixá-lo documentado.",
-      "Desde 12/08/2026 o portal pede uma foto ao bater o ponto. A batida NUNCA é impedida pela câmera — sem foto ela vale igual, só aparece marcada aqui. A foto é dado pessoal: cada visualização fica registrada na auditoria, como RG e atestado.",
+      "Desde 20/08/2026 a foto é OBRIGATÓRIA ao bater o ponto (pedido do RH): sem ela a batida não registra, nem pelo portal nem pelo app de ponto. De 12 a 20/08/2026 a foto era pedida mas dava para registrar sem — batidas \"sem foto\" desse período são esperadas. A foto é dado pessoal: cada visualização fica registrada na auditoria, como RG e atestado.",
       "Batidas anteriores a 12/08/2026 não têm foto, e isso é esperado — a câmera não existia no fluxo.",
+      "Se a câmera do aparelho estiver quebrada ou sem permissão, a pessoa não consegue registrar — o caminho é avisar o RH, que registra a marcação por inclusão manual no Tratamento (PTRP), com o motivo.",
     ],
   },
 
