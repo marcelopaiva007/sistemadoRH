@@ -26,6 +26,14 @@ import {
   Stethoscope,
   CircleDashed,
   AlertCircle,
+  Clock,
+  MessageCircle,
+  Package,
+  Gavel,
+  Target,
+  FileX,
+  UserMinus,
+  Radar,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -272,9 +280,89 @@ export function PendenciasView({
     {
       chave: "cadastrosIncompletos",
       titulo: "Cadastros incompletos",
-      descricao: "Funcionários sem CPF, sem contato, sem data de admissão ou sem dados bancários — o que trava pagamento e eSocial.",
+      // O texto dizia "ou sem dados bancários" até 19/08/2026, mas a regra
+      // (CADASTRO_INCOMPLETO_WHERE) deixou de olhar banco em 13/08/2026, quando
+      // a chave de pagamento virou o CPF (PIX-CPF) e os campos bancários saíram
+      // da ficha. Quem lesse o cartão abriria a ficha atrás de um campo que não
+      // existe mais — exatamente o que o comentário daquela regra queria evitar.
+      descricao:
+        "Sem CPF, sem nenhum contato ou sem data de admissão — o que trava pagamento e eSocial.",
       href: comFiltro(`/rh/${empresaId}/colaboradores`, "lacuna=incompleto"),
       icon: AlertCircle,
+    },
+    // ---------------------------------------------------------------
+    // 19/08/2026 — as oito situações que já eram fila em alguma tela do
+    // sistema e não chegavam aqui. Nenhum cartão acima mudou.
+    // ---------------------------------------------------------------
+    {
+      chave: "ajustesPontoPendentes",
+      titulo: "Ajuste de ponto a decidir",
+      descricao:
+        "Inclusão manual, abono de atestado, justificativa ou correção de marcação esperando aprovar ou rejeitar.",
+      // A mesma tela onde o RH decide férias e documentos — ela busca esta fila
+      // desde 11/08/2026. Preferida à aba Tratamento do módulo Ponto porque só
+      // ela respeita o `?empresas=` que este cartão carrega no clique.
+      href: comFiltro(`/rh/${empresaId}/aprovacoes`),
+      icon: Clock,
+    },
+    {
+      chave: "mensagensSemResposta",
+      titulo: "Mensagem sem resposta",
+      descricao: "Colaborador escreveu pelo Fale com o RH no portal e ainda não teve retorno.",
+      href: comFiltro(`/rh/${empresaId}/mensagens`),
+      icon: MessageCircle,
+    },
+    {
+      chave: "entregasNaoConfirmadas",
+      titulo: "Entrega sem confirmação",
+      descricao:
+        "Notebook, cartão, uniforme ou EPI entregues sem a pessoa confirmar o recebimento — sem isso não há prova da entrega.",
+      href: comFiltro(`/rh/${empresaId}/entregas`),
+      icon: Package,
+    },
+    {
+      chave: "disciplinarSemAssinatura",
+      titulo: "Disciplinar sem assinatura",
+      descricao:
+        "Advertência ou suspensão emitida e ainda sem assinatura colhida — o documento não sustenta a penalidade.",
+      // A ocorrência mora no card Disciplinar dentro da ficha; não há tela de
+      // lista própria. O link leva à lista de colaboradores, que é o caminho
+      // mais curto que existe hoje — uma tela de disciplinar resolveria isto.
+      href: comFiltro(`/rh/${empresaId}/colaboradores`),
+      icon: Gavel,
+    },
+    {
+      chave: "planosAcaoVencidos",
+      titulo: "Plano de ação vencido",
+      descricao: "Passou do prazo sem ser concluído nem cancelado com motivo.",
+      href: comFiltro(`/rh/${empresaId}/planos-acao`),
+      icon: Target,
+      // Prazo que JÁ estourou — mesma régua de "Férias vencidas" e "EPI
+      // vencido". E o alerta AL09 já manda e-mail para a diretoria por isto.
+      urgente: true,
+    },
+    {
+      chave: "desligamentosSemChecklist",
+      titulo: "Desligado sem checklist",
+      descricao:
+        "Saída registrada e nenhum item de offboarding criado — nada a devolver, nada a cobrar, nada rastreado.",
+      href: comFiltro(`/rh/${empresaId}/desligamentos`),
+      icon: FileX,
+    },
+    {
+      chave: "desligamentosSemEntrevista",
+      titulo: "Desligado sem entrevista",
+      descricao: "Saída sem entrevista de desligamento registrada — o motivo real não foi apurado.",
+      href: comFiltro(`/rh/${empresaId}/desligamentos`),
+      icon: UserMinus,
+    },
+    {
+      chave: "sinaisAbertos",
+      titulo: "Sinal sem triagem",
+      descricao:
+        "Sinal crítico ou alto detectado na Central e ainda sem reconhecer, descartar ou virar plano.",
+      href: comFiltro(`/rh/${empresaId}/sinais`),
+      icon: Radar,
     },
   ];
 

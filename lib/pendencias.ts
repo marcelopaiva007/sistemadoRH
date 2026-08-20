@@ -57,6 +57,115 @@ export type Pendencias = {
   // CADASTRO_INCOMPLETO_WHERE / cadastroIncompleto logo abaixo: a regra é uma
   // só, usada pela contagem e pelo filtro da lista.
   cadastrosIncompletos: number;
+
+  // ------------------------------------------------------------------
+  // As OITO situações abaixo entraram em 19/08/2026, depois de uma varredura
+  // que comparou estado-por-estado o que o schema guarda de pendente com o que
+  // esta lista contava. Todas já eram tratadas como fila de trabalho em ALGUMA
+  // tela do sistema — só não chegavam aqui, e portanto não chegavam nem ao
+  // indicador do topo da tela do grupo nem ao e-mail diário de
+  // lib/cobranca-rh-pendencias.ts, que leem daqui e de mais lugar nenhum.
+  //
+  // Acréscimo, não troca: nenhuma das 19 anteriores mudou de regra, de grupo
+  // ou de nome.
+  // ------------------------------------------------------------------
+
+  /**
+   * Ajuste de ponto (TratamentoPonto) esperando aprovar ou rejeitar.
+   *
+   * Era a lacuna mais grave da lista. A tela de Aprovações passou a buscar
+   * `tratamentoPonto` PENDENTE em 11/08/2026 — ela se anuncia como "tudo que
+   * espera uma decisão do RH num lugar só" — e este contador não acompanhou.
+   * Efeito: empresa com 12 ajustes parados e mais nada lia "Nada esperando
+   * ação" nesta tela E não recebia o e-mail diário (o cron pula quando o total
+   * é 0), justamente no módulo que tem fiscalização de jornada em cima.
+   *
+   * Chave própria em vez de somar dentro de `aprovacoes`, de propósito: férias
+   * e ausência já dividem aquele número porque a decisão é a mesma (abonar ou
+   * não). Ponto não é — quem trata marcação está conferindo jornada, não
+   * concedendo benefício, e juntar os dois esconderia qual fila cresceu.
+   */
+  ajustesPontoPendentes: number;
+
+  /**
+   * "Fale com o RH" do portal sem resposta — `MensagemPortal.respondidaEm` nulo.
+   *
+   * É o caso mais literal possível do grupo DECIDIR: uma pessoa escreveu e está
+   * esperando. A tela /mensagens já ordena as abertas primeiro; faltava alguém
+   * dizer quantas são sem precisar abrir a tela.
+   */
+  mensagensSemResposta: number;
+
+  /**
+   * Entrega registrada e ainda não confirmada pelo colaborador.
+   *
+   * O cabeçalho de entregas/page.tsx diz que a pergunta que aquela tela existe
+   * para responder é "quem ainda não confirmou?" — e essa pergunta não chegava
+   * aqui. Sem a confirmação não há prova de que o notebook, o cartão ou o
+   * uniforme foram entregues, que é o ponto inteiro do módulo.
+   *
+   * Devolvido sai da conta: item devolvido não tem mais o que confirmar. Só
+   * colaborador ativo, mesma régua de asoVencendo/epiVencido — cobrar
+   * confirmação de quem já saiu é cobrar o impossível.
+   */
+  entregasNaoConfirmadas: number;
+
+  /**
+   * Advertência ou suspensão emitida sem assinatura colhida.
+   *
+   * `statusAssinatura` nasce PENDENTE. Enquanto ficar assim o documento não
+   * sustenta a penalidade numa reclamatória — e quanto mais tempo passa entre o
+   * fato e a assinatura, menos defensável fica. Só ativo: quem já saiu não tem
+   * como assinar.
+   */
+  disciplinarSemAssinatura: number;
+
+  /**
+   * Plano de ação com prazo vencido, nem concluído nem cancelado.
+   *
+   * O sistema JÁ tratava isto como pendência em dois lugares: o alerta AL09
+   * (lib/alertas.ts) manda e-mail para a diretoria e o gestor do setor, e o
+   * mesmo achado vira `Sinal` de gravidade ALTA na Central. Só a tela de
+   * Pendências não sabia. Mesma regra do AL09, palavra por palavra, para os
+   * três contarem a mesma coisa.
+   */
+  planosAcaoVencidos: number;
+
+  /**
+   * Desligado sem NENHUM item de offboarding criado.
+   *
+   * `desligamentosIncompletos` conta item em aberto de um checklist QUE EXISTE.
+   * Quem nunca teve checklist criado não aparecia em lugar nenhum — o caso pior
+   * passava, o caso parcial era cobrado. A tela /desligamentos já calculava
+   * exatamente este número (campo `semChecklist` do resumo).
+   *
+   * Mesma regra da tela, incluindo `checklistDispensado`: a dispensa existe
+   * para zerar quem saiu antes de o sistema existir e cobre o offboarding
+   * inteiro. `dataDesligamento` e não `ativo: false` — também como a tela —
+   * porque quem está em aviso prévio já precisa do checklist montado.
+   */
+  desligamentosSemChecklist: number;
+
+  /**
+   * Desligado sem entrevista de saída registrada. Mesmo par da anterior: a tela
+   * /desligamentos já conta (`semEntrevista`), com a mesma dispensa valendo.
+   */
+  desligamentosSemEntrevista: number;
+
+  /**
+   * Sinal CRÍTICO ou ALTO ainda ABERTO na Central — detectado e sem triagem.
+   *
+   * Só ABERTO: RECONHECIDO e EM_PLANO já tiveram desfecho humano, e contá-los
+   * cobraria de novo quem já respondeu. Só CRITICA/ALTA: ATENCAO é lista de
+   * observação e inflaria o número sem pedir ação.
+   *
+   * PLANO_VENCIDO fica DE FORA da conta — é o mesmo fato que
+   * `planosAcaoVencidos` acima, e o AL09 grava os dois no mesmo ciclo. Sem esse
+   * recorte, todo plano vencido apareceria duas vezes no total da tela, que é
+   * exatamente o erro que o filtro por APROVADA evita em
+   * `atestadosSemDocumento`.
+   */
+  sinaisAbertos: number;
 };
 
 /**
@@ -152,6 +261,13 @@ export const PENDENCIAS_DECIDIR = [
   // CAT tem prazo legal de 1 dia útil (Lei 8.213/91, art. 22) — é decisão que
   // não espera, não "acompanhamento".
   "catPendente",
+  // As quatro de 19/08/2026: em todas há uma PESSOA do outro lado esperando o
+  // RH — quem pediu ajuste de ponto, quem escreveu pelo portal, quem recebeu
+  // um equipamento e quem foi advertido. É a definição do grupo.
+  "ajustesPontoPendentes",
+  "mensagensSemResposta",
+  "entregasNaoConfirmadas",
+  "disciplinarSemAssinatura",
 ] as const;
 
 export const PENDENCIAS_PRAZO = [
@@ -165,6 +281,14 @@ export const PENDENCIAS_PRAZO = [
   "desligamentosIncompletos",
   "ciclosAvaliacaoAEncerrar",
   "horasExtrasExcedidas",
+  // 19/08/2026. As três primeiras têm data que já passou (prazo do plano, saída
+  // já registrada); `sinaisAbertos` entra aqui e não em DECIDIR porque o sinal
+  // carrega prazo e gravidade próprios e ninguém, pessoalmente, está do outro
+  // lado esperando — é condição detectada correndo contra o relógio.
+  "planosAcaoVencidos",
+  "desligamentosSemChecklist",
+  "desligamentosSemEntrevista",
+  "sinaisAbertos",
 ] as const;
 
 export const PENDENCIAS_CADASTRO = [
@@ -231,6 +355,14 @@ export const zeradas = (): Pendencias => ({
   atestadosSemDocumento: 0,
   semTelegram: 0,
   cadastrosIncompletos: 0,
+  ajustesPontoPendentes: 0,
+  mensagensSemResposta: 0,
+  entregasNaoConfirmadas: 0,
+  disciplinarSemAssinatura: 0,
+  planosAcaoVencidos: 0,
+  desligamentosSemChecklist: 0,
+  desligamentosSemEntrevista: 0,
+  sinaisAbertos: 0,
 });
 
 type LinhaAgrupada = { empresaId: string; _count?: { _all?: number } };
@@ -274,6 +406,9 @@ export async function pendenciasPorEmpresa(
     pesquisasAbertas, fichasDesatualizadas,
     contratosVencendo, dependentesSemCpf, atestadosSemDocumento, horasExtras,
     semTelegram, cadastrosIncompletos,
+    ajustesPontoPendentes, mensagensSemResposta, entregasNaoConfirmadas,
+    disciplinarSemAssinatura, planosAcaoVencidos, desligamentosSemChecklist,
+    desligamentosSemEntrevista, sinaisAbertosPorEmpresa,
   ] =
     await Promise.all([
       cliente.solicitacaoFerias.groupBy({ by: [...por], _count: contar, where: { empresaId, status: "PENDENTE" } }),
@@ -418,6 +553,83 @@ export async function pendenciasPorEmpresa(
         _count: contar,
         where: { empresaId, ativo: true, ...CADASTRO_INCOMPLETO_WHERE },
       }),
+      // ---- as oito de 19/08/2026 (ver os comentários no tipo Pendencias) ----
+      // Ajuste de ponto esperando decisão. Mesma consulta que a tela de
+      // Aprovações faz desde 11/08/2026 — se as duas divergirem, o cartão diz
+      // um número e a fila mostra outro.
+      cliente.tratamentoPonto.groupBy({
+        by: [...por],
+        _count: contar,
+        where: { empresaId, status: "PENDENTE" },
+      }),
+      // "Fale com o RH" sem resposta. Sem filtro de `ativo`: a pergunta de
+      // quem já saiu continua sendo uma pergunta sem resposta, e a tela
+      // /mensagens também a mostra.
+      cliente.mensagemPortal.groupBy({
+        by: [...por],
+        _count: contar,
+        where: { empresaId, respondidaEm: null },
+      }),
+      // Entrega sem confirmação de quem recebeu. Devolvida sai da conta —
+      // não há mais o que confirmar.
+      cliente.entregaAoColaborador.groupBy({
+        by: [...por],
+        _count: contar,
+        where: { empresaId, confirmadoEm: null, devolvidoEm: null, colaborador: { ativo: true } },
+      }),
+      // Advertência/suspensão sem assinatura colhida.
+      cliente.ocorrenciaDisciplinar.groupBy({
+        by: [...por],
+        _count: contar,
+        where: { empresaId, statusAssinatura: "PENDENTE", colaborador: { ativo: true } },
+      }),
+      // Plano de ação vencido — a MESMA condição do alerta AL09
+      // (lib/alertas.ts::verificarPlanosDeAcaoVencidos). Copiada de lá de
+      // propósito: o e-mail da diretoria, o sinal da Central e este cartão têm
+      // que estar falando do mesmo conjunto de planos.
+      cliente.planoAcao.groupBy({
+        by: [...por],
+        _count: contar,
+        where: { empresaId, status: { notIn: ["CONCLUIDO", "CANCELADO"] }, prazo: { lt: hoje } },
+      }),
+      // Desligado sem nenhum item de offboarding criado. Mesma regra do resumo
+      // da tela /desligamentos (campo `semChecklist`), dispensa inclusive.
+      cliente.colaborador.groupBy({
+        by: [...por],
+        _count: contar,
+        where: {
+          empresaId,
+          dataDesligamento: { not: null },
+          checklistDispensado: false,
+          checklistDesligamento: { none: {} },
+        },
+      }),
+      // Desligado sem entrevista de saída. Par da anterior, mesma dispensa.
+      cliente.colaborador.groupBy({
+        by: [...por],
+        _count: contar,
+        where: {
+          empresaId,
+          dataDesligamento: { not: null },
+          checklistDispensado: false,
+          entrevistaDesligamento: { is: null },
+        },
+      }),
+      // Sinal ainda sem triagem. `tipo` exclui PLANO_VENCIDO para o mesmo plano
+      // não contar duas vezes (ver o comentário no tipo). O resultado deste
+      // groupBy traz `empresaId: string | null` — Sinal de GRUPO/MARCA não tem
+      // CNPJ —, por isso ele é somado num laço próprio lá embaixo em vez de
+      // passar pelo helper `somar`, que exige a chave não-nula.
+      cliente.sinal.groupBy({
+        by: [...por],
+        _count: contar,
+        where: {
+          empresaId,
+          status: "ABERTO",
+          gravidade: { in: ["CRITICA", "ALTA"] },
+          tipo: { not: "PLANO_VENCIDO" },
+        },
+      }),
     ]);
 
   const somar = (linhas: LinhaAgrupada[], aplicar: (p: Pendencias, n: number) => void) => {
@@ -447,6 +659,24 @@ export async function pendenciasPorEmpresa(
   somar(atestadosSemDocumento, (p, n) => (p.atestadosSemDocumento = n));
   somar(semTelegram, (p, n) => (p.semTelegram = n));
   somar(cadastrosIncompletos, (p, n) => (p.cadastrosIncompletos = n));
+  somar(ajustesPontoPendentes, (p, n) => (p.ajustesPontoPendentes = n));
+  somar(mensagensSemResposta, (p, n) => (p.mensagensSemResposta = n));
+  somar(entregasNaoConfirmadas, (p, n) => (p.entregasNaoConfirmadas = n));
+  somar(disciplinarSemAssinatura, (p, n) => (p.disciplinarSemAssinatura = n));
+  somar(planosAcaoVencidos, (p, n) => (p.planosAcaoVencidos = n));
+  somar(desligamentosSemChecklist, (p, n) => (p.desligamentosSemChecklist = n));
+  somar(desligamentosSemEntrevista, (p, n) => (p.desligamentosSemEntrevista = n));
+
+  // Sinal à parte: `empresaId` é opcional no model (sinal de GRUPO/MARCA não
+  // pertence a CNPJ nenhum), então a linha não encaixa em LinhaAgrupada. Os
+  // nulos são descartados de propósito — a tela de Pendências é por empresa, e
+  // um sinal de grupo não tem a quem ser cobrado aqui. Ele continua visível na
+  // Central de Sinais, que já o mostra para todo mundo.
+  for (const linha of sinaisAbertosPorEmpresa) {
+    if (!linha.empresaId) continue;
+    const p = mapa.get(linha.empresaId);
+    if (p) p.sinaisAbertos = linha._count._all;
+  }
 
   // Uma linha por colaborador que lançou hora extra no mês aberto; conta quem
   // passou do teto. `_sum` volta null quando todas as quantidades da pessoa são
@@ -594,54 +824,107 @@ export async function empresasComRegistro(
     "integracoesAtrasadas", "desligamentosIncompletos", "documentosAConferir",
     "ciclosAvaliacaoAEncerrar", "atestadosSemDocumento", "horasExtrasExcedidas",
     "dependentesSemCpf", "contratosVencendo", "pesquisasAbertas", "cadastrosIncompletos",
+    // 19/08/2026. `sinaisAbertos` NÃO entra nesta lista: o `empresaId` do Sinal
+    // é opcional e o groupBy dele devolve `string | null`, que não encaixa em
+    // LinhaAgrupada — ele é resolvido logo abaixo, fora do laço.
+    "ajustesPontoPendentes", "mensagensSemResposta", "entregasNaoConfirmadas",
+    "disciplinarSemAssinatura", "planosAcaoVencidos", "desligamentosSemChecklist",
+    "desligamentosSemEntrevista",
   ] as const satisfies readonly (keyof Pendencias)[];
 
-  const achados = await Promise.all([
-    cliente.exameOcupacional.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
-    cliente.certificadoNR.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
-    cliente.entregaEPI.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
-    cliente.acidenteTrabalho.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
-    cliente.checklistIntegracao.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
-    cliente.checklistDesligamento.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
-    cliente.documentoColaborador.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
-    // Ciclo, não avaliação: é o que a pendência conta desde 10/08/2026, e uma
-    // empresa que criou ciclo mas ainda não gerou avaliação já usa o módulo.
-    cliente.cicloAvaliacao.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
-    cliente.ausencia.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
-    cliente.eventoFolha.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
-    // Dependente não tem empresaId — só colaboradorId. A pergunta vira "quais
-    // empresas têm alguém com dependente".
-    cliente.colaborador.groupBy({
-      by: [...por],
-      _count: contar,
-      where: { empresaId, dependentes: { some: {} } },
-    }),
-    // Contrato é diferente dos outros: a tabela é Colaborador, que nunca está
-    // vazia. O que falta é a classificação — ninguém com contrato por prazo
-    // marcado significa que o RH ainda não preencheu `tipoContrato`, e a
-    // pendência não tem como existir.
-    cliente.colaborador.groupBy({
-      by: [...por],
-      _count: contar,
-      where: { empresaId, ativo: true, tipoContrato: { in: [...CONTRATOS_POR_PRAZO] } },
-    }),
-    // Qualquer pesquisa, em qualquer status: quem nunca criou uma não está com
-    // as pesquisas "em dia", está sem o módulo. Sem isto, marca que nunca abriu
-    // pesquisa apareceria no verde junto de quem encerra tudo em prazo.
-    cliente.pesquisa.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
-    // Qualquer colaborador ativo: se não tem ninguém, o módulo de cadastros
-    // nunca foi aberto. Com isto a verificação de "tem registro" e "precisa de
-    // ação" ficam alinhadas para cadastrosIncompletos.
-    cliente.colaborador.groupBy({
-      by: [...por],
-      _count: contar,
-      where: { empresaId, ativo: true },
-    }),
+  const [achados, sinaisDaEmpresa] = await Promise.all([
+    Promise.all([
+      cliente.exameOcupacional.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
+      cliente.certificadoNR.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
+      cliente.entregaEPI.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
+      cliente.acidenteTrabalho.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
+      cliente.checklistIntegracao.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
+      cliente.checklistDesligamento.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
+      cliente.documentoColaborador.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
+      // Ciclo, não avaliação: é o que a pendência conta desde 10/08/2026, e uma
+      // empresa que criou ciclo mas ainda não gerou avaliação já usa o módulo.
+      cliente.cicloAvaliacao.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
+      cliente.ausencia.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
+      cliente.eventoFolha.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
+      // Dependente não tem empresaId — só colaboradorId. A pergunta vira "quais
+      // empresas têm alguém com dependente".
+      cliente.colaborador.groupBy({
+        by: [...por],
+        _count: contar,
+        where: { empresaId, dependentes: { some: {} } },
+      }),
+      // Contrato é diferente dos outros: a tabela é Colaborador, que nunca está
+      // vazia. O que falta é a classificação — ninguém com contrato por prazo
+      // marcado significa que o RH ainda não preencheu `tipoContrato`, e a
+      // pendência não tem como existir.
+      cliente.colaborador.groupBy({
+        by: [...por],
+        _count: contar,
+        where: { empresaId, ativo: true, tipoContrato: { in: [...CONTRATOS_POR_PRAZO] } },
+      }),
+      // Qualquer pesquisa, em qualquer status: quem nunca criou uma não está com
+      // as pesquisas "em dia", está sem o módulo. Sem isto, marca que nunca abriu
+      // pesquisa apareceria no verde junto de quem encerra tudo em prazo.
+      cliente.pesquisa.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
+      // Qualquer colaborador ativo: se não tem ninguém, o módulo de cadastros
+      // nunca foi aberto. Com isto a verificação de "tem registro" e "precisa de
+      // ação" ficam alinhadas para cadastrosIncompletos.
+      cliente.colaborador.groupBy({
+        by: [...por],
+        _count: contar,
+        where: { empresaId, ativo: true },
+      }),
+      // ---- as sete de 19/08/2026 ----
+        // Ponto: a pergunta é se o módulo é USADO, não se há tratamento pendente —
+      // empresa que bate ponto e não tem nenhum ajuste em aberto está em dia de
+      // verdade; empresa que nunca bateu não tem o que avaliar.
+      //
+      // A prova é `pontoLiberado` no Colaborador, não a tabela RegistroPonto:
+      // esta consulta roda na primeira tela depois do login, para todas as
+      // empresas de uma vez, e RegistroPonto cresce por batida (quatro por
+      // pessoa por dia) — varrê-la aqui custaria mais que todas as outras 21
+      // somadas. Colaborador tem centenas de linhas e responde a mesma
+      // pergunta: sem ninguém com ponto liberado não existe ajuste possível.
+      cliente.colaborador.groupBy({
+        by: [...por],
+        _count: contar,
+        where: { empresaId, pontoLiberado: true },
+      }),
+      cliente.mensagemPortal.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
+      cliente.entregaAoColaborador.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
+      cliente.ocorrenciaDisciplinar.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
+      cliente.planoAcao.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
+      // As duas de desligamento compartilham a base: quem nunca desligou ninguém
+      // não está com o offboarding "em dia", está sem o módulo. Duas entradas
+      // iguais de propósito — as chaves são duas e o laço abaixo é posicional.
+      cliente.colaborador.groupBy({
+        by: [...por],
+        _count: contar,
+        where: { empresaId, dataDesligamento: { not: null } },
+      }),
+      cliente.colaborador.groupBy({
+        by: [...por],
+        _count: contar,
+        where: { empresaId, dataDesligamento: { not: null } },
+      }),
+    ]),
+    // Qualquer sinal já detectado nesta empresa, em qualquer status ou
+    // gravidade: quem nunca teve sinal nenhum não está "sem sinais críticos",
+    // está sem histórico para o zero significar alguma coisa.
+    cliente.sinal.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
   ]);
 
   achados.forEach((linhas: LinhaAgrupada[], i) => {
     mapa.set(chaves[i], new Set(linhas.map((l) => l.empresaId)));
   });
+
+  // Fora do laço porque o tipo não bate (ver o comentário na lista de chaves):
+  // sinal de GRUPO/MARCA tem `empresaId` nulo e é descartado aqui — não
+  // pertence a CNPJ nenhum para efeito desta tela.
+  mapa.set(
+    "sinaisAbertos",
+    new Set(sinaisDaEmpresa.map((l) => l.empresaId).filter((id): id is string => id !== null)),
+  );
   return mapa;
 }
 

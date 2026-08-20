@@ -240,7 +240,13 @@ async function main() {
           (s, k) => s + p[k],
           0,
         );
-        ok(totalPendencias(p) === somaManual, `total (${totalPendencias(p)}) = soma das 17 chaves`);
+        ok(
+          totalPendencias(p) === somaManual,
+          // Contagem dinâmica: o texto dizia "17 chaves" fixo e já estava
+          // errado antes de 19/08/2026 (eram 19). Quem lê a saída do smoke
+          // precisa do número de agora, não do número de quando foi escrito.
+          `total (${totalPendencias(p)}) = soma das ${Object.keys(zeradas()).length} chaves`,
+        );
         ok(
           Object.keys(p).length === Object.keys(zeradas()).length,
           "o objeto devolvido tem exatamente as chaves declaradas em zeradas()",

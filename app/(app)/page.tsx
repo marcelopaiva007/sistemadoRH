@@ -43,8 +43,8 @@ export default async function HomePage() {
     select: { id: true, nome: true, marca: { select: { id: true, nome: true } } },
   });
 
-  // Tudo agregado de uma vez, não uma rodada de queries por empresa: são 33
-  // idas ao banco no total (3 aqui + 18 em pendenciasPorEmpresa + 12 em
+  // Tudo agregado de uma vez, não uma rodada de queries por empresa: são 53
+  // idas ao banco no total (3 aqui + 28 em pendenciasPorEmpresa + 22 em
   // empresasComRegistro), quantas empresas forem. O laço anterior fazia 11 POR
   // empresa — com os 11 CNPJs do grupo passava de 120, e esta é a primeira
   // tela depois do login.
@@ -103,7 +103,7 @@ export default async function HomePage() {
   const totalColaboradores = resumos.reduce((a, r) => a + r.ativos, 0);
   const totalVagas = resumos.reduce((a, r) => a + r.vagasAbertas, 0);
   const totalIntegracoes = resumos.reduce((a, r) => a + r.integracoesAbertas, 0);
-  // As 19 pendências separadas por natureza (lib/pendencias.ts). O total
+  // As 27 pendências separadas por natureza (lib/pendencias.ts). O total
   // continua existindo — a soma por marca, os cartões e o popover seguem
   // usando ele —, mas o TOPO da tela passa a mostrar os três grupos, porque
   // "6 documentos esperando conferência" e "163 cadastros incompletos" não

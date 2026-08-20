@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import {
   Activity,
   AlertOctagon,
@@ -177,6 +178,34 @@ export function RHEmpresaNav({ empresaId }: { empresaId: string }) {
   const pathname = usePathname();
   const base = `/rh/${empresaId}`;
 
+  // Badge de "Mensagens": quantas do Fale com o RH ainda estão sem resposta.
+  // Busca da API (não vem de prop do layout: o layout não re-renderiza a cada
+  // navegação, e o número congelaria no primeiro carregamento). Reconsulta a
+  // cada troca de tela — quem responde uma mensagem e navega vê o badge cair
+  // na hora — e a cada minuto parado, para mensagem nova aparecer sem F5.
+  const [mensagensAbertas, setMensagensAbertas] = useState(0);
+  useEffect(() => {
+    let ativo = true;
+    const buscar = async () => {
+      try {
+        const r = await fetch(`/api/rh/${empresaId}/mensagens-abertas`);
+        if (!r.ok) return;
+        const dados = (await r.json()) as { abertas?: number };
+        if (ativo) setMensagensAbertas(dados.abertas ?? 0);
+      } catch {
+        // Rede falhou: mantém o último número conhecido em vez de zerar — um
+        // badge que pisca para 0 a cada oscilação diria "tudo respondido" sem
+        // ser verdade.
+      }
+    };
+    buscar();
+    const intervalo = setInterval(buscar, 60_000);
+    return () => {
+      ativo = false;
+      clearInterval(intervalo);
+    };
+  }, [empresaId, pathname]);
+
   return (
     <nav className="space-y-4 pb-6">
       <Link
@@ -220,6 +249,15 @@ export function RHEmpresaNav({ empresaId }: { empresaId: string }) {
                   >
                     <Icon className="size-4 shrink-0" />
                     <span className="truncate">{item.label}</span>
+                    {item.slug === "mensagens" && mensagensAbertas > 0 && (
+                      // Contador, não pontinho: o RH decide se abre agora pela
+                      // quantidade. Vermelho porque há uma pessoa esperando do
+                      // outro lado — mesma régua do grupo DECIDIR das
+                      // pendências.
+                      <span className="ml-auto shrink-0 rounded-full bg-destructive px-1.5 py-0.5 text-[10px] leading-none font-semibold tabular-nums text-white">
+                        {mensagensAbertas}
+                      </span>
+                    )}
                   </Link>
                 </li>
               );

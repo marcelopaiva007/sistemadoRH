@@ -42,6 +42,18 @@ export const ROTULOS_PENDENCIA: Record<keyof Pendencias, string> = {
   dependentesSemCpf: "Dependente sem CPF",
   cadastrosIncompletos: "Cadastros incompletos",
   semTelegram: "Sem Telegram vinculado",
+  // 19/08/2026 — as oito situações novas de lib/pendencias.ts. O tipo
+  // Record<keyof Pendencias, string> obriga a lista a acompanhar: pendência
+  // sem rótulo aqui não compila, e por isso nenhuma delas pode entrar no
+  // contador e ficar de fora do e-mail diário.
+  ajustesPontoPendentes: "Ajuste de ponto a decidir",
+  mensagensSemResposta: "Mensagem do portal sem resposta",
+  entregasNaoConfirmadas: "Entrega sem confirmação",
+  disciplinarSemAssinatura: "Medida disciplinar sem assinatura",
+  planosAcaoVencidos: "Plano de ação vencido",
+  desligamentosSemChecklist: "Desligado sem checklist de saída",
+  desligamentosSemEntrevista: "Desligado sem entrevista de saída",
+  sinaisAbertos: "Sinal sem triagem",
 };
 
 export type ResultadoCobrancaRH = { avaliados: number; enviados: number; deduplicados: number; erros: number };
