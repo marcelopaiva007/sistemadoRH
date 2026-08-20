@@ -92,8 +92,17 @@ async function vincular(
     // tem vários CNPJs e a base veio de importações por razão social). Em
     // 12/08/2026 isso travou um colaborador real: o CPF dele achava a ficha B,
     // o chat estava na ficha A, e o bot o recusava como se fosse "outro
-    // colaborador" — dele mesmo. Pessoa igual não é conflito: confirma e segue.
+    // colaborador" — dele mesmo. Pessoa igual não é conflito — mas só
+    // confirmar sem mover o chat também não resolve: na transferência de CNPJ
+    // a ficha antiga é desativada, e o chat preso nela deixa o /portal sem
+    // ficha ativa ("faça /start") enquanto o /start responde "já vinculado" —
+    // loop sem saída. O chat SEGUE a pessoa: sai da ficha antiga e entra na
+    // ficha que os caminhos de busca escolheram (sempre uma ficha ativa).
     if (jaDono.cpf && colaborador.cpf && digitos(jaDono.cpf) === digitos(colaborador.cpf)) {
+      await prisma.$transaction([
+        prisma.colaborador.update({ where: { id: jaDono.id }, data: { telegramChatId: null } }),
+        prisma.colaborador.update({ where: { id: colaborador.id }, data: { telegramChatId: chatId } }),
+      ]);
       await sendTelegramMessage(
         chatId,
         `Você já está vinculado, ${colaborador.nome.split(" ")[0]}! ✅\n\n` +
@@ -138,14 +147,64 @@ async function vincular(
   );
 }
 
+/**
+ * A ficha ATIVA desta pessoa (CPF em dígitos), com a mesma preferência
+ * determinística do caminho de CPF digitado: primeiro a ficha que já tem este
+ * chat, depois uma sem chat nenhum (não rouba vínculo), por fim a mais antiga.
+ * findMany porque o mesmo CPF existe em mais de uma ficha (um CNPJ por razão
+ * social, importações separadas).
+ */
+async function fichaAtivaPorCpf(
+  cpf: string,
+  chatId: string
+): Promise<{ id: string; nome: string; cpf: string | null; telegramChatId: string | null } | null> {
+  const fichas = await prisma.colaborador.findMany({
+    where: { cpf, ativo: true },
+    select: { id: true, nome: true, cpf: true, telegramChatId: true },
+    orderBy: { createdAt: "asc" },
+  });
+  return (
+    fichas.find((f) => f.telegramChatId === chatId) ??
+    fichas.find((f) => !f.telegramChatId) ??
+    fichas[0] ??
+    null
+  );
+}
+
+/**
+ * Transferência de CNPJ: a ficha antiga é desativada e uma nova é criada, mas o
+ * chat do Telegram (@@unique) fica preso na ficha antiga. Quem já era vinculado
+ * pedia /portal e recebia "faça /start" para sempre. Aqui o vínculo segue a
+ * pessoa: se o chat está numa ficha inativa e existe ficha ativa com o mesmo
+ * CPF, migra e devolve a ficha ativa.
+ */
+async function migrarVinculoParaFichaAtiva(
+  chatId: string
+): Promise<{ id: string; nome: string } | null> {
+  const fichaComChat = await prisma.colaborador.findFirst({
+    where: { telegramChatId: chatId },
+    select: { id: true, cpf: true },
+  });
+  const cpf = digitos(fichaComChat?.cpf ?? "");
+  if (!fichaComChat || cpf.length !== 11) return null;
+  const destino = await fichaAtivaPorCpf(cpf, chatId);
+  if (!destino || destino.id === fichaComChat.id) return null;
+  await prisma.$transaction([
+    prisma.colaborador.update({ where: { id: fichaComChat.id }, data: { telegramChatId: null } }),
+    prisma.colaborador.update({ where: { id: destino.id }, data: { telegramChatId: chatId } }),
+  ]);
+  return { id: destino.id, nome: destino.nome };
+}
+
 // Manda o link do portal para o chat que pediu — e só para ele. Nunca revela se
 // o chat está vinculado a alguém: quem não tem vínculo recebe a instrução de
 // fazer o /start, sem confirmar ou negar cadastro.
 async function enviarLinkDoPortal(chatId: string): Promise<void> {
-  const colaborador = await prisma.colaborador.findFirst({
-    where: { telegramChatId: chatId, ativo: true },
-    select: { id: true, nome: true },
-  });
+  const colaborador =
+    (await prisma.colaborador.findFirst({
+      where: { telegramChatId: chatId, ativo: true },
+      select: { id: true, nome: true },
+    })) ?? (await migrarVinculoParaFichaAtiva(chatId));
   if (!colaborador) {
     await sendTelegramMessage(chatId, MSG_PORTAL_SEM_VINCULO, TECLADO_CONTATO);
     return;
@@ -203,14 +262,26 @@ export async function POST(req: NextRequest) {
       }
       const sufixo = sufixoTelefone(message.contact.phone_number);
       if (sufixo) {
+        // Sem filtro de `ativo` aqui: na transferência de CNPJ o telefone
+        // costuma ficar só na ficha antiga (desativada). O match inativo não
+        // vincula — ele serve de ponte pelo CPF até a ficha ativa da pessoa.
         const colaboradores = await prisma.colaborador.findMany({
-          where: { ativo: true, telefone: { not: null } },
-          select: { id: true, nome: true, cpf: true, telefone: true, telegramChatId: true },
+          where: { telefone: { not: null } },
+          select: { id: true, nome: true, cpf: true, telefone: true, telegramChatId: true, ativo: true },
         });
         const matches = colaboradores.filter((c) => sufixoTelefone(c.telefone) === sufixo);
-        if (matches.length === 1) {
-          await vincular(chatId, matches[0]);
+        const ativos = matches.filter((c) => c.ativo);
+        if (ativos.length === 1) {
+          await vincular(chatId, ativos[0]);
           return NextResponse.json({ ok: true });
+        }
+        if (ativos.length === 0 && matches.length > 0) {
+          const cpfs = [...new Set(matches.map((c) => digitos(c.cpf ?? "")).filter((c) => c.length === 11))];
+          const destino = cpfs.length === 1 ? await fichaAtivaPorCpf(cpfs[0], chatId) : null;
+          if (destino) {
+            await vincular(chatId, destino);
+            return NextResponse.json({ ok: true });
+          }
         }
       }
       await sendTelegramMessage(chatId, MSG_PEDIR_CPF);
@@ -234,22 +305,11 @@ export async function POST(req: NextRequest) {
     // 4) CPF digitado.
     const cpf = digitos(texto);
     if (cpf.length === 11) {
-      // findMany, não findFirst: o mesmo CPF pode existir em mais de uma ficha
-      // (um CNPJ por razão social, importações separadas). O findFirst sem
-      // ordenação escolhia uma ficha imprevisível — e podia escolher exatamente
-      // a que NÃO tinha o chat, transformando a própria pessoa em "outro
-      // colaborador". A preferência aqui é determinística: primeiro a ficha
-      // que JÁ tem este chat (vira "você já está vinculado"), depois uma sem
-      // chat nenhum (não rouba vínculo), por fim a mais antiga.
-      const fichas = await prisma.colaborador.findMany({
-        where: { cpf, ativo: true },
-        select: { id: true, nome: true, cpf: true, telegramChatId: true },
-        orderBy: { createdAt: "asc" },
-      });
-      const colaborador =
-        fichas.find((f) => f.telegramChatId === chatId) ??
-        fichas.find((f) => !f.telegramChatId) ??
-        fichas[0];
+      // A preferência determinística vive em fichaAtivaPorCpf — o findFirst
+      // sem ordenação escolhia uma ficha imprevisível, e podia escolher
+      // exatamente a que NÃO tinha o chat, transformando a própria pessoa em
+      // "outro colaborador".
+      const colaborador = await fichaAtivaPorCpf(cpf, chatId);
       if (colaborador) {
         await vincular(chatId, colaborador);
       } else {
