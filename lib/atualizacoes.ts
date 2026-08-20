@@ -25,6 +25,21 @@ export type Atualizacao = {
 };
 
 export const ATUALIZACOES: Atualizacao[] = [
+  // Faixa consolidada: a 1.98.1 subiu sem passar por aqui (duas entregas em
+  // paralelo no mesmo dia), e a 1.98.2 é esta entrada mais o número na tela.
+  {
+    versao: "1.98.1–1.98.2",
+    data: "20/08/2026",
+    horario: "10:55",
+    titulo: "Foto do ponto: correções da revisão do mesmo dia",
+    itens: [
+      "Aparelho antigo que não conseguia processar a foto (alguns Androids e iPhones com sistema desatualizado) ficava SEM conseguir bater o ponto — a foto obrigatória virou beco sem saída nesses casos. Agora a leitura da foto tem três caminhos alternativos e cobre esses aparelhos; se mesmo assim falhar, a mensagem orienta a avisar o RH para registrar a marcação manualmente.",
+      "Fechado um furo na regra do servidor: uma chamada direta com \"foto\" forjada (arquivo vazio ou lixo) passava pela validação e registrava a batida. Agora o conteúdo do arquivo é conferido — e um teste automático no CI garante que a regra não afrouxa num refactor futuro.",
+      "Tocar em \"Cancelar\" enquanto a foto ainda estava sendo processada não cancelava — a batida registrava mesmo assim. Agora a tela trava durante o processamento e o cancelamento vale.",
+      "Com a aba do ponto aberta na virada do dia, os botões ficavam presos em \"Registrado\" com as batidas de ontem; e um erro de rede na hora do registro podia esconder que o ponto JÁ tinha sido gravado. A lista de batidas agora se atualiza na virada do dia, ao voltar para a tela e também depois de um erro.",
+      "Na tela de Pendências, o cartão \"Disciplinar sem assinatura\" agora abre a lista já filtrada em quem tem assinatura pendente; o cartão de mensagens deixou de divergir da tela quando havia mais de 200 abertas; e o KPI de entregas conta só colaborador ativo, igual ao cartão.",
+    ],
+  },
   {
     versao: "1.98.0",
     data: "20/08/2026",
