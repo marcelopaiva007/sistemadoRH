@@ -6,7 +6,11 @@ import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { registrarAuditoria } from "@/lib/audit";
 import { dataDoFormulario, formatarData } from "@/lib/datas";
 import { ITENS_OFFBOARDING, itemOffboardingLabel } from "@/lib/constants-offboarding";
-import { MOTIVOS_DESLIGAMENTO, motivoDesligamentoLabel } from "@/lib/constants-dp";
+import {
+  MOTIVOS_DESLIGAMENTO,
+  motivoDesligamentoLabel,
+  PRIMEIRO_DESLIGAMENTO_COBRADO,
+} from "@/lib/constants-dp";
 import type { ActionResult } from "@/lib/constants";
 
 const ITENS_CATALOGO = ITENS_OFFBOARDING.filter((i) => i.value !== "OUTRO").map((i) => i.value);
@@ -98,10 +102,19 @@ export async function corrigirDadosDesligamento(
   // então a dispensa do offboarding acontece junto, sozinha (regra do CEO em
   // 07/08/2026). Mesma trava da dispensa manual: quem já tem item de checklist
   // gerado termina os itens em vez de dispensar.
+  //
+  // A condição do corte (20/08/2026) veio da revisão do commit que o criou:
+  // sem ela, uma IMPORTAÇÃO FUTURA (novo CNPJ entrando no sistema) de alguém
+  // desligado depois de 16/08 teria dataDesligamento < createdAt, e confirmar
+  // o motivo pelo lápis da tela dispensaria em silêncio um offboarding que a
+  // regra vigente manda cobrar. "Anterior ao sistema" agora tem UMA régua — a
+  // data de corte — e esta heurística só complementa (cadastro que nasceu
+  // depois da saída), nunca contradiz.
   const dispensarOffboarding =
     !colaborador.checklistDispensado &&
     colaborador._count.checklistDesligamento === 0 &&
-    dataDesligamento < colaborador.createdAt;
+    dataDesligamento < colaborador.createdAt &&
+    dataDesligamento < PRIMEIRO_DESLIGAMENTO_COBRADO;
 
   await prisma.colaborador.update({
     where: { id: colaboradorId },

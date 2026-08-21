@@ -26,6 +26,16 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.99.1",
+    data: "20/08/2026",
+    horario: "11:50",
+    titulo: "Corte de desligamentos: dois ajustes da revisão",
+    itens: [
+      "Ao corrigir data e motivo de um desligamento pela tela de Desligamentos, a dispensa automática de offboarding agora respeita o corte de 16/08/2026: só dispensa sozinha desligamento anterior ao corte. Sem isso, uma importação futura poderia isentar em silêncio uma saída recente que deve ser cobrada.",
+      "Na lista de Desligamentos, saída antiga (até 15/08/2026) sem checklist ou sem entrevista aparece com o selo neutro \"Histórico\" em vez de vermelho — vermelho na linha com o indicador do topo zerado dava a impressão de pendência onde a regra diz que não há.",
+    ],
+  },
+  {
     versao: "1.99.0",
     data: "20/08/2026",
     horario: "11:20",
@@ -34,7 +44,7 @@ export const ATUALIZACOES: Atualizacao[] = [
       "Decisão do CEO: desligamento até 15/08/2026 (inclusive) é anterior ao início do uso do sistema — veio da importação da base, e não há checklist nem entrevista possíveis de cobrar. Esses casos saem dos cartões \"Desligado sem checklist\", \"Desligado sem entrevista\" e \"Desligamento incompleto\", do indicador do topo e do e-mail diário (eram ~80 itens em cada cartão que ninguém tinha como fechar).",
       "De 16/08/2026 em diante, a saída acontece já dentro do sistema e o offboarding é cobrado normalmente.",
       "Nada foi apagado: os desligamentos antigos continuam na tela de Desligamentos e na ficha de cada pessoa, com o estado real do checklist — só deixam de contar como pendência. Os indicadores da tela de Desligamentos seguem a mesma régua, para o número do cartão bater com a tela.",
-      "A dispensa individual de offboarding (botão na ficha) continua valendo para os dois lados: dispensar um caso novo ou reverter a dispensa de um antigo que o RH decida cobrar mesmo assim.",
+      "A dispensa individual de offboarding (botão na ficha) segue existindo para dispensar um caso novo pontual. Para os casos anteriores ao corte ela deixou de ter efeito na cobrança — a data já os exclui. Se o RH quiser tratar um desligamento antigo específico, o caminho é gerar o checklist dele na ficha: o andamento aparece na tela de Desligamentos normalmente.",
     ],
   },
   // Faixa consolidada: a 1.98.1 subiu sem passar por aqui (duas entregas em

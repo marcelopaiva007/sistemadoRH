@@ -181,9 +181,13 @@ export const DIAS_ALERTA_VENCIMENTO = 60;
  * O corte NÃO apaga nada: o desligamento antigo continua na tela de
  * Desligamentos e na ficha, com o estado real do checklist — só deixa de
  * somar nos contadores de pendência e no e-mail diário. A dispensa individual
- * (`checklistDispensado`, botão na ficha) continua valendo para os dois lados:
- * dispensar um caso novo e reverter a dispensa de um antigo que o RH decida
- * cobrar mesmo assim.
+ * (`checklistDispensado`, botão na ficha) segue existindo para DISPENSAR um
+ * caso novo pontual; para caso ANTERIOR ao corte ela virou marcação visual —
+ * o filtro por data já o exclui incondicionalmente, e reverter a dispensa NÃO
+ * o traz de volta à cobrança. Se um dia o RH precisar cobrar um caso antigo
+ * específico, o caminho é gerar o checklist dele na ficha: item de checklist
+ * EXISTENTE em aberto aparece no progresso da tela de Desligamentos
+ * independentemente do corte.
  *
  * Vale nos DOIS lugares que contam a mesma coisa — lib/pendencias.ts e o
  * resumo da tela /desligamentos — para o cartão e a tela nunca divergirem.

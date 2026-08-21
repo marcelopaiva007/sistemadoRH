@@ -8,7 +8,11 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { MOTIVOS_DESLIGAMENTO, motivoDesligamentoLabel } from "@/lib/constants-dp";
+import {
+  MOTIVOS_DESLIGAMENTO,
+  motivoDesligamentoLabel,
+  PRIMEIRO_DESLIGAMENTO_COBRADO,
+} from "@/lib/constants-dp";
 import { corrigirDadosDesligamento } from "@/lib/actions/rh-offboarding";
 import { formatarData } from "@/lib/datas";
 import { Indicador } from "@/components/indicador";
@@ -106,10 +110,26 @@ export function DesligamentosView({
                         {d.motivoDesligamento ? motivoDesligamentoLabel(d.motivoDesligamento) : "—"}
                       </TableCell>
                       <TableCell>
+                        {/* Saída até 15/08/2026 sem checklist não é pendência
+                            (corte de PRIMEIRO_DESLIGAMENTO_COBRADO): o badge
+                            fica NEUTRO, não vermelho — vermelho aqui com o
+                            indicador do topo em zero era exatamente a
+                            divergência badge × contador que a tela promete não
+                            ter. Checklist que EXISTE mostra o progresso real,
+                            de qualquer época. */}
                         {d.checklistDispensado ? (
                           <Badge variant="outline">Dispensado</Badge>
                         ) : d.checklistTotal === 0 ? (
-                          <Badge variant="destructive">Não gerado</Badge>
+                          new Date(d.dataDesligamento) < PRIMEIRO_DESLIGAMENTO_COBRADO ? (
+                            <Badge
+                              variant="outline"
+                              title="Saída até 15/08/2026 — anterior ao uso do sistema, fora da cobrança de pendências"
+                            >
+                              Histórico
+                            </Badge>
+                          ) : (
+                            <Badge variant="destructive">Não gerado</Badge>
+                          )
                         ) : d.checklistConcluido === d.checklistTotal ? (
                           <Badge variant="default">
                             {d.checklistConcluido}/{d.checklistTotal}
@@ -127,6 +147,15 @@ export function DesligamentosView({
                           // A dispensa de desligamento antigo cobre a entrevista
                           // também — mesma regra do contador em page.tsx.
                           <Badge variant="outline">Dispensada</Badge>
+                        ) : new Date(d.dataDesligamento) < PRIMEIRO_DESLIGAMENTO_COBRADO ? (
+                          // Mesmo corte do checklist ao lado: saída antiga sem
+                          // entrevista é histórico, não fila.
+                          <Badge
+                            variant="outline"
+                            title="Saída até 15/08/2026 — anterior ao uso do sistema, fora da cobrança de pendências"
+                          >
+                            Histórico
+                          </Badge>
                         ) : (
                           <Badge variant="outline">Pendente</Badge>
                         )}
