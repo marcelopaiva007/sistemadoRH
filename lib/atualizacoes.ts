@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.104.0",
+    data: "21/08/2026",
+    horario: "20:30",
+    titulo: "Disciplinar: excluir medida registrada por engano ou teste",
+    itens: [
+      "Cada medida disciplinar na ficha do colaborador ganhou o botão de excluir (ícone de lixeira) — para registro criado por engano ou durante teste do sistema. Antes não havia como remover, nem pedindo à TI.",
+      "A exclusão exige um motivo escrito e guarda uma cópia integral do registro na trilha de auditoria, com quem excluiu e quando — dá para reverter um engano e responder por uma fiscalização. Medida aplicada de verdade não se exclui: se mantém no histórico.",
+      "A via assinada anexada (se houver) é removida junto, sem deixar arquivo órfão no banco.",
+    ],
+  },
+  {
     versao: "1.103.0",
     data: "21/08/2026",
     horario: "19:50",

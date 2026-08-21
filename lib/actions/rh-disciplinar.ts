@@ -136,6 +136,74 @@ export async function registrarAssinaturaOcorrencia(
  * Recebe `FormData` (e não os campos soltos) porque é assim que um File
  * atravessa uma server action. Mesmo caminho de `registrarAusencia`.
  */
+/**
+ * Exclui uma medida disciplinar — para registro feito por engano ou teste.
+ *
+ * A justificativa é OBRIGATÓRIA e o conteúdo integral da ocorrência vai para
+ * `detalhes` da auditoria antes do delete: medida disciplinar é registro com
+ * peso legal (Art. 482 CLT, gradação de penas), e uma exclusão sem motivo e
+ * sem cópia seria indistinguível de adulteração de histórico. Com o snapshot,
+ * a exclusão é reversível e a trilha responde "o que foi apagado, por quem e
+ * por quê".
+ *
+ * O anexo (via assinada) é apagado junto, dentro da mesma transação — o FK é
+ * SET NULL e o arquivo ficaria órfão no banco, sem tela por onde alcançá-lo
+ * (mesmo cuidado de excluirAusencia).
+ */
+export async function excluirOcorrenciaDisciplinar(
+  empresaId: string,
+  ocorrenciaId: string,
+  motivoExclusao: string,
+): Promise<ActionResult> {
+  // Prisma remove `undefined` do WHERE: sem esta guarda, um POST direto com
+  // empresaId ausente faria o findFirst buscar só por id — alcançando
+  // ocorrência de OUTRA empresa para ADMIN/DIRETORIA, com auditoria fora da
+  // trilha da empresa dona.
+  if (typeof empresaId !== "string" || empresaId === "" || typeof ocorrenciaId !== "string" || ocorrenciaId === "") {
+    return { ok: false, error: "Ocorrência ou empresa não informada." };
+  }
+  await requireEmpresaAccess(empresaId);
+
+  const motivo = String(motivoExclusao ?? "").trim();
+  if (motivo.length < 5) {
+    return { ok: false, error: "Escreva o motivo da exclusão (mínimo 5 caracteres) — ele fica na trilha de auditoria." };
+  }
+
+  const atual = await prisma.ocorrenciaDisciplinar.findFirst({
+    where: { id: ocorrenciaId, empresaId },
+    include: { colaborador: { select: { nome: true } } },
+  });
+  if (!atual) return { ok: false, error: "Ocorrência não encontrada nesta empresa." };
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.ocorrenciaDisciplinar.delete({ where: { id: atual.id } });
+      if (atual.arquivoId) await tx.arquivo.delete({ where: { id: atual.arquivoId } });
+    });
+  } catch (error) {
+    console.error("Erro ao excluir ocorrência disciplinar:", error);
+    return { ok: false, error: "Falha ao excluir a ocorrência. Tente de novo." };
+  }
+
+  // DEPOIS do delete, nunca antes: registrarAuditoria engole a própria falha
+  // (nunca lança), então auditar antes podia deixar trilha de exclusão de um
+  // registro que continuou existindo. O snapshot vem da linha já lida — o
+  // conteúdo integral sobrevive na trilha mesmo com a linha apagada.
+  const { colaborador, ...snapshot } = atual;
+  await registrarAuditoria({
+    empresaId,
+    acao: "EXCLUIR",
+    entidade: "OcorrenciaDisciplinar",
+    entidadeId: atual.id,
+    resumo: `Medida disciplinar (${atual.tipo}) de ${colaborador.nome} excluída. Motivo: ${motivo}`,
+    detalhes: { motivoExclusao: motivo, ocorrencia: snapshot },
+  });
+
+  revalidatePath(`/rh/${empresaId}/colaboradores/${atual.colaboradorId}`);
+  revalidatePath(`/rh/${empresaId}/disciplinar`);
+  return { ok: true };
+}
+
 export async function anexarViaAssinadaOcorrencia(
   empresaId: string,
   ocorrenciaId: string,

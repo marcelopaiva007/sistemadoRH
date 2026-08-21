@@ -9,6 +9,7 @@ import {
   Plus,
   Printer,
   ShieldAlert,
+  Trash2,
   CheckCircle2,
   UserX,
   Paperclip,
@@ -35,6 +36,7 @@ import {
   criarOcorrenciaDisciplinar,
   registrarAssinaturaOcorrencia,
   anexarViaAssinadaOcorrencia,
+  excluirOcorrenciaDisciplinar,
   type ResultadoOcorrencia,
 } from "@/lib/actions/rh-disciplinar";
 
@@ -81,6 +83,7 @@ export function DisciplinarCard({
   const [modalAberto, setModalAberto] = useState(false);
   const [modalAssinatura, setModalAssinatura] = useState<Ocorrencia | null>(null);
   const [modalAnexo, setModalAnexo] = useState<Ocorrencia | null>(null);
+  const [modalExcluir, setModalExcluir] = useState<Ocorrencia | null>(null);
 
   const totalAdvertencias = ocorrencias.filter((o) =>
     o.tipo.includes("ADVERTENCIA"),
@@ -262,6 +265,15 @@ export function DisciplinarCard({
                               Anexar via
                             </Button>
                           )}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setModalExcluir(o)}
+                            className="h-7 text-xs text-destructive hover:text-destructive"
+                            title="Excluir esta medida (registro feito por engano ou teste)"
+                          >
+                            <Trash2 className="size-3.5" />
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -298,7 +310,113 @@ export function DisciplinarCard({
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Excluir uma medida registrada por engano ou teste */}
+      {modalExcluir && (
+        <Dialog open={!!modalExcluir} onOpenChange={() => setModalExcluir(null)}>
+          <DialogContent className="max-w-md">
+            <ExcluirOcorrenciaForm
+              empresaId={empresaId}
+              ocorrencia={modalExcluir}
+              onSuccess={() => setModalExcluir(null)}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
     </Card>
+  );
+}
+
+/**
+ * Exclusão com justificativa obrigatória. Medida disciplinar é registro com
+ * peso legal: apagar sem dizer por quê seria indistinguível de adulteração de
+ * histórico. O motivo e a cópia integral do registro ficam na trilha de
+ * auditoria (ver excluirOcorrenciaDisciplinar) — é o que permite reverter um
+ * engano e responder por uma fiscalização.
+ */
+function ExcluirOcorrenciaForm({
+  empresaId,
+  ocorrencia,
+  onSuccess,
+}: {
+  empresaId: string;
+  ocorrencia: Ocorrencia;
+  onSuccess: () => void;
+}) {
+  const [motivo, setMotivo] = useState("");
+  const [enviando, setEnviando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  const metaTipo = TIPOS_OCORRENCIA_DISCIPLINAR.find((t) => t.value === ocorrencia.tipo);
+
+  const excluir = async () => {
+    setEnviando(true);
+    setErro(null);
+    try {
+      const res = await excluirOcorrenciaDisciplinar(empresaId, ocorrencia.id, motivo);
+      if (res.ok) {
+        toast.success("Medida disciplinar excluída. A cópia ficou na trilha de auditoria.");
+        onSuccess();
+      } else {
+        setErro(res.error);
+      }
+    } catch {
+      setErro("Não foi possível excluir agora. Tente de novo.");
+    } finally {
+      setEnviando(false);
+    }
+  };
+
+  return (
+    <div>
+      <DialogHeader>
+        <DialogTitle>Excluir medida disciplinar</DialogTitle>
+      </DialogHeader>
+
+      <div className="space-y-3 py-4">
+        <p className="text-sm">
+          Excluir <strong>{metaTipo?.label ?? ocorrencia.tipo}</strong> de{" "}
+          {formatarData(ocorrencia.dataFato)}
+          {ocorrencia.arquivo ? ", junto com a via assinada anexada" : ""}?
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Use para registro feito por engano ou teste. Uma cópia integral fica na trilha de
+          auditoria, com o seu nome e o motivo — medida aplicada de verdade não se exclui, se
+          mantém no histórico.
+        </p>
+        <div className="space-y-1.5">
+          <Label htmlFor="motivoExclusao" required>
+            Motivo da exclusão
+          </Label>
+          <Textarea
+            id="motivoExclusao"
+            value={motivo}
+            onChange={(e) => setMotivo(e.target.value)}
+            placeholder="Ex.: registro criado por engano durante teste da funcionalidade."
+            className="min-h-[64px] text-sm"
+          />
+        </div>
+        {erro && (
+          <Alert variant="destructive">
+            <AlertDescription>{erro}</AlertDescription>
+          </Alert>
+        )}
+      </div>
+
+      <DialogFooter>
+        <Button type="button" variant="outline" onClick={onSuccess} disabled={enviando}>
+          Cancelar
+        </Button>
+        <Button
+          type="button"
+          variant="destructive"
+          onClick={excluir}
+          disabled={enviando || motivo.trim().length < 5}
+        >
+          {enviando ? "Excluindo..." : "Excluir de vez"}
+        </Button>
+      </DialogFooter>
+    </div>
   );
 }
 
