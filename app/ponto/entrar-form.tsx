@@ -6,6 +6,7 @@ import { Building2, KeyRound, LogIn, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { InstalarPwa } from "@/components/instalar-pwa";
 import { entrarNoPonto } from "./actions";
 
 // O CPF fica lembrado no aparelho (é do próprio dono): no dia a dia a pessoa
@@ -152,6 +153,18 @@ export function EntrarPontoForm() {
           </p>
         </form>
       )}
+
+      {/* O convite de instalação também ANTES do login: quem abre o /ponto
+          pela primeira vez está na tela de entrada, e era só depois do PIN que
+          o convite aparecia — tarde demais para o primeiro acesso (no iPhone,
+          onde não existe popup nativo, a pessoa achava que não tinha app).
+          Mesma chave de dispensa da tela logada: dispensou uma vez, valeu. */}
+      <InstalarPwa
+        escopo="/ponto"
+        chaveDispensa="ponto-instalar-dispensado"
+        titulo="Deixe o Ponto na tela do celular"
+        descricaoAndroid="Abre direto pelo ícone, pronto para bater o ponto."
+      />
 
       <p className="flex items-center justify-center gap-1.5 text-[11px] text-muted-foreground">
         <ShieldCheck className="size-3.5 text-emerald-600" />

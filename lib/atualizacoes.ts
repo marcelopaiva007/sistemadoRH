@@ -26,6 +26,16 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.100.1",
+    data: "21/08/2026",
+    horario: "13:10",
+    titulo: "App de Ponto: convite de instalação já na tela de entrada",
+    itens: [
+      "O convite \"Deixe o Ponto na tela do celular\" agora aparece também ANTES do login no /ponto, não só depois do PIN. No primeiro acesso — especialmente no iPhone, onde não existe o popup nativo de instalação — a pessoa via a tela de entrada e achava que não tinha app.",
+      "Dispensar o convite uma vez continua valendo para as duas telas.",
+    ],
+  },
+  {
     versao: "1.100.0",
     data: "21/08/2026",
     horario: "13:00",
