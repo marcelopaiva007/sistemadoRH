@@ -1,6 +1,7 @@
 import { empresasVisiveis, requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
 import { hojeUTC } from "@/lib/datas";
+import { PRIMEIRO_DESLIGAMENTO_COBRADO } from "@/lib/constants-dp";
 import { DesligamentosView } from "./desligamentos-view";
 
 // Visão consolidada dos desligamentos: quem saiu, quanto do checklist de saída
@@ -60,11 +61,19 @@ export default async function DesligamentosPage({
   // como cobrar" de quem saiu antes do sistema existir (ver rh-offboarding.ts).
   // A dispensa cobre o offboarding INTEIRO: entrevista de saída de quem já foi
   // embora há meses também não existe para cobrar, então sai do contador junto.
+  //
+  // Corte de 16/08/2026 (PRIMEIRO_DESLIGAMENTO_COBRADO, decisão do CEO de
+  // 20/08): desligamento anterior é histórico importado e sai dos TRÊS
+  // indicadores — mas fica na LISTA logo abaixo, com o estado real de cada um.
+  // A mesma régua vale nos contadores de lib/pendencias.ts; se divergirem, o
+  // cartão de Pendências diz um número e esta tela mostra outro.
+  const cobrado = (d: { dataDesligamento: Date }) =>
+    d.dataDesligamento >= PRIMEIRO_DESLIGAMENTO_COBRADO;
   const semChecklist = desligamentos.filter(
-    (d) => d.checklistTotal === 0 && !d.checklistDispensado,
+    (d) => cobrado(d) && d.checklistTotal === 0 && !d.checklistDispensado,
   ).length;
   const checklistPendente = desligamentos.filter(
-    (d) => d.checklistTotal > 0 && d.checklistConcluido < d.checklistTotal,
+    (d) => cobrado(d) && d.checklistTotal > 0 && d.checklistConcluido < d.checklistTotal,
   ).length;
   // Só saída que JÁ aconteceu: quem está em aviso prévio ainda trabalha e a
   // entrevista dele não tem como existir. Mesma régua do contador
@@ -72,7 +81,7 @@ export default async function DesligamentosPage({
   // de propósito, ele precisa existir ANTES da saída.
   const hoje = hojeUTC();
   const semEntrevista = desligamentos.filter(
-    (d) => !d.temEntrevista && !d.checklistDispensado && d.dataDesligamento <= hoje,
+    (d) => cobrado(d) && !d.temEntrevista && !d.checklistDispensado && d.dataDesligamento <= hoje,
   ).length;
 
   return (

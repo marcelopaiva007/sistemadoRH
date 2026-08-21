@@ -1,6 +1,10 @@
 import { prisma, type Cliente } from "@/lib/prisma";
 import type { Prisma } from "@/app/generated/prisma/client";
-import { DIAS_ALERTA_VENCIMENTO, CONTRATOS_POR_PRAZO } from "@/lib/constants-dp";
+import {
+  DIAS_ALERTA_VENCIMENTO,
+  CONTRATOS_POR_PRAZO,
+  PRIMEIRO_DESLIGAMENTO_COBRADO,
+} from "@/lib/constants-dp";
 import { RUBRICAS_HORA_EXTRA, LIMITE_HORAS_EXTRAS_MES } from "@/lib/constants-folha";
 import { hojeUTC, somarDiasUTC, diferencaEmDiasUTC } from "@/lib/datas";
 
@@ -143,12 +147,19 @@ export type Pendencias = {
    * para zerar quem saiu antes de o sistema existir e cobre o offboarding
    * inteiro. `dataDesligamento` e não `ativo: false` — também como a tela —
    * porque quem está em aviso prévio já precisa do checklist montado.
+   *
+   * DESDE 20/08/2026 só conta saída a partir de 16/08/2026
+   * (PRIMEIRO_DESLIGAMENTO_COBRADO em lib/constants-dp.ts, decisão do CEO):
+   * desligamento anterior é passivo histórico da importação, sem offboarding
+   * possível de cobrar. O mesmo corte vale em `desligamentosSemEntrevista`,
+   * `desligamentosIncompletos` e no resumo da tela /desligamentos.
    */
   desligamentosSemChecklist: number;
 
   /**
    * Desligado sem entrevista de saída registrada. Mesmo par da anterior: a tela
-   * /desligamentos já conta (`semEntrevista`), com a mesma dispensa valendo.
+   * /desligamentos já conta (`semEntrevista`), com a mesma dispensa e o mesmo
+   * corte de 16/08/2026 valendo.
    */
   desligamentosSemEntrevista: number;
 
@@ -544,10 +555,17 @@ export async function pendenciasPorEmpresa(
         where: { empresaId, ativo: true, dataDesligamento: { gte: hoje, lte: somarDiasUTC(hoje, 7) } },
       }),
       // Desligado com item de offboarding em aberto (crachá, notebook, acesso…).
+      // Só saída a partir do corte (PRIMEIRO_DESLIGAMENTO_COBRADO): item criado
+      // para um desligamento histórico continua visível na tela e na ficha,
+      // mas não cobra — mesma decisão das duas pendências irmãs abaixo.
       desligamentosIncompletos: cliente.checklistDesligamento.groupBy({
         by: [...por],
         _count: contar,
-        where: { empresaId, concluido: false, colaborador: { ativo: false } },
+        where: {
+          empresaId,
+          concluido: false,
+          colaborador: { ativo: false, dataDesligamento: { gte: PRIMEIRO_DESLIGAMENTO_COBRADO } },
+        },
       }),
       // Ciclo de avaliação com a janela fechada e ainda aberto — falta cobrar
       // quem não avaliou e encerrar. Conta o CICLO, não as avaliações pendentes
@@ -678,27 +696,32 @@ export async function pendenciasPorEmpresa(
       }),
       // Desligado sem nenhum item de offboarding criado. Mesma regra do resumo
       // da tela /desligamentos (campo `semChecklist`), dispensa inclusive.
+      // `gte` corte: desligamento até 15/08/2026 é anterior ao uso do sistema
+      // e não cobra (decisão do CEO de 20/08 — ver a constante). O corte por
+      // DATA substitui as dispensas em massa por migration (20260807200000 e
+      // 20260820120000), que dependiam de adivinhar o histórico pelo motivo em
+      // branco ou pelo createdAt — e ainda deixavam 80 casos passar.
       desligamentosSemChecklist: cliente.colaborador.groupBy({
         by: [...por],
         _count: contar,
         where: {
           empresaId,
-          dataDesligamento: { not: null },
+          dataDesligamento: { not: null, gte: PRIMEIRO_DESLIGAMENTO_COBRADO },
           checklistDispensado: false,
           checklistDesligamento: { none: {} },
         },
       }),
-      // Desligado sem entrevista de saída. Par da anterior, mesma dispensa —
-      // mas SÓ saída que já aconteceu (`lte: hoje`): quem está em aviso prévio
-      // ainda trabalha, e a entrevista de saída dele não tem como existir.
-      // O checklist é diferente de propósito (precisa existir ANTES da saída);
-      // a mesma régua vale no resumo da tela /desligamentos.
+      // Desligado sem entrevista de saída. Par da anterior, mesma dispensa e
+      // mesmo corte — mas SÓ saída que já aconteceu (`lte: hoje`): quem está
+      // em aviso prévio ainda trabalha, e a entrevista de saída dele não tem
+      // como existir. O checklist é diferente de propósito (precisa existir
+      // ANTES da saída); a mesma régua vale no resumo da tela /desligamentos.
       desligamentosSemEntrevista: cliente.colaborador.groupBy({
         by: [...por],
         _count: contar,
         where: {
           empresaId,
-          dataDesligamento: { not: null, lte: hoje },
+          dataDesligamento: { not: null, gte: PRIMEIRO_DESLIGAMENTO_COBRADO, lte: hoje },
           checklistDispensado: false,
           entrevistaDesligamento: { is: null },
         },

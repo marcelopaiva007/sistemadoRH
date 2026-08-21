@@ -214,7 +214,8 @@ export function PendenciasView({
     {
       chave: "desligamentosIncompletos",
       titulo: "Desligamento incompleto",
-      descricao: "Pessoa já saiu com item de offboarding em aberto (crachá, acesso, EPI…).",
+      descricao:
+        "Pessoa já saiu com item de offboarding em aberto (crachá, acesso, EPI…). Saídas a partir de 16/08/2026 — antes disso é histórico importado, sem cobrança.",
       href: comFiltro(`/rh/${empresaId}/desligamentos`),
       icon: ClipboardList,
     },
@@ -346,14 +347,15 @@ export function PendenciasView({
       chave: "desligamentosSemChecklist",
       titulo: "Desligado sem checklist",
       descricao:
-        "Saída registrada e nenhum item de offboarding criado — nada a devolver, nada a cobrar, nada rastreado.",
+        "Saída registrada e nenhum item de offboarding criado — nada a devolver, nada a cobrar, nada rastreado. Saídas a partir de 16/08/2026, o início do uso do sistema.",
       href: comFiltro(`/rh/${empresaId}/desligamentos`),
       icon: FileX,
     },
     {
       chave: "desligamentosSemEntrevista",
       titulo: "Desligado sem entrevista",
-      descricao: "Saída sem entrevista de desligamento registrada — o motivo real não foi apurado.",
+      descricao:
+        "Saída sem entrevista de desligamento registrada — o motivo real não foi apurado. Saídas a partir de 16/08/2026, o início do uso do sistema.",
       href: comFiltro(`/rh/${empresaId}/desligamentos`),
       icon: UserMinus,
     },

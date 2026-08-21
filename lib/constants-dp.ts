@@ -166,3 +166,26 @@ export const MIMES_ANEXO_ACEITOS = [
 
 // Janela em que um documento/férias já aparece como "vencendo" no painel.
 export const DIAS_ALERTA_VENCIMENTO = 60;
+
+/**
+ * Primeira data de desligamento cujo offboarding é COBRADO como pendência
+ * (checklist de saída, entrevista, item em aberto).
+ *
+ * Decisão do CEO em 20/08/2026: desligamento até 15/08/2026 (inclusive) é
+ * anterior ao início do uso do sistema de RH — a base veio de importação, e
+ * cobrar checklist e entrevista de quem saiu antes de o processo existir
+ * enchia a tela de Pendências com 80+ itens que ninguém tem como fechar
+ * (era exatamente o número que motivou a decisão). De 16/08/2026 em diante,
+ * a saída acontece já dentro do sistema e o offboarding é cobrado normal.
+ *
+ * O corte NÃO apaga nada: o desligamento antigo continua na tela de
+ * Desligamentos e na ficha, com o estado real do checklist — só deixa de
+ * somar nos contadores de pendência e no e-mail diário. A dispensa individual
+ * (`checklistDispensado`, botão na ficha) continua valendo para os dois lados:
+ * dispensar um caso novo e reverter a dispensa de um antigo que o RH decida
+ * cobrar mesmo assim.
+ *
+ * Vale nos DOIS lugares que contam a mesma coisa — lib/pendencias.ts e o
+ * resumo da tela /desligamentos — para o cartão e a tela nunca divergirem.
+ */
+export const PRIMEIRO_DESLIGAMENTO_COBRADO = new Date(Date.UTC(2026, 7, 16));

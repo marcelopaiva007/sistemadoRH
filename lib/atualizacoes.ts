@@ -25,6 +25,18 @@ export type Atualizacao = {
 };
 
 export const ATUALIZACOES: Atualizacao[] = [
+  {
+    versao: "1.99.0",
+    data: "20/08/2026",
+    horario: "11:20",
+    titulo: "Pendências de desligamento passam a valer só para saídas a partir de 16/08/2026",
+    itens: [
+      "Decisão do CEO: desligamento até 15/08/2026 (inclusive) é anterior ao início do uso do sistema — veio da importação da base, e não há checklist nem entrevista possíveis de cobrar. Esses casos saem dos cartões \"Desligado sem checklist\", \"Desligado sem entrevista\" e \"Desligamento incompleto\", do indicador do topo e do e-mail diário (eram ~80 itens em cada cartão que ninguém tinha como fechar).",
+      "De 16/08/2026 em diante, a saída acontece já dentro do sistema e o offboarding é cobrado normalmente.",
+      "Nada foi apagado: os desligamentos antigos continuam na tela de Desligamentos e na ficha de cada pessoa, com o estado real do checklist — só deixam de contar como pendência. Os indicadores da tela de Desligamentos seguem a mesma régua, para o número do cartão bater com a tela.",
+      "A dispensa individual de offboarding (botão na ficha) continua valendo para os dois lados: dispensar um caso novo ou reverter a dispensa de um antigo que o RH decida cobrar mesmo assim.",
+    ],
+  },
   // Faixa consolidada: a 1.98.1 subiu sem passar por aqui (duas entregas em
   // paralelo no mesmo dia), e a 1.98.2 é esta entrada mais o número na tela.
   {

@@ -25,6 +25,7 @@ import {
 import type { Pendencias } from "../lib/pendencias";
 import { hojeUTC, somarDiasUTC } from "../lib/datas";
 import { LIMITE_HORAS_EXTRAS_MES } from "../lib/constants-folha";
+import { PRIMEIRO_DESLIGAMENTO_COBRADO } from "../lib/constants-dp";
 import { empresaDeTeste } from "./_empresa-de-teste";
 
 const prisma = new PrismaClient({
@@ -424,6 +425,23 @@ async function main() {
         ok(
           delta(antesOff, await pendenciasDaEmpresa(escopo, tx), "desligamentosSemChecklist") === 0,
           "dispensa zera o checklist (regra dos desligamentos anteriores ao sistema)",
+        );
+        // O corte de 16/08/2026 (PRIMEIRO_DESLIGAMENTO_COBRADO, decisão do CEO
+        // de 20/08): desligamento até 15/08 não cobra checklist NEM entrevista,
+        // mesmo SEM dispensa individual — é passivo histórico da importação.
+        await tx.entrevistaDesligamento.deleteMany({ where: { colaboradorId: colaborador.id } });
+        await tx.colaborador.update({
+          where: { id: colaborador.id },
+          data: {
+            checklistDispensado: false,
+            dataDesligamento: somarDiasUTC(PRIMEIRO_DESLIGAMENTO_COBRADO, -1),
+          },
+        });
+        const comCorte = await pendenciasDaEmpresa(escopo, tx);
+        ok(
+          delta(antesOff, comCorte, "desligamentosSemChecklist") === 0 &&
+            delta(antesOff, comCorte, "desligamentosSemEntrevista") === 0,
+          "desligado até 15/08/2026 não cobra offboarding (corte do início do sistema)",
         );
         await tx.colaborador.update({
           where: { id: colaborador.id },
