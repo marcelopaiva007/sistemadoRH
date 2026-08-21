@@ -297,9 +297,9 @@ export function PendenciasView({
     // ---------------------------------------------------------------
     {
       chave: "ajustesPontoPendentes",
-      titulo: "Ajuste de ponto a decidir",
+      titulo: "Ajuste/abono de ponto a decidir",
       descricao:
-        "Inclusão manual, abono de atestado, justificativa ou correção de marcação esperando aprovar ou rejeitar.",
+        "Inclusão manual, abonos (atestado ou dia de folga), justificativa ou correção de marcação — inclui os pedidos feitos pelo próprio colaborador no portal/app, esperando aprovar ou rejeitar.",
       // A mesma tela onde o RH decide férias e documentos — ela busca esta fila
       // desde 11/08/2026. Preferida à aba Tratamento do módulo Ponto porque só
       // ela respeita o `?empresas=` que este cartão carrega no clique.

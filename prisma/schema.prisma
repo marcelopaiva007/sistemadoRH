@@ -2253,8 +2253,17 @@ model TratamentoPonto {
   registroPontoId String?
   registroPonto   RegistroPonto? @relation(fields: [registroPontoId], references: [id], onDelete: SetNull)
   dataFato        DateTime // Dia a que se refere a ocorrência
-  tipo            String // "INCLUSAO_MANUAL" | "ABONO_ATESTADO" | "JUSTIFICATIVA" | "CORRECAO" (ver app/actions/rh-ponto.ts)
+  tipo            String // ver TIPOS_TRATAMENTO_PONTO em lib/constants-ponto.ts
   motivo          String // Texto justificando a alteração
+  // Quem abriu o pedido: "RH" (aba Tratamento) ou "COLABORADOR" (portal/app
+  // de ponto, desde 21/08/2026). O colaborador pede, o RH decide — a coluna
+  // existe para a tela do RH distinguir pedido recebido de ajuste próprio.
+  origem          String         @default("RH")
+  // Só nos pedidos de ajuste de marcação vindos do colaborador: qual marcação
+  // deveria ter sido registrada e em que horário (de Brasília). Texto "HH:mm"
+  // porque é um horário declarado pela pessoa, não um instante medido.
+  tipoMarcacao    String? // "ENTRADA_1" | "SAIDA_1" | "ENTRADA_2" | "SAIDA_2"
+  horaSolicitada  String? // "HH:mm"
   arquivoId       String?        @unique
   arquivo         Arquivo?       @relation(fields: [arquivoId], references: [id], onDelete: SetNull)
   status          String         @default("PENDENTE") // "PENDENTE" | "APROVADO" | "REJEITADO"

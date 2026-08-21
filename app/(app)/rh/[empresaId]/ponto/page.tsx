@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { limitesDeEstagio } from "@/lib/ponto-regras";
 import { PainelPresencaView } from "./painel-presenca";
@@ -17,6 +18,16 @@ export default async function PontoEletronicoPage({
   params: Promise<{ empresaId: string }>;
 }) {
   const { empresaId } = await params;
+
+  // O IP público de QUEM ABRIU esta tela — mesma extração da batida em
+  // registrarPontoPortal. Vai para a aba Configurações: o RH está na rede da
+  // empresa, então este é exatamente o IP fixo que ele quer autorizar, sem
+  // precisar descobrir em site de "qual é meu IP".
+  const headersList = await headers();
+  const ipAtual =
+    headersList.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    headersList.get("x-real-ip") ||
+    null;
 
   // Buscar empresa e jornadas
   const [empresa, jornadas, colaboradores, pendentes, historico, paraSelecao, configPonto] = await Promise.all([
@@ -260,6 +271,20 @@ export default async function PontoEletronicoPage({
             empresaId={empresaId}
             minutosDia={limitesEstagio.dia}
             minutosSemana={limitesEstagio.semana}
+            geofencing={{
+              latitude: configPonto?.latitudeEmpresa ?? null,
+              longitude: configPonto?.longitudeEmpresa ?? null,
+              raioMetros: configPonto?.raioPermitidoMtrs ?? 200,
+              // Sem linha de configuração ainda, a tela mostra a trava DESLIGADA
+              // — que é o que vale de fato: registrarPontoPortal só bloqueia com
+              // `config.exigirGps` gravado como true.
+              exigirGps: configPonto?.exigirGps ?? false,
+            }}
+            travaIp={{
+              ipsAutorizados: configPonto?.ipsAutorizados ?? "",
+              exigirIp: configPonto?.exigirIp ?? false,
+              ipAtual,
+            }}
           />
         </TabsContent>
       </Tabs>

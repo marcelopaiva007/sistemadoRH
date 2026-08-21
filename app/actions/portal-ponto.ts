@@ -150,27 +150,62 @@ export async function registrarPontoPortal(input: RegistrarPontoInput) {
   // Validação de IP
   const ipValido = validarIpPonto(ipCliente, config?.ipsAutorizados);
   if (config?.exigirIp && !ipValido) {
-    return { erro: "Marcação de ponto não permitida fora da rede de IP autorizada da empresa." };
+    // Diz o caminho de volta: quase sempre o celular está no 4G/5G da
+    // operadora em vez do Wi-Fi da empresa — e é isso que a pessoa conserta.
+    return {
+      erro: "Sua conexão está fora da rede autorizada da empresa. Conecte o celular ao Wi-Fi da empresa (desligue os dados móveis) e tente de novo.",
+    };
   }
 
-  // Validação de GPS Geofencing
+  // Validação de GPS Geofencing.
+  //
+  // `typeof === "number" && isFinite`, não truthiness: coordenada 0 é lugar
+  // válido (linha do Equador/Greenwich) e `if (input.latitude)` a tratava como
+  // ausente; NaN vindo de chamada direta à action passava como presente. O
+  // raio usa `??` e não `||`: são semânticas diferentes para raio 0 gravado
+  // por fora — com `||` ele virava 200 em silêncio.
+  const raioPermitido = config?.raioPermitidoMtrs ?? 200;
+  const temCoordenada =
+    typeof input.latitude === "number" &&
+    Number.isFinite(input.latitude) &&
+    typeof input.longitude === "number" &&
+    Number.isFinite(input.longitude);
   let gpsValido = true;
-  if (input.latitude && input.longitude) {
+  let distanciaMetros: number | null = null;
+  if (temCoordenada) {
     const resGps = validarGeofencingGps(
-      input.latitude,
-      input.longitude,
+      input.latitude as number,
+      input.longitude as number,
       config?.latitudeEmpresa,
       config?.longitudeEmpresa,
-      config?.raioPermitidoMtrs || 200
+      raioPermitido
     );
     gpsValido = resGps.valido;
+    distanciaMetros = resGps.distanciaMetros;
   } else if (config?.exigirGps) {
-    return { erro: "Sua geolocalização (GPS) é obrigatória para registrar o ponto." };
+    return {
+      erro: "Sua localização (GPS) é obrigatória para registrar o ponto. Ative a localização do aparelho, permita o acesso para este site e tente de novo.",
+    };
   }
 
   if (config?.exigirGps && !gpsValido) {
-    return { erro: `Fora do raio de localização permitido pela empresa.` };
+    // A distância entra na mensagem de propósito: "fora do raio" seco não diz
+    // se a pessoa está na esquina ou com o GPS doido a 30 km — e é essa
+    // diferença que decide se ela caminha até a empresa ou chama o RH.
+    return {
+      erro: `Você está a cerca de ${distanciaMetros} m da empresa — fora do raio de ${raioPermitido} m permitido para bater o ponto. Aproxime-se do local de trabalho e tente de novo.`,
+    };
   }
+
+  // A partir daqui só existem coordenadas saneadas: meia coordenada ou NaN
+  // vira null no hash e na linha gravada — "NaN".toFixed(6) entraria na cadeia
+  // do SHA-256 e um Float NaN no Postgres não serve para auditoria nenhuma.
+  const latitude = temCoordenada ? (input.latitude as number) : null;
+  const longitude = temCoordenada ? (input.longitude as number) : null;
+  const precisaoGps =
+    typeof input.precisaoGps === "number" && Number.isFinite(input.precisaoGps)
+      ? input.precisaoGps
+      : null;
 
   const dataHoraAtual = new Date();
 
@@ -295,8 +330,8 @@ export async function registrarPontoPortal(input: RegistrarPontoInput) {
       dataHoraISO: dataHoraAtual.toISOString(),
       tipo: input.tipo,
       ipOrigem: ipCliente,
-      latitude: input.latitude,
-      longitude: input.longitude,
+      latitude,
+      longitude,
     });
 
     try {
@@ -309,9 +344,9 @@ export async function registrarPontoPortal(input: RegistrarPontoInput) {
           nsr,
           ipOrigem: ipCliente,
           ipValido,
-          latitude: input.latitude,
-          longitude: input.longitude,
-          precisaoGps: input.precisaoGps,
+          latitude,
+          longitude,
+          precisaoGps,
           gpsValido,
           fotoUrl,
           hashSHA256,

@@ -2,6 +2,7 @@
 
 import { Clock, FileText, LogOut, MessageCircle, PencilLine, Star, Stethoscope, Upload, User, UsersRound } from "lucide-react";
 import { BaterPontoCard } from "./bater-ponto-card";
+import { SolicitacoesPontoCard } from "./solicitacoes-ponto-card";
 import { ConfirmarEntregasCard, type EntregaAConfirmar } from "./confirmar-entregas-card";
 import { MeuBancoHorasCard } from "./meu-banco-horas-card";
 import { Badge } from "@/components/ui/badge";
@@ -227,6 +228,11 @@ export function PortalInicio({
             é o que fica — marcar o ponto é a ação mais frequente do portal, e
             exigir um clique em aba antes é atrito no celular. */}
         <TabsContent value="ponto" className="space-y-4 pt-4">
+          {/* Pedidos de ajuste de marcação e abono em dia de folga — nada
+              muda sozinho: cai na fila do RH (aba Tratamento), que aprova ou
+              recusa. Aparece mesmo sem pontoLiberado: quem ainda não bate
+              ponto pelo app pode justamente precisar pedir um ajuste. */}
+          <SolicitacoesPontoCard />
           <MeuBancoHorasCard
             dados={{
               competencia: bancoHoras?.competencia || new Date().toLocaleDateString("pt-BR", { month: "2-digit", year: "numeric" }),

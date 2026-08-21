@@ -14,6 +14,7 @@ import { decidirAusencia } from "@/lib/actions/rh-ausencias";
 import { conferirDocumento, devolverDocumento } from "@/lib/actions/rh-documentos-conferencia";
 import { decidirTratamentoPonto } from "@/app/actions/rh-ponto";
 import { tipoAusenciaLabel, tipoDocumentoLabel } from "@/lib/constants-dp";
+import { tipoTratamentoLabel, tipoMarcacaoLabel } from "@/lib/constants-ponto";
 import { formatarTamanho } from "@/lib/anexos";
 import { formatarData, formatarDataHoraBrasilia } from "@/lib/datas";
 import type { ActionResult } from "@/lib/constants";
@@ -91,17 +92,15 @@ type TratamentoPonto = {
   tipo: string;
   dataFato: Date;
   motivo: string;
+  origem: string;
+  tipoMarcacao: string | null;
+  horaSolicitada: string | null;
   createdAt: Date;
   colaborador: { nome: string; setor: { nome: string }; empresa: { nome: string } };
 };
 
-/** Mesmos rótulos da aba Tratamento do módulo Ponto. */
-const TIPO_TRATAMENTO_LABEL: Record<string, string> = {
-  INCLUSAO_MANUAL: "Inclusão manual",
-  ABONO_ATESTADO: "Abono por atestado",
-  JUSTIFICATIVA: "Justificativa",
-  CORRECAO: "Correção",
-};
+// Os rótulos de tipo eram uma cópia local dos da aba Tratamento — desde
+// 21/08/2026 a lista única mora em lib/constants-ponto.ts.
 
 /**
  * O que a pessoa digitou para o tipo de documento que anexou. É contra isto que
@@ -316,11 +315,17 @@ export function AprovacoesView({
               colaboradorId={t.colaboradorId}
               titulo={t.colaborador.nome}
               subtitulo={`${t.colaborador.setor.nome}${empresaLabel(t.colaborador.empresa.nome)}`}
-              etiqueta={TIPO_TRATAMENTO_LABEL[t.tipo] ?? t.tipo}
+              etiqueta={tipoTratamentoLabel(t.tipo)}
               linhas={[
-                `Ocorrência em ${formatarData(t.dataFato)}`,
+                `Ocorrência em ${formatarData(t.dataFato)}${
+                  t.tipoMarcacao && t.horaSolicitada
+                    ? ` — ${tipoMarcacaoLabel(t.tipoMarcacao)} às ${t.horaSolicitada}`
+                    : ""
+                }`,
                 t.motivo,
-                `Aberto em ${formatarDataHoraBrasilia(t.createdAt)}`,
+                `Aberto em ${formatarDataHoraBrasilia(t.createdAt)}${
+                  t.origem === "COLABORADOR" ? " · pedido pelo colaborador" : ""
+                }`,
               ]}
               // Rejeitar um ajuste de ponto sem dizer por quê deixa o
               // colaborador sem saber o que corrigir — e a action recusa

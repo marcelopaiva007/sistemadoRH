@@ -11,6 +11,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { registrarTratamentoPonto, decidirTratamentoPonto } from "@/app/actions/rh-ponto";
 import { dataDoFormulario, formatarData } from "@/lib/datas";
+// Rótulos consolidados em lib/constants-ponto.ts (21/08/2026): a mesma lista
+// vale aqui, na Central de Aprovações e na validação do servidor.
+import { tipoTratamentoLabel as tipoLabel, tipoMarcacaoLabel } from "@/lib/constants-ponto";
 
 export type TratamentoItem = {
   id: string;
@@ -21,28 +24,17 @@ export type TratamentoItem = {
   motivoDecisao?: string | null;
   status: string;
   aprovadoPorNome?: string | null;
+  /** "RH" (aberto nesta tela) ou "COLABORADOR" (pedido pelo portal/app). */
+  origem?: string;
+  /** Só nos pedidos de ajuste do colaborador: marcação e horário pedidos. */
+  tipoMarcacao?: string | null;
+  horaSolicitada?: string | null;
   colaborador: {
     nome: string;
     setor: { nome: string };
     posicao: { nome: string };
   };
 };
-
-/** Rótulo legível do tipo de tratamento — usado pelo formulário e pela linha. */
-function tipoLabel(tipo: string) {
-  switch (tipo) {
-    case "INCLUSAO_MANUAL":
-      return "Inclusão Manual";
-    case "ABONO_ATESTADO":
-      return "Abono p/ Atestado Médico";
-    case "JUSTIFICATIVA":
-      return "Justificativa de Ausência";
-    case "CORRECAO":
-      return "Correção de Marcação";
-    default:
-      return tipo;
-  }
-}
 
 export type OpcaoColaborador = { id: string; nome: string; ativo: boolean };
 
@@ -320,12 +312,23 @@ function LinhaTratamento({
           <Badge variant="outline" className="text-[10px]">
             {tipoLabel(t.tipo)}
           </Badge>
+          {/* Pedido que chegou do portal/app não é ajuste que o RH abriu — a
+              etiqueta separa "fila de pedidos recebidos" de "trabalho próprio",
+              que têm conversas diferentes com o colaborador. */}
+          {t.origem === "COLABORADOR" && (
+            <Badge className="bg-sky-500/15 text-sky-700 dark:text-sky-400 border-sky-500/30 text-[10px]">
+              Pedido do colaborador
+            </Badge>
+          )}
         </div>
         <p className="text-xs text-muted-foreground">
           {/* formatarData (UTC) e não toLocaleDateString: a data é gravada como
               meia-noite UTC, e no fuso do Brasil o formatador local exibiria o
               DIA ANTERIOR — no campo que diz quando a ocorrência aconteceu. */}
           {t.colaborador.setor.nome} · Data: {formatarData(new Date(t.dataFato))}
+          {t.tipoMarcacao && t.horaSolicitada
+            ? ` · ${tipoMarcacaoLabel(t.tipoMarcacao)} às ${t.horaSolicitada}`
+            : ""}
         </p>
         {/* whitespace-pre-line: rejeições antigas, anteriores à coluna
             `motivoDecisao`, ainda trazem a decisão colada aqui com quebra de

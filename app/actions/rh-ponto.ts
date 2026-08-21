@@ -9,6 +9,7 @@ import { registrarAuditoria } from "@/lib/audit";
 import type { ActionResult } from "@/lib/constants";
 import { formatarData } from "@/lib/datas";
 import { gerarConteudoAFD, gerarConteudoAEJ } from "@/lib/ponto-afdaej";
+import { TIPOS_TRATAMENTO_VALIDOS } from "@/lib/constants-ponto";
 import {
   MINIMO_ESTAGIO_MIN_DIA,
   TETO_LEGAL_ESTAGIO_MIN_DIA,
@@ -22,13 +23,9 @@ import {
  * `status` — a linha nunca mais poderia ser decidida (não é PENDENTE) e não
  * casaria com nenhum ramo da tela, aparecendo sem coluna de decisão. Mesmo
  * padrão de TIPOS_VALIDOS em lib/actions/rh-ausencias.ts.
+ * O conjunto de tipos mudou-se para lib/constants-ponto.ts em 21/08/2026 —
+ * é a mesma lista que as duas telas usam para rotular.
  */
-const TIPOS_TRATAMENTO_VALIDOS = new Set([
-  "INCLUSAO_MANUAL",
-  "ABONO_ATESTADO",
-  "JUSTIFICATIVA",
-  "CORRECAO",
-]);
 const DECISOES_VALIDAS = new Set(["APROVADO", "REJEITADO"]);
 
 /**
@@ -497,6 +494,184 @@ export async function salvarLimiteEstagio(input: {
     entidadeId: input.empresaId,
     resumo: `Limite de jornada de estágio ajustado para ${dia / 60}h por dia e ${semana / 60}h por semana.`,
     detalhes: { estagioMinDia: dia, estagioMinSemana: semana },
+  });
+
+  revalidatePath(`/rh/${input.empresaId}/ponto`);
+  return { ok: true };
+}
+
+// IPv4 com octetos conferidos de verdade; IPv6 na forma pragmática (hex e
+// dois-pontos). O objetivo não é ser um parser de RFC: é impedir que um typo
+// ("192.168.1" ou "meu-ip") entre na lista e bloqueie a empresa inteira.
+function ipValidoDeConfiguracao(ip: string): boolean {
+  const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(ip);
+  if (v4) return v4.slice(1).every((octeto) => Number(octeto) <= 255);
+  return /^[0-9a-fA-F:]{2,45}$/.test(ip) && ip.includes(":");
+}
+
+export type SalvarTravaIpInput = {
+  empresaId: string;
+  ipsAutorizados: string; // lista separada por vírgula; vazio = sem trava
+  exigirIp: boolean;
+};
+
+/**
+ * Salva a trava de IP do ponto: a lista de IPs públicos autorizados (o IP
+ * fixo do link da empresa) e o bloqueio "exigirIp".
+ *
+ * VALIDADO NO SERVIDOR pela mesma razão das outras duas configurações deste
+ * arquivo: endpoint POST público. Um IP mal digitado gravado por chamada
+ * direta não casaria com nada e, com a trava ligada, recusaria TODA batida da
+ * empresa — inclusive a de quem está na rede certa.
+ *
+ * Exigir IP sem nenhum IP na lista é a mesma armadilha da cerca de GPS sem
+ * coordenada: validarIpPonto devolve `true` para lista vazia, então a trava
+ * ficaria ligada sem travar nada — o RH acharia que restringiu e não
+ * restringiu. Com a trava ligada, pelo menos um IP é obrigatório.
+ */
+export async function salvarTravaIpPonto(input: SalvarTravaIpInput): Promise<ActionResult> {
+  await requireEmpresaAccess(input.empresaId);
+
+  const ips = String(input.ipsAutorizados ?? "")
+    .split(",")
+    .map((ip) => ip.trim())
+    .filter((ip) => ip !== "");
+
+  if (ips.length > 20) {
+    return { ok: false, error: "No máximo 20 IPs na lista. Para mais que isso, fale com a TI." };
+  }
+  const invalido = ips.find((ip) => !ipValidoDeConfiguracao(ip));
+  if (invalido) {
+    return {
+      ok: false,
+      error: `"${invalido}" não é um IP válido. Use o formato 200.100.50.25 (IPv4) ou o IPv6 completo, separados por vírgula.`,
+    };
+  }
+
+  const exigirIp = input.exigirIp === true;
+  if (exigirIp && ips.length === 0) {
+    return {
+      ok: false,
+      error: "Para bloquear batida fora da rede, cadastre pelo menos um IP autorizado.",
+    };
+  }
+
+  const dados = {
+    ipsAutorizados: ips.length > 0 ? ips.join(", ") : null,
+    exigirIp,
+  };
+
+  await prisma.configuracaoPontoEmpresa.upsert({
+    where: { empresaId: input.empresaId },
+    create: { empresaId: input.empresaId, ...dados },
+    update: dados,
+  });
+
+  await registrarAuditoria({
+    empresaId: input.empresaId,
+    acao: "ATUALIZAR",
+    entidade: "ConfiguracaoPontoEmpresa",
+    entidadeId: input.empresaId,
+    resumo:
+      ips.length > 0
+        ? `Trava de IP do ponto ${exigirIp ? "ativada (bloqueia fora da rede)" : "cadastrada (sem bloqueio)"}: ${ips.join(", ")}.`
+        : "Trava de IP do ponto removida — batidas voltam a valer de qualquer rede.",
+    detalhes: dados,
+  });
+
+  revalidatePath(`/rh/${input.empresaId}/ponto`);
+  return { ok: true };
+}
+
+// Régua do raio da cerca de GPS. O piso de 50 m existe porque GPS de celular
+// erra dezenas de metros mesmo parado no lugar certo: raio menor que isso
+// recusaria batida de quem ESTÁ na empresa. O teto de 10 km cobre pátio
+// industrial e obra grande; acima disso a cerca já não cerca nada.
+const RAIO_GPS_MINIMO_M = 50;
+const RAIO_GPS_MAXIMO_M = 10_000;
+
+export type SalvarGeofencingInput = {
+  empresaId: string;
+  latitudeEmpresa: number | null;
+  longitudeEmpresa: number | null;
+  raioPermitidoMtrs: number;
+  exigirGps: boolean;
+};
+
+/**
+ * Salva a cerca de localização do ponto: coordenadas da empresa, raio e a
+ * trava "exigir GPS".
+ *
+ * OS LIMITES SÃO VALIDADOS AQUI, no servidor, pelo mesmo motivo de
+ * salvarLimiteEstagio logo acima: arquivo "use server" é endpoint POST
+ * público, e uma latitude 999 gravada por chamada direta faria a Haversine
+ * devolver distância sem sentido — recusando toda batida da empresa.
+ *
+ * Latitude e longitude andam JUNTAS (as duas ou nenhuma): meia coordenada não
+ * define lugar nenhum, e validarGeofencingGps trata qualquer metade nula como
+ * "sem cerca" — a pessoa acharia que configurou e nada estaria valendo.
+ * Limpar as duas é o jeito legítimo de DESLIGAR a cerca mantendo o resto.
+ */
+export async function salvarGeofencingPonto(input: SalvarGeofencingInput): Promise<ActionResult> {
+  await requireEmpresaAccess(input.empresaId);
+
+  const lat = input.latitudeEmpresa;
+  const lng = input.longitudeEmpresa;
+  const temLat = typeof lat === "number" && Number.isFinite(lat);
+  const temLng = typeof lng === "number" && Number.isFinite(lng);
+
+  if (temLat !== temLng) {
+    return { ok: false, error: "Latitude e longitude andam juntas: preencha as duas ou deixe as duas vazias." };
+  }
+  if (temLat && (lat! < -90 || lat! > 90)) {
+    return { ok: false, error: "Latitude fora do intervalo válido (-90 a 90)." };
+  }
+  if (temLng && (lng! < -180 || lng! > 180)) {
+    return { ok: false, error: "Longitude fora do intervalo válido (-180 a 180)." };
+  }
+
+  const raio = Math.trunc(Number(input.raioPermitidoMtrs));
+  if (!Number.isFinite(raio) || raio < RAIO_GPS_MINIMO_M || raio > RAIO_GPS_MAXIMO_M) {
+    return {
+      ok: false,
+      error: `O raio deve ficar entre ${RAIO_GPS_MINIMO_M} m e ${RAIO_GPS_MAXIMO_M / 1000} km. Abaixo de ${RAIO_GPS_MINIMO_M} m, o erro normal do GPS do celular recusaria batida de quem está dentro da empresa.`,
+    };
+  }
+
+  const exigirGps = input.exigirGps === true;
+
+  // Exigir GPS sem cerca cadastrada obriga a pessoa a ligar a localização mas
+  // não valida lugar nenhum — combinação que só engana o RH. Com a trava
+  // ligada, a coordenada é obrigatória.
+  if (exigirGps && !temLat) {
+    return {
+      ok: false,
+      error: "Para bloquear batida fora do raio, cadastre a localização da empresa (latitude e longitude).",
+    };
+  }
+
+  const dados = {
+    latitudeEmpresa: temLat ? lat : null,
+    longitudeEmpresa: temLng ? lng : null,
+    raioPermitidoMtrs: raio,
+    exigirGps,
+  };
+
+  await prisma.configuracaoPontoEmpresa.upsert({
+    where: { empresaId: input.empresaId },
+    create: { empresaId: input.empresaId, ...dados },
+    update: dados,
+  });
+
+  await registrarAuditoria({
+    empresaId: input.empresaId,
+    acao: "ATUALIZAR",
+    entidade: "ConfiguracaoPontoEmpresa",
+    entidadeId: input.empresaId,
+    resumo: temLat
+      ? `Cerca de GPS do ponto ${exigirGps ? "ativada (bloqueia fora do raio)" : "cadastrada (sem bloqueio)"}: raio de ${raio} m em torno de ${lat!.toFixed(6)}, ${lng!.toFixed(6)}.`
+      : "Cerca de GPS do ponto removida — batidas voltam a valer de qualquer lugar.",
+    detalhes: dados,
   });
 
   revalidatePath(`/rh/${input.empresaId}/ponto`);

@@ -113,6 +113,10 @@ export function BaterPontoCard() {
 
   const [registrosHoje, setRegistrosHoje] = useState<Array<{ id: string; tipo: string; dataHora: Date | string }>>([]);
   const [posicao, setPosicao] = useState<{ lat: number; lng: number; precisao: number } | null>(null);
+  // GPS que falhou é estado de tela, não console.warn: com a cerca de
+  // localização ligada, sem GPS o servidor RECUSA a batida — a pessoa precisa
+  // ver o problema (e o botão de tentar de novo) ANTES de tirar a selfie.
+  const [gpsErro, setGpsErro] = useState<string | null>(null);
 
   // Relógio em tempo real (Horário de Brasília)
   useEffect(() => {
@@ -135,23 +139,60 @@ export function BaterPontoCard() {
     return () => clearInterval(interval);
   }, []);
 
-  // Obter localização por GPS no componente
-  useEffect(() => {
-    if ("geolocation" in navigator) {
+  // UMA leitura de GPS, com timeout: getCurrentPosition sem timeout pode
+  // simplesmente nunca responder (Android com localização "só ao usar" e a
+  // tela apagando), e a promessa pendurada travaria a batida para sempre.
+  // Nunca rejeita — falha vira null e quem chamou decide o que fazer.
+  const lerPosicao = (maximumAgeMs: number) =>
+    new Promise<{ lat: number; lng: number; precisao: number } | null>((resolve) => {
+      if (!("geolocation" in navigator)) return resolve(null);
       navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          setPosicao({
+        (pos) =>
+          resolve({
             lat: pos.coords.latitude,
             lng: pos.coords.longitude,
             precisao: pos.coords.accuracy,
-          });
-        },
-        (err) => {
-          console.warn("GPS não capturado:", err.message);
-        },
-        { enableHighAccuracy: true }
+          }),
+        () => resolve(null),
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: maximumAgeMs }
+      );
+    });
+
+  const capturarPosicao = async (maximumAgeMs: number) => {
+    const pos = await lerPosicao(maximumAgeMs);
+    if (pos) {
+      setPosicao(pos);
+      setGpsErro(null);
+    } else {
+      setGpsErro(
+        "Não foi possível obter sua localização. Verifique se o GPS está ativado e se este site tem permissão de localização."
       );
     }
+    return pos;
+  };
+
+  // Obter localização por GPS ao abrir a tela. maximumAge de 1 min: leitura
+  // recente do próprio aparelho serve e aparece na hora. Mesma forma do efeito
+  // das batidas logo abaixo — função async interna com guarda de "ainda
+  // montado", para o setState nunca rodar num componente que já saiu de cena.
+  useEffect(() => {
+    let ativo = true;
+    const capturar = async () => {
+      const pos = await lerPosicao(60_000);
+      if (!ativo) return;
+      if (pos) {
+        setPosicao(pos);
+        setGpsErro(null);
+      } else {
+        setGpsErro(
+          "Não foi possível obter sua localização. Verifique se o GPS está ativado e se este site tem permissão de localização."
+        );
+      }
+    };
+    void capturar();
+    return () => {
+      ativo = false;
+    };
   }, []);
 
   // Carregar batidas de hoje
@@ -213,12 +254,20 @@ export function BaterPontoCard() {
     setAviso(null);
     setSucessoComprovante(null);
 
+    // Posição FRESCA na hora da batida, não a do mount: num PWA que ficou
+    // aberto, a posição capturada ao abrir pode ter horas — de outro lugar da
+    // cidade. Com a cerca de localização, isso recusaria batida de quem está
+    // na empresa (ou aceitaria a de quem não está). maximumAge de 30 s;
+    // se a leitura nova falhar, a última conhecida ainda é melhor que nada.
+    const posicaoDaBatida = (await lerPosicao(30_000)) ?? posicao;
+    if (posicaoDaBatida && posicaoDaBatida !== posicao) setPosicao(posicaoDaBatida);
+
     try {
       const res = await registrarPontoPortal({
         tipo,
-        latitude: posicao?.lat ?? null,
-        longitude: posicao?.lng ?? null,
-        precisaoGps: posicao?.precisao ?? null,
+        latitude: posicaoDaBatida?.lat ?? null,
+        longitude: posicaoDaBatida?.lng ?? null,
+        precisaoGps: posicaoDaBatida?.precisao ?? null,
         fotoBase64,
         dispositivoInfo: typeof window !== "undefined" ? navigator.userAgent : null,
       });
@@ -463,20 +512,32 @@ export function BaterPontoCard() {
       </div>
 
       {/* Status de Segurança e Geolocalização */}
-      <div className="flex items-center justify-between text-[11px] text-muted-foreground border-t pt-3">
-        <div className="flex items-center gap-1.5">
-          <MapPin className="w-3.5 h-3.5 text-primary" />
-          <span>
-            {posicao
-              ? `GPS Ativo (${posicao.lat.toFixed(4)}, ${posicao.lng.toFixed(4)})`
-              : "Obtendo geolocalização..."}
-          </span>
+      <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground border-t pt-3">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <MapPin className={`w-3.5 h-3.5 shrink-0 ${gpsErro && !posicao ? "text-destructive" : "text-primary"}`} />
+          {posicao ? (
+            <span>GPS Ativo ({posicao.lat.toFixed(4)}, {posicao.lng.toFixed(4)})</span>
+          ) : gpsErro ? (
+            // Sem posição E com erro: a batida pode ser recusada pela cerca de
+            // localização. O caminho de volta fica no próprio rodapé.
+            <span className="text-destructive">
+              GPS indisponível.{" "}
+              <button type="button" className="underline font-medium" onClick={() => void capturarPosicao(0)}>
+                Tentar de novo
+              </button>
+            </span>
+          ) : (
+            <span>Obtendo geolocalização...</span>
+          )}
         </div>
-        <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
+        <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium shrink-0">
           <ShieldCheck className="w-3.5 h-3.5" />
           <span>REP-P Portaria 671</span>
         </div>
       </div>
+      {gpsErro && !posicao && (
+        <p className="text-[11px] text-muted-foreground -mt-2">{gpsErro}</p>
+      )}
     </div>
   );
 }

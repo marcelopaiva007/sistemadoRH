@@ -26,6 +26,40 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.102.0",
+    data: "21/08/2026",
+    horario: "18:10",
+    titulo: "Ponto: trava de IP — só bate ponto quem está na rede da empresa",
+    itens: [
+      "Nova seção \"Rede autorizada (trava de IP)\" em Ponto → Configurações, para empresa com IP fixo: cadastre o IP público do link (a tela mostra o seu IP atual e tem o botão \"Adicionar meu IP atual\") e ligue o bloqueio. Com a trava ativa, o ponto só registra com o celular no Wi-Fi da empresa — pelo 4G/5G a batida é recusada, com mensagem orientando a conectar no Wi-Fi.",
+      "Aceita mais de um IP (separados por vírgula) para quem tem mais de um link. A trava pode valer junto com a cerca de GPS: o IP garante a rede, o GPS garante o lugar.",
+      "Com o bloqueio desligado, a batida de fora da rede continua valendo, mas fica marcada como fora da rede no registro.",
+    ],
+  },
+  {
+    versao: "1.101.0",
+    data: "21/08/2026",
+    horario: "17:30",
+    titulo: "Ponto: cerca de localização (GPS) e pedidos de ajuste/abono pelo colaborador",
+    itens: [
+      "O RH agora pode limitar ONDE se bate ponto: em Ponto → Configurações, a nova seção \"Localização permitida (cerca de GPS)\" cadastra as coordenadas da empresa (com botão \"Usar minha localização atual\") e o raio em metros. Com a trava ligada, batida fora do raio é recusada na hora — e a mensagem diz a quantos metros da empresa a pessoa estava.",
+      "O celular passou a capturar a posição NO MOMENTO da batida, não mais a de quando a tela foi aberta — num app que ficava aberto, a posição velha podia ser de outro lugar. Se o GPS falhar, o rodapé do cartão avisa e oferece \"Tentar de novo\".",
+      "Colaborador ganhou o cartão \"Ajustes e abonos\" (no portal e no app de ponto): dá para pedir ajuste de marcação (informando dia, qual marcação e o horário que deveria constar — para quando o celular, a internet ou o GPS falharem) e abono em dia de folga. Nada muda sozinho: o pedido cai na fila do RH, que aprova ou recusa com justificativa, e a pessoa acompanha o status no próprio cartão.",
+      "Os pedidos chegam na aba Tratamento (PTRP) e na Central de Aprovações com a etiqueta \"Pedido do colaborador\", e contam no cartão \"Ajuste/abono de ponto a decidir\" da área de Pendências — inclusive no e-mail diário de cobrança.",
+    ],
+  },
+  // Entrada escrita a posteriori a partir do commit d3475f6: a 1.100.2 subiu
+  // por outra frente de trabalho sem registrar aqui, e sem ela quem estivesse
+  // nessa versão não acharia o próprio número na lista.
+  {
+    versao: "1.100.2",
+    data: "21/08/2026",
+    titulo: "Lateral de marcas/CNPJs com selo e cor da marca",
+    itens: [
+      "A lista de marcas e CNPJs da lateral deixou de ser texto puro: cada marca ganhou um selo com as iniciais na cor dela, a marca selecionada ganha trilho e tinta na própria cor, e o cabeçalho mostra a contagem de CNPJs. O comportamento do filtro não mudou.",
+    ],
+  },
+  {
     versao: "1.100.1",
     data: "21/08/2026",
     horario: "13:10",

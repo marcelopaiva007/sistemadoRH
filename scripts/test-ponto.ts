@@ -96,6 +96,20 @@ function testar() {
   console.assert(gpsRes.valido === true, "Erro Geofencing GPS");
   console.log(` - Geofencing GPS (Distância: ${gpsRes.distanciaMetros}m <= 200m) -> OK`);
 
+  // FORA do raio: ~1° de longitude ≈ 100 km. É este o caminho que bloqueia a
+  // batida quando a cerca está ligada — o teste de dentro do raio sozinho não
+  // pegaria uma Haversine quebrada que respondesse sempre "válido".
+  const gpsFora = validarGeofencingGps(-23.55052, -47.633308, -23.55060, -46.63335, 200);
+  console.assert(gpsFora.valido === false, "Erro Geofencing GPS fora do raio");
+  console.assert(gpsFora.distanciaMetros > 90_000, "Distância fora do raio implausível");
+  console.log(` - Geofencing GPS fora do raio (${gpsFora.distanciaMetros}m > 200m) -> recusado, OK`);
+
+  // Sem cerca cadastrada (empresa sem coordenadas), qualquer posição vale —
+  // é o que faz a cerca ser opcional por empresa.
+  const gpsSemCerca = validarGeofencingGps(-23.55052, -46.633308, null, null, 200);
+  console.assert(gpsSemCerca.valido === true, "Erro Geofencing sem cerca cadastrada");
+  console.log(" - Geofencing sem cerca cadastrada -> não bloqueia, OK");
+
   // 6. Teste de Arquivo Fiscal AFD (Portaria 671)
   console.log("\n5. Testando Gerador de AFD (Portaria MTP 671/2021):");
   // 11:00Z é 08:00 em Brasília. O arquivo fiscal precisa dizer 08:00 — é o

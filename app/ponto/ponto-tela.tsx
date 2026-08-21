@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BaterPontoCard } from "@/app/portal/bater-ponto-card";
+import { SolicitacoesPontoCard } from "@/app/portal/solicitacoes-ponto-card";
 import { InstalarPwa } from "@/components/instalar-pwa";
 import { sairDoPonto } from "./actions";
 
@@ -12,6 +13,11 @@ import { sairDoPonto } from "./actions";
 // portal — câmera, GPS, comprovante, tudo já testado em produção) e mais
 // nada. O que não é bater ponto não entra aqui: para o colaborador este é o
 // sistema de ponto, e o portal é outro sistema.
+//
+// A única exceção é o cartão de ajustes/abonos (21/08/2026), porque ele É
+// parte de bater ponto: é o plano B de quem tentou e não conseguiu — celular,
+// internet, GPS fora do raio — e precisa pedir a marcação ao RH na hora, sem
+// depender de ter o portal (que exige Telegram).
 export function PontoTela({ nome, empresa }: { nome: string; empresa: string }) {
   const router = useRouter();
   const [saindo, setSaindo] = useState(false);
@@ -37,6 +43,8 @@ export function PontoTela({ nome, empresa }: { nome: string; empresa: string }) 
       </div>
 
       <BaterPontoCard />
+
+      <SolicitacoesPontoCard />
 
       <InstalarPwa
         escopo="/ponto"

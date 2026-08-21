@@ -291,7 +291,7 @@ export const ROTULOS_PENDENCIA: Record<keyof Pendencias, string> = {
   dependentesSemCpf: "Dependente sem CPF",
   cadastrosIncompletos: "Cadastros incompletos",
   semTelegram: "Sem Telegram vinculado",
-  ajustesPontoPendentes: "Ajuste de ponto a decidir",
+  ajustesPontoPendentes: "Ajuste/abono de ponto a decidir",
   mensagensSemResposta: "Mensagem do portal sem resposta",
   entregasNaoConfirmadas: "Entrega sem confirmação",
   disciplinarSemAssinatura: "Medida disciplinar sem assinatura",

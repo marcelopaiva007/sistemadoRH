@@ -119,6 +119,9 @@ export default async function AprovacoesPage({
         tipo: true,
         dataFato: true,
         motivo: true,
+        origem: true,
+        tipoMarcacao: true,
+        horaSolicitada: true,
         createdAt: true,
         colaborador: {
           select: { nome: true, setor: { select: { nome: true } }, empresa: { select: { nome: true } } },
