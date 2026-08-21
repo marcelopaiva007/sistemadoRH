@@ -26,6 +26,18 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.103.0",
+    data: "21/08/2026",
+    horario: "19:50",
+    titulo: "Ponto: jornada de trabalho agora pode ser editada (e desativada)",
+    itens: [
+      "Cada cartão de jornada em Ponto → Jornadas & Escalas ganhou os botões \"Editar\" e \"Desativar\": dá para corrigir horários, carga diária, tolerância e dias úteis sem excluir e recriar nada. Antes, jornada salva era definitiva — não havia como alterar nem remover.",
+      "O formulário também ganhou os campos que faltavam: carga diária (em horas), tolerância (máx. 10 min/dia — Art. 58 § 1º CLT), sábado/domingo úteis, e a opção de jornada de turno único (deixe o 2º turno vazio).",
+      "Jornada desativada fica acinzentada na lista e pode ser reativada a qualquer momento — desativar não apaga o histórico.",
+      "Corrigido: ao salvar uma jornada, a lista atualiza na hora (antes só aparecia depois de recarregar a página, o que dava a impressão de que não tinha salvado).",
+    ],
+  },
+  {
     versao: "1.102.0",
     data: "21/08/2026",
     horario: "18:10",

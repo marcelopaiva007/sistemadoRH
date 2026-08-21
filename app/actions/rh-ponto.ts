@@ -158,29 +158,208 @@ export type CriarJornadaInput = {
   domingoUtil?: boolean;
 };
 
-export async function criarJornadaTrabalho(input: CriarJornadaInput) {
-  await requireEmpresaAccess(input.empresaId);
-  if (!input.nome || !input.entrada1 || !input.saida1) {
-    return { erro: "Preencha todos os campos obrigatórios da jornada." };
+// Prisma (sem strictUndefinedChecks) REMOVE do WHERE campos undefined — e o
+// protocolo de server action aceita "$undefined" no payload. Sem esta guarda,
+// um POST direto com empresaId undefined faria `findFirst({ id, empresaId })`
+// virar busca só por id (alcançando registro de OUTRA empresa para
+// ADMIN/DIRETORIA, cuja requireEmpresaAccess não olha o empresaId) e a
+// auditoria gravaria empresaId null — fora da trilha da empresa dona.
+function idObrigatorio(v: unknown): v is string {
+  return typeof v === "string" && v.length > 0;
+}
+
+const REGEX_HORARIO_JORNADA = /^([01]\d|2[0-3]):[0-5]\d$/;
+// Teto da tolerância = 10 min/dia, o número do Art. 58 § 1º da CLT. A empresa
+// pode APERTAR (tolerância menor), nunca afrouxar — mesmo racional do teto de
+// estágio em salvarLimiteEstagio.
+const TOLERANCIA_CLT_MAX_MIN = 10;
+
+// Confere os campos de uma jornada e devolve os valores prontos para gravar —
+// ou a mensagem de recusa. Compartilhada entre criar e editar: as duas
+// gravam as mesmas colunas e são endpoints POST públicos ("use server").
+//
+// De propósito NÃO exige entrada < saída: turno noturno atravessa a
+// meia-noite (22:00 às 05:00) e é caso legítimo — o motor calcula a hora
+// noturna ficta. O que se valida é formato e coerência do turno 2 (os dois
+// horários ou nenhum — meio turno não descreve jornada nenhuma).
+function validarCamposJornada(input: Omit<CriarJornadaInput, "empresaId">):
+  | { ok: true; dados: {
+      nome: string;
+      entrada1: string;
+      saida1: string;
+      entrada2: string | null;
+      saida2: string | null;
+      cargaDiariaMin: number;
+      toleranciaMin: number;
+      sabadoUtil: boolean;
+      domingoUtil: boolean;
+    } }
+  | { ok: false; erro: string } {
+  const nome = String(input.nome ?? "").trim();
+  if (nome.length < 3) return { ok: false, erro: "Dê um nome à jornada (mínimo 3 caracteres)." };
+  if (nome.length > 120) return { ok: false, erro: "O nome da jornada pode ter no máximo 120 caracteres." };
+
+  const entrada1 = String(input.entrada1 ?? "").trim();
+  const saida1 = String(input.saida1 ?? "").trim();
+  if (!REGEX_HORARIO_JORNADA.test(entrada1) || !REGEX_HORARIO_JORNADA.test(saida1)) {
+    return { ok: false, erro: "Informe os horários do 1º turno no formato HH:MM (ex.: 08:00)." };
   }
 
-  const jornada = await prisma.jornadaTrabalho.create({
-    data: {
-      empresaId: input.empresaId,
-      nome: input.nome,
-      entrada1: input.entrada1,
-      saida1: input.saida1,
-      entrada2: input.entrada2 || null,
-      saida2: input.saida2 || null,
-      cargaDiariaMin: input.cargaDiariaMin || 480,
-      toleranciaMin: input.toleranciaMin || 10,
-      sabadoUtil: input.sabadoUtil || false,
-      domingoUtil: input.domingoUtil || false,
+  const entrada2 = String(input.entrada2 ?? "").trim();
+  const saida2 = String(input.saida2 ?? "").trim();
+  const temTurno2 = entrada2 !== "" || saida2 !== "";
+  if (temTurno2 && (entrada2 === "" || saida2 === "")) {
+    return { ok: false, erro: "O 2º turno precisa de entrada E saída — ou deixe os dois vazios para jornada de turno único." };
+  }
+  if (temTurno2 && (!REGEX_HORARIO_JORNADA.test(entrada2) || !REGEX_HORARIO_JORNADA.test(saida2))) {
+    return { ok: false, erro: "Informe os horários do 2º turno no formato HH:MM (ex.: 13:00)." };
+  }
+
+  const carga = Math.trunc(Number(input.cargaDiariaMin ?? 480));
+  if (!Number.isFinite(carga) || carga < 60 || carga > 1440) {
+    return { ok: false, erro: "A carga diária deve ficar entre 1 e 24 horas." };
+  }
+
+  const tolerancia = Math.trunc(Number(input.toleranciaMin ?? TOLERANCIA_CLT_MAX_MIN));
+  if (!Number.isFinite(tolerancia) || tolerancia < 0 || tolerancia > TOLERANCIA_CLT_MAX_MIN) {
+    return {
+      ok: false,
+      erro: `A tolerância deve ficar entre 0 e ${TOLERANCIA_CLT_MAX_MIN} minutos — é o teto do Art. 58 § 1º da CLT. Você pode reduzir, nunca aumentar.`,
+    };
+  }
+
+  return {
+    ok: true,
+    dados: {
+      nome,
+      entrada1,
+      saida1,
+      entrada2: temTurno2 ? entrada2 : null,
+      saida2: temTurno2 ? saida2 : null,
+      cargaDiariaMin: carga,
+      toleranciaMin: tolerancia,
+      sabadoUtil: input.sabadoUtil === true,
+      domingoUtil: input.domingoUtil === true,
     },
+  };
+}
+
+export async function criarJornadaTrabalho(input: CriarJornadaInput) {
+  if (!idObrigatorio(input.empresaId)) return { erro: "Empresa não informada." };
+  await requireEmpresaAccess(input.empresaId);
+
+  const v = validarCamposJornada(input);
+  if (!v.ok) return { erro: v.erro };
+
+  const jornada = await prisma.jornadaTrabalho.create({
+    data: { empresaId: input.empresaId, ...v.dados },
+  });
+
+  // Criação auditada desde 21/08/2026 (antes nada de jornada era): é o
+  // horário CONTRATUAL que a apuração usa — quem criou importa tanto quanto
+  // quem alterou.
+  await registrarAuditoria({
+    empresaId: input.empresaId,
+    acao: "CRIAR",
+    entidade: "JornadaTrabalho",
+    entidadeId: jornada.id,
+    resumo: `Jornada de trabalho "${v.dados.nome}" criada (${v.dados.entrada1}–${v.dados.saida1}${v.dados.entrada2 ? ` / ${v.dados.entrada2}–${v.dados.saida2}` : ""}).`,
   });
 
   revalidatePath(`/rh/${input.empresaId}/ponto`);
   return { sucesso: true, jornada };
+}
+
+export type EditarJornadaInput = CriarJornadaInput & { jornadaId: string };
+
+/**
+ * Edita uma jornada já cadastrada — horários, carga, tolerância, dias úteis.
+ *
+ * Editar em vez de excluir-e-recriar preserva o id e o histórico (createdAt,
+ * trilha de auditoria) da jornada. A alteração vale DAQUI PARA FRENTE: as
+ * batidas já registradas são append-only e não são tocadas por definição.
+ *
+ * O par (jornadaId, empresaId) é conferido no WHERE porque o id vem do
+ * cliente: sem isso, um id de outra empresa editaria a jornada alheia —
+ * mesma guarda de registrarTratamentoPonto.
+ */
+export async function editarJornadaTrabalho(input: EditarJornadaInput): Promise<ActionResult> {
+  if (!idObrigatorio(input.empresaId) || !idObrigatorio(input.jornadaId)) {
+    return { ok: false, error: "Jornada ou empresa não informada." };
+  }
+  await requireEmpresaAccess(input.empresaId);
+
+  const v = validarCamposJornada(input);
+  if (!v.ok) return { ok: false, error: v.erro };
+
+  const atual = await prisma.jornadaTrabalho.findFirst({
+    where: { id: input.jornadaId, empresaId: input.empresaId },
+    // O snapshot `antes` da auditoria precisa de TODOS os campos que o
+    // `depois` grava — sem sabadoUtil/domingoUtil aqui, uma edição que só
+    // mudasse esses flags virava trilha ilegível ("antes" sem o campo).
+    select: {
+      id: true, nome: true, entrada1: true, saida1: true, entrada2: true, saida2: true,
+      cargaDiariaMin: true, toleranciaMin: true, sabadoUtil: true, domingoUtil: true, ativo: true,
+    },
+  });
+  if (!atual) return { ok: false, error: "Jornada não encontrada nesta empresa." };
+
+  await prisma.jornadaTrabalho.update({
+    where: { id: atual.id },
+    data: v.dados,
+  });
+
+  await registrarAuditoria({
+    empresaId: input.empresaId,
+    acao: "ATUALIZAR",
+    entidade: "JornadaTrabalho",
+    entidadeId: atual.id,
+    resumo: `Jornada "${atual.nome}" editada: agora "${v.dados.nome}", ${v.dados.entrada1}–${v.dados.saida1}${v.dados.entrada2 ? ` / ${v.dados.entrada2}–${v.dados.saida2}` : ""}, carga ${v.dados.cargaDiariaMin} min, tolerância ${v.dados.toleranciaMin} min.`,
+    detalhes: { antes: atual, depois: v.dados },
+  });
+
+  revalidatePath(`/rh/${input.empresaId}/ponto`);
+  return { ok: true };
+}
+
+/**
+ * Desativa ou reativa uma jornada. Desativar, e não excluir: a jornada é
+ * referência de horário contratual — apagar a linha apagaria também o que a
+ * auditoria referencia. Inativa some das escolhas futuras mas fica visível
+ * (acinzentada) na lista, de onde pode ser reativada.
+ */
+export async function alternarJornadaAtiva(
+  empresaId: string,
+  jornadaId: string,
+  ativa: boolean,
+): Promise<ActionResult> {
+  if (!idObrigatorio(empresaId) || !idObrigatorio(jornadaId)) {
+    return { ok: false, error: "Jornada ou empresa não informada." };
+  }
+  await requireEmpresaAccess(empresaId);
+
+  const atual = await prisma.jornadaTrabalho.findFirst({
+    where: { id: jornadaId, empresaId },
+    select: { id: true, nome: true, ativo: true },
+  });
+  if (!atual) return { ok: false, error: "Jornada não encontrada nesta empresa." };
+  if (atual.ativo === ativa) return { ok: true };
+
+  await prisma.jornadaTrabalho.update({
+    where: { id: atual.id },
+    data: { ativo: ativa },
+  });
+
+  await registrarAuditoria({
+    empresaId,
+    acao: ativa ? "REATIVAR" : "DESATIVAR",
+    entidade: "JornadaTrabalho",
+    entidadeId: atual.id,
+    resumo: `Jornada "${atual.nome}" ${ativa ? "reativada" : "desativada"}.`,
+  });
+
+  revalidatePath(`/rh/${empresaId}/ponto`);
+  return { ok: true };
 }
 
 export type CriarTratamentoInput = {
@@ -530,6 +709,7 @@ export type SalvarTravaIpInput = {
  * restringiu. Com a trava ligada, pelo menos um IP é obrigatório.
  */
 export async function salvarTravaIpPonto(input: SalvarTravaIpInput): Promise<ActionResult> {
+  if (!idObrigatorio(input.empresaId)) return { ok: false, error: "Empresa não informada." };
   await requireEmpresaAccess(input.empresaId);
 
   const ips = String(input.ipsAutorizados ?? "")
@@ -613,6 +793,7 @@ export type SalvarGeofencingInput = {
  * Limpar as duas é o jeito legítimo de DESLIGAR a cerca mantendo o resto.
  */
 export async function salvarGeofencingPonto(input: SalvarGeofencingInput): Promise<ActionResult> {
+  if (!idObrigatorio(input.empresaId)) return { ok: false, error: "Empresa não informada." };
   await requireEmpresaAccess(input.empresaId);
 
   const lat = input.latitudeEmpresa;

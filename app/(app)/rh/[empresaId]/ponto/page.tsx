@@ -35,9 +35,12 @@ export default async function PontoEletronicoPage({
       where: { id: empresaId },
       select: { id: true, nome: true },
     }),
+    // TODAS as jornadas, não só as ativas: a inativa precisa aparecer
+    // (acinzentada) para poder ser reativada — filtrar aqui a tornava
+    // irrecuperável pela tela. Ativas primeiro.
     prisma.jornadaTrabalho.findMany({
-      where: { empresaId, ativo: true },
-      orderBy: { nome: "asc" },
+      where: { empresaId },
+      orderBy: [{ ativo: "desc" }, { nome: "asc" }],
     }),
     prisma.colaborador.findMany({
       where: { empresaId, ativo: true },
