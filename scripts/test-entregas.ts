@@ -12,6 +12,8 @@ import {
   aguardandoConfirmacao,
   estaEmPoderDoColaborador,
   mensagemDeEntrega,
+  mensagemDeReenvioDeEntrega,
+  itemDaEntrega,
   situacaoDaEntrega,
   tipoEntregaLabel,
   SITUACAO_ENTREGA_BADGE,
@@ -128,6 +130,34 @@ ok(linhaDoItem === "• Notebook", "sem descrição o item sai limpo, sem traves
 ok(
   mensagemDeEntrega("Ana Reis", "CADEIRA_ERGONOMICA", null).includes("CADEIRA_ERGONOMICA"),
   "tipo cadastrado pelo RH aparece na mensagem como está, em vez de sumir",
+);
+
+console.log("\nLembrete de reenvio (botão da tela de Entregas)\n");
+const lembrete = mensagemDeReenvioDeEntrega("Maria Souza Lima", [
+  itemDaEntrega("CARTAO_BENEFICIOS", "CARTÃO ALELO POD"),
+  itemDaEntrega("UNIFORME", null),
+]);
+ok(lembrete.includes("Oi, Maria!"), "lembrete chama pelo primeiro nome, como o aviso original");
+// O contrato é o MESMO da mensagem original: sem o /portal não há caminho até
+// o botão "Recebi", e sem a ressalva o lembrete vira ordem de confirmar.
+ok(lembrete.includes("/portal"), "lembrete ensina o /portal — o único caminho até o botão Recebi");
+ok(
+  lembrete.includes("Ainda não recebeu? Fale com o RH"),
+  "lembrete mantém a ressalva de não confirmar o que não chegou",
+);
+// Uma mensagem por pessoa, com TODOS os itens pendentes dela em lista — quem
+// tem cartão e uniforme pendurados recebe um lembrete, não dois.
+ok(
+  lembrete.includes("• Cartão de benefícios — CARTÃO ALELO POD") &&
+    lembrete.includes("• Uniforme"),
+  "todos os itens pendentes da pessoa saem no mesmo lembrete, em lista",
+);
+ok(
+  mensagemDeReenvioDeEntrega("João Alves", [itemDaEntrega("NOTEBOOK", null)])
+    .split("\n")
+    .filter((l) => l.startsWith("•"))
+    .join("") === "• Notebook",
+  "sem descrição o item sai limpo no lembrete, sem travessão pendurado",
 );
 
 console.log(falhas === 0 ? "\n✅ Entregas: tudo certo\n" : `\n❌ ${falhas} falha(s)\n`);

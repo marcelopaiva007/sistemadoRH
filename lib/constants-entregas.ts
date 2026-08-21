@@ -83,11 +83,36 @@ export function situacaoDaEntrega(entrega: {
  */
 export function mensagemDeEntrega(nome: string, tipo: string, descricao: string | null): string {
   const primeiro = nome.split(" ")[0];
-  const item = `${tipoEntregaLabel(tipo)}${descricao ? ` — ${descricao}` : ""}`;
   return (
     `Oi, ${primeiro}! 👋\n\n` +
-    `O RH registrou uma entrega em seu nome:\n\n• ${item}\n\n` +
+    `O RH registrou uma entrega em seu nome:\n\n• ${itemDaEntrega(tipo, descricao)}\n\n` +
     `Se o item já está com você, envie /portal aqui neste chat e toque em ` +
+    `"Recebi" no aviso do topo — essa é a sua confirmação de recebimento.\n\n` +
+    `Ainda não recebeu? Fale com o RH antes de confirmar.`
+  );
+}
+
+/** A linha de item das mensagens: rótulo legível + descrição quando houver. */
+export function itemDaEntrega(tipo: string, descricao: string | null): string {
+  return `${tipoEntregaLabel(tipo)}${descricao ? ` — ${descricao}` : ""}`;
+}
+
+/**
+ * O lembrete que o RH reenvia da tela de Entregas para quem não confirmou.
+ *
+ * Uma mensagem POR PESSOA, com todos os itens pendentes dela em lista: quem
+ * tem cartão e uniforme pendurados recebe um lembrete, não dois. Mantém o
+ * mesmo contrato da mensagem original — o /portal (único caminho até o botão
+ * "Recebi") e a ressalva de não confirmar o que não chegou; sem ela o
+ * lembrete vira ordem, e confirmação sob ordem não prova nada.
+ */
+export function mensagemDeReenvioDeEntrega(nome: string, itens: string[]): string {
+  const primeiro = nome.split(" ")[0];
+  return (
+    `Oi, ${primeiro}! 👋\n\n` +
+    `Lembrete do RH: ainda falta a sua confirmação de recebimento de:\n\n` +
+    `${itens.map((i) => `• ${i}`).join("\n")}\n\n` +
+    `Se já está com você, envie /portal aqui neste chat e toque em ` +
     `"Recebi" no aviso do topo — essa é a sua confirmação de recebimento.\n\n` +
     `Ainda não recebeu? Fale com o RH antes de confirmar.`
   );

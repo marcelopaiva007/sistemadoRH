@@ -7,7 +7,11 @@ import { empresasVisiveis } from "@/lib/rh-auth-guard";
 import { registrarAuditoria } from "@/lib/audit";
 import { dataDoFormulario } from "@/lib/datas";
 import { sendTelegramMessage } from "@/lib/telegram";
-import { mensagemDeEntrega } from "@/lib/constants-entregas";
+import {
+  itemDaEntrega,
+  mensagemDeEntrega,
+  mensagemDeReenvioDeEntrega,
+} from "@/lib/constants-entregas";
 import type { ActionResult } from "@/lib/constants";
 
 // Entregas ao colaborador — cartão de benefícios, notebook, uniforme, crachá.
@@ -115,6 +119,93 @@ export async function registrarEntregas(input: {
 
   revalidatePath(`/rh/${input.empresaId}/entregas`);
   return { ok: true, criadas: alvos.length, avisados, semCanal };
+}
+
+/**
+ * Reenvia o lembrete de confirmação para entregas que continuam aguardando.
+ *
+ * O aviso do registro sai UMA vez; quem não respondeu naquele dia some do chat
+ * da pessoa e a linha fica vermelha para sempre — a alternativa até aqui era
+ * telefonema. Este botão repete a cobrança pelo mesmo canal, sem tocar no
+ * registro: reenviar não altera dataEntrega nem cria entrega nova.
+ *
+ * Uma mensagem POR PESSOA, não por entrega: os ids chegam por entrega (é o
+ * que a tela tem), mas quem tem duas pendências recebe um lembrete com as
+ * duas em lista. Elegibilidade recalculada aqui, nunca aceita do cliente —
+ * confirmada, devolvida, de colaborador desligado ou fora do escopo do
+ * usuário sai da lista em silêncio (conta em `ignoradas`).
+ */
+export async function reenviarAvisoDeEntregas(
+  empresaId: string,
+  entregaIds: string[],
+): Promise<ActionResult & { avisados?: number; semCanal?: number; ignoradas?: number }> {
+  const usuario = await requireEmpresaAccess(empresaId);
+
+  const ids = [...new Set((entregaIds ?? []).filter(Boolean))];
+  if (ids.length === 0) return { ok: false, error: "Nenhuma entrega para reenviar." };
+  if (ids.length > TETO_POR_LOTE) {
+    return { ok: false, error: `Máximo de ${TETO_POR_LOTE} entregas por vez.` };
+  }
+
+  const visiveis = await empresasVisiveis(usuario);
+  const pendentes = await prisma.entregaAoColaborador.findMany({
+    where: {
+      id: { in: ids },
+      empresaId: { in: visiveis },
+      confirmadoEm: null,
+      devolvidoEm: null,
+      // Desligado não tem como confirmar pelo portal — mesma régua do KPI
+      // "Aguardando confirmação" da tela.
+      colaborador: { ativo: true },
+    },
+    select: {
+      id: true,
+      tipo: true,
+      descricao: true,
+      colaborador: { select: { id: true, nome: true, telegramChatId: true } },
+    },
+  });
+  if (pendentes.length === 0) {
+    return { ok: false, error: "Nenhuma das entregas selecionadas continua aguardando confirmação." };
+  }
+
+  const porPessoa = new Map<string, { nome: string; chatId: string | null; itens: string[] }>();
+  for (const e of pendentes) {
+    const atual = porPessoa.get(e.colaborador.id) ?? {
+      nome: e.colaborador.nome,
+      chatId: e.colaborador.telegramChatId,
+      itens: [],
+    };
+    atual.itens.push(itemDaEntrega(e.tipo, e.descricao));
+    porPessoa.set(e.colaborador.id, atual);
+  }
+
+  // Em série, como o aviso do registro — a página declara maxDuration=300
+  // pelo mesmo motivo. Falha de envio individual não derruba o lote.
+  let avisados = 0;
+  let semCanal = 0;
+  for (const pessoa of porPessoa.values()) {
+    if (!pessoa.chatId) {
+      semCanal++;
+      continue;
+    }
+    const r = await sendTelegramMessage(
+      pessoa.chatId,
+      mensagemDeReenvioDeEntrega(pessoa.nome, pessoa.itens),
+    );
+    if (r.ok) avisados++;
+  }
+
+  await registrarAuditoria({
+    empresaId,
+    acao: "ATUALIZAR",
+    entidade: "EntregaAoColaborador",
+    entidadeId: empresaId,
+    resumo: `Reenviou o lembrete de confirmação de entrega para ${avisados} colaborador(es) pelo Telegram${semCanal > 0 ? `; ${semCanal} sem Telegram` : ""}.`,
+    detalhes: { entregas: pendentes.length, avisados, semCanal, ignoradas: ids.length - pendentes.length },
+  });
+
+  return { ok: true, avisados, semCanal, ignoradas: ids.length - pendentes.length };
 }
 
 /**

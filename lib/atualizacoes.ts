@@ -26,6 +26,19 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.100.0",
+    data: "21/08/2026",
+    horario: "13:00",
+    titulo: "Entregas: reenvio do lembrete de confirmação pelo Telegram",
+    itens: [
+      "Na tela de Entregas, a linha \"Aguardando confirmação\" ganhou o botão \"Reenviar\": manda de novo, pelo Telegram, o lembrete para o colaborador confirmar o recebimento pelo portal. Até aqui o aviso saía uma única vez, no registro — quem não respondia naquele dia só era cobrado por telefone.",
+      "Também dá para reenviar em massa: o botão \"Reenviar lembrete (N)\" ao lado dos filtros age sobre o que o filtro mostra — dá para cobrar só os cartões de benefícios, por exemplo, sem tocar no resto.",
+      "Quem tem mais de um item pendente recebe UM lembrete com todos em lista, não uma mensagem por item. Entrega já confirmada, devolvida ou de colaborador desligado fica de fora sozinha, mesmo se estiver no filtro.",
+      "Quem não tem Telegram vinculado não recebe — a tela avisa quantas pessoas ficaram de fora para o RH cobrar pessoalmente, como já faz no registro.",
+      "O reenvio não mexe no registro: não altera a data da entrega nem cria entrega nova, e fica na trilha de auditoria.",
+    ],
+  },
+  {
     versao: "1.99.1",
     data: "20/08/2026",
     horario: "11:50",

@@ -12,6 +12,7 @@ import {
   Plus,
   RotateCcw,
   Search,
+  Send,
   Trash2,
   Undo2,
 } from "lucide-react";
@@ -40,7 +41,12 @@ import {
 import { StatusBadge } from "@/components/status-badge";
 import { Paginacao } from "@/components/paginacao";
 import { usePaginacao } from "@/lib/use-paginacao";
-import { registrarEntregas, registrarDevolucao, excluirEntrega } from "@/lib/actions/rh-entregas";
+import {
+  registrarEntregas,
+  registrarDevolucao,
+  excluirEntrega,
+  reenviarAvisoDeEntregas,
+} from "@/lib/actions/rh-entregas";
 import { createCatalogoItem } from "@/lib/actions/rh-catalogos";
 import {
   SITUACAO_ENTREGA_BADGE,
@@ -155,6 +161,15 @@ export function EntregasView({
     });
   }, [entregas, busca, filtroSituacao, filtroTipo]);
 
+  // O alvo do reenvio em massa: o que está AGUARDANDO dentro do filtro atual,
+  // de colaborador ativo (desligado não confirma pelo portal). Seguir o filtro
+  // é o que permite reenviar só para "Cartão de benefícios" sem tocar no resto.
+  const reenviaveis = useMemo(
+    () =>
+      filtradas.filter((e) => situacaoDaEntrega(e) === "AGUARDANDO" && e.colaborador.ativo),
+    [filtradas],
+  );
+
   const { itensDaPagina, resetar, irPara, ...paginacao } = usePaginacao(filtradas);
 
   function mudarFiltro(fn: () => void) {
@@ -172,6 +187,33 @@ export function EntregasView({
     } else {
       toast.error(r.error);
     }
+  }
+
+  async function reenviar(entregasAlvo: EntregaDaTela[], chave: string) {
+    setAgindo(chave);
+    const r = await reenviarAvisoDeEntregas(
+      empresaId,
+      entregasAlvo.map((e) => e.id),
+    );
+    setAgindo(null);
+    if (!r.ok) {
+      toast.error(r.error);
+      return;
+    }
+    const semCanal = r.semCanal ?? 0;
+    if ((r.avisados ?? 0) === 0 && semCanal > 0) {
+      toast.warning(
+        `Ninguém avisado: ${semCanal} pessoa(s) sem Telegram vinculado — cobre a confirmação pessoalmente.`,
+      );
+      return;
+    }
+    toast.success(
+      `Lembrete reenviado para ${r.avisados} colaborador(es) pelo Telegram.` +
+        (semCanal > 0
+          ? ` ${semCanal} pessoa(s) sem Telegram não receberam — cobre a confirmação pessoalmente.`
+          : ""),
+      { duration: semCanal > 0 ? 10000 : 5000 },
+    );
   }
 
   async function excluir(entrega: EntregaDaTela) {
@@ -265,6 +307,25 @@ export function EntregasView({
                 ))}
               </SelectContent>
             </Select>
+            {/* Reenvio em massa: age sobre o que o filtro mostra, igual ao
+                "Selecionar os N visíveis" do registro. O número no rótulo é o
+                aviso de escopo — não há diálogo de confirmação, como não há
+                no registro em lote. */}
+            {reenviaveis.length > 0 && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={agindo !== null}
+                onClick={() => reenviar(reenviaveis, "lote")}
+                title="Reenvia pelo Telegram o lembrete de confirmação para as entregas aguardando dentro do filtro atual"
+              >
+                <Send className="size-3.5" />
+                {agindo === "lote"
+                  ? "Reenviando…"
+                  : `Reenviar lembrete (${reenviaveis.length})`}
+              </Button>
+            )}
           </div>
 
           <div className="overflow-x-auto rounded-md border">
@@ -325,6 +386,19 @@ export function EntregasView({
                         )}
                       </TableCell>
                       <TableCell className="align-top text-right whitespace-nowrap">
+                        {situacao === "AGUARDANDO" && e.colaborador.ativo && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            disabled={agindo !== null}
+                            onClick={() => reenviar([e], e.id)}
+                            title="Reenviar o lembrete de confirmação pelo Telegram"
+                          >
+                            <Send className="size-3.5" />
+                            {agindo === e.id ? "Enviando…" : "Reenviar"}
+                          </Button>
+                        )}
                         {situacao !== "DEVOLVIDA" && (
                           <Button
                             type="button"
