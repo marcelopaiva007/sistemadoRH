@@ -1,12 +1,49 @@
 "use client";
 
-import { ChevronDown, ChevronRight, Building2, Check, Filter } from "lucide-react";
+import { ChevronDown, ChevronRight, Building2, LayoutGrid } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { useControleFiltro } from "./filtro-empresas";
 
-type Marca = { id: string; nome: string };
+type Marca = { id: string; nome: string; corPrimaria?: string | null };
 type Empresa = { id: string; nome: string; marcaId: string };
+
+// Reserva para marca sem corPrimaria cadastrada em Marcas & CNPJs: cada marca
+// ganha uma cor estável pela posição na lista (que vem ordenada por nome), em
+// vez de todas caírem no mesmo cinza — a cor é o que deixa a lateral legível
+// de relance. Cadastrar a corPrimaria da marca substitui a reserva.
+const PALETA_RESERVA = ["#2563eb", "#d97706", "#0891b2", "#059669", "#db2777", "#7c3aed"];
+
+// "LM Telecom" -> "LM", "Centrysol" -> "CE": iniciais das duas primeiras
+// palavras, ou as duas primeiras letras quando o nome é uma palavra só.
+function iniciais(nome: string): string {
+  const palavras = nome.trim().split(/\s+/);
+  const sigla =
+    palavras.length >= 2 ? `${palavras[0][0]}${palavras[1][0]}` : palavras[0].slice(0, 2);
+  return sigla.toUpperCase();
+}
+
+// Os tons derivam da cor da marca com color-mix, em vez de tons fixos por
+// marca: corPrimaria é livre no cadastro, então tinta (8%/14%) e texto
+// precisam sair de qualquer cor. Misturar o texto com --foreground escurece a
+// cor no tema claro e clareia no escuro com a mesma regra.
+const TINTA_FUNDO = "bg-[color-mix(in_oklab,var(--marca)_8%,transparent)]";
+const TINTA_SELO = "bg-[color-mix(in_oklab,var(--marca)_14%,transparent)]";
+const TEXTO_MARCA = "text-[color-mix(in_oklab,var(--marca)_75%,var(--foreground))]";
+
+function Selo({ nome }: { nome: string }) {
+  return (
+    <span
+      className={cn(
+        "flex size-5 shrink-0 items-center justify-center rounded-[5px] text-[9px] font-bold",
+        TINTA_SELO,
+        TEXTO_MARCA
+      )}
+    >
+      {iniciais(nome)}
+    </span>
+  );
+}
 
 /**
  * Árvore de marcas e CNPJs — e o filtro da tela.
@@ -15,10 +52,10 @@ type Empresa = { id: string; nome: string; marcaId: string };
  * "Todas as marcas" volta à visão consolidada, que é o padrão.
  *
  * Antes a árvore navegava (trocava a empresa da URL) e havia um painel de
- * checkboxes ao lado fazendo o filtro. Dois controles parecidos, um ao lado do
- * outro, com comportamentos diferentes: clicar na árvore parecia filtrar por
- * CNPJ, e o filtro por marca ficava escondido no painel. Virou um controle só,
- * no lugar onde as pessoas já clicavam.
+ * checkboxes ao lado fazendo o mesmo papel — virou um controle só, no lugar
+ * onde as pessoas já clicavam. O visual atual (selo com as iniciais na cor da
+ * marca, trilho colorido na marca selecionada) veio do redesenho de 08/2026:
+ * a lista era texto puro colado e lia como planilha.
  */
 export function ListaEmpresas({
   marcas,
@@ -48,6 +85,11 @@ export function ListaEmpresas({
     empresasPorMarca.get(empresa.marcaId)!.push(empresa);
   }
 
+  const corDaMarca = (marcaId: string) => {
+    const indice = marcas.findIndex(m => m.id === marcaId);
+    return marcas[indice]?.corPrimaria || PALETA_RESERVA[indice % PALETA_RESERVA.length];
+  };
+
   const semFiltro = selecionadas.length === 0;
 
   // Marca "ativa" é aquela cuja seleção é exatamente o conjunto de CNPJs dela —
@@ -65,26 +107,59 @@ export function ListaEmpresas({
   // ela, nome do CNPJ se for um só, contagem se for mistura, ou "Todas as
   // marcas" sem filtro nenhum.
   const marcaResumo = marcas.find(m => marcaAtiva(m.id));
+  const cnpjUnico =
+    !marcaResumo && selecionadas.length === 1
+      ? empresas.find(e => e.id === selecionadas[0])
+      : undefined;
   const resumo = semFiltro
     ? "Todas as marcas"
     : marcaResumo
       ? marcaResumo.nome
-      : selecionadas.length === 1
-        ? (empresas.find(e => e.id === selecionadas[0])?.nome ?? "1 selecionada")
+      : cnpjUnico
+        ? cnpjUnico.nome
         : `${selecionadas.length} selecionadas`;
+  // Cor que representa a seleção atual na linha fechada: a da marca filtrada,
+  // ou a da marca do CNPJ único. Mistura de marcas não tem cor.
+  const corResumo = marcaResumo
+    ? corDaMarca(marcaResumo.id)
+    : cnpjUnico
+      ? corDaMarca(cnpjUnico.marcaId)
+      : undefined;
 
   return (
     <div className="space-y-1 py-3">
+      <div className="flex items-baseline justify-between px-2 pb-0.5">
+        <span className="text-[10px] font-semibold tracking-wider text-muted-foreground/70 uppercase">
+          Marcas &amp; CNPJs
+        </span>
+        <span className="text-[11px] text-muted-foreground tabular-nums">
+          {empresas.length} CNPJs
+        </span>
+      </div>
+
       <button
         onClick={() => setAberto(v => !v)}
+        style={corResumo ? ({ "--marca": corResumo } as React.CSSProperties) : undefined}
         className={cn(
-          "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm transition-colors",
+          "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors",
           !semFiltro
-            ? "bg-primary/10 font-medium text-primary"
+            ? corResumo
+              ? cn(TINTA_FUNDO, TEXTO_MARCA, "font-semibold")
+              : "bg-primary/8 font-semibold text-primary"
             : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
         )}
       >
-        <Filter className="size-3.5 shrink-0" />
+        {corResumo ? (
+          <Selo nome={marcaResumo?.nome ?? resumo} />
+        ) : semFiltro ? (
+          <span className="flex size-5 shrink-0 items-center justify-center rounded-[5px] bg-accent">
+            <LayoutGrid className="size-3 text-accent-foreground" />
+          </span>
+        ) : (
+          <span className="flex size-5 shrink-0 items-center justify-center rounded-[5px] bg-accent">
+            <Building2 className="size-3 text-accent-foreground" />
+          </span>
+        )}
         <span className="min-w-0 flex-1 truncate">{resumo}</span>
         {aberto ? (
           <ChevronDown className="size-4 shrink-0" />
@@ -98,13 +173,15 @@ export function ListaEmpresas({
           <button
             onClick={() => aplicar([])}
             className={cn(
-              "flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm transition-colors",
+              "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors",
               semFiltro
-                ? "bg-primary/10 font-medium text-primary"
+                ? "bg-primary/8 font-medium text-primary"
                 : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
             )}
           >
-            <Check className={cn("size-4 shrink-0", !semFiltro && "opacity-0")} />
+            <span className="flex size-5 shrink-0 items-center justify-center rounded-[5px] bg-accent">
+              <LayoutGrid className="size-3 text-accent-foreground" />
+            </span>
             <span>Todas as marcas</span>
           </button>
 
@@ -112,16 +189,43 @@ export function ListaEmpresas({
             const empresasDaMarca = empresasPorMarca.get(marca.id) ?? [];
             const expandida = marcasExpandidas.has(marca.id);
             const ativa = marcaAtiva(marca.id);
+            const cor = corDaMarca(marca.id);
 
             return (
-              <div key={marca.id}>
-                <div className="flex items-center">
-                  {/* Expandir é separado de filtrar: quem quer ver os CNPJs da marca
-                  nem sempre quer filtrar por ela. */}
+              <div key={marca.id} style={{ "--marca": cor } as React.CSSProperties}>
+                <div className="flex items-center gap-0.5">
+                  <button
+                    onClick={() => aplicar(empresasDaMarca.map(e => e.id))}
+                    className={cn(
+                      // Trilho na cor da marca quando selecionada — mesma
+                      // linguagem do item ativo da navegação logo abaixo
+                      // (barra + tinta leve), só que na cor da marca.
+                      "relative flex min-w-0 flex-1 items-center gap-2 rounded-md py-1.5 pr-1.5 pl-3 text-left text-sm font-medium transition-colors",
+                      "before:absolute before:inset-y-1 before:left-0 before:w-[3px] before:rounded-full before:transition-colors",
+                      ativa
+                        ? cn(TINTA_FUNDO, TEXTO_MARCA, "font-semibold before:bg-[var(--marca)]")
+                        : "text-foreground before:bg-transparent hover:bg-accent/50"
+                    )}
+                  >
+                    <Selo nome={marca.nome} />
+                    <span className="truncate">{marca.nome}</span>
+                    {empresasDaMarca.length > 1 && (
+                      <span
+                        className={cn(
+                          "ml-auto shrink-0 text-xs tabular-nums",
+                          ativa ? TEXTO_MARCA : "text-muted-foreground"
+                        )}
+                      >
+                        {empresasDaMarca.length}
+                      </span>
+                    )}
+                  </button>
+                  {/* Expandir é separado de filtrar: quem quer ver os CNPJs da
+                      marca nem sempre quer filtrar por ela. */}
                   <button
                     onClick={() => toggleExpandir(marca.id)}
                     aria-label={expandida ? `Recolher ${marca.nome}` : `Expandir ${marca.nome}`}
-                    className="rounded p-1 text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+                    className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
                   >
                     {expandida ? (
                       <ChevronDown className="size-4 shrink-0" />
@@ -129,25 +233,10 @@ export function ListaEmpresas({
                       <ChevronRight className="size-4 shrink-0" />
                     )}
                   </button>
-                  <button
-                    onClick={() => aplicar(empresasDaMarca.map(e => e.id))}
-                    className={cn(
-                      "flex min-w-0 flex-1 items-center gap-2 rounded px-1.5 py-1.5 text-left text-sm font-medium transition-colors",
-                      ativa ? "bg-primary/10 text-primary" : "text-foreground hover:bg-accent/50"
-                    )}
-                  >
-                    <Building2 className="size-3.5 shrink-0 text-muted-foreground" />
-                    <span className="truncate">{marca.nome}</span>
-                    {empresasDaMarca.length > 1 && (
-                      <span className="ml-auto shrink-0 text-xs text-muted-foreground">
-                        {empresasDaMarca.length}
-                      </span>
-                    )}
-                  </button>
                 </div>
 
                 {expandida && (
-                  <div className="ml-3 space-y-0.5 border-l border-border pl-3">
+                  <div className="mt-0.5 mb-1 ml-[13px] space-y-0.5 border-l-2 border-[color-mix(in_oklab,var(--marca)_30%,transparent)] pl-2.5">
                     {empresasDaMarca.map(empresa => {
                       const soEsta = selecionadas.length === 1 && selecionadas[0] === empresa.id;
                       return (
@@ -155,9 +244,9 @@ export function ListaEmpresas({
                           key={empresa.id}
                           onClick={() => aplicar([empresa.id])}
                           className={cn(
-                            "flex w-full items-center gap-2 rounded px-2 py-1 text-left text-xs transition-colors",
+                            "flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-xs transition-colors",
                             soEsta
-                              ? "bg-primary/10 font-medium text-primary"
+                              ? cn(TINTA_FUNDO, TEXTO_MARCA, "font-medium")
                               : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
                           )}
                         >
