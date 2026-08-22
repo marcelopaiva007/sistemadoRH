@@ -2,7 +2,6 @@ import { notFound } from "next/navigation";
 import { requireEmpresaAccess, empresasVisiveis } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
 import { RHEmpresaNav } from "./rh-empresa-nav";
-import { ListaEmpresas } from "./lista-empresas";
 import { GuiaTela } from "@/components/guia-tela";
 
 /**
@@ -61,30 +60,17 @@ export default async function RHEmpresaLayout({
 
   return (
     <div className="flex gap-6" style={estiloCor}>
-      <aside className="sticky top-14 hidden h-[calc(100vh-3.5rem)] w-56 shrink-0 overflow-y-auto border-r pr-3 md:block">
-        {/* A árvore É o filtro: marca mostra todos os CNPJs dela, CNPJ mostra
-            só ele. Havia um painel de checkboxes aqui em cima fazendo o mesmo
-            papel — dois controles parecidos lado a lado.
-            Recolhido por padrão dentro do próprio componente (o resumo já diz
-            o que está filtrado) — sem isso a árvore sempre aberta empurrava a
-            navegação abaixo pra fora da tela. */}
-        <div className="py-2">
-          <ListaEmpresas marcas={marcas} empresas={empresas} empresaIdAtiva={empresaId} />
-        </div>
-
+      <aside className="sticky top-[94px] hidden h-[calc(100vh-94px)] w-56 shrink-0 overflow-y-auto border-r pr-3 pt-2 md:block">
         <RHEmpresaNav empresaId={empresaId} />
       </aside>
 
       <div className="min-w-0 flex-1 py-4">
         {/* No celular o menu vira uma barra rolável no topo: o RH trabalha no
-            computador, mas a tela pequena não pode ficar sem navegação. */}
-        <div className="mb-4 md:hidden space-y-2">
-          <div className="px-4">
-            <ListaEmpresas marcas={marcas} empresas={empresas} empresaIdAtiva={empresaId} />
-          </div>
-          <div className="mt-2 overflow-x-auto">
-            <RHEmpresaNav empresaId={empresaId} />
-          </div>
+            computador, mas a tela pequena não pode ficar sem navegação. Trocar
+            de marca/CNPJ é o seletor da barra de topo (components/
+            seletor-marca-empresa.tsx) — não duplicado aqui. */}
+        <div className="mb-4 overflow-x-auto md:hidden">
+          <RHEmpresaNav empresaId={empresaId} />
         </div>
         {children}
       </div>

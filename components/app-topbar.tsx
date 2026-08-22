@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { navByRole, diretoriaNav } from "@/components/nav-config";
 import { Logo } from "@/components/logo";
+import { SeletorMarcaEmpresa } from "@/components/seletor-marca-empresa";
 
 const ROLE_LABELS: Record<string, string> = {
   ADMIN: "Administrativo/Financeiro",
@@ -70,20 +71,34 @@ export function AppTopbar({
   role,
   nome,
   versao,
+  marcas,
+  empresas,
 }: {
   role: string;
   nome: string;
   /** Ex.: "v1.0.0 - a1b2c3d". Vem do layout: o commit so existe no servidor. */
   versao: string;
+  /** Marcas e empresas que este usuário enxerga — vazio para quem não navega
+   *  em `/rh/[empresaId]` (GESTOR_SETOR). Alimenta o seletor do topo. */
+  marcas: { id: string; nome: string; corPrimaria: string | null }[];
+  empresas: { id: string; nome: string; marcaId: string }[];
 }) {
   const pathname = usePathname();
   const items = navByRole[role] ?? diretoriaNav;
 
   return (
     <header className="sticky top-0 z-40 border-b border-border/70 bg-background/85 backdrop-blur-md shadow-xs">
-      <div className="flex h-14 items-center gap-4 px-4 max-w-7xl mx-auto w-full">
+      {/* Linha 1 — identidade: logo, marca/empresa ativa, conta. Linha 2 —
+          navegação, largura cheia. Eram uma linha só até o seletor de
+          marca/empresa entrar: aí "Produtividade RH" cortava — 4 itens de
+          menu + logo + seletor + conta não cabem em 1280px (a própria
+          max-w-7xl do layout), então a barra ficava um só amontoado disputando
+          espaço. Duas perguntas diferentes ("em que contexto estou" x "para
+          onde eu vou") ganham uma linha cada, e a navegação nunca mais fica
+          sem espaço, não importa o tamanho do nome da empresa. */}
+      <div className="mx-auto flex h-12 w-full max-w-7xl items-center gap-3 px-4">
         <div className="flex shrink-0 items-center gap-3">
-          <Logo width={140} height={34} className="h-8 w-auto" />
+          <Logo width={140} height={34} className="h-7 w-auto" />
           <div className="hidden leading-tight lg:block border-l border-border/60 pl-3">
             <p className="text-xs font-medium text-foreground/80">Sistema de RH</p>
             {/* Responde "estou vendo a versao nova?" sem sair da tela. */}
@@ -91,7 +106,39 @@ export function AppTopbar({
           </div>
         </div>
 
-        <nav className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto py-1 scrollbar-none">
+        <SeletorMarcaEmpresa marcas={marcas} empresas={empresas} />
+
+        <div className="flex-1" />
+
+        <SeletorTema />
+        <Link
+          href="/conta"
+          className={cn(
+            "flex items-center gap-2 rounded-lg border border-transparent px-2.5 py-1 transition-all hover:bg-muted/80 hover:border-border/50",
+            pathname === "/conta" && "bg-muted border-border/60"
+          )}
+        >
+          <div className="text-right">
+            <p className="text-sm font-medium leading-tight text-foreground">{nome}</p>
+            <p className="text-[11px] text-muted-foreground font-medium">
+              {ROLE_LABELS[role] ?? "Diretoria/Gestão"}
+            </p>
+          </div>
+          <KeyRound className="size-4 text-muted-foreground" />
+        </Link>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="gap-2 text-muted-foreground hover:text-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+          onClick={() => signOut({ callbackUrl: "/login" })}
+        >
+          <LogOut className="size-4" />
+          <span className="hidden sm:inline">Sair</span>
+        </Button>
+      </div>
+
+      <div className="border-t border-border/60 bg-muted/30">
+        <nav className="mx-auto flex h-11 w-full max-w-7xl items-center gap-1.5 overflow-x-auto px-4 scrollbar-none">
           {items.map((item) => {
             const active =
               item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
@@ -104,7 +151,7 @@ export function AppTopbar({
                   "flex shrink-0 items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition-all duration-150",
                   active
                     ? "bg-primary text-primary-foreground shadow-xs font-semibold"
-                    : "text-muted-foreground hover:bg-muted/80 hover:text-foreground active:scale-[0.98]"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground active:scale-[0.98]"
                 )}
               >
                 <Icon className="size-4" />
@@ -113,34 +160,6 @@ export function AppTopbar({
             );
           })}
         </nav>
-
-        <div className="flex shrink-0 items-center gap-1.5">
-          <SeletorTema />
-          <Link
-            href="/conta"
-            className={cn(
-              "flex items-center gap-2 rounded-lg border border-transparent px-2.5 py-1 transition-all hover:bg-muted/80 hover:border-border/50",
-              pathname === "/conta" && "bg-muted border-border/60"
-            )}
-          >
-            <div className="text-right">
-              <p className="text-sm font-medium leading-tight text-foreground">{nome}</p>
-              <p className="text-[11px] text-muted-foreground font-medium">
-                {ROLE_LABELS[role] ?? "Diretoria/Gestão"}
-              </p>
-            </div>
-            <KeyRound className="size-4 text-muted-foreground" />
-          </Link>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="gap-2 text-muted-foreground hover:text-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
-            onClick={() => signOut({ callbackUrl: "/login" })}
-          >
-            <LogOut className="size-4" />
-            <span className="hidden sm:inline">Sair</span>
-          </Button>
-        </div>
       </div>
     </header>
   );

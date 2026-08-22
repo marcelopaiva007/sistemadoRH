@@ -9,9 +9,10 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 // o rótulo do botão. useSearchParams é reativo e resolve isso; de brinde o
 // filtro sobrevive ao F5 e o link fica compartilhável.
 //
-// A interface do filtro é a árvore de marcas/CNPJs (lista-empresas.tsx). Houve
-// um segundo controle, um painel de checkboxes, que fazia o mesmo papel — dois
-// controles parecidos na mesma lateral confundiam mais do que ajudavam.
+// A interface do filtro é o seletor da barra de topo
+// (components/seletor-marca-empresa.tsx). Antes era uma árvore na lateral
+// (lista-empresas.tsx, removida) e, antes dela, um painel de checkboxes — dois
+// controles parecidos ao mesmo tempo sempre confundiram mais do que ajudaram.
 export const PARAM = "empresas";
 
 type ReadonlyURLSearchParams = ReturnType<typeof useSearchParams>;
@@ -83,7 +84,10 @@ export function useControleFiltro(empresaIdAtual: string) {
 // Só troca o segmento quando ele é mesmo o id da empresa atual: /rh/meu-setor e
 // /rh/empresas também casam com /rh/<algo>, e trocar às cegas quebraria essas
 // rotas.
-function trocarEmpresaNoCaminho(pathname: string, atual: string, novo: string): string {
+//
+// Exportada: o seletor da barra de topo (components/seletor-marca-empresa.tsx)
+// reusa esta mesma troca de segmento em vez de duplicá-la.
+export function trocarEmpresaNoCaminho(pathname: string, atual: string, novo: string): string {
   const partes = pathname.split("/");
   if (partes[1] !== "rh" || partes[2] !== atual) return pathname;
   partes[2] = novo;
