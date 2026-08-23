@@ -2,23 +2,23 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Building2, ChevronDown } from "lucide-react";
+import { Building2, ChevronDown, LayoutGrid } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Selo, corDaMarca } from "@/components/marca-visual";
-import { trocarEmpresaNoCaminho } from "@/app/(app)/rh/[empresaId]/filtro-empresas";
+import { urlDoFiltro, PARAM } from "@/app/(app)/rh/[empresaId]/filtro-empresas";
 
 type Marca = { id: string; nome: string; corPrimaria: string | null };
 type Empresa = { id: string; nome: string; marcaId: string };
-
-const PARAM = "empresas";
 
 /**
  * Troca de marca/CNPJ na barra de topo — visível em toda a área logada, não só
  * dentro de `/rh/[empresaId]` (onde antes existia como árvore na lateral,
  * `lista-empresas.tsx`, removida por fazer o mesmo papel deste seletor num
  * lugar só alcançável de dentro de uma empresa). Dois segmentos: o da
- * esquerda pula direto para a visão consolidada de uma marca; o da direita
- * lista todos os CNPJs, agrupados por marca, para entrar num específico.
+ * esquerda escolhe a marca (ou "Todas as marcas", que limpa o filtro); o da
+ * direita entra num CNPJ. O segundo tem DUAS formas, e é de propósito — com
+ * uma marca em foco ele mostra só os CNPJs dela, sem marca em foco ele é a
+ * lista completa agrupada por marca. Ver o comentário de `marcaEmFoco`.
  *
  * Dentro de `/rh/[empresaId]`, reaproveita o MESMO mecanismo de
  * `filtro-empresas.tsx` (querystring `?empresas=`, trocando só o segmento da
@@ -42,27 +42,33 @@ export function SeletorMarcaEmpresa({
   const [abertoMarca, setAbertoMarca] = useState(false);
   const [abertoLista, setAbertoLista] = useState(false);
 
-  // Fecha os dois popovers ao clicar fora, trocar de rota, ou apertar Esc —
-  // sem isto o painel fica flutuando por cima da tela até um novo clique nele
-  // mesmo.
+  // Fecha os dois popovers ao clicar fora, apertar Esc, ou navegar pelo
+  // histórico do navegador — sem isto o painel fica flutuando por cima da tela.
+  //
+  // `popstate` está aqui porque este componente vive no layout de (app) e NÃO
+  // remonta entre rotas: o Voltar/Avançar do navegador (e o gesto de swipe do
+  // trackpad) troca a página sem passar por mousedown nem por Escape, e o
+  // painel aberto atravessava a navegação. Fechar por efeito na troca de
+  // `pathname` seria o caminho óbvio, mas é setState dentro de efeito — o que
+  // o eslint do projeto barra (react-hooks/set-state-in-effect).
   useEffect(() => {
+    function fechar() {
+      setAbertoMarca(false);
+      setAbertoLista(false);
+    }
     function aoClicarFora(e: MouseEvent) {
-      if (raizRef.current && !raizRef.current.contains(e.target as Node)) {
-        setAbertoMarca(false);
-        setAbertoLista(false);
-      }
+      if (raizRef.current && !raizRef.current.contains(e.target as Node)) fechar();
     }
     function aoTeclar(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        setAbertoMarca(false);
-        setAbertoLista(false);
-      }
+      if (e.key === "Escape") fechar();
     }
     document.addEventListener("mousedown", aoClicarFora);
     document.addEventListener("keydown", aoTeclar);
+    window.addEventListener("popstate", fechar);
     return () => {
       document.removeEventListener("mousedown", aoClicarFora);
       document.removeEventListener("keydown", aoTeclar);
+      window.removeEventListener("popstate", fechar);
     };
   }, []);
 
@@ -138,19 +144,31 @@ export function SeletorMarcaEmpresa({
   const marcaEmFoco =
     marcaAtiva ?? (cnpjUnico ? marcas.find((m) => m.id === cnpjUnico.marcaId) : undefined);
 
-  // Aplica a seleção: dentro de /rh troca só a querystring (e o segmento da
-  // URL quando sobra 1 CNPJ só, para o cadastro novo saber onde entrar — regra
-  // de filtro-empresas.tsx::aplicar); fora de /rh não há onde filtrar, então
-  // navega para dentro da empresa, igual aos cartões da home.
+  // Aplica a seleção: dentro de /rh mexe na querystring e no segmento de
+  // empresa da URL; fora de /rh não há o que filtrar, então navega para dentro
+  // da empresa, igual aos cartões da home.
+  //
+  // Lista VAZIA é "Todas as marcas": apaga o filtro e volta à visão consolidada
+  // do grupo. Sem esse caminho o seletor nomeava um estado ("Todas as marcas",
+  // "Todos os CNPJs", nos rótulos acima) que ele mesmo não conseguia alcançar —
+  // escolher uma marca virava viagem sem volta, a não ser editando a URL.
   function selecionar(ids: string[]) {
-    if (ids.length === 0) return;
     if (dentroDeEmpresa && empresaIdAtual) {
-      const params = new URLSearchParams(searchParams.toString());
-      params.set(PARAM, ids.join(","));
-      const base =
-        ids.length === 1 ? trocarEmpresaNoCaminho(pathname, empresaIdAtual, ids[0]) : pathname;
-      router.replace(`${base}?${params.toString()}`, { scroll: false });
+      // A conta de para-onde-ir é a MESMA da árvore de filtro das telas — mora
+      // em filtro-empresas.tsx e é testada em scripts/test-troca-empresa-caminho.ts.
+      router.replace(
+        urlDoFiltro({
+          empresaIds: ids,
+          pathname,
+          busca: searchParams.toString(),
+          empresaIdAtual,
+        }),
+        { scroll: false },
+      );
     } else {
+      // Fora de /rh não existe "limpar filtro": a tela inicial já é a visão do
+      // grupo inteiro, e o item "Todas as marcas" nem é renderizado ali.
+      if (ids.length === 0) return;
       router.push(`/rh/${ids[0]}?empresas=${ids.join(",")}`);
     }
     setAbertoMarca(false);
@@ -184,6 +202,31 @@ export function SeletorMarcaEmpresa({
 
           {abertoMarca && (
             <div className="absolute top-[calc(100%+8px)] left-0 z-50 w-56 rounded-[10px] bg-popover p-1.5 shadow-lg ring-1 ring-foreground/10">
+              {/* Só dentro de /rh: é o botão de LIMPAR o filtro, e fora do
+                  módulo não há filtro nenhum para limpar (a tela inicial já é a
+                  visão do grupo). Mesmo ícone e rótulo da árvore lateral que
+                  este seletor substituiu, para quem já usava não reaprender. */}
+              {dentroDeEmpresa && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => selecionar([])}
+                    className={cn(
+                      "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors",
+                      semFiltro
+                        ? "bg-primary/8 font-medium text-primary"
+                        : "text-foreground hover:bg-accent/50"
+                    )}
+                  >
+                    <span className="flex size-5 shrink-0 items-center justify-center rounded-[5px] bg-accent">
+                      <LayoutGrid className="size-3 text-accent-foreground" />
+                    </span>
+                    <span className="min-w-0 flex-1 truncate">Todas as marcas</span>
+                  </button>
+                  <div className="my-1 h-px bg-border" />
+                </>
+              )}
+
               {marcas.map((marca) => {
                 const idsDaMarca = (empresasPorMarca.get(marca.id) ?? []).map((e) => e.id);
                 const ativa = marcaAtiva?.id === marca.id;
@@ -217,7 +260,8 @@ export function SeletorMarcaEmpresa({
 
         <div className="w-px shrink-0 bg-border" />
 
-        {/* Segmento 2: lista completa, agrupada por marca, para entrar num CNPJ específico. */}
+        {/* Segmento 2: entra num CNPJ. Com marca em foco, só os CNPJs dela;
+            sem marca em foco, a lista completa agrupada por marca. */}
         <div className="relative">
           <button
             type="button"

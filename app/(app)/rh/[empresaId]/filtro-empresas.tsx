@@ -54,28 +54,81 @@ export function useControleFiltro(empresaIdAtual: string) {
 
   const aplicar = useCallback(
     (empresaIds: string[]) => {
-      const params = new URLSearchParams(searchParams.toString());
-      if (empresaIds.length === 0) params.delete(PARAM);
-      else params.set(PARAM, empresaIds.join(","));
-      const query = params.toString();
-
-      // Filtrar por UM CNPJ também entra nele. O caminho carrega a "empresa
-      // atual", que é quem recebe cadastro novo: filtrar por Centrysol com o
-      // caminho em RSM fazia "Novo Colaborador" criar em RSM, calado. Com
-      // vários CNPJs não há para onde entrar, e o caminho fica onde está.
-      const base =
-        empresaIds.length === 1
-          ? trocarEmpresaNoCaminho(pathname, empresaIdAtual, empresaIds[0])
-          : pathname;
-
       // replace e não push: filtrar não é navegação, não deve encher o
       // histórico a ponto de o "voltar" do navegador virar desfazer-filtro.
-      router.replace(query ? `${base}?${query}` : base, { scroll: false });
+      router.replace(
+        urlDoFiltro({
+          empresaIds,
+          pathname,
+          busca: searchParams.toString(),
+          empresaIdAtual,
+        }),
+        { scroll: false },
+      );
     },
     [router, pathname, searchParams, empresaIdAtual],
   );
 
   return { selecionadas, aplicar };
+}
+
+/**
+ * Para onde ir ao aplicar uma seleção de CNPJs, dentro de /rh/<empresa>.
+ *
+ * Função pura e exportada de propósito: esta conta erra CALADO quando erra (ver
+ * scripts/test-troca-empresa-caminho.ts), e ela tem dois donos — a árvore de
+ * filtro das telas (`aplicar`, acima) e o seletor da barra de topo
+ * (components/seletor-marca-empresa.tsx). Enquanto foram duas cópias, uma
+ * ganhou correção que a outra não teve.
+ *
+ * Lista VAZIA é "todas as marcas": apaga o filtro e devolve à visão consolidada
+ * do grupo.
+ *
+ * O <empresaId> do caminho SEGUE a seleção. Ele é o CNPJ em que os formulários
+ * de criação gravam ("Abrir competência" na Folha, "Novo Colaborador") e o que
+ * as telas escopadas por marca usam (Pendências, Colaboradores). Deixá-lo numa
+ * empresa fora da seleção zerava essas telas — interseção vazia — e fazia o
+ * cadastro novo cair no CNPJ errado sem dizer nada. Quando a seleção já contém
+ * o CNPJ atual, ele fica: não se pula de CNPJ à toa.
+ */
+export function urlDoFiltro({
+  empresaIds,
+  pathname,
+  busca,
+  empresaIdAtual,
+}: {
+  empresaIds: string[];
+  pathname: string;
+  /** `searchParams.toString()` — os outros filtros da tela são preservados. */
+  busca: string;
+  empresaIdAtual: string;
+}): string {
+  const params = new URLSearchParams(busca);
+  if (empresaIds.length === 0) params.delete(PARAM);
+  else params.set(PARAM, empresaIds.join(","));
+
+  const destino =
+    empresaIds.length === 0 || empresaIds.includes(empresaIdAtual)
+      ? empresaIdAtual
+      : empresaIds[0];
+
+  const base = trocarEmpresaNoCaminho(pathname, empresaIdAtual, destino);
+  // Vírgula literal, não %2C. `URLSearchParams.toString()` escapa a vírgula, e
+  // o resto do sistema não: os links da tela inicial e dos cartões de
+  // pendência montam `?empresas=${ids.join(",")}` à mão. Os dois funcionam
+  // (quem lê usa `searchParams.get`, que decodifica), mas a mesma URL aparecia
+  // escrita de dois jeitos conforme o caminho que a gerou — e URL de filtro
+  // aqui é feita para ser copiada e colada. Vírgula é caractere permitido em
+  // query string (RFC 3986, sub-delims).
+  const query = params.toString().replace(/%2C/g, ",");
+  return query ? `${base}?${query}` : base;
+}
+
+// Id de recurso do Prisma (cuid): 20+ caracteres, só minúsculas e dígitos.
+// Sub-tela estática do módulo — `ferias/programadas`, `avaliacoes/painel`,
+// `pesquisas/<id>/resultados` — nunca chega perto disso (a maior tem 15).
+function pareceIdDeRecurso(segmento: string): boolean {
+  return /^[a-z0-9_]{20,}$/.test(segmento);
 }
 
 // /rh/<atual>/colaboradores -> /rh/<novo>/colaboradores, preservando a tela em
@@ -85,11 +138,23 @@ export function useControleFiltro(empresaIdAtual: string) {
 // /rh/empresas também casam com /rh/<algo>, e trocar às cegas quebraria essas
 // rotas.
 //
+// O id de RECURSO no caminho é cortado ao trocar de empresa: a ficha
+// /rh/<A>/colaboradores/<id> vira /rh/<B>/colaboradores, e não uma ficha
+// inexistente. Toda rota de detalhe do módulo busca por { id, empresaId }
+// (colaboradores/[colaboradorId], folha/[competenciaId], vagas/[vagaId],
+// avaliacoes/[cicloId], pesquisas/[pesquisaId]) e cai em notFound() quando o
+// recurso é da empresa anterior — como a navegação é `replace`, o 404 ainda
+// comia o Voltar do navegador. Sub-tela estática não tem cara de id e fica.
+//
 // Exportada: o seletor da barra de topo (components/seletor-marca-empresa.tsx)
 // reusa esta mesma troca de segmento em vez de duplicá-la.
 export function trocarEmpresaNoCaminho(pathname: string, atual: string, novo: string): string {
   const partes = pathname.split("/");
   if (partes[1] !== "rh" || partes[2] !== atual) return pathname;
+  // Empresa não mudou (ex.: só limpar o filtro): o recurso aberto continua
+  // válido, então nada de cortar o caminho e jogar a pessoa fora da ficha.
+  if (atual === novo) return pathname;
   partes[2] = novo;
-  return partes.join("/");
+  const corte = partes.findIndex((p, i) => i > 2 && pareceIdDeRecurso(p));
+  return (corte === -1 ? partes : partes.slice(0, corte)).join("/");
 }

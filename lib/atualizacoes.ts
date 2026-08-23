@@ -26,6 +26,18 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.105.2",
+    data: "23/08/2026",
+    horario: "08:40",
+    titulo: "Correções no seletor de marca/CNPJ do topo",
+    itens: [
+      "Voltou o \"Todas as marcas\": escolher uma marca no seletor era caminho sem volta — não havia como pedir de novo a visão somada do grupo a não ser editando o endereço à mão. O item está de volta no topo da lista de marcas, com o mesmo ícone da lateral antiga.",
+      "Corrigido um erro sério: escolher uma marca com mais de um CNPJ (a LM Telecom tem 5) estando dentro de outra marca deixava o sistema com um pé em cada lugar. Telas como Pendências e Colaboradores apareciam ZERADAS, e — pior — o que fosse cadastrado ali (abrir competência de folha, por exemplo) ia para o CNPJ antigo, sem avisar. Agora o sistema entra de fato na marca escolhida.",
+      "Trocar de CNPJ com a ficha de um colaborador aberta dava \"página não encontrada\" (a ficha é de outra empresa) e o botão Voltar do navegador não desfazia. Agora a troca leva para a lista da empresa nova.",
+      "O painel do seletor não fica mais aberto por cima da tela ao usar o Voltar do navegador.",
+    ],
+  },
+  {
     // Faixa: a 1.105.0 subiu sem entrada aqui (deploy de 22/08 à noite) e a
     // 1.105.1 corrigiu o defeito dela minutos depois. Consolidadas para quem
     // estiver rodando qualquer uma das duas achar a própria versão na lista.
