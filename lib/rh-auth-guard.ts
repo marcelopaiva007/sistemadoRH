@@ -78,6 +78,27 @@ export async function empresasVisiveis(user: {
   return [...new Set([...porEmpresa, ...porMarca])];
 }
 
+/**
+ * O escopo de uma tela consolidada: a INTERSEÇÃO entre o `?empresas=` da URL e
+ * o que o usuário de fato enxerga. Sem filtro, tudo que ele enxerga.
+ *
+ * A interseção é regra de segurança, não conveniência: um id digitado à mão na
+ * URL não pode virar acesso. A conta existia inline em ~20 telas do RH (e é lá
+ * que continua, por ora); virou helper em 23/08/2026 porque o módulo Processos
+ * & Ativos ia criar as cópias 18ª a 21ª — e a 22ª seria a que esquece o
+ * `.includes`, mostrando número plausível e errado de outro CNPJ, a classe de
+ * defeito da v1.105.0. Tela consolidada nova usa isto; migrar as antigas é
+ * limpeza para outra hora.
+ */
+export async function escopoDeEmpresas(
+  user: { id?: string; role: string; empresas: { empresaId: string; ativo: boolean }[] },
+  empresasParam: string | undefined,
+): Promise<string[]> {
+  const visiveis = await empresasVisiveis(user);
+  const pedidas = (empresasParam ?? "").split(",").filter(Boolean);
+  return pedidas.length === 0 ? visiveis : pedidas.filter((id) => visiveis.includes(id));
+}
+
 // CNPJs que o usuário alcança por ter acesso à MARCA inteira. Consultado a cada
 // request, e não lido do JWT, justamente para que um CNPJ cadastrado depois
 // entre no acesso sem exigir novo login — é o que o vínculo por marca promete.

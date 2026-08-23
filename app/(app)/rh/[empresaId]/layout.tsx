@@ -3,20 +3,10 @@ import { requireEmpresaAccess, empresasVisiveis } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
 import { RHEmpresaNav } from "./rh-empresa-nav";
 import { GuiaTela } from "@/components/guia-tela";
-
-/**
- * Branco em cima da cor da marca, ou quase-preto se a cor for clara demais
- * pro branco ler bem (luminância relativa > 0.6, limiar comum de contraste).
- * Sem isto, uma marca escolhendo amarelo ou branco deixaria o texto dos
- * botões ilegível — validado só na hora de aplicar, não impede o cadastro.
- */
-function corDeContraste(hex: string): string {
-  const r = parseInt(hex.slice(1, 3), 16) / 255;
-  const g = parseInt(hex.slice(3, 5), 16) / 255;
-  const b = parseInt(hex.slice(5, 7), 16) / 255;
-  const luminancia = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-  return luminancia > 0.6 ? "#0a0a0a" : "#ffffff";
-}
+// A conta de contraste saiu daqui para lib/marca-cor.ts em 23/08/2026: o
+// módulo Processos & Ativos pinta o subtree dele pela mesma regra, e duas
+// cópias do limiar de luminância acabam divergindo.
+import { corDeContrasteDaMarca } from "@/lib/marca-cor";
 
 export default async function RHEmpresaLayout({
   children,
@@ -51,12 +41,7 @@ export default async function RHEmpresaLayout({
   // topbar, telas fora de /rh/<empresa> — fica no azul padrão do tema).
   // Sem Marca.corPrimaria, `estiloCor` fica undefined e nada muda.
   const marcaAtiva = marcas.find((m) => m.id === empresa.marcaId);
-  const estiloCor = marcaAtiva?.corPrimaria
-    ? ({
-        "--primary": marcaAtiva.corPrimaria,
-        "--primary-foreground": corDeContraste(marcaAtiva.corPrimaria),
-      } as React.CSSProperties)
-    : undefined;
+  const estiloCor = corDeContrasteDaMarca(marcaAtiva?.corPrimaria);
 
   return (
     <div className="flex gap-6" style={estiloCor}>

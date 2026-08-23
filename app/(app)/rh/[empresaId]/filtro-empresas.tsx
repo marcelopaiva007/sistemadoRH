@@ -73,7 +73,8 @@ export function useControleFiltro(empresaIdAtual: string) {
 }
 
 /**
- * Para onde ir ao aplicar uma seleção de CNPJs, dentro de /rh/<empresa>.
+ * Para onde ir ao aplicar uma seleção de CNPJs, dentro de um módulo escopado
+ * por empresa (/rh/<empresa>, /processos/<empresa> — ver components/modulos.ts).
  *
  * Função pura e exportada de propósito: esta conta erra CALADO quando erra (ver
  * scripts/test-troca-empresa-caminho.ts), e ela tem dois donos — a árvore de
@@ -131,12 +132,20 @@ function pareceIdDeRecurso(segmento: string): boolean {
   return /^[a-z0-9_]{20,}$/.test(segmento);
 }
 
-// /rh/<atual>/colaboradores -> /rh/<novo>/colaboradores, preservando a tela em
-// que a pessoa está.
+// /<modulo>/<atual>/colaboradores -> /<modulo>/<novo>/colaboradores,
+// preservando a tela em que a pessoa está.
 //
 // Só troca o segmento quando ele é mesmo o id da empresa atual: /rh/meu-setor e
 // /rh/empresas também casam com /rh/<algo>, e trocar às cegas quebraria essas
 // rotas.
+//
+// O NOME DO MÓDULO não entra na conta de propósito. Até 23/08/2026 havia um
+// `partes[1] !== "rh"` aqui, e com o segundo módulo (Processos & Ativos) ele
+// passaria a recusar caladamente toda troca de CNPJ feita lá dentro — a URL
+// ficaria no CNPJ antigo enquanto o `?empresas=` ia para o novo, que é o par
+// descasado responsável pelo defeito de escopo da v1.105.0. Conferir
+// `partes[2] === atual` já basta e cobre qualquer módulo: `atual` é sempre um
+// id de empresa real, e nenhuma rota fora de módulo tem um cuid no 2º segmento.
 //
 // O id de RECURSO no caminho é cortado ao trocar de empresa: a ficha
 // /rh/<A>/colaboradores/<id> vira /rh/<B>/colaboradores, e não uma ficha
@@ -150,7 +159,7 @@ function pareceIdDeRecurso(segmento: string): boolean {
 // reusa esta mesma troca de segmento em vez de duplicá-la.
 export function trocarEmpresaNoCaminho(pathname: string, atual: string, novo: string): string {
   const partes = pathname.split("/");
-  if (partes[1] !== "rh" || partes[2] !== atual) return pathname;
+  if (partes[2] !== atual) return pathname;
   // Empresa não mudou (ex.: só limpar o filtro): o recurso aberto continua
   // válido, então nada de cortar o caminho e jogar a pessoa fora da ficha.
   if (atual === novo) return pathname;

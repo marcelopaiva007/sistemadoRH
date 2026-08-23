@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { navByRole, diretoriaNav } from "@/components/nav-config";
 import { Logo } from "@/components/logo";
+import { SeletorModulo } from "@/components/seletor-modulo";
 import { SeletorMarcaEmpresa } from "@/components/seletor-marca-empresa";
 
 const ROLE_LABELS: Record<string, string> = {
@@ -97,13 +98,14 @@ export function AppTopbar({
           onde eu vou") ganham uma linha cada, e a navegação nunca mais fica
           sem espaço, não importa o tamanho do nome da empresa. */}
       <div className="mx-auto flex h-12 w-full max-w-7xl items-center gap-3 px-4">
-        <div className="flex shrink-0 items-center gap-3">
+        <div className="flex shrink-0 items-center gap-2">
           <Logo width={140} height={34} className="h-7 w-auto" />
-          <div className="hidden leading-tight lg:block border-l border-border/60 pl-3">
-            <p className="text-xs font-medium text-foreground/80">Sistema de RH</p>
-            {/* Responde "estou vendo a versao nova?" sem sair da tela. */}
-            <p className="font-mono text-[10px] text-muted-foreground/70">{versao}</p>
-          </div>
+          {/* Era o texto fixo "Sistema de RH" com a versao embaixo. Virou a
+              porta entre os modulos em 23/08/2026, sem sair do lugar: o rotulo
+              ja respondia "onde eu estou", e e ali que quem procura a saida
+              olha primeiro. A etiqueta de versao continua dentro dele — ela
+              responde "estou vendo a versao nova?" sem sair da tela. */}
+          <SeletorModulo papel={role} versao={versao} empresaIds={empresas.map((e) => e.id)} />
         </div>
 
         <SeletorMarcaEmpresa marcas={marcas} empresas={empresas} />

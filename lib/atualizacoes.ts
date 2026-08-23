@@ -26,6 +26,60 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.109.0",
+    data: "23/08/2026",
+    horario: "15:50",
+    titulo: "Processos & Ativos: Painel — a leitura de diretoria",
+    itens: [
+      "Novo Painel no módulo: seis indicadores (pendências vencidas, vencendo em 7 dias, sem responsável, multas a indicar, CNHs vencendo em 60 dias, veículos ativos) e dois gráficos — o custo da frota mês a mês (combustível/energia, manutenção e multas empilhados, com multa em vermelho: é a única das três que é desperdício puro) e os 5 veículos que mais custaram em 12 meses.",
+      "A divisão entre as telas é proposital: a Central é a fila de quem executa (cada linha tem dono e botão), a Análise é a tabela completa de quem investiga, o Painel é o resumo de quem decide — nada nele tem botão de ação; agir é descer à Central.",
+      "Os números do Painel usam os mesmos cortes da Central — painel que discorda da fila mata a confiança nos dois.",
+    ],
+  },
+  {
+    versao: "1.108.0",
+    data: "23/08/2026",
+    horario: "15:20",
+    titulo: "Frota: consumo, manutenções e a análise de custo",
+    itens: [
+      "Frota › Consumo: registro de abastecimento (litros) ou recarga (kWh, para elétrico — o cadastro do veículo ganhou o campo de motorização). Cada registro pede o hodômetro, e é dele que sai o rendimento (km/l ou km/kWh) entre um abastecimento e o próximo. O consumo é atribuído a quem está com o carro — dá para corrigir.",
+      "Frota › Manutenções: o histórico de cada carro (preventiva, revisão, corretiva, pneus, sinistro), com valor e oficina. Preenchendo a próxima revisão, ela vira aviso na Central de Pendências — o carro avisa antes de quebrar na rua.",
+      "Frota › Análise: os últimos 12 meses calculados dos registros. Por veículo: km rodados, gasto com combustível/energia, manutenção, multas, total e R$/km — com destaque para quem acumula corretiva. Por condutor: rendimento médio ao volante e multas indicadas. É a tela que aponta os veículos que estão custando caro e diferencia quem cuida de quem gasta.",
+      "Honestidade dos números: sem hodômetro registrado a análise diz \"sem dado\", nunca zero; condutor com menos de 3 abastecimentos aparece como \"poucos dados\" em vez de liderar ranking por sorte; multa só conta para o condutor que foi indicado.",
+    ],
+  },
+  {
+    versao: "1.107.0",
+    data: "23/08/2026",
+    horario: "11:30",
+    titulo: "Processos & Ativos: frota e a Central de Pendências (onda 1)",
+    itens: [
+      "A Central de Pendências é a tela de abertura do módulo: tudo que vence, dos domínios que já existem, numa lista só — com a data, quantos dias faltam, e quem responde. Vencidas no topo, depois o que vence em 7 dias, depois em 30. Pendência SEM responsável aparece em bloco próprio, antes de tudo: prazo que não é de ninguém não vai ser resolvido por ninguém.",
+      "Cada pendência tem um botão que resolve (\"Indicar condutor\", \"Abrir veículo\"), não um link de \"ver\". E pode ser dispensada com motivo escrito — sem isso um alarme falso fica eterno e a lista inteira perde a confiança.",
+      "Frota › Veículos: placa, modelo, estado de emplacamento, adesão ao SNE (com a data, porque o desconto de 40% só vale se a adesão for anterior à notificação), documentos com validade (licenciamento, IPVA, seguro — NÃO há DPVAT: foi revogado) e a entrega do veículo a um condutor.",
+      "Frota › Condutores: botão \"Importar do cadastro\" cria de uma vez os condutores a partir dos colaboradores que têm CNH no cadastro do RH, já puxando a validade do documento — ninguém digita motorista um a um. Categoria e EAR se conferem depois: isso o documento não diz sozinho.",
+      "Frota › Condutores: habilitação, validade da CNH (copiada do documento, não calculada), EAR, exame toxicológico e pontuação — com o limite certo para cada caso (40 com EAR; 20, 30 ou 40 sem EAR, conforme as gravíssimas do ano) e o aviso de quando o curso preventivo que zera os pontos já pode ser feito.",
+      "Frota › Multas: o auto de infração com todos os relógios que ele dispara, o principal sendo os 30 dias para indicar o condutor — passou, a empresa paga 3× o valor. Ao clicar em \"Indicar condutor\", o sistema já diz quem estava com o veículo naquele dia e hora, pelo registro de entrega. Confirma-se com um clique.",
+      "Pontos da CNH só entram na conta do condutor quando ele é indicado. E sete infrações do CTB não pontuam mesmo sendo graves — por isso \"pontua?\" é lido no auto, não deduzido da gravidade.",
+      "Um processo automático roda todo dia às 6h20 e mantém a Central em dia. O botão \"Atualizar agora\" faz a mesma coisa na hora.",
+    ],
+  },
+  {
+    versao: "1.106.0",
+    data: "23/08/2026",
+    horario: "09:10",
+    titulo: "Novo módulo: Processos & Ativos, com troca de módulo na barra de topo",
+    itens: [
+      "O sistema deixou de ser um módulo só. Ao lado do logo, onde antes estava escrito \"Sistema de RH\" como texto fixo, agora há um seletor: clicando nele aparecem os módulos disponíveis e dá para trocar de um para o outro sem voltar à tela inicial.",
+      "Nasce o módulo Processos & Ativos — o lugar de processos, documentos, contratos, frota (documentação dos carros) e patrimônio. É a outra metade do trabalho de quem faz RH e compliance neste grupo, e até hoje não tinha sistema nenhum: vivia em pasta de computador e e-mail.",
+      "O módulo está EM CONSTRUÇÃO e ainda não guarda dado. A tela de abertura descreve o que cada área vai controlar e em que ordem — Frota e Central de Pendências primeiro, depois Contratos e Patrimônio, por último Documentos e Processos. O critério da ordem é um só: quanto dinheiro sai hoje, de forma certa e recorrente, se continuar sem controle.",
+      "A mesma tela lista cinco ações que NÃO dependem do sistema e já estão custando dinheiro — a primeira delas, aderir ao SNE para receber multa por meio eletrônico, perde desconto a cada semana que passa.",
+      "A marca/CNPJ escolhida viaja junto na troca de módulo: quem está na LM Telecom e vai para Processos & Ativos continua na LM Telecom, com o mesmo filtro aplicado.",
+      "O seletor de marca/CNPJ passou a funcionar dentro de qualquer módulo. Antes ele só reconhecia as telas do RH — dentro do módulo novo, trocar de CNPJ jogaria a pessoa de volta no RH sem avisar.",
+      "Nada do módulo de RH mudou de lugar. A etiqueta com a versão do sistema continua no mesmo canto, agora dentro do seletor de módulo.",
+    ],
+  },
+  {
     versao: "1.105.2",
     data: "23/08/2026",
     horario: "08:40",
