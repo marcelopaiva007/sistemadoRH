@@ -9,6 +9,7 @@
     { "path": "/api/cron/lembrete-portal", "schedule": "9,24,39,54 * * * *" },
     { "path": "/api/cron/cobranca-rh-pendencias", "schedule": "12,27,42,57 * * * *" },
     { "path": "/api/cron/cobranca-cadastro", "schedule": "5,20,35,50 * * * *" },
-    { "path": "/api/cron/avisos-gestor", "schedule": "8,23,38,53 * * * *" }
+    { "path": "/api/cron/avisos-gestor", "schedule": "8,23,38,53 * * * *" },
+    { "path": "/api/cron/pendencias-processos", "schedule": "20 9 * * *" }
   ]
 }

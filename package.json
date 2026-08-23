@@ -1,6 +1,6 @@
 {
   "name": "sistema-rh",
-  "version": "1.106.0",
+  "version": "1.107.0",
   "private": true,
   "scripts": {
     "// ━━━━━━━━━━━━━━━━ DESENVOLVIMENTO ━━━━━━━━━━━━━━━━": "",
@@ -48,6 +48,7 @@
     "test:pesquisa-enps-resultado": "tsx scripts/test-pesquisa-enps-resultado.ts",
     "test:entregas": "tsx scripts/test-entregas.ts",
     "test:troca-empresa": "tsx scripts/test-troca-empresa-caminho.ts",
+    "test:processos-ctb": "tsx scripts/test-processos-ctb.ts",
     "// ━━━━━━━━━━━━━━━━ SMOKE TESTS ━━━━━━━━━━━━━━━━": "",
     "smoke:dp": "tsx scripts/smoke-dp.ts",
     "smoke:sst": "tsx scripts/smoke-sst.ts",

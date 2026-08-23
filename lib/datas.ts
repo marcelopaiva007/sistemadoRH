@@ -107,6 +107,29 @@ export function formatarDataHoraBrasilia(d: Date): string {
   return d.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
 }
 
+/**
+ * Instante digitado num `<input type="datetime-local">`, interpretado como
+ * horário de BRASÍLIA — não do servidor.
+ *
+ * O input entrega "2026-08-23T14:30", sem fuso. `new Date()` disso usa o fuso
+ * do PROCESSO: UTC na Vercel, o fuso da máquina em dev. A mesma digitação
+ * viraria instantes diferentes em dev e produção, e a tela (que formata em
+ * America/Sao_Paulo) mostraria 11:30 para quem digitou 14:30 — com a data
+ * rolando para o dia anterior nas primeiras horas da madrugada. Para a hora de
+ * uma infração de trânsito, que decide QUEM estava com o veículo, isso não é
+ * cosmético.
+ *
+ * O offset é fixo em -03:00 porque o Brasil não tem horário de verão desde
+ * 2019 (Decreto 9.772/2019) e Brasília não muda de fuso. Se um dia voltar,
+ * este é o único lugar a corrigir.
+ */
+export function dataHoraDoFormularioBrasilia(valor: string | null | undefined): Date | null {
+  const texto = (valor ?? "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(texto)) return null;
+  const d = new Date(`${texto}-03:00`);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 /** Dia do mês de uma data de calendário (aniversário, admissão), em UTC. */
 export function diaDoMes(d: Date): number {
   return d.getUTCDate();

@@ -26,6 +26,21 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.107.0",
+    data: "23/08/2026",
+    horario: "11:30",
+    titulo: "Processos & Ativos: frota e a Central de Pendências (onda 1)",
+    itens: [
+      "A Central de Pendências é a tela de abertura do módulo: tudo que vence, dos domínios que já existem, numa lista só — com a data, quantos dias faltam, e quem responde. Vencidas no topo, depois o que vence em 7 dias, depois em 30. Pendência SEM responsável aparece em bloco próprio, antes de tudo: prazo que não é de ninguém não vai ser resolvido por ninguém.",
+      "Cada pendência tem um botão que resolve (\"Indicar condutor\", \"Abrir veículo\"), não um link de \"ver\". E pode ser dispensada com motivo escrito — sem isso um alarme falso fica eterno e a lista inteira perde a confiança.",
+      "Frota › Veículos: placa, modelo, estado de emplacamento, adesão ao SNE (com a data, porque o desconto de 40% só vale se a adesão for anterior à notificação), documentos com validade (licenciamento, IPVA, seguro — NÃO há DPVAT: foi revogado) e a entrega do veículo a um condutor.",
+      "Frota › Condutores: habilitação, validade da CNH (copiada do documento, não calculada), EAR, exame toxicológico e pontuação — com o limite certo para cada caso (40 com EAR; 20, 30 ou 40 sem EAR, conforme as gravíssimas do ano) e o aviso de quando o curso preventivo que zera os pontos já pode ser feito.",
+      "Frota › Multas: o auto de infração com todos os relógios que ele dispara, o principal sendo os 30 dias para indicar o condutor — passou, a empresa paga 3× o valor. Ao clicar em \"Indicar condutor\", o sistema já diz quem estava com o veículo naquele dia e hora, pelo registro de entrega. Confirma-se com um clique.",
+      "Pontos da CNH só entram na conta do condutor quando ele é indicado. E sete infrações do CTB não pontuam mesmo sendo graves — por isso \"pontua?\" é lido no auto, não deduzido da gravidade.",
+      "Um processo automático roda todo dia às 6h20 e mantém a Central em dia. O botão \"Atualizar agora\" faz a mesma coisa na hora.",
+    ],
+  },
+  {
     versao: "1.106.0",
     data: "23/08/2026",
     horario: "09:10",
