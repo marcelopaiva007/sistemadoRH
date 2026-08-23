@@ -510,6 +510,9 @@ model Colaborador {
   bancosHoras              BancoHoras[]
   cobrancasCadastro        CobrancaCadastro[]
   sessoesPonto             PontoSessao[]
+  // Módulo Processos & Ativos: quem dirige é o MESMO colaborador, com uma
+  // extensão — não um cadastro paralelo de motorista para manter em dia.
+  condutor                 Condutor?
 
   // Registros de ponto (entrada/saída)
 
@@ -2351,5 +2354,476 @@ model AvisoGestor {
 
   @@index([gestorId, colaboradorId, tipo, enviadoEm])
   @@index([enviadoEm])
+  @@schema("rh")
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// MÓDULO PROCESSOS & ATIVOS — onda 1, parte 1: frota e a Central de Pendências
+//
+// Base: `estudo-modulo-processos-ativos.md` (23/08/2026), seis frentes de
+// pesquisa com cada norma conferida em fonte primária. As decisões do CEO do
+// mesmo dia estão na seção 10 de lá.
+//
+// Por que frota primeiro, entre os cinco domínios: é o único prejuízo CERTO,
+// RECORRENTE e CONTÁVEL que o grupo já tem. Multa sem indicar o condutor em 30
+// dias custa 3× o valor (CTB, art. 257, §§7º e 8º), toda vez; licenciamento
+// vencido é gravíssima com remoção (art. 230, V), e tira a van da rua no meio
+// de uma instalação.
+//
+// Convenções desta seção, iguais às do resto do arquivo: enum é String com os
+// valores listados no comentário (o schema roda em Postgres e em SQLite);
+// `empresaId` é coluna solta com índice, no padrão de Arquivo/Sinal, e não
+// relação — só Colaborador ganha relação de verdade, porque as telas fazem
+// `include` a partir dele.
+// ════════════════════════════════════════════════════════════════════════════
+
+/// A fila única do módulo: tudo que vence, dos cinco domínios, numa tabela só.
+///
+/// É a tela que justifica o módulo — as outras guardam, esta cobra. E é
+/// materializada, não calculada na leitura, por três motivos que só aparecem
+/// depois: as regras compostas mudam (o prazo de comunicação de venda do art.
+/// 134 é 30+60, e já foi outro), o calendário de licenciamento é por estado e
+/// muda todo ano, e um alerta histórico precisa continuar explicando por que
+/// disparou mesmo depois de a regra ter mudado.
+///
+/// O motor é o MESMO de `Sinal` — cron detecta, atualiza a linha existente pela
+/// chave de dedupe, não cria outra. Segundo motor paralelo é como o sistema
+/// acaba com duas listas de pendência que discordam entre si.
+model Pendencia {
+  id String @id @default(cuid())
+
+  // FROTA | CONTRATO | ATIVO | DOCUMENTO | PROCESSO
+  dominio String
+  // Que regra gerou — para a tela explicar por que isto está aqui.
+  // Ex.: INDICAR_CONDUTOR | LICENCIAMENTO | CNH_VENCENDO | CERTIDAO_FORNECEDOR
+  tipo    String
+
+  // Ponteiro solto para o registro real (Infracao, Veiculo, Contrato...). Solto
+  // e não relação porque a origem tem cinco tipos diferentes — e uma relação
+  // por domínio significaria cinco colunas nulas em toda linha.
+  origemTipo String
+  origemId   String
+
+  empresaId String
+  titulo    String
+  descricao String?
+
+  // Dono é PESSOA, sempre — nunca "o RH", nunca um setor. Alerta sem dono é
+  // ruído que o time aprende a ignorar em um mês.
+  //
+  // Aponta para User e não para Colaborador (o estudo dizia Colaborador):
+  // quem resolve precisa ENTRAR no sistema, e quem entra é User. Mesmo padrão
+  // de `Sinal.donoUserId` — soft ref com snapshot do nome, para o histórico
+  // não virar "usuário excluído".
+  responsavelId   String
+  responsavelNome String
+  // Quem assume em férias e afastamento. Numa empresa onde uma pessoa acumula
+  // RH e compliance, as férias dela não podem congelar quarenta prazos legais.
+  substitutoId   String?
+  substitutoNome String?
+
+  // A data-alvo, já calculada e indexada. É por ela que a tela ordena.
+  venceEm DateTime
+  // DIAS_UTEIS | DIAS_CORRIDOS — citação judicial conta em dias úteis,
+  // intimação eletrônica conta em corridos. Um motor que só soma dias corridos
+  // erra exatamente no prazo mais caro.
+  contagem String @default("DIAS_CORRIDOS")
+  // INTERNO | JUDICIAL. Prazo JUDICIAL não pode ser sobrestado: o relógio do
+  // tribunal corre independentemente do que a empresa decidir.
+  origemLegal String @default("INTERNO")
+
+  // CRITICA | ALTA | ATENCAO — DERIVADA de (dias restantes × impacto do
+  // domínio), nunca digitada. Digitada, vira opinião de quem cadastrou.
+  severidade String
+
+  // ABERTA | EM_ANDAMENTO | RESOLVIDA | DISPENSADA
+  estado String @default("ABERTA")
+  // Só em DISPENSADA. Sem essa saída um falso positivo fica eterno e o usuário
+  // para de confiar na lista inteira — não só naquele item.
+  dispensadaMotivo String?
+  resolvidaPorId   String?
+  resolvidaPorNome String?
+  resolvidaEm      DateTime?
+
+  // "Essa pendência já existe?" — a pergunta do cron a cada rodada.
+  chaveDedupe String
+
+  detectadaEm  DateTime @default(now())
+  confirmadaEm DateTime @default(now())
+  atualizadaEm DateTime @updatedAt
+
+  // A query da tela, na ordem em que ela filtra.
+  @@index([estado, venceEm, responsavelId, empresaId])
+  @@index([chaveDedupe])
+  @@index([empresaId, dominio, estado])
+  @@schema("rh")
+}
+
+/// Com quantos dias de antecedência cada tipo de pendência avisa, e para quem
+/// escala quando ninguém trata.
+///
+/// Por TIPO e não global, e começando conservador: ligar quarenta alertas no
+/// primeiro dia é pior que não ter alerta nenhum — alerta vencido e registrado
+/// prova que a empresa sabia e não agiu.
+model RegraAlerta {
+  id   String @id @default(cuid())
+  tipo String
+
+  // "20,10,5,2,1" — CSV e não array, porque o schema também roda em SQLite.
+  diasAntecedencia String
+  escalonaAposDias Int?
+  // Para quem sobe quando o prazo aperta e ninguém tratou. Soft ref a User.
+  escalonaParaUserId String?
+  severidadeBase     String @default("ATENCAO")
+  ativa              Boolean @default(true)
+
+  // Nulo = vale para o grupo inteiro. Preenchido = só aquele CNPJ.
+  empresaId String?
+
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  @@unique([tipo, empresaId])
+  @@schema("rh")
+}
+
+/// Feriados, para o motor saber contar dias úteis.
+///
+/// Inclui FORENSE de propósito: o recesso e os feriados só do tribunal mudam o
+/// prazo processual e não aparecem em calendário nenhum de RH.
+model Feriado {
+  id   String   @id @default(cuid())
+  data DateTime
+  // NACIONAL | ESTADUAL | MUNICIPAL | FORENSE
+  abrangencia String
+  uf          String?
+  municipio   String?
+  tribunal    String?
+  descricao   String
+
+  @@index([data, abrangencia])
+  @@schema("rh")
+}
+
+/// Veículo da frota.
+model Veiculo {
+  id        String @id @default(cuid())
+  empresaId String
+
+  // Só letras e dígitos, sem hífen — a máscara é da tela, igual ao CNPJ da
+  // Empresa. Placa Mercosul e placa antiga convivem: transferência de
+  // propriedade NÃO obriga a troca (Res. CONTRAN 780/2019, art. 22, §2º), e
+  // frota com placa antiga circula até o sucateamento.
+  placa         String  @unique
+  placaAnterior String?
+  renavam       String?
+  chassi        String?
+
+  marca     String?
+  modelo    String?
+  anoFab    Int?
+  anoModelo Int?
+  categoria String?
+  especie   String?
+  // Peso bruto total e capacidade máxima de tração, do CRLV. Decidem se o
+  // veículo exige cronotacógrafo — vans e carros de instalação ficam abaixo do
+  // limite, mas isso se confirma pelo dado real, não por suposição.
+  pbt Float?
+  cmt Float?
+
+  // Onde está emplacado: decide o CALENDÁRIO de licenciamento e de IPVA, que é
+  // estadual. Sem isto o alerta de licenciamento não tem como saber a data.
+  ufEmplacamento        String?
+  // Mudança de município é gatilho de troca de placa; venda não é.
+  municipioEmplacamento String?
+
+  // PROPRIO | ALUGADO | COMODATO | LEASING
+  propriedade String @default("PROPRIO")
+
+  // Adesão ao SNE (notificação eletrônica de multa). O desconto de 40% exige
+  // que a adesão seja ANTERIOR ao envio da notificação de autuação — por isso
+  // a DATA importa, e não só o "sim". Cada semana sem aderir é desconto
+  // perdido de forma irreversível.
+  aderidoSne    Boolean   @default(false)
+  dataAdesaoSne DateTime?
+
+  // Recall pendente impede o licenciamento (CTB, art. 131, §§4º e 5º) — e é a
+  // causa de "paguei tudo e não sai o CRLV" que ninguém liga ao recall.
+  recallPendente Boolean @default(false)
+
+  // ATIVO | EM_MANUTENCAO | VENDIDO | BAIXADO
+  situacao       String    @default("ATIVO")
+  dataAquisicao  DateTime?
+  dataVenda      DateTime?
+  hodometroAtual Int?
+  observacoes    String?
+
+  criadoPorId   String?
+  criadoPorNome String?
+  criadoEm      DateTime @default(now())
+  atualizadoEm  DateTime @updatedAt
+
+  alocacoes      AlocacaoVeiculo[]
+  infracoes      Infracao[]
+  documentos     DocumentoVeiculo[]
+  transferencias TransferenciaVeiculo[]
+
+  @@index([empresaId, situacao])
+  @@index([empresaId, ufEmplacamento])
+  @@schema("rh")
+}
+
+/// Quem dirige — extensão de Colaborador, não cadastro paralelo.
+///
+/// Extensão e não entidade nova porque o condutor JÁ existe no sistema: tem
+/// admissão, setor, desligamento e ficha. Cadastro paralelo significaria manter
+/// dois nomes em dia e descobrir, no dia da multa, que o condutor foi desligado
+/// há seis meses e ninguém tirou a chave dele.
+model Condutor {
+  id            String      @id @default(cuid())
+  colaboradorId String      @unique
+  colaborador   Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  empresaId     String
+
+  cnhNumero    String?
+  cnhCategoria String?
+  cnhUf        String?
+  // LIDA do documento, nunca calculada. A validade da CNH não é uma conta
+  // ("10 anos a partir de X"): ela vem impressa, e a regra de anos mudou por
+  // faixa etária. Calcular produz alerta na data errada, que é pior que
+  // nenhum alerta.
+  cnhValidade  DateTime?
+
+  // Exerce atividade remunerada. Muda o limite de pontos e exige curso.
+  possuiEAR              Boolean   @default(false)
+  toxicologicoUltimaData DateTime?
+  toxicologicoValidade   DateTime?
+
+  // Pontos NÃO são derivados da gravidade da infração: o CTB exclui de
+  // pontuação sete dispositivos (art. 259, §4º, II) — entre eles o art. 233,
+  // que é infração média COM remoção e SEM ponto. Um motor que calcula ponto
+  // pela natureza acusa um colaborador injustamente. Daí a coluna guardar o
+  // somatório do que de fato pontuou, e a lista de exclusão viver no código.
+  pontosAcumulados      Int @default(0)
+  limitePontosAplicavel Int @default(20)
+
+  // Zera os pontos antes da suspensão. Quem tem EAR pode fazer aos 30, e há
+  // bloqueio de 12 meses entre um curso e outro (art. 261, §§5º a 7º).
+  cursoReciclagemUltimaData DateTime?
+
+  // APTO | CNH_VENCIDA | SUSPENSO | AFASTADO
+  statusHabilitacao String  @default("APTO")
+  // Terceiro que dirige veículo do grupo sem ser colaborador é caso conhecido
+  // (motorista de locadora, prestador). Marcado para não entrar em conta de
+  // gente da casa.
+  condutorExterno   Boolean @default(false)
+
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  alocacoes         AlocacaoVeiculo[]
+  infracoesIndicadas Infracao[]
+
+  @@index([empresaId, statusHabilitacao])
+  @@index([empresaId, cnhValidade])
+  @@schema("rh")
+}
+
+/// Quem estava com qual veículo, e em que período.
+///
+/// É a tabela mais importante do módulo inteiro, e não parece. Ela responde
+/// "quem estava com a placa ABC1D23 no dia 14/03 às 15h22?" — que é exatamente
+/// o que a Res. CONTRAN 918/2022 (art. 5º, §1º, II) exige para a empresa
+/// indicar o condutor SEM a assinatura dele. Com este histórico, indicar
+/// condutor deixa de ser trabalho manual de trinta dias e vira uma consulta.
+///
+/// `dataFim` nula = está com a pessoa agora.
+model AlocacaoVeiculo {
+  id         String   @id @default(cuid())
+  empresaId  String
+  veiculoId  String
+  veiculo    Veiculo  @relation(fields: [veiculoId], references: [id], onDelete: Cascade)
+  condutorId String
+  condutor   Condutor @relation(fields: [condutorId], references: [id], onDelete: Cascade)
+
+  dataInicio DateTime
+  dataFim    DateTime?
+  // PERMANENTE | EVENTUAL | POOL
+  tipo       String    @default("PERMANENTE")
+
+  // O termo assinado com período de posse — sem ele a indicação de condutor
+  // falha e a empresa paga 3×. Aponta para Arquivo, que já é onde os anexos
+  // do sistema vivem.
+  termoArquivoId String?
+  kmEntrega      Int?
+  kmDevolucao    Int?
+  observacoes    String?
+
+  criadoPorId   String?
+  criadoPorNome String?
+  criadoEm      DateTime @default(now())
+  atualizadoEm  DateTime @updatedAt
+
+  // A consulta da indicação de condutor: dado um veículo e uma data, quem era.
+  @@index([veiculoId, dataInicio, dataFim])
+  @@index([condutorId, dataInicio])
+  @@index([empresaId])
+  @@schema("rh")
+}
+
+/// Multa, com todos os relógios que correm a partir dela.
+///
+/// Os prazos são colunas MATERIALIZADAS (`prazo*`), e não contas feitas na
+/// leitura. Motivo concreto: no SNE o proprietário é considerado notificado 30
+/// dias depois da inclusão no sistema (CTB, art. 282-A, §2º) — não na data do
+/// e-mail. Guardar a data ficta calculada uma vez, no momento em que se soube
+/// dela, é o que faz o alerta histórico continuar explicável depois.
+model Infracao {
+  id        String  @id @default(cuid())
+  empresaId String
+  veiculoId String
+  veiculo   Veiculo @relation(fields: [veiculoId], references: [id], onDelete: Cascade)
+
+  numeroAIT       String
+  orgaoAutuador   String?
+  // A chave que casa a multa com quem estava dirigindo.
+  dataHoraInfracao DateTime
+  local            String?
+
+  codigoInfracao String?
+  descricao      String?
+  // LEVE | MEDIA | GRAVE | GRAVISSIMA
+  natureza       String?
+  // NÃO derivado da natureza — ver o comentário de Condutor.pontosAcumulados.
+  geraPontos     Boolean @default(true)
+  pontos         Int     @default(0)
+
+  valorOriginal      Float?
+  // Algumas infrações multiplicam o valor base (o exame toxicológico vencido
+  // multiplica por 5). Guardar o fator separado do valor mantém as duas coisas
+  // auditáveis quando a tabela de valores for reajustada.
+  fatorMultiplicador Float @default(1)
+
+  dataExpedicaoNA      DateTime?
+  // Data em que a notificação passa a valer, já com a ficção do SNE aplicada.
+  dataNotificacaoFicta DateTime?
+  prazoIndicacaoCondutor DateTime?
+  prazoDefesaAutuacao    DateTime?
+  dataExpedicaoNP        DateTime?
+  prazoRecursoJARI       DateTime?
+  dataVencimentoPagamento DateTime?
+
+  condutorIndicadoId String?
+  condutorIndicado   Condutor? @relation(fields: [condutorIndicadoId], references: [id], onDelete: SetNull)
+  dataIndicacao      DateTime?
+  // ASSINATURA_CONDUTOR | TERMO_RESPONSABILIDADE | NAO_INDICADO
+  formaIndicacao     String?
+  // PENDENTE | INDICADO | ACEITA | RECUSADA | PERDIDO
+  statusIndicacao    String    @default("PENDENTE")
+
+  // AUTUADA | EM_DEFESA | PENALIZADA | RECURSO_JARI | RECURSO_CETRAN |
+  // INSTANCIA_ENCERRADA | ARQUIVADA | PAGA | CANCELADA
+  //
+  // Só INSTANCIA_ENCERRADA libera a trava de licenciamento: a multa só impede
+  // licenciar quando o recurso acabou (CTB, art. 284, §3º). Cobrar antes disso
+  // é errado, e é o erro que quase todo sistema de frota comete.
+  statusProcessual String @default("AUTUADA")
+
+  // 0 | 20 | 40 — o de 40% depende de adesão ao SNE anterior à notificação.
+  descontoAplicado Int @default(0)
+  // A multa por NÃO ter indicado condutor, que vale o dobro da original.
+  // Aponta para a infração que a originou.
+  multaNicGerada     Boolean @default(false)
+  infracaoOriginalId String?
+
+  arquivoId   String?
+  observacoes String?
+
+  criadoPorId   String?
+  criadoPorNome String?
+  criadoEm      DateTime @default(now())
+  atualizadoEm  DateTime @updatedAt
+
+  @@unique([numeroAIT, empresaId])
+  // "O que vence primeiro?" — a pergunta da Central.
+  @@index([empresaId, statusIndicacao, prazoIndicacaoCondutor])
+  @@index([empresaId, statusProcessual])
+  @@index([veiculoId, dataHoraInfracao])
+  @@schema("rh")
+}
+
+/// Documento do veículo que tem validade: é daqui que sai metade dos alertas.
+///
+/// NÃO existe tipo DPVAT nem SPVAT. Os dois foram revogados e não há seguro
+/// obrigatório público sendo cobrado — modelar o campo criaria um alerta que
+/// nunca resolve, que é o pior tipo de falso positivo: ele desmoraliza a lista
+/// inteira. O que substitui é o seguro privado (casco e RCF-V), que tem apólice
+/// e vigência de verdade.
+model DocumentoVeiculo {
+  id        String  @id @default(cuid())
+  empresaId String
+  veiculoId String
+  veiculo   Veiculo @relation(fields: [veiculoId], references: [id], onDelete: Cascade)
+
+  // CRLV | LICENCIAMENTO | IPVA | SEGURO_CASCO | SEGURO_RCFV | VISTORIA |
+  // CRONOTACOGRAFO | ATPV | NOTA_FISCAL | CONTRATO_LOCACAO | OUTRO
+  tipo      String
+  exercicio Int?
+
+  dataEmissao    DateTime?
+  dataVencimento DateTime?
+  valor          Float?
+  arquivoId      String?
+  observacoes    String?
+
+  criadoPorId   String?
+  criadoPorNome String?
+  criadoEm      DateTime @default(now())
+  atualizadoEm  DateTime @updatedAt
+
+  @@index([empresaId, dataVencimento])
+  @@index([veiculoId, tipo, exercicio])
+  @@schema("rh")
+}
+
+/// Compra e venda de veículo — dois relógios diferentes correndo ao mesmo tempo.
+///
+/// Comprando: 30 dias para tirar o novo CRV (CTB, art. 123, §1º).
+/// Vendendo: a comunicação de venda tem 60 dias contados do FIM dos 30 do
+/// comprador (art. 134) — ou seja, a janela é do 30º ao 90º dia. Não comunicar
+/// deixa a empresa SOLIDARIAMENTE responsável por tudo que o comprador fizer
+/// com o veículo, e é assim que chega multa de carro vendido há dois anos.
+///
+/// A assinatura ELETRÔNICA da ATPV-e já vale como comunicação de venda: só a
+/// versão impressa gera a tarefa. Por isso a modalidade é campo, não detalhe.
+model TransferenciaVeiculo {
+  id        String  @id @default(cuid())
+  empresaId String
+  veiculoId String
+  veiculo   Veiculo @relation(fields: [veiculoId], references: [id], onDelete: Cascade)
+
+  // COMPRA | VENDA
+  tipo                String
+  contraparteNome     String?
+  contraparteDocumento String?
+  municipioContraparte String?
+  dataNegocio         DateTime
+
+  // ELETRONICA | IMPRESSA — liga e desliga a tarefa de comunicar a venda.
+  modalidadeAtpv String @default("ELETRONICA")
+
+  prazoNovoCrv          DateTime?
+  prazoComunicacaoVenda DateTime?
+  dataComunicacaoVenda  DateTime?
+  comprovanteArquivoId  String?
+  observacoes           String?
+
+  criadoPorId   String?
+  criadoPorNome String?
+  criadoEm      DateTime @default(now())
+  atualizadoEm  DateTime @updatedAt
+
+  @@index([empresaId, tipo])
+  @@index([veiculoId])
   @@schema("rh")
 }
