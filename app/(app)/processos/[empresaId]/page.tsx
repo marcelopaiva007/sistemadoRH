@@ -45,6 +45,8 @@ function acaoDe(
     case "NOVO_CRV":
     case "COMUNICACAO_VENDA":
       return { href: `${base}/frota`, rotulo: "Abrir veículo" };
+    case "MANUTENCAO_PROGRAMADA":
+      return { href: `${base}/frota/manutencoes`, rotulo: "Agendar revisão" };
     default:
       return { href: null, rotulo: "Abrir" };
   }

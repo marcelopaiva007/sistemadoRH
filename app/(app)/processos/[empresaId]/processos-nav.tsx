@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BellRing, Car, FileWarning, IdCard } from "lucide-react";
+import { BarChart3, BellRing, Car, FileWarning, Fuel, IdCard, Wrench } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Menu do módulo, no mesmo formato do RH (app/(app)/rh/[empresaId]/rh-empresa-nav.tsx).
@@ -22,6 +22,9 @@ const GRUPOS = [
       { slug: "frota", label: "Veículos", icon: Car },
       { slug: "frota/multas", label: "Multas", icon: FileWarning },
       { slug: "frota/condutores", label: "Condutores", icon: IdCard },
+      { slug: "frota/consumo", label: "Consumo", icon: Fuel },
+      { slug: "frota/manutencoes", label: "Manutenções", icon: Wrench },
+      { slug: "frota/analise", label: "Análise", icon: BarChart3 },
     ],
   },
 ] as const;

@@ -26,6 +26,18 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.108.0",
+    data: "23/08/2026",
+    horario: "15:20",
+    titulo: "Frota: consumo, manutenções e a análise de custo",
+    itens: [
+      "Frota › Consumo: registro de abastecimento (litros) ou recarga (kWh, para elétrico — o cadastro do veículo ganhou o campo de motorização). Cada registro pede o hodômetro, e é dele que sai o rendimento (km/l ou km/kWh) entre um abastecimento e o próximo. O consumo é atribuído a quem está com o carro — dá para corrigir.",
+      "Frota › Manutenções: o histórico de cada carro (preventiva, revisão, corretiva, pneus, sinistro), com valor e oficina. Preenchendo a próxima revisão, ela vira aviso na Central de Pendências — o carro avisa antes de quebrar na rua.",
+      "Frota › Análise: os últimos 12 meses calculados dos registros. Por veículo: km rodados, gasto com combustível/energia, manutenção, multas, total e R$/km — com destaque para quem acumula corretiva. Por condutor: rendimento médio ao volante e multas indicadas. É a tela que aponta os veículos que estão custando caro e diferencia quem cuida de quem gasta.",
+      "Honestidade dos números: sem hodômetro registrado a análise diz \"sem dado\", nunca zero; condutor com menos de 3 abastecimentos aparece como \"poucos dados\" em vez de liderar ranking por sorte; multa só conta para o condutor que foi indicado.",
+    ],
+  },
+  {
     versao: "1.107.0",
     data: "23/08/2026",
     horario: "11:30",

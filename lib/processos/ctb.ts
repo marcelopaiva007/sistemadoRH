@@ -152,6 +152,29 @@ export const TIPOS_DOCUMENTO_VEICULO = [
 // viraria alerta que nunca resolve — e falso positivo eterno faz o time parar
 // de confiar na lista inteira, não só naquele item.
 
+export const MOTORIZACAO_VEICULO = [
+  { value: "COMBUSTAO", label: "Combustão" },
+  { value: "ELETRICO", label: "Elétrico" },
+  { value: "HIBRIDO", label: "Híbrido" },
+] as const;
+
+export const COMBUSTIVEIS = [
+  { value: "GASOLINA", label: "Gasolina" },
+  { value: "ETANOL", label: "Etanol" },
+  { value: "DIESEL", label: "Diesel" },
+  { value: "GNV", label: "GNV" },
+  { value: "ELETRICIDADE", label: "Eletricidade (kWh)" },
+] as const;
+
+export const TIPOS_MANUTENCAO = [
+  { value: "PREVENTIVA", label: "Preventiva" },
+  { value: "REVISAO", label: "Revisão programada" },
+  { value: "CORRETIVA", label: "Corretiva (quebrou)" },
+  { value: "PNEUS", label: "Pneus" },
+  { value: "SINISTRO", label: "Sinistro / funilaria" },
+  { value: "OUTRA", label: "Outra" },
+] as const;
+
 export const PROPRIEDADE_VEICULO = [
   { value: "PROPRIO", label: "Próprio" },
   { value: "ALUGADO", label: "Alugado" },

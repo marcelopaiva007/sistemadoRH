@@ -58,6 +58,7 @@ export async function salvarVeiculo(input: {
   ufEmplacamento?: string | null;
   municipioEmplacamento?: string | null;
   propriedade?: string | null;
+  motorizacao?: string | null;
   situacao?: string | null;
   aderidoSne?: boolean;
   dataAdesaoSne?: string | null;
@@ -124,6 +125,7 @@ export async function salvarVeiculo(input: {
     ufEmplacamento: (input.ufEmplacamento ?? "").trim().toUpperCase().slice(0, 2) || null,
     municipioEmplacamento: (input.municipioEmplacamento ?? "").trim() || null,
     propriedade: input.propriedade ?? "PROPRIO",
+    motorizacao: input.motorizacao ?? "COMBUSTAO",
     situacao: input.situacao ?? "ATIVO",
     aderidoSne,
     dataAdesaoSne,
@@ -291,6 +293,155 @@ export async function salvarCondutor(input: {
     entidade: "Condutor",
     entidadeId: colaborador.id,
     resumo: `${input.id ? "Editou" : "Cadastrou"} os dados de condutor de ${colaborador.nome}`,
+  });
+
+  revalidatePath(caminho(input.empresaId));
+  return { ok: true };
+}
+
+/**
+ * Registra um abastecimento ou recarga.
+ *
+ * Um registro por EVENTO — é do evento que saem as contas (km/l entre dois
+ * hodômetros, R$/km, consumo por condutor). O condutor entra por padrão como
+ * quem está com o veículo agora (alocação aberta), editável na tela.
+ */
+export async function registrarConsumo(input: {
+  empresaId: string;
+  veiculoId: string;
+  data: string;
+  tipo: string;
+  combustivel?: string | null;
+  quantidade: number;
+  valorTotal: number;
+  hodometro?: number | null;
+  condutorId?: string | null;
+  posto?: string | null;
+}): Promise<ActionResult> {
+  const usuario = await requireProcessosEmpresa(input.empresaId);
+
+  const visiveis = await empresasVisiveis(usuario);
+  const veiculo = await prisma.veiculo.findFirst({
+    where: { id: input.veiculoId, empresaId: { in: visiveis } },
+    select: { id: true, placa: true, empresaId: true },
+  });
+  if (!veiculo) return { ok: false, error: "Veículo não encontrado no seu acesso." };
+
+  const data = dataDoFormulario(input.data);
+  if (!data) return { ok: false, error: "Informe a data." };
+  if (!(input.quantidade > 0)) return { ok: false, error: "Informe a quantidade (litros ou kWh)." };
+  if (!(input.valorTotal > 0)) return { ok: false, error: "Informe o valor pago." };
+
+  // Sem condutor informado, assume quem está com o veículo — é o caso normal,
+  // e é o vínculo que permite comparar motoristas depois.
+  let condutorId = input.condutorId ?? null;
+  if (!condutorId) {
+    const alocacao = await prisma.alocacaoVeiculo.findFirst({
+      where: { veiculoId: veiculo.id, dataFim: null },
+      select: { condutorId: true },
+    });
+    condutorId = alocacao?.condutorId ?? null;
+  } else {
+    const condutor = await prisma.condutor.findFirst({
+      where: { id: condutorId, empresaId: { in: visiveis } },
+      select: { id: true },
+    });
+    if (!condutor) return { ok: false, error: "Condutor não encontrado no seu acesso." };
+  }
+
+  await prisma.consumoVeiculo.create({
+    data: {
+      empresaId: veiculo.empresaId,
+      veiculoId: veiculo.id,
+      condutorId,
+      data,
+      tipo: input.tipo === "ENERGIA" ? "ENERGIA" : "COMBUSTIVEL",
+      combustivel: input.combustivel ?? null,
+      quantidade: input.quantidade,
+      valorTotal: input.valorTotal,
+      hodometro: input.hodometro ?? null,
+      posto: (input.posto ?? "").trim() || null,
+      criadoPorId: usuario.id,
+      criadoPorNome: usuario.name ?? usuario.username,
+    },
+  });
+
+  // O hodômetro do abastecimento é a leitura mais fresca que o sistema recebe
+  // do carro — atualiza o cadastro de carona, sem tela própria para isso.
+  if (input.hodometro) {
+    await prisma.veiculo.updateMany({
+      where: { id: veiculo.id, OR: [{ hodometroAtual: null }, { hodometroAtual: { lt: input.hodometro } }] },
+      data: { hodometroAtual: input.hodometro },
+    });
+  }
+
+  await registrarAuditoria({
+    empresaId: veiculo.empresaId,
+    acao: "CRIAR",
+    entidade: "ConsumoVeiculo",
+    resumo: `Registrou ${input.tipo === "ENERGIA" ? "recarga" : "abastecimento"} do veículo ${formatarPlaca(veiculo.placa)}`,
+  });
+
+  revalidatePath(caminho(input.empresaId));
+  return { ok: true };
+}
+
+/** Registra uma manutenção — e, se houver próxima revisão, ela vira pendência. */
+export async function registrarManutencao(input: {
+  empresaId: string;
+  veiculoId: string;
+  tipo: string;
+  descricao: string;
+  data: string;
+  valor?: number | null;
+  hodometro?: number | null;
+  fornecedor?: string | null;
+  proximaRevisaoData?: string | null;
+  proximaRevisaoKm?: number | null;
+}): Promise<ActionResult> {
+  const usuario = await requireProcessosEmpresa(input.empresaId);
+
+  const visiveis = await empresasVisiveis(usuario);
+  const veiculo = await prisma.veiculo.findFirst({
+    where: { id: input.veiculoId, empresaId: { in: visiveis } },
+    select: { id: true, placa: true, empresaId: true },
+  });
+  if (!veiculo) return { ok: false, error: "Veículo não encontrado no seu acesso." };
+
+  const data = dataDoFormulario(input.data);
+  if (!data) return { ok: false, error: "Informe a data." };
+  const descricao = (input.descricao ?? "").trim();
+  if (!descricao) return { ok: false, error: "Descreva o que foi feito." };
+
+  await prisma.manutencaoVeiculo.create({
+    data: {
+      empresaId: veiculo.empresaId,
+      veiculoId: veiculo.id,
+      tipo: input.tipo || "OUTRA",
+      descricao: descricao.slice(0, 500),
+      data,
+      valor: input.valor ?? null,
+      hodometro: input.hodometro ?? null,
+      fornecedor: (input.fornecedor ?? "").trim() || null,
+      proximaRevisaoData: dataDoFormulario(input.proximaRevisaoData ?? null),
+      proximaRevisaoKm: input.proximaRevisaoKm ?? null,
+      criadoPorId: usuario.id,
+      criadoPorNome: usuario.name ?? usuario.username,
+    },
+  });
+
+  if (input.hodometro) {
+    await prisma.veiculo.updateMany({
+      where: { id: veiculo.id, OR: [{ hodometroAtual: null }, { hodometroAtual: { lt: input.hodometro } }] },
+      data: { hodometroAtual: input.hodometro },
+    });
+  }
+
+  await registrarAuditoria({
+    empresaId: veiculo.empresaId,
+    acao: "CRIAR",
+    entidade: "ManutencaoVeiculo",
+    resumo: `Registrou manutenção (${input.tipo}) do veículo ${formatarPlaca(veiculo.placa)}`,
   });
 
   revalidatePath(caminho(input.empresaId));

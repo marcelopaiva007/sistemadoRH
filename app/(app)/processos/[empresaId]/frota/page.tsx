@@ -40,6 +40,7 @@ export default async function VeiculosPage({
         anoModelo: true,
         ufEmplacamento: true,
         propriedade: true,
+        motorizacao: true,
         situacao: true,
         aderidoSne: true,
         dataAdesaoSne: true,
@@ -93,6 +94,7 @@ export default async function VeiculosPage({
       anoModelo: v.anoModelo,
       ufEmplacamento: v.ufEmplacamento,
       propriedade: v.propriedade,
+      motorizacao: v.motorizacao,
       situacao: v.situacao,
       aderidoSne: v.aderidoSne,
       // Prefill da edição: sem a data no formulário, editar um veículo

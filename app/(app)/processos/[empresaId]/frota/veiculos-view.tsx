@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { salvarVeiculo, salvarDocumentoVeiculo, abrirAlocacao } from "@/lib/actions/processos-frota";
 import {
+  MOTORIZACAO_VEICULO,
   PROPRIEDADE_VEICULO,
   SITUACAO_VEICULO,
   TIPOS_DOCUMENTO_VEICULO,
@@ -26,6 +27,7 @@ export type VeiculoNaTela = {
   anoModelo: number | null;
   ufEmplacamento: string | null;
   propriedade: string;
+  motorizacao: string;
   situacao: string;
   aderidoSne: boolean;
   /** Formato do <input type="date"> — prefill da edição. */
@@ -94,6 +96,7 @@ export function VeiculosView({
         anoModelo: form.anoModelo ? Number(form.anoModelo) : null,
         ufEmplacamento: form.ufEmplacamento ?? null,
         propriedade: form.propriedade || "PROPRIO",
+        motorizacao: form.motorizacao || "COMBUSTAO",
         situacao: form.situacao || "ATIVO",
         aderidoSne: form.aderidoSne === "sim",
         dataAdesaoSne: form.dataAdesaoSne ?? null,
@@ -200,6 +203,17 @@ export function VeiculosView({
                   <option key={o.value} value={o.value}>{o.label}</option>
                 ))}
               </select>
+            </label>
+            <label className="text-xs text-muted-foreground">
+              Motorização
+              <select {...campo("motorizacao")} className={CAMPO}>
+                {MOTORIZACAO_VEICULO.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+              <span className="mt-0.5 block text-[11px] text-muted-foreground/80">
+                Decide se o consumo pede litros ou kWh.
+              </span>
             </label>
             <label className="text-xs text-muted-foreground">
               Situação
@@ -317,6 +331,7 @@ export function VeiculosView({
                               anoModelo: v.anoModelo ? String(v.anoModelo) : "",
                               ufEmplacamento: v.ufEmplacamento ?? "",
                               propriedade: v.propriedade,
+                              motorizacao: v.motorizacao,
                               situacao: v.situacao,
                               aderidoSne: v.aderidoSne ? "sim" : "",
                               dataAdesaoSne: v.dataAdesaoSneInput,

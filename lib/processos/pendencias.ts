@@ -58,6 +58,7 @@ const IMPACTO: Record<string, number> = {
   IPVA: 2,
   SEGURO: 2,
   TOXICOLOGICO: 2,
+  MANUTENCAO_PROGRAMADA: 1,
   DOCUMENTO_VEICULO: 1,
 };
 
@@ -341,6 +342,47 @@ async function transferencias(empresaIds: string[]): Promise<Candidata[]> {
   return saida;
 }
 
+/**
+ * Revisão programada — a manutenção que avisou a próxima data.
+ *
+ * Só a data vira pendência: a revisão "por km" depende de saber o km de hoje,
+ * que o sistema só conhece quando alguém abastece — ela aparece na tela de
+ * Manutenções como referência, não como relógio. E vale só a manutenção mais
+ * recente de cada veículo: uma revisão nova substitui o aviso da anterior.
+ */
+async function revisoesProgramadas(empresaIds: string[]): Promise<Candidata[]> {
+  const manutencoes = await prisma.manutencaoVeiculo.findMany({
+    where: {
+      empresaId: { in: empresaIds },
+      proximaRevisaoData: { not: null },
+      veiculo: { situacao: { in: ["ATIVO", "EM_MANUTENCAO"] } },
+    },
+    orderBy: { data: "desc" },
+    select: {
+      id: true,
+      empresaId: true,
+      veiculoId: true,
+      proximaRevisaoData: true,
+      veiculo: { select: { placa: true, modelo: true } },
+    },
+  });
+
+  const maisRecentePorVeiculo = new Map<string, (typeof manutencoes)[number]>();
+  for (const m of manutencoes) {
+    if (!maisRecentePorVeiculo.has(m.veiculoId)) maisRecentePorVeiculo.set(m.veiculoId, m);
+  }
+
+  return [...maisRecentePorVeiculo.values()].map((m) => ({
+    dominio: "FROTA",
+    tipo: "MANUTENCAO_PROGRAMADA",
+    origemTipo: "ManutencaoVeiculo",
+    origemId: m.id,
+    empresaId: m.empresaId,
+    titulo: `Revisão programada — ${formatarPlaca(m.veiculo.placa)}${m.veiculo.modelo ? ` (${m.veiculo.modelo})` : ""}`,
+    venceEm: m.proximaRevisaoData!,
+  }));
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Sincronização
 // ─────────────────────────────────────────────────────────────────────────────
@@ -353,6 +395,7 @@ export async function detectarTudo(empresaIds: string[]): Promise<Candidata[]> {
     documentosDeVeiculo(empresaIds),
     documentosDoCondutor(empresaIds),
     transferencias(empresaIds),
+    revisoesProgramadas(empresaIds),
   ]);
   return lotes.flat();
 }
