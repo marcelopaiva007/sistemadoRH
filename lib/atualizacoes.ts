@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.109.0",
+    data: "23/08/2026",
+    horario: "15:50",
+    titulo: "Processos & Ativos: Painel — a leitura de diretoria",
+    itens: [
+      "Novo Painel no módulo: seis indicadores (pendências vencidas, vencendo em 7 dias, sem responsável, multas a indicar, CNHs vencendo em 60 dias, veículos ativos) e dois gráficos — o custo da frota mês a mês (combustível/energia, manutenção e multas empilhados, com multa em vermelho: é a única das três que é desperdício puro) e os 5 veículos que mais custaram em 12 meses.",
+      "A divisão entre as telas é proposital: a Central é a fila de quem executa (cada linha tem dono e botão), a Análise é a tabela completa de quem investiga, o Painel é o resumo de quem decide — nada nele tem botão de ação; agir é descer à Central.",
+      "Os números do Painel usam os mesmos cortes da Central — painel que discorda da fila mata a confiança nos dois.",
+    ],
+  },
+  {
     versao: "1.108.0",
     data: "23/08/2026",
     horario: "15:20",

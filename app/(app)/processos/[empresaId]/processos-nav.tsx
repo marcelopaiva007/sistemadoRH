@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, BellRing, Car, FileWarning, Fuel, IdCard, Wrench } from "lucide-react";
+import { BarChart3, BellRing, Car, FileWarning, Fuel, IdCard, LayoutDashboard, Wrench } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Menu do módulo, no mesmo formato do RH (app/(app)/rh/[empresaId]/rh-empresa-nav.tsx).
@@ -14,7 +14,12 @@ import { cn } from "@/lib/utils";
 const GRUPOS = [
   {
     titulo: null,
-    itens: [{ slug: "", label: "Pendências", icon: BellRing }],
+    itens: [
+      { slug: "", label: "Pendências", icon: BellRing },
+      // A leitura de diretoria: números e gráficos, sem botão de ação — agir é
+      // na Central. Mesma divisão que o RH faz entre Painel executivo e filas.
+      { slug: "painel", label: "Painel", icon: LayoutDashboard },
+    ],
   },
   {
     titulo: "Frota",
