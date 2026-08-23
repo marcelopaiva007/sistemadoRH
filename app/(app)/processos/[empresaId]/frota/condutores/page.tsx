@@ -24,7 +24,7 @@ export default async function CondutoresPage({
   const hoje = hojeUTC();
   const umAnoAtras = new Date(hoje.getTime() - 365 * 86_400_000);
 
-  const [empresa, condutores, colaboradores, empresas] = await Promise.all([
+  const [empresa, condutores, colaboradores, importaveis, empresas] = await Promise.all([
     prisma.empresa.findUnique({
       where: { id: empresaId },
       select: { nome: true, marca: { select: { nome: true } } },
@@ -60,6 +60,16 @@ export default async function CondutoresPage({
       where: { empresaId: { in: escopo }, ativo: true, condutor: null },
       orderBy: { nome: "asc" },
       select: { id: true, nome: true },
+    }),
+    // Quantos dá para importar do cadastro: colaborador ativo com documento de
+    // CNH e ainda sem condutor. Alimenta o botão "Importar do cadastro".
+    prisma.colaborador.count({
+      where: {
+        empresaId: { in: escopo },
+        ativo: true,
+        condutor: null,
+        documentos: { some: { tipo: { in: ["CNH", "CNH_CATEGORIA"] } } },
+      },
     }),
     prisma.empresa.findMany({ where: { id: { in: escopo } }, select: { id: true, nome: true } }),
   ]);
@@ -111,6 +121,7 @@ export default async function CondutoresPage({
         empresaId={empresaId}
         condutores={naTela}
         colaboradoresSemCondutor={colaboradores}
+        importaveis={importaveis}
       />
     </div>
   );

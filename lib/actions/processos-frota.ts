@@ -298,6 +298,78 @@ export async function salvarCondutor(input: {
 }
 
 /**
+ * Importa condutores EM LOTE a partir do cadastro de colaboradores.
+ *
+ * O RH já guarda a CNH como documento do colaborador (tipos CNH e
+ * CNH_CATEGORIA, com validade) — pedido do CEO em 23/08/2026: os motoristas
+ * saem do cadastro que existe, não de um cadastro um a um. Esta action pega
+ * todo colaborador ativo do escopo que TEM documento de CNH e ainda NÃO é
+ * condutor, e cria o condutor puxando a validade do documento mais recente.
+ *
+ * O que ela NÃO inventa: categoria só entra se a descrição do documento for
+ * exatamente uma categoria reconhecível ("AB", "D"...) — texto livre não vira
+ * dado de habilitação por palpite. EAR nunca é presumido: marcar EAR muda o
+ * limite de pontos e a exigência de toxicológico, e isso é afirmação que só o
+ * RH pode fazer olhando a CNH. O que faltar se completa na tela, editando.
+ */
+export async function importarCondutoresDoCadastro(input: {
+  empresaId: string;
+}): Promise<ActionResult & { criados?: number; comValidade?: number }> {
+  const usuario = await requireProcessosEmpresa(input.empresaId);
+  const visiveis = await empresasVisiveis(usuario);
+
+  // Colaboradores ativos, com documento de CNH, ainda sem condutor.
+  const candidatos = await prisma.colaborador.findMany({
+    where: {
+      empresaId: { in: visiveis },
+      ativo: true,
+      condutor: null,
+      documentos: { some: { tipo: { in: ["CNH", "CNH_CATEGORIA"] } } },
+    },
+    select: {
+      id: true,
+      empresaId: true,
+      documentos: {
+        where: { tipo: { in: ["CNH", "CNH_CATEGORIA"] } },
+        orderBy: { createdAt: "desc" },
+        select: { validoAte: true, descricao: true },
+      },
+    },
+  });
+  if (candidatos.length === 0) {
+    return { ok: false, error: "Ninguém para importar: todo colaborador com CNH no cadastro já é condutor." };
+  }
+
+  const CATEGORIA = /^(A|B|C|D|E|AB|AC|AD|AE)$/;
+  let comValidade = 0;
+  const dados = candidatos.map((c) => {
+    // O documento mais recente que tenha validade preenchida; a descrição só
+    // vira categoria quando é inequivocamente uma.
+    const comData = c.documentos.find((d) => d.validoAte);
+    const descricao = (c.documentos[0]?.descricao ?? "").trim().toUpperCase();
+    if (comData?.validoAte) comValidade++;
+    return {
+      empresaId: c.empresaId,
+      colaboradorId: c.id,
+      cnhValidade: comData?.validoAte ?? null,
+      cnhCategoria: CATEGORIA.test(descricao) ? descricao : null,
+    };
+  });
+
+  await prisma.condutor.createMany({ data: dados, skipDuplicates: true });
+
+  await registrarAuditoria({
+    empresaId: input.empresaId,
+    acao: "CRIAR",
+    entidade: "Condutor",
+    resumo: `Importou ${dados.length} condutor(es) do cadastro de colaboradores (${comValidade} com validade de CNH)`,
+  });
+
+  revalidatePath(caminho(input.empresaId));
+  return { ok: true, criados: dados.length, comValidade };
+}
+
+/**
  * Entrega o veículo a alguém — e é este registro que, meses depois, responde
  * "quem estava com a placa no dia da infração?".
  *

@@ -2,13 +2,13 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Pencil, TriangleAlert } from "lucide-react";
+import { Download, Plus, Pencil, TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { salvarCondutor } from "@/lib/actions/processos-frota";
+import { importarCondutoresDoCadastro, salvarCondutor } from "@/lib/actions/processos-frota";
 import { PONTOS_PARA_CURSO_PREVENTIVO } from "@/lib/processos/ctb";
 
 export type CondutorNaTela = {
@@ -38,15 +38,38 @@ export function CondutoresView({
   empresaId,
   condutores,
   colaboradoresSemCondutor,
+  importaveis,
 }: {
   empresaId: string;
   condutores: CondutorNaTela[];
   colaboradoresSemCondutor: { id: string; nome: string }[];
+  /** Colaboradores com CNH no cadastro do RH que ainda não são condutores. */
+  importaveis: number;
 }) {
   const router = useRouter();
   const [pendente, iniciar] = useTransition();
   const [erro, setErro] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
   const [form, setForm] = useState<Record<string, string> | null>(null);
+
+  // Puxa do cadastro do RH todo mundo que tem CNH e ainda não é condutor —
+  // pedido do CEO: os motoristas saem do cadastro que existe, não um a um.
+  function importar() {
+    setErro(null);
+    setAviso(null);
+    iniciar(async () => {
+      const r = await importarCondutoresDoCadastro({ empresaId });
+      if (!r.ok) {
+        setErro(r.error);
+        return;
+      }
+      setAviso(
+        `${r.criados} condutor(es) importado(s) do cadastro — ${r.comValidade} já com a validade da CNH. ` +
+          `Confira categoria e EAR de cada um: isso o documento não diz sozinho.`,
+      );
+      router.refresh();
+    });
+  }
 
   function campo(nome: string) {
     return {
@@ -92,8 +115,19 @@ export function CondutoresView({
           {erro}
         </p>
       )}
+      {aviso && (
+        <p className="rounded-md border border-emerald-600/40 bg-emerald-600/5 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-400">
+          {aviso}
+        </p>
+      )}
 
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        {importaveis > 0 && (
+          <Button size="sm" variant="outline" className="gap-2" disabled={pendente} onClick={importar}>
+            <Download className="size-4" />
+            Importar {importaveis} do cadastro
+          </Button>
+        )}
         <Button size="sm" className="gap-2" onClick={() => setForm({ statusHabilitacao: "APTO" })}>
           <Plus className="size-4" />
           Registrar condutor
