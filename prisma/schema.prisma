@@ -2555,6 +2555,10 @@ model Veiculo {
   // PROPRIO | ALUGADO | COMODATO | LEASING
   propriedade String @default("PROPRIO")
 
+  // COMBUSTAO | ELETRICO | HIBRIDO — decide o que a tela de consumo pede:
+  // litros de combustível ou kWh de recarga. Pedido do CEO em 23/08/2026.
+  motorizacao String @default("COMBUSTAO")
+
   // Adesão ao SNE (notificação eletrônica de multa). O desconto de 40% exige
   // que a adesão seja ANTERIOR ao envio da notificação de autuação — por isso
   // a DATA importa, e não só o "sim". Cada semana sem aderir é desconto
@@ -2582,6 +2586,8 @@ model Veiculo {
   infracoes      Infracao[]
   documentos     DocumentoVeiculo[]
   transferencias TransferenciaVeiculo[]
+  consumos       ConsumoVeiculo[]
+  manutencoes    ManutencaoVeiculo[]
 
   @@index([empresaId, situacao])
   @@index([empresaId, ufEmplacamento])
@@ -2638,6 +2644,7 @@ model Condutor {
 
   alocacoes         AlocacaoVeiculo[]
   infracoesIndicadas Infracao[]
+  consumos           ConsumoVeiculo[]
 
   @@index([empresaId, statusHabilitacao])
   @@index([empresaId, cnhValidade])
@@ -2840,5 +2847,87 @@ model TransferenciaVeiculo {
 
   @@index([empresaId, tipo])
   @@index([veiculoId])
+  @@schema("rh")
+}
+
+/// Abastecimento ou recarga — a linha de despesa recorrente da frota.
+///
+/// Um registro por evento (não um total mensal digitado): é do evento que
+/// saem as contas que importam — km/l entre abastecimentos consecutivos pelo
+/// hodômetro, custo por km, consumo por condutor. Um "total do mês" digitado
+/// à mão não decompõe em nada e vira número que ninguém confere. O recorte
+/// mensal é a TELA que agrega.
+///
+/// `condutorId` é quem abasteceu/rodou — preenchido por padrão com quem está
+/// com o veículo (AlocacaoVeiculo aberta), editável. É o que permite comparar
+/// motoristas: mesmo carro, consumos diferentes.
+model ConsumoVeiculo {
+  id        String  @id @default(cuid())
+  empresaId String
+  veiculoId String
+  veiculo   Veiculo @relation(fields: [veiculoId], references: [id], onDelete: Cascade)
+
+  condutorId String?
+  condutor   Condutor? @relation(fields: [condutorId], references: [id], onDelete: SetNull)
+
+  data DateTime
+  // COMBUSTIVEL | ENERGIA — segue a motorização do veículo, mas fica gravado
+  // na linha: um híbrido tem os dois, e o veículo pode mudar de motorização
+  // no cadastro sem reescrever o histórico.
+  tipo String
+  // GASOLINA | ETANOL | DIESEL | GNV | ELETRICIDADE — o que de fato entrou.
+  combustivel String?
+  // Litros ou kWh, conforme o tipo. O rótulo é da tela.
+  quantidade Float
+  valorTotal Float
+  // Hodômetro NO MOMENTO do abastecimento — é o que permite km/l e R$/km
+  // entre dois registros consecutivos. Sem ele o registro vale só como gasto.
+  hodometro Int?
+  posto     String?
+  observacoes String?
+
+  criadoPorId   String?
+  criadoPorNome String?
+  criadoEm      DateTime @default(now())
+  atualizadoEm  DateTime @updatedAt
+
+  // A conta de consumo do veículo: registros em ordem cronológica.
+  @@index([veiculoId, data])
+  @@index([empresaId, data])
+  @@index([condutorId, data])
+  @@schema("rh")
+}
+
+/// Manutenção — a outra metade da despesa, e a origem do alerta de revisão.
+model ManutencaoVeiculo {
+  id        String  @id @default(cuid())
+  empresaId String
+  veiculoId String
+  veiculo   Veiculo @relation(fields: [veiculoId], references: [id], onDelete: Cascade)
+
+  // PREVENTIVA | CORRETIVA | REVISAO | PNEUS | SINISTRO | OUTRA
+  tipo      String
+  descricao String
+  data      DateTime
+  valor     Float?
+  hodometro Int?
+  fornecedor String?
+
+  // Quando preenchidos, viram pendência na Central (o carro avisa a próxima
+  // revisão por km OU por data — o que vier primeiro).
+  proximaRevisaoData DateTime?
+  proximaRevisaoKm   Int?
+
+  arquivoId   String?
+  observacoes String?
+
+  criadoPorId   String?
+  criadoPorNome String?
+  criadoEm      DateTime @default(now())
+  atualizadoEm  DateTime @updatedAt
+
+  @@index([veiculoId, data])
+  @@index([empresaId, data])
+  @@index([empresaId, proximaRevisaoData])
   @@schema("rh")
 }
