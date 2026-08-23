@@ -2415,8 +2415,16 @@ model Pendencia {
   // quem resolve precisa ENTRAR no sistema, e quem entra é User. Mesmo padrão
   // de `Sinal.donoUserId` — soft ref com snapshot do nome, para o histórico
   // não virar "usuário excluído".
-  responsavelId   String
-  responsavelNome String
+  //
+  // NULO É PERMITIDO, e a regra do produto continua sendo "sempre tem dono".
+  // A coluna nasceu NOT NULL e isso estava errado: com o dono obrigatório no
+  // banco, o detector não conseguiria gravar a pendência de um tipo que ainda
+  // não tem dono configurado — e o prazo, que é real e está correndo, ficaria
+  // INVISÍVEL. Trocar um alerta sem dono por alerta nenhum é o pior dos dois
+  // resultados. A regra passa a ser cobrada na TELA, onde pendência sem dono
+  // aparece em bloco próprio, no topo, gritando — em vez de sumir em silêncio.
+  responsavelId   String?
+  responsavelNome String?
   // Quem assume em férias e afastamento. Numa empresa onde uma pessoa acumula
   // RH e compliance, as férias dela não podem congelar quarenta prazos legais.
   substitutoId   String?
@@ -2472,6 +2480,13 @@ model RegraAlerta {
   // "20,10,5,2,1" — CSV e não array, porque o schema também roda em SQLite.
   diasAntecedencia String
   escalonaAposDias Int?
+
+  // De quem é a pendência deste tipo, por padrão. É o que o CEO decidiu em
+  // 23/08/2026 ao distribuir os domínios por área — frota para operações,
+  // contratos para o financeiro — e é o que o detector lê para nomear o dono
+  // na hora de criar a linha. Soft ref a User, com snapshot do nome.
+  responsavelPadraoUserId String?
+  responsavelPadraoNome   String?
   // Para quem sobe quando o prazo aperta e ninguém tratou. Soft ref a User.
   escalonaParaUserId String?
   severidadeBase     String @default("ATENCAO")
