@@ -26,6 +26,21 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    // Faixa: a 1.105.0 subiu sem entrada aqui (deploy de 22/08 à noite) e a
+    // 1.105.1 corrigiu o defeito dela minutos depois. Consolidadas para quem
+    // estiver rodando qualquer uma das duas achar a própria versão na lista.
+    versao: "1.105.0–1.105.1",
+    data: "22/08/2026",
+    horario: "23:10",
+    titulo: "Trocar de marca ou CNPJ sem voltar para a tela inicial",
+    itens: [
+      "A escolha de marca e CNPJ saiu da lateral (onde só existia depois de entrar numa empresa) e virou um seletor fixo no topo da tela, visível em qualquer lugar do sistema. Antes, para trocar de empresa era preciso voltar à tela inicial e clicar no cartão.",
+      "O seletor tem duas partes: a da esquerda escolhe a marca (e mostra a visão somada de todos os CNPJs dela); a da direita entra num CNPJ específico. Com uma marca já escolhida, a lista da direita mostra só os CNPJs daquela marca, com a opção de voltar ao consolidado.",
+      "A barra do topo passou a ter duas linhas — identidade (logo, marca/CNPJ, sua conta) em cima e o menu embaixo. Com o seletor novo somado aos itens do menu, \"Produtividade RH\" ficava cortado nas telas de notebook.",
+      "A lista de marcas e CNPJs da lateral foi removida: fazia o mesmo papel do seletor do topo, num lugar mais difícil de alcançar. O filtro por marca/CNPJ continua funcionando igual em todas as telas.",
+    ],
+  },
+  {
     versao: "1.104.0",
     data: "21/08/2026",
     horario: "20:30",
