@@ -33,7 +33,8 @@ export const ATUALIZACOES: Atualizacao[] = [
     itens: [
       "O sistema deixou de ser um módulo só. Ao lado do logo, onde antes estava escrito \"Sistema de RH\" como texto fixo, agora há um seletor: clicando nele aparecem os módulos disponíveis e dá para trocar de um para o outro sem voltar à tela inicial.",
       "Nasce o módulo Processos & Ativos — o lugar de processos, documentos, contratos, frota (documentação dos carros) e patrimônio. É a outra metade do trabalho de quem faz RH e compliance neste grupo, e até hoje não tinha sistema nenhum: vivia em pasta de computador e e-mail.",
-      "O módulo está EM CONSTRUÇÃO e ainda não guarda dado. A tela de abertura descreve o que cada uma das cinco áreas vai controlar, para a ordem de construção ser decidida sabendo o que entra em cada uma.",
+      "O módulo está EM CONSTRUÇÃO e ainda não guarda dado. A tela de abertura descreve o que cada área vai controlar e em que ordem — Frota e Central de Pendências primeiro, depois Contratos e Patrimônio, por último Documentos e Processos. O critério da ordem é um só: quanto dinheiro sai hoje, de forma certa e recorrente, se continuar sem controle.",
+      "A mesma tela lista cinco ações que NÃO dependem do sistema e já estão custando dinheiro — a primeira delas, aderir ao SNE para receber multa por meio eletrônico, perde desconto a cada semana que passa.",
       "A marca/CNPJ escolhida viaja junto na troca de módulo: quem está na LM Telecom e vai para Processos & Ativos continua na LM Telecom, com o mesmo filtro aplicado.",
       "O seletor de marca/CNPJ passou a funcionar dentro de qualquer módulo. Antes ele só reconhecia as telas do RH — dentro do módulo novo, trocar de CNPJ jogaria a pessoa de volta no RH sem avisar.",
       "Nada do módulo de RH mudou de lugar. A etiqueta com a versão do sistema continua no mesmo canto, agora dentro do seletor de módulo.",
