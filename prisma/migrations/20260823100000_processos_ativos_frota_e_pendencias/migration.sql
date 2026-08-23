@@ -2,7 +2,7 @@
 -- (23/08/2026). Base: `estudo-modulo-processos-ativos.md`, seis frentes de
 -- pesquisa com cada norma conferida em fonte primária.
 --
--- PURAMENTE ADITIVA: nove tabelas novas, nenhum ALTER em tabela existente,
+-- PURAMENTE ADITIVA: onze tabelas novas, nenhum ALTER em tabela existente,
 -- nenhum dado tocado. As FKs abaixo apontam só para as tabelas criadas aqui,
 -- exceto Condutor -> Colaborador, que é uma extensão 1:1 do colaborador que já
 -- existe (quem dirige não vira cadastro paralelo de motorista).
@@ -114,6 +114,7 @@ CREATE TABLE "rh"."Veiculo" (
     "ufEmplacamento" TEXT,
     "municipioEmplacamento" TEXT,
     "propriedade" TEXT NOT NULL DEFAULT 'PROPRIO',
+    "motorizacao" TEXT NOT NULL DEFAULT 'COMBUSTAO',
     "aderidoSne" BOOLEAN NOT NULL DEFAULT false,
     "dataAdesaoSne" TIMESTAMP(3),
     "recallPendente" BOOLEAN NOT NULL DEFAULT false,
@@ -259,6 +260,51 @@ CREATE TABLE "rh"."TransferenciaVeiculo" (
     CONSTRAINT "TransferenciaVeiculo_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "rh"."ConsumoVeiculo" (
+    "id" TEXT NOT NULL,
+    "empresaId" TEXT NOT NULL,
+    "veiculoId" TEXT NOT NULL,
+    "condutorId" TEXT,
+    "data" TIMESTAMP(3) NOT NULL,
+    "tipo" TEXT NOT NULL,
+    "combustivel" TEXT,
+    "quantidade" DOUBLE PRECISION NOT NULL,
+    "valorTotal" DOUBLE PRECISION NOT NULL,
+    "hodometro" INTEGER,
+    "posto" TEXT,
+    "observacoes" TEXT,
+    "criadoPorId" TEXT,
+    "criadoPorNome" TEXT,
+    "criadoEm" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "atualizadoEm" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "ConsumoVeiculo_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "rh"."ManutencaoVeiculo" (
+    "id" TEXT NOT NULL,
+    "empresaId" TEXT NOT NULL,
+    "veiculoId" TEXT NOT NULL,
+    "tipo" TEXT NOT NULL,
+    "descricao" TEXT NOT NULL,
+    "data" TIMESTAMP(3) NOT NULL,
+    "valor" DOUBLE PRECISION,
+    "hodometro" INTEGER,
+    "fornecedor" TEXT,
+    "proximaRevisaoData" TIMESTAMP(3),
+    "proximaRevisaoKm" INTEGER,
+    "arquivoId" TEXT,
+    "observacoes" TEXT,
+    "criadoPorId" TEXT,
+    "criadoPorNome" TEXT,
+    "criadoEm" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "atualizadoEm" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "ManutencaoVeiculo_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE INDEX "Pendencia_estado_venceEm_responsavelId_empresaId_idx" ON "rh"."Pendencia"("estado", "venceEm", "responsavelId", "empresaId");
 
@@ -325,6 +371,24 @@ CREATE INDEX "TransferenciaVeiculo_empresaId_tipo_idx" ON "rh"."TransferenciaVei
 -- CreateIndex
 CREATE INDEX "TransferenciaVeiculo_veiculoId_idx" ON "rh"."TransferenciaVeiculo"("veiculoId");
 
+-- CreateIndex
+CREATE INDEX "ConsumoVeiculo_veiculoId_data_idx" ON "rh"."ConsumoVeiculo"("veiculoId", "data");
+
+-- CreateIndex
+CREATE INDEX "ConsumoVeiculo_empresaId_data_idx" ON "rh"."ConsumoVeiculo"("empresaId", "data");
+
+-- CreateIndex
+CREATE INDEX "ConsumoVeiculo_condutorId_data_idx" ON "rh"."ConsumoVeiculo"("condutorId", "data");
+
+-- CreateIndex
+CREATE INDEX "ManutencaoVeiculo_veiculoId_data_idx" ON "rh"."ManutencaoVeiculo"("veiculoId", "data");
+
+-- CreateIndex
+CREATE INDEX "ManutencaoVeiculo_empresaId_data_idx" ON "rh"."ManutencaoVeiculo"("empresaId", "data");
+
+-- CreateIndex
+CREATE INDEX "ManutencaoVeiculo_empresaId_proximaRevisaoData_idx" ON "rh"."ManutencaoVeiculo"("empresaId", "proximaRevisaoData");
+
 -- AddForeignKey
 ALTER TABLE "rh"."Condutor" ADD CONSTRAINT "Condutor_colaboradorId_fkey" FOREIGN KEY ("colaboradorId") REFERENCES "rh"."Colaborador"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
@@ -345,3 +409,12 @@ ALTER TABLE "rh"."DocumentoVeiculo" ADD CONSTRAINT "DocumentoVeiculo_veiculoId_f
 
 -- AddForeignKey
 ALTER TABLE "rh"."TransferenciaVeiculo" ADD CONSTRAINT "TransferenciaVeiculo_veiculoId_fkey" FOREIGN KEY ("veiculoId") REFERENCES "rh"."Veiculo"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "rh"."ConsumoVeiculo" ADD CONSTRAINT "ConsumoVeiculo_veiculoId_fkey" FOREIGN KEY ("veiculoId") REFERENCES "rh"."Veiculo"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "rh"."ConsumoVeiculo" ADD CONSTRAINT "ConsumoVeiculo_condutorId_fkey" FOREIGN KEY ("condutorId") REFERENCES "rh"."Condutor"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "rh"."ManutencaoVeiculo" ADD CONSTRAINT "ManutencaoVeiculo_veiculoId_fkey" FOREIGN KEY ("veiculoId") REFERENCES "rh"."Veiculo"("id") ON DELETE CASCADE ON UPDATE CASCADE;
