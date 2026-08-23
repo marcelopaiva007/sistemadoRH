@@ -26,6 +26,20 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.106.0",
+    data: "23/08/2026",
+    horario: "09:10",
+    titulo: "Novo módulo: Processos & Ativos, com troca de módulo na barra de topo",
+    itens: [
+      "O sistema deixou de ser um módulo só. Ao lado do logo, onde antes estava escrito \"Sistema de RH\" como texto fixo, agora há um seletor: clicando nele aparecem os módulos disponíveis e dá para trocar de um para o outro sem voltar à tela inicial.",
+      "Nasce o módulo Processos & Ativos — o lugar de processos, documentos, contratos, frota (documentação dos carros) e patrimônio. É a outra metade do trabalho de quem faz RH e compliance neste grupo, e até hoje não tinha sistema nenhum: vivia em pasta de computador e e-mail.",
+      "O módulo está EM CONSTRUÇÃO e ainda não guarda dado. A tela de abertura descreve o que cada uma das cinco áreas vai controlar, para a ordem de construção ser decidida sabendo o que entra em cada uma.",
+      "A marca/CNPJ escolhida viaja junto na troca de módulo: quem está na LM Telecom e vai para Processos & Ativos continua na LM Telecom, com o mesmo filtro aplicado.",
+      "O seletor de marca/CNPJ passou a funcionar dentro de qualquer módulo. Antes ele só reconhecia as telas do RH — dentro do módulo novo, trocar de CNPJ jogaria a pessoa de volta no RH sem avisar.",
+      "Nada do módulo de RH mudou de lugar. A etiqueta com a versão do sistema continua no mesmo canto, agora dentro do seletor de módulo.",
+    ],
+  },
+  {
     versao: "1.105.2",
     data: "23/08/2026",
     horario: "08:40",

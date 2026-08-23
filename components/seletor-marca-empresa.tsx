@@ -6,6 +6,7 @@ import { Building2, ChevronDown, LayoutGrid } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Selo, corDaMarca } from "@/components/marca-visual";
 import { urlDoFiltro, PARAM } from "@/app/(app)/rh/[empresaId]/filtro-empresas";
+import { moduloDoCaminho, SLUGS_COM_EMPRESA } from "@/components/modulos";
 
 type Marca = { id: string; nome: string; corPrimaria: string | null };
 type Empresa = { id: string; nome: string; marcaId: string };
@@ -20,12 +21,13 @@ type Empresa = { id: string; nome: string; marcaId: string };
  * uma marca em foco ele mostra só os CNPJs dela, sem marca em foco ele é a
  * lista completa agrupada por marca. Ver o comentário de `marcaEmFoco`.
  *
- * Dentro de `/rh/[empresaId]`, reaproveita o MESMO mecanismo de
- * `filtro-empresas.tsx` (querystring `?empresas=`, trocando só o segmento da
- * URL) — não é um controle paralelo. Fora dali (Início, Usuários,
+ * Dentro de um módulo escopado por empresa (`/rh/<empresa>`,
+ * `/processos/<empresa>` — ver components/modulos.ts), reaproveita o MESMO
+ * mecanismo de `filtro-empresas.tsx` (querystring `?empresas=`, trocando só o
+ * segmento da URL) — não é um controle paralelo. Fora dali (Início, Usuários,
  * Produtividade RH, Atualizações) não há "empresa atual" nenhuma para
- * filtrar, então a escolha navega direto para `/rh/<empresa>`, igual ao que os
- * cartões da home já fazem.
+ * filtrar, então a escolha navega direto para `/<módulo>/<empresa>`, igual ao
+ * que os cartões da home já fazem.
  */
 export function SeletorMarcaEmpresa({
   marcas,
@@ -75,7 +77,13 @@ export function SeletorMarcaEmpresa({
   if (marcas.length === 0) return null;
 
   const partes = pathname.split("/");
-  const dentroDeEmpresa = partes[1] === "rh" && empresas.some((e) => e.id === partes[2]);
+  // Qualquer modulo escopado por empresa, e nao so o RH: a partir do segundo
+  // modulo (Processos & Ativos, 23/08/2026) travar isto em "rh" faria o seletor
+  // se comportar como se estivesse FORA de uma empresa dentro do modulo novo —
+  // e o `selecionar` de baixo jogaria quem troca de CNPJ de volta no RH, sem
+  // aviso. Ver components/modulos.ts.
+  const dentroDeEmpresa =
+    SLUGS_COM_EMPRESA.includes(partes[1]) && empresas.some((e) => e.id === partes[2]);
   const empresaIdAtual = dentroDeEmpresa ? partes[2] : null;
 
   const selecionadas = dentroDeEmpresa
@@ -166,10 +174,17 @@ export function SeletorMarcaEmpresa({
         { scroll: false },
       );
     } else {
-      // Fora de /rh não existe "limpar filtro": a tela inicial já é a visão do
-      // grupo inteiro, e o item "Todas as marcas" nem é renderizado ali.
+      // Fora de um módulo escopado não existe "limpar filtro": a tela inicial
+      // já é a visão do grupo inteiro, e o item "Todas as marcas" nem é
+      // renderizado ali.
       if (ids.length === 0) return;
-      router.push(`/rh/${ids[0]}?empresas=${ids.join(",")}`);
+      // Entra no módulo em que a pessoa está, e não sempre no RH: escolher um
+      // CNPJ na raiz de Processos & Ativos tem que continuar em Processos &
+      // Ativos. Só as telas sem módulo (Início, Usuários, Produtividade RH,
+      // Atualizações) caem no RH, que é de onde elas vieram.
+      const modulo = moduloDoCaminho(pathname);
+      const destino = modulo?.escopadoPorEmpresa ? modulo.slug : "rh";
+      router.push(`/${destino}/${ids[0]}?empresas=${ids.join(",")}`);
     }
     setAbertoMarca(false);
     setAbertoLista(false);

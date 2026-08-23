@@ -37,6 +37,9 @@ const VAPT = "cmruyzx6s00026worpcw8g4er";
 const LM = "cmruyzwsb00006worlf1dx02k";
 const COLAB = "cmrxsgbt80016o4or5kzevuri";
 
+// Os 5 CNPJs da LM Telecom e o único da VAPT, como no banco de produção.
+const LM_TODOS = [LM, "cms6f3hjw000004jvwm3a38s4", "cms6fb486000204jlt3sl27rm"];
+
 console.log("\nTroca simples: a tela em que a pessoa está é preservada\n");
 igual(trocarEmpresaNoCaminho(`/rh/${VAPT}`, VAPT, LM), `/rh/${LM}`, "raiz da empresa");
 igual(
@@ -103,14 +106,54 @@ igual(
   "caminho que já está em outra empresa não é reescrito",
 );
 
+console.log("\nOutros módulos escopados por empresa (Processos & Ativos)\n");
+// A conta não pode ser exclusiva do /rh: havia um `partes[1] !== "rh"` aqui até
+// 23/08/2026, e ele faria toda troca de CNPJ feita dentro do módulo novo falhar
+// CALADA — caminho no CNPJ antigo, `?empresas=` no novo. É o par descasado que
+// causou o defeito de escopo da v1.105.0.
+igual(
+  trocarEmpresaNoCaminho(`/processos/${VAPT}/contratos`, VAPT, LM),
+  `/processos/${LM}/contratos`,
+  "a tela é preservada ao trocar de CNPJ dentro de Processos & Ativos",
+);
+igual(
+  trocarEmpresaNoCaminho(`/processos/${VAPT}`, VAPT, LM),
+  `/processos/${LM}`,
+  "raiz do módulo troca de empresa igual à do RH",
+);
+igual(
+  trocarEmpresaNoCaminho(`/processos/${VAPT}/frota/${COLAB}`, VAPT, LM),
+  `/processos/${LM}/frota`,
+  "id de recurso continua sendo cortado fora do RH",
+);
+igual(
+  urlDoFiltro({
+    empresaIds: LM_TODOS,
+    pathname: `/processos/${VAPT}/contratos`,
+    busca: "",
+    empresaIdAtual: VAPT,
+  }),
+  `/processos/${LM}/contratos?empresas=${LM_TODOS.join(",")}`,
+  "caminho e filtro saem juntos da VAPT dentro do módulo novo",
+);
+
+console.log("\nRotas de módulo que NÃO têm empresa no caminho\n");
+igual(
+  trocarEmpresaNoCaminho("/processos", VAPT, LM),
+  "/processos",
+  "raiz do módulo sem empresa fica intocada",
+);
+igual(
+  trocarEmpresaNoCaminho("/conta", VAPT, LM),
+  "/conta",
+  "tela sem módulo fica intocada",
+);
+
 // ─────────────────────────────────────────────────────────────────────────
 // urlDoFiltro: a decisão completa (querystring + caminho) que o seletor da
 // barra de topo e a árvore de filtro das telas fazem — a MESMA função para os
 // dois, desde que a cópia divergiu e só uma delas recebeu correção.
 // ─────────────────────────────────────────────────────────────────────────
-
-// Os 5 CNPJs da LM Telecom e o único da VAPT, como no banco de produção.
-const LM_TODOS = [LM, "cms6f3hjw000004jvwm3a38s4", "cms6fb486000204jlt3sl27rm"];
 
 console.log("\nEscolher uma MARCA de vários CNPJs vindo de outra marca\n");
 igual(
