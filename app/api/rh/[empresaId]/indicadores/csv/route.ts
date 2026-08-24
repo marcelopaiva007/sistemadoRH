@@ -4,11 +4,11 @@
 // uma reunião) sem depender do PDF via Playwright que a pesquisa NR-01 usa.
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { usuarioAlcancaEmpresa } from "@/lib/rh-auth-guard";
+import { escopoDeEmpresas, usuarioAlcancaEmpresa } from "@/lib/rh-auth-guard";
+import { rotuloDoEscopo } from "@/lib/escopo-marca";
 import { prisma } from "@/lib/prisma";
 import { gerarCsv } from "@/lib/csv";
 import { hojeUTC } from "@/lib/datas";
-import { empresasDaMesmaMarca } from "@/lib/escopo-marca";
 import {
   absenteismoPorSetor,
   calcularTurnover,
@@ -19,10 +19,11 @@ import {
 export const runtime = "nodejs";
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ empresaId: string }> },
 ) {
   const { empresaId } = await params;
+  const empresasParam = new URL(req.url).searchParams.get("empresas") ?? undefined;
 
   const session = await auth();
   const user = session?.user;
@@ -35,12 +36,15 @@ export async function GET(
     return NextResponse.json({ error: "Sem acesso a esta empresa." }, { status: 403 });
   }
 
-  const empresaIds = await empresasDaMesmaMarca(empresaId);
+  // O MESMO escopo que a tela do Painel está mostrando, não mais a marca
+  // fixa da rota: o Painel filtra por "?empresas=" (grupo inteiro, uma marca
+  // ou um CNPJ) e o link do botão "CSV"/"PDF" carrega esse filtro adiante —
+  // exportar precisa bater com o que está na tela, nunca ser um recorte à
+  // parte que ninguém pediu.
+  const empresaIds = await escopoDeEmpresas(user, empresasParam);
   const hoje = hojeUTC();
-
-  // Marca da empresa da rota, não CNPJ isolado — mesmo escopo da tela.
-  const [empresa, ativos, todosOsVinculos, ausenciasRecentes, beneficiosVigentes] = await Promise.all([
-    prisma.empresa.findUnique({ where: { id: empresaId }, select: { marca: { select: { nome: true } } } }),
+  const [rotuloEscopo, ativos, todosOsVinculos, ausenciasRecentes, beneficiosVigentes] = await Promise.all([
+    rotuloDoEscopo(empresaIds),
     prisma.colaborador.findMany({
       where: { empresaId: { in: empresaIds }, ativo: true },
       select: { setor: { select: { nome: true } }, salarioBase: true },
@@ -103,7 +107,7 @@ export async function GET(
   // Um CSV só, com as duas tabelas separadas por linha em branco — mais
   // simples de abrir no Excel do que dois arquivos.
   const corpo = resumo.replace(/\r\n$/, "") + "\r\n\r\n" + porSetor.replace(/^﻿/, "");
-  const nomeArquivo = `indicadores-${(empresa?.marca.nome ?? "empresa").toLowerCase().replace(/[^a-z0-9]+/g, "-")}.csv`;
+  const nomeArquivo = `indicadores-${rotuloEscopo.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.csv`;
 
   return new NextResponse(corpo, {
     headers: {

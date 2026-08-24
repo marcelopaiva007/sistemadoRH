@@ -78,7 +78,9 @@ function tabelaMovimento(movimento: { mes: string; admissoes: number; desligamen
 }
 
 export function gerarHtmlRelatorioIndicadores(params: {
-  nomeMarca: string;
+  /** Nome da marca quando o escopo é uma só; "Grupo inteiro" quando são
+   *  várias — ver `lib/escopo-marca.ts::rotuloDoEscopo`. Nunca assuma marca. */
+  rotuloEscopo: string;
   qtdEmpresas: number;
   geradoEm: Date;
   totalAtivos: number;
@@ -91,7 +93,7 @@ export function gerarHtmlRelatorioIndicadores(params: {
   custo: LinhaCusto[];
 }): string {
   const {
-    nomeMarca,
+    rotuloEscopo,
     qtdEmpresas,
     geradoEm,
     totalAtivos,
@@ -131,7 +133,7 @@ export function gerarHtmlRelatorioIndicadores(params: {
 <body>
   <h1>Relatório de Indicadores — RH</h1>
   <p style="color:#6b7280">
-    ${esc(nomeMarca)}${qtdEmpresas > 1 ? ` — consolidado dos ${qtdEmpresas} CNPJs da marca` : ""}
+    ${esc(rotuloEscopo)}${qtdEmpresas > 1 ? ` — consolidado de ${qtdEmpresas} CNPJs` : ""}
     — gerado em ${geradoEm.toLocaleDateString("pt-BR")}
   </p>
 

@@ -179,6 +179,11 @@ export function PainelView({
   const [vista, setVista] = useState<Vista>("graficos");
   const { selecionadas, aplicar } = useControleFiltro(empresaId);
 
+  // O filtro de escopo desta tela, para os links de exportação carregarem
+  // adiante — sem isto o CSV/PDF sempre saía com a marca da URL, ignorando o
+  // "Todas as marcas"/CNPJ que a pessoa tivesse escolhido aqui em cima.
+  const querySelecionadas = selecionadas.length > 0 ? `?empresas=${selecionadas.join(",")}` : "";
+
   const saldo = turnover.admissoes - turnover.desligados;
   const marcas = [...new Set(empresasDisponiveis.map(e => e.marca))].sort((a, b) =>
     a.localeCompare(b, "pt-BR")
@@ -203,7 +208,7 @@ export function PainelView({
             <Button
               variant="outline"
               size="sm"
-              render={<a href={`/api/rh/${empresaId}/indicadores/csv`} />}
+              render={<a href={`/api/rh/${empresaId}/indicadores/csv${querySelecionadas}`} />}
             >
               <FileDown className="size-4" />
               CSV
@@ -213,7 +218,7 @@ export function PainelView({
               size="sm"
               render={
                 <a
-                  href={`/api/rh/${empresaId}/indicadores/relatorio-pdf`}
+                  href={`/api/rh/${empresaId}/indicadores/relatorio-pdf${querySelecionadas}`}
                   target="_blank"
                   rel="noreferrer"
                 />
