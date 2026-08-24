@@ -4,10 +4,10 @@
 // anexar num e-mail ou levar pronto pra reunião de diretoria.
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { usuarioAlcancaEmpresa } from "@/lib/rh-auth-guard";
+import { escopoDeEmpresas, usuarioAlcancaEmpresa } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
 import { hojeUTC } from "@/lib/datas";
-import { empresasDaMesmaMarca } from "@/lib/escopo-marca";
+import { rotuloDoEscopo } from "@/lib/escopo-marca";
 import {
   absenteismoPorSetor,
   calcularTurnover,
@@ -22,10 +22,11 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ empresaId: string }> },
 ) {
   const { empresaId } = await params;
+  const empresasParam = req.nextUrl.searchParams.get("empresas") ?? undefined;
 
   const session = await auth();
   const user = session?.user;
@@ -39,12 +40,14 @@ export async function GET(
     return NextResponse.json({ error: "Sem acesso a esta empresa." }, { status: 403 });
   }
 
-  const empresaIds = await empresasDaMesmaMarca(empresaId);
+  // O MESMO escopo que a tela do Painel está mostrando — ver o comentário
+  // gêmeo em indicadores/csv/route.ts.
+  const empresaIds = await escopoDeEmpresas(user, empresasParam);
   const hoje = hojeUTC();
 
-  const [empresa, ativos, todosOsVinculos, ausenciasRecentes, beneficiosVigentes, totalColaboradoresHistorico] =
+  const [rotuloEscopo, ativos, todosOsVinculos, ausenciasRecentes, beneficiosVigentes, totalColaboradoresHistorico] =
     await Promise.all([
-      prisma.empresa.findUnique({ where: { id: empresaId }, select: { marca: { select: { nome: true } } } }),
+      rotuloDoEscopo(empresaIds),
       prisma.colaborador.findMany({
         where: { empresaId: { in: empresaIds }, ativo: true },
         select: { setor: { select: { nome: true } }, salarioBase: true },
@@ -79,7 +82,7 @@ export async function GET(
   const comSalarioPreenchido = ativos.filter((c) => c.salarioBase != null).length;
 
   const html = gerarHtmlRelatorioIndicadores({
-    nomeMarca: empresa?.marca.nome ?? "Empresa",
+    rotuloEscopo,
     qtdEmpresas: empresaIds.length,
     geradoEm: new Date(),
     totalAtivos: ativos.length,
@@ -92,5 +95,5 @@ export async function GET(
     custo,
   });
 
-  return responderComHtmlRelatorio(html, `Relatório de Indicadores RH - ${empresa?.marca.nome ?? "Empresa"}`);
+  return responderComHtmlRelatorio(html, `Relatório de Indicadores RH - ${rotuloEscopo}`);
 }

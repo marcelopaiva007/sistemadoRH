@@ -26,6 +26,16 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.109.2",
+    data: "23/08/2026",
+    horario: "21:40",
+    titulo: "Exportação de Indicadores (CSV/PDF) agora exporta o que a tela está mostrando",
+    itens: [
+      "Filtrar o Painel por \"Todas as marcas\", por uma marca ou por um CNPJ e clicar em \"CSV\" ou \"PDF\" agora exporta exatamente esse recorte. Antes, os dois sempre exportavam a marca do endereço da tela, ignorando qualquer filtro escolhido.",
+      "O título do relatório e o nome do arquivo baixado também passam a dizer o escopo certo — o nome da marca quando é uma só, ou \"Grupo inteiro\" quando o recorte cruza mais de uma.",
+    ],
+  },
+  {
     versao: "1.109.1",
     data: "23/08/2026",
     horario: "21:10",
