@@ -26,6 +26,16 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.111.1",
+    data: "24/08/2026",
+    horario: "02:00",
+    titulo: "Barra de topo: o seletor de sistema virou uma pílula igual às de marca",
+    itens: [
+      "O seletor de sistema (Pessoas / Processos & Ativos) era texto solto com uma setinha, do lado das pílulas de marca e CNPJ — três controles com três aparências. Agora ele é uma pílula com borda igual às outras duas: os três alinhados, mesma altura, lendo como um grupo só.",
+      "A etiqueta de versão saiu de dentro do botão (onde ficava amontoada embaixo do nome) e passou a aparecer ao lado, leve e discreta — continua visível no topo, como antes.",
+    ],
+  },
+  {
     versao: "1.111.0",
     data: "24/08/2026",
     horario: "01:10",

@@ -79,11 +79,21 @@ export function SeletorModulo({
 
   const rotulo = moduloAtual?.nome ?? "Sistema de RH";
 
+  // A versão continua visível no topo (regra do AGENTS.md: é por ela que o RH
+  // sabe se está vendo a entrega nova), mas AO LADO da pílula, não empilhada
+  // dentro dela — empilhar deixava o seletor de sistema denso e diferente das
+  // pílulas de marca/CNPJ. Some no celular; lá ela vive no painel que abre.
+  const etiquetaVersao = (
+    <span className="hidden font-mono text-[10px] text-muted-foreground/60 lg:inline">{versao}</span>
+  );
+
   if (modulos.length < 2) {
+    // Um módulo só (ou nenhum): rótulo fixo, sem pílula clicável nem chevron —
+    // não há troca a oferecer. Mesmo par nome+versão, alinhado com o resto.
     return (
-      <div className="hidden leading-tight lg:block border-l border-border/60 pl-3">
-        <p className="text-xs font-medium text-foreground/80">{rotulo}</p>
-        <p className="font-mono text-[10px] text-muted-foreground/70">{versao}</p>
+      <div className="hidden items-center gap-2 lg:flex">
+        <span className="text-sm font-semibold text-foreground/90">{rotulo}</span>
+        {etiquetaVersao}
       </div>
     );
   }
@@ -115,34 +125,29 @@ export function SeletorModulo({
   }
 
   return (
-    <div ref={raizRef} className="relative shrink-0 border-l border-border/60 pl-2">
-      <button
-        type="button"
-        aria-expanded={aberto}
-        title={`${rotulo} — trocar de módulo`}
-        onClick={() => setAberto((v) => !v)}
-        className={cn(
-          "flex items-center gap-1.5 rounded-lg px-1.5 py-1 text-left transition-colors hover:bg-muted/70",
-          aberto && "bg-muted/70"
-        )}
-      >
-        <span className="leading-tight">
-          <span className="block max-w-24 truncate text-xs font-medium text-foreground/80 sm:max-w-40">
-            {rotulo}
-          </span>
-          {/* Some no celular junto com o resto do detalhe: a versão é consulta
-              eventual, o nome do módulo é orientação constante. */}
-          <span className="hidden font-mono text-[10px] text-muted-foreground/70 lg:block">
-            {versao}
-          </span>
-        </span>
-        <ChevronDown
+    <div className="flex min-w-0 items-center gap-2">
+      <div ref={raizRef} className="relative shrink-0">
+        {/* Mesma pílula dos seletores de marca/CNPJ (rounded-[10px], borda,
+            bg-card, px-2.5 py-1.5): os três controles lêem como um conjunto, e o
+            de sistema deixa de parecer texto solto ao lado das pílulas. */}
+        <button
+          type="button"
+          aria-expanded={aberto}
+          title={`${rotulo} — trocar de módulo`}
+          onClick={() => setAberto((v) => !v)}
           className={cn(
-            "size-3.5 shrink-0 text-muted-foreground transition-transform",
-            aberto && "rotate-180"
+            "flex items-center gap-1.5 rounded-[10px] border border-border bg-card px-2.5 py-1.5 text-sm transition-colors hover:bg-muted/60",
+            aberto && "bg-muted/60"
           )}
-        />
-      </button>
+        >
+          <span className="max-w-24 truncate font-semibold text-foreground sm:max-w-40">{rotulo}</span>
+          <ChevronDown
+            className={cn(
+              "size-3.5 shrink-0 text-muted-foreground transition-transform",
+              aberto && "rotate-180"
+            )}
+          />
+        </button>
 
       {aberto && (
         <div className="absolute top-[calc(100%+8px)] left-0 z-50 w-72 rounded-[10px] bg-popover p-1.5 shadow-lg ring-1 ring-foreground/10">
@@ -194,6 +199,8 @@ export function SeletorModulo({
           </p>
         </div>
       )}
+      </div>
+      {etiquetaVersao}
     </div>
   );
 }
