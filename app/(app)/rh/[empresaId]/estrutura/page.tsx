@@ -14,7 +14,11 @@ export default async function EstruturaPage({
   params: Promise<{ empresaId: string }>;
 }) {
   const { empresaId } = await params;
-  await requireEmpresaAccess(empresaId);
+  const usuario = await requireEmpresaAccess(empresaId);
+  // Criar, editar e excluir CNPJ é do ADMIN (ver lib/actions/rh-estrutura.ts).
+  // A tela precisa saber disso: botão que aparece e falha ao clicar é pior que
+  // botão ausente — ensina que o sistema está quebrado, não que falta permissão.
+  const podeMexerEmCnpj = usuario.role === "ADMIN";
 
   const marcas = await prisma.marca.findMany({
     orderBy: { nome: "asc" },
@@ -44,5 +48,5 @@ export default async function EstruturaPage({
     },
   });
 
-  return <EstruturaView marcas={marcas} empresaAtualId={empresaId} />;
+  return <EstruturaView marcas={marcas} podeMexerEmCnpj={podeMexerEmCnpj} empresaAtualId={empresaId} />;
 }

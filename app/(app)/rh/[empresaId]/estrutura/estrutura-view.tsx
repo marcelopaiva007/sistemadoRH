@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { createContext, useActionState, useContext, useState } from "react";
 import { toast } from "sonner";
 import { Building2, Pencil, Plus, Trash2, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -42,12 +42,20 @@ type Marca = {
   empresas: Empresa[];
 };
 
+// Quem pode mexer em CNPJ, disponível em toda a árvore desta tela. Contexto e
+// não prop encadeada porque os botões vivem dois níveis abaixo (marca > CNPJ),
+// e passar a mesma flag por três componentes só para chegar lá é ruído.
+const PodeMexerEmCnpj = createContext(false);
+
 export function EstruturaView({
   marcas,
   empresaAtualId,
+  podeMexerEmCnpj,
 }: {
   marcas: Marca[];
   empresaAtualId: string;
+  /** ADMIN. Vem do servidor — a guarda de verdade está na action. */
+  podeMexerEmCnpj: boolean;
 }) {
   const [novaMarca, setNovaMarca] = useState(false);
 
@@ -57,9 +65,9 @@ export function EstruturaView({
     (s, m) => s + m.empresas.reduce((t, e) => t + e._count.colaboradores, 0),
     0,
   );
-
   return (
-    <div className="space-y-6">
+    <PodeMexerEmCnpj.Provider value={podeMexerEmCnpj}>
+      <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 className="text-xl font-semibold tracking-tight">Marcas &amp; CNPJs</h2>
@@ -104,7 +112,8 @@ export function EstruturaView({
       {marcas.map((marca) => (
         <BlocoMarca key={marca.id} marca={marca} marcas={marcas} empresaAtualId={empresaAtualId} />
       ))}
-    </div>
+      </div>
+    </PodeMexerEmCnpj.Provider>
   );
 }
 
@@ -119,6 +128,7 @@ function BlocoMarca({
 }) {
   const [editando, setEditando] = useState(false);
   const [novoCnpj, setNovoCnpj] = useState(false);
+  const podeCnpj = useContext(PodeMexerEmCnpj);
   const pessoas = marca.empresas.reduce((t, e) => t + e._count.colaboradores, 0);
 
   return (
@@ -146,15 +156,17 @@ function BlocoMarca({
                 <MarcaForm marca={marca} onSuccess={() => setEditando(false)} />
               </DialogContent>
             </Dialog>
-            <Dialog open={novoCnpj} onOpenChange={setNovoCnpj}>
-              <DialogTrigger render={<Button size="sm" />}>
-                <Plus className="size-3.5" />
-                Adicionar CNPJ
-              </DialogTrigger>
-              <DialogContent className="max-h-[85vh] overflow-y-auto">
-                <EmpresaForm marcaId={marca.id} marcas={marcas} onSuccess={() => setNovoCnpj(false)} />
-              </DialogContent>
-            </Dialog>
+            {podeCnpj && (
+              <Dialog open={novoCnpj} onOpenChange={setNovoCnpj}>
+                <DialogTrigger render={<Button size="sm" />}>
+                  <Plus className="size-3.5" />
+                  Adicionar CNPJ
+                </DialogTrigger>
+                <DialogContent className="max-h-[85vh] overflow-y-auto">
+                  <EmpresaForm marcaId={marca.id} marcas={marcas} onSuccess={() => setNovoCnpj(false)} />
+                </DialogContent>
+              </Dialog>
+            )}
           </div>
         </div>
       </CardHeader>
@@ -201,6 +213,7 @@ function LinhaEmpresa({
   atual: boolean;
 }) {
   const [aberto, setAberto] = useState(false);
+  const podeCnpj = useContext(PodeMexerEmCnpj);
 
   return (
     <TableRow className={atual ? "bg-primary/5" : undefined}>
@@ -227,21 +240,27 @@ function LinhaEmpresa({
       <TableCell className="text-right tabular-nums">{empresa._count.colaboradores}</TableCell>
       <TableCell className="text-right">
         <div className="flex justify-end gap-1">
-          <Dialog open={aberto} onOpenChange={setAberto}>
-            <DialogTrigger render={<Button variant="ghost" size="sm" />}>
-              <Pencil className="size-3.5" />
-              Editar
-            </DialogTrigger>
-            <DialogContent className="max-h-[85vh] overflow-y-auto">
-              <EmpresaForm
-                marcaId={marcaId}
-                marcas={marcas}
-                empresa={empresa}
-                onSuccess={() => setAberto(false)}
-              />
-            </DialogContent>
-          </Dialog>
-          <ExcluirEmpresaButton empresa={empresa} />
+          {podeCnpj ? (
+            <>
+              <Dialog open={aberto} onOpenChange={setAberto}>
+                <DialogTrigger render={<Button variant="ghost" size="sm" />}>
+                  <Pencil className="size-3.5" />
+                  Editar
+                </DialogTrigger>
+                <DialogContent className="max-h-[85vh] overflow-y-auto">
+                  <EmpresaForm
+                    marcaId={marcaId}
+                    marcas={marcas}
+                    empresa={empresa}
+                    onSuccess={() => setAberto(false)}
+                  />
+                </DialogContent>
+              </Dialog>
+              <ExcluirEmpresaButton empresa={empresa} />
+            </>
+          ) : (
+            <span className="text-xs text-muted-foreground">somente Admin</span>
+          )}
         </div>
       </TableCell>
     </TableRow>
