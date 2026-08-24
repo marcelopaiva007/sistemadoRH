@@ -3062,6 +3062,15 @@ model Contrato {
   mesBaseReajuste Int?
   // Materializada a partir de mesBaseReajuste + periodicidadeReajusteMeses.
   proximoReajuste DateTime?
+  /// Quando o reajuste foi APLICADO de verdade — é o que fecha o ciclo.
+  ///
+  /// Sem esta coluna, `proximoReajuste` era gravado uma vez e nada no sistema
+  /// jamais o avançava: passado o mês-base, a pendência ficava vencida PARA
+  /// SEMPRE, e a única saída era dispensá-la — o que desligava o alerta de
+  /// reajuste daquele contrato em definitivo. Um alerta anual cuja única saída
+  /// é o silêncio permanente é pior que alerta nenhum: treina o time a
+  /// dispensar.
+  ultimoReajusteEm DateTime?
   multaCompensatoriaPct Float?
   multaMoratoriaPct     Float?
 
