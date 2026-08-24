@@ -39,22 +39,50 @@ export const MESES_JANELA_RENOVATORIA_FIM = 6;
  * mesmo que "prazo zero": um `?? 0` aqui inventaria uma data-limite no
  * próprio dia do fim do contrato para todo contrato que não tem essa
  * cláusula, o que é uma mentira, não um padrão seguro.
+ *
+ * E a data tem que cair DENTRO da vigência. Aviso prévio maior que a duração
+ * do contrato (210 dias num contrato de 6 meses) produzia uma data-limite
+ * ANTERIOR ao próprio início — e a pendência nascia vencida e crítica no dia
+ * do cadastro, cobrando uma decisão que era impossível tomar a tempo. Alerta
+ * que nasce impossível é como a Central ensina a ser ignorada.
  */
-export function dataLimiteDenuncia(dataFim: Date | null, avisoPrevioDias: number | null): Date | null {
+export function dataLimiteDenuncia(
+  dataFim: Date | null,
+  avisoPrevioDias: number | null,
+  dataInicio: Date | null = null,
+): Date | null {
   if (!dataFim || !avisoPrevioDias) return null;
-  return somarDiasUTC(dataFim, -avisoPrevioDias);
+  const limite = somarDiasUTC(dataFim, -avisoPrevioDias);
+  if (dataInicio && limite < dataInicio) return null;
+  return limite;
 }
 
-/** A janela da ação renovatória — null se não for locação não residencial. */
+/**
+ * A janela da ação renovatória — null se não for locação não residencial, ou
+ * se o contrato for curto demais para ter uma.
+ *
+ * O corte por duração não é detalhe: a janela é contada para TRÁS a partir do
+ * fim, então numa locação de 6 meses ela abria seis meses ANTES de o contrato
+ * existir e fechava no próprio dia de início — a pendência nascia vencida,
+ * crítica e impossível, no dia do cadastro.
+ *
+ * O corte também é o que a lei diz. A renovatória compulsória exige contrato
+ * escrito e por prazo determinado de no mínimo cinco anos (Lei 8.245/1991,
+ * art. 51, II) — somando contratos sucessivos, soma que este módulo ainda não
+ * faz. Exigir aqui que a janela INTEIRA caiba dentro da vigência é o piso
+ * mínimo honesto: não afirma que o direito existe, apenas se recusa a
+ * inventar uma janela que o calendário do próprio contrato desmente.
+ */
 export function janelaRenovatoria(
   dataFim: Date | null,
   locacaoNaoResidencial: boolean,
+  dataInicio: Date | null = null,
 ): { inicio: Date; fim: Date } | null {
   if (!dataFim || !locacaoNaoResidencial) return null;
-  return {
-    inicio: somarMesesUTC(dataFim, -MESES_JANELA_RENOVATORIA_INICIO),
-    fim: somarMesesUTC(dataFim, -MESES_JANELA_RENOVATORIA_FIM),
-  };
+  const inicio = somarMesesUTC(dataFim, -MESES_JANELA_RENOVATORIA_INICIO);
+  const fim = somarMesesUTC(dataFim, -MESES_JANELA_RENOVATORIA_FIM);
+  if (dataInicio && inicio < dataInicio) return null;
+  return { inicio, fim };
 }
 
 /**
@@ -74,16 +102,31 @@ export function proximoReajuste(
   mesBase: number | null,
   periodicidadeMeses: number | null,
   hoje: Date,
+  /** Quando o último reajuste foi APLICADO — os ciclos até ele já se foram. */
+  ultimoReajusteEm: Date | null = null,
 ): Date | null {
   if (!dataInicio || !mesBase || !periodicidadeMeses || periodicidadeMeses < MESES_MINIMOS_ENTRE_REAJUSTES) {
     return null;
   }
-  // A primeira ocorrência do mês-base a partir do início do contrato — se o
-  // mês-base já tinha passado no ano de início, o ciclo começa no ano
-  // seguinte.
-  let candidato = new Date(Date.UTC(dataInicio.getUTCFullYear(), mesBase - 1, 1));
-  if (candidato < dataInicio) candidato = somarMesesUTC(candidato, periodicidadeMeses);
-  // Anda em passos de `periodicidadeMeses` até ultrapassar hoje.
+
+  // O PRIMEIRO reajuste é o mês-base que cai em ou depois de uma periodicidade
+  // inteira contada do início. Sem esse piso, um contrato que começa em junho
+  // com mês-base setembro reajustava em TRÊS meses — a cláusula nula de pleno
+  // direito que a própria action recusa na entrada (Lei 10.192/2001, art. 2º,
+  // §1º). O mês-base diz o MÊS do ciclo; não autoriza encurtá-lo.
+  const piso = somarMesesUTC(dataInicio, periodicidadeMeses);
+  let candidato = new Date(Date.UTC(piso.getUTCFullYear(), mesBase - 1, 1));
+  if (candidato < piso) candidato = new Date(Date.UTC(piso.getUTCFullYear() + 1, mesBase - 1, 1));
+
+  // Os ciclos já reajustados saem da fila. Note que a conta anda em passos de
+  // `periodicidadeMeses` a partir do PRIMEIRO ciclo, e não a partir da data de
+  // aplicação: um reajuste aplicado com cinco dias de atraso pertence ao ciclo
+  // que venceu, não abre um ciclo novo — ancorar na data de aplicação pulava
+  // um ano inteiro a cada atraso.
+  if (ultimoReajusteEm) {
+    while (candidato <= ultimoReajusteEm) candidato = somarMesesUTC(candidato, periodicidadeMeses);
+  }
+  // E o resultado está sempre no futuro em relação a hoje.
   while (candidato <= hoje) candidato = somarMesesUTC(candidato, periodicidadeMeses);
   return candidato;
 }

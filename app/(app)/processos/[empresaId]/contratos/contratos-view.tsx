@@ -2,14 +2,14 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Pencil, Plus, TriangleAlert } from "lucide-react";
+import { Pencil, Plus, TrendingUp, TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatarReais } from "@/lib/constants-beneficios";
-import { salvarContrato } from "@/lib/actions/processos-contratos";
+import { registrarReajusteAplicado, salvarContrato } from "@/lib/actions/processos-contratos";
 import {
   CATEGORIAS_CONTRATO,
   INDICES_REAJUSTE,
@@ -53,6 +53,10 @@ export type ContratoNaTela = {
   periodicidadeReajusteMeses: number | null;
   mesBaseReajuste: number | null;
   proximoReajusteTexto: string;
+  /** O mês-base já chegou (ou passou) e o reajuste ainda não foi aplicado. */
+  reajusteDevido: boolean;
+  proximoReajusteInput: string;
+  valorMensalInput: string;
   multaCompensatoriaPct: number | null;
   multaMoratoriaPct: number | null;
   foroComarca: string | null;
@@ -81,18 +85,41 @@ export function ContratosView({
   contrapartes,
   gestores,
   empresas,
+  statusInicial,
 }: {
   empresaId: string;
   contratos: ContratoNaTela[];
   contrapartes: { id: string; razaoSocial: string; cnpjCpf: string }[];
   gestores: { id: string; nome: string }[];
   empresas: { id: string; nome: string }[];
+  /** Vem da URL — a Central manda "TODOS" para o contrato do alerta aparecer. */
+  statusInicial: string;
 }) {
   const router = useRouter();
   const [pendente, iniciar] = useTransition();
   const [erro, setErro] = useState<string | null>(null);
   const [form, setForm] = useState<Record<string, string> | null>(null);
-  const [filtroStatus, setFiltroStatus] = useState("VIGENTE");
+  const [filtroStatus, setFiltroStatus] = useState(statusInicial);
+  const [reajuste, setReajuste] = useState<{ id: string; numero: string; data: string; valor: string } | null>(null);
+
+  function aplicarReajuste() {
+    if (!reajuste) return;
+    setErro(null);
+    iniciar(async () => {
+      const r = await registrarReajusteAplicado({
+        empresaId,
+        id: reajuste.id,
+        aplicadoEm: reajuste.data,
+        novoValorMensal: reajuste.valor ? Number(reajuste.valor.replace(",", ".")) : null,
+      });
+      if (!r.ok) {
+        setErro(r.error);
+        return;
+      }
+      setReajuste(null);
+      router.refresh();
+    });
+  }
 
   // "Encerrado" e "cancelado" ficam fora por padrão: contrato morto não some
   // (é prova do que foi combinado, e o prazo de guarda corre do fim), mas
@@ -219,6 +246,28 @@ export function ContratosView({
   const eLocacao = marcado("locacaoNaoResidencial");
   const ePoste = form?.tipo === "COMPARTILHAMENTO_POSTE";
 
+  // Trocar o tipo (ou desmarcar locação) LIMPA os campos que sumiram da tela.
+  // Sem isto o valor continuava no estado e ia junto no salvar: um contrato de
+  // fornecedor gravava "40 pontos de fixação contratados", e o dado
+  // contradizia o próprio tipo do contrato sem ninguém ver.
+  function trocarTipo(valor: string) {
+    setForm((f) => ({
+      ...(f ?? {}),
+      tipo: valor,
+      ...(valor === "COMPARTILHAMENTO_POSTE" ? {} : { pontosFixacaoContratados: "", pontosFixacaoOcupados: "" }),
+    }));
+  }
+  function alternarLocacao() {
+    setForm((f) => {
+      const virandoLocacao = f?.locacaoNaoResidencial !== "sim";
+      return {
+        ...(f ?? {}),
+        locacaoNaoResidencial: virandoLocacao ? "sim" : "",
+        ...(virandoLocacao ? {} : { buildToSuit: "", renunciaRevisionalPactuada: "" }),
+      };
+    });
+  }
+
   return (
     <div className="space-y-4">
       {erro && (
@@ -251,6 +300,48 @@ export function ContratosView({
         </p>
       )}
 
+      {reajuste && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Aplicar reajuste — {reajuste.numero}</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <p className="text-[11px] text-muted-foreground sm:col-span-2 lg:col-span-4">
+              Registrar aqui fecha a pendência e reagenda o próximo reajuste a partir desta data. Sem
+              isso, o alerta deste contrato ficaria vencido para sempre.
+            </p>
+            <label className="text-xs text-muted-foreground">
+              Passou a valer em
+              <input
+                type="date"
+                value={reajuste.data}
+                onChange={(e) => setReajuste({ ...reajuste, data: e.target.value })}
+                className={CAMPO}
+              />
+            </label>
+            <label className="text-xs text-muted-foreground">
+              Novo valor mensal (R$)
+              <input
+                type="number"
+                step="0.01"
+                value={reajuste.valor}
+                onChange={(e) => setReajuste({ ...reajuste, valor: e.target.value })}
+                className={CAMPO}
+              />
+              <span className="mt-0.5 block text-[11px] text-muted-foreground/80">
+                Em branco mantém o valor atual.
+              </span>
+            </label>
+            <div className="flex items-end gap-2 sm:col-span-2">
+              <Button size="sm" disabled={pendente} onClick={aplicarReajuste}>Registrar</Button>
+              <Button size="sm" variant="ghost" onClick={() => { setReajuste(null); setErro(null); }}>
+                Cancelar
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {form && (
         <Card>
           <CardHeader className="pb-2">
@@ -260,11 +351,16 @@ export function ContratosView({
             <p className={SECAO}>Identificação</p>
             <label className="text-xs text-muted-foreground">
               Empresa (CNPJ que assina)
-              <select {...campo("empresaAlvo")} className={CAMPO} disabled={Boolean(form.id)}>
+              <select {...campo("empresaAlvo")} className={CAMPO}>
                 {empresas.map((e) => (
                   <option key={e.id} value={e.id}>{e.nome}</option>
                 ))}
               </select>
+              {form.id && (
+                <span className="mt-0.5 block text-[11px] text-muted-foreground/80">
+                  Dá para corrigir: contrato não se apaga, então o CNPJ errado precisa ter conserto.
+                </span>
+              )}
             </label>
             <label className="text-xs text-muted-foreground">
               Número
@@ -285,7 +381,11 @@ export function ContratosView({
             </label>
             <label className="text-xs text-muted-foreground">
               Tipo
-              <select {...campo("tipo")} className={CAMPO}>
+              <select
+                value={form.tipo ?? ""}
+                onChange={(e) => trocarTipo(e.target.value)}
+                className={CAMPO}
+              >
                 <option value="">Escolha…</option>
                 {TIPOS_CONTRATO.map((t) => (
                   <option key={t.value} value={t.value}>{t.label}</option>
@@ -309,6 +409,13 @@ export function ContratosView({
               </select>
             </label>
             <label className="text-xs text-muted-foreground">
+              Criticidade
+              <select {...campo("criticidade")} className={CAMPO}>
+                <option value="NORMAL">Normal</option>
+                <option value="ALTA">Alta</option>
+              </select>
+            </label>
+            <label className="text-xs text-muted-foreground">
               Gestor responsável
               <select {...campo("gestorId")} className={CAMPO}>
                 <option value="">Sem gestor</option>
@@ -316,6 +423,9 @@ export function ContratosView({
                   <option key={g.id} value={g.id}>{g.nome}</option>
                 ))}
               </select>
+              <span className="mt-0.5 block text-[11px] text-muted-foreground/80">
+                Vira o dono das pendências deste contrato na Central.
+              </span>
             </label>
             <label className="text-xs text-muted-foreground sm:col-span-2 lg:col-span-4">
               Objeto
@@ -357,14 +467,15 @@ export function ContratosView({
               Aviso prévio de não-renovação (dias)
               <input {...campo("avisoPrevioNaoRenovacaoDias")} type="number" min={1} className={CAMPO} />
               <span className="mt-0.5 block text-[11px] text-muted-foreground/80">
-                Copie da cláusula. É daqui que sai a data-limite para dizer que não renova.
+                Copie da cláusula. É daqui que sai a data-limite para dizer que não renova — se ela
+                couber dentro da vigência.
               </span>
             </label>
             <label className="flex items-end gap-2 pb-1.5 text-xs text-muted-foreground">
               <input
                 type="checkbox"
                 checked={eLocacao}
-                onChange={() => alternar("locacaoNaoResidencial")}
+                onChange={alternarLocacao}
                 className="size-4"
               />
               Locação não residencial
@@ -496,6 +607,7 @@ export function ContratosView({
                 <TableHead>Contrato</TableHead>
                 <TableHead>Contraparte</TableHead>
                 <TableHead>Empresa</TableHead>
+                <TableHead>Gestor</TableHead>
                 <TableHead>Vigência até</TableHead>
                 <TableHead>Decidir renovação</TableHead>
                 <TableHead className="text-right">Valor/mês</TableHead>
@@ -505,7 +617,7 @@ export function ContratosView({
             <TableBody>
               {visiveis.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-8 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={8} className="py-8 text-center text-sm text-muted-foreground">
                     {contratos.length === 0
                       ? "Nenhum contrato cadastrado. Sem contrato cadastrado, nenhum prazo de renovação é cobrado."
                       : "Nenhum contrato com este status."}
@@ -527,6 +639,9 @@ export function ContratosView({
                   </TableCell>
                   <TableCell className="text-muted-foreground">{c.contraparteNome}</TableCell>
                   <TableCell className="text-muted-foreground">{c.empresaNome}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {c.gestorNome ?? <span className="text-amber-600 dark:text-amber-500">sem gestor</span>}
+                  </TableCell>
                   <TableCell
                     className={cn(
                       "tabular-nums",
@@ -572,7 +687,25 @@ export function ContratosView({
                       </span>
                     )}
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="text-right whitespace-nowrap">
+                    {c.reajusteDevido && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="mr-1 gap-1"
+                        onClick={() =>
+                          setReajuste({
+                            id: c.id,
+                            numero: c.numero,
+                            data: c.proximoReajusteInput,
+                            valor: c.valorMensalInput,
+                          })
+                        }
+                      >
+                        <TrendingUp className="size-4" />
+                        Aplicar reajuste
+                      </Button>
+                    )}
                     <Button size="sm" variant="ghost" onClick={() => editar(c)}>
                       <Pencil className="size-4" />
                     </Button>

@@ -201,17 +201,23 @@ export async function salvarContrato(input: {
   const usuario = await requireProcessosEmpresa(input.empresaId);
   const visiveis = await empresasVisiveis(usuario);
 
-  // Editando: o alvo tem que estar no alcance, e FICA no CNPJ dele. Um update
-  // por id puro aceitaria o id de um contrato de empresa que a pessoa nem
-  // enxerga; reescrever `empresaId` a partir da URL mudaria o contrato de
-  // empresa em silêncio — os dois defeitos que a frota já teve.
-  let empresaDoContrato = input.empresaContratoId;
+  // O CNPJ que assina vem do FORMULÁRIO e é sempre validado contra o que a
+  // pessoa alcança — nunca da URL. A distinção importa: o defeito que a frota
+  // teve foi reescrever o dono a partir da URL, em silêncio, sem ninguém pedir.
+  // Aqui é escolha explícita num <select> que só oferece o que ela enxerga, e
+  // é o único conserto possível para um contrato cadastrado no CNPJ errado —
+  // contrato não se apaga, e não deve.
+  const empresaDoContrato = input.empresaContratoId;
+  if (!visiveis.includes(empresaDoContrato)) {
+    return { ok: false, error: "Empresa fora do seu acesso." };
+  }
   let anterior: {
     empresaId: string;
     dataInicio: Date;
     mesBaseReajuste: number | null;
     periodicidadeReajusteMeses: number | null;
     proximoReajuste: Date | null;
+    ultimoReajusteEm: Date | null;
   } | null = null;
   if (input.id) {
     anterior = await prisma.contrato.findFirst({
@@ -222,12 +228,10 @@ export async function salvarContrato(input: {
         mesBaseReajuste: true,
         periodicidadeReajusteMeses: true,
         proximoReajuste: true,
+        ultimoReajusteEm: true,
       },
     });
     if (!anterior) return { ok: false, error: "Contrato não encontrado no seu acesso." };
-    empresaDoContrato = anterior.empresaId;
-  } else if (!visiveis.includes(empresaDoContrato)) {
-    return { ok: false, error: "Empresa fora do seu acesso." };
   }
 
   const numeroContrato = limpo(input.numero);
@@ -267,9 +271,17 @@ export async function salvarContrato(input: {
   if (mesBase !== null && (mesBase < 1 || mesBase > 12)) {
     return { ok: false, error: "Mês-base do reajuste tem que ser de 1 a 12." };
   }
+  // Os dois campos andam juntos: um sozinho não produz data nenhuma, e o
+  // contrato sairia da cobrança de reajuste sem erro e sem aviso.
+  if (mesBase !== null && periodicidade === null) {
+    return { ok: false, error: "Informe também a periodicidade do reajuste em meses (mínimo 12)." };
+  }
+  if (periodicidade !== null && mesBase === null) {
+    return { ok: false, error: "Informe também o mês-base do reajuste." };
+  }
 
   const avisoPrevio = numero(input.avisoPrevioNaoRenovacaoDias);
-  const janela = janelaRenovatoria(dataFim, input.locacaoNaoResidencial ?? false);
+  const janela = janelaRenovatoria(dataFim, input.locacaoNaoResidencial ?? false, dataInicio);
 
   const dados = {
     empresaId: empresaDoContrato,
@@ -289,7 +301,7 @@ export async function salvarContrato(input: {
     indeterminado,
     renovacaoAutomatica: input.renovacaoAutomatica ?? false,
     avisoPrevioNaoRenovacaoDias: avisoPrevio,
-    dataLimiteDenuncia: dataLimiteDenuncia(dataFim, avisoPrevio),
+    dataLimiteDenuncia: dataLimiteDenuncia(dataFim, avisoPrevio, dataInicio),
     locacaoNaoResidencial: input.locacaoNaoResidencial ?? false,
     janelaRenovatoriaInicio: janela?.inicio ?? null,
     janelaRenovatoriaFim: janela?.fim ?? null,
@@ -300,9 +312,10 @@ export async function salvarContrato(input: {
     indiceReajuste: limpo(input.indiceReajuste),
     periodicidadeReajusteMeses: periodicidade,
     mesBaseReajuste: mesBase,
+    ultimoReajusteEm: anterior?.ultimoReajusteEm ?? null,
     proximoReajuste: reajusteInalterado(anterior, dataInicio, mesBase, periodicidade)
       ? anterior!.proximoReajuste
-      : proximoReajuste(dataInicio, mesBase, periodicidade, new Date()),
+      : proximoReajuste(dataInicio, mesBase, periodicidade, new Date(), anterior?.ultimoReajusteEm ?? null),
     multaCompensatoriaPct: numero(input.multaCompensatoriaPct),
     multaMoratoriaPct: numero(input.multaMoratoriaPct),
     foroComarca: limpo(input.foroComarca),
@@ -352,8 +365,81 @@ export async function salvarContrato(input: {
     entidade: "Contrato",
     entidadeId: contrato.id,
     resumo: `${input.id ? "Editou" : "Cadastrou"} o contrato ${numeroContrato} — ${contraparte.razaoSocial}`,
+    detalhes:
+      anterior && anterior.empresaId !== empresaDoContrato
+        ? { empresaAnterior: anterior.empresaId, empresaNova: empresaDoContrato }
+        : undefined,
   });
 
   revalidatePath(caminho(input.empresaId));
   return { ok: true, id: contrato.id };
+}
+
+/**
+ * Registra que o reajuste foi APLICADO — e devolve o contrato ao ciclo.
+ *
+ * É a saída que faltava. Sem ela, `proximoReajuste` era gravado uma vez e
+ * nada jamais o avançava: passado o mês-base, a pendência ficava vencida para
+ * sempre e a única alternativa era dispensá-la, o que desligava o alerta de
+ * reajuste daquele contrato em definitivo. Carimbar a data recalcula o
+ * próximo ciclo a partir dela, a pendência fecha sozinha na varredura
+ * seguinte, e o alerta volta no ano que vem.
+ */
+export async function registrarReajusteAplicado(input: {
+  empresaId: string;
+  id: string;
+  aplicadoEm: string;
+  novoValorMensal?: number | null;
+}): Promise<ActionResult> {
+  const usuario = await requireProcessosEmpresa(input.empresaId);
+  const visiveis = await empresasVisiveis(usuario);
+
+  const contrato = await prisma.contrato.findFirst({
+    where: { id: input.id, empresaId: { in: visiveis } },
+    select: {
+      id: true,
+      empresaId: true,
+      numero: true,
+      dataInicio: true,
+      mesBaseReajuste: true,
+      periodicidadeReajusteMeses: true,
+      valorMensal: true,
+    },
+  });
+  if (!contrato) return { ok: false, error: "Contrato não encontrado no seu acesso." };
+
+  const aplicadoEm = dataDoFormulario(input.aplicadoEm);
+  if (!aplicadoEm) return { ok: false, error: "Informe a data em que o reajuste passou a valer." };
+  if (aplicadoEm < contrato.dataInicio) {
+    return { ok: false, error: "O reajuste não pode valer desde antes do início do contrato." };
+  }
+
+  const novoValor = numero(input.novoValorMensal);
+
+  await prisma.contrato.update({
+    where: { id: contrato.id },
+    data: {
+      ultimoReajusteEm: aplicadoEm,
+      proximoReajuste: proximoReajuste(
+        contrato.dataInicio,
+        contrato.mesBaseReajuste,
+        contrato.periodicidadeReajusteMeses,
+        new Date(),
+        aplicadoEm,
+      ),
+      ...(novoValor !== null ? { valorMensal: novoValor } : {}),
+    },
+  });
+
+  await registrarAuditoria({
+    empresaId: contrato.empresaId,
+    acao: "ATUALIZAR",
+    entidade: "Contrato",
+    entidadeId: contrato.id,
+    resumo: `Aplicou o reajuste do contrato ${contrato.numero}`,
+    detalhes: novoValor !== null ? { valorAnterior: contrato.valorMensal, valorNovo: novoValor } : undefined,
+  });
+
+  revalidatePath(caminho(input.empresaId));
+  return { ok: true };
 }

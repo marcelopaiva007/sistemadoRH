@@ -7,6 +7,7 @@ import { escopoDeEmpresas } from "@/lib/rh-auth-guard";
 import { diferencaEmDiasUTC, formatarData, hojeUTC } from "@/lib/datas";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Indicador } from "@/components/indicador";
+import { STATUS_COM_PRAZO_CORRENDO } from "@/lib/processos/pendencias";
 import { PendenciasView, type PendenciaNaTela } from "./pendencias-view";
 
 // A Central de Pendências — a tela de abertura do módulo, e não uma seção dentro
@@ -47,12 +48,16 @@ function acaoDe(
       return { href: `${base}/frota`, rotulo: "Abrir veículo" };
     case "MANUTENCAO_PROGRAMADA":
       return { href: `${base}/frota/manutencoes`, rotulo: "Agendar revisão" };
+    // `status=TODOS` não é enfeite: a lista de Contratos abre filtrada em
+    // "Vigente", e os três detectores também acham contrato EM_RENOVACAO e
+    // SUSPENSO. Sem o parâmetro, clicar no alerta levava a uma tela onde o
+    // contrato do alerta simplesmente não estava.
     case "DENUNCIA_CONTRATO":
-      return { href: `${base}/contratos`, rotulo: "Decidir renovação" };
+      return { href: `${base}/contratos?status=TODOS`, rotulo: "Decidir renovação" };
     case "ACAO_RENOVATORIA":
-      return { href: `${base}/contratos`, rotulo: "Abrir contrato" };
+      return { href: `${base}/contratos?status=TODOS`, rotulo: "Abrir contrato" };
     case "REAJUSTE_CONTRATO":
-      return { href: `${base}/contratos`, rotulo: "Aplicar reajuste" };
+      return { href: `${base}/contratos?status=TODOS`, rotulo: "Aplicar reajuste" };
     default:
       return { href: null, rotulo: "Abrir" };
   }
@@ -100,7 +105,11 @@ export default async function CentralPendenciasPage({
       select: { id: true, nome: true },
     }),
     prisma.veiculo.count({ where: { empresaId: { in: escopo } } }),
-    prisma.contrato.count({ where: { empresaId: { in: escopo } } }),
+    // Só o que os detectores observam. Contar ENCERRADO/CANCELADO fazia a
+    // Central dizer "9 contratos acompanhados" sobre 7 contratos mortos que
+    // nenhum alerta olha — número plausível e errado, que é o que este módulo
+    // existe para não produzir.
+    prisma.contrato.count({ where: { empresaId: { in: escopo }, status: { in: STATUS_COM_PRAZO_CORRENDO } } }),
     prisma.empresa.findMany({ where: { id: { in: escopo } }, select: { id: true, nome: true } }),
   ]);
   if (!empresa) notFound();

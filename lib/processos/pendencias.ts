@@ -39,6 +39,21 @@ export type Candidata = {
   venceEm: Date;
   contagem?: "DIAS_UTEIS" | "DIAS_CORRIDOS";
   origemLegal?: "INTERNO" | "JUDICIAL";
+  /**
+   * Dono que vem DO PRÓPRIO REGISTRO (o gestor do contrato), quando existe.
+   * Tem precedência sobre a RegraAlerta: quem responde por aquele contrato é
+   * mais específico que o padrão por tipo. Sem isto, o campo "Gestor
+   * responsável" era coletado, congelado na linha e nunca usado — as
+   * pendências caíam todas em "Sem responsável".
+   */
+  responsavelId?: string | null;
+  responsavelNome?: string | null;
+  /**
+   * Identifica a OCORRÊNCIA dentro de um registro que gera o mesmo alerta mais
+   * de uma vez (reajuste anual, janela de renovação a cada termo). Entra na
+   * chave de dedupe para que uma dispensa valha só para aquele ciclo.
+   */
+  ciclo?: string;
 };
 
 /**
@@ -94,9 +109,28 @@ export function severidadeDe(diasRestantes: number, tipo: string): string {
   return "ATENCAO";
 }
 
-/** Identidade da ocorrência — é por ela que o cron reencontra a linha. */
+/**
+ * Identidade da ocorrência — é por ela que o cron reencontra a linha.
+ *
+ * O `ciclo` existe para o alerta que VOLTA no mesmo registro: reajuste anual,
+ * janela de renovação a cada termo. Sem ele, a chave é uma só para sempre, e
+ * dispensar o reajuste de 2027 (dispensa é definitiva, de propósito) silencia
+ * também 2028, 2029… do mesmo contrato — um alerta anual desligado para
+ * sempre por uma decisão que valia para um ano.
+ *
+ * Só os detectores de contrato preenchem `ciclo`. Os de frota não, e não podem
+ * passar a preencher: a chave deles já está gravada em produção, e mudá-la
+ * faria toda pendência existente ser lida como "não detectada" — resolvida
+ * sozinha na primeira rodada, e recriada em seguida sem dono nem histórico.
+ */
 export function chaveDe(c: Candidata): string {
-  return `${c.tipo}:${c.origemTipo}:${c.origemId}`;
+  const base = `${c.tipo}:${c.origemTipo}:${c.origemId}`;
+  return c.ciclo ? `${base}:${c.ciclo}` : base;
+}
+
+/** O ciclo a que um prazo pertence — ano e mês da data-alvo. */
+function cicloDe(d: Date): string {
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -403,6 +437,25 @@ async function revisoesProgramadas(empresaIds: string[]): Promise<Candidata[]> {
 }
 
 /**
+ * Os status em que um contrato ainda tem prazo correndo.
+ *
+ * RASCUNHO não tem (ainda não é contrato); ENCERRADO e CANCELADO não têm mais.
+ * SUSPENSO TEM: suspender a execução não suspende prazo legal nenhum — e era
+ * exatamente esse o buraco. Como `acaoRenovatoria` só olhava VIGENTE e
+ * EM_RENOVACAO, marcar o contrato como "Suspenso" durante uma negociação
+ * fazia o auto-resolve fechar sozinho o prazo decadencial da renovatória,
+ * silenciosamente, contra o que a própria função existe para garantir
+ * (Lei 8.245/1991, art. 51, §5º — não se suspende, não se interrompe).
+ *
+ * Uma constante só para os três detectores: a primeira versão usava
+ * `["VIGENTE","EM_RENOVACAO"]` em dois e `"VIGENTE"` no terceiro, e a
+ * assimetria fazia a pendência de reajuste desaparecer quando alguém mudava o
+ * status para "Em renovação" — o estado mais natural de um contrato perto do
+ * fim.
+ */
+export const STATUS_COM_PRAZO_CORRENDO = ["VIGENTE", "EM_RENOVACAO", "SUSPENSO"];
+
+/**
  * A janela para dizer que o contrato NÃO será renovado.
  *
  * Só existe quando o contrato tem aviso prévio escrito — sem cláusula, não há
@@ -416,7 +469,7 @@ async function denunciaDeContrato(empresaIds: string[]): Promise<Candidata[]> {
   const contratos = await prisma.contrato.findMany({
     where: {
       empresaId: { in: empresaIds },
-      status: { in: ["VIGENTE", "EM_RENOVACAO"] },
+      status: { in: STATUS_COM_PRAZO_CORRENDO },
       dataLimiteDenuncia: { not: null },
     },
     select: {
@@ -427,6 +480,8 @@ async function denunciaDeContrato(empresaIds: string[]): Promise<Candidata[]> {
       dataFim: true,
       dataLimiteDenuncia: true,
       renovacaoAutomatica: true,
+      gestorId: true,
+      gestorNome: true,
       contraparte: { select: { razaoSocial: true } },
     },
   });
@@ -444,6 +499,9 @@ async function denunciaDeContrato(empresaIds: string[]): Promise<Candidata[]> {
       : `${c.titulo}. Vigência até ${formatarData(c.dataFim)}. Último dia para comunicar que o ` +
         `contrato não será renovado.`,
     venceEm: c.dataLimiteDenuncia!,
+    ciclo: cicloDe(c.dataLimiteDenuncia!),
+    responsavelId: c.gestorId,
+    responsavelNome: c.gestorNome,
   }));
 }
 
@@ -462,7 +520,7 @@ async function acaoRenovatoria(empresaIds: string[]): Promise<Candidata[]> {
   const contratos = await prisma.contrato.findMany({
     where: {
       empresaId: { in: empresaIds },
-      status: { in: ["VIGENTE", "EM_RENOVACAO"] },
+      status: { in: STATUS_COM_PRAZO_CORRENDO },
       locacaoNaoResidencial: true,
       janelaRenovatoriaFim: { not: null },
     },
@@ -473,6 +531,8 @@ async function acaoRenovatoria(empresaIds: string[]): Promise<Candidata[]> {
       titulo: true,
       janelaRenovatoriaInicio: true,
       janelaRenovatoriaFim: true,
+      gestorId: true,
+      gestorNome: true,
       contraparte: { select: { razaoSocial: true } },
     },
   });
@@ -489,7 +549,10 @@ async function acaoRenovatoria(empresaIds: string[]): Promise<Candidata[]> {
       `${formatarData(c.janelaRenovatoriaInicio)} e fecha nesta data. Perdida, o direito à ` +
       `renovação decai — não se suspende nem se interrompe (Lei 8.245/1991, art. 51, §5º).`,
     venceEm: c.janelaRenovatoriaFim!,
+    ciclo: cicloDe(c.janelaRenovatoriaFim!),
     origemLegal: "JUDICIAL",
+    responsavelId: c.gestorId,
+    responsavelNome: c.gestorNome,
   }));
 }
 
@@ -505,7 +568,7 @@ async function reajustesDevidos(empresaIds: string[]): Promise<Candidata[]> {
   const contratos = await prisma.contrato.findMany({
     where: {
       empresaId: { in: empresaIds },
-      status: "VIGENTE",
+      status: { in: STATUS_COM_PRAZO_CORRENDO },
       proximoReajuste: { not: null },
       // `not` sozinho DESCARTARIA o contrato de índice em branco: em SQL,
       // NULL <> 'SEM_REAJUSTE' é NULL, não verdadeiro. O que importa aqui é a
@@ -519,6 +582,8 @@ async function reajustesDevidos(empresaIds: string[]): Promise<Candidata[]> {
       titulo: true,
       indiceReajuste: true,
       proximoReajuste: true,
+      gestorId: true,
+      gestorNome: true,
       contraparte: { select: { razaoSocial: true } },
     },
   });
@@ -532,6 +597,9 @@ async function reajustesDevidos(empresaIds: string[]): Promise<Candidata[]> {
     titulo: `Reajuste ${c.indiceReajuste ?? ""} — ${c.numero} · ${c.contraparte.razaoSocial}`.trim(),
     descricao: `${c.titulo}. Mês-base do reajuste contratado.`,
     venceEm: c.proximoReajuste!,
+    ciclo: cicloDe(c.proximoReajuste!),
+    responsavelId: c.gestorId,
+    responsavelNome: c.gestorNome,
   }));
 }
 
@@ -610,7 +678,10 @@ export async function sincronizarPendencias(empresaIds: string[]): Promise<{
     const existente = porChave.get(chave);
 
     if (!existente) {
-      const dono = donoDe(c.tipo, c.empresaId);
+      const padrao = donoDe(c.tipo, c.empresaId);
+      const dono = c.responsavelId
+        ? { responsavelPadraoUserId: c.responsavelId, responsavelPadraoNome: c.responsavelNome ?? null }
+        : padrao;
       paraCriar.push({
         dominio: c.dominio,
         tipo: c.tipo,

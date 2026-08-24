@@ -15,10 +15,10 @@ export default async function ContratosPage({
   searchParams,
 }: {
   params: Promise<{ empresaId: string }>;
-  searchParams: Promise<{ empresas?: string }>;
+  searchParams: Promise<{ empresas?: string; status?: string }>;
 }) {
   const { empresaId } = await params;
-  const { empresas: empresasParam } = await searchParams;
+  const { empresas: empresasParam, status: statusParam } = await searchParams;
   const usuario = await requireProcessosEmpresa(empresaId);
   const escopo = await escopoDeEmpresas(usuario, empresasParam);
 
@@ -66,6 +66,7 @@ export default async function ContratosPage({
         periodicidadeReajusteMeses: true,
         mesBaseReajuste: true,
         proximoReajuste: true,
+        ultimoReajusteEm: true,
         multaCompensatoriaPct: true,
         multaMoratoriaPct: true,
         foroComarca: true,
@@ -119,9 +120,9 @@ export default async function ContratosPage({
     avisoPrevioNaoRenovacaoDias: c.avisoPrevioNaoRenovacaoDias,
     // Os dois prazos que a Central cobra, repetidos aqui para a linha explicar
     // sozinha por que virou alerta — sem obrigar a ir e voltar entre as telas.
-    dataLimiteDenunciaTexto: formatarData(c.dataLimiteDenuncia),
+    dataLimiteDenunciaTexto: c.dataLimiteDenuncia ? formatarData(c.dataLimiteDenuncia) : "",
     diasParaDenuncia: c.dataLimiteDenuncia ? diferencaEmDiasUTC(c.dataLimiteDenuncia, hoje) : null,
-    janelaRenovatoriaFimTexto: formatarData(c.janelaRenovatoriaFim),
+    janelaRenovatoriaFimTexto: c.janelaRenovatoriaFim ? formatarData(c.janelaRenovatoriaFim) : "",
     locacaoNaoResidencial: c.locacaoNaoResidencial,
     buildToSuit: c.buildToSuit,
     renunciaRevisionalPactuada: c.renunciaRevisionalPactuada,
@@ -130,7 +131,12 @@ export default async function ContratosPage({
     indiceReajuste: c.indiceReajuste,
     periodicidadeReajusteMeses: c.periodicidadeReajusteMeses,
     mesBaseReajuste: c.mesBaseReajuste,
-    proximoReajusteTexto: formatarData(c.proximoReajuste),
+    proximoReajusteTexto: c.proximoReajuste ? formatarData(c.proximoReajuste) : "",
+    // Só quem tem reajuste vencido ou vencendo ganha o botão de aplicar.
+    reajusteDevido: c.proximoReajuste ? diferencaEmDiasUTC(c.proximoReajuste, hoje) <= 0 : false,
+    // A data que o painel de reajuste sugere: o próprio mês-base que venceu.
+    proximoReajusteInput: paraInputDate(c.proximoReajuste),
+    valorMensalInput: c.valorMensal !== null ? String(c.valorMensal) : "",
     multaCompensatoriaPct: c.multaCompensatoriaPct,
     multaMoratoriaPct: c.multaMoratoriaPct,
     foroComarca: c.foroComarca,
@@ -157,6 +163,7 @@ export default async function ContratosPage({
       <ContratosView
         empresaId={empresaId}
         contratos={naTela}
+        statusInicial={statusParam ?? "VIGENTE"}
         contrapartes={contrapartes}
         gestores={gestores}
         empresas={empresas}
