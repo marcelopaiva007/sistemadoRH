@@ -18,7 +18,7 @@ import { prisma } from "@/lib/prisma";
 // mesmo CNPJ). O filtro que existia em setores-table.tsx era só do cliente, e
 // cliente não é guarda.
 
-export type AlvoDaFusao = { id: string; nome: string; empresaId: string };
+export type AlvoDaFusao = { id: string; nome: string; empresaId: string; marcaId: string };
 
 type Resultado =
   | { ok: true; destino: AlvoDaFusao; origens: AlvoDaFusao[] }
@@ -57,35 +57,54 @@ export async function validarFusao(
     return { ok: false, error: `Há ${rotulo}(s) fora do seu acesso.` };
   }
 
-  // 2) Coesão: fusão NUNCA atravessa CNPJ. Não é excesso de zelo — é o que
-  //    impede um colaborador de acabar num setor de outra empresa, o que faria
-  //    toda tela escopada por marca contá-lo sob a marca errada.
-  const forasteiros = alvos.filter((a) => a.empresaId !== destino.empresaId);
+  // 2) Coesão: fusão NUNCA atravessa MARCA — e a fronteira é a MARCA, não o
+  //    CNPJ. É o escopo que o resto do sistema já usa para setor e cargo:
+  //    `validarSetorEPosicaoDaMarca` (rh-colaboradores.ts) aceita de propósito
+  //    um setor de CNPJ IRMÃO da mesma marca, e a mensagem de lá é literalmente
+  //    "Setor inválido para essa marca". Unificar "Marketing" dos 5 CNPJs da LM
+  //    Telecom é operação legítima e comum; a primeira versão desta guarda
+  //    travava no CNPJ e teria transformado o painel "Semelhantes" em botão
+  //    morto para o caso mais frequente.
+  //    Atravessar MARCA é que é o dano: joga colaboradores para o guarda-chuva
+  //    de outra marca e faz toda tela escopada por marca contá-los errado.
+  const forasteiros = alvos.filter((a) => a.marcaId !== destino.marcaId);
   if (forasteiros.length > 0) {
     return {
       ok: false,
       error:
-        `Só dá para unificar ${rotulo}s do MESMO CNPJ. ` +
-        `${forasteiros.length} do grupo selecionado pertence(m) a outra empresa — ` +
-        `unifique dentro de cada CNPJ separadamente.`,
+        `Só dá para unificar ${rotulo}s da MESMA marca. ` +
+        `${forasteiros.length} do grupo selecionado pertence(m) a outra marca — ` +
+        `unifique dentro de cada marca separadamente.`,
     };
   }
 
   return { ok: true, destino, origens: alvos.filter((a) => a.id !== destinoId) };
 }
 
-/** Os setores pedidos, com o CNPJ de cada um. */
-export function carregarSetores(ids: string[]): Promise<AlvoDaFusao[]> {
-  return prisma.setor.findMany({
-    where: { id: { in: ids } },
-    select: { id: true, nome: true, empresaId: true },
-  });
+// A marca vem junto do CNPJ: o alcance se confere por empresa (é o que
+// `empresasVisiveis` devolve), mas a coesão se confere por marca.
+const SELECAO = {
+  id: true,
+  nome: true,
+  empresaId: true,
+  empresa: { select: { marcaId: true } },
+} as const;
+
+const achatar = (r: { id: string; nome: string; empresaId: string; empresa: { marcaId: string } }): AlvoDaFusao => ({
+  id: r.id,
+  nome: r.nome,
+  empresaId: r.empresaId,
+  marcaId: r.empresa.marcaId,
+});
+
+/** Os setores pedidos, com CNPJ e marca de cada um. */
+export async function carregarSetores(ids: string[]): Promise<AlvoDaFusao[]> {
+  const rs = await prisma.setor.findMany({ where: { id: { in: ids } }, select: SELECAO });
+  return rs.map(achatar);
 }
 
-/** Os cargos pedidos, com o CNPJ de cada um. */
-export function carregarPosicoes(ids: string[]): Promise<AlvoDaFusao[]> {
-  return prisma.posicao.findMany({
-    where: { id: { in: ids } },
-    select: { id: true, nome: true, empresaId: true },
-  });
+/** Os cargos pedidos, com CNPJ e marca de cada um. */
+export async function carregarPosicoes(ids: string[]): Promise<AlvoDaFusao[]> {
+  const rs = await prisma.posicao.findMany({ where: { id: { in: ids } }, select: SELECAO });
+  return rs.map(achatar);
 }

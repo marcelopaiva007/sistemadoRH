@@ -13,13 +13,16 @@ function ok(condicao: boolean, descricao: string) {
 
 // Os CNPJs que a pessoa alcança — na action isto vem de `empresasVisiveis`.
 // Aqui entra direto: a regra sob teste é a VALIDAÇÃO, não a resolução do escopo.
-const VISIVEIS = ["A", "B"];
+const VISIVEIS = ["A", "B", "D"];
 
+// A e B são CNPJs da MESMA marca (M1) — o caso real: "Marketing" existe nos 5
+// CNPJs da LM Telecom. D é de outra marca (M2). C está fora do acesso.
 const BANCO: Record<string, AlvoDaFusao> = {
-  a1: { id: "a1", nome: "Área Técnica", empresaId: "A" },
-  a2: { id: "a2", nome: "Area Tecnica", empresaId: "A" },
-  b1: { id: "b1", nome: "Área Técnica", empresaId: "B" },
-  c1: { id: "c1", nome: "Área Técnica", empresaId: "C" },
+  a1: { id: "a1", nome: "Área Técnica", empresaId: "A", marcaId: "M1" },
+  a2: { id: "a2", nome: "Area Tecnica", empresaId: "A", marcaId: "M1" },
+  b1: { id: "b1", nome: "Área Técnica", empresaId: "B", marcaId: "M1" },
+  d1: { id: "d1", nome: "Área Técnica", empresaId: "D", marcaId: "M2" },
+  c1: { id: "c1", nome: "Área Técnica", empresaId: "C", marcaId: "M9" },
 };
 const carregar = async (ids: string[]) => ids.map((i) => BANCO[i]).filter(Boolean);
 
@@ -34,17 +37,28 @@ async function main() {
     }
   }
 
-  console.log("\nFusão ATRAVESSANDO CNPJ — o defeito de um clique\n");
+  console.log("\nCNPJs IRMÃOS da mesma marca — legítimo, e o caso mais comum\n");
   {
-    // É o cenário real: "Área Técnica" existe em vários CNPJs e o painel
-    // "Semelhantes" agrupa por nome, sem olhar empresa.
+    // O resto do sistema já trata setor/cargo por MARCA
+    // (`validarSetorEPosicaoDaMarca` aceita setor de CNPJ irmão). Travar no
+    // CNPJ transformaria o painel "Semelhantes" em botão morto.
     const r = await validarFusao(VISIVEIS, ["b1"], "a1", carregar, "setor");
-    ok(!r.ok, "setores de CNPJs diferentes NÃO podem ser unificados");
-    if (!r.ok) ok(/MESMO CNPJ/.test(r.error), "o erro diz por que, e o que fazer");
+    ok(r.ok, "unificar entre CNPJs da MESMA marca é permitido");
   }
   {
     const r = await validarFusao(VISIVEIS, ["a2", "b1"], "a1", carregar, "setor");
-    ok(!r.ok, "basta UM forasteiro no grupo para barrar a fusão inteira");
+    ok(r.ok, "grupo inteiro dentro da mesma marca passa");
+  }
+
+  console.log("\nFusão ATRAVESSANDO MARCA — o defeito de um clique\n");
+  {
+    const r = await validarFusao(VISIVEIS, ["d1"], "a1", carregar, "setor");
+    ok(!r.ok, "setores de MARCAS diferentes NÃO podem ser unificados");
+    if (!r.ok) ok(/MESMA marca/.test(r.error), "o erro diz por que, e o que fazer");
+  }
+  {
+    const r = await validarFusao(VISIVEIS, ["a2", "b1", "d1"], "a1", carregar, "setor");
+    ok(!r.ok, "basta UM de outra marca para barrar a fusão inteira");
   }
 
   console.log("\nAlcance — POST à mão com id de CNPJ que a pessoa não enxerga\n");
@@ -70,7 +84,7 @@ async function main() {
 
   console.log("\nO rótulo entra na mensagem — setor e cargo usam a mesma regra\n");
   {
-    const r = await validarFusao(VISIVEIS, ["b1"], "a1", carregar, "cargo");
+    const r = await validarFusao(VISIVEIS, ["d1"], "a1", carregar, "cargo");
     ok(!r.ok && /cargo/.test(r.error), "a mensagem fala de cargo quando é cargo");
   }
 

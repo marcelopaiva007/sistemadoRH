@@ -75,8 +75,12 @@ function lerCorPrimaria(fd: FormData): { ok: true; cor: string | null } | { ok: 
   return { ok: true, cor: bruto.toUpperCase() };
 }
 
+// Marca é a MÃE de Empresa e mora na mesma tela: deixá-la em `requireRHAccess`
+// (que aceita os quatro papéis, GESTOR_SETOR incluso) manteria aberto o mesmo
+// buraco que fechamos no CNPJ — renomear marca, trocar cor e logo do grupo
+// inteiro, e criar a marca para onde puxar um CNPJ depois.
 export async function criarMarca(_prev: ActionResult, fd: FormData): Promise<ActionResult> {
-  await requireRHAccess();
+  await requireAdmin();
 
   const nome = texto(fd, "nome");
   if (!nome) return { ok: false, error: "Informe o nome da marca." };
@@ -120,7 +124,7 @@ export async function editarMarca(
   _prev: ActionResult,
   fd: FormData,
 ): Promise<ActionResult> {
-  await requireRHAccess();
+  await requireAdmin();
 
   const nome = texto(fd, "nome");
   if (!nome) return { ok: false, error: "Informe o nome da marca." };
@@ -240,6 +244,7 @@ export async function criarEmpresa(
       data: { ...lido.dados, marcaId },
     });
     await registrarAuditoria({
+      empresaId: empresa.id,
       acao: "CRIAR",
       entidade: "Empresa",
       entidadeId: empresa.id,
@@ -268,6 +273,7 @@ export async function excluirEmpresa(empresaId: string): Promise<ActionResult> {
 
   const empresa = await prisma.empresa.delete({ where: { id: empresaId } });
   await registrarAuditoria({
+    empresaId,
     acao: "EXCLUIR",
     entidade: "Empresa",
     entidadeId: empresaId,
@@ -308,6 +314,10 @@ export async function editarEmpresa(
     const mudouMarca = antes && antes.marcaId !== marcaId;
     const mudouAtivo = antes && antes.ativo !== ativo;
     await registrarAuditoria({
+      // COM empresaId: a tela de Auditoria filtra por ele, e sem o campo o
+      // registro nascia com `null` e não aparecia em lugar nenhum — trilha que
+      // ninguém vê é o mesmo que trilha nenhuma.
+      empresaId,
       acao: "ATUALIZAR",
       entidade: "Empresa",
       entidadeId: empresaId,

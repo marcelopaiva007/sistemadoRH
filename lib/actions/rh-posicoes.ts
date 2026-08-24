@@ -108,6 +108,17 @@ export async function unificarPosicoes(
     await tx.posicao.delete({ where: { id: origemId } });
   });
 
+  // Mesma trilha da fusão em grupo. Este caminho — o botão "Unificar" da LINHA
+  // — é o mais usado, e apagava registro e movia gente sem deixar rastro.
+  await registrarAuditoria({
+    empresaId: destino.empresaId,
+    acao: "ATUALIZAR",
+    entidade: "Posicao",
+    entidadeId: destino.id,
+    resumo: `Unificou o cargo "${origem.nome}" em "${destino.nome}"`,
+    detalhes: { absorvido: { id: origem.id, nome: origem.nome, empresaId: origem.empresaId } },
+  });
+
   revalidatePath(`/rh/${empresaId}/posicoes`);
   return { ok: true };
 }
