@@ -18,6 +18,16 @@ import { formatarPlaca, rotulo, TIPOS_DOCUMENTO_VEICULO } from "@/lib/processos/
  * disparou, mesmo depois de a regra ter mudado.
  */
 
+/**
+ * Os domínios que ESTES detectores cobrem.
+ *
+ * A varredura de auto-resolve compara o que existe no banco com o que foi
+ * detectado agora — e só pode olhar para os domínios que ela mesma detecta. Um
+ * domínio de fora da lista (pendência criada à mão, ou um motor futuro) seria
+ * lido como "não detectado" e fechado sozinho na primeira rodada.
+ */
+export const DOMINIOS_DETECTADOS: string[] = ["FROTA", "CONTRATOS"];
+
 export type Candidata = {
   dominio: string;
   tipo: string;
@@ -60,6 +70,15 @@ const IMPACTO: Record<string, number> = {
   TOXICOLOGICO: 2,
   MANUTENCAO_PROGRAMADA: 1,
   DOCUMENTO_VEICULO: 1,
+
+  // Contratos. A renovatória é o único prazo do módulo que mata um DIREITO por
+  // decadência — passou, não volta, e nem negociação em curso suspende (Lei
+  // 8.245/1991, art. 51, §5º). Perder a janela de denúncia custa mais um ciclo
+  // inteiro de aluguel; perder o reajuste custa a diferença do índice, que é
+  // recuperável na negociação seguinte.
+  ACAO_RENOVATORIA: 3,
+  DENUNCIA_CONTRATO: 3,
+  REAJUSTE_CONTRATO: 1,
 };
 
 /**
@@ -383,6 +402,139 @@ async function revisoesProgramadas(empresaIds: string[]): Promise<Candidata[]> {
   }));
 }
 
+/**
+ * A janela para dizer que o contrato NÃO será renovado.
+ *
+ * Só existe quando o contrato tem aviso prévio escrito — sem cláusula, não há
+ * data-limite, e inventar uma (o fim do contrato, por exemplo) faria a Central
+ * cobrar uma decisão que ninguém precisa tomar naquele dia.
+ *
+ * Passar desta data com renovação automática ligada é o caso caro: o contrato
+ * se renova sozinho por mais um ciclo inteiro, e aí só sai pagando multa.
+ */
+async function denunciaDeContrato(empresaIds: string[]): Promise<Candidata[]> {
+  const contratos = await prisma.contrato.findMany({
+    where: {
+      empresaId: { in: empresaIds },
+      status: { in: ["VIGENTE", "EM_RENOVACAO"] },
+      dataLimiteDenuncia: { not: null },
+    },
+    select: {
+      id: true,
+      empresaId: true,
+      numero: true,
+      titulo: true,
+      dataFim: true,
+      dataLimiteDenuncia: true,
+      renovacaoAutomatica: true,
+      contraparte: { select: { razaoSocial: true } },
+    },
+  });
+
+  return contratos.map((c) => ({
+    dominio: "CONTRATOS",
+    tipo: "DENUNCIA_CONTRATO",
+    origemTipo: "Contrato",
+    origemId: c.id,
+    empresaId: c.empresaId,
+    titulo: `Decidir renovação — ${c.numero} · ${c.contraparte.razaoSocial}`,
+    descricao: c.renovacaoAutomatica
+      ? `${c.titulo}. Vigência até ${formatarData(c.dataFim)}, com renovação automática LIGADA: ` +
+        `passado este prazo, o contrato se renova sozinho por mais um ciclo, e sair depois custa multa.`
+      : `${c.titulo}. Vigência até ${formatarData(c.dataFim)}. Último dia para comunicar que o ` +
+        `contrato não será renovado.`,
+    venceEm: c.dataLimiteDenuncia!,
+  }));
+}
+
+/**
+ * A ação renovatória da locação não residencial — Lei 8.245/1991, art. 51, §5º.
+ *
+ * O alerta é a data de FECHAMENTO da janela (6 meses antes do fim), não a de
+ * abertura: é ela que decai. Avisar na abertura e calar depois seria avisar
+ * cedo demais para virar tarefa e tarde demais para virar urgência.
+ *
+ * Nada aqui suspende esse prazo. Negociação amigável em andamento, promessa
+ * verbal do locador, feriado — a decadência corre igual, e é por isso que este
+ * detector não olha o status da negociação.
+ */
+async function acaoRenovatoria(empresaIds: string[]): Promise<Candidata[]> {
+  const contratos = await prisma.contrato.findMany({
+    where: {
+      empresaId: { in: empresaIds },
+      status: { in: ["VIGENTE", "EM_RENOVACAO"] },
+      locacaoNaoResidencial: true,
+      janelaRenovatoriaFim: { not: null },
+    },
+    select: {
+      id: true,
+      empresaId: true,
+      numero: true,
+      titulo: true,
+      janelaRenovatoriaInicio: true,
+      janelaRenovatoriaFim: true,
+      contraparte: { select: { razaoSocial: true } },
+    },
+  });
+
+  return contratos.map((c) => ({
+    dominio: "CONTRATOS",
+    tipo: "ACAO_RENOVATORIA",
+    origemTipo: "Contrato",
+    origemId: c.id,
+    empresaId: c.empresaId,
+    titulo: `Ação renovatória — ${c.numero} · ${c.contraparte.razaoSocial}`,
+    descricao:
+      `${c.titulo}. A janela para ajuizar a renovatória abriu em ` +
+      `${formatarData(c.janelaRenovatoriaInicio)} e fecha nesta data. Perdida, o direito à ` +
+      `renovação decai — não se suspende nem se interrompe (Lei 8.245/1991, art. 51, §5º).`,
+    venceEm: c.janelaRenovatoriaFim!,
+    origemLegal: "JUDICIAL",
+  }));
+}
+
+/**
+ * O reajuste que já pode ser pedido.
+ *
+ * Peso 1 de propósito: reajuste não aplicado no mês é diferença de índice, e a
+ * diferença se negocia no ciclo seguinte. Tratá-lo como os outros dois faria a
+ * Central ficar cheia de item anual de rotina — e é assim que a lista deixa de
+ * ser lida.
+ */
+async function reajustesDevidos(empresaIds: string[]): Promise<Candidata[]> {
+  const contratos = await prisma.contrato.findMany({
+    where: {
+      empresaId: { in: empresaIds },
+      status: "VIGENTE",
+      proximoReajuste: { not: null },
+      // `not` sozinho DESCARTARIA o contrato de índice em branco: em SQL,
+      // NULL <> 'SEM_REAJUSTE' é NULL, não verdadeiro. O que importa aqui é a
+      // data; quem não escolheu índice ainda precisa ser lembrado do mês-base.
+      OR: [{ indiceReajuste: null }, { indiceReajuste: { not: "SEM_REAJUSTE" } }],
+    },
+    select: {
+      id: true,
+      empresaId: true,
+      numero: true,
+      titulo: true,
+      indiceReajuste: true,
+      proximoReajuste: true,
+      contraparte: { select: { razaoSocial: true } },
+    },
+  });
+
+  return contratos.map((c) => ({
+    dominio: "CONTRATOS",
+    tipo: "REAJUSTE_CONTRATO",
+    origemTipo: "Contrato",
+    origemId: c.id,
+    empresaId: c.empresaId,
+    titulo: `Reajuste ${c.indiceReajuste ?? ""} — ${c.numero} · ${c.contraparte.razaoSocial}`.trim(),
+    descricao: `${c.titulo}. Mês-base do reajuste contratado.`,
+    venceEm: c.proximoReajuste!,
+  }));
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Sincronização
 // ─────────────────────────────────────────────────────────────────────────────
@@ -396,6 +548,9 @@ export async function detectarTudo(empresaIds: string[]): Promise<Candidata[]> {
     documentosDoCondutor(empresaIds),
     transferencias(empresaIds),
     revisoesProgramadas(empresaIds),
+    denunciaDeContrato(empresaIds),
+    acaoRenovatoria(empresaIds),
+    reajustesDevidos(empresaIds),
   ]);
   return lotes.flat();
 }
@@ -421,7 +576,7 @@ export async function sincronizarPendencias(empresaIds: string[]): Promise<{
   // em regime é quase todo mundo — sem isso, o cron diário faria uma escrita
   // por pendência só para gravar os mesmos valores.
   const existentes = await prisma.pendencia.findMany({
-    where: { empresaId: { in: empresaIds }, dominio: "FROTA" },
+    where: { empresaId: { in: empresaIds }, dominio: { in: DOMINIOS_DETECTADOS } },
     select: {
       id: true,
       chaveDedupe: true,

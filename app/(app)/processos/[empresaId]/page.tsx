@@ -47,6 +47,12 @@ function acaoDe(
       return { href: `${base}/frota`, rotulo: "Abrir veículo" };
     case "MANUTENCAO_PROGRAMADA":
       return { href: `${base}/frota/manutencoes`, rotulo: "Agendar revisão" };
+    case "DENUNCIA_CONTRATO":
+      return { href: `${base}/contratos`, rotulo: "Decidir renovação" };
+    case "ACAO_RENOVATORIA":
+      return { href: `${base}/contratos`, rotulo: "Abrir contrato" };
+    case "REAJUSTE_CONTRATO":
+      return { href: `${base}/contratos`, rotulo: "Aplicar reajuste" };
     default:
       return { href: null, rotulo: "Abrir" };
   }
@@ -64,7 +70,7 @@ export default async function CentralPendenciasPage({
   const usuario = await requireProcessosEmpresa(empresaId);
   const escopo = await escopoDeEmpresas(usuario, empresasParam);
 
-  const [empresa, pendencias, usuarios, totalVeiculos, empresas] = await Promise.all([
+  const [empresa, pendencias, usuarios, totalVeiculos, totalContratos, empresas] = await Promise.all([
     prisma.empresa.findUnique({
       where: { id: empresaId },
       select: { nome: true, marca: { select: { nome: true } } },
@@ -94,6 +100,7 @@ export default async function CentralPendenciasPage({
       select: { id: true, nome: true },
     }),
     prisma.veiculo.count({ where: { empresaId: { in: escopo } } }),
+    prisma.contrato.count({ where: { empresaId: { in: escopo } } }),
     prisma.empresa.findMany({ where: { id: { in: escopo } }, select: { id: true, nome: true } }),
   ]);
   if (!empresa) notFound();
@@ -151,7 +158,7 @@ export default async function CentralPendenciasPage({
         </p>
       </div>
 
-      {totalVeiculos === 0 && naTela.length === 0 ? (
+      {totalVeiculos === 0 && totalContratos === 0 && naTela.length === 0 ? (
         <Card>
           <CardHeader className="flex flex-row items-center gap-2 pb-2">
             <Compass className="size-4 shrink-0 text-muted-foreground" />
@@ -167,7 +174,8 @@ export default async function CentralPendenciasPage({
             </p>
             <p>
               A ordem que funciona: cadastre os veículos, diga quem dirige cada um, e a partir daí
-              toda multa que entrar já sabe a quem perguntar.
+              toda multa que entrar já sabe a quem perguntar. Os contratos entram em seguida, pela
+              mesma lógica — o que não está cadastrado não vence aqui.
             </p>
             <div className="flex flex-wrap gap-2 pt-1">
               <Link
@@ -194,7 +202,8 @@ export default async function CentralPendenciasPage({
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">
             <p>
-              {totalVeiculos} {totalVeiculos === 1 ? "veículo acompanhado" : "veículos acompanhados"}.
+              {totalVeiculos} {totalVeiculos === 1 ? "veículo acompanhado" : "veículos acompanhados"} e{" "}
+              {totalContratos} {totalContratos === 1 ? "contrato acompanhado" : "contratos acompanhados"}.
               Vale dizer o que este vazio significa e o que não significa: ele reflete o que{" "}
               <strong className="text-foreground">está cadastrado</strong>. Documento que ninguém
               registrou não vence aqui.

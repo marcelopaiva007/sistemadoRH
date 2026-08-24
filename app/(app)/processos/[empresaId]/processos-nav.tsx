@@ -2,15 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, BellRing, Car, FileWarning, Fuel, IdCard, LayoutDashboard, Wrench } from "lucide-react";
+import { BarChart3, BellRing, Building2, Car, FileSignature, FileWarning, Fuel, IdCard, LayoutDashboard, Wrench } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Menu do módulo, no mesmo formato do RH (app/(app)/rh/[empresaId]/rh-empresa-nav.tsx).
 //
-// Só aparece o que EXISTE. Contratos, patrimônio, documentos e processos estão
-// no roadmap e não estão aqui: item de menu que leva a página vazia é o começo
-// clássico do fracasso de implantação de GED — promete estrutura antes de ter
-// conteúdo, e o usuário aprende em uma semana que metade do menu não serve.
+// Só aparece o que EXISTE. Patrimônio, documentos e processos estão no roadmap
+// e não estão aqui: item de menu que leva a página vazia é o começo clássico do
+// fracasso de implantação de GED — promete estrutura antes de ter conteúdo, e o
+// usuário aprende em uma semana que metade do menu não serve.
 const GRUPOS = [
   {
     titulo: null,
@@ -30,6 +30,13 @@ const GRUPOS = [
       { slug: "frota/consumo", label: "Consumo", icon: Fuel },
       { slug: "frota/manutencoes", label: "Manutenções", icon: Wrench },
       { slug: "frota/analise", label: "Análise", icon: BarChart3 },
+    ],
+  },
+  {
+    titulo: "Contratos",
+    itens: [
+      { slug: "contratos", label: "Contratos", icon: FileSignature },
+      { slug: "contratos/contrapartes", label: "Contrapartes", icon: Building2 },
     ],
   },
 ] as const;
