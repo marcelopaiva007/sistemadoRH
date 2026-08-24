@@ -26,6 +26,18 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.111.2",
+    data: "24/08/2026",
+    horario: "02:40",
+    titulo: "Os dois sistemas lado a lado, e os menus do topo voltam a abrir por cima",
+    itens: [
+      "Trocar de sistema agora é UM clique: Pessoas (RH) e Processos & Ativos ficam lado a lado na barra de topo, com o atual destacado — em vez de escondidos atrás de um menu que precisava abrir.",
+      "Corrigido: os menus da barra de topo (marca e CNPJ) abriam PRESOS dentro da barra, obrigando a rolar para escolher. A causa era a proteção contra rolagem lateral no celular, que sem querer também prendia o eixo vertical. Agora eles voltam a abrir por cima da página.",
+      "A etiqueta de versão passou para baixo do seu nome, no canto direito — ela responde \"estou vendo a entrega nova?\", que é assunto da sua conta, não de em que sistema você está.",
+      "Em telas estreitas, os dois sistemas aparecem como ícones e a logo dá lugar ao que se opera (sistema, marca e CNPJ), para tudo caber sem rolagem lateral.",
+    ],
+  },
+  {
     versao: "1.111.1",
     data: "24/08/2026",
     horario: "02:00",

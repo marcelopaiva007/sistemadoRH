@@ -97,20 +97,25 @@ export function AppTopbar({
           espaço. Duas perguntas diferentes ("em que contexto estou" x "para
           onde eu vou") ganham uma linha cada, e a navegação nunca mais fica
           sem espaço, não importa o tamanho do nome da empresa. */}
-      {/* `min-w-0` + `overflow-x-auto` porque a linha 2 (o menu) sempre teve
-          isso e a linha 1 nunca teve: num celular de 375px os itens somavam
-          ~888px e empurravam a PÁGINA INTEIRA de lado, em todas as telas do
-          sistema. Os filhos abaixo encolhem antes de chegar nisso; a rolagem
-          aqui é só a rede de segurança para nome de empresa muito longo. */}
-      <div className="mx-auto flex h-12 w-full min-w-0 max-w-7xl items-center gap-2 overflow-x-auto px-4 scrollbar-none sm:gap-3">
+      {/* SEM `overflow` aqui, e isso é deliberado: `overflow-x: auto` faz o
+          navegador tratar o eixo VERTICAL como `auto` também, e aí todo painel
+          suspenso desta linha (marca, CNPJ) passa a ser recortado pela altura
+          da barra — quem clicava tinha de ROLAR dentro dela para escolher. Foi
+          o que aconteceu entre a v1.110.1 e a v1.111.1.
+          O celular continua sem rolagem lateral porque os filhos ENCOLHEM:
+          `min-w-0` aqui, rótulos que truncam nos seletores, e nome/cargo e
+          logo que somem nas larguras estreitas. */}
+      <div className="mx-auto flex h-12 w-full min-w-0 max-w-7xl items-center gap-2 px-4 sm:gap-3">
         <div className="flex shrink-0 items-center gap-2">
-          <Logo width={140} height={34} className="h-6 w-auto sm:h-7" />
+          {/* Some abaixo de `sm`: em 375px o espaço é do que se OPERA (sistema,
+              marca, CNPJ), e o seletor ao lado já responde "onde estou". */}
+          <Logo width={140} height={34} className="hidden h-6 w-auto sm:block sm:h-7" />
           {/* Era o texto fixo "Sistema de RH" com a versao embaixo. Virou a
               porta entre os modulos em 23/08/2026, sem sair do lugar: o rotulo
               ja respondia "onde eu estou", e e ali que quem procura a saida
               olha primeiro. A etiqueta de versao continua dentro dele — ela
               responde "estou vendo a versao nova?" sem sair da tela. */}
-          <SeletorModulo papel={role} versao={versao} empresaIds={empresas.map((e) => e.id)} />
+          <SeletorModulo papel={role} empresaIds={empresas.map((e) => e.id)} />
         </div>
 
         <SeletorMarcaEmpresa marcas={marcas} empresas={empresas} />
@@ -125,14 +130,18 @@ export function AppTopbar({
             pathname === "/conta" && "bg-muted border-border/60"
           )}
         >
-          {/* Some no celular: o nome completo e o papel custam ~130px, e quem
-              está no próprio aparelho já sabe quem é. O ícone continua ali,
-              com o mesmo destino e área de toque. */}
-          <div className="hidden text-right md:block">
+          {/* Some nas telas estreitas: nome + cargo custam ~130px, e quem está
+              no próprio aparelho já sabe quem é. O ícone continua ali, com o
+              mesmo destino e área de toque.
+              A VERSÃO mora aqui desde 24/08/2026 (pedido do dono do sistema):
+              ela responde "estou vendo a entrega nova?", que é uma pergunta
+              sobre a conta/sessão, não sobre em que sistema se está. */}
+          <div className="hidden text-right sm:block">
             <p className="text-sm font-medium leading-tight text-foreground">{nome}</p>
-            <p className="text-[11px] text-muted-foreground font-medium">
+            <p className="text-[11px] leading-tight text-muted-foreground font-medium">
               {ROLE_LABELS[role] ?? "Diretoria/Gestão"}
             </p>
+            <p className="font-mono text-[10px] leading-tight text-muted-foreground/60">{versao}</p>
           </div>
           <KeyRound className="size-4 text-muted-foreground" />
         </Link>
