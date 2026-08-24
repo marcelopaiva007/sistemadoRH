@@ -26,6 +26,18 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.111.0",
+    data: "24/08/2026",
+    horario: "01:10",
+    titulo: "Controle de acesso: perfis com permissão por tela",
+    itens: [
+      "Nova tela \"Perfis de acesso\" (dentro de Usuários): monte pacotes de permissão marcando, tela por tela, o que cada perfil vê e edita nos dois sistemas — RH e Processos & Ativos. Dê o perfil à pessoa em vez de configurar cada uma na mão.",
+      "Dá para dar mais de um perfil por pessoa (o acesso é a soma), criar perfis próprios (\"Analista de Frota\", \"Só leitura\") e ligar/desligar um sistema inteiro de uma vez, inclusive telas que vierem no futuro.",
+      "Os quatro perfis padrão (Administrador, Diretoria, Gestor de RH, Gestor de Setor) começam reproduzindo exatamente o acesso que cada um já tinha — ninguém perde nada. A partir daí você ajusta: por exemplo, deixar um Gestor de RH só no RH é editar o perfil dele.",
+      "Por enquanto os perfis servem para ORGANIZAR e planejar o acesso; a troca para o sistema passar a OBEDECER os perfis (e o fechamento dos furos de segurança que isso traz) vem na próxima entrega, tela por tela, com cuidado para nada quebrar.",
+    ],
+  },
+  {
     versao: "1.110.1",
     data: "24/08/2026",
     horario: "00:20",

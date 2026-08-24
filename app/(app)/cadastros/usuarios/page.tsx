@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { ShieldCheck } from "lucide-react";
 import { requireGestaoUsuarios } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { AjudaDaTela } from "@/components/ajuda-da-tela";
@@ -69,11 +71,17 @@ export default async function UsuariosPage() {
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-2xl font-semibold tracking-tight">Usuários</h1>
           <AjudaDaTela modulo="usuarios" />
+          <Link
+            href="/cadastros/perfis"
+            className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <ShieldCheck className="size-4" />
+            Perfis de acesso
+          </Link>
         </div>
         <p className="text-muted-foreground">
-          Contas de acesso ao sistema. ADMIN e Diretoria são perfis globais.
-          Gestores de RH e de Setor ficam vinculados a uma marca inteira ou a
-          CNPJs específicos do grupo.
+          Contas de acesso ao sistema. O que cada pessoa pode fazer, por tela e nos dois sistemas,
+          vem dos <Link href="/cadastros/perfis" className="underline underline-offset-2 hover:text-foreground">perfis de acesso</Link>.
         </p>
       </div>
       <UsuariosTable
