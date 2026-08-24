@@ -2931,3 +2931,230 @@ model ManutencaoVeiculo {
   @@index([empresaId, proximaRevisaoData])
   @@schema("rh")
 }
+
+// ════════════════════════════════════════════════════════════════════════════
+// MÓDULO PROCESSOS & ATIVOS — onda 1, parte 2: contratos e contrapartes
+//
+// Base: `estudo-modulo-processos-ativos.md` (23/08/2026), seção 6.3 e 6.7.
+// Decisão do CEO em 23/08/2026: contratos entram na onda 1 (junto com frota,
+// que sobe primeiro e sozinha — a Central precisa nascer com dado real).
+//
+// Escopo DELIBERADAMENTE menor que o modelo "CLM completo" do estudo: sem
+// Aditivo/Garantia/Notificacao/ContratoVersao/ContratoAprovacao/
+// ContratoAssinatura como tabelas próprias — isso é o antipadrão nº 5 do
+// próprio estudo ("big bang de 5 domínios"), só que dentro de UM domínio.
+// `Contrato` também não vira 4 tabelas 1:1 (Vigência/Financeiro/Jurídico
+// separados): o resto do módulo (Veiculo, Infracao) já estabeleceu o padrão
+// de uma tabela plana por conceito, e a tela não pede a normalização extra.
+// Entra o que os 5 alertas de maior dano do estudo exigem; o resto é onda 2.
+// ════════════════════════════════════════════════════════════════════════════
+
+/// A empresa ou pessoa do outro lado do contrato — GLOBAL ao grupo, não por
+/// CNPJ. O mesmo fornecedor atende várias empresas do grupo; cadastrar e
+/// homologar uma vez só, e reaproveitar certidão entre CNPJs, é a regra
+/// transversal nº 2 do estudo — o oposto elimina só retrabalho de compliance.
+model Contraparte {
+  id        String @id @default(cuid())
+
+  // FISICA | JURIDICA
+  tipoPessoa String @default("JURIDICA")
+  razaoSocial String
+  nomeFantasia String?
+  // Só dígitos, sem máscara — mesma convenção do CNPJ de Empresa. Único no
+  // grupo inteiro: é o que impede cadastrar o mesmo fornecedor duas vezes.
+  cnpjCpf   String  @unique
+  inscricaoEstadual String?
+  endereco  String?
+  emailNotificacaoFormal String?
+  telefone  String?
+
+  // CSV, não array — mesma convenção de RegraAlerta.diasAntecedencia (o
+  // schema roda em SQLite local, sem array nativo). Valores:
+  // FORNECEDOR|CLIENTE|LOCADOR|LOCATARIO|PREFEITURA|CONDOMINIO|
+  // PRESTADOR_PJ|CONCESSIONARIA|OUTRO
+  papeis String
+
+  // NORMAL | ALTA — prestador PJ instalador tende a ALTA: é o maior passivo
+  // latente do grupo (responsabilidade subsidiária, Lei 6.019/1974, art. 5º-A,
+  // §5º, e STF Tema 725).
+  criticidade String @default("NORMAL")
+
+  // PENDENTE | HOMOLOGADO | REPROVADO
+  situacaoHomologacao String @default("PENDENTE")
+  dataProximaRevalidacao DateTime?
+
+  observacoes String?
+  criadoPorId   String?
+  criadoPorNome String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  documentos DocumentoTerceiro[]
+  contratos  Contrato[]
+
+  @@index([situacaoHomologacao])
+  @@schema("rh")
+}
+
+/// Certidão ou documento do FORNECEDOR — pendura na Contraparte, nunca no
+/// Contrato (regra transversal nº 3): um vencimento acende os contratos
+/// ativos daquele fornecedor em TODOS os CNPJs de uma vez, sem duplicar
+/// cadastro por contrato.
+///
+/// A validade é SEMPRE lida do documento, nunca calculada — só a CNDT tem
+/// prazo fixado em lei (180 dias, CLT art. 642-A, §4º); os demais variam por
+/// órgão emissor, e `periodicidadeDias` é só a sugestão de quando cobrar de
+/// novo, editável por linha.
+model DocumentoTerceiro {
+  id            String @id @default(cuid())
+  contraparteId String
+  contraparte   Contraparte @relation(fields: [contraparteId], references: [id], onDelete: Cascade)
+
+  // CND_FEDERAL|CRF_FGTS|CNDT|CND_ESTADUAL|CND_MUNICIPAL|CERTIDAO_FALENCIA|
+  // CONTRATO_SOCIAL|ALVARA|APOLICE_RC|ATA_ELEICAO_SINDICO|OUTRO
+  tipo String
+  numero String?
+  dataEmissao  DateTime?
+  dataValidade DateTime?
+  // Sugestão de intervalo de nova cobrança — 30 para CRF do FGTS, 180 para
+  // CND/CNDT (a assimetria que o estudo aponta como a que quebra sistema que
+  // usa um prazo só). Editável: cada órgão pode mudar a própria regra.
+  periodicidadeDias Int?
+
+  arquivoId   String?
+  observacoes String?
+
+  criadoPorId   String?
+  criadoPorNome String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  historicoCobranca HistoricoCobrancaCertidao[]
+
+  @@index([contraparteId, tipo])
+  @@index([dataValidade])
+  @@schema("rh")
+}
+
+/// O registro de "cobramos" — decisão do CEO em 23/08/2026: certidão vencida
+/// SÓ ALERTA, não bloqueia pagamento. Este histórico é a compensação: não é o
+/// bloqueio que sustenta a defesa numa reclamatória de prestador PJ, é a
+/// PROVA DE QUE A EMPRESA COBROU. Sem bloqueio e sem histórico, não sobra
+/// nada para mostrar a um fiscal.
+model HistoricoCobrancaCertidao {
+  id                  String @id @default(cuid())
+  documentoTerceiroId String
+  documentoTerceiro   DocumentoTerceiro @relation(fields: [documentoTerceiroId], references: [id], onDelete: Cascade)
+
+  cobradoEm     DateTime @default(now())
+  cobradoPorId   String?
+  cobradoPorNome String?
+  // O que o fornecedor respondeu, se respondeu — texto livre.
+  resposta String?
+
+  @@index([documentoTerceiroId, cobradoEm])
+  @@schema("rh")
+}
+
+/// O contrato em si — por CNPJ (ao contrário da Contraparte, que é do grupo).
+///
+/// Os prazos-alvo (`dataLimiteDenuncia`, `janelaRenovatoriaInicio/Fim`,
+/// `proximoReajuste`) são colunas MATERIALIZADAS, calculadas ao salvar — regra
+/// transversal nº 4: o job diário varre por índice, e um alerta antigo
+/// continua explicável mesmo que a regra de cálculo mude depois.
+model Contrato {
+  id        String @id @default(cuid())
+  empresaId String
+
+  // Único por empresa — não global, dois CNPJs podem reaproveitar numeração.
+  numero String
+  contraparteId String
+  contraparte   Contraparte @relation(fields: [contraparteId], references: [id])
+
+  // LOCACAO_TORRE|LOCACAO_TERRENO|COMPARTILHAMENTO_POSTE|
+  // PREFEITURA_USO_SOLO|CONDOMINIO|FORNECEDOR|PRESTADOR_PJ|CLIENTE_B2B|OUTRO
+  tipo String
+  // RECEITA | DESPESA | SEM_VALOR
+  categoria String @default("DESPESA")
+  titulo String
+  objeto String?
+  // RASCUNHO|VIGENTE|SUSPENSO|EM_RENOVACAO|ENCERRADO|CANCELADO
+  status String @default("VIGENTE")
+  // NORMAL | ALTA — puxa a criticidade da contraparte no cadastro, editável.
+  criticidade String @default("NORMAL")
+
+  // Soft ref a Colaborador, mesmo padrão de Sinal.donoUserId/donoNome: o
+  // histórico não vira "colaborador excluído" se o gestor for desligado —
+  // e é exatamente essa desconexão que o detector CONTRATO_SEM_GESTOR cobra.
+  gestorId   String?
+  gestorNome String?
+  setorId    String?
+
+  // ── Vigência ──────────────────────────────────────────────────────────
+  dataAssinatura DateTime?
+  dataInicio     DateTime
+  dataFim        DateTime?
+  indeterminado  Boolean @default(false)
+  renovacaoAutomatica Boolean @default(false)
+  // Em quantos dias antes do fim a denúncia precisa ser comunicada.
+  avisoPrevioNaoRenovacaoDias Int?
+  // = dataFim − avisoPrevioNaoRenovacaoDias. Nula se indeterminado ou sem
+  // aviso prévio configurado.
+  dataLimiteDenuncia DateTime?
+
+  // Lei 8.245/1991, art. 51, §5º: só locação NÃO RESIDENCIAL tem ação
+  // renovatória, com decadência do direito — não suspende nem interrompe.
+  locacaoNaoResidencial Boolean @default(false)
+  // = dataFim − 12 meses
+  janelaRenovatoriaInicio DateTime?
+  // = dataFim − 6 meses — última chamada
+  janelaRenovatoriaFim    DateTime?
+  // Build to Suit (Lei 8.245, art. 54-A): a renúncia à revisional é
+  // FACULDADE contratual, nunca presumida — por isso é campo, não regra fixa.
+  buildToSuit Boolean @default(false)
+  renunciaRevisionalPactuada Boolean @default(false)
+
+  // ── Financeiro ────────────────────────────────────────────────────────
+  valorMensal Float?
+  valorTotal  Float?
+  // IPCA|IPCA_E|IGPM|IGPDI|INPC|CONTRATUAL|SEM_REAJUSTE
+  indiceReajuste String?
+  // Validado ≥ 12 na action: Lei 10.192/2001, art. 2º, §1º — cláusula de
+  // reajuste com periodicidade menor é NULA de pleno direito, e o §3º
+  // alcança artifício de efeito equivalente.
+  periodicidadeReajusteMeses Int?
+  // 1–12, mês-base do índice.
+  mesBaseReajuste Int?
+  // Materializada a partir de mesBaseReajuste + periodicidadeReajusteMeses.
+  proximoReajuste DateTime?
+  multaCompensatoriaPct Float?
+  multaMoratoriaPct     Float?
+
+  // ── Jurídico ──────────────────────────────────────────────────────────
+  foroComarca String?
+  foroUf      String?
+  lgpdAplicavel Boolean @default(false)
+
+  // ── Específico de telecom: compartilhamento de poste ────────────────────
+  // Preço de referência é norma de 2014 (Res. Conjunta ANEEL/ANATEL 4/2014,
+  // art. 1º, R$ 3,19/ponto em revisão) — NUNCA hard-coded, por isso não é
+  // constante no código: fica só a contagem, o valor é o que está no
+  // contrato real.
+  pontosFixacaoContratados Int?
+  pontosFixacaoOcupados    Int?
+
+  observacoes String?
+  arquivoId   String?
+
+  criadoPorId   String?
+  criadoPorNome String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([empresaId, numero])
+  @@index([empresaId, status])
+  @@index([empresaId, dataLimiteDenuncia])
+  @@index([empresaId, proximoReajuste])
+  @@index([contraparteId])
+  @@schema("rh")
+}
