@@ -12,6 +12,7 @@ import {
   sistemasDosGrants,
   todasAsPermissoes,
 } from "../lib/permissoes/catalogo";
+import { estadoParaGrants, grantsParaEstado } from "../lib/permissoes/matriz";
 import { modulosDoPapel } from "../components/modulos";
 
 let falhas = 0;
@@ -91,6 +92,37 @@ console.log("\nPerfis-semente — um por papel, todos marcados como sistema\n");
   igual(papeis, ["ADMIN", "DIRETORIA", "GESTOR_SETOR", "RH_MANAGER"], "um por papel conhecido");
   ok(new Set(PERFIS_SEMENTE.map((p) => p.id)).size === 4, "ids de perfil-semente únicos");
   ok(new Set(PERFIS_SEMENTE.map((p) => p.nome)).size === 4, "nomes de perfil-semente únicos");
+}
+
+console.log("\nMatriz — grants viram estado e voltam sem perder nem inventar acesso\n");
+{
+  // Normaliza para comparar ("ordem/duplicata não importam, o CONJUNTO importa").
+  const conj = (g: string[]) => [...new Set(g)].sort();
+  const voltaIgual = (grants: string[], descricao: string) =>
+    igual(conj(estadoParaGrants(grantsParaEstado(grants))), conj(grants), descricao);
+
+  voltaIgual(["*"], "acesso total vai e volta como '*'");
+  voltaIgual(["rh:*", "processos:*"], "os dois sistemas inteiros preservam os dois curingas");
+  voltaIgual(["rh:folha:ver", "rh:folha:editar"], "permissões exatas preservadas");
+  voltaIgual(["rh:*", "processos:contratos:ver"], "um sistema inteiro + uma tela exata de outro");
+
+  // '*' apaga tudo o resto — não faz sentido guardar exatas sob acesso total.
+  igual(
+    estadoParaGrants(grantsParaEstado(["*", "rh:folha:ver"])),
+    ["*"],
+    "acesso total absorve as permissões exatas (não duplica sob o '*')",
+  );
+
+  // Exata de um sistema que também está inteiro é redundante — some no ida-e-volta.
+  igual(
+    estadoParaGrants(grantsParaEstado(["rh:*", "rh:folha:editar"])),
+    ["rh:*"],
+    "exata coberta pelo curinga do próprio sistema não vira grant duplicado",
+  );
+
+  // Marcar 'ver' não arrasta 'editar' — a matriz concede um sem o outro.
+  const soVer = grantsParaEstado(["rh:folha:ver"]);
+  ok(soVer.exatas.has("rh:folha:ver") && !soVer.exatas.has("rh:folha:editar"), "só 'ver' marcado deixa 'editar' desmarcado");
 }
 
 console.log(`\n${falhas === 0 ? "✅ tudo certo" : `❌ ${falhas} falha(s)`}\n`);
