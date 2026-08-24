@@ -16,13 +16,14 @@ import type { LacunaDaBase } from "@/lib/dashboard";
  */
 export function LacunasView({
   empresaId,
-  empresasDaMarca,
+  empresasNoEscopo,
   ativos,
   lacunas,
 }: {
   empresaId: string;
-  /** CNPJs contados aqui — vão no link para a lista bater com o número. */
-  empresasDaMarca: string[];
+  /** CNPJs contados aqui — o mesmo escopo do topo da tela (marca, grupo
+   *  inteiro ou filtro da URL), para o link bater com o número mostrado. */
+  empresasNoEscopo: string[];
   ativos: number;
   lacunas: LacunaDaBase[];
 }) {
@@ -87,7 +88,7 @@ export function LacunasView({
                     // Leva o escopo junto: a contagem é da marca, mas a lista
                     // de colaboradores mostra todas as empresas que o usuário
                     // enxerga. Sem isto o número não bateria com a tela.
-                    href={`/rh/${empresaId}/colaboradores?empresas=${empresasDaMarca.join(",")}&lacuna=${l.chave}`}
+                    href={`/rh/${empresaId}/colaboradores?empresas=${empresasNoEscopo.join(",")}&lacuna=${l.chave}`}
                     className="group block space-y-1 rounded-md px-2 py-1.5 -mx-2 transition-colors hover:bg-accent/50"
                   >
                   <div className="flex flex-wrap items-baseline justify-between gap-x-3 text-sm">

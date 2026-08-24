@@ -26,6 +26,15 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.109.1",
+    data: "23/08/2026",
+    horario: "21:10",
+    titulo: "Corrigido: \"Todas as marcas\" não mudava nada na tela inicial da empresa",
+    itens: [
+      "Escolher \"Todas as marcas\" no seletor do topo limpava o filtro da URL, mas a tela inicial de cada empresa continuava mostrando só os CNPJs da mesma marca de antes — o clique parecia não fazer nada. Agora, sem filtro, a tela inicial mostra todas as empresas que você enxerga, do mesmo jeito que o seletor promete.",
+    ],
+  },
+  {
     versao: "1.109.0",
     data: "23/08/2026",
     horario: "15:50",

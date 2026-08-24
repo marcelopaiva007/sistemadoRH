@@ -1,4 +1,4 @@
-import { empresasVisiveis, requireEmpresaAccess } from "@/lib/rh-auth-guard";
+import { escopoDeEmpresas, requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { DIAS_ALERTA_VENCIMENTO } from "@/lib/constants-dp";
 import {
   pendenciasDaEmpresa,
@@ -7,7 +7,6 @@ import {
   ciclosAEncerrarDaEmpresa,
 } from "@/lib/pendencias";
 import { resumoDaEmpresa, lacunasDaBase, lacunasDosDesligados } from "@/lib/dashboard";
-import { empresasDaMesmaMarca } from "@/lib/escopo-marca";
 import { DashboardEmpresa } from "./dashboard-empresa";
 import { PendenciasView } from "./pendencias-view";
 import { LacunasView } from "./lacunas-view";
@@ -31,26 +30,14 @@ export default async function InicioDaEmpresaPage({
   const { empresas: empresasParam } = await searchParams;
   const usuario = await requireEmpresaAccess(empresaId);
 
-  // Padrão é a MARCA, como o organograma: contar só o CNPJ do endereço
-  // mostrava um pedaço e escondia o resto sem avisar — 13 sem Telegram na RSM
-  // quando o grupo tinha 93. O filtro `?empresas=` (mesmo de
-  // filtro-empresas.tsx, já usado em Férias/Vencimentos/Aprovações/etc.)
-  // deixa estreitar para um CNPJ específico quando é isso que a pessoa quer —
-  // opção explícita, não o padrão silencioso.
-  //
-  // ∩ empresasVisiveis: os links das lacunas abrem a lista de Colaboradores,
-  // que é escopada ao que o USUÁRIO enxerga — um RH com acesso a 1 CNPJ da
-  // marca via para "93 sem Telegram" aqui e uma lista de 13 lá
-  // (requireEmpresaAccess deixa entrar por marca, mas a lista não). Contar
-  // aqui o que a pessoa não consegue listar é fabricar número que não bate.
-  const [todasDaMarca, visiveis] = await Promise.all([
-    empresasDaMesmaMarca(empresaId),
-    empresasVisiveis(usuario),
-  ]);
-  const daMarcaVisiveis = todasDaMarca.filter((id) => visiveis.includes(id));
-  const pedidas = (empresasParam ?? "").split(",").filter(Boolean);
-  const empresas =
-    pedidas.length === 0 ? daMarcaVisiveis : daMarcaVisiveis.filter((id) => pedidas.includes(id));
+  // Sem filtro, TODAS as empresas que o usuário enxerga — não só a marca do
+  // CNPJ do caminho. Era "mesma marca" até 23/08/2026, e isso descasava do
+  // seletor de marca/CNPJ da barra de topo: escolher "Todas as marcas" ali
+  // limpa o `?empresas=` da URL, mas esta tela continuava mostrando só a
+  // marca de antes — a pessoa clicava e "nada acontecia". `escopoDeEmpresas`
+  // é a mesma interseção usada pelo resto do sistema (id digitado à mão na
+  // URL não vira acesso).
+  const empresas = await escopoDeEmpresas(usuario, empresasParam);
 
   const [resumo, pendencias, base, semRegistro, baseDesligados, pesquisasAbertas, ciclosAEncerrar] =
     await Promise.all([
@@ -83,13 +70,13 @@ export default async function InicioDaEmpresaPage({
           é o trabalho de fundo que faz os módulos valerem. */}
       <LacunasView
         empresaId={empresaId}
-        empresasDaMarca={empresas}
+        empresasNoEscopo={empresas}
         ativos={base.ativos}
         lacunas={base.lacunas}
       />
       <LacunasDosDesligadosView
         empresaId={empresaId}
-        empresasDaMarca={empresas}
+        empresasNoEscopo={empresas}
         desligados={baseDesligados.desligados}
         lacunas={baseDesligados.lacunas}
       />

@@ -12,12 +12,12 @@ import type { LacunaDeDesligado } from "@/lib/dashboard";
  */
 export function LacunasDosDesligadosView({
   empresaId,
-  empresasDaMarca,
+  empresasNoEscopo,
   desligados,
   lacunas,
 }: {
   empresaId: string;
-  empresasDaMarca: string[];
+  empresasNoEscopo: string[];
   desligados: number;
   lacunas: LacunaDeDesligado[];
 }) {
@@ -41,7 +41,7 @@ export function LacunasDosDesligadosView({
               return (
                 <li key={l.chave}>
                   <Link
-                    href={`/rh/${empresaId}/colaboradores?empresas=${empresasDaMarca.join(",")}&status=inativos&lacuna=${l.chave}`}
+                    href={`/rh/${empresaId}/colaboradores?empresas=${empresasNoEscopo.join(",")}&status=inativos&lacuna=${l.chave}`}
                     className="group block space-y-1 rounded-md px-2 py-1.5 -mx-2 transition-colors hover:bg-accent/50"
                   >
                     <div className="flex flex-wrap items-baseline justify-between gap-x-3 text-sm">
