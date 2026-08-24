@@ -51,6 +51,7 @@
     "test:processos-ctb": "tsx scripts/test-processos-ctb.ts",
     "test:processos-contratos": "tsx scripts/test-processos-contratos.ts",
     "test:permissoes": "tsx scripts/test-permissoes.ts",
+    "test:guarda-unificacao": "tsx scripts/test-guarda-unificacao.ts",
     "// ━━━━━━━━━━━━━━━━ SMOKE TESTS ━━━━━━━━━━━━━━━━": "",
     "smoke:dp": "tsx scripts/smoke-dp.ts",
     "smoke:sst": "tsx scripts/smoke-sst.ts",

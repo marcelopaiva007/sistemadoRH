@@ -3,7 +3,9 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
+import { requireEmpresaAccess, empresasVisiveis } from "@/lib/rh-auth-guard";
+import { registrarAuditoria } from "@/lib/audit";
+import { validarFusao, carregarPosicoes } from "@/lib/actions/guarda-unificacao";
 import type { ActionResult } from "@/lib/constants";
 
 const posicaoSchema = z.object({
@@ -74,16 +76,14 @@ export async function unificarPosicoes(
   if (origemId === destinoId) {
     return { ok: false, error: "O cargo de origem e destino não podem ser os mesmos." };
   }
-  await requireEmpresaAccess(empresaId);
+  const usuario = await requireEmpresaAccess(empresaId);
 
-  const [origem, destino] = await Promise.all([
-    prisma.posicao.findUnique({ where: { id: origemId } }),
-    prisma.posicao.findUnique({ where: { id: destinoId } }),
-  ]);
-
-  if (!origem || !destino) {
-    return { ok: false, error: "Cargo de origem ou destino não encontrado." };
-  }
+  // Valida ALCANCE e COESÃO dos alvos — a rota sozinha nunca bastou, e o
+  // filtro de "mesmo CNPJ" existia só no cliente. Ver guarda-unificacao.ts.
+  const check = await validarFusao(await empresasVisiveis(usuario), [origemId], destinoId, carregarPosicoes, "cargo");
+  if (!check.ok) return { ok: false, error: check.error };
+  const { destino } = check;
+  const origem = check.origens[0];
 
   await prisma.$transaction(async (tx) => {
     // 1. Reatribui colaboradores
@@ -188,12 +188,14 @@ export async function unificarGrupoPosicoes(
   if (origemIds.length === 0) {
     return { ok: false, error: "Nenhum cargo selecionado para unificação." };
   }
-  await requireEmpresaAccess(empresaId);
+  const usuario = await requireEmpresaAccess(empresaId);
 
-  const destino = await prisma.posicao.findUnique({ where: { id: destinoId } });
-  if (!destino) {
-    return { ok: false, error: "Cargo de destino não encontrado." };
-  }
+  // O painel "Semelhantes" agrupa por NOME numa tela CONSOLIDADA: sem esta
+  // guarda, um clique migrava colaboradores entre CNPJs e apagava registros de
+  // outras empresas. Ver guarda-unificacao.ts.
+  const check = await validarFusao(await empresasVisiveis(usuario), origemIds, destinoId, carregarPosicoes, "cargo");
+  if (!check.ok) return { ok: false, error: check.error };
+  const { destino } = check;
 
   const idsParaMigrar = origemIds.filter((id) => id !== destinoId);
 
@@ -220,6 +222,18 @@ export async function unificarGrupoPosicoes(
         data: { nome: novoNome.trim() },
       });
     }
+  });
+
+  // Fusão APAGA registros e move gente: sem trilha não há como saber o que
+  // existia, nem desfazer. Era a única operação destrutiva do módulo sem
+  // auditoria nenhuma.
+  await registrarAuditoria({
+    empresaId: destino.empresaId,
+    acao: "ATUALIZAR",
+    entidade: "Posicao",
+    entidadeId: destino.id,
+    resumo: `Unificou ${idsParaMigrar.length} cargo(s) em "${novoNome?.trim() || destino.nome}"`,
+    detalhes: { absorvidos: check.origens.map((o) => ({ id: o.id, nome: o.nome })) },
   });
 
   revalidatePath(`/rh/${empresaId}/posicoes`);

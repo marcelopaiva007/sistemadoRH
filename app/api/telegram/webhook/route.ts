@@ -133,6 +133,28 @@ async function vincular(
     );
     return;
   }
+  // A FICHA JÁ TEM OUTRO TELEGRAM: não se toma o lugar de ninguém.
+  //
+  // As guardas acima protegem o CHAT de quem está falando (este Telegram já
+  // pertence a outra ficha?) — nunca protegiam a FICHA de destino. Como CPF não
+  // é segredo (está na ficha, o DP conhece, e o próprio bot pede para digitar),
+  // qualquer pessoa com um Telegram ainda não vinculado podia mandar o CPF de
+  // um colega e SOBRESCREVER o vínculo dele: a partir daí, /portal abria as
+  // férias, os dados e os documentos da vítima — e ela perdia o acesso sem
+  // entender por quê.
+  //
+  // O caso legítimo de mover o chat (transferência de CNPJ, mesma pessoa em
+  // duas fichas) já é tratado acima, no ramo em que os CPFs batem.
+  if (colaborador.telegramChatId && colaborador.telegramChatId !== chatId) {
+    await sendTelegramMessage(
+      chatId,
+      "Esse cadastro já está vinculado a outro Telegram. 🔒\n\n" +
+        "Se a conta for sua e você trocou de aparelho ou de número, procure o RH: " +
+        "eles liberam o vínculo na sua ficha e você refaz o /start por aqui.",
+      REMOVER_TECLADO
+    );
+    return;
+  }
   await prisma.colaborador.update({
     where: { id: colaborador.id },
     data: { telegramChatId: chatId },
