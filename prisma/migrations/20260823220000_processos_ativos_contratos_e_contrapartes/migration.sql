@@ -1,10 +1,9 @@
 -- Módulo Processos & Ativos — onda 1, parte 2: contratos e contrapartes
 -- (23/08/2026). Base: `estudo-modulo-processos-ativos.md`, seção 6.3 e 6.7.
 --
--- PURAMENTE ADITIVA: quatro tabelas novas (Contraparte, DocumentoTerceiro,
--- HistoricoCobrancaCertidao, Contrato), nenhum ALTER em tabela existente,
--- nenhum dado tocado. Sobe sozinha, sem tela — mesmo motivo da migration da
--- frota: `prisma/checar-migracoes.mjs` derruba o build de Preview de qualquer
+-- PURAMENTE ADITIVA: duas tabelas novas (Contraparte, Contrato), nenhum ALTER
+-- em tabela existente, nenhum dado tocado. Sobe sozinha, sem tela — mesmo
+-- motivo da migration da frota: `prisma/checar-migracoes.mjs` derruba o build de Preview de qualquer
 -- branch com migration pendente, e uma PR que trouxesse tabela E tela juntas
 -- ficaria sem endereço de teste na Vercel.
 --
@@ -16,14 +15,12 @@
 --   - `Contrato` é UMA tabela plana (vigência + financeiro + jurídico juntos),
 --     não 4 tabelas 1:1. Veiculo e Infracao já estabeleceram esse padrão no
 --     módulo, e a tela não pede a normalização extra.
---   - `DocumentoTerceiro` pendura na CONTRAPARTE, nunca no Contrato (regra
---     transversal nº 3 do estudo): um vencimento de certidão acende os
---     contratos ativos daquele fornecedor em TODOS os CNPJs, sem duplicar
---     cadastro por contrato.
---   - `HistoricoCobrancaCertidao` existe porque o CEO decidiu, em 23/08/2026,
---     que certidão vencida SÓ ALERTA — não bloqueia pagamento. O histórico é
---     a compensação: não é o bloqueio que sustenta a defesa numa
---     reclamatória de prestador PJ, é a prova de que a empresa cobrou.
+--   - SEM controle de certidão de fornecedor (DocumentoTerceiro e o histórico
+--     de cobrança). O estudo recomenda, e o CEO tinha decidido em 23/08/2026
+--     como "só alerta, não bloqueia" — mas no mesmo dia, ao revisar o escopo,
+--     decidiu NÃO desenvolver: o grupo não vai usar. Tabela criada e nunca
+--     preenchida é pior que tabela ausente — ela faz o próximo a ler o schema
+--     acreditar que o controle existe. Se voltar, volta como migration nova.
 --   - Preço regulado (compartilhamento de poste, Res. Conjunta ANEEL/ANATEL
 --     4/2014) NUNCA é hard-coded — só a contagem de pontos entra no schema,
 --     o valor é o que está escrito no contrato real.
@@ -47,8 +44,6 @@ CREATE TABLE "rh"."Contraparte" (
     "telefone" TEXT,
     "papeis" TEXT NOT NULL,
     "criticidade" TEXT NOT NULL DEFAULT 'NORMAL',
-    "situacaoHomologacao" TEXT NOT NULL DEFAULT 'PENDENTE',
-    "dataProximaRevalidacao" TIMESTAMP(3),
     "observacoes" TEXT,
     "criadoPorId" TEXT,
     "criadoPorNome" TEXT,
@@ -56,37 +51,6 @@ CREATE TABLE "rh"."Contraparte" (
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "Contraparte_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "rh"."DocumentoTerceiro" (
-    "id" TEXT NOT NULL,
-    "contraparteId" TEXT NOT NULL,
-    "tipo" TEXT NOT NULL,
-    "numero" TEXT,
-    "dataEmissao" TIMESTAMP(3),
-    "dataValidade" TIMESTAMP(3),
-    "periodicidadeDias" INTEGER,
-    "arquivoId" TEXT,
-    "observacoes" TEXT,
-    "criadoPorId" TEXT,
-    "criadoPorNome" TEXT,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "DocumentoTerceiro_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "rh"."HistoricoCobrancaCertidao" (
-    "id" TEXT NOT NULL,
-    "documentoTerceiroId" TEXT NOT NULL,
-    "cobradoEm" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "cobradoPorId" TEXT,
-    "cobradoPorNome" TEXT,
-    "resposta" TEXT,
-
-    CONSTRAINT "HistoricoCobrancaCertidao_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -143,18 +107,6 @@ CREATE TABLE "rh"."Contrato" (
 CREATE UNIQUE INDEX "Contraparte_cnpjCpf_key" ON "rh"."Contraparte"("cnpjCpf");
 
 -- CreateIndex
-CREATE INDEX "Contraparte_situacaoHomologacao_idx" ON "rh"."Contraparte"("situacaoHomologacao");
-
--- CreateIndex
-CREATE INDEX "DocumentoTerceiro_contraparteId_tipo_idx" ON "rh"."DocumentoTerceiro"("contraparteId", "tipo");
-
--- CreateIndex
-CREATE INDEX "DocumentoTerceiro_dataValidade_idx" ON "rh"."DocumentoTerceiro"("dataValidade");
-
--- CreateIndex
-CREATE INDEX "HistoricoCobrancaCertidao_documentoTerceiroId_cobradoEm_idx" ON "rh"."HistoricoCobrancaCertidao"("documentoTerceiroId", "cobradoEm");
-
--- CreateIndex
 CREATE INDEX "Contrato_empresaId_status_idx" ON "rh"."Contrato"("empresaId", "status");
 
 -- CreateIndex
@@ -168,12 +120,6 @@ CREATE INDEX "Contrato_contraparteId_idx" ON "rh"."Contrato"("contraparteId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Contrato_empresaId_numero_key" ON "rh"."Contrato"("empresaId", "numero");
-
--- AddForeignKey
-ALTER TABLE "rh"."DocumentoTerceiro" ADD CONSTRAINT "DocumentoTerceiro_contraparteId_fkey" FOREIGN KEY ("contraparteId") REFERENCES "rh"."Contraparte"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "rh"."HistoricoCobrancaCertidao" ADD CONSTRAINT "HistoricoCobrancaCertidao_documentoTerceiroId_fkey" FOREIGN KEY ("documentoTerceiroId") REFERENCES "rh"."DocumentoTerceiro"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "rh"."Contrato" ADD CONSTRAINT "Contrato_contraparteId_fkey" FOREIGN KEY ("contraparteId") REFERENCES "rh"."Contraparte"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

@@ -2950,9 +2950,10 @@ model ManutencaoVeiculo {
 // ════════════════════════════════════════════════════════════════════════════
 
 /// A empresa ou pessoa do outro lado do contrato — GLOBAL ao grupo, não por
-/// CNPJ. O mesmo fornecedor atende várias empresas do grupo; cadastrar e
-/// homologar uma vez só, e reaproveitar certidão entre CNPJs, é a regra
-/// transversal nº 2 do estudo — o oposto elimina só retrabalho de compliance.
+/// CNPJ. O mesmo locador aluga torre para duas empresas do grupo, e o mesmo
+/// prestador atende três: cadastrar uma vez só é a regra transversal nº 2 do
+/// estudo. Duplicar por CNPJ é como o endereço de notificação formal fica
+/// certo numa ficha e desatualizado na outra.
 model Contraparte {
   id        String @id @default(cuid())
 
@@ -2979,80 +2980,14 @@ model Contraparte {
   // §5º, e STF Tema 725).
   criticidade String @default("NORMAL")
 
-  // PENDENTE | HOMOLOGADO | REPROVADO
-  situacaoHomologacao String @default("PENDENTE")
-  dataProximaRevalidacao DateTime?
-
   observacoes String?
   criadoPorId   String?
   criadoPorNome String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  documentos DocumentoTerceiro[]
-  contratos  Contrato[]
+  contratos Contrato[]
 
-  @@index([situacaoHomologacao])
-  @@schema("rh")
-}
-
-/// Certidão ou documento do FORNECEDOR — pendura na Contraparte, nunca no
-/// Contrato (regra transversal nº 3): um vencimento acende os contratos
-/// ativos daquele fornecedor em TODOS os CNPJs de uma vez, sem duplicar
-/// cadastro por contrato.
-///
-/// A validade é SEMPRE lida do documento, nunca calculada — só a CNDT tem
-/// prazo fixado em lei (180 dias, CLT art. 642-A, §4º); os demais variam por
-/// órgão emissor, e `periodicidadeDias` é só a sugestão de quando cobrar de
-/// novo, editável por linha.
-model DocumentoTerceiro {
-  id            String @id @default(cuid())
-  contraparteId String
-  contraparte   Contraparte @relation(fields: [contraparteId], references: [id], onDelete: Cascade)
-
-  // CND_FEDERAL|CRF_FGTS|CNDT|CND_ESTADUAL|CND_MUNICIPAL|CERTIDAO_FALENCIA|
-  // CONTRATO_SOCIAL|ALVARA|APOLICE_RC|ATA_ELEICAO_SINDICO|OUTRO
-  tipo String
-  numero String?
-  dataEmissao  DateTime?
-  dataValidade DateTime?
-  // Sugestão de intervalo de nova cobrança — 30 para CRF do FGTS, 180 para
-  // CND/CNDT (a assimetria que o estudo aponta como a que quebra sistema que
-  // usa um prazo só). Editável: cada órgão pode mudar a própria regra.
-  periodicidadeDias Int?
-
-  arquivoId   String?
-  observacoes String?
-
-  criadoPorId   String?
-  criadoPorNome String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  historicoCobranca HistoricoCobrancaCertidao[]
-
-  @@index([contraparteId, tipo])
-  @@index([dataValidade])
-  @@schema("rh")
-}
-
-/// O registro de "cobramos" — decisão do CEO em 23/08/2026: certidão vencida
-/// SÓ ALERTA, não bloqueia pagamento. Este histórico é a compensação: não é o
-/// bloqueio que sustenta a defesa numa reclamatória de prestador PJ, é a
-/// PROVA DE QUE A EMPRESA COBROU. Sem bloqueio e sem histórico, não sobra
-/// nada para mostrar a um fiscal.
-model HistoricoCobrancaCertidao {
-  id                  String @id @default(cuid())
-  documentoTerceiroId String
-  documentoTerceiro   DocumentoTerceiro @relation(fields: [documentoTerceiroId], references: [id], onDelete: Cascade)
-
-  cobradoEm     DateTime @default(now())
-  cobradoPorId   String?
-  cobradoPorNome String?
-  // O que o fornecedor respondeu, se respondeu — texto livre.
-  resposta String?
-
-  @@index([documentoTerceiroId, cobradoEm])
   @@schema("rh")
 }
 
