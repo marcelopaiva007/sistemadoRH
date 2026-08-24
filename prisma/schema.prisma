@@ -92,6 +92,8 @@ model User {
   // Acesso concedido por marca inteira — ver o model UserMarca.
   marcas           UserMarca[]
   pesquisasCriadas Pesquisa[]
+  // Controle de acesso fino (Onda 1): perfis atribuídos a este usuário.
+  perfis           UserPerfil[]
 
   @@index([empresaId])
   @@index([setorId])
@@ -3100,5 +3102,60 @@ model Contrato {
   @@index([empresaId, dataLimiteDenuncia])
   @@index([empresaId, proximoReajuste])
   @@index([contraparteId])
+  @@schema("rh")
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// CONTROLE DE ACESSO FINO — Onda 1 (24/08/2026)
+//
+// Fundação, sem efeito na tela ainda. `role` continua sendo a fonte de acesso
+// das guardas atuais; estes modelos existem para o modelo novo (perfil +
+// permissão por tela) reproduzir o mesmo alcance, provado por
+// scripts/test-permissoes.ts. A Onda 2 pluga as guardas e a tela de edição.
+//
+// O catálogo de permissões e os perfis-semente vivem no CÓDIGO
+// (lib/permissoes/catalogo.ts), não no banco: a lista do que existe para
+// conceder é derivada do menu e versionada, não um cadastro que apodrece.
+// ════════════════════════════════════════════════════════════════════════════
+
+/// Um perfil de acesso — pacote nomeado de permissões que se atribui ao
+/// usuário, em vez de marcar dezenas de permissões uma a uma.
+///
+/// `grants` é CSV (mesma convenção de RegraAlerta/Contraparte — o schema roda
+/// em SQLite local, sem array nativo). Cada grant é exato (`rh:folha:editar`)
+/// ou curinga (`*`, `rh:*`, `rh:folha:*`) — ver lib/permissoes/catalogo.ts.
+///
+/// `sistema=true` marca os quatro perfis-semente: a tela da Onda 2 não deixa
+/// apagá-los (são a rede de segurança do acesso de todo mundo), mas deixa
+/// editá-los e criar outros ao lado.
+model Perfil {
+  id        String  @id @default(cuid())
+  nome      String  @unique
+  descricao String?
+  grants    String
+  sistema   Boolean @default(false)
+  ativo     Boolean @default(true)
+
+  usuarios UserPerfil[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@schema("rh")
+}
+
+/// Pivô usuário × perfil. Um usuário pode ter mais de um perfil; o acesso
+/// efetivo é a UNIÃO dos grants (lib/permissoes/efetivas.ts).
+model UserPerfil {
+  id       String @id @default(cuid())
+  userId   String
+  perfilId String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  perfil   Perfil @relation(fields: [perfilId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, perfilId])
+  @@index([perfilId])
   @@schema("rh")
 }

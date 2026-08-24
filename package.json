@@ -50,6 +50,7 @@
     "test:troca-empresa": "tsx scripts/test-troca-empresa-caminho.ts",
     "test:processos-ctb": "tsx scripts/test-processos-ctb.ts",
     "test:processos-contratos": "tsx scripts/test-processos-contratos.ts",
+    "test:permissoes": "tsx scripts/test-permissoes.ts",
     "// ━━━━━━━━━━━━━━━━ SMOKE TESTS ━━━━━━━━━━━━━━━━": "",
     "smoke:dp": "tsx scripts/smoke-dp.ts",
     "smoke:sst": "tsx scripts/smoke-sst.ts",
