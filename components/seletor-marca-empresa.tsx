@@ -128,7 +128,10 @@ export function SeletorMarcaEmpresa({
           : `${selecionadas.length} marcas`;
 
   const rotuloEmpresa = !dentroDeEmpresa
-    ? "—"
+    // Nunca chega a ser exibido: fora de uma empresa o segmento inteiro some
+    // (ver abaixo). Fica como string vazia em vez de "—" para o dia em que
+    // alguém reintroduzir o segmento sem ler este comentário.
+    ? ""
     : semFiltro
       ? "Todos os CNPJs"
       : marcaAtiva
@@ -206,7 +209,10 @@ export function SeletorMarcaEmpresa({
               setAbertoMarca((v) => !v);
               setAbertoLista(false);
             }}
-            className="flex h-full items-center gap-1.5 rounded-l-[10px] px-2.5 py-1.5 text-sm transition-colors hover:bg-muted/60"
+            className={cn(
+              "flex h-full items-center gap-1.5 px-2.5 py-1.5 text-sm transition-colors hover:bg-muted/60",
+              dentroDeEmpresa ? "rounded-l-[10px]" : "rounded-[10px]",
+            )}
           >
             <Building2 className="size-3.5 shrink-0 text-muted-foreground" />
             <span className="max-w-20 truncate font-semibold text-foreground sm:max-w-36">{rotuloMarca}</span>
@@ -276,10 +282,16 @@ export function SeletorMarcaEmpresa({
           )}
         </div>
 
-        <div className="w-px shrink-0 bg-border" />
+        {/* Segmento 2 só existe DENTRO de uma empresa. Em Início, Usuários,
+            Produtividade e Atualizações não há CNPJ em contexto, e o segmento
+            aparecia como um traço solto ("—") de 53px com uma seta — lia como
+            controle quebrado. Escolher a marca (segmento 1) é o que leva para
+            dentro; o CNPJ vem depois. */}
+        {dentroDeEmpresa && <div className="w-px shrink-0 bg-border" />}
 
-        {/* Segmento 2: entra num CNPJ. Com marca em foco, só os CNPJs dela;
-            sem marca em foco, a lista completa agrupada por marca. */}
+        {/* Entra num CNPJ. Com marca em foco, só os CNPJs dela; sem marca em
+            foco, a lista completa agrupada por marca. */}
+        {dentroDeEmpresa && (
         <div className="relative">
           <button
             type="button"
@@ -370,6 +382,7 @@ export function SeletorMarcaEmpresa({
             </div>
           )}
         </div>
+        )}
       </div>
     </div>
   );

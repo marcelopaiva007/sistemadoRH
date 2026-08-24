@@ -26,6 +26,16 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.111.3",
+    data: "24/08/2026",
+    horario: "03:05",
+    titulo: "Some o seletor de CNPJ vazio nas telas fora de uma empresa",
+    itens: [
+      "Em Início, Usuários, Produtividade e Atualizações não existe CNPJ em contexto — e mesmo assim o seletor de CNPJ aparecia ao lado do de marca como um traço solto (\"—\") com uma seta, parecendo um controle quebrado. Agora ele só aparece quando você está dentro de uma empresa.",
+      "Nessas telas fica só \"Selecionar marca\": escolher a marca é o que leva para dentro, e o CNPJ vem depois.",
+    ],
+  },
+  {
     versao: "1.111.2",
     data: "24/08/2026",
     horario: "02:40",
