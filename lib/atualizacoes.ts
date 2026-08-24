@@ -26,6 +26,24 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.110.0",
+    data: "23/08/2026",
+    horario: "23:30",
+    titulo: "Processos & Ativos: contratos — o segundo domínio do módulo",
+    itens: [
+      "Nova área \"Contratos\" no módulo, com duas telas: os contratos (torres, terrenos, postes, prefeituras, condomínios, fornecedores, prestadores PJ e clientes B2B) e as contrapartes — quem assina do outro lado.",
+      "A contraparte é cadastrada UMA vez para o grupo inteiro, não por CNPJ: o mesmo locador que aluga torre para duas empresas do grupo aparece uma vez só. É o endereço de notificação formal dela que recebe o aviso de não-renovação, então mantê-lo em um lugar só evita o aviso ir para o endereço desatualizado de uma das fichas.",
+      "Três prazos novos passam a cobrar sozinhos na Central de Pendências, com data e dono: a data-limite para avisar que o contrato NÃO será renovado (crítica quando a renovação é automática — passou, renova sozinho por mais um ciclo e sair depois custa multa), o fechamento da janela da ação renovatória de locação não residencial (12 a 6 meses antes do fim; perdida, o direito decai e não se recupera) e o mês-base do reajuste contratado.",
+      "O sistema recusa cadastrar reajuste com periodicidade menor que 12 meses: a cláusula seria nula de pleno direito. E a data do próximo reajuste é ancorada no início do contrato, não no ano corrente — um contrato bienal cai sempre no mesmo ano do ciclo, independente do dia em que alguém abre a tela.",
+      "Contrato encerrado não some da base: continua sendo prova do que foi combinado. A lista abre filtrada em \"Vigente\" para o que ainda tem prazo correndo não competir com arquivo morto.",
+      "Botão \"Aplicar reajuste\" na linha do contrato: registra a data em que o reajuste passou a valer (e o novo valor, se mudou), fecha a pendência e reagenda o próximo ciclo a partir dali.",
+      "O gestor escolhido no contrato passa a ser o dono das pendências dele na Central — antes o campo era preenchido e não tinha efeito nenhum.",
+      "Suspender um contrato não faz mais o prazo da ação renovatória desaparecer da Central. Suspender a execução não suspende prazo legal, e o alerta seguia essa regra errada.",
+      "Dispensar um alerta de reajuste agora vale só para aquele ano — antes desligava o alerta daquele contrato para sempre.",
+      "O CNPJ do contrato pode ser corrigido na edição. Como contrato não se apaga, um cadastro no CNPJ errado não tinha conserto.",
+    ],
+  },
+  {
     versao: "1.109.2",
     data: "23/08/2026",
     horario: "21:40",
