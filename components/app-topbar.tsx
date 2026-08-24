@@ -97,9 +97,14 @@ export function AppTopbar({
           espaço. Duas perguntas diferentes ("em que contexto estou" x "para
           onde eu vou") ganham uma linha cada, e a navegação nunca mais fica
           sem espaço, não importa o tamanho do nome da empresa. */}
-      <div className="mx-auto flex h-12 w-full max-w-7xl items-center gap-3 px-4">
+      {/* `min-w-0` + `overflow-x-auto` porque a linha 2 (o menu) sempre teve
+          isso e a linha 1 nunca teve: num celular de 375px os itens somavam
+          ~888px e empurravam a PÁGINA INTEIRA de lado, em todas as telas do
+          sistema. Os filhos abaixo encolhem antes de chegar nisso; a rolagem
+          aqui é só a rede de segurança para nome de empresa muito longo. */}
+      <div className="mx-auto flex h-12 w-full min-w-0 max-w-7xl items-center gap-2 overflow-x-auto px-4 scrollbar-none sm:gap-3">
         <div className="flex shrink-0 items-center gap-2">
-          <Logo width={140} height={34} className="h-7 w-auto" />
+          <Logo width={140} height={34} className="h-6 w-auto sm:h-7" />
           {/* Era o texto fixo "Sistema de RH" com a versao embaixo. Virou a
               porta entre os modulos em 23/08/2026, sem sair do lugar: o rotulo
               ja respondia "onde eu estou", e e ali que quem procura a saida
@@ -120,7 +125,10 @@ export function AppTopbar({
             pathname === "/conta" && "bg-muted border-border/60"
           )}
         >
-          <div className="text-right">
+          {/* Some no celular: o nome completo e o papel custam ~130px, e quem
+              está no próprio aparelho já sabe quem é. O ícone continua ali,
+              com o mesmo destino e área de toque. */}
+          <div className="hidden text-right md:block">
             <p className="text-sm font-medium leading-tight text-foreground">{nome}</p>
             <p className="text-[11px] text-muted-foreground font-medium">
               {ROLE_LABELS[role] ?? "Diretoria/Gestão"}

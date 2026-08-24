@@ -127,7 +127,7 @@ export function SeletorModulo({
         )}
       >
         <span className="leading-tight">
-          <span className="block max-w-40 truncate text-xs font-medium text-foreground/80">
+          <span className="block max-w-24 truncate text-xs font-medium text-foreground/80 sm:max-w-40">
             {rotulo}
           </span>
           {/* Some no celular junto com o resto do detalhe: a versão é consulta

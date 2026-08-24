@@ -73,8 +73,11 @@ export function ProcessosNav({ empresaId }: { empresaId: string }) {
                 href={href}
                 className={cn(
                   "flex shrink-0 items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm transition-colors",
+                  // Ver a nota em rh-empresa-nav.tsx: no escuro, a cor da marca
+                  // como texto fica abaixo do contraste mínimo, e ela muda por
+                  // empresa. O fundo tingido continua marcando o item ativo.
                   esteAtivo
-                    ? "bg-primary/10 font-semibold text-primary"
+                    ? "bg-primary/10 font-semibold text-primary dark:text-foreground"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground",
                 )}
               >

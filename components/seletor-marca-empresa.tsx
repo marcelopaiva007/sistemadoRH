@@ -190,8 +190,11 @@ export function SeletorMarcaEmpresa({
     setAbertoLista(false);
   }
 
+  // `min-w-0` em vez de `shrink-0`: os rótulos dentro já truncam
+  // (`max-w-36`/`max-w-48`), mas com o container travado eles nunca chegavam a
+  // truncar — a barra inteira é que crescia e levava a página junto no celular.
   return (
-    <div ref={raizRef} className="relative flex shrink-0 items-stretch">
+    <div ref={raizRef} className="relative flex min-w-0 items-stretch">
       <div className="flex items-stretch rounded-[10px] border border-border bg-card">
         {/* Segmento 1: pula direto para a visão consolidada de uma marca. */}
         <div className="relative">
@@ -206,7 +209,7 @@ export function SeletorMarcaEmpresa({
             className="flex h-full items-center gap-1.5 rounded-l-[10px] px-2.5 py-1.5 text-sm transition-colors hover:bg-muted/60"
           >
             <Building2 className="size-3.5 shrink-0 text-muted-foreground" />
-            <span className="max-w-36 truncate font-semibold text-foreground">{rotuloMarca}</span>
+            <span className="max-w-20 truncate font-semibold text-foreground sm:max-w-36">{rotuloMarca}</span>
             <ChevronDown
               className={cn(
                 "size-3.5 shrink-0 text-muted-foreground transition-transform",
@@ -291,7 +294,7 @@ export function SeletorMarcaEmpresa({
           >
             <span
               className={cn(
-                "max-w-48 truncate",
+                "max-w-24 truncate sm:max-w-48",
                 corMarcaAtiva
                   ? "text-[color-mix(in_oklab,var(--marca)_75%,var(--foreground))]"
                   : "text-muted-foreground"

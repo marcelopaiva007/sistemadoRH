@@ -206,12 +206,21 @@ export function RHEmpresaNav({ empresaId }: { empresaId: string }) {
     };
   }, [empresaId, pathname]);
 
+  // Duas formas, um componente só. No computador é a coluna lateral agrupada
+  // por área; no celular vira UMA FAIXA HORIZONTAL rolável.
+  //
+  // O layout já pedia isso ("no celular o menu vira uma barra rolável no topo")
+  // e envolvia este componente num `overflow-x-auto`, mas envolver uma lista
+  // VERTICAL em rolagem horizontal não a deita: no telefone os 23 itens
+  // empilhavam e o conteúdo da tela começava depois de uma tela inteira de
+  // menu. É o mesmo formato que `processos-nav.tsx` já usa — a diferença é que
+  // lá foi escrito assim desde o começo.
   return (
-    <nav className="space-y-4 pb-6">
+    <nav className="flex gap-1 pb-2 md:flex-col md:gap-0 md:space-y-4 md:pb-6">
       <Link
         href={base}
         className={cn(
-          "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium transition-colors",
+          "flex shrink-0 items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium whitespace-nowrap transition-colors",
           pathname === base
             ? "bg-primary text-primary-foreground"
             : "text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -222,17 +231,19 @@ export function RHEmpresaNav({ empresaId }: { empresaId: string }) {
       </Link>
 
       {GRUPOS.map((grupo) => (
-        <div key={grupo.titulo}>
-          <p className="px-2 pb-1 text-[11px] font-semibold tracking-wide text-muted-foreground/70 uppercase">
+        <div key={grupo.titulo} className="flex gap-1 md:block md:gap-0">
+          {/* O título do grupo só existe na coluna: numa faixa horizontal ele
+              viraria mais um item para rolar, sem levar a lugar nenhum. */}
+          <p className="hidden px-2 pb-1 text-[11px] font-semibold tracking-wide text-muted-foreground/70 uppercase md:block">
             {grupo.titulo}
           </p>
-          <ul className="space-y-0.5">
+          <ul className="flex gap-1 md:block md:gap-0 md:space-y-0.5">
             {grupo.itens.map((item) => {
               const href = `${base}/${item.slug}`;
               const ativo = pathname.startsWith(href);
               const Icon = item.icon;
               return (
-                <li key={item.slug}>
+                <li key={item.slug} className="shrink-0">
                   <Link
                     href={href}
                     aria-current={ativo ? "page" : undefined}
@@ -240,15 +251,24 @@ export function RHEmpresaNav({ empresaId }: { empresaId: string }) {
                       // Item ativo marcado por barra + tinta leve, não por
                       // bloco sólido: com 23 itens na lateral, um retângulo
                       // azul cheio grita mais que o conteúdo da tela.
-                      "relative flex items-center gap-2 rounded-md py-1.5 pr-2 pl-3 text-sm transition-colors",
-                      "before:absolute before:inset-y-1 before:left-0 before:w-0.5 before:rounded-full before:transition-colors",
+                      "relative flex items-center gap-2 rounded-md py-1.5 pr-2 pl-2 text-sm whitespace-nowrap transition-colors md:pl-3",
+                      // A barrinha do item ativo é só da coluna: numa faixa
+                      // horizontal ela viraria um risco solto entre pílulas.
+                      "md:before:absolute md:before:inset-y-1 md:before:left-0 md:before:w-0.5 md:before:rounded-full md:before:transition-colors",
+                      // `dark:text-foreground` no item ativo: no escuro, a cor da MARCA como texto
+                      // dava 3,82 de contraste (mínimo 4,5) — o item selecionado era o
+                      // menos legível da lista. E não dá para consertar escolhendo um tom:
+                      // `--primary` é a cor da marca, muda por empresa, e o próximo logo
+                      // que entrar traz o problema de volta. A marca continua marcando o
+                      // item ativo pela barra e pelo fundo; só o texto passa a ser o do
+                      // tema, que o tema garante legível.
                       ativo
-                        ? "bg-primary/8 text-primary font-medium before:bg-primary"
-                        : "text-muted-foreground before:bg-transparent hover:bg-muted hover:text-foreground",
+                        ? "bg-primary/8 text-primary font-medium md:before:bg-primary dark:text-foreground"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground md:before:bg-transparent",
                     )}
                   >
                     <Icon className="size-4 shrink-0" />
-                    <span className="truncate">{item.label}</span>
+                    <span className="md:truncate">{item.label}</span>
                     {item.slug === "mensagens" && mensagensAbertas > 0 && (
                       // Contador, não pontinho: o RH decide se abre agora pela
                       // quantidade. Vermelho porque há uma pessoa esperando do

@@ -26,6 +26,18 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.110.1",
+    data: "24/08/2026",
+    horario: "00:20",
+    titulo: "O sistema volta a caber na tela do celular",
+    itens: [
+      "No telefone, a página inteira rolava para o lado: a barra de topo (logo, módulo, marca, CNPJ, tema, usuário, sair) somava 888 pixels numa tela de 375 e empurrava todo o conteúdo junto, em todas as telas. Agora os itens encolhem e a barra cabe.",
+      "O menu do RH no celular era a lista vertical inteira — 23 itens, quase duas telas de menu antes de qualquer conteúdo. Virou uma faixa horizontal rolável no topo, como já era no módulo de Processos: de 1760 pixels de altura para 74.",
+      "No modo escuro, o item selecionado do menu era o MENOS legível da lista: ele usava a cor da marca como texto, que fica abaixo do contraste mínimo sobre fundo escuro. O item continua marcado pela cor da marca na barra e no fundo, mas o texto passa a usar a cor do tema.",
+      "Seu nome e cargo somem da barra de topo em telas estreitas (o atalho para a conta continua ali, no ícone) — era o pedaço que mais roubava espaço no celular.",
+    ],
+  },
+  {
     versao: "1.110.0",
     data: "23/08/2026",
     horario: "23:30",
