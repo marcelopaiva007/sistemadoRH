@@ -64,6 +64,8 @@ export function agruparSetoresSemelhantes(
   setores: {
     id: string;
     nome: string;
+    /** A marca do CNPJ do setor. É a fronteira da fusão — ver abaixo. */
+    marcaId: string;
     colaboradoresCount: number;
     vagasCount: number;
     metasCount: number;
@@ -77,8 +79,15 @@ export function agruparSetoresSemelhantes(
     if (alocados.has(s.id)) continue;
     const radical = extrairRadicalSetor(s.nome);
 
+    // Mesma MARCA, além do mesmo radical. A tela é consolidada e agrupava só
+    // por nome: "Recursos Humanos" da Centrysol caía no mesmo grupo do da LM
+    // Telecom, e o botão "Unificar" desse grupo só podia dar erro — fundir
+    // atravessando marca joga colaboradores para o guarda-chuva de outra marca
+    // (guarda-unificacao.ts recusa, e com razão). Nascendo por marca, cada
+    // grupo é unificável de verdade.
     const semelhantes = setores.filter((outro) => {
       if (alocados.has(outro.id)) return false;
+      if (outro.marcaId !== s.marcaId) return false;
       const radicalOutro = extrairRadicalSetor(outro.nome);
       return radical === radicalOutro;
     });
@@ -99,7 +108,7 @@ export function agruparSetoresSemelhantes(
 
       const sugestao = preferencial ? preferencial.nome : semelhantes[0].nome.trim();
 
-      grupos.set(radical, {
+      grupos.set(`${s.marcaId}:${radical}`, {
         chaveStem: radical,
         sugestaoNome: sugestao,
         setores: semelhantes,

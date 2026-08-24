@@ -61,7 +61,7 @@ import { agruparCargosSemelhantes, type GrupoCargoSemelhante } from "@/lib/cargo
 import type { ActionResult } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
-type Empresa = { id: string; nome: string };
+type Empresa = { id: string; nome: string; marcaId: string };
 type Posicao = {
   id: string;
   nome: string;
@@ -176,6 +176,9 @@ export function PosicoesTable({
     const formatadas = posicoesFiltradas.map((p) => ({
       id: p.id,
       nome: p.nome,
+      // A marca vem junto: cada grupo nasce dentro de uma marca só, e assim é
+      // unificável de verdade (ver lib/actions/guarda-unificacao.ts).
+      marcaId: p.empresa.marcaId,
       colaboradoresCount: p._count?.colaboradores ?? 0,
       vagasCount: p._count?.vagas ?? 0,
       ativo: p.ativo,

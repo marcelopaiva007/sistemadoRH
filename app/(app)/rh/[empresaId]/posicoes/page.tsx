@@ -14,12 +14,12 @@ export default async function PosicoesPage({ params }: { params: Promise<{ empre
       orderBy: [{ ativo: "desc" }, { empresaId: "asc" }, { nome: "asc" }],
       include: {
         _count: { select: { colaboradores: true, vagas: true } },
-        empresa: { select: { id: true, nome: true } },
+        empresa: { select: { id: true, nome: true, marcaId: true } },
       },
     }),
     prisma.empresa.findMany({
       where: { id: { in: empresasDoUsuario } },
-      select: { id: true, nome: true },
+      select: { id: true, nome: true, marcaId: true },
       orderBy: { nome: "asc" },
     }),
   ]);

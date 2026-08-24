@@ -4,6 +4,7 @@
 //   npx tsx scripts/test-guarda-unificacao.ts
 
 import { validarFusao, type AlvoDaFusao } from "../lib/actions/guarda-unificacao";
+import { agruparSetoresSemelhantes } from "../lib/setores-semelhantes";
 
 let falhas = 0;
 function ok(condicao: boolean, descricao: string) {
@@ -86,6 +87,37 @@ async function main() {
   {
     const r = await validarFusao(VISIVEIS, ["d1"], "a1", carregar, "cargo");
     ok(!r.ok && /cargo/.test(r.error), "a mensagem fala de cargo quando é cargo");
+  }
+
+  console.log("\nO agrupador nasce POR MARCA — senão o botão Unificar só dá erro\n");
+  {
+    // O painel "Semelhantes" agrupava só por nome, numa tela consolidada:
+    // "Recursos Humanos" de duas MARCAS caía no mesmo grupo, e unificar esse
+    // grupo é justamente o que a guarda recusa — botão morto para sempre.
+    const base = { colaboradoresCount: 1, vagasCount: 0, metasCount: 0, ativo: true };
+    const grupos = agruparSetoresSemelhantes([
+      { id: "s1", nome: "Recursos Humanos", marcaId: "M1", ...base },
+      { id: "s2", nome: "RH", marcaId: "M1", ...base },
+      { id: "s3", nome: "Recursos Humanos", marcaId: "M2", ...base },
+      { id: "s4", nome: "RH", marcaId: "M2", ...base },
+    ]);
+    ok(grupos.length === 2, `mesmo nome em 2 marcas vira 2 grupos, não 1 (veio ${grupos.length})`);
+    ok(
+      grupos.every((g) => new Set(g.setores.map((x) => (x as { marcaId: string }).marcaId)).size === 1),
+      "nenhum grupo mistura marcas",
+    );
+    // E cada grupo, levado à guarda, PASSA — que é o ponto.
+    for (const g of grupos) {
+      const ids = g.setores.map((x) => x.id);
+      const alvos: Record<string, AlvoDaFusao> = Object.fromEntries(
+        g.setores.map((x) => {
+          const m = (x as { marcaId: string }).marcaId;
+          return [x.id, { id: x.id, nome: x.nome, empresaId: m === "M1" ? "A" : "D", marcaId: m }];
+        }),
+      );
+      const r = await validarFusao(VISIVEIS, ids.slice(1), ids[0], async (q) => q.map((i) => alvos[i]), "setor");
+      ok(r.ok, `o grupo "${g.sugestaoNome}" é unificável de verdade`);
+    }
   }
 
   console.log(`\n${falhas === 0 ? "✅ tudo certo" : `❌ ${falhas} falha(s)`}\n`);

@@ -145,7 +145,22 @@ async function vincular(
   //
   // O caso legítimo de mover o chat (transferência de CNPJ, mesma pessoa em
   // duas fichas) já é tratado acima, no ramo em que os CPFs batem.
-  if (colaborador.telegramChatId && colaborador.telegramChatId !== chatId) {
+  // A pergunta é sobre o CPF, NÃO sobre esta ficha. `fichaAtivaPorCpf` prefere
+  // de propósito uma ficha SEM chat (é o que destrava a transferência de CNPJ),
+  // então perguntar só `colaborador.telegramChatId` deixava a porta aberta: a
+  // vítima com duas fichas do mesmo CPF (o schema permite — `@@unique([empresaId,
+  // cpf])`) tem a ficha A com o chat dela e a ficha B sem chat; o atacante caía
+  // na B, a guarda não disparava, e o /portal — que busca por chatId — passava a
+  // devolver os dados da vítima.
+  const cpfDigitos = digitos(colaborador.cpf ?? "");
+  const jaVinculadaPeloCpf = cpfDigitos
+    ? await prisma.colaborador.findFirst({
+        where: { cpf: cpfDigitos, telegramChatId: { not: null }, NOT: { telegramChatId: chatId } },
+        select: { id: true },
+      })
+    : null;
+
+  if (jaVinculadaPeloCpf || (colaborador.telegramChatId && colaborador.telegramChatId !== chatId)) {
     await sendTelegramMessage(
       chatId,
       "Esse cadastro já está vinculado a outro Telegram. 🔒\n\n" +

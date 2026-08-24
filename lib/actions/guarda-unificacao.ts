@@ -14,9 +14,15 @@ import { prisma } from "@/lib/prisma";
 //  2. Como "use server" é endpoint público, um POST à mão unificava quaisquer
 //     dois registros do banco, inclusive de CNPJ que a pessoa não enxerga.
 //
-// Por isso a checagem é DUPLA: alcance (o que a pessoa vê) e coesão (tudo no
-// mesmo CNPJ). O filtro que existia em setores-table.tsx era só do cliente, e
-// cliente não é guarda.
+// Por isso a checagem é DUPLA: alcance (o que a pessoa vê) e coesão (tudo na
+// mesma marca).
+//
+// Precisão sobre o que existia antes: o painel "Semelhantes" NUNCA teve filtro
+// de empresa — nem no cliente. O único filtro por empresa da tela vivia no
+// diálogo de unificação SIMPLES (setores-table.tsx), e mesmo esse era só do
+// cliente, que não é guarda. O agrupador (lib/setores-semelhantes.ts,
+// lib/cargos-semelhantes.ts) passou a montar cada grupo dentro de UMA marca,
+// para o botão do painel nunca oferecer uma fusão que esta guarda vai recusar.
 
 export type AlvoDaFusao = { id: string; nome: string; empresaId: string; marcaId: string };
 

@@ -61,7 +61,7 @@ import { agruparSetoresSemelhantes, type GrupoSetorSemelhante } from "@/lib/seto
 import type { ActionResult } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
-type Empresa = { id: string; nome: string };
+type Empresa = { id: string; nome: string; marcaId: string };
 type Setor = {
   id: string;
   nome: string;
@@ -176,6 +176,9 @@ export function SetoresTable({
     const formatados = setoresFiltrados.map((s) => ({
       id: s.id,
       nome: s.nome,
+      // A marca vem junto: o agrupador precisa dela para cada grupo nascer
+      // dentro de uma marca só, e assim ser unificável de verdade.
+      marcaId: s.empresa.marcaId,
       colaboradoresCount: s._count?.colaboradores ?? 0,
       vagasCount: s._count?.vagas ?? 0,
       metasCount: s._count?.metas ?? 0,
