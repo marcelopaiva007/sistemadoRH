@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.115.1",
+    data: "25/08/2026",
+    horario: "10:00",
+    titulo: "Crons de lembrete pausam de madrugada (economia de banco)",
+    itens: [
+      "Os 7 crons de comunicação (alertas, cobranças, lembretes, avisos) deixam de rodar entre 20:00 e 07:00 (horário de Brasília), todos os dias. Antes eles acordavam o banco a cada 15 minutos a noite inteira só para checar o horário e não fazer nada.",
+      "Nenhuma notificação deixa de sair: todo o trabalho já acontecia entre 08:00 e 19:00, dentro da janela mantida. O banco passa a poder dormir de madrugada, reduzindo o consumo de computação.",
+      "Backup, foto mensal e detecção de pendências continuam nos horários de sempre — rodam uma vez ao dia, não são o que pesava.",
+    ],
+  },
+  {
     versao: "1.115.0",
     data: "25/08/2026",
     horario: "08:30",
