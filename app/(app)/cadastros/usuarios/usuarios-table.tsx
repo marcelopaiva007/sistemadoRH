@@ -49,6 +49,7 @@ import {
   criarConviteUsuario,
 } from "@/lib/actions/usuarios";
 import { ROLES, ROLE_LABEL, type ActionResult } from "@/lib/constants";
+import { PERFIS_SEMENTE } from "@/lib/permissoes/catalogo";
 import { FichaVinculada } from "./ficha-vinculada";
 
 type EmpresaResumo = { id: string; nome: string; ativo: boolean; marcaId: string };
@@ -84,8 +85,11 @@ export type FichaDoUsuario = {
   setorNome: string;
 };
 
+export type PerfilOpcao = { id: string; nome: string; sistema: boolean; papelDeOrigem: string | null };
+
 export type Usuario = {
   id: string;
+  perfilIds: string[];
   nome: string;
   username: string;
   email: string | null;
@@ -133,12 +137,14 @@ export function UsuariosTable({
   empresas,
   setores,
   marcas,
+  perfis,
   currentUserId,
 }: {
   usuarios: Usuario[];
   empresas: EmpresaResumo[];
   setores: SetorResumo[];
   marcas: MarcaResumo[];
+  perfis: PerfilOpcao[];
   currentUserId: string;
 }) {
   const [createOpen, setCreateOpen] = useState(false);
@@ -162,6 +168,7 @@ export function UsuariosTable({
               empresas={empresas}
               setores={setores}
               marcas={marcas}
+              perfis={perfis}
               onSuccess={() => setCreateOpen(false)}
             />
           </DialogContent>
@@ -304,6 +311,7 @@ export function UsuariosTable({
               empresas={empresas}
               setores={setores}
               marcas={marcas}
+              perfis={perfis}
               defaultValues={editUsuario}
               onSuccess={() => setEditUsuario(null)}
             />
@@ -359,6 +367,7 @@ function UsuarioForm({
   empresas,
   setores,
   marcas,
+  perfis,
   onSuccess,
 }: {
   action: (prev: ActionResult, formData: FormData) => Promise<ActionResult>;
@@ -367,10 +376,19 @@ function UsuarioForm({
   empresas: EmpresaResumo[];
   setores: SetorResumo[];
   marcas: MarcaResumo[];
+  perfis: PerfilOpcao[];
   onSuccess: () => void;
 }) {
   const isEdit = !!defaultValues;
   const [role, setRole] = useState<string>(defaultValues?.role ?? "DIRETORIA");
+  // O perfil-semente correspondente a um papel — o default sensato ao criar.
+  const perfilDoPapel = (papel: string) => PERFIS_SEMENTE.find((p) => p.papelDeOrigem === papel)?.id;
+  const [perfilIds, setPerfilIds] = useState<string[]>(
+    defaultValues?.perfilIds ?? [perfilDoPapel("DIRETORIA")].filter((x): x is string => Boolean(x)),
+  );
+  function alternarPerfil(id: string) {
+    setPerfilIds((atual) => (atual.includes(id) ? atual.filter((x) => x !== id) : [...atual, id]));
+  }
   const [escopo, setEscopo] = useState<Escopo>(
     defaultValues?.marcasVinculadas.some((m) => m.ativo) ? "MARCA" : "CNPJ",
   );
@@ -463,8 +481,20 @@ function UsuarioForm({
         <Select
           value={role}
           onValueChange={(v) => {
-            setRole(v ?? "DIRETORIA");
-            if (v !== "GESTOR_SETOR") setSetorId("");
+            const novo = v ?? "DIRETORIA";
+            // Ao criar, troca a sugestão de perfil junto com o papel: sai o
+            // perfil-semente do papel anterior, entra o do novo. Na edição não
+            // mexe — lá os perfis já vêm da ficha e são escolha do admin.
+            if (!isEdit) {
+              const antigo = perfilDoPapel(role);
+              const proposto = perfilDoPapel(novo);
+              setPerfilIds((atual) => {
+                const semAntigo = antigo ? atual.filter((x) => x !== antigo) : atual;
+                return proposto && !semAntigo.includes(proposto) ? [...semAntigo, proposto] : semAntigo;
+              });
+            }
+            setRole(novo);
+            if (novo !== "GESTOR_SETOR") setSetorId("");
           }}
           name="role"
           items={Object.fromEntries(ROLES.map((r) => [r.value, r.label]))}
@@ -480,6 +510,33 @@ function UsuarioForm({
             ))}
           </SelectContent>
         </Select>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Perfis de acesso</Label>
+        <p className="text-xs text-muted-foreground">
+          O que a pessoa vê e edita, por sistema. O papel acima decide a sugestão; ajuste à vontade.
+          Sem perfil, o acesso segue o papel.
+        </p>
+        <div className="grid gap-1.5 rounded-md border border-border p-2 sm:grid-cols-2">
+          {perfis.map((pf) => (
+            <label key={pf.id} className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                name="perfilId"
+                value={pf.id}
+                checked={perfilIds.includes(pf.id)}
+                onChange={() => alternarPerfil(pf.id)}
+                className="size-4"
+              />
+              {pf.nome}
+              {pf.sistema && <span className="text-[11px] text-muted-foreground">(padrão)</span>}
+            </label>
+          ))}
+          {perfis.length === 0 && (
+            <span className="text-xs text-muted-foreground">Nenhum perfil cadastrado ainda.</span>
+          )}
+        </div>
       </div>
       {precisaEmpresa && (
         <div className="space-y-2">
