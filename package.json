@@ -1,6 +1,6 @@
 {
   "name": "sistema-rh",
-  "version": "1.112.0",
+  "version": "1.113.0",
   "private": true,
   "scripts": {
     "// ━━━━━━━━━━━━━━━━ DESENVOLVIMENTO ━━━━━━━━━━━━━━━━": "",
@@ -53,6 +53,7 @@
     "test:permissoes": "tsx scripts/test-permissoes.ts",
     "test:guarda-unificacao": "tsx scripts/test-guarda-unificacao.ts",
     "test:telegram-identidade": "tsx scripts/test-telegram-identidade.ts",
+    "test:alugueis": "tsx scripts/test-alugueis.ts",
     "// ━━━━━━━━━━━━━━━━ SMOKE TESTS ━━━━━━━━━━━━━━━━": "",
     "smoke:dp": "tsx scripts/smoke-dp.ts",
     "smoke:sst": "tsx scripts/smoke-sst.ts",

@@ -26,7 +26,7 @@ import { formatarPlaca, rotulo, TIPOS_DOCUMENTO_VEICULO } from "@/lib/processos/
  * domínio de fora da lista (pendência criada à mão, ou um motor futuro) seria
  * lido como "não detectado" e fechado sozinho na primeira rodada.
  */
-export const DOMINIOS_DETECTADOS: string[] = ["FROTA", "CONTRATOS"];
+export const DOMINIOS_DETECTADOS: string[] = ["FROTA", "CONTRATOS", "ALUGUEIS"];
 
 export type Candidata = {
   dominio: string;
@@ -94,6 +94,11 @@ const IMPACTO: Record<string, number> = {
   ACAO_RENOVATORIA: 3,
   DENUNCIA_CONTRATO: 3,
   REAJUSTE_CONTRATO: 1,
+
+  // Aluguel a receber em atraso: é dinheiro que devia ter entrado e não
+  // entrou. Peso 2 — a empresa perde liquidez, mas não um direito nem um prazo
+  // legal (a cobrança em si é onda 2).
+  ALUGUEL_ATRASADO: 2,
 };
 
 /**
@@ -603,6 +608,54 @@ async function reajustesDevidos(empresaIds: string[]): Promise<Candidata[]> {
   }));
 }
 
+/**
+ * Aluguel a receber em atraso — uma pendência por CONTRATO, não por parcela.
+ *
+ * Se três meses estão em aberto, o time precisa de UMA linha ("aluguel do
+ * contrato X em atraso desde mar/2026"), não de três. A pendência aponta a
+ * parcela vencida mais ANTIGA (a que dói há mais tempo); resolver a fila é
+ * receber a partir dela. Quando a última em atraso é recebida, o detector para
+ * de achar e a pendência se fecha sozinha.
+ */
+async function alugueisEmAtraso(empresaIds: string[]): Promise<Candidata[]> {
+  const hoje = hojeUTC();
+  const atrasadas = await prisma.recebimentoAluguel.findMany({
+    where: { empresaId: { in: empresaIds }, recebidoEm: null, vencimento: { lt: hoje } },
+    orderBy: { vencimento: "asc" },
+    select: {
+      empresaId: true,
+      vencimento: true,
+      valorPrevisto: true,
+      contratoId: true,
+      contrato: { select: { numero: true, titulo: true, contraparte: { select: { razaoSocial: true } } } },
+    },
+  });
+
+  // A mais antiga de cada contrato (a lista já vem por vencimento asc).
+  const maisAntigaPorContrato = new Map<string, (typeof atrasadas)[number]>();
+  const totalPorContrato = new Map<string, number>();
+  for (const a of atrasadas) {
+    if (!maisAntigaPorContrato.has(a.contratoId)) maisAntigaPorContrato.set(a.contratoId, a);
+    totalPorContrato.set(a.contratoId, (totalPorContrato.get(a.contratoId) ?? 0) + 1);
+  }
+
+  return [...maisAntigaPorContrato.values()].map((a) => {
+    const qtd = totalPorContrato.get(a.contratoId) ?? 1;
+    return {
+      dominio: "ALUGUEIS",
+      tipo: "ALUGUEL_ATRASADO",
+      origemTipo: "Contrato",
+      origemId: a.contratoId,
+      empresaId: a.empresaId,
+      titulo: `Aluguel a receber — ${a.contrato.numero} · ${a.contrato.contraparte.razaoSocial}`,
+      descricao:
+        `${a.contrato.titulo}. ${qtd} parcela(s) em aberto, a mais antiga vencida em ` +
+        `${formatarData(a.vencimento)}.`,
+      venceEm: a.vencimento,
+    };
+  });
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Sincronização
 // ─────────────────────────────────────────────────────────────────────────────
@@ -619,6 +672,7 @@ export async function detectarTudo(empresaIds: string[]): Promise<Candidata[]> {
     denunciaDeContrato(empresaIds),
     acaoRenovatoria(empresaIds),
     reajustesDevidos(empresaIds),
+    alugueisEmAtraso(empresaIds),
   ]);
   return lotes.flat();
 }

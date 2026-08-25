@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, BellRing, Building2, Car, FileSignature, FileWarning, Fuel, IdCard, LayoutDashboard, Wrench } from "lucide-react";
+import { BarChart3, BellRing, Building2, Car, CircleDollarSign, FileSignature, FileWarning, Fuel, IdCard, LayoutDashboard, Wrench } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Menu do módulo, no mesmo formato do RH (app/(app)/rh/[empresaId]/rh-empresa-nav.tsx).
@@ -37,6 +37,7 @@ const GRUPOS = [
     itens: [
       { slug: "contratos", label: "Contratos", icon: FileSignature },
       { slug: "contratos/contrapartes", label: "Contrapartes", icon: Building2 },
+      { slug: "alugueis", label: "Aluguéis a receber", icon: CircleDollarSign },
     ],
   },
 ] as const;
