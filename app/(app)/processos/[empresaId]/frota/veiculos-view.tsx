@@ -25,6 +25,14 @@ export type VeiculoNaTela = {
   marca: string | null;
   modelo: string | null;
   anoModelo: number | null;
+  anoFab: number | null;
+  chassi: string | null;
+  hodometroAtual: number | null;
+  cidadeBase: string | null;
+  setor: string | null;
+  emplacado: boolean;
+  motoristaInformado: string | null;
+  empresaId: string;
   ufEmplacamento: string | null;
   propriedade: string;
   motorizacao: string;
@@ -43,10 +51,12 @@ export function VeiculosView({
   empresaId,
   veiculos,
   condutores,
+  empresas,
 }: {
   empresaId: string;
   veiculos: VeiculoNaTela[];
   condutores: { id: string; nome: string }[];
+  empresas: { id: string; nome: string }[];
 }) {
   const router = useRouter();
   const [pendente, iniciar] = useTransition();
@@ -66,7 +76,7 @@ export function VeiculosView({
   function campo(nome: string) {
     return {
       value: form[nome] ?? "",
-      onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+      onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
         setForm((f) => ({ ...f, [nome]: e.target.value })),
     };
   }
@@ -94,12 +104,21 @@ export function VeiculosView({
         marca: form.marca ?? null,
         modelo: form.modelo ?? null,
         anoModelo: form.anoModelo ? Number(form.anoModelo) : null,
+        anoFab: form.anoFab ? Number(form.anoFab) : null,
+        chassi: form.chassi ?? null,
+        hodometroAtual: form.hodometroAtual ? Number(form.hodometroAtual) : null,
         ufEmplacamento: form.ufEmplacamento ?? null,
         propriedade: form.propriedade || "PROPRIO",
         motorizacao: form.motorizacao || "COMBUSTAO",
         situacao: form.situacao || "ATIVO",
         aderidoSne: form.aderidoSne === "sim",
         dataAdesaoSne: form.dataAdesaoSne ?? null,
+        cidadeBase: form.cidadeBase ?? null,
+        setor: form.setor ?? null,
+        emplacado: form.emplacado === "sim",
+        motoristaInformado: form.motoristaInformado ?? null,
+        observacoes: form.observacoes ?? null,
+        empresaDestinoId: form.empresaDestino || null,
       });
       if (!r.ok) {
         setErro(r.error);
@@ -190,6 +209,44 @@ export function VeiculosView({
               <input {...campo("anoModelo")} className={CAMPO} inputMode="numeric" />
             </label>
             <label className="text-xs text-muted-foreground">
+              Ano de fabricação
+              <input {...campo("anoFab")} className={CAMPO} inputMode="numeric" />
+            </label>
+            <label className="text-xs text-muted-foreground">
+              Renavam
+              <input {...campo("renavam")} className={CAMPO} inputMode="numeric" />
+            </label>
+            <label className="text-xs text-muted-foreground">
+              Chassi
+              <input {...campo("chassi")} className={CAMPO} maxLength={17} />
+            </label>
+            <label className="text-xs text-muted-foreground">
+              Quilometragem (km)
+              <input {...campo("hodometroAtual")} className={CAMPO} inputMode="numeric" />
+            </label>
+            <label className="text-xs text-muted-foreground">
+              Cidade-base
+              <input {...campo("cidadeBase")} className={CAMPO} placeholder="Guarabira" />
+            </label>
+            <label className="text-xs text-muted-foreground">
+              Setor
+              <input {...campo("setor")} className={CAMPO} placeholder="TECNICA" />
+            </label>
+            <label className="text-xs text-muted-foreground">
+              Emplacado?
+              <select {...campo("emplacado")} className={CAMPO}>
+                <option value="">Não</option>
+                <option value="sim">Sim</option>
+              </select>
+            </label>
+            <label className="text-xs text-muted-foreground">
+              Motorista (informado)
+              <input {...campo("motoristaInformado")} className={CAMPO} placeholder="Nome (texto)" />
+              <span className="mt-0.5 block text-[11px] text-muted-foreground/80">
+                Só texto. Vincular ao condutor de verdade é na aba Condutores.
+              </span>
+            </label>
+            <label className="text-xs text-muted-foreground">
               UF de emplacamento
               <input {...campo("ufEmplacamento")} className={CAMPO} maxLength={2} placeholder="SP" />
               <span className="mt-0.5 block text-[11px] text-muted-foreground/80">
@@ -236,6 +293,23 @@ export function VeiculosView({
                 <input {...campo("dataAdesaoSne")} type="date" className={CAMPO} />
                 <span className="mt-0.5 block text-[11px] text-muted-foreground/80">
                   O desconto de 40% só vale se a adesão for anterior à notificação.
+                </span>
+              </label>
+            )}
+            <label className="text-xs text-muted-foreground sm:col-span-2 lg:col-span-3">
+              Observações
+              <textarea {...campo("observacoes")} rows={2} className={CAMPO} />
+            </label>
+            {form.id && (
+              <label className="text-xs text-muted-foreground sm:col-span-2 lg:col-span-3">
+                Empresa (CNPJ dono)
+                <select {...campo("empresaDestino")} className={CAMPO}>
+                  {empresas.map((e) => (
+                    <option key={e.id} value={e.id}>{e.nome}</option>
+                  ))}
+                </select>
+                <span className="mt-0.5 block text-[11px] text-muted-foreground/80">
+                  Troque para tirar o veículo da empresa provisória &ldquo;A definir&rdquo; da importação.
                 </span>
               </label>
             )}
@@ -329,12 +403,20 @@ export function VeiculosView({
                               marca: v.marca ?? "",
                               modelo: v.modelo ?? "",
                               anoModelo: v.anoModelo ? String(v.anoModelo) : "",
+                              anoFab: v.anoFab ? String(v.anoFab) : "",
+                              chassi: v.chassi ?? "",
+                              hodometroAtual: v.hodometroAtual ? String(v.hodometroAtual) : "",
                               ufEmplacamento: v.ufEmplacamento ?? "",
                               propriedade: v.propriedade,
                               motorizacao: v.motorizacao,
                               situacao: v.situacao,
                               aderidoSne: v.aderidoSne ? "sim" : "",
                               dataAdesaoSne: v.dataAdesaoSneInput,
+                              cidadeBase: v.cidadeBase ?? "",
+                              setor: v.setor ?? "",
+                              emplacado: v.emplacado ? "sim" : "",
+                              motoristaInformado: v.motoristaInformado ?? "",
+                              empresaDestino: v.empresaId,
                             })
                           }
                         >
