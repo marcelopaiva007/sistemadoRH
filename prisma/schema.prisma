@@ -3097,6 +3097,8 @@ model Contrato {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  recebimentos RecebimentoAluguel[]
+
   @@unique([empresaId, numero])
   @@index([empresaId, status])
   @@index([empresaId, dataLimiteDenuncia])
@@ -3157,5 +3159,60 @@ model UserPerfil {
 
   @@unique([userId, perfilId])
   @@index([perfilId])
+  @@schema("rh")
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// RECEBIMENTO DE ALUGUÉIS — imóveis do grupo alugados a terceiros (25/08/2026)
+//
+// Pedido do dono do sistema: organizar o que a empresa RECEBE de aluguel.
+// Escopo escolhido: "recebi / não recebi por mês" (sem reajuste automático,
+// cobrança formal ou cadastro do imóvel como patrimônio — isso é onda 2).
+//
+// O CONTRATO já existe: um imóvel alugado a terceiro é um `Contrato` com
+// `categoria = "RECEITA"` e um tipo de locação. O que faltava é a régua de
+// PARCELAS — uma por mês —, que é o que esta tabela traz.
+// ════════════════════════════════════════════════════════════════════════════
+
+/// Uma parcela mensal de aluguel A RECEBER, gerada a partir de um Contrato de
+/// receita. Uma linha por (contrato, competência) — o `@@unique` abaixo garante
+/// que gerar de novo não duplica.
+///
+/// `recebidoEm` nulo = em aberto. Passada a data de `vencimento` sem receber,
+/// vira pendência na Central (mesmo motor dos outros prazos do módulo).
+model RecebimentoAluguel {
+  id         String  @id @default(cuid())
+  contratoId String
+  contrato   Contrato @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+
+  /// Denormalizado do contrato para as telas escoparem por CNPJ sem um join a
+  /// mais — mesmo padrão do resto do módulo. Gravado sempre a partir do
+  /// contrato, nunca da URL.
+  empresaId String
+
+  /// O mês a que a parcela se refere, no dia 1 UTC (é a chave de competência,
+  /// não a data de pagamento). Ex.: março/2026 = 2026-03-01.
+  competencia DateTime
+  /// Quando aquela parcela vence. É a data que a Central cobra.
+  vencimento  DateTime
+
+  /// O quanto era esperado — cópia do valor mensal do contrato NO MOMENTO da
+  /// geração. Fica na parcela para um reajuste futuro não reescrever o
+  /// histórico do que já venceu. Editável por linha.
+  valorPrevisto Float
+
+  /// Preenchidos quando entra o dinheiro. `recebidoEm` nulo = em aberto.
+  recebidoEm    DateTime?
+  valorRecebido Float?
+  observacoes   String?
+
+  registradoPorId   String?
+  registradoPorNome String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([contratoId, competencia])
+  @@index([empresaId, vencimento])
+  @@index([empresaId, recebidoEm])
   @@schema("rh")
 }
