@@ -7,6 +7,7 @@ import { empresasVisiveis } from "@/lib/rh-auth-guard";
 import { registrarAuditoria } from "@/lib/audit";
 import { dataDoFormulario, hojeUTC, somarMesesUTC } from "@/lib/datas";
 import { CATEGORIA_RECEITA, competenciasDoContrato, vencimentoDaCompetencia } from "@/lib/processos/alugueis";
+import { STATUS_COM_PRAZO_CORRENDO } from "@/lib/processos/pendencias";
 import type { ActionResult } from "@/lib/constants";
 
 // Recebimento de aluguéis do módulo Processos & Ativos.
@@ -44,11 +45,14 @@ export async function gerarParcelas(input: {
 
   const contrato = await prisma.contrato.findFirst({
     where: { id: input.contratoId, empresaId: { in: visiveis } },
-    select: { id: true, empresaId: true, numero: true, categoria: true, dataInicio: true, dataFim: true, valorMensal: true },
+    select: { id: true, empresaId: true, numero: true, categoria: true, status: true, dataInicio: true, dataFim: true, valorMensal: true },
   });
   if (!contrato) return { ok: false, error: "Contrato não encontrado no seu acesso." };
   if (contrato.categoria !== CATEGORIA_RECEITA) {
     return { ok: false, error: "Só contratos de receita geram aluguel a receber." };
+  }
+  if (!STATUS_COM_PRAZO_CORRENDO.includes(contrato.status)) {
+    return { ok: false, error: "Só contratos vigentes geram parcelas — este está em rascunho ou encerrado." };
   }
   if (contrato.valorMensal === null) {
     return { ok: false, error: "O contrato precisa de um valor mensal para gerar as parcelas." };

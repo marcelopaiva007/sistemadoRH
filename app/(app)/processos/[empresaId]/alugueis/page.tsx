@@ -4,6 +4,7 @@ import { requireProcessosEmpresa } from "@/lib/processos-auth-guard";
 import { escopoDeEmpresas } from "@/lib/rh-auth-guard";
 import { formatarData, hojeUTC, paraInputDate } from "@/lib/datas";
 import { rotuloCompetencia } from "@/lib/processos/alugueis";
+import { STATUS_COM_PRAZO_CORRENDO } from "@/lib/processos/pendencias";
 import { AlugueisView, type ContratoDeAluguel } from "./alugueis-view";
 
 // Recebimento de aluguéis — os imóveis do grupo alugados a terceiros.
@@ -29,7 +30,10 @@ export default async function AlugueisPage({
       select: { nome: true, marca: { select: { nome: true } } },
     }),
     prisma.contrato.findMany({
-      where: { empresaId: { in: escopo }, categoria: "RECEITA" },
+      // Só contratos com prazo correndo — os mesmos que o detector de atraso
+      // observa. Sem isto, a tela somava em "a receber" o aluguel de contrato
+      // RASCUNHO/ENCERRADO/CANCELADO, e os números não batiam com a Central.
+      where: { empresaId: { in: escopo }, categoria: "RECEITA", status: { in: STATUS_COM_PRAZO_CORRENDO } },
       orderBy: [{ status: "asc" }, { numero: "asc" }],
       select: {
         id: true,
