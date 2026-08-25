@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.115.0",
+    data: "25/08/2026",
+    horario: "08:30",
+    titulo: "Criar usuário já escolhendo o perfil de acesso",
+    itens: [
+      "No cadastro de um usuário novo, agora dá para marcar o perfil de acesso na mesma tela — não precisa mais criar o usuário e depois ir em Perfis atribuir. O papel escolhido já sugere o perfil correspondente; ajuste se quiser.",
+      "Vale também na edição: os perfis do usuário aparecem marcados e você adiciona ou tira ali mesmo.",
+      "Com isso, a área de Usuários fecha o ciclo: cria perfis, cria usuários e conecta os dois sem sair dela.",
+    ],
+  },
+  {
     versao: "1.114.0",
     data: "25/08/2026",
     horario: "07:30",
