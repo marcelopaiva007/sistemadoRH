@@ -2553,6 +2553,21 @@ model Veiculo {
   ufEmplacamento        String?
   // Mudança de município é gatilho de troca de placa; venda não é.
   municipioEmplacamento String?
+  // Cidade-base de operação — de onde o veículo roda. Diferente de
+  // `municipioEmplacamento` (onde está emplacado): na frota da L&M muitos não
+  // estão emplacados mas têm cidade de operação. Importado da coluna CIDADE.
+  cidadeBase            String?
+  // Setor/área a que o veículo serve — texto livre de propósito: na planilha
+  // vem misturado (TECNICA, INFRA, COMERCIAL, mas também papéis e marcas como
+  // CENTRY/VAPT). Vínculo formal com Setor é decisão posterior.
+  setor                 String?
+  // O veículo está emplacado? Declarado à parte da placa: a planilha traz placa
+  // preenchida mesmo em veículo marcado como NÃO emplacado (antiga/provisória).
+  emplacado             Boolean @default(false)
+  // Motorista informado na planilha — TEXTO, pode trazer dois nomes ("A / B").
+  // NÃO substitui o cadastro de Condutor (via AlocacaoVeiculo): é o dado cru
+  // para o RH formalizar a alocação depois.
+  motoristaInformado    String?
 
   // PROPRIO | ALUGADO | COMODATO | LEASING
   propriedade String @default("PROPRIO")
