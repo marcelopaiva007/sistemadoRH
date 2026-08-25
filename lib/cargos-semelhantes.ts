@@ -102,6 +102,8 @@ export function agruparCargosSemelhantes(
   posicoes: {
     id: string;
     nome: string;
+    /** A marca do CNPJ do cargo. É a fronteira da fusão. */
+    marcaId: string;
     colaboradoresCount: number;
     vagasCount: number;
     ativo: boolean;
@@ -116,6 +118,9 @@ export function agruparCargosSemelhantes(
     const radical = extrairRadicalCargo(pos.nome);
 
     const semelhantes = posicoes.filter((outra) => {
+      // Mesma MARCA: fundir atravessando marca é recusado pela guarda
+      // (guarda-unificacao.ts), então o grupo nasce dentro de uma marca só.
+      if (outra.marcaId !== pos.marcaId) return false;
       if (alocados.has(outra.id)) return false;
       const radicalOutra = extrairRadicalCargo(outra.nome);
       if (radical === radicalOutra) return true;
@@ -138,7 +143,7 @@ export function agruparCargosSemelhantes(
       // Sugere o nome mais representativo
       const sugestao = semelhantes[0].nome.trim();
 
-      grupos.set(radical, {
+      grupos.set(`${pos.marcaId}:${radical}`, {
         chaveStem: radical,
         sugestaoNome: sugestao,
         posicoes: semelhantes,

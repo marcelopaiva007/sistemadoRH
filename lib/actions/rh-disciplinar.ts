@@ -20,6 +20,22 @@ export async function criarOcorrenciaDisciplinar(
   const usuario = await requireEmpresaAccess(empresaId);
 
   const colaboradorId = formData.get("colaboradorId") as string;
+
+  // A pessoa É desta empresa? Era a ÚNICA action do RH que gravava na ficha de
+  // um colaborador sem esta conferência — todas as irmãs a fazem
+  // (rh-ausencias.ts, rh-cat.ts, rh-epi.ts, rh-folha.ts, rh-sst.ts), e as
+  // outras três funções deste mesmo arquivo também. Como "use server" é
+  // endpoint público, um POST à mão com o `empresaId` do próprio usuário e o
+  // `colaboradorId` de alguém de OUTRO CNPJ gravava advertência, suspensão e
+  // desconto na ficha dessa pessoa — a chave estrangeira aponta para
+  // Colaborador(id) global, então o insert passava.
+  if (!colaboradorId) return { ok: false, error: "Selecione o colaborador." };
+  const colaborador = await prisma.colaborador.findFirst({
+    where: { id: colaboradorId, empresaId },
+    select: { id: true },
+  });
+  if (!colaborador) return { ok: false, error: "Colaborador não encontrado nesta empresa." };
+
   const tipo = formData.get("tipo") as string;
   const motivo = formData.get("motivo") as string;
   const detalhes = (formData.get("detalhes") as string) || null;

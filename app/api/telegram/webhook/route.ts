@@ -18,6 +18,7 @@
 // updates com resposta != 2xx e isso viraria fila infinita de retries.
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { conferirNascimento, extrairCpfEData } from "@/lib/telegram-identidade";
 import { sendTelegramMessage, telegramWebhookSecret } from "@/lib/telegram";
 import { criarLinkDeAcesso, MINUTOS_VALIDADE_LINK } from "@/lib/portal-auth";
 import { sufixoTelefone } from "@/lib/telefone";
@@ -46,7 +47,8 @@ const MSG_BOAS_VINDAS =
   "Olá! Aqui é o RH. 👋\n\n" +
   "Para vincular seu Telegram ao sistema de RH (e receber as pesquisas por aqui), " +
   "toque no botão \"📱 Compartilhar meu número\" abaixo.\n\n" +
-  "Se o botão não aparecer, envie seu CPF (somente números).";
+  "Se o botão não aparecer, envie seu CPF e sua data de nascimento numa " +
+  "mensagem só (ex.: 12345678900 15/03/1990).";
 const MSG_PORTAL_SEM_VINCULO =
   "Antes de abrir o portal preciso saber quem é você. 🙂\n\n" +
   "Envie /start e toque em \"📱 Compartilhar meu número\".";
@@ -57,9 +59,19 @@ const MSG_PORTAL_INDISPONIVEL =
   "O portal está indisponível no momento. Procure o RH. 🙏";
 const MSG_PEDIR_CPF =
   "Não encontrei seu número no cadastro. 🤔\n\n" +
-  "Envie seu CPF (somente números) para eu localizar você.";
+  "Para confirmar que é você, envie seu CPF e sua data de nascimento numa " +
+  "mensagem só, assim:\n\n12345678900 15/03/1990";
+const MSG_PEDIR_DATA =
+  "Quase lá! Preciso também da sua data de nascimento, para confirmar que é " +
+  "você. Envie CPF e data juntos, assim:\n\n12345678900 15/03/1990";
 const MSG_CPF_NAO_ENCONTRADO =
   "CPF não encontrado no cadastro de colaboradores. Confira os números ou procure o RH.";
+const MSG_DATA_NAO_CONFERE =
+  "A data de nascimento não confere com o cadastro. 🔒\n\n" +
+  "Confira o dia/mês/ano e tente de novo. Se persistir, procure o RH.";
+const MSG_SEM_NASCIMENTO =
+  "Achei seu cadastro, mas ele ainda não tem a data de nascimento para eu " +
+  "confirmar que é você. Procure o RH para completar a ficha e liberar o acesso.";
 
 function digitos(s: string): string {
   return (s || "").replace(/\D/g, "");
@@ -133,6 +145,43 @@ async function vincular(
     );
     return;
   }
+  // A FICHA JÁ TEM OUTRO TELEGRAM: não se toma o lugar de ninguém.
+  //
+  // As guardas acima protegem o CHAT de quem está falando (este Telegram já
+  // pertence a outra ficha?) — nunca protegiam a FICHA de destino. Como CPF não
+  // é segredo (está na ficha, o DP conhece, e o próprio bot pede para digitar),
+  // qualquer pessoa com um Telegram ainda não vinculado podia mandar o CPF de
+  // um colega e SOBRESCREVER o vínculo dele: a partir daí, /portal abria as
+  // férias, os dados e os documentos da vítima — e ela perdia o acesso sem
+  // entender por quê.
+  //
+  // O caso legítimo de mover o chat (transferência de CNPJ, mesma pessoa em
+  // duas fichas) já é tratado acima, no ramo em que os CPFs batem.
+  // A pergunta é sobre o CPF, NÃO sobre esta ficha. `fichaAtivaPorCpf` prefere
+  // de propósito uma ficha SEM chat (é o que destrava a transferência de CNPJ),
+  // então perguntar só `colaborador.telegramChatId` deixava a porta aberta: a
+  // vítima com duas fichas do mesmo CPF (o schema permite — `@@unique([empresaId,
+  // cpf])`) tem a ficha A com o chat dela e a ficha B sem chat; o atacante caía
+  // na B, a guarda não disparava, e o /portal — que busca por chatId — passava a
+  // devolver os dados da vítima.
+  const cpfDigitos = digitos(colaborador.cpf ?? "");
+  const jaVinculadaPeloCpf = cpfDigitos
+    ? await prisma.colaborador.findFirst({
+        where: { cpf: cpfDigitos, telegramChatId: { not: null }, NOT: { telegramChatId: chatId } },
+        select: { id: true },
+      })
+    : null;
+
+  if (jaVinculadaPeloCpf || (colaborador.telegramChatId && colaborador.telegramChatId !== chatId)) {
+    await sendTelegramMessage(
+      chatId,
+      "Esse cadastro já está vinculado a outro Telegram. 🔒\n\n" +
+        "Se a conta for sua e você trocou de aparelho ou de número, procure o RH: " +
+        "eles liberam o vínculo na sua ficha e você refaz o /start por aqui.",
+      REMOVER_TECLADO
+    );
+    return;
+  }
   await prisma.colaborador.update({
     where: { id: colaborador.id },
     data: { telegramChatId: chatId },
@@ -157,10 +206,10 @@ async function vincular(
 async function fichaAtivaPorCpf(
   cpf: string,
   chatId: string
-): Promise<{ id: string; nome: string; cpf: string | null; telegramChatId: string | null } | null> {
+): Promise<{ id: string; nome: string; cpf: string | null; telegramChatId: string | null; dataNascimento: Date | null } | null> {
   const fichas = await prisma.colaborador.findMany({
     where: { cpf, ativo: true },
-    select: { id: true, nome: true, cpf: true, telegramChatId: true },
+    select: { id: true, nome: true, cpf: true, telegramChatId: true, dataNascimento: true },
     orderBy: { createdAt: "asc" },
   });
   return (
@@ -302,19 +351,33 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    // 4) CPF digitado.
-    const cpf = digitos(texto);
+    // 4) CPF (+ data de nascimento) digitado.
+    const { cpf, data } = extrairCpfEData(texto, digitos);
     if (cpf.length === 11) {
       // A preferência determinística vive em fichaAtivaPorCpf — o findFirst
       // sem ordenação escolhia uma ficha imprevisível, e podia escolher
       // exatamente a que NÃO tinha o chat, transformando a própria pessoa em
       // "outro colaborador".
       const colaborador = await fichaAtivaPorCpf(cpf, chatId);
-      if (colaborador) {
-        await vincular(chatId, colaborador);
-      } else {
+      if (!colaborador) {
         await sendTelegramMessage(chatId, MSG_CPF_NAO_ENCONTRADO);
+        return NextResponse.json({ ok: true });
       }
+      // Segundo fator: a data de nascimento. É o que impede quem só sabe o CPF
+      // do colega (que não é segredo) de assumir o portal dele.
+      if (!data) {
+        await sendTelegramMessage(chatId, MSG_PEDIR_DATA);
+        return NextResponse.json({ ok: true });
+      }
+      if (!colaborador.dataNascimento) {
+        await sendTelegramMessage(chatId, MSG_SEM_NASCIMENTO);
+        return NextResponse.json({ ok: true });
+      }
+      if (!conferirNascimento(colaborador.dataNascimento, data)) {
+        await sendTelegramMessage(chatId, MSG_DATA_NAO_CONFERE);
+        return NextResponse.json({ ok: true });
+      }
+      await vincular(chatId, colaborador);
       return NextResponse.json({ ok: true });
     }
 

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireRHAccess } from "@/lib/rh-auth-guard";
+import { requireAdmin } from "@/lib/auth-guard";
 import { registrarAuditoria } from "@/lib/audit";
 import { violouUnique } from "@/lib/prisma-erros";
 import { apenasDigitosCnpj, cnpjValido, ufValida } from "@/lib/cnpj";
@@ -74,8 +75,12 @@ function lerCorPrimaria(fd: FormData): { ok: true; cor: string | null } | { ok: 
   return { ok: true, cor: bruto.toUpperCase() };
 }
 
+// Marca é a MÃE de Empresa e mora na mesma tela: deixá-la em `requireRHAccess`
+// (que aceita os quatro papéis, GESTOR_SETOR incluso) manteria aberto o mesmo
+// buraco que fechamos no CNPJ — renomear marca, trocar cor e logo do grupo
+// inteiro, e criar a marca para onde puxar um CNPJ depois.
 export async function criarMarca(_prev: ActionResult, fd: FormData): Promise<ActionResult> {
-  await requireRHAccess();
+  await requireAdmin();
 
   const nome = texto(fd, "nome");
   if (!nome) return { ok: false, error: "Informe o nome da marca." };
@@ -119,7 +124,7 @@ export async function editarMarca(
   _prev: ActionResult,
   fd: FormData,
 ): Promise<ActionResult> {
-  await requireRHAccess();
+  await requireAdmin();
 
   const nome = texto(fd, "nome");
   if (!nome) return { ok: false, error: "Informe o nome da marca." };
@@ -215,12 +220,21 @@ function erroDeUnicidade(e: unknown, cnpj: string | null, nome: string): string 
   return null;
 }
 
+// CNPJ é do ADMIN, e só. `requireRHAccess()` aceitava os QUATRO papéis
+// (inclusive GESTOR_SETOR, o mais restrito) e não conferia alcance nenhum — as
+// mesmas operações em lib/actions/rh-empresas.ts sempre exigiram `requireAdmin`,
+// e a tela de Papéis documenta ADMIN como "único papel que cria/exclui Empresa
+// (CNPJ)". Esta segunda implementação furava o invariante: um RH_MANAGER de uma
+// marca podia mover o CNPJ de OUTRA marca para a sua com `editarEmpresa` e, no
+// request seguinte, `empresasDasMarcasDoUsuario` (que resolve no banco a cada
+// request) passava a devolver aquele CNPJ — leitura e escrita sobre fichas,
+// folha e disciplinar de uma empresa inteira, sem ninguém ter concedido nada.
 export async function criarEmpresa(
   marcaId: string,
   _prev: ActionResult,
   fd: FormData,
 ): Promise<ActionResult> {
-  await requireRHAccess();
+  await requireAdmin();
 
   const lido = lerDadosDaEmpresa(fd);
   if (!lido.ok) return { ok: false, error: lido.erro };
@@ -230,6 +244,7 @@ export async function criarEmpresa(
       data: { ...lido.dados, marcaId },
     });
     await registrarAuditoria({
+      empresaId: empresa.id,
       acao: "CRIAR",
       entidade: "Empresa",
       entidadeId: empresa.id,
@@ -246,7 +261,7 @@ export async function criarEmpresa(
 }
 
 export async function excluirEmpresa(empresaId: string): Promise<ActionResult> {
-  await requireRHAccess();
+  await requireAdmin();
 
   const count = await prisma.colaborador.count({ where: { empresaId } });
   if (count > 0) {
@@ -258,6 +273,7 @@ export async function excluirEmpresa(empresaId: string): Promise<ActionResult> {
 
   const empresa = await prisma.empresa.delete({ where: { id: empresaId } });
   await registrarAuditoria({
+    empresaId,
     acao: "EXCLUIR",
     entidade: "Empresa",
     entidadeId: empresaId,
@@ -272,7 +288,7 @@ export async function editarEmpresa(
   _prev: ActionResult,
   fd: FormData,
 ): Promise<ActionResult> {
-  await requireRHAccess();
+  await requireAdmin();
 
   const lido = lerDadosDaEmpresa(fd);
   if (!lido.ok) return { ok: false, error: lido.erro };
@@ -280,16 +296,39 @@ export async function editarEmpresa(
   const marcaId = texto(fd, "marcaId");
   if (!marcaId) return { ok: false, error: "Informe a marca." };
 
+  // O estado ANTERIOR, para a trilha registrar as duas mudanças que não se veem
+  // no nome: trocar o CNPJ de marca (o caminho da escalada de acesso) e
+  // desativá-lo (some das telas consolidadas sem erro nenhum). O resumo antigo
+  // era só `Empresa "<nome>" alterada` — dizia que algo mudou, nunca o quê.
+  const antes = await prisma.empresa.findUnique({
+    where: { id: empresaId },
+    select: { marcaId: true, ativo: true },
+  });
+  const ativo = fd.get("ativo") === "true";
+
   try {
     await prisma.empresa.update({
       where: { id: empresaId },
-      data: { ...lido.dados, marcaId, ativo: fd.get("ativo") === "true" },
+      data: { ...lido.dados, marcaId, ativo },
     });
+    const mudouMarca = antes && antes.marcaId !== marcaId;
+    const mudouAtivo = antes && antes.ativo !== ativo;
     await registrarAuditoria({
+      // COM empresaId: a tela de Auditoria filtra por ele, e sem o campo o
+      // registro nascia com `null` e não aparecia em lugar nenhum — trilha que
+      // ninguém vê é o mesmo que trilha nenhuma.
+      empresaId,
       acao: "ATUALIZAR",
       entidade: "Empresa",
       entidadeId: empresaId,
-      resumo: `Empresa "${lido.dados.nome}" alterada`,
+      resumo:
+        `Empresa "${lido.dados.nome}" alterada` +
+        (mudouMarca ? " — TROCOU DE MARCA" : "") +
+        (mudouAtivo ? (ativo ? " — REATIVADA" : " — DESATIVADA") : ""),
+      detalhes: {
+        ...(mudouMarca ? { marcaAnterior: antes.marcaId, marcaNova: marcaId } : {}),
+        ...(mudouAtivo ? { ativoAnterior: antes.ativo, ativoNovo: ativo } : {}),
+      },
     });
   } catch (e) {
     const msg = erroDeUnicidade(e, lido.dados.cnpj, lido.dados.nome);
