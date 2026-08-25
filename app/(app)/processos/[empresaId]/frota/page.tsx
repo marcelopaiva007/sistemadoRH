@@ -38,6 +38,13 @@ export default async function VeiculosPage({
         marca: true,
         modelo: true,
         anoModelo: true,
+        anoFab: true,
+        chassi: true,
+        hodometroAtual: true,
+        cidadeBase: true,
+        setor: true,
+        emplacado: true,
+        motoristaInformado: true,
         ufEmplacamento: true,
         propriedade: true,
         motorizacao: true,
@@ -92,6 +99,14 @@ export default async function VeiculosPage({
       marca: v.marca,
       modelo: v.modelo,
       anoModelo: v.anoModelo,
+      anoFab: v.anoFab,
+      chassi: v.chassi,
+      hodometroAtual: v.hodometroAtual,
+      cidadeBase: v.cidadeBase,
+      setor: v.setor,
+      emplacado: v.emplacado,
+      motoristaInformado: v.motoristaInformado,
+      empresaId: v.empresaId,
       ufEmplacamento: v.ufEmplacamento,
       propriedade: v.propriedade,
       motorizacao: v.motorizacao,
@@ -123,6 +138,7 @@ export default async function VeiculosPage({
         empresaId={empresaId}
         veiculos={naTela}
         condutores={condutores.map((c) => ({ id: c.id, nome: c.colaborador.nome }))}
+        empresas={empresas}
       />
     </div>
   );

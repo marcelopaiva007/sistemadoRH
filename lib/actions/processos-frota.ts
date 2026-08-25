@@ -65,6 +65,13 @@ export async function salvarVeiculo(input: {
   recallPendente?: boolean;
   hodometroAtual?: number | null;
   observacoes?: string | null;
+  cidadeBase?: string | null;
+  setor?: string | null;
+  emplacado?: boolean;
+  motoristaInformado?: string | null;
+  /** Só na edição: mover o veículo para outro CNPJ que o usuário alcança — é
+   *  como o RH tira da empresa provisória "A DEFINIR" da importação da frota. */
+  empresaDestinoId?: string | null;
 }): Promise<ActionResult & { id?: string }> {
   const usuario = await requireProcessosEmpresa(input.empresaId);
 
@@ -72,18 +79,34 @@ export async function salvarVeiculo(input: {
   // puro aceitaria o id de um veículo de empresa que ele nem enxerga (IDOR).
   // E o veículo FICA na empresa dele: a tela é consolidada, então editar um
   // carro da empresa B estando na URL da empresa A não pode mudá-lo de dono.
-  let existente: { id: string; empresaId: string; aderidoSne: boolean; dataAdesaoSne: Date | null } | null = null;
+  let existente:
+    | { id: string; empresaId: string; placa: string; aderidoSne: boolean; dataAdesaoSne: Date | null }
+    | null = null;
+  // O CNPJ de destino, quando o usuário move o veículo na edição. Só vale para
+  // um CNPJ que ele alcança — nunca da URL, e por escolha explícita.
+  let empresaDestino: string | null = null;
   if (input.id) {
     const visiveis = await empresasVisiveis(usuario);
     existente = await prisma.veiculo.findFirst({
       where: { id: input.id, empresaId: { in: visiveis } },
-      select: { id: true, empresaId: true, aderidoSne: true, dataAdesaoSne: true },
+      select: { id: true, empresaId: true, placa: true, aderidoSne: true, dataAdesaoSne: true },
     });
     if (!existente) return { ok: false, error: "Veículo não encontrado no seu acesso." };
+    if (input.empresaDestinoId && input.empresaDestinoId !== existente.empresaId) {
+      if (!visiveis.includes(input.empresaDestinoId)) {
+        return { ok: false, error: "Empresa de destino fora do seu acesso." };
+      }
+      empresaDestino = input.empresaDestinoId;
+    }
   }
 
   const placa = normalizarPlaca(input.placa);
-  if (!placaValida(placa)) {
+  // Na edição, placa INALTERADA não passa pela validação de formato: a frota
+  // importada tem placas provisórias (SEMPLACA-01) e legadas fora do padrão, e
+  // travar aqui impediria o RH de completar renavam/chassi desses veículos. Só
+  // valida quando a placa é nova ou foi trocada — a hora de exigir o formato.
+  const placaMudou = !existente || existente.placa !== placa;
+  if (placaMudou && !placaValida(placa)) {
     return { ok: false, error: "Placa inválida. Use o formato ABC1234 ou ABC1D23." };
   }
 
@@ -113,8 +136,10 @@ export async function salvarVeiculo(input: {
   }
 
   const dados = {
-    // Criando, o dono é o CNPJ da tela; editando, o carro fica onde está.
-    empresaId: existente?.empresaId ?? input.empresaId,
+    // Criando, o dono é o CNPJ da tela; editando, o carro fica onde está —
+    // exceto quando o usuário escolhe MOVER (empresaDestino), que é como se
+    // tira da empresa provisória "A DEFINIR" da importação.
+    empresaId: empresaDestino ?? existente?.empresaId ?? input.empresaId,
     placa,
     renavam: (input.renavam ?? "").replace(/\D/g, "") || null,
     chassi: (input.chassi ?? "").trim().toUpperCase() || null,
@@ -132,6 +157,10 @@ export async function salvarVeiculo(input: {
     recallPendente: input.recallPendente ?? false,
     hodometroAtual: input.hodometroAtual ?? null,
     observacoes: (input.observacoes ?? "").trim().slice(0, 1000) || null,
+    cidadeBase: (input.cidadeBase ?? "").trim() || null,
+    setor: (input.setor ?? "").trim() || null,
+    emplacado: input.emplacado ?? false,
+    motoristaInformado: (input.motoristaInformado ?? "").trim() || null,
   };
 
   const veiculo = input.id
@@ -145,7 +174,10 @@ export async function salvarVeiculo(input: {
     acao: input.id ? "ATUALIZAR" : "CRIAR",
     entidade: "Veiculo",
     entidadeId: veiculo.id,
-    resumo: `${input.id ? "Editou" : "Cadastrou"} o veículo ${formatarPlaca(placa)}`,
+    resumo:
+      `${input.id ? "Editou" : "Cadastrou"} o veículo ${formatarPlaca(placa)}` +
+      (empresaDestino ? " — MOVIDO de empresa" : ""),
+    detalhes: empresaDestino ? { empresaAnterior: existente?.empresaId, empresaNova: empresaDestino } : undefined,
   });
 
   revalidatePath(caminho(input.empresaId));

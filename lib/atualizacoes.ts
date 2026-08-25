@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.116.0",
+    data: "25/08/2026",
+    horario: "22:30",
+    titulo: "Cadastro de veículo: todos os campos da frota",
+    itens: [
+      "O cadastro de veículo passa a ter todos os campos da planilha da frota: ano de fabricação, quilometragem, Renavam, chassi, cidade-base, setor, se está emplacado, e o motorista informado — além dos que já tinha.",
+      "Na edição, dá para trocar a empresa (CNPJ) dona do veículo — é assim que se tira um carro da empresa provisória \"A definir\" da importação em lote e coloca no CNPJ certo.",
+      "Veículo com placa provisória ou fora do padrão pode ser editado sem travar: a validação de placa só cobra o formato quando você troca a placa, não quando mantém a que veio da importação.",
+    ],
+  },
+  {
     versao: "1.115.1",
     data: "25/08/2026",
     horario: "10:00",
