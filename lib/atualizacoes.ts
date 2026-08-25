@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.118.0",
+    data: "25/08/2026",
+    horario: "23:30",
+    titulo: "Panorama da frota: o retrato consolidado dos carros",
+    itens: [
+      "Nova tela Frota › Panorama para diretoria e gerência: quantos veículos há em circulação, de que tipo, com que motorização e propriedade, onde ficam lotados (cidade-base e setor) e que idade têm — tudo consolidado no escopo de empresas/marcas selecionado na barra.",
+      "Mostra a saúde do cadastro num olhar: quantos veículos estão com cadastro incompleto, quantos não estão emplacados e exatamente quais campos essenciais faltam na frota — com atalho para cobrar na Central de Pendências.",
+      "Quando a frota está espalhada em vários CNPJs, uma tabela por empresa mostra onde cada veículo está — é aí que a frota importada em lote sob a empresa provisória \"A definir\" aparece esperando ser atribuída ao CNPJ certo.",
+    ],
+  },
+  {
     versao: "1.117.0",
     data: "25/08/2026",
     horario: "22:30",
