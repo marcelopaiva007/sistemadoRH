@@ -26,6 +26,18 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.112.0",
+    data: "24/08/2026",
+    horario: "13:30",
+    titulo: "Correções de segurança: acesso a CNPJ, ficha disciplinar, unificação e bot",
+    itens: [
+      "Criar, editar e excluir CNPJ (e marca) passa a ser exclusivo do Administrador — antes qualquer papel de RH conseguia, e podia mover um CNPJ de marca para ganhar acesso a uma empresa inteira. A tela agora esconde esses botões de quem não é Admin.",
+      "Registrar advertência/suspensão na ficha de um colaborador agora confere que a pessoa é da empresa certa — antes dava para gravar na ficha de alguém de outro CNPJ.",
+      "Unificar setores ou cargos parecidos passa a respeitar a marca: não dá mais para, num clique, fundir setores de marcas diferentes e misturar colaboradores. E toda unificação passa a deixar registro na Auditoria.",
+      "Bot do Telegram: para se vincular pela primeira vez com o CPF, agora é preciso informar também a data de nascimento — impede que alguém que saiba só o CPF de um colega assuma o portal dele. Quem compartilha o contato pelo botão continua igual.",
+    ],
+  },
+  {
     versao: "1.111.3",
     data: "24/08/2026",
     horario: "03:05",
