@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth-guard";
 import { usuarioAlcancaEmpresa } from "@/lib/rh-auth-guard";
+import { sistemasPermitidos } from "@/lib/permissoes/efetivas";
 
 /**
  * Guarda do módulo Processos & Ativos.
@@ -30,6 +31,10 @@ export async function requireProcessosAccess() {
   if (!PAPEIS_DO_MODULO.includes(user.role as (typeof PAPEIS_DO_MODULO)[number])) {
     redirect(user.role === "GESTOR_SETOR" ? "/rh/meu-setor" : "/");
   }
+  // Onda 2b: enforcement de módulo. Perfil "só RH" não entra em /processos nem
+  // por URL direta — vai para /rh. Usuário sem perfil cai no papel (fallback).
+  const sistemas = await sistemasPermitidos(user);
+  if (!sistemas.includes("processos")) redirect(sistemas.includes("rh") ? "/rh" : "/");
   return user;
 }
 

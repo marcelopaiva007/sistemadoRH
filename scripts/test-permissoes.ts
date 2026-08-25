@@ -125,5 +125,25 @@ console.log("\nMatriz — grants viram estado e voltam sem perder nem inventar a
   ok(soVer.exatas.has("rh:folha:ver") && !soVer.exatas.has("rh:folha:editar"), "só 'ver' marcado deixa 'editar' desmarcado");
 }
 
+console.log("\nEnforcement de módulo — quem alcança o quê pelos grants\n");
+{
+  // A guarda usa sistemasDosGrants para decidir acesso ao módulo. Cada
+  // perfil-semente tem que alcançar exatamente os sistemas que o papel via.
+  const alcanca = (grants: string[], slug: string) => sistemasDosGrants(grants).includes(slug);
+
+  const admin = PERFIS_SEMENTE.find((p) => p.papelDeOrigem === "ADMIN")!.grants;
+  ok(alcanca(admin, "rh") && alcanca(admin, "processos"), "Administrador alcança os dois sistemas");
+
+  const rh = PERFIS_SEMENTE.find((p) => p.papelDeOrigem === "RH_MANAGER")!.grants;
+  ok(alcanca(rh, "rh") && alcanca(rh, "processos"), "Gestor de RH alcança os dois (como hoje)");
+
+  // Um perfil "só RH" (o que o CEO quer poder criar) NÃO alcança processos.
+  ok(alcanca(["rh:*"], "rh") && !alcanca(["rh:*"], "processos"), "perfil só-RH não alcança Processos");
+  // E um "só Processos".
+  ok(!alcanca(["processos:*"], "rh") && alcanca(["processos:*"], "processos"), "perfil só-Processos não alcança RH");
+  // Uma permissão exata de leitura já dá acesso ao módulo (o seletor mostra).
+  ok(alcanca(["rh:time:ver"], "rh"), "uma permissão de RH já faz alcançar o sistema RH");
+}
+
 console.log(`\n${falhas === 0 ? "✅ tudo certo" : `❌ ${falhas} falha(s)`}\n`);
 process.exit(falhas === 0 ? 0 : 1);
