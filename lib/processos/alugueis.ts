@@ -25,7 +25,10 @@ export function competenciasDoContrato(
   dataFim: Date | null,
   horizonte: Date,
 ): Date[] {
-  const fim = dataFim && dataFim < horizonte ? dataFim : horizonte;
+  // Contrato COM fim gera o termo inteiro — uma locação de 5 anos precisa das
+  // 60 parcelas agora, não 12. O horizonte só serve ao contrato SEM fim
+  // (indeterminado), que não tem um fim natural para parar.
+  const fim = dataFim ?? horizonte;
   const primeira = dia1DoMes(dataInicio);
   const ultima = dia1DoMes(fim);
   const saida: Date[] = [];

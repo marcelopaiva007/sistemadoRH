@@ -36,6 +36,8 @@ export type ContratoDeAluguel = {
   status: string;
   inquilino: string;
   valorMensal: number | null;
+  diaVencimentoSugerido: number | null;
+  podeEstender: boolean;
   parcelas: Parcela[];
 };
 
@@ -206,7 +208,7 @@ export function AlugueisView({ empresaId, contratos }: { empresaId: string; cont
                   {c.empresaNome && <span className="ml-2 text-xs">· {c.empresaNome}</span>}
                 </p>
               </div>
-              {c.parcelas.length === 0 && (
+              {(c.parcelas.length === 0 || c.podeEstender) && (
                 <div className="flex items-end gap-2">
                   <label className="text-xs text-muted-foreground">
                     Dia do vencimento
@@ -214,12 +216,14 @@ export function AlugueisView({ empresaId, contratos }: { empresaId: string; cont
                       type="number"
                       min={1}
                       max={31}
-                      value={diaVenc[c.id] ?? ""}
+                      value={diaVenc[c.id] ?? (c.diaVencimentoSugerido ? String(c.diaVencimentoSugerido) : "")}
                       onChange={(e) => setDiaVenc((d) => ({ ...d, [c.id]: e.target.value }))}
                       className={cn(CAMPO, "w-28")}
                     />
                   </label>
-                  <Button size="sm" disabled={pendente} onClick={() => gerar(c)}>Gerar parcelas</Button>
+                  <Button size="sm" variant={c.parcelas.length === 0 ? "default" : "outline"} disabled={pendente} onClick={() => gerar(c)}>
+                    {c.parcelas.length === 0 ? "Gerar parcelas" : "Estender parcelas"}
+                  </Button>
                 </div>
               )}
             </div>

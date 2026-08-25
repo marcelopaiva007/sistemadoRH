@@ -30,6 +30,11 @@ console.log("\nCompetências de um contrato\n");
   // Um mês só.
   const um = competenciasDoContrato(dataUTC(2026, 5, 1), dataUTC(2026, 5, 20), dataUTC(2030, 1, 1));
   igual(um.length, 1, "contrato dentro de um mês gera uma parcela");
+
+  // Contrato COM fim gera o termo inteiro, mesmo além do horizonte — locação
+  // de 5 anos = 60 parcelas, não 12 (era o furo que a revisão pegou).
+  const cinco = competenciasDoContrato(dataUTC(2026, 1, 1), dataUTC(2030, 12, 1), dataUTC(2026, 12, 1));
+  igual(cinco.length, 60, "contrato de 5 anos gera 60 parcelas, o horizonte não corta o que tem fim");
 }
 
 console.log("\nVencimento da competência\n");

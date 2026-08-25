@@ -620,7 +620,15 @@ async function reajustesDevidos(empresaIds: string[]): Promise<Candidata[]> {
 async function alugueisEmAtraso(empresaIds: string[]): Promise<Candidata[]> {
   const hoje = hojeUTC();
   const atrasadas = await prisma.recebimentoAluguel.findMany({
-    where: { empresaId: { in: empresaIds }, recebidoEm: null, vencimento: { lt: hoje } },
+    // Só de contrato com prazo correndo: aluguel de contrato CANCELADO/ENCERRADO
+    // não some das parcelas em aberto, mas não deve virar pendência-fantasma
+    // permanente — o auto-resolve fecha sozinho quando o contrato é encerrado.
+    where: {
+      empresaId: { in: empresaIds },
+      recebidoEm: null,
+      vencimento: { lt: hoje },
+      contrato: { status: { in: STATUS_COM_PRAZO_CORRENDO } },
+    },
     orderBy: { vencimento: "asc" },
     select: {
       empresaId: true,
@@ -652,6 +660,12 @@ async function alugueisEmAtraso(empresaIds: string[]): Promise<Candidata[]> {
         `${a.contrato.titulo}. ${qtd} parcela(s) em aberto, a mais antiga vencida em ` +
         `${formatarData(a.vencimento)}.`,
       venceEm: a.vencimento,
+      // O mês da parcela mais antiga em atraso. Sem isto, uma dispensa (ex.:
+      // "acordo de parcelamento") silenciaria o alerta de atraso deste contrato
+      // PARA SEMPRE — DISPENSADA é intocável de propósito. Com o ciclo, a
+      // dispensa vale só para aquela competência; quando ela é quitada e outro
+      // mês atrasa, a chave muda e o alerta volta.
+      ciclo: cicloDe(a.vencimento),
     };
   });
 }

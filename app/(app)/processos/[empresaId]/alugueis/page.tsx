@@ -38,6 +38,8 @@ export default async function AlugueisPage({
         titulo: true,
         status: true,
         valorMensal: true,
+        indeterminado: true,
+        dataFim: true,
         contraparte: { select: { razaoSocial: true } },
         recebimentos: {
           orderBy: { competencia: "asc" },
@@ -49,6 +51,7 @@ export default async function AlugueisPage({
             recebidoEm: true,
             valorRecebido: true,
           },
+          take: 600,
         },
       },
     }),
@@ -68,6 +71,16 @@ export default async function AlugueisPage({
     status: c.status,
     inquilino: c.contraparte.razaoSocial,
     valorMensal: c.valorMensal,
+    // O dia de vencimento a sugerir para estender: o MAIOR dia visto nas
+    // parcelas (recupera a intenção mesmo que um mês curto tenha grampeado
+    // para 28/30). Vazio quando ainda não há parcela.
+    diaVencimentoSugerido:
+      c.recebimentos.length > 0
+        ? Math.max(...c.recebimentos.map((r) => r.vencimento.getUTCDate()))
+        : null,
+    // Só o indeterminado precisa ser estendido; o de prazo fixo já nasce
+    // inteiro. A tela usa isto para saber quando oferecer "estender".
+    podeEstender: c.indeterminado || c.dataFim === null,
     parcelas: c.recebimentos.map((r) => ({
       id: r.id,
       competencia: rotuloCompetencia(r.competencia),
