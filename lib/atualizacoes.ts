@@ -26,7 +26,7 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
-    versao: "1.116.0",
+    versao: "1.117.0",
     data: "25/08/2026",
     horario: "22:30",
     titulo: "Cadastro de veículo: todos os campos da frota",
@@ -34,6 +34,17 @@ export const ATUALIZACOES: Atualizacao[] = [
       "O cadastro de veículo passa a ter todos os campos da planilha da frota: ano de fabricação, quilometragem, Renavam, chassi, cidade-base, setor, se está emplacado, e o motorista informado — além dos que já tinha.",
       "Na edição, dá para trocar a empresa (CNPJ) dona do veículo — é assim que se tira um carro da empresa provisória \"A definir\" da importação em lote e coloca no CNPJ certo.",
       "Veículo com placa provisória ou fora do padrão pode ser editado sem travar: a validação de placa só cobra o formato quando você troca a placa, não quando mantém a que veio da importação.",
+    ],
+  },
+  {
+    versao: "1.116.0",
+    data: "25/08/2026",
+    horario: "20:00",
+    titulo: "Central de Pendências: veículo com cadastro incompleto",
+    itens: [
+      "Todo veículo em circulação a que falte um dos campos essenciais — Renavam, chassi, marca, modelo, ano de fabricação ou UF de emplacamento — passa a aparecer na Central de Pendências dizendo exatamente o que completar.",
+      "A cobrança escala com o tempo: o veículo nasce com 30 dias de prazo a partir do cadastro (aparece como atenção), e vai ficando mais urgente se ninguém completa. Completou os campos, some da lista.",
+      "Serve para a frota importada em lote (o que vier sem dado cai aqui) e para qualquer veículo cadastrado à mão. Veículo vendido ou baixado não entra — só o que está rodando.",
     ],
   },
   {

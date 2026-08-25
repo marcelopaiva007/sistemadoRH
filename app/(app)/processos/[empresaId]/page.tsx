@@ -48,6 +48,8 @@ function acaoDe(
       return { href: `${base}/frota`, rotulo: "Abrir veículo" };
     case "MANUTENCAO_PROGRAMADA":
       return { href: `${base}/frota/manutencoes`, rotulo: "Agendar revisão" };
+    case "CADASTRO_INCOMPLETO":
+      return { href: `${base}/frota`, rotulo: "Completar cadastro" };
     // `status=TODOS` não é enfeite: a lista de Contratos abre filtrada em
     // "Vigente", e os três detectores também acham contrato EM_RENOVACAO e
     // SUSPENSO. Sem o parâmetro, clicar no alerta levava a uma tela onde o
