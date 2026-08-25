@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.114.0",
+    data: "25/08/2026",
+    horario: "07:30",
+    titulo: "Controle de acesso: o sistema passa a OBEDECER os perfis (por sistema)",
+    itens: [
+      "A partir de agora, o acesso a cada sistema (Pessoas/RH e Processos & Ativos) segue o perfil da pessoa, não mais o cargo dela. Um perfil só de RH deixa de entrar em Processos — inclusive pela URL direta —, e vice-versa; a barra de topo mostra só os sistemas que a pessoa tem.",
+      "Ninguém perde acesso na virada: os perfis padrão já concedem os dois sistemas a quem tinha, e quem porventura ainda não tiver perfil continua pelo cargo, como antes. A partir daqui, para deixar alguém 'só no RH', é editar o perfil dele em Usuários › Perfis de acesso.",
+      "A permissão fina por TELA (ver/editar cada área) já é configurável na tela de perfis; o sistema obedecê-la tela a tela é o próximo passo — por ora ela organiza e planeja o acesso.",
+    ],
+  },
+  {
     versao: "1.113.0",
     data: "25/08/2026",
     horario: "05:00",

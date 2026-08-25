@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { moduloDoCaminho, modulosDoPapel, type Modulo } from "@/components/modulos";
+import { MODULOS, moduloDoCaminho, type Modulo } from "@/components/modulos";
 import { PARAM } from "@/app/(app)/rh/[empresaId]/filtro-empresas";
 
 /**
@@ -29,10 +29,14 @@ import { PARAM } from "@/app/(app)/rh/[empresaId]/filtro-empresas";
  * v1.105.0.
  */
 export function SeletorModulo({
-  papel,
+  sistemasPermitidos,
   empresaIds,
 }: {
-  papel: string;
+  /** Slugs dos sistemas que ESTE usuário alcança — vem do servidor
+   *  (`sistemasPermitidos`), já com o fallback de papel para quem não tem
+   *  perfil. Substitui `modulosDoPapel`: a barra mostra o que a pessoa
+   *  RECEBEU, e a guarda de módulo bloqueia o resto. */
+  sistemasPermitidos: string[];
   /** Ids que este usuário enxerga — a mesma lista que alimenta o seletor de
    *  marca/CNPJ. Serve para reconhecer o CNPJ no caminho SEM adivinhar pelo
    *  formato do segmento: `/rh/meu-setor` e `/rh/empresas` também casam com
@@ -44,7 +48,7 @@ export function SeletorModulo({
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const modulos = modulosDoPapel(papel);
+  const modulos = MODULOS.filter((m) => sistemasPermitidos.includes(m.slug));
   const moduloAtual = moduloDoCaminho(pathname);
 
   // Um módulo só (ou nenhum): não há troca a oferecer, então é rótulo, não

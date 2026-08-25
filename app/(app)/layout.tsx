@@ -1,5 +1,6 @@
 import { requireUser } from "@/lib/auth-guard";
 import { empresasVisiveis } from "@/lib/rh-auth-guard";
+import { sistemasPermitidos } from "@/lib/permissoes/efetivas";
 import { prisma } from "@/lib/prisma";
 import { AppTopbar } from "@/components/app-topbar";
 import { Providers } from "@/app/providers";
@@ -13,6 +14,7 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   const user = await requireUser();
+  const sistemas = await sistemasPermitidos(user);
 
   // GESTOR_SETOR não navega em /rh/[empresaId] (vai direto para
   // /rh/meu-setor, sem escopo de empresa) — poupa a consulta e o seletor do
@@ -43,6 +45,7 @@ export default async function AppLayout({
           versao={versaoDoSistema().rotulo}
           marcas={marcas}
           empresas={empresas}
+          sistemasPermitidos={sistemas}
         />
         <main className="flex-1 overflow-x-hidden p-6">{children}</main>
       </div>

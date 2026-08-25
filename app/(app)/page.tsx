@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Briefcase, Building2, CheckCircle2, CircleDashed, Rocket, Users } from "lucide-react";
 import { requireUser } from "@/lib/auth-guard";
+import { sistemasPermitidos } from "@/lib/permissoes/efetivas";
 import { prisma } from "@/lib/prisma";
 import {
   pendenciasPorEmpresa,
@@ -27,6 +28,14 @@ import { PendenciasIndicador } from "./pendencias-indicador";
 export default async function HomePage() {
   const user = await requireUser();
   if (user.role === "GESTOR_SETOR") redirect("/rh/meu-setor");
+
+  // Esta home é o painel de GRUPO do RH (colaboradores, pendências, folha).
+  // Quem tem um perfil "só Processos" não pode vê-la: vai para o sistema dele.
+  // Destino nunca é "/" (seria loop) nem depende do módulo — /conta é sempre
+  // acessível. Sem perfil, o fallback de papel dá os dois sistemas, então isto
+  // não muda nada para ninguém logado hoje.
+  const sistemas = await sistemasPermitidos(user);
+  if (!sistemas.includes("rh")) redirect(sistemas.includes("processos") ? "/processos" : "/conta");
 
   // RH_MANAGER: buscar apenas as empresas vinculadas a ele
   // ADMIN/DIRETORIA: buscar todas as empresas ativas

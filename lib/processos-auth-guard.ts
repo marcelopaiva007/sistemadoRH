@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth-guard";
 import { usuarioAlcancaEmpresa } from "@/lib/rh-auth-guard";
+import { sistemasPermitidos } from "@/lib/permissoes/efetivas";
 
 /**
  * Guarda do módulo Processos & Ativos.
@@ -27,9 +28,20 @@ const PAPEIS_DO_MODULO = ["ADMIN", "DIRETORIA", "RH_MANAGER"] as const;
 
 export async function requireProcessosAccess() {
   const user = await requireUser();
+  // O portão por PAPEL fica ANTES do de sistema DE PROPÓSITO: GESTOR_SETOR não
+  // entra em Processos nem com um perfil que conceda `processos:*`. Não é
+  // esquecimento — /processos é escopado por empresa e a navegação (seletor de
+  // módulo/empresa) não foi desenhada para o gestor de setor, cuja tela é uma
+  // só (/rh/meu-setor). Dar-lhe Processos por perfil não teria UX; se um dia
+  // tiver, é aqui que o portão por papel sai. Para os papéis de escritório
+  // (ADMIN/DIRETORIA/RH_MANAGER), quem manda é o perfil, no check abaixo.
   if (!PAPEIS_DO_MODULO.includes(user.role as (typeof PAPEIS_DO_MODULO)[number])) {
     redirect(user.role === "GESTOR_SETOR" ? "/rh/meu-setor" : "/");
   }
+  // Onda 2b: enforcement de módulo. Perfil "só RH" não entra em /processos nem
+  // por URL direta — vai para /rh. Usuário sem perfil cai no papel (fallback).
+  const sistemas = await sistemasPermitidos(user);
+  if (!sistemas.includes("processos")) redirect(sistemas.includes("rh") ? "/rh" : "/");
   return user;
 }
 

@@ -74,6 +74,7 @@ export function AppTopbar({
   versao,
   marcas,
   empresas,
+  sistemasPermitidos,
 }: {
   role: string;
   nome: string;
@@ -83,6 +84,8 @@ export function AppTopbar({
    *  em `/rh/[empresaId]` (GESTOR_SETOR). Alimenta o seletor do topo. */
   marcas: { id: string; nome: string; corPrimaria: string | null }[];
   empresas: { id: string; nome: string; marcaId: string }[];
+  /** Os sistemas que este usuário alcança — decide o que a barra mostra. */
+  sistemasPermitidos: string[];
 }) {
   const pathname = usePathname();
   const items = navByRole[role] ?? diretoriaNav;
@@ -115,7 +118,7 @@ export function AppTopbar({
               ja respondia "onde eu estou", e e ali que quem procura a saida
               olha primeiro. A etiqueta de versao continua dentro dele — ela
               responde "estou vendo a versao nova?" sem sair da tela. */}
-          <SeletorModulo papel={role} empresaIds={empresas.map((e) => e.id)} />
+          <SeletorModulo sistemasPermitidos={sistemasPermitidos} empresaIds={empresas.map((e) => e.id)} />
         </div>
 
         <SeletorMarcaEmpresa marcas={marcas} empresas={empresas} />

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { gestorSetorPodeAbrirMeuSetor } from "@/lib/usuarios-regras";
+import { sistemasPermitidos } from "@/lib/permissoes/efetivas";
 
 // DIRETORIA entra na lista: o papel é global e de consulta — barrá-lo aqui
 // fazia todo clique em empresa voltar para a home, sem mensagem nenhuma.
@@ -10,6 +11,12 @@ const RH_ROLES = ["ADMIN", "DIRETORIA", "RH_MANAGER", "GESTOR_SETOR"] as const;
 export async function requireRHAccess() {
   const user = await requireUser();
   if (!RH_ROLES.includes(user.role as (typeof RH_ROLES)[number])) redirect("/");
+  // Onda 2b: enforcement de módulo. Quem não tem o sistema 'rh' no perfil é
+  // barrado de verdade — não só escondido na barra. Vai para o outro sistema
+  // se tiver, senão para a home. Usuário sem perfil cai no papel (fallback em
+  // sistemasPermitidos), então ninguém logado hoje perde acesso.
+  const sistemas = await sistemasPermitidos(user);
+  if (!sistemas.includes("rh")) redirect(sistemas.includes("processos") ? "/processos" : "/");
   return user;
 }
 
