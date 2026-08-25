@@ -3,12 +3,13 @@ import { ShieldCheck } from "lucide-react";
 import { requireGestaoUsuarios } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { AjudaDaTela } from "@/components/ajuda-da-tela";
+import { PERFIS_SEMENTE } from "@/lib/permissoes/catalogo";
 import { UsuariosTable } from "./usuarios-table";
 
 export default async function UsuariosPage() {
   const admin = await requireGestaoUsuarios();
 
-  const [usuarios, empresas, setores, marcas] = await Promise.all([
+  const [usuarios, empresas, setores, marcas, perfis] = await Promise.all([
     prisma.user.findMany({
       orderBy: [{ role: "asc" }, { nome: "asc" }],
       include: {
@@ -37,6 +38,8 @@ export default async function UsuariosPage() {
             setor: { select: { nome: true } },
           },
         },
+        // Perfis de acesso já atribuídos — para o formulário pré-marcar na edição.
+        perfis: { select: { perfilId: true } },
       },
     }),
     // O User não tem @relation com Empresa/Setor — só as colunas
@@ -63,6 +66,13 @@ export default async function UsuariosPage() {
       orderBy: { nome: "asc" },
       select: { id: true, nome: true },
     }),
+    // Perfis de acesso ativos — para o formulário oferecer "conectar o usuário
+    // ao perfil" na própria criação.
+    prisma.perfil.findMany({
+      where: { ativo: true },
+      orderBy: [{ sistema: "desc" }, { nome: "asc" }],
+      select: { id: true, nome: true, sistema: true },
+    }),
   ]);
 
   return (
@@ -87,6 +97,7 @@ export default async function UsuariosPage() {
       <UsuariosTable
         usuarios={usuarios.map((u) => ({
           id: u.id,
+          perfilIds: u.perfis.map((p) => p.perfilId),
           nome: u.nome,
           username: u.username,
           email: u.email,
@@ -118,6 +129,12 @@ export default async function UsuariosPage() {
         empresas={empresas}
         setores={setores}
         marcas={marcas}
+        perfis={perfis.map((p) => ({
+          id: p.id,
+          nome: p.nome,
+          sistema: p.sistema,
+          papelDeOrigem: PERFIS_SEMENTE.find((sem) => sem.id === p.id)?.papelDeOrigem ?? null,
+        }))}
         currentUserId={admin.id}
       />
     </div>

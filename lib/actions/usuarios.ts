@@ -113,6 +113,16 @@ export async function createUsuario(_prev: ActionResult, formData: FormData): Pr
   const { nome, username, email, telefone, role, marcaId, empresaId, setorId } = parsed.data;
   const passwordHash = await bcrypt.hash(senha, 10);
 
+  // Perfis de acesso escolhidos no próprio formulário — é o que "conecta o
+  // usuário ao perfil na hora de criar", em vez de criar e depois atribuir em
+  // outra tela. Só ids que existem; um id inventado no POST é ignorado, não
+  // derruba a criação.
+  const perfilIds = [...new Set(formData.getAll("perfilId").map(String).filter(Boolean))];
+  const perfisValidos =
+    perfilIds.length > 0
+      ? (await prisma.perfil.findMany({ where: { id: { in: perfilIds } }, select: { id: true } })).map((p) => p.id)
+      : [];
+
   try {
     // RH_MANAGER/GESTOR_SETOR precisam criar User + UserEmpresa no mesmo
     // `$transaction` — sem isso, um crash entre os dois `create` deixa o user
@@ -132,6 +142,11 @@ export async function createUsuario(_prev: ActionResult, formData: FormData): Pr
           setorId: setorId ?? null,
         },
       });
+      if (perfisValidos.length > 0) {
+        await tx.userPerfil.createMany({
+          data: perfisValidos.map((perfilId) => ({ userId: user.id, perfilId })),
+        });
+      }
       if (ROLES_COM_EMPRESA.includes(role as (typeof ROLES_COM_EMPRESA)[number])) {
         if (marcaId) {
           // Acesso à marca inteira: um vínculo só, e os CNPJs saem dele a cada
@@ -157,7 +172,7 @@ export async function createUsuario(_prev: ActionResult, formData: FormData): Pr
       entidade: "User",
       entidadeId: result.id,
       resumo: `Criou usuário ${result.username} (${result.role})`,
-      detalhes: { nome: result.nome, email: result.email, role: result.role, marcaId, empresaId, setorId },
+      detalhes: { nome: result.nome, email: result.email, role: result.role, marcaId, empresaId, setorId, perfis: perfisValidos },
     });
 
     revalidatePath("/cadastros/usuarios");
@@ -237,17 +252,40 @@ export async function updateUsuario(id: string, _prev: ActionResult, formData: F
     return { ok: false, error: "Você não pode desativar seu próprio usuário." };
   }
 
+  // Perfis marcados no formulário — o mesmo campo da criação, agora também na
+  // edição. Reconcilia: cria os que faltam, remove os que foram desmarcados.
+  // Só ids que existem entram. Mostrar o campo e ignorá-lo seria um no-op
+  // silencioso, o pior tipo de "salvei e não mudou nada".
+  const perfilIds = [...new Set(formData.getAll("perfilId").map(String).filter(Boolean))];
+  const perfisValidos = new Set(
+    (await prisma.perfil.findMany({ where: { id: { in: perfilIds } }, select: { id: true } })).map((p) => p.id),
+  );
+
   try {
-    const depois = await prisma.user.update({
-      where: { id },
-      data: {
-        nome: parsed.data.nome,
-        username: parsed.data.username,
-        email: parsed.data.email ?? null,
-        telefone: parsed.data.telefone ?? null,
-        role: parsed.data.role,
-        ativo: parsed.data.ativo,
-      },
+    const depois = await prisma.$transaction(async (tx) => {
+      const u = await tx.user.update({
+        where: { id },
+        data: {
+          nome: parsed.data.nome,
+          username: parsed.data.username,
+          email: parsed.data.email ?? null,
+          telefone: parsed.data.telefone ?? null,
+          role: parsed.data.role,
+          ativo: parsed.data.ativo,
+        },
+      });
+      const atuais = new Set(
+        (await tx.userPerfil.findMany({ where: { userId: id }, select: { perfilId: true } })).map((r) => r.perfilId),
+      );
+      const aRemover = [...atuais].filter((pid) => !perfisValidos.has(pid));
+      const aAdicionar = [...perfisValidos].filter((pid) => !atuais.has(pid));
+      if (aRemover.length > 0) {
+        await tx.userPerfil.deleteMany({ where: { userId: id, perfilId: { in: aRemover } } });
+      }
+      if (aAdicionar.length > 0) {
+        await tx.userPerfil.createMany({ data: aAdicionar.map((perfilId) => ({ userId: id, perfilId })) });
+      }
+      return u;
     });
 
     await registrarAuditoria({
