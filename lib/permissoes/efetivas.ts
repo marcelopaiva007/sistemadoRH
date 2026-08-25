@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import { algumGrantCobre, sistemasDosGrants } from "@/lib/permissoes/catalogo";
 import { modulosDoPapel } from "@/components/modulos";
@@ -12,8 +13,17 @@ import { modulosDoPapel } from "@/components/modulos";
 // avulsos por usuário (conceder/tirar uma permissão pontual) são da Onda 2 —
 // nesta onda o modelo é só "perfil", que é o que reproduz o estado atual.
 
-/** Os grants (curinga ou exatos) que os perfis ativos deste usuário somam. */
-export async function grantsDoUsuario(userId: string): Promise<string[]> {
+/**
+ * Os grants (curinga ou exatos) que os perfis ativos deste usuário somam.
+ *
+ * `cache()` do React DEDUPLICA a consulta dentro do mesmo request: o
+ * enforcement chama `sistemasPermitidos` três vezes por carga de tela (layout
+ * da área, layout do módulo, e a page), e sem o cache eram três
+ * `userPerfil.findMany` idênticos ao banco por navegação. Com o cache, um só.
+ * Importa especialmente porque o banco já estourou cota uma vez este mês —
+ * enforcement não pode triplicar a consulta mais quente do sistema.
+ */
+export const grantsDoUsuario = cache(async (userId: string): Promise<string[]> => {
   const vinculos = await prisma.userPerfil.findMany({
     where: { userId, perfil: { ativo: true } },
     select: { perfil: { select: { grants: true } } },
@@ -25,7 +35,7 @@ export async function grantsDoUsuario(userId: string): Promise<string[]> {
     }
   }
   return [...grants];
-}
+});
 
 /** Este usuário tem a permissão `sistema:area:acao`? (sem contar escopo) */
 export async function temPermissao(userId: string, permissao: string): Promise<boolean> {
