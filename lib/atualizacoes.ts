@@ -26,6 +26,18 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.113.0",
+    data: "25/08/2026",
+    horario: "05:00",
+    titulo: "Processos & Ativos: recebimento de aluguéis",
+    itens: [
+      "Nova tela \"Aluguéis a receber\" no módulo: para cada imóvel do grupo alugado a terceiro, o sistema gera as parcelas mensais e você marca o que foi recebido.",
+      "Um aluguel é um contrato de categoria Receita. Na tela, escolha o dia do vencimento e gere as parcelas: contrato com prazo de fim já nasce com o termo inteiro; contrato sem prazo (indeterminado) gera 12 meses por vez, e o botão \"Estender parcelas\" continua ali para você gerar os próximos quando precisar.",
+      "Três números no topo: a receber (em aberto), em atraso (o que passou do vencimento sem entrar) e recebido. Parcela vencida sem receber vira pendência na Central de Pendências, com data e dono.",
+      "Recebeu no mês diferente do previsto (reajuste, desconto)? Registre o valor real. Marcou a parcela errada? O botão de desfazer volta ela para \"em aberto\".",
+    ],
+  },
+  {
     versao: "1.112.0",
     data: "24/08/2026",
     horario: "13:30",

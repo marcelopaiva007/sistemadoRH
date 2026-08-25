@@ -58,6 +58,8 @@ function acaoDe(
       return { href: `${base}/contratos?status=TODOS`, rotulo: "Abrir contrato" };
     case "REAJUSTE_CONTRATO":
       return { href: `${base}/contratos?status=TODOS`, rotulo: "Aplicar reajuste" };
+    case "ALUGUEL_ATRASADO":
+      return { href: `${base}/alugueis`, rotulo: "Ver recebimentos" };
     default:
       return { href: null, rotulo: "Abrir" };
   }
