@@ -230,3 +230,36 @@ export function notificacaoFicta(dataExpedicao: Date, viaSne: boolean): Date {
 export function prazoIndicacao(notificacao: Date): Date {
   return somarDiasUTC(notificacao, DIAS_INDICACAO_CONDUTOR);
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cadastro do veículo — o que a Central cobra estar preenchido
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Os campos que o dono do sistema definiu como ESSENCIAIS no cadastro do
+ * veículo (25/08/2026): sem eles o veículo não se licencia, não se identifica
+ * numa multa, e o cadastro é uma casca. `placa` é sempre obrigatória (é a
+ * chave), então não entra aqui — o que entra é o que o schema deixa opcional
+ * mas o negócio exige.
+ *
+ * Devolve a LISTA do que falta, em rótulos legíveis para a pendência dizer
+ * exatamente o que completar. Vazio = cadastro completo.
+ */
+export function camposFaltandoNoVeiculo(v: {
+  renavam?: string | null;
+  chassi?: string | null;
+  marca?: string | null;
+  modelo?: string | null;
+  anoFab?: number | null;
+  ufEmplacamento?: string | null;
+}): string[] {
+  const vazio = (x: unknown) => x === null || x === undefined || (typeof x === "string" && x.trim() === "");
+  const falta: string[] = [];
+  if (vazio(v.renavam)) falta.push("Renavam");
+  if (vazio(v.chassi)) falta.push("chassi");
+  if (vazio(v.marca)) falta.push("marca");
+  if (vazio(v.modelo)) falta.push("modelo");
+  if (vazio(v.anoFab)) falta.push("ano de fabricação");
+  if (vazio(v.ufEmplacamento)) falta.push("UF de emplacamento");
+  return falta;
+}

@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/app/generated/prisma/client";
-import { diferencaEmDiasUTC, hojeUTC, formatarData } from "@/lib/datas";
-import { formatarPlaca, rotulo, TIPOS_DOCUMENTO_VEICULO } from "@/lib/processos/ctb";
+import { diferencaEmDiasUTC, hojeUTC, formatarData, somarDiasUTC } from "@/lib/datas";
+import { camposFaltandoNoVeiculo, formatarPlaca, rotulo, TIPOS_DOCUMENTO_VEICULO } from "@/lib/processos/ctb";
 
 /**
  * Os detectores da Central de Pendências.
@@ -85,6 +85,9 @@ const IMPACTO: Record<string, number> = {
   TOXICOLOGICO: 2,
   MANUTENCAO_PROGRAMADA: 1,
   DOCUMENTO_VEICULO: 1,
+  // Cadastro incompleto não é prazo legal — é dado faltando. Peso 1: cobra,
+  // mas não compete com multa ou licenciamento vencido pela atenção.
+  CADASTRO_INCOMPLETO: 1,
 
   // Contratos. A renovatória é o único prazo do módulo que mata um DIREITO por
   // decadência — passou, não volta, e nem negociação em curso suspende (Lei
@@ -670,6 +673,53 @@ async function alugueisEmAtraso(empresaIds: string[]): Promise<Candidata[]> {
   });
 }
 
+/**
+ * Veículo com cadastro incompleto — os campos essenciais que faltam.
+ *
+ * Definição do dono do sistema (25/08/2026): renavam, chassi, marca, modelo,
+ * ano de fabricação e UF de emplacamento. Nasce com 30 dias de prazo a partir
+ * do cadastro (`criadoEm + 30`): recém-importado aparece como ATENÇÃO, e vai
+ * ESCALANDO se ninguém completa — de "adiante" para "vence em 7 dias" para
+ * "vencida". É a mesma régua de tudo na Central: sem data, não cobra.
+ *
+ * Só veículo em circulação (ATIVO/EM_MANUTENCAO): completar o cadastro de um
+ * carro vendido ou baixado não é prioridade de ninguém.
+ */
+async function cadastrosIncompletos(empresaIds: string[]): Promise<Candidata[]> {
+  const veiculos = await prisma.veiculo.findMany({
+    where: { empresaId: { in: empresaIds }, situacao: { in: ["ATIVO", "EM_MANUTENCAO"] } },
+    select: {
+      id: true,
+      empresaId: true,
+      placa: true,
+      modelo: true,
+      criadoEm: true,
+      renavam: true,
+      chassi: true,
+      marca: true,
+      anoFab: true,
+      ufEmplacamento: true,
+    },
+  });
+
+  const saida: Candidata[] = [];
+  for (const v of veiculos) {
+    const falta = camposFaltandoNoVeiculo(v);
+    if (falta.length === 0) continue;
+    saida.push({
+      dominio: "FROTA",
+      tipo: "CADASTRO_INCOMPLETO",
+      origemTipo: "Veiculo",
+      origemId: v.id,
+      empresaId: v.empresaId,
+      titulo: `Completar cadastro — ${formatarPlaca(v.placa)}${v.modelo ? ` (${v.modelo})` : ""}`,
+      descricao: `Faltando no cadastro: ${falta.join(", ")}.`,
+      venceEm: somarDiasUTC(v.criadoEm, 30),
+    });
+  }
+  return saida;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Sincronização
 // ─────────────────────────────────────────────────────────────────────────────
@@ -683,6 +733,7 @@ export async function detectarTudo(empresaIds: string[]): Promise<Candidata[]> {
     documentosDoCondutor(empresaIds),
     transferencias(empresaIds),
     revisoesProgramadas(empresaIds),
+    cadastrosIncompletos(empresaIds),
     denunciaDeContrato(empresaIds),
     acaoRenovatoria(empresaIds),
     reajustesDevidos(empresaIds),

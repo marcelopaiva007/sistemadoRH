@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.116.0",
+    data: "25/08/2026",
+    horario: "20:00",
+    titulo: "Central de Pendências: veículo com cadastro incompleto",
+    itens: [
+      "Todo veículo em circulação a que falte um dos campos essenciais — Renavam, chassi, marca, modelo, ano de fabricação ou UF de emplacamento — passa a aparecer na Central de Pendências dizendo exatamente o que completar.",
+      "A cobrança escala com o tempo: o veículo nasce com 30 dias de prazo a partir do cadastro (aparece como atenção), e vai ficando mais urgente se ninguém completa. Completou os campos, some da lista.",
+      "Serve para a frota importada em lote (o que vier sem dado cai aqui) e para qualquer veículo cadastrado à mão. Veículo vendido ou baixado não entra — só o que está rodando.",
+    ],
+  },
+  {
     versao: "1.115.1",
     data: "25/08/2026",
     horario: "10:00",

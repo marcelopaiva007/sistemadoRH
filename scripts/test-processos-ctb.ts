@@ -23,6 +23,7 @@ import {
   formatarPlaca,
   travaLicenciamento,
   TIPOS_DOCUMENTO_VEICULO,
+  camposFaltandoNoVeiculo,
 } from "../lib/processos/ctb";
 import { severidadeDe } from "../lib/processos/pendencias";
 import { dataUTC, diferencaEmDiasUTC } from "../lib/datas";
@@ -115,6 +116,18 @@ igual(severidadeDe(20, "INDICAR_CONDUTOR"), "ALTA", "indicação a 20 dias é al
 igual(severidadeDe(20, "DOCUMENTO_VEICULO"), "ATENCAO", "documento genérico a 20 dias é só atenção");
 igual(severidadeDe(-1, "DOCUMENTO_VEICULO"), "ALTA", "documento genérico vencido é alta, não crítica");
 igual(severidadeDe(45, "LICENCIAMENTO"), "ATENCAO", "fora de 30 dias tudo é atenção");
+
+console.log("\nCadastro de veículo — o que falta para estar completo\n");
+{
+  const completo = { renavam: "123", chassi: "9BW", marca: "Fiat", modelo: "Strada", anoFab: 2022, ufEmplacamento: "PE" };
+  igual(camposFaltandoNoVeiculo(completo).length, 0, "veículo com tudo preenchido não falta nada");
+  igual(camposFaltandoNoVeiculo({ ...completo, renavam: null }).join(","), "Renavam", "renavam nulo aparece");
+  igual(camposFaltandoNoVeiculo({ ...completo, chassi: "  " }).join(","), "chassi", "chassi só com espaço conta como vazio");
+  igual(camposFaltandoNoVeiculo({ ...completo, anoFab: null }).join(","), "ano de fabricação", "ano de fabricação nulo aparece");
+  const vazio = camposFaltandoNoVeiculo({});
+  igual(vazio.length, 6, "cadastro vazio lista os 6 campos essenciais");
+  ok(vazio.includes("UF de emplacamento") && vazio.includes("marca"), "a lista traz os rótulos legíveis");
+}
 
 console.log(`\n${falhas === 0 ? "✅ tudo certo" : `❌ ${falhas} falha(s)`}\n`);
 process.exit(falhas === 0 ? 0 : 1);
