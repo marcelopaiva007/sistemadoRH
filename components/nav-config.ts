@@ -23,19 +23,29 @@ export type NavItem = {
 const inicioItem: NavItem = { href: "/", label: "Início", icon: LayoutDashboard };
 // "Usuários e perfis" desde 26/08/2026: o item abre o cadastro ÚNICO de acesso
 // (/cadastros — usuários e perfis de acesso em abas), que serve OS DOIS
-// sistemas. É o perfil que decide se o acesso cobre os dois ou telas de um só;
-// por isso o cadastro mora aqui no topo, fora de qualquer módulo, e não existe
-// mais "Papéis e permissões" dentro do menu do RH.
+// sistemas. É o perfil que decide se o acesso cobre os dois ou telas de um só.
 const usuariosItem: NavItem = { href: "/usuarios", label: "Usuários e perfis", icon: UserCog };
 const produtividadeItem: NavItem = { href: "/produtividade", label: "Produtividade RH", icon: Activity };
 const atualizacoesItem: NavItem = { href: "/atualizacoes", label: "Atualizações", icon: History };
 const meuSetorItem: NavItem = { href: "/rh/meu-setor", label: "Meu Setor", icon: HeartHandshake };
 
-export const adminNav: NavItem[] = [inicioItem, usuariosItem, produtividadeItem, atualizacoesItem];
-// Diretoria também gere usuários desde 31/07/2026 — ver requireGestaoUsuarios
-// em lib/auth-guard.ts. Sem o item aqui a permissão existiria sem caminho.
-// Atualizações e Produtividade RH seguem o mesmo par de papéis da área (ADMIN + DIRETORIA).
-export const diretoriaNav: NavItem[] = [inicioItem, usuariosItem, produtividadeItem, atualizacoesItem];
+// A barra tem DOIS níveis, e desde 26/08/2026 eles se dividem assim (pedido do
+// dono do sistema): a LINHA 1 é a área do que pertence a TODOS os sistemas —
+// o seletor de sistema, o de marca/CNPJ, e a administração global (usuários e
+// perfis, atualizações), ao lado do nome dos sistemas. A LINHA 2 é a navegação
+// de páginas soltas do usuário logado (início, produtividade). O que é de UM
+// sistema continua no menu de dentro dele.
+export const globalNavByRole: Record<string, NavItem[]> = {
+  // Diretoria também gere usuários desde 31/07/2026 — ver requireGestaoUsuarios
+  // em lib/auth-guard.ts. Sem o item aqui a permissão existiria sem caminho.
+  ADMIN: [usuariosItem, atualizacoesItem],
+  DIRETORIA: [usuariosItem, atualizacoesItem],
+  RH_MANAGER: [],
+  GESTOR_SETOR: [],
+};
+
+export const adminNav: NavItem[] = [inicioItem, produtividadeItem];
+export const diretoriaNav: NavItem[] = [inicioItem, produtividadeItem];
 
 // Lookup por role — RH_MANAGER/GESTOR_SETOR têm navegação própria e enxuta.
 export const navByRole: Record<string, NavItem[]> = {

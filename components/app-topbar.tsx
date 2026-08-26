@@ -8,7 +8,7 @@ import { useTheme } from "next-themes";
 import { useSyncExternalStore } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { navByRole, diretoriaNav } from "@/components/nav-config";
+import { navByRole, diretoriaNav, globalNavByRole } from "@/components/nav-config";
 import { Logo } from "@/components/logo";
 import { SeletorModulo } from "@/components/seletor-modulo";
 import { SeletorMarcaEmpresa } from "@/components/seletor-marca-empresa";
@@ -89,6 +89,7 @@ export function AppTopbar({
 }) {
   const pathname = usePathname();
   const items = navByRole[role] ?? diretoriaNav;
+  const itensGlobais = globalNavByRole[role] ?? [];
 
   return (
     <header className="sticky top-0 z-40 border-b border-border/70 bg-background/85 backdrop-blur-md shadow-xs">
@@ -122,6 +123,38 @@ export function AppTopbar({
         </div>
 
         <SeletorMarcaEmpresa marcas={marcas} empresas={empresas} />
+
+        {/* A administração GLOBAL — o que serve a todos os sistemas (usuários
+            e perfis, atualizações) — mora nesta linha, ao lado do nome dos
+            sistemas, por pedido do dono (26/08/2026): esta linha é a área do
+            que vale para tudo; a linha 2 é navegação. Rótulo some abaixo de
+            `lg` (o ícone + title continuam) — os filhos ENCOLHEM, nunca
+            overflow nesta linha (ver o aviso acima). */}
+        {itensGlobais.length > 0 && (
+          <>
+            <div aria-hidden className="hidden h-5 w-px shrink-0 bg-border sm:block" />
+            {itensGlobais.map((item) => {
+              const Icon = item.icon;
+              const ativo = pathname.startsWith(item.href) || (item.href === "/usuarios" && pathname.startsWith("/cadastros"));
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  title={item.label}
+                  className={cn(
+                    "flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-medium transition-colors",
+                    ativo
+                      ? "bg-primary/10 text-primary dark:text-foreground"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                  )}
+                >
+                  <Icon className="size-4 shrink-0" />
+                  <span className="hidden whitespace-nowrap lg:inline">{item.label}</span>
+                </Link>
+              );
+            })}
+          </>
+        )}
 
         <div className="flex-1" />
 
