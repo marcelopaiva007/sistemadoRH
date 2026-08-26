@@ -26,6 +26,15 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.123.1",
+    data: "26/08/2026",
+    horario: "19:35",
+    titulo: "Mobility é a primeira marca com logo",
+    itens: [
+      "A logo da Mobility foi cadastrada — aparece no seletor de marca do topo e no cartão dela em Estrutura. As demais marcas seguem com o selo de iniciais até enviarem as suas.",
+    ],
+  },
+  {
     versao: "1.123.0",
     data: "26/08/2026",
     horario: "19:45",
