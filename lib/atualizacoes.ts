@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.120.2",
+    data: "26/08/2026",
+    horario: "10:30",
+    titulo: "Barra de topo: fim da sobreposição e do nome quebrado",
+    itens: [
+      "O seletor de marca/CNPJ e o de sistema não passam mais por cima dos itens vizinhos quando a linha aperta — cada pedaço agora encolhe e trunca no lugar de invadir o do lado.",
+      "O nome do usuário não quebra mais em duas linhas estourando a barra: nome, papel e versão truncam em uma linha cada (o nome completo aparece ao passar o mouse).",
+      "Os rótulos de Usuários e perfis e Atualizações só aparecem por extenso em telas largas; no restante ficam os ícones, com dica ao passar o mouse.",
+    ],
+  },
+  {
     versao: "1.120.1",
     data: "26/08/2026",
     horario: "10:00",

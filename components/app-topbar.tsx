@@ -149,7 +149,11 @@ export function AppTopbar({
                   )}
                 >
                   <Icon className="size-4 shrink-0" />
-                  <span className="hidden whitespace-nowrap lg:inline">{item.label}</span>
+                  {/* Rótulo só quando há folga de verdade (`xl`): em `lg` ele
+                      disputava a mesma faixa que o seletor de marca e foi o
+                      estopim do atropelo da v1.120.1. O ícone + `title`
+                      continuam em toda largura. */}
+                  <span className="hidden whitespace-nowrap xl:inline">{item.label}</span>
                 </Link>
               );
             })}
@@ -172,12 +176,15 @@ export function AppTopbar({
               A VERSÃO mora aqui desde 24/08/2026 (pedido do dono do sistema):
               ela responde "estou vendo a entrega nova?", que é uma pergunta
               sobre a conta/sessão, não sobre em que sistema se está. */}
-          <div className="hidden text-right sm:block">
-            <p className="text-sm font-medium leading-tight text-foreground">{nome}</p>
-            <p className="text-[11px] leading-tight text-muted-foreground font-medium">
+          {/* Cada linha TRUNCA (title dá o nome inteiro): sem isso, um nome
+              longo quebrava em duas linhas e estourava a altura da barra —
+              visível na v1.120.1, quando a linha ficou mais cheia. */}
+          <div className="hidden max-w-40 text-right sm:block" title={nome}>
+            <p className="truncate text-sm font-medium leading-tight text-foreground">{nome}</p>
+            <p className="truncate text-[11px] leading-tight text-muted-foreground font-medium">
               {ROLE_LABELS[role] ?? "Diretoria/Gestão"}
             </p>
-            <p className="font-mono text-[10px] leading-tight text-muted-foreground/60">{versao}</p>
+            <p className="truncate font-mono text-[10px] leading-tight text-muted-foreground/60">{versao}</p>
           </div>
           <KeyRound className="size-4 text-muted-foreground" />
         </Link>

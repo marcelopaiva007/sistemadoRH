@@ -198,9 +198,13 @@ export function SeletorMarcaEmpresa({
   // truncar — a barra inteira é que crescia e levava a página junto no celular.
   return (
     <div ref={raizRef} className="relative flex min-w-0 items-stretch">
-      <div className="flex items-stretch rounded-[10px] border border-border bg-card">
+      {/* `min-w-0` em CADA nível até o rótulo: o encolhimento é uma corrente —
+          bastou a caixa interna não ter o dela para, na linha apertada, ela
+          transbordar PINTANDO por cima do vizinho da direita (foi o que
+          atropelou "Usuários e perfis" na v1.120.1). */}
+      <div className="flex min-w-0 items-stretch rounded-[10px] border border-border bg-card">
         {/* Segmento 1: pula direto para a visão consolidada de uma marca. */}
-        <div className="relative">
+        <div className="relative flex min-w-0">
           <button
             type="button"
             aria-expanded={abertoMarca}
@@ -210,7 +214,7 @@ export function SeletorMarcaEmpresa({
               setAbertoLista(false);
             }}
             className={cn(
-              "flex h-full items-center gap-1.5 px-2.5 py-1.5 text-sm transition-colors hover:bg-muted/60",
+              "flex h-full min-w-0 items-center gap-1.5 px-2.5 py-1.5 text-sm transition-colors hover:bg-muted/60",
               dentroDeEmpresa ? "rounded-l-[10px]" : "rounded-[10px]",
             )}
           >
@@ -292,7 +296,7 @@ export function SeletorMarcaEmpresa({
         {/* Entra num CNPJ. Com marca em foco, só os CNPJs dela; sem marca em
             foco, a lista completa agrupada por marca. */}
         {dentroDeEmpresa && (
-        <div className="relative">
+        <div className="relative flex min-w-0">
           <button
             type="button"
             aria-expanded={abertoLista}
@@ -302,7 +306,7 @@ export function SeletorMarcaEmpresa({
               setAbertoMarca(false);
             }}
             style={corMarcaAtiva ? ({ "--marca": corMarcaAtiva } as React.CSSProperties) : undefined}
-            className="flex h-full items-center gap-1.5 rounded-r-[10px] px-2.5 py-1.5 text-sm transition-colors hover:bg-muted/60"
+            className="flex h-full min-w-0 items-center gap-1.5 rounded-r-[10px] px-2.5 py-1.5 text-sm transition-colors hover:bg-muted/60"
           >
             <span
               className={cn(

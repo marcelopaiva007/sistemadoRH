@@ -92,10 +92,14 @@ export function SeletorModulo({
           tempo, e o de dentro marcado. No celular ficam só os ícones: dois
           nomes por extenso não cabem em 375px, e o ícone com `title` continua
           dizendo qual é qual. */}
+      {/* `min-w-0`, não `shrink-0`: com a caixa travada, a linha apertada faz
+          ela transbordar por cima do vizinho (a mesma classe de defeito do
+          seletor de marca na v1.120.1). Os rótulos já truncam; deixá-los
+          encolher é o que mantém a linha 1 sem sobreposição em toda largura. */}
       <div
         role="group"
         aria-label="Sistema"
-        className="flex shrink-0 items-stretch overflow-hidden rounded-[10px] border border-border bg-card"
+        className="flex min-w-0 items-stretch overflow-hidden rounded-[10px] border border-border bg-card"
       >
         {modulos.map((modulo, i) => {
           const Icone = modulo.icone;
@@ -108,7 +112,7 @@ export function SeletorModulo({
               title={modulo.nome}
               onClick={() => irPara(modulo)}
               className={cn(
-                "flex items-center gap-1.5 px-2 py-1.5 text-sm transition-colors sm:px-2.5",
+                "flex min-w-0 items-center gap-1.5 px-2 py-1.5 text-sm transition-colors sm:px-2.5",
                 i > 0 && "border-l border-border",
                 atual
                   ? "bg-primary/10 font-semibold text-primary dark:text-foreground"
