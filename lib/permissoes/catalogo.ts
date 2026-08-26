@@ -91,6 +91,7 @@ export const AREAS_RH: GrupoDeAreas[] = [
     areas: [
       { slug: "painel", label: "Painel executivo", soLeitura: true },
       { slug: "placar", label: "Placar do grupo", soLeitura: true },
+      { slug: "painel-setor", label: "Painel do setor", soLeitura: true },
       { slug: "sinais", label: "Central de Sinais" },
       { slug: "lideranca", label: "Malha de liderança", soLeitura: true },
       { slug: "time", label: "Meu time", soLeitura: true },
