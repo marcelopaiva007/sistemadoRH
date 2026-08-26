@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.118.1",
+    data: "26/08/2026",
+    horario: "01:00",
+    titulo: "Limpeza de dependências e correções de segurança da cadeia",
+    itens: [
+      "Cinco bibliotecas que o sistema não usava mais (formulários react-hook-form e gráficos 3D three.js, sobras de versões antigas) foram removidas — instalação menor e menos superfície para vulnerabilidade.",
+      "Correções de segurança em dependências internas aplicadas onde havia versão compatível; as PRs de atualização automática abertas desde 13/08 ficam resolvidas.",
+      "Nada muda na tela: é manutenção da fundação do sistema.",
+    ],
+  },
+  {
     versao: "1.118.0",
     data: "25/08/2026",
     horario: "23:30",
