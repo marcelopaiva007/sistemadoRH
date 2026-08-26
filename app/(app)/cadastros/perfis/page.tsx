@@ -1,5 +1,3 @@
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 import { requireGestaoUsuarios } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { PerfisView, type PerfilNaTela, type UsuarioComPerfis } from "./perfis-view";
@@ -56,14 +54,7 @@ export default async function PerfisPage() {
   return (
     <div className="space-y-6">
       <div>
-        <Link
-          href="/cadastros/usuarios"
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="size-4" />
-          Usuários
-        </Link>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight">Perfis de acesso</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Perfis de acesso</h1>
         <p className="mt-1 max-w-3xl text-muted-foreground">
           Um perfil é um pacote de permissões que você dá à pessoa — em vez de marcar tela por tela
           para cada uma. Escolha o que cada perfil vê e edita nos dois sistemas, e dê o perfil a quem
