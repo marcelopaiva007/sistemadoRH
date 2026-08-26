@@ -29,22 +29,39 @@ const EM_CIRCULACAO = ["ATIVO", "EM_MANUTENCAO"] as const;
 // Agrupa uma contagem por chave e devolve ordenado do maior para o menor, já no
 // formato do gráfico. `topN` corta a cauda numa fatia "Outras" para o gráfico
 // não virar uma lista de trinta cidades com um veículo cada.
-function contarPor(
+//
+// Campo de texto livre consolida SEM diferenciar caixa nem espaço: "Guarabira",
+// "GUARABIRA" e "guarabira " são a mesma cidade, e num painel que existe para
+// CONSOLIDAR elas não podem virar três barras. O rótulo exibido é a grafia
+// original mais frequente do grupo (não invento capitalização "certa" de um
+// campo livre — mostro a que mais aparece). Acento não é normalizado de
+// propósito: em nome próprio ele distingue ("São" ≠ "Sao"), e juntar erraria.
+function contarPorTexto(
   itens: string[],
   opcoes?: { topN?: number; rotuloOutras?: string },
 ): Fatia[] {
-  const contagem = new Map<string, number>();
-  for (const chave of itens) contagem.set(chave, (contagem.get(chave) ?? 0) + 1);
-  const ordenado = [...contagem.entries()].sort((a, b) => b[1] - a[1]);
-  const topN = opcoes?.topN;
-  if (!topN || ordenado.length <= topN) {
-    return ordenado.map(([rotulo, valor]) => ({ rotulo, valor }));
+  const grupos = new Map<string, { total: number; grafias: Map<string, number> }>();
+  for (const bruto of itens) {
+    const chave = bruto.trim().toLowerCase().replace(/\s+/g, " ");
+    let g = grupos.get(chave);
+    if (!g) {
+      g = { total: 0, grafias: new Map() };
+      grupos.set(chave, g);
+    }
+    g.total++;
+    g.grafias.set(bruto, (g.grafias.get(bruto) ?? 0) + 1);
   }
+  const canonico = (g: { grafias: Map<string, number> }) =>
+    [...g.grafias.entries()].sort((a, b) => b[1] - a[1])[0][0];
+  const ordenado = [...grupos.values()]
+    .map((g) => ({ rotulo: canonico(g), valor: g.total }))
+    .sort((a, b) => b.valor - a.valor);
+  const topN = opcoes?.topN;
+  if (!topN || ordenado.length <= topN) return ordenado;
   const cabeca = ordenado.slice(0, topN);
-  const cauda = ordenado.slice(topN).reduce((soma, [, v]) => soma + v, 0);
-  const fatias = cabeca.map(([rotulo, valor]) => ({ rotulo, valor }));
-  if (cauda > 0) fatias.push({ rotulo: opcoes?.rotuloOutras ?? "Outras", valor: cauda });
-  return fatias;
+  const cauda = ordenado.slice(topN).reduce((soma, f) => soma + f.valor, 0);
+  if (cauda > 0) cabeca.push({ rotulo: opcoes?.rotuloOutras ?? "Outras", valor: cauda });
+  return cabeca;
 }
 
 // Fatias numa ORDEM fixa (motorização, propriedade), pulando o que tem zero —
@@ -162,17 +179,17 @@ export default async function PanoramaFrotaPage({
   if (semAno > 0) porIdade.push({ rotulo: "Sem ano", valor: semAno });
 
   // ── Composição ─────────────────────────────────────────────────────────────
-  const porCategoria = contarPor(
+  const porCategoria = contarPorTexto(
     veiculos.map((v) => v.categoria?.trim() || "Não informado"),
     { topN: 8, rotuloOutras: "Outras categorias" },
   );
   const porMotorizacao = contarNaOrdem(veiculos.map((v) => v.motorizacao), MOTORIZACAO_VEICULO);
   const porPropriedade = contarNaOrdem(veiculos.map((v) => v.propriedade), PROPRIEDADE_VEICULO);
-  const porCidade = contarPor(
+  const porCidade = contarPorTexto(
     veiculos.map((v) => v.cidadeBase?.trim() || "Sem cidade-base"),
     { topN: 10, rotuloOutras: "Outras cidades" },
   );
-  const porSetor = contarPor(
+  const porSetor = contarPorTexto(
     veiculos.map((v) => v.setor?.trim() || "Sem setor"),
     { topN: 10, rotuloOutras: "Outros setores" },
   );
