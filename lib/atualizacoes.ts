@@ -26,6 +26,16 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.121.1",
+    data: "26/08/2026",
+    horario: "11:50",
+    titulo: "O endereço do sistema é um só: rh.assinelm.com",
+    itens: [
+      "Quem entrar pelos endereços técnicos da Vercel (sistemado-rh-two.vercel.app) é devolvido automaticamente para rh.assinelm.com, mantendo a página e os parâmetros. Antes acontecia o inverso: entrando por rh.assinelm.com, o primeiro redirecionamento jogava para o endereço da Vercel.",
+      "Links antigos salvos com o endereço da Vercel continuam funcionando — só passam a abrir no endereço oficial.",
+    ],
+  },
+  {
     versao: "1.121.0",
     data: "26/08/2026",
     horario: "11:30",
