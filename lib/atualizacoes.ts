@@ -26,6 +26,15 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.124.1",
+    data: "26/08/2026",
+    horario: "20:15",
+    titulo: "Centrysol fecha o conjunto de logos",
+    itens: [
+      "A logo da Centrysol foi cadastrada — as quatro marcas do grupo agora têm logo no seletor do topo, no menu lateral e em Estrutura.",
+    ],
+  },
+  {
     versao: "1.124.0",
     data: "26/08/2026",
     horario: "20:10",
