@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.120.0",
+    data: "26/08/2026",
+    horario: "09:00",
+    titulo: "Um cadastro só de usuários e perfis, no topo, para os dois sistemas",
+    itens: [
+      "Usuários e perfis de acesso viraram uma área única — \"Usuários e perfis\", na barra de topo — que serve os dois sistemas (Pessoas/RH e Processos & Ativos). As duas telas agora andam juntas, em abas.",
+      "É na criação do perfil que se escolhe o alcance: acesso aos dois sistemas inteiros, a um só, ou a telas específicas de cada um — e o usuário recebe o perfil no próprio cadastro.",
+      "A tela antiga \"Papéis e permissões\", dentro do menu do RH, saiu: era a documentação do modelo antigo e confundia com o cadastro novo. Quem tiver o link antigo cai direto em Perfis de acesso.",
+    ],
+  },
+  {
     versao: "1.119.0",
     data: "26/08/2026",
     horario: "02:00",

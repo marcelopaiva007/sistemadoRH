@@ -21,7 +21,12 @@ export type NavItem = {
 // "Processos & Ativos" como um item aqui o rebaixaria a uma tela entre
 // Usuários e Atualizações, que é o mesmo erro do "RH — Clima Organizacional".
 const inicioItem: NavItem = { href: "/", label: "Início", icon: LayoutDashboard };
-const usuariosItem: NavItem = { href: "/usuarios", label: "Usuários", icon: UserCog };
+// "Usuários e perfis" desde 26/08/2026: o item abre o cadastro ÚNICO de acesso
+// (/cadastros — usuários e perfis de acesso em abas), que serve OS DOIS
+// sistemas. É o perfil que decide se o acesso cobre os dois ou telas de um só;
+// por isso o cadastro mora aqui no topo, fora de qualquer módulo, e não existe
+// mais "Papéis e permissões" dentro do menu do RH.
+const usuariosItem: NavItem = { href: "/usuarios", label: "Usuários e perfis", icon: UserCog };
 const produtividadeItem: NavItem = { href: "/produtividade", label: "Produtividade RH", icon: Activity };
 const atualizacoesItem: NavItem = { href: "/atualizacoes", label: "Atualizações", icon: History };
 const meuSetorItem: NavItem = { href: "/rh/meu-setor", label: "Meu Setor", icon: HeartHandshake };

@@ -40,7 +40,6 @@ import {
   ShieldCheck,
   Gauge,
   Trophy,
-  UserCog,
   Star,
   Target,
   Users,
@@ -161,7 +160,9 @@ const GRUPOS = [
     itens: [
       { slug: "importacoes", label: "Importações", icon: FileUp },
       { slug: "auditoria", label: "Auditoria", icon: History },
-      { slug: "papeis", label: "Papéis e permissões", icon: UserCog },
+      // "Papéis e permissões" saiu daqui em 26/08/2026: o cadastro de acesso é
+      // ÚNICO e dos dois sistemas, e mora no topo ("Usuários e perfis" →
+      // /cadastros). A rota antiga redireciona para /cadastros/perfis.
     ],
   },
 ] as const;
