@@ -219,13 +219,26 @@ export function SeletorMarcaEmpresa({
               dentroDeEmpresa ? "rounded-l-[10px]" : "rounded-[10px]",
             )}
           >
-            {/* Com uma marca em foco, o selo DELA (logo cadastrada em
-                Marcas & CNPJs, ou as iniciais na cor da marca) responde "em
-                que marca estou" de relance — pedido do dono, 26/08/2026. Sem
-                foco, o prédio genérico de sempre. O tamanho é o mesmo
-                (quadrado fixo), então a linha 1 não ganha largura nova. */}
-            {marcaEmFoco ? (
-              <Selo nome={marcaEmFoco.nome} logoUrl={marcaEmFoco.logoUrl} />
+            {/* Com uma marca em foco, a marca responde "onde estou" de
+                relance — pedido do dono, 26/08/2026 ("além de ver o nome,
+                ver também a logo"). Em tela larga (lg+) a logo aparece em
+                tamanho legível; abaixo disso volta ao selo quadrado de 20px,
+                que não disputa a largura da linha 1 (o atropelo da v1.120.1
+                nasceu exatamente de largura nova nesta faixa). Sem foco, o
+                prédio genérico de sempre. */}
+            {marcaEmFoco?.logoUrl ? (
+              <>
+                <img
+                  src={marcaEmFoco.logoUrl}
+                  alt=""
+                  className="hidden h-6 w-auto max-w-24 shrink-0 object-contain lg:block"
+                />
+                <span className="lg:hidden">
+                  <Selo nome={marcaEmFoco.nome} logoUrl={marcaEmFoco.logoUrl} />
+                </span>
+              </>
+            ) : marcaEmFoco ? (
+              <Selo nome={marcaEmFoco.nome} />
             ) : (
               <Building2 className="size-3.5 shrink-0 text-muted-foreground" />
             )}

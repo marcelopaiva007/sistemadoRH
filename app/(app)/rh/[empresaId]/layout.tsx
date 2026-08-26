@@ -31,7 +31,7 @@ export default async function RHEmpresaLayout({
   const marcas = await prisma.marca.findMany({
     where: { id: { in: marcasIds } },
     orderBy: { nome: "asc" },
-    select: { id: true, nome: true, corPrimaria: true },
+    select: { id: true, nome: true, corPrimaria: true, logoUrl: true },
   });
 
   const empresa = empresas.find((e) => e.id === empresaId);
@@ -46,6 +46,19 @@ export default async function RHEmpresaLayout({
   return (
     <div className="flex gap-6" style={estiloCor}>
       <aside className="sticky top-[94px] hidden h-[calc(100vh-94px)] w-56 shrink-0 overflow-y-auto border-r pr-3 pt-2 md:block">
+        {/* A logo da marca em lugar visível — pedido do dono (26/08/2026):
+            o selo do topo diz "onde estou" de relance, mas é pequeno; aqui a
+            marca aparece em tamanho de verdade, em toda tela da empresa.
+            Marca sem logo não reserva espaço nenhum. */}
+        {marcaAtiva?.logoUrl && (
+          <div className="mb-2 border-b pb-3">
+            <img
+              src={marcaAtiva.logoUrl}
+              alt={marcaAtiva.nome}
+              className="max-h-12 w-auto max-w-44 object-contain"
+            />
+          </div>
+        )}
         <RHEmpresaNav empresaId={empresaId} />
       </aside>
 

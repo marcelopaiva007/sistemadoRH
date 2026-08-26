@@ -36,7 +36,11 @@ export default async function ProcessosEmpresaLayout({
   // responder a mesma pergunta uma vez.
   const empresa = await prisma.empresa.findUnique({
     where: { id: empresaId },
-    select: { id: true, ativo: true, marca: { select: { id: true, corPrimaria: true } } },
+    select: {
+      id: true,
+      ativo: true,
+      marca: { select: { id: true, nome: true, corPrimaria: true, logoUrl: true } },
+    },
   });
   if (!empresa || !empresa.ativo) notFound();
 
@@ -45,6 +49,17 @@ export default async function ProcessosEmpresaLayout({
   return (
     <div className="flex gap-6" style={estiloCor}>
       <aside className="sticky top-[94px] hidden h-[calc(100vh-94px)] w-52 shrink-0 overflow-y-auto border-r pr-3 pt-2 md:block">
+        {/* Mesma regra da lateral do RH: a logo da marca em tamanho visível
+            no topo da navegação (pedido do dono, 26/08/2026). */}
+        {empresa.marca.logoUrl && (
+          <div className="mb-2 border-b pb-3">
+            <img
+              src={empresa.marca.logoUrl}
+              alt={empresa.marca.nome}
+              className="max-h-12 w-auto max-w-40 object-contain"
+            />
+          </div>
+        )}
         <ProcessosNav empresaId={empresaId} />
       </aside>
 

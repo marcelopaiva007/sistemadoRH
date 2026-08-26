@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.124.0",
+    data: "26/08/2026",
+    horario: "20:10",
+    titulo: "A logo da marca em tamanho de verdade",
+    itens: [
+      "Dentro de uma empresa, a logo da marca aparece no topo do menu lateral — tanto no RH quanto em Processos & Ativos. Quem está trabalhando numa marca vê a logo dela o tempo todo, não só o nome.",
+      "No seletor do topo, quando uma marca está acionada, a logo aparece em tamanho legível nas telas largas (no celular continua o selo compacto, que não briga por espaço).",
+      "Marca sem logo cadastrada não reserva espaço nenhum — nada muda para ela.",
+    ],
+  },
+  {
     versao: "1.123.3",
     data: "26/08/2026",
     horario: "19:55",
