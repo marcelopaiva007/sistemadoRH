@@ -140,6 +140,7 @@ export const AREAS_PROCESSOS: GrupoDeAreas[] = [
   {
     titulo: "Frota",
     areas: [
+      { slug: "panorama", label: "Panorama", soLeitura: true },
       { slug: "frota", label: "Veículos" },
       { slug: "multas", label: "Multas" },
       { slug: "condutores", label: "Condutores" },
