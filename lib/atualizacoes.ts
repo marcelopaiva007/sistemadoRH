@@ -26,6 +26,15 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.123.3",
+    data: "26/08/2026",
+    horario: "19:55",
+    titulo: "VAPT ganha logo",
+    itens: [
+      "O wordmark da VAPT identifica a marca no seletor do topo e em Estrutura. Só falta a Centrysol.",
+    ],
+  },
+  {
     versao: "1.123.2",
     data: "26/08/2026",
     horario: "19:45",
