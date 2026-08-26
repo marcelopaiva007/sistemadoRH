@@ -8,7 +8,7 @@ import { Selo, corDaMarca } from "@/components/marca-visual";
 import { urlDoFiltro, PARAM } from "@/app/(app)/rh/[empresaId]/filtro-empresas";
 import { moduloDoCaminho, SLUGS_COM_EMPRESA } from "@/components/modulos";
 
-type Marca = { id: string; nome: string; corPrimaria: string | null };
+type Marca = { id: string; nome: string; corPrimaria: string | null; logoUrl: string | null };
 type Empresa = { id: string; nome: string; marcaId: string };
 
 /**
@@ -213,12 +213,22 @@ export function SeletorMarcaEmpresa({
               setAbertoMarca((v) => !v);
               setAbertoLista(false);
             }}
+            style={corMarcaAtiva ? ({ "--marca": corMarcaAtiva } as React.CSSProperties) : undefined}
             className={cn(
               "flex h-full min-w-0 items-center gap-1.5 px-2.5 py-1.5 text-sm transition-colors hover:bg-muted/60",
               dentroDeEmpresa ? "rounded-l-[10px]" : "rounded-[10px]",
             )}
           >
-            <Building2 className="size-3.5 shrink-0 text-muted-foreground" />
+            {/* Com uma marca em foco, o selo DELA (logo cadastrada em
+                Marcas & CNPJs, ou as iniciais na cor da marca) responde "em
+                que marca estou" de relance — pedido do dono, 26/08/2026. Sem
+                foco, o prédio genérico de sempre. O tamanho é o mesmo
+                (quadrado fixo), então a linha 1 não ganha largura nova. */}
+            {marcaEmFoco ? (
+              <Selo nome={marcaEmFoco.nome} logoUrl={marcaEmFoco.logoUrl} />
+            ) : (
+              <Building2 className="size-3.5 shrink-0 text-muted-foreground" />
+            )}
             <span className="max-w-20 truncate font-semibold text-foreground sm:max-w-36">{rotuloMarca}</span>
             <ChevronDown
               className={cn(
@@ -272,7 +282,7 @@ export function SeletorMarcaEmpresa({
                         : "text-foreground hover:bg-accent/50"
                     )}
                   >
-                    <Selo nome={marca.nome} />
+                    <Selo nome={marca.nome} logoUrl={marca.logoUrl} />
                     <span className="min-w-0 flex-1 truncate">{marca.nome}</span>
                     {idsDaMarca.length > 1 && (
                       <span className="shrink-0 text-xs tabular-nums text-muted-foreground">

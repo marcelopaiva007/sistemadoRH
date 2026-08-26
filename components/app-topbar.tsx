@@ -82,7 +82,7 @@ export function AppTopbar({
   versao: string;
   /** Marcas e empresas que este usuário enxerga — vazio para quem não navega
    *  em `/rh/[empresaId]` (GESTOR_SETOR). Alimenta o seletor do topo. */
-  marcas: { id: string; nome: string; corPrimaria: string | null }[];
+  marcas: { id: string; nome: string; corPrimaria: string | null; logoUrl: string | null }[];
   empresas: { id: string; nome: string; marcaId: string }[];
   /** Os sistemas que este usuário alcança — decide o que a barra mostra. */
   sistemasPermitidos: string[];

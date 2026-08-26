@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.123.0",
+    data: "26/08/2026",
+    horario: "19:45",
+    titulo: "A logo da marca aparece onde você trabalha",
+    itens: [
+      "O seletor de marca/CNPJ da barra de topo passa a mostrar a logo da marca em que você está — de relance, sem ler o nome. Marca sem logo continua com o selo de iniciais na cor dela.",
+      "Em Estrutura (Marcas & CNPJs), o cartão de cada marca exibe a logo cadastrada, e o formulário de edição mostra a logo atual antes de você substituí-la.",
+      "O lugar de subir a logo já existia (Estrutura → Editar marca → arquivo PNG/JPG/SVG/WebP até 2 MB, ou um endereço https) — o que faltava era ela aparecer em algum lugar depois de enviada. Agora aparece.",
+    ],
+  },
+  {
     versao: "1.122.1",
     data: "26/08/2026",
     horario: "19:25",

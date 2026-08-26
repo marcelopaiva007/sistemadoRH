@@ -137,7 +137,18 @@ function BlocoMarca({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <CardTitle className="flex items-center gap-2">
-              <Building2 className="size-4 text-muted-foreground" />
+              {/* A logo cadastrada aparece AQUI primeiro: é a prova de que o
+                  upload funcionou, na mesma tela em que ele é feito. Sem
+                  logo, o ícone genérico de sempre. */}
+              {marca.logoUrl ? (
+                <img
+                  src={marca.logoUrl}
+                  alt=""
+                  className="h-6 w-auto max-w-28 shrink-0 object-contain"
+                />
+              ) : (
+                <Building2 className="size-4 text-muted-foreground" />
+              )}
               {marca.nome}
               {!marca.ativo && <Badge variant="secondary">inativa</Badge>}
             </CardTitle>
@@ -322,6 +333,14 @@ function MarcaForm({ marca, onSuccess }: { marca?: Marca; onSuccess: () => void 
       </div>
       <div className="space-y-2">
         <Label htmlFor="logoArquivo">Logo (opcional)</Label>
+        {marca?.logoUrl && (
+          <div className="flex items-center gap-3 rounded-md border bg-muted/30 px-3 py-2">
+            <img src={marca.logoUrl} alt="" className="h-8 w-auto max-w-40 object-contain" />
+            <span className="text-xs text-muted-foreground">
+              Logo atual — enviar um arquivo novo substitui esta.
+            </span>
+          </div>
+        )}
         <Input
           id="logoArquivo"
           name="logoArquivo"

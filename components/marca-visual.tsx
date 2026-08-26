@@ -24,7 +24,20 @@ export const TINTA_FUNDO = "bg-[color-mix(in_oklab,var(--marca)_8%,transparent)]
 export const TINTA_SELO = "bg-[color-mix(in_oklab,var(--marca)_14%,transparent)]";
 export const TEXTO_MARCA = "text-[color-mix(in_oklab,var(--marca)_75%,var(--foreground))]";
 
-export function Selo({ nome }: { nome: string }) {
+export function Selo({ nome, logoUrl }: { nome: string; logoUrl?: string | null }) {
+  // A logo cadastrada em Marcas & CNPJs vale mais que as iniciais: é ela que
+  // identifica a marca de relance. O quadrado fica NEUTRO (fundo do tema, não
+  // a tinta da marca): logo com transparência não pode herdar uma cor que não
+  // é dela. Sem logo, o selo de iniciais continua exatamente como era.
+  if (logoUrl) {
+    return (
+      <span className="flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-[5px] bg-background p-px ring-1 ring-border">
+        {/* <img> puro, como no restante do projeto: nada aqui é otimizado
+            (images.unoptimized no next.config.ts) e a URL é externa (Blob). */}
+        <img src={logoUrl} alt="" className="max-h-full max-w-full object-contain" />
+      </span>
+    );
+  }
   return (
     <span
       className={cn(

@@ -19,7 +19,7 @@ export default async function AppLayout({
   // GESTOR_SETOR não navega em /rh/[empresaId] (vai direto para
   // /rh/meu-setor, sem escopo de empresa) — poupa a consulta e o seletor do
   // topo nem aparece (SeletorMarcaEmpresa some sozinho com `marcas: []`).
-  let marcas: { id: string; nome: string; corPrimaria: string | null }[] = [];
+  let marcas: { id: string; nome: string; corPrimaria: string | null; logoUrl: string | null }[] = [];
   let empresas: { id: string; nome: string; marcaId: string }[] = [];
   if (user.role !== "GESTOR_SETOR") {
     const empresasDoUsuario = await empresasVisiveis(user);
@@ -32,7 +32,7 @@ export default async function AppLayout({
     marcas = await prisma.marca.findMany({
       where: { id: { in: marcasIds } },
       orderBy: { nome: "asc" },
-      select: { id: true, nome: true, corPrimaria: true },
+      select: { id: true, nome: true, corPrimaria: true, logoUrl: true },
     });
   }
 
