@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.122.0",
+    data: "26/08/2026",
+    horario: "19:10",
+    titulo: "O sistema agora se chama FASTMAI",
+    itens: [
+      "A logo FASTMAI — a marca do produto — substitui a da L&M em todo o sistema: barra de topo, login, esqueci/redefinir senha e Portal do colaborador.",
+      "O símbolo acompanha o tema: escuro no fundo claro, branco no modo escuro, com o \"MAI\" sempre no vermelho da marca.",
+      "A logo da L&M permanece onde a marca é a da empresa, não a do sistema: página de carreiras (Trabalhe conosco) e respostas por link externo.",
+    ],
+  },
+  {
     versao: "1.121.1",
     data: "26/08/2026",
     horario: "11:50",

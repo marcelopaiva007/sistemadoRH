@@ -9,7 +9,7 @@ import { useSyncExternalStore } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { navByRole, diretoriaNav, globalNavByRole } from "@/components/nav-config";
-import { Logo } from "@/components/logo";
+import { FastmaiLogo } from "@/components/logo-fastmai";
 import { SeletorModulo } from "@/components/seletor-modulo";
 import { SeletorMarcaEmpresa } from "@/components/seletor-marca-empresa";
 
@@ -113,7 +113,11 @@ export function AppTopbar({
         <div className="flex shrink-0 items-center gap-2">
           {/* Some abaixo de `sm`: em 375px o espaço é do que se OPERA (sistema,
               marca, CNPJ), e o seletor ao lado já responde "onde estou". */}
-          <Logo width={140} height={34} className="hidden h-6 w-auto sm:block sm:h-7" />
+          {/* A marca do PRODUTO — FASTMAI substituiu a logo da L&M em todo o
+              chrome do sistema em 26/08/2026, por pedido do dono ("vai ficar
+              só a logo do FASTMAI"). A L&M segue nas páginas em que a marca é
+              a da EMPREGADORA (carreiras, responder por token). */}
+          <FastmaiLogo className="hidden text-base sm:inline-flex" />
           {/* Era o texto fixo "Sistema de RH" com a versao embaixo. Virou a
               porta entre os modulos em 23/08/2026, sem sair do lugar: o rotulo
               ja respondia "onde eu estou", e e ali que quem procura a saida
