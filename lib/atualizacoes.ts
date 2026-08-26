@@ -26,6 +26,15 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.120.4",
+    data: "26/08/2026",
+    horario: "11:00",
+    titulo: "Atualizações desce para a segunda linha",
+    itens: [
+      "Na primeira linha da barra ficam só os sistemas, a marca/CNPJ e Usuários e perfis. Atualizações passa para a navegação da segunda linha, ao lado de Início e Produtividade RH.",
+    ],
+  },
+  {
     versao: "1.120.3",
     data: "26/08/2026",
     horario: "10:45",

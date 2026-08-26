@@ -38,14 +38,16 @@ const meuSetorItem: NavItem = { href: "/rh/meu-setor", label: "Meu Setor", icon:
 export const globalNavByRole: Record<string, NavItem[]> = {
   // Diretoria também gere usuários desde 31/07/2026 — ver requireGestaoUsuarios
   // em lib/auth-guard.ts. Sem o item aqui a permissão existiria sem caminho.
-  ADMIN: [usuariosItem, atualizacoesItem],
-  DIRETORIA: [usuariosItem, atualizacoesItem],
+  // Atualizações desceu para a linha 2 a pedido do dono (26/08/2026): na linha
+  // 1 fica só o cadastro de acesso, ao lado do nome dos sistemas.
+  ADMIN: [usuariosItem],
+  DIRETORIA: [usuariosItem],
   RH_MANAGER: [],
   GESTOR_SETOR: [],
 };
 
-export const adminNav: NavItem[] = [inicioItem, produtividadeItem];
-export const diretoriaNav: NavItem[] = [inicioItem, produtividadeItem];
+export const adminNav: NavItem[] = [inicioItem, produtividadeItem, atualizacoesItem];
+export const diretoriaNav: NavItem[] = [inicioItem, produtividadeItem, atualizacoesItem];
 
 // Lookup por role — RH_MANAGER/GESTOR_SETOR têm navegação própria e enxuta.
 export const navByRole: Record<string, NavItem[]> = {
