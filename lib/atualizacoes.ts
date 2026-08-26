@@ -26,6 +26,16 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.120.3",
+    data: "26/08/2026",
+    horario: "10:45",
+    titulo: "Nome do usuário e Sair descem para a segunda linha",
+    itens: [
+      "A primeira linha da barra fica inteira para o que é dos sistemas: seletor de sistema, marca/CNPJ, Usuários e perfis e Atualizações — com respiro.",
+      "Nome, papel, versão, tema e o botão Sair passam para a direita da segunda linha, ao lado da navegação. O bloco da conta não rola de lado — o Sair fica sempre à mão.",
+    ],
+  },
+  {
     versao: "1.120.2",
     data: "26/08/2026",
     horario: "10:30",

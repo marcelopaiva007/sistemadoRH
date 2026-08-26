@@ -161,67 +161,72 @@ export function AppTopbar({
         )}
 
         <div className="flex-1" />
-
-        <SeletorTema />
-        <Link
-          href="/conta"
-          className={cn(
-            "flex items-center gap-2 rounded-lg border border-transparent px-2.5 py-1 transition-all hover:bg-muted/80 hover:border-border/50",
-            pathname === "/conta" && "bg-muted border-border/60"
-          )}
-        >
-          {/* Some nas telas estreitas: nome + cargo custam ~130px, e quem está
-              no próprio aparelho já sabe quem é. O ícone continua ali, com o
-              mesmo destino e área de toque.
-              A VERSÃO mora aqui desde 24/08/2026 (pedido do dono do sistema):
-              ela responde "estou vendo a entrega nova?", que é uma pergunta
-              sobre a conta/sessão, não sobre em que sistema se está. */}
-          {/* Cada linha TRUNCA (title dá o nome inteiro): sem isso, um nome
-              longo quebrava em duas linhas e estourava a altura da barra —
-              visível na v1.120.1, quando a linha ficou mais cheia. */}
-          <div className="hidden max-w-40 text-right sm:block" title={nome}>
-            <p className="truncate text-sm font-medium leading-tight text-foreground">{nome}</p>
-            <p className="truncate text-[11px] leading-tight text-muted-foreground font-medium">
-              {ROLE_LABELS[role] ?? "Diretoria/Gestão"}
-            </p>
-            <p className="truncate font-mono text-[10px] leading-tight text-muted-foreground/60">{versao}</p>
-          </div>
-          <KeyRound className="size-4 text-muted-foreground" />
-        </Link>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="gap-2 text-muted-foreground hover:text-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
-          onClick={() => signOut({ callbackUrl: "/login" })}
-        >
-          <LogOut className="size-4" />
-          <span className="hidden sm:inline">Sair</span>
-        </Button>
       </div>
 
+      {/* Linha 2 — navegação do usuário à esquerda; tema, conta e sair à
+          direita (pedido do dono, 26/08/2026: "pode descer o nome do usuário e
+          o sair"). A linha 1 fica inteira para o que é DOS SISTEMAS. Só o
+          <nav> rola de lado quando aperta — o bloco da conta é fixo, senão o
+          Sair some atrás da rolagem. */}
       <div className="border-t border-border/60 bg-muted/30">
-        <nav className="mx-auto flex h-11 w-full max-w-7xl items-center gap-1.5 overflow-x-auto px-4 scrollbar-none">
-          {items.map((item) => {
-            const active =
-              item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "flex shrink-0 items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition-all duration-150",
-                  active
-                    ? "bg-primary text-primary-foreground shadow-xs font-semibold"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground active:scale-[0.98]"
-                )}
-              >
-                <Icon className="size-4" />
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
+        <div className="mx-auto flex h-11 w-full min-w-0 max-w-7xl items-center gap-1.5 px-4">
+          <nav className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto scrollbar-none">
+            {items.map((item) => {
+              const active =
+                item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    "flex shrink-0 items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition-all duration-150",
+                    active
+                      ? "bg-primary text-primary-foreground shadow-xs font-semibold"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground active:scale-[0.98]"
+                  )}
+                >
+                  <Icon className="size-4" />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
+
+          <SeletorTema />
+          <Link
+            href="/conta"
+            className={cn(
+              "flex shrink-0 items-center gap-2 rounded-lg border border-transparent px-2.5 py-1 transition-all hover:bg-muted/80 hover:border-border/50",
+              pathname === "/conta" && "bg-muted border-border/60"
+            )}
+          >
+            {/* Some nas telas estreitas: nome + cargo custam ~130px, e quem está
+                no próprio aparelho já sabe quem é. O ícone continua ali, com o
+                mesmo destino e área de toque.
+                A VERSÃO mora aqui desde 24/08/2026 (pedido do dono do sistema):
+                ela responde "estou vendo a entrega nova?", que é uma pergunta
+                sobre a conta/sessão, não sobre em que sistema se está.
+                Cada linha TRUNCA (title dá o nome inteiro): sem isso, um nome
+                longo quebrava em duas linhas e estourava a altura da barra. */}
+            <div className="hidden max-w-40 text-right sm:block" title={nome}>
+              <p className="truncate text-sm font-medium leading-tight text-foreground">{nome}</p>
+              <p className="truncate text-[11px] leading-tight text-muted-foreground font-medium">
+                {ROLE_LABELS[role] ?? "Diretoria/Gestão"} · <span className="font-mono text-[10px] text-muted-foreground/60">{versao}</span>
+              </p>
+            </div>
+            <KeyRound className="size-4 text-muted-foreground" />
+          </Link>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="shrink-0 gap-2 text-muted-foreground hover:text-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+            onClick={() => signOut({ callbackUrl: "/login" })}
+          >
+            <LogOut className="size-4" />
+            <span className="hidden sm:inline">Sair</span>
+          </Button>
+        </div>
       </div>
     </header>
   );
