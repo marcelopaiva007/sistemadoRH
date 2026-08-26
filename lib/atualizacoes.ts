@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.120.1",
+    data: "26/08/2026",
+    horario: "10:00",
+    titulo: "Usuários e perfis sobem para o topo, ao lado do nome dos sistemas",
+    itens: [
+      "A primeira linha da barra virou a área do que vale para TODOS os sistemas: o seletor de sistema, o de marca/CNPJ e, agora ao lado deles, Usuários e perfis e Atualizações.",
+      "A segunda linha fica só com a navegação de páginas do usuário (Início, Produtividade RH). O que é de um sistema específico continua no menu de dentro dele.",
+      "Em telas estreitas os rótulos encolhem para ícones — nada passa a rolar de lado na barra.",
+    ],
+  },
+  {
     versao: "1.120.0",
     data: "26/08/2026",
     horario: "09:00",
