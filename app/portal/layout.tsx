@@ -6,7 +6,7 @@ import { InstalarApp } from "./instalar-app";
 // campo: coluna única, alvos de toque grandes, sem menu lateral. É também a
 // única parte instalável como aplicativo — ver app/manifest.ts.
 export const metadata: Metadata = {
-  title: "Portal do Colaborador | LM Telecom",
+  title: "Portal do Colaborador | FASTMAI",
   // Faz o iPhone abrir sem a barra do Safari quando o portal foi adicionado à
   // tela de início. No Android quem manda é o `display` do manifesto.
   appleWebApp: {

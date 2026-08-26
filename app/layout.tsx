@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Sistema do RH | LM Telecom",
+  title: "FASTMAI | Sistema do RH",
   description: "Sistema de RH do grupo — departamento pessoal, segurança, desempenho e recrutamento",
 };
 

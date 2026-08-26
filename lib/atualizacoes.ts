@@ -26,6 +26,15 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.122.1",
+    data: "26/08/2026",
+    horario: "19:25",
+    titulo: "O título da aba acompanha a marca",
+    itens: [
+      "A aba do navegador passa a dizer \"FASTMAI | Sistema do RH\" (e \"Portal do Colaborador | FASTMAI\" no portal) — antes ainda dizia LM Telecom, contrariando a marca que a tela já mostrava.",
+    ],
+  },
+  {
     versao: "1.122.0",
     data: "26/08/2026",
     horario: "19:10",
