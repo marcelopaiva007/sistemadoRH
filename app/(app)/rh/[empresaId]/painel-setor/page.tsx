@@ -1,12 +1,19 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ContactRound, LayoutDashboard } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { prisma } from "@/lib/prisma";
 import { requireEmpresaAccess, escopoDeEmpresas } from "@/lib/rh-auth-guard";
-import { montarPainelDoSetor, setoresComGente } from "@/lib/painel-setor";
-import { Card, CardContent } from "@/components/ui/card";
+import { chaveDeSetor, montarPainelDoSetor, montarPlacarDosSetores, setoresComGente } from "@/lib/painel-setor";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PainelSetorView } from "./painel-setor-view";
 import { SeletorSetor } from "./seletor-setor";
+
+function pct(v: number | null): string {
+  if (v === null) return "—";
+  return `${v.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
+}
 
 // Painel do Setor — a porta de DIRETORIA/RH: escolhe-se um setor e lê-se a
 // gestão dele (quadro, turnover, férias, avaliações, evolução), comparada com
@@ -40,13 +47,18 @@ export default async function PainelSetorPage({
 
   const janelaMeses = [3, 6, 12, 24].includes(Number(janelaParam)) ? Number(janelaParam) : 12;
   // O setor pedido na URL só vale se existir no escopo — id ou nome digitado à
-  // mão não pode abrir recorte que o seletor não ofereceria.
-  const setorNome = setores.find((s) => s.nome === setorParam)?.nome ?? setores[0]?.nome ?? null;
+  // mão não pode abrir recorte que o seletor não ofereceria. A comparação usa
+  // a mesma chave normalizada do motor (caixa/espaço não separam setores).
+  const setorNome =
+    (setorParam && setores.find((s) => chaveDeSetor(s.nome) === chaveDeSetor(setorParam))?.nome) ??
+    setores[0]?.nome ??
+    null;
   const rotuloEscopo = escopo.length === 1 ? "a empresa" : "o grupo";
 
-  const painel = setorNome
-    ? await montarPainelDoSetor({ empresaIds: escopo, setorNome, janelaMeses })
-    : null;
+  const [painel, placar] = await Promise.all([
+    setorNome ? montarPainelDoSetor({ empresaIds: escopo, setorNome, janelaMeses }) : Promise.resolve(null),
+    montarPlacarDosSetores({ empresaIds: escopo, janelaMeses }),
+  ]);
 
   const base = `/rh/${empresaId}`;
 
@@ -72,6 +84,98 @@ export default async function PainelSetorPage({
       ) : (
         <>
           <SeletorSetor setores={setores} setorAtual={painel.setorNome} janelaAtual={janelaMeses} />
+
+          <Card>
+            <CardHeader className="pb-1">
+              <CardTitle className="text-base">Todos os setores, lado a lado</CardTitle>
+              <CardDescription>
+                Uma linha por setor, pela mesma régua do detalhe abaixo. Clique num setor para
+                abrir a análise dele.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="px-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Setor</TableHead>
+                    <TableHead className="text-right">Ativos</TableHead>
+                    <TableHead className="text-right">Turnover ({janelaMeses}m)</TableHead>
+                    <TableHead className="text-right">Entradas × saídas</TableHead>
+                    <TableHead className="text-right">Férias vencidas</TableHead>
+                    <TableHead className="text-right">Sem avaliação</TableHead>
+                    <TableHead className="text-right">&lt; 1 ano de casa</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {placar.linhas.map((l) => {
+                    const selecionado = l.nome === painel.setorNome;
+                    const params = new URLSearchParams();
+                    params.set("setor", l.nome);
+                    if (janelaMeses !== 12) params.set("janela", String(janelaMeses));
+                    if (empresasParam) params.set("empresas", empresasParam);
+                    return (
+                      <TableRow key={l.nome} className={cn(selecionado && "bg-primary/5")}>
+                        <TableCell className="font-medium">
+                          <Link
+                            href={`${base}/painel-setor?${params.toString()}`}
+                            className={cn(
+                              "underline-offset-2 hover:underline",
+                              selecionado && "text-primary dark:text-foreground",
+                            )}
+                          >
+                            {l.nome}
+                          </Link>
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">{l.ativos}</TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {l.turnoverPct > placar.escopo.turnoverPct && l.turnoverPct > 20 ? (
+                            <span className="font-semibold text-warning">{pct(l.turnoverPct)}</span>
+                          ) : (
+                            pct(l.turnoverPct)
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {l.admissoes} × {l.desligamentos}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {l.feriasVencidas > 0 ? (
+                            <span className="font-semibold text-destructive">{l.feriasVencidas}</span>
+                          ) : (
+                            "0"
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {l.comCicloAberto > 0 ? (
+                            l.semAvaliacao > 0 ? (
+                              <span className="font-semibold text-warning">{l.semAvaliacao}</span>
+                            ) : (
+                              "0"
+                            )
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">{pct(l.pctAbaixoDeUmAno)}</TableCell>
+                      </TableRow>
+                    );
+                  })}
+                  <TableRow className="border-t-2 border-border font-medium">
+                    <TableCell>{placar.escopo.nome}</TableCell>
+                    <TableCell className="text-right tabular-nums">{placar.escopo.ativos}</TableCell>
+                    <TableCell className="text-right tabular-nums">{pct(placar.escopo.turnoverPct)}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {placar.escopo.admissoes} × {placar.escopo.desligamentos}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">{placar.escopo.feriasVencidas}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {placar.escopo.comCicloAberto > 0 ? placar.escopo.semAvaliacao : "—"}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">{pct(placar.escopo.pctAbaixoDeUmAno)}</TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
           <PainelSetorView painel={painel} rotuloEscopo={rotuloEscopo} />
           <div className="flex flex-wrap gap-2">
             <Link

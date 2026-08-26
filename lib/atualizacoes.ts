@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.121.0",
+    data: "26/08/2026",
+    horario: "11:30",
+    titulo: "Painel do setor: todos os setores lado a lado",
+    itens: [
+      "O Painel do setor abre agora com a tabela de TODOS os setores — ativos, turnover, entradas × saídas, férias vencidas, avaliações pendentes e % com menos de 1 ano de casa, um setor por linha, com a linha do total como referência. Clique num setor e a análise completa dele abre logo abaixo.",
+      "A mesma régua vale na tabela e no detalhe — os números nunca discordam entre a visão geral e o mergulho.",
+      "Setores digitados com caixa diferente (\"Administrativo\" e \"ADMINISTRATIVO\") passam a contar como um só em todo o painel. Grafias realmente diferentes continuam separadas de propósito: é o painel mostrando o que precisa ser fundido na tela de Setores.",
+    ],
+  },
+  {
     versao: "1.120.4",
     data: "26/08/2026",
     horario: "11:00",
