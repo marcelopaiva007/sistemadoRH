@@ -26,6 +26,18 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.119.0",
+    data: "26/08/2026",
+    horario: "02:00",
+    titulo: "Painel do setor: a gestão de cada setor num olhar",
+    itens: [
+      "Nova tela Gestão › Painel do setor: escolha um setor e leia o quadro dele — ativos, turnover comparado com a empresa/grupo, entradas × saídas, férias vencidas, avaliações pendentes, acesso ao portal e a evolução mês a mês. É o zoom que faltava entre o Painel executivo (grupo) e o Placar (CNPJs).",
+      "O gestor de setor passa a ver ESTES MESMOS números na tela Meu Setor, restritos ao setor dele — gestor e diretoria nunca leem valores diferentes do mesmo setor. Salário não aparece em nada disto.",
+      "A evolução do quadro passa a usar a foto mensal (a medição real que o sistema tira todo dia 5) nos meses em que ela existe, e diz quais meses são medidos e quais são reconstituídos do cadastro.",
+      "Correção no menu lateral: abrir uma tela não acende mais outro item de nome parecido.",
+    ],
+  },
+  {
     versao: "1.118.1",
     data: "26/08/2026",
     horario: "01:00",

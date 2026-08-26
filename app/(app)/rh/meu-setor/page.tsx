@@ -3,9 +3,11 @@ import { prisma } from "@/lib/prisma";
 import { hojeUTC } from "@/lib/datas";
 import { AMOSTRA_MINIMA_ANONIMATO } from "@/lib/constants-rh";
 import { montarMeuTime, type ColaboradorParaTime } from "@/lib/meu-time";
+import { montarPainelDoSetor } from "@/lib/painel-setor";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AjudaDaTela } from "@/components/ajuda-da-tela";
 import { TimeView } from "../[empresaId]/time/time-view";
+import { PainelSetorView } from "../[empresaId]/painel-setor/painel-setor-view";
 import { MeuSetorView } from "./meu-setor-view";
 
 export default async function MeuSetorPage() {
@@ -65,7 +67,14 @@ export default async function MeuSetorPage() {
     };
   });
 
-  const time = eu?.colaboradorId ? await montarTimeDoGestor(eu.colaboradorId) : null;
+  // Os números de gestão do setor — o MESMO motor e a MESMA vista da tela
+  // "Painel do setor" da diretoria (lib/painel-setor.ts): o gestor e quem o
+  // cobra leem sempre o mesmo número. O escopo aqui é o CNPJ do vínculo, e a
+  // comparação é contra a empresa inteira. Salário não entra em nada disto.
+  const [time, painel] = await Promise.all([
+    eu?.colaboradorId ? montarTimeDoGestor(eu.colaboradorId) : Promise.resolve(null),
+    montarPainelDoSetor({ empresaIds: [user.empresaAtivaId], setorNome: setor.nome }),
+  ]);
 
   return (
     <div className="space-y-8">
@@ -75,9 +84,15 @@ export default async function MeuSetorPage() {
           <AjudaDaTela modulo="meu-setor" />
         </div>
         <p className="text-muted-foreground">
-          O seu time e os resultados agregados das pesquisas de clima do setor.
+          Os números de gestão do setor, o seu time e os resultados agregados das pesquisas de
+          clima.
         </p>
       </div>
+
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold tracking-tight">Números do setor</h2>
+        <PainelSetorView painel={painel} rotuloEscopo="a empresa" />
+      </section>
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold tracking-tight">Meu time</h2>

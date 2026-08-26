@@ -38,6 +38,7 @@ import {
   Settings,
   ShieldAlert,
   ShieldCheck,
+  Gauge,
   Trophy,
   UserCog,
   Star,
@@ -112,6 +113,9 @@ const GRUPOS = [
       // NR-01 é de risco psicossocial.
       { slug: "painel", label: "Painel executivo", icon: LayoutDashboard },
       { slug: "placar", label: "Placar do grupo", icon: Trophy },
+      // O zoom seguinte ao Placar: o grupo → o CNPJ → o SETOR. Mesmo motor da
+      // seção "Números do setor" que o gestor vê em /rh/meu-setor.
+      { slug: "painel-setor", label: "Painel do setor", icon: Gauge },
       // O que o radar de desvio e os detectores de lib/alertas.ts encontram
       // vira cartão aqui, com dono e prazo — sem isso, alerta é ruído que o
       // time aprende a ignorar em um mês.
@@ -240,7 +244,10 @@ export function RHEmpresaNav({ empresaId }: { empresaId: string }) {
           <ul className="flex gap-1 md:block md:gap-0 md:space-y-0.5">
             {grupo.itens.map((item) => {
               const href = `${base}/${item.slug}`;
-              const ativo = pathname.startsWith(href);
+              // Igualdade ou prefixo COM barra — startsWith puro acendia dois
+              // itens quando um slug é prefixo do outro ("painel" acendia
+              // junto com "painel-setor"). Mesma regra do nav de Processos.
+              const ativo = pathname === href || pathname.startsWith(`${href}/`);
               const Icon = item.icon;
               return (
                 <li key={item.slug} className="shrink-0">
