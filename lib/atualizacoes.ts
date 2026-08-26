@@ -26,6 +26,15 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.123.2",
+    data: "26/08/2026",
+    horario: "19:45",
+    titulo: "LM Telecom também ganha logo",
+    itens: [
+      "O símbolo da L&M (extraído da arte oficial) passa a identificar a marca no seletor do topo e em Estrutura. Faltam Centrysol e VAPT.",
+    ],
+  },
+  {
     versao: "1.123.1",
     data: "26/08/2026",
     horario: "19:35",
