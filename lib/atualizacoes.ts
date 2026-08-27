@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.134.0",
+    data: "27/08/2026",
+    horario: "22:10",
+    titulo: "Gestor de setor fica no seu setor — de verdade",
+    itens: [
+      "O gestor de setor agora só enxerga e mexe no próprio time, pela tela \"Meu Setor\". Antes, digitando o endereço de outra tela na barra, ele conseguia abrir os dados de toda a empresa — isso foi fechado.",
+      "O que o gestor faz do time dele continua igual: por exemplo, gerar a trilha de integração de um recém-chegado que reporta a ele segue funcionando normalmente.",
+      "Nada muda para os perfis Administrativo, Diretoria e Gestor de RH.",
+    ],
+  },
+  {
     versao: "1.133.1",
     data: "27/08/2026",
     horario: "21:30",

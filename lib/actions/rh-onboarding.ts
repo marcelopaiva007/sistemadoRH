@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
+import { requireEmpresaAccess, requireAcessoAoColaborador } from "@/lib/rh-auth-guard";
 import { registrarAuditoria } from "@/lib/audit";
 import { dataDoFormulario, somarDiasUTC } from "@/lib/datas";
 import { DIAS_DO_MARCO, ITENS_ONBOARDING, itemOnboardingLabel } from "@/lib/constants-onboarding";
@@ -15,7 +15,12 @@ export async function gerarTrilhaPadrao(
   empresaId: string,
   colaboradorId: string,
 ): Promise<ActionResult> {
-  await requireEmpresaAccess(empresaId);
+  // Alcançável pelo GESTOR_SETOR pela tela "Meu time" (o botão "Gerar trilha
+  // padrão" de um recém-chegado). Por isso a guarda é por COLABORADOR, não por
+  // empresa: o gestor passa se o alvo for subordinado dele; os demais papéis
+  // seguem a regra de empresa de sempre. O findFirst abaixo ainda amarra o
+  // colaborador ao empresaId.
+  await requireAcessoAoColaborador(empresaId, colaboradorId);
 
   const colaborador = await prisma.colaborador.findFirst({
     where: { id: colaboradorId, empresaId },
