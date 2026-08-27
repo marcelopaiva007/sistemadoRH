@@ -26,6 +26,27 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.133.1",
+    data: "27/08/2026",
+    horario: "21:30",
+    titulo: "Segurança: multa não muda mais de empresa, e o limite de tentativas de login volta a valer",
+    itens: [
+      "Editar uma infração da frota agora só funciona se a multa for de um veículo que você tem acesso — antes, num caso de borda, uma edição podia mover a multa de outra empresa para a sua sem aviso.",
+      "O bloqueio de 5 tentativas de senha erradas em 15 minutos passou a usar o endereço real de quem tenta; um detalhe técnico deixava esse limite ser contornado. Nada muda para quem usa o sistema normalmente.",
+    ],
+  },
+  {
+    versao: "1.133.0",
+    data: "27/08/2026",
+    horario: "19:30",
+    titulo: "Excluir um veículo cadastrado por engano",
+    itens: [
+      "A placa em duplicidade que veio da importação da frota agora pode sair do sistema: cada veículo ganhou o botão de excluir, com a confirmação \"Tem certeza que deseja excluir este veículo?\" — um clique, sem redigitar a placa.",
+      "Quando o veículo tem histórico, o diálogo lista antes o que será apagado junto (infrações, manutenções e as demais tabelas ligadas ao veículo). O documento anexado não vira lixo: o arquivo é limpo junto, sem deixar PDF órfão guardado.",
+      "A exclusão vale a partir de qualquer tela da frota consolidada, e fica registrada na auditoria da empresa dona do veículo.",
+    ],
+  },
+  {
     versao: "1.132.0",
     data: "27/08/2026",
     horario: "19:00",
