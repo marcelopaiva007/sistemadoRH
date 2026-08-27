@@ -69,7 +69,10 @@ type Posicao = {
   ativo: boolean;
   empresaId: string;
   empresa: Empresa;
+  /** Contagens de ATIVOS (a tela não conta desligado). */
   _count: { colaboradores: number; vagas?: number };
+  /** Vínculos TOTAIS (ativos + desligados) — decide só a elegibilidade de remoção. */
+  vinculadosTotais: number;
 };
 
 const initialState: ActionResult = { ok: true };
@@ -244,7 +247,9 @@ export function PosicoesTable({
 
   // Contagem de cargos sem nenhum colaborador cadastrado
   const cargosSemColabCount = useMemo(() => {
-    return posicoesFiltradas.filter((p) => (p._count?.colaboradores ?? 0) === 0).length;
+    // Elegível para remoção = sem vínculo NENHUM (nem desligado) — mesma
+    // régua do servidor (colaboradores: { none: {} }).
+    return posicoesFiltradas.filter((p) => p.vinculadosTotais === 0).length;
   }, [posicoesFiltradas]);
 
   async function handleRemoverSemColaboradores() {

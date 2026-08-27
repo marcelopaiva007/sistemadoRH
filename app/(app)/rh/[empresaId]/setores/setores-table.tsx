@@ -69,7 +69,10 @@ type Setor = {
   ativo: boolean;
   empresaId: string;
   empresa: Empresa;
+  /** Contagens de ATIVOS (a tela não conta desligado). */
   _count: { colaboradores: number; vagas?: number; metas?: number };
+  /** Vínculos TOTAIS (ativos + desligados) — decide só a elegibilidade de remoção. */
+  vinculadosTotais: number;
 };
 
 const initialState: ActionResult = { ok: true };
@@ -246,7 +249,9 @@ export function SetoresTable({
   }, [grupos, setoresFiltrados]);
 
   const setoresSemColabCount = useMemo(() => {
-    return setoresFiltrados.filter((s) => (s._count?.colaboradores ?? 0) === 0).length;
+    // Elegível para remoção = sem vínculo NENHUM (nem desligado) — mesma
+    // régua do servidor (colaboradores: { none: {} }).
+    return setoresFiltrados.filter((s) => s.vinculadosTotais === 0).length;
   }, [setoresFiltrados]);
 
   async function handleRemoverSemColaboradores() {
