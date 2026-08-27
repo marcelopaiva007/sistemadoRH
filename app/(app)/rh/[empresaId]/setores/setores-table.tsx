@@ -127,6 +127,7 @@ export function SetoresTable({
   empresaId,
   empresasDoUsuario,
   setores,
+  empresas = [],
 }: {
   empresaId: string;
   empresasDoUsuario: string[];
@@ -321,6 +322,8 @@ export function SetoresTable({
               <SetorForm
                 action={createSetor.bind(null, empresaId)}
                 title="Novo Setor"
+                empresas={empresas}
+                defaultEmpresaId={empresaId}
                 onSuccess={() => setCreateOpen(false)}
               />
             </DialogContent>
@@ -464,6 +467,8 @@ export function SetoresTable({
                           const result = await toggleSetorAtivo(empresaId, s.id, !s.ativo);
                           if (result.ok) {
                             toast.success(s.ativo ? "Setor desativado." : "Setor ativado.");
+                          } else {
+                            toast.error(result.error || "Erro ao alterar o status do setor.");
                           }
                         }}
                       >
@@ -682,13 +687,19 @@ function SetorForm({
   action,
   title,
   defaultNome = "",
+  empresas = [],
+  defaultEmpresaId = "",
   onSuccess,
 }: {
   action: (prev: ActionResult, formData: FormData) => Promise<ActionResult>;
   title: string;
   defaultNome?: string;
+  /** Com mais de uma empresa visível, o formulário oferece o seletor de CNPJ (só na criação). */
+  empresas?: Empresa[];
+  defaultEmpresaId?: string;
   onSuccess: () => void;
 }) {
+  const [empresaSelecionada, setEmpresaSelecionada] = useState(defaultEmpresaId);
   const [state, formAction, isPending] = useActionState(
     async (prev: ActionResult, fd: FormData) => {
       const result = await action(prev, fd);
@@ -706,6 +717,27 @@ function SetorForm({
       <DialogHeader>
         <DialogTitle>{title}</DialogTitle>
       </DialogHeader>
+
+      {empresas.length > 1 && (
+        <div className="space-y-2">
+          <Label>Empresa</Label>
+          {/* A lista mostra o grupo inteiro, então o setor novo também pode
+              nascer em qualquer CNPJ visível — sem trocar de tela. */}
+          <input type="hidden" name="empresaId" value={empresaSelecionada} />
+          <Select value={empresaSelecionada} onValueChange={(v) => setEmpresaSelecionada(v ?? defaultEmpresaId)}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Selecione a empresa..." />
+            </SelectTrigger>
+            <SelectContent>
+              {empresas.map((e) => (
+                <SelectItem key={e.id} value={e.id}>
+                  {e.nome}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       <div className="space-y-2">
         <Label htmlFor="nome">Nome do setor</Label>

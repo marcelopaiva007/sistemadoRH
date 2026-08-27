@@ -3,7 +3,13 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireEmpresaAccess, empresasVisiveis } from "@/lib/rh-auth-guard";
+import {
+  requireEmpresaAccess,
+  requireRHAccess,
+  usuarioAlcancaEmpresa,
+  empresasVisiveis,
+} from "@/lib/rh-auth-guard";
+import { violouUnique, registroNaoEncontrado } from "@/lib/prisma-erros";
 import { registrarAuditoria } from "@/lib/audit";
 import { validarFusao, carregarSetores } from "@/lib/actions/guarda-unificacao";
 import type { ActionResult } from "@/lib/constants";
@@ -11,6 +17,36 @@ import type { ActionResult } from "@/lib/constants";
 const setorSchema = z.object({
   nome: z.string().trim().min(2, "Informe o nome do setor"),
 });
+
+/**
+ * Resolve o alvo de editar/ativar/excluir pela empresa DO SETOR, não a da URL.
+ *
+ * A tela de Setores lista o grupo INTEIRO, mas a rota fixa uma empresa só.
+ * Validar e filtrar pela empresa da rota fazia o Prisma não achar setor de
+ * outro CNPJ (P2025) — e o catch genérico traduzia isso para "nome duplicado",
+ * mensagem falsa (aconteceu numa renomeação real em 26/08/2026). Mesma classe
+ * do defeito da v1.105.0: escopo multi-empresa que erra sem dar erro.
+ *
+ * Setor fora do alcance responde igual a inexistente: um id chutado na chamada
+ * não pode virar sonda de existência.
+ */
+async function resolverSetorAlcancavel(
+  id: string,
+): Promise<{ ok: true; setorEmpresaId: string } | { ok: false; error: string }> {
+  const usuario = await requireRHAccess();
+  const setor = await prisma.setor.findUnique({ where: { id }, select: { empresaId: true } });
+  if (!setor || !(await usuarioAlcancaEmpresa(usuario, setor.empresaId))) {
+    return { ok: false, error: "Setor não encontrado." };
+  }
+  return { ok: true, setorEmpresaId: setor.empresaId };
+}
+
+// A lista que o usuário está vendo mora na rota da URL; o dado alterado mora na
+// empresa do setor. Quando diferem, as duas páginas precisam sair do cache.
+function revalidarSetores(empresaIdDaUrl: string, setorEmpresaId: string) {
+  revalidatePath(`/rh/${empresaIdDaUrl}/setores`);
+  if (setorEmpresaId !== empresaIdDaUrl) revalidatePath(`/rh/${setorEmpresaId}/setores`);
+}
 
 export async function createSetor(
   empresaIdDefault: string,
@@ -24,10 +60,11 @@ export async function createSetor(
 
   try {
     await prisma.setor.create({ data: { empresaId: targetEmpresaId, nome: parsed.data.nome } });
-  } catch {
-    return { ok: false, error: "Já existe um setor com esse nome nessa empresa." };
+  } catch (e) {
+    if (violouUnique(e)) return { ok: false, error: "Já existe um setor com esse nome nessa empresa." };
+    throw e;
   }
-  revalidatePath(`/rh/${empresaIdDefault}/setores`);
+  revalidarSetores(empresaIdDefault, targetEmpresaId);
   return { ok: true };
 }
 
@@ -37,34 +74,55 @@ export async function updateSetor(
   _prev: ActionResult,
   formData: FormData
 ): Promise<ActionResult> {
-  await requireEmpresaAccess(empresaId);
+  const alvo = await resolverSetorAlcancavel(id);
+  if (!alvo.ok) return alvo;
   const parsed = setorSchema.safeParse({ nome: formData.get("nome") });
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
 
   try {
-    await prisma.setor.update({ where: { id, empresaId }, data: { nome: parsed.data.nome } });
-  } catch {
-    return { ok: false, error: "Já existe um setor com esse nome nessa empresa." };
+    await prisma.setor.update({
+      where: { id, empresaId: alvo.setorEmpresaId },
+      data: { nome: parsed.data.nome },
+    });
+  } catch (e) {
+    if (violouUnique(e)) return { ok: false, error: "Já existe um setor com esse nome nessa empresa." };
+    if (registroNaoEncontrado(e)) return { ok: false, error: "Setor não encontrado." };
+    throw e;
   }
-  revalidatePath(`/rh/${empresaId}/setores`);
+  revalidarSetores(empresaId, alvo.setorEmpresaId);
   return { ok: true };
 }
 
 export async function toggleSetorAtivo(empresaId: string, id: string, ativo: boolean): Promise<ActionResult> {
-  await requireEmpresaAccess(empresaId);
-  await prisma.setor.update({ where: { id, empresaId }, data: { ativo } });
-  revalidatePath(`/rh/${empresaId}/setores`);
+  const alvo = await resolverSetorAlcancavel(id);
+  if (!alvo.ok) return alvo;
+  try {
+    await prisma.setor.update({ where: { id, empresaId: alvo.setorEmpresaId }, data: { ativo } });
+  } catch (e) {
+    if (registroNaoEncontrado(e)) return { ok: false, error: "Setor não encontrado." };
+    throw e;
+  }
+  revalidarSetores(empresaId, alvo.setorEmpresaId);
   return { ok: true };
 }
 
 export async function deleteSetor(empresaId: string, id: string): Promise<ActionResult> {
-  await requireEmpresaAccess(empresaId);
-  const emUso = await prisma.colaborador.count({ where: { setorId: id, empresaId } });
+  const alvo = await resolverSetorAlcancavel(id);
+  if (!alvo.ok) return alvo;
+  // Sem filtro de empresa: o vínculo colaborador→setor é que conta. Contar pela
+  // empresa da URL respondia 0 para setor de outro CNPJ e deixava a exclusão
+  // seguir até o P2025.
+  const emUso = await prisma.colaborador.count({ where: { setorId: id } });
   if (emUso > 0) {
     return { ok: false, error: `Não é possível excluir: ${emUso} colaborador(es) vinculado(s) a esse setor.` };
   }
-  await prisma.setor.delete({ where: { id, empresaId } });
-  revalidatePath(`/rh/${empresaId}/setores`);
+  try {
+    await prisma.setor.delete({ where: { id, empresaId: alvo.setorEmpresaId } });
+  } catch (e) {
+    if (registroNaoEncontrado(e)) return { ok: false, error: "Setor não encontrado." };
+    throw e;
+  }
+  revalidarSetores(empresaId, alvo.setorEmpresaId);
   return { ok: true };
 }
 
