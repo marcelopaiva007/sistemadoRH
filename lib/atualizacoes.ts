@@ -26,6 +26,16 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.131.0",
+    data: "27/08/2026",
+    horario: "18:00",
+    titulo: "Duas melhorias da auditoria de Setores e Cargos",
+    itens: [
+      "Corrigido um falso positivo na \"Análise de Cargos Semelhantes\": ela podia sugerir fundir cargos com nomes parecidos mas função diferente (ex.: \"Gerente de Vendas\" com \"Gerente de Redes\"). Agora só sugere fusão quando a diferença é mesmo erro de digitação — troca de substantivo nunca mais entra como \"semelhante\".",
+      "Tipos de Benefício ganhou as ferramentas que Setores e Cargos já tinham: a tela mostra quantas concessões usam cada tipo, e um botão remove de uma vez os tipos sem nenhum uso.",
+    ],
+  },
+  {
     versao: "1.130.0",
     data: "27/08/2026",
     horario: "17:10",
