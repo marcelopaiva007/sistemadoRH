@@ -52,6 +52,19 @@ export default async function VeiculosPage({
         aderidoSne: true,
         dataAdesaoSne: true,
         empresaId: true,
+        // Quanto histórico o carro tem pendurado. A tela precisa disso ANTES
+        // do clique: é o que o diálogo de exclusão mostra ("some junto com o
+        // veículo") e o que decide se ele pede a placa redigitada. Um `_count`
+        // no mesmo findMany não custa round-trip novo.
+        _count: {
+          select: {
+            alocacoes: true,
+            infracoes: true,
+            transferencias: true,
+            consumos: true,
+            manutencoes: true,
+          },
+        },
         // Só a alocação aberta — quem está com o carro AGORA.
         alocacoes: {
           where: { dataFim: null },
@@ -133,6 +146,15 @@ export default async function VeiculosPage({
       empresaNome: nomeDaEmpresa.get(v.empresaId) ?? "—",
       condutorAtual: v.alocacoes[0]?.condutor.colaborador.nome ?? null,
       vencimentoMaisProximo: proximo,
+      // `documentos` sai do array que já veio; os outros cinco, do _count.
+      historico: {
+        infracoes: v._count.infracoes,
+        alocacoes: v._count.alocacoes,
+        documentos: v.documentos.length,
+        manutencoes: v._count.manutencoes,
+        consumos: v._count.consumos,
+        transferencias: v._count.transferencias,
+      },
       documentos: v.documentos.map((d) => ({
         id: d.id,
         tipo: d.tipo,

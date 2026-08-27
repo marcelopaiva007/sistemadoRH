@@ -10,9 +10,18 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   salvarVeiculo,
   salvarDocumentoVeiculo,
   excluirDocumentoVeiculo,
+  excluirVeiculo,
   abrirAlocacao,
 } from "@/lib/actions/processos-frota";
 import { formatarTamanho } from "@/lib/anexos";
@@ -69,6 +78,15 @@ export type VeiculoNaTela = {
   empresaNome: string;
   condutorAtual: string | null;
   vencimentoMaisProximo: { tipo: string; texto: string; dias: number } | null;
+  /** Quantos registros o Cascade levaria junto se o veículo fosse excluído. */
+  historico: {
+    infracoes: number;
+    alocacoes: number;
+    documentos: number;
+    manutencoes: number;
+    consumos: number;
+    transferencias: number;
+  };
   documentos: DocumentoNaTela[];
 };
 
@@ -117,6 +135,11 @@ export function VeiculosView({
     | null
   >(null);
   const [form, setForm] = useState<Record<string, string>>({});
+  // A exclusão NÃO entra no `painel`. Painel é formulário: abre embaixo da
+  // tabela, e com 64 placas na tela a confirmação nasceria fora da dobra —
+  // confirmação que não se vê é confirmação que não confirma nada. Vai de
+  // diálogo, como toda exclusão do resto do sistema.
+  const [aExcluir, setAExcluir] = useState<VeiculoNaTela | null>(null);
 
   // O veículo do painel aberto — resolvido do id, para o painel de documentos
   // receber a lista já pronta em vez de buscar de novo.
@@ -478,6 +501,14 @@ export function VeiculosView({
                         <Button size="sm" variant="outline" onClick={() => abrir({ tipo: "entrega", veiculoId: v.id }, {})}>
                           Entregar
                         </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          title="Excluir veículo"
+                          onClick={() => setAExcluir(v)}
+                        >
+                          <Trash2 className="size-4 text-muted-foreground hover:text-destructive" />
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -486,6 +517,18 @@ export function VeiculosView({
             </Table>
           </CardContent>
         </Card>
+      )}
+
+      {aExcluir && (
+        <DialogoExcluirVeiculo
+          empresaId={empresaId}
+          veiculo={aExcluir}
+          onFechar={() => setAExcluir(null)}
+          onExcluido={() => {
+            setAExcluir(null);
+            router.refresh();
+          }}
+        />
       )}
 
       {painel?.tipo === "documento" && veiculoDoPainel && (
@@ -530,6 +573,115 @@ export function VeiculosView({
         </Card>
       )}
     </div>
+  );
+}
+
+/**
+ * Confirmação de exclusão de veículo — um clique, em todos os casos.
+ *
+ * A versão anterior pedia a placa redigitada quando o veículo tinha histórico.
+ * O CEO decidiu em 27/08/2026 que o "tem certeza?" basta sempre. Não repor o
+ * campo sem falar com ele.
+ *
+ * O que o diálogo mantém é a LISTA do que some antes do clique. "Isto apagará
+ * dados relacionados" não informa nada; "3 infrações, 2 entregas a condutor"
+ * informa — e informar era a metade útil da tela, não o campo de digitação.
+ */
+function DialogoExcluirVeiculo({
+  empresaId,
+  veiculo,
+  onFechar,
+  onExcluido,
+}: {
+  empresaId: string;
+  veiculo: VeiculoNaTela;
+  onFechar: () => void;
+  onExcluido: () => void;
+}) {
+  const [pendente, iniciar] = useTransition();
+  const [erro, setErro] = useState<string | null>(null);
+
+  const vinculos = useMemo(
+    () =>
+      [
+        { n: veiculo.historico.infracoes, um: "infração", varios: "infrações" },
+        { n: veiculo.historico.alocacoes, um: "entrega a condutor", varios: "entregas a condutor" },
+        { n: veiculo.historico.documentos, um: "documento", varios: "documentos" },
+        { n: veiculo.historico.manutencoes, um: "manutenção", varios: "manutenções" },
+        { n: veiculo.historico.consumos, um: "abastecimento", varios: "abastecimentos" },
+        { n: veiculo.historico.transferencias, um: "transferência", varios: "transferências" },
+      ].filter((v) => v.n > 0),
+    [veiculo],
+  );
+  const temHistorico = vinculos.length > 0;
+
+  function excluir() {
+    setErro(null);
+    iniciar(async () => {
+      const r = await excluirVeiculo({ empresaId, id: veiculo.id });
+      if (!r.ok) {
+        setErro(r.error);
+        return;
+      }
+      onExcluido();
+    });
+  }
+
+  const descricao = [veiculo.marca, veiculo.modelo].filter(Boolean).join(" ");
+
+  return (
+    <Dialog open onOpenChange={(aberto) => !aberto && !pendente && onFechar()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Tem certeza que deseja excluir este veículo?</DialogTitle>
+          <DialogDescription>
+            A exclusão é definitiva — o cadastro não volta.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
+            <p className="font-medium">{formatarPlaca(veiculo.placa)}</p>
+            <p className="text-muted-foreground">
+              {descricao || "sem marca/modelo"} · {veiculo.empresaNome}
+            </p>
+          </div>
+
+          {temHistorico ? (
+            <div className="space-y-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+              <p className="font-medium">Este veículo tem histórico, e ele será apagado junto:</p>
+              <ul className="list-inside list-disc">
+                {vinculos.map((v) => (
+                  <li key={v.um}>
+                    {v.n} {v.n === 1 ? v.um : v.varios}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Este cadastro não tem infração, entrega, documento, manutenção, abastecimento nem
+              transferência — nada mais é apagado junto.
+            </p>
+          )}
+
+          {erro && (
+            <p className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+              {erro}
+            </p>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button type="button" variant="ghost" disabled={pendente} onClick={onFechar}>
+            Cancelar
+          </Button>
+          <Button type="button" variant="destructive" disabled={pendente} onClick={excluir}>
+            {pendente ? "Excluindo…" : "Excluir veículo"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

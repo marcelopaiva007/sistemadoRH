@@ -392,6 +392,110 @@ export async function excluirDocumentoVeiculo(input: {
 }
 
 /**
+ * Apaga um veículo do cadastro. Pedido do RH em 27/08/2026: a importação da
+ * frota da L&M deixou placas repetidas, e não havia como tirar do sistema um
+ * cadastro feito por engano — só dava para mudar a situação para BAIXADO, o
+ * que não é a mesma coisa (o carro continua na lista, e a placa repetida
+ * continua ocupando o `@unique`).
+ *
+ * O QUE CAI JUNTO. As seis tabelas filhas do veículo — alocações, infrações,
+ * documentos, transferências, consumos e manutenções — têm `onDelete: Cascade`.
+ * Apagar o veículo apaga TUDO isso, inclusive o histórico de quem dirigia no
+ * dia de cada multa, que é a prova que sustenta a indicação de condutor.
+ *
+ * A PRIMEIRA VERSÃO exigia a placa redigitada quando havia histórico. O CEO
+ * decidiu em 27/08/2026 que basta o "tem certeza?" da tela em todos os casos —
+ * a exclusão é operação de quem já pode editar a frota, e o atrito extra não
+ * pagava. A decisão está registrada aqui para a próxima pessoa não "consertar"
+ * de volta achando que foi esquecimento.
+ *
+ * O que ficou: o diálogo LISTA o que será apagado antes do clique, e a
+ * auditoria guarda a contagem. Informar continua; travar não.
+ */
+export async function excluirVeiculo(input: {
+  empresaId: string;
+  id: string;
+}): Promise<ActionResult> {
+  const usuario = await requireProcessosEmpresa(input.empresaId);
+  const visiveis = await empresasVisiveis(usuario);
+
+  // Pelo alcance do usuário, não pela empresa da URL: a tela é consolidada e a
+  // linha clicada pode ser de outro CNPJ visível. O `empresaId` da auditoria
+  // sai do PRÓPRIO veículo, nunca do caminho.
+  const veiculo = await prisma.veiculo.findFirst({
+    where: { id: input.id, empresaId: { in: visiveis } },
+    select: {
+      id: true,
+      placa: true,
+      marca: true,
+      modelo: true,
+      empresaId: true,
+      _count: {
+        select: {
+          alocacoes: true,
+          infracoes: true,
+          documentos: true,
+          transferencias: true,
+          consumos: true,
+          manutencoes: true,
+        },
+      },
+      // O Cascade apaga o DocumentoVeiculo, mas o Arquivo fica: a relação é
+      // `SetNull` do lado do arquivo. Sem esta coleta, cada exclusão deixaria
+      // linha órfã em Arquivo e o PDF pago no Blob para sempre.
+      documentos: { select: { arquivoId: true, arquivo: { select: { blobUrl: true } } } },
+    },
+  });
+  if (!veiculo) return { ok: false, error: "Veículo não encontrado no seu acesso." };
+
+  const c = veiculo._count;
+  const vinculos = [
+    { n: c.infracoes, um: "infração", varios: "infrações" },
+    { n: c.alocacoes, um: "entrega a condutor", varios: "entregas a condutor" },
+    { n: c.documentos, um: "documento", varios: "documentos" },
+    { n: c.manutencoes, um: "manutenção", varios: "manutenções" },
+    { n: c.consumos, um: "abastecimento", varios: "abastecimentos" },
+    { n: c.transferencias, um: "transferência", varios: "transferências" },
+  ].filter((v) => v.n > 0);
+  const total = vinculos.reduce((s, v) => s + v.n, 0);
+  const listaDeVinculos = vinculos.map((v) => `${v.n} ${v.n === 1 ? v.um : v.varios}`).join(", ");
+
+  const arquivoIds = veiculo.documentos.map((d) => d.arquivoId).filter((id): id is string => !!id);
+  const blobs = veiculo.documentos.map((d) => d.arquivo?.blobUrl).filter((u): u is string => !!u);
+
+  await prisma.$transaction(async (tx) => {
+    // O delete do veículo leva as seis filhas por Cascade; os Arquivos saem
+    // depois, já sem ninguém apontando para eles.
+    await tx.veiculo.delete({ where: { id: veiculo.id } });
+    if (arquivoIds.length > 0) await tx.arquivo.deleteMany({ where: { id: { in: arquivoIds } } });
+  });
+
+  // Fora da transação, como na exclusão de documento: falha de rede no Blob não
+  // pode desfazer uma exclusão que o banco já confirmou.
+  for (const url of blobs) await removerDoBlob(url);
+
+  await registrarAuditoria({
+    empresaId: veiculo.empresaId,
+    acao: "EXCLUIR",
+    entidade: "Veiculo",
+    entidadeId: veiculo.id,
+    resumo:
+      `Excluiu o veículo ${formatarPlaca(veiculo.placa)}` +
+      `${veiculo.marca || veiculo.modelo ? ` (${[veiculo.marca, veiculo.modelo].filter(Boolean).join(" ")})` : ""}` +
+      `${total > 0 ? ` e o histórico junto: ${listaDeVinculos}` : " — cadastro sem histórico"}`,
+    detalhes: {
+      placa: veiculo.placa,
+      empresaId: veiculo.empresaId,
+      apagadosEmCascata: { ...c },
+      arquivosRemovidos: arquivoIds.length,
+    },
+  });
+
+  revalidatePath(caminho(input.empresaId));
+  return { ok: true };
+}
+
+/**
  * Transforma um colaborador em condutor — ou edita os dados de habilitação.
  *
  * A validade da CNH é LIDA do documento, nunca calculada. A regra de anos mudou
