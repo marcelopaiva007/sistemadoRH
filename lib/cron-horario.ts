@@ -75,20 +75,21 @@ export function envioAutomaticoLigado(
 }
 
 /**
- * Cada rota de cron aceita duas formas de autorização (padrão já usado nas 6
- * rotas): o header que o próprio Vercel Cron manda ("cron", chamada
- * automática e periódica) e `?secret=` na URL ("manual", disparo manual de
- * alguém testando ou diagnosticando).
+ * Autorização das rotas de cron. SÓ o header que o próprio Vercel Cron manda
+ * (`Authorization: Bearer $CRON_SECRET`) autoriza — resultado "cron".
  *
- * A distinção importa aqui porque só a chamada "cron" deve respeitar o
- * horário configurado — quem dispara manualmente com o secret na mão quer
- * rodar agora mesmo, na hora que for, não esperar a janela configurada.
+ * O disparo manual por `?secret=` na URL foi REMOVIDO em 27/08/2026 (pentest):
+ * segredo em query string vaza em log de acesso, histórico e cabeçalho Referer,
+ * e este mesmo secret dispara backup do banco e envio em massa. Sem o caminho
+ * manual, "manual" não é mais retornado — toda chamada autorizada é "cron" e
+ * respeita o horário configurado. O valor "manual" segue no tipo só para as
+ * rotas que ainda o comparam (ex.: foto-mensal), onde agora nunca casa: o cron
+ * não escolhe competência, que é a invariante que aquelas rotas já exigiam.
  */
 export function origemAutorizacao(req: NextRequest): "cron" | "manual" | null {
   const secret = process.env.CRON_SECRET;
   if (!secret) return null;
   if (req.headers.get("authorization") === `Bearer ${secret}`) return "cron";
-  if (req.nextUrl.searchParams.get("secret") === secret) return "manual";
   return null;
 }
 
