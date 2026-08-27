@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.129.0",
+    data: "27/08/2026",
+    horario: "16:00",
+    titulo: "Cargos e Tipos de Benefício: mesmo conserto e mesma organização de Setores",
+    itens: [
+      "Editar, ativar/desativar ou excluir um cargo ou tipo de benefício de QUALQUER CNPJ agora funciona de qualquer tela — a ação valida pela empresa do registro, não pela da URL, e as mensagens de erro dizem a verdade (era o mesmo defeito corrigido em Setores).",
+      "As duas telas ficaram agrupadas: uma linha por nome (com o total e em quantos CNPJs existe), clique para abrir os registros por CNPJ, onde vivem as ações. Tipos de Benefício passou a dizer a qual empresa cada tipo pertence — antes nem mostrava.",
+      "O formulário de novo tipo de benefício ganhou o seletor de CNPJ, como o de Setores.",
+    ],
+  },
+  {
     versao: "1.128.0",
     data: "27/08/2026",
     horario: "15:00",
