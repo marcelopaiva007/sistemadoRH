@@ -28,7 +28,11 @@ export default async function ContratosPage({
       select: { nome: true, marca: { select: { nome: true } } },
     }),
     prisma.contrato.findMany({
-      where: { empresaId: { in: escopo } },
+      // Aluguel a receber (categoria RECEITA) NÃO aparece aqui: por decisão do
+      // dono (27/08/2026), ele vive inteiro na tela de Aluguéis — cadastro,
+      // edição e parcelas. Misturar receita com despesa nesta lista era o que
+      // confundia quem procurava o aluguel.
+      where: { empresaId: { in: escopo }, categoria: { not: "RECEITA" } },
       // O que vence antes no topo: a tela existe para a decisão que tem prazo.
       // `dataFim` nula (indeterminado) vai para o fim — não tem relógio
       // correndo. Ordenar por `status` aqui não funciona: o campo é texto, e

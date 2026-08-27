@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Check, CircleDollarSign, RotateCcw, TriangleAlert } from "lucide-react";
+import { Check, CircleDollarSign, Pencil, Plus, RotateCcw, TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +14,9 @@ import {
   gerarParcelas,
   registrarRecebimento,
 } from "@/lib/actions/processos-alugueis";
+import { salvarContrato } from "@/lib/actions/processos-contratos";
+import { STATUS_CONTRATO, rotulo } from "@/lib/processos/contratos";
+import Link from "next/link";
 
 type Parcela = {
   id: string;
@@ -34,20 +37,101 @@ export type ContratoDeAluguel = {
   numero: string;
   titulo: string;
   status: string;
+  tipo: string;
   inquilino: string;
+  contraparteId: string;
   valorMensal: number | null;
+  dataInicioInput: string;
+  dataFimInput: string;
+  indeterminado: boolean;
+  /** Status conta nos totais e pode gerar parcela (VIGENTE/EM_RENOVACAO/SUSPENSO). */
+  prazoCorrendo: boolean;
   diaVencimentoSugerido: number | null;
   podeEstender: boolean;
   parcelas: Parcela[];
 };
 
+type Opcao = { id: string; nome?: string; razaoSocial?: string };
+
 const CAMPO = "w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm";
 
-export function AlugueisView({ empresaId, contratos }: { empresaId: string; contratos: ContratoDeAluguel[] }) {
+export function AlugueisView({
+  empresaId,
+  contratos,
+  empresas,
+  contrapartes,
+}: {
+  empresaId: string;
+  contratos: ContratoDeAluguel[];
+  empresas: Opcao[];
+  contrapartes: Opcao[];
+}) {
   const router = useRouter();
   const [pendente, iniciar] = useTransition();
   const [erro, setErro] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
+  // O formulário do CONTRATO de aluguel — vive nesta tela por decisão do dono
+  // (27/08/2026): aluguel a receber não se mistura com os contratos de
+  // despesa. Motor único: grava pelo mesmo salvarContrato, com a categoria
+  // RECEITA fixada aqui.
+  const [formAberto, setFormAberto] = useState(false);
+  const [editandoId, setEditandoId] = useState<string | null>(null);
+  const [f, setF] = useState<Record<string, string>>({});
+
+  function abrirNovo() {
+    setF({ empresa: empresas[0]?.id ?? "", status: "VIGENTE", indeterminado: "sim" });
+    setEditandoId(null);
+    setFormAberto(true);
+    setErro(null);
+  }
+
+  function abrirEdicao(c: ContratoDeAluguel) {
+    setF({
+      empresa: c.empresaId,
+      contraparte: c.contraparteId,
+      numero: c.numero,
+      titulo: c.titulo,
+      valorMensal: c.valorMensal !== null ? String(c.valorMensal) : "",
+      dataInicio: c.dataInicioInput,
+      dataFim: c.dataFimInput,
+      indeterminado: c.indeterminado || c.dataFimInput === "" ? "sim" : "nao",
+      status: c.status,
+    });
+    setEditandoId(c.id);
+    setFormAberto(true);
+    setErro(null);
+  }
+
+  function salvar() {
+    setErro(null);
+    setAviso(null);
+    const contratoEditado = contratos.find((c) => c.id === editandoId);
+    iniciar(async () => {
+      const r = await salvarContrato({
+        id: editandoId,
+        empresaId,
+        empresaContratoId: f.empresa,
+        numero: f.numero ?? "",
+        contraparteId: f.contraparte ?? "",
+        // Receita fixa: é o que faz este contrato ser um aluguel a receber.
+        categoria: "RECEITA",
+        tipo: contratoEditado?.tipo ?? "LOCACAO_IMOVEL",
+        titulo: f.titulo ?? "",
+        status: f.status || "VIGENTE",
+        dataInicio: f.dataInicio ?? "",
+        indeterminado: f.indeterminado !== "nao",
+        dataFim: f.indeterminado !== "nao" ? null : f.dataFim || null,
+        valorMensal: f.valorMensal ? Number(f.valorMensal.replace(",", ".")) : null,
+      });
+      if (!r.ok) {
+        setErro(r.error);
+        return;
+      }
+      setFormAberto(false);
+      setAviso(editandoId ? "Contrato de aluguel atualizado." : "Contrato de aluguel cadastrado — agora escolha o dia de vencimento e gere as parcelas.");
+      router.refresh();
+    });
+  }
   const [receber, setReceber] = useState<{ id: string; data: string; valor: string } | null>(null);
   const [diaVenc, setDiaVenc] = useState<Record<string, string>>({});
 
@@ -58,6 +142,9 @@ export function AlugueisView({ empresaId, contratos }: { empresaId: string; cont
     let recebido = 0;
     let qtdAtraso = 0;
     for (const c of contratos) {
+      // Rascunho/encerrado/cancelado ficam fora dos totais — mesma régua da
+      // Central (STATUS_COM_PRAZO_CORRENDO), calculada no servidor.
+      if (!c.prazoCorrendo) continue;
       for (const p of c.parcelas) {
         if (p.recebido) recebido += p.valorRecebido ?? p.valorPrevisto;
         else {
@@ -135,6 +222,96 @@ export function AlugueisView({ empresaId, contratos }: { empresaId: string; cont
         </p>
       )}
 
+      <div className="flex justify-end">
+        <Button size="sm" className="gap-1.5" onClick={abrirNovo}>
+          <Plus className="size-4" />
+          Cadastrar contrato de aluguel
+        </Button>
+      </div>
+
+      {formAberto && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">
+              {editandoId ? "Editar contrato de aluguel" : "Novo contrato de aluguel"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <label className="text-xs text-muted-foreground">
+                Empresa dona do imóvel (CNPJ)
+                <select value={f.empresa ?? ""} onChange={(e) => setF({ ...f, empresa: e.target.value })} className={CAMPO}>
+                  {empresas.map((e) => (
+                    <option key={e.id} value={e.id}>{e.nome}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-xs text-muted-foreground">
+                Inquilino (contraparte)
+                <select value={f.contraparte ?? ""} onChange={(e) => setF({ ...f, contraparte: e.target.value })} className={CAMPO}>
+                  <option value="">Escolha…</option>
+                  {contrapartes.map((c) => (
+                    <option key={c.id} value={c.id}>{c.razaoSocial}</option>
+                  ))}
+                </select>
+                <span className="mt-0.5 block text-[11px] text-muted-foreground/80">
+                  Não está na lista?{" "}
+                  <Link href={`/processos/${empresaId}/contratos/contrapartes`} className="underline underline-offset-2">
+                    Cadastre a contraparte
+                  </Link>{" "}
+                  e volte.
+                </span>
+              </label>
+              <label className="text-xs text-muted-foreground">
+                Número do contrato
+                <input value={f.numero ?? ""} onChange={(e) => setF({ ...f, numero: e.target.value })} className={CAMPO} placeholder="Ex.: ALU-001" />
+              </label>
+              <label className="text-xs text-muted-foreground sm:col-span-2">
+                Imóvel / título
+                <input value={f.titulo ?? ""} onChange={(e) => setF({ ...f, titulo: e.target.value })} className={CAMPO} placeholder="Ex.: Sala comercial — Rua X, 123, Guarabira" />
+              </label>
+              <label className="text-xs text-muted-foreground">
+                Valor mensal (R$)
+                <input type="number" step="0.01" value={f.valorMensal ?? ""} onChange={(e) => setF({ ...f, valorMensal: e.target.value })} className={CAMPO} />
+              </label>
+              <label className="text-xs text-muted-foreground">
+                Início da vigência
+                <input type="date" value={f.dataInicio ?? ""} onChange={(e) => setF({ ...f, dataInicio: e.target.value })} className={CAMPO} />
+              </label>
+              <label className="text-xs text-muted-foreground">
+                Prazo
+                <select value={f.indeterminado ?? "sim"} onChange={(e) => setF({ ...f, indeterminado: e.target.value })} className={CAMPO}>
+                  <option value="sim">Indeterminado</option>
+                  <option value="nao">Com data de fim</option>
+                </select>
+              </label>
+              {f.indeterminado === "nao" && (
+                <label className="text-xs text-muted-foreground">
+                  Fim da vigência
+                  <input type="date" value={f.dataFim ?? ""} onChange={(e) => setF({ ...f, dataFim: e.target.value })} className={CAMPO} />
+                </label>
+              )}
+              <label className="text-xs text-muted-foreground">
+                Status
+                <select value={f.status ?? "VIGENTE"} onChange={(e) => setF({ ...f, status: e.target.value })} className={CAMPO}>
+                  {STATUS_CONTRATO.map((st) => (
+                    <option key={st.value} value={st.value}>{st.label}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" disabled={pendente} onClick={salvar}>
+                {editandoId ? "Salvar alterações" : "Cadastrar"}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => { setFormAberto(false); setErro(null); }}>
+                Cancelar
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid gap-4 sm:grid-cols-3">
         <Indicador rotulo="A receber (em aberto)" valor={formatarReais(resumo.aReceber)} />
         <Indicador
@@ -186,9 +363,9 @@ export function AlugueisView({ empresaId, contratos }: { empresaId: string; cont
       {contratos.length === 0 && (
         <Card>
           <CardContent className="py-8 text-center text-sm text-muted-foreground">
-            Nenhum contrato de receita cadastrado. Um imóvel alugado a terceiro é um contrato de
-            categoria <strong className="text-foreground">Receita</strong> — cadastre-o em Contratos
-            e volte aqui para gerar as parcelas.
+            Nenhum contrato de aluguel cadastrado ainda. Clique em{" "}
+            <strong className="text-foreground">&ldquo;Cadastrar contrato de aluguel&rdquo;</strong>{" "}
+            acima — o inquilino (contraparte) se cadastra uma vez e serve ao grupo inteiro.
           </CardContent>
         </Card>
       )}
@@ -201,7 +378,10 @@ export function AlugueisView({ empresaId, contratos }: { empresaId: string; cont
                 <CardTitle className="flex items-center gap-2 text-base">
                   <CircleDollarSign className="size-4 text-muted-foreground" />
                   {c.numero} — {c.inquilino}
-                  {c.status !== "VIGENTE" && <Badge variant="outline">{c.status}</Badge>}
+                  {c.status !== "VIGENTE" && <Badge variant="outline">{rotulo(STATUS_CONTRATO, c.status)}</Badge>}
+                  <Button size="sm" variant="ghost" title="Editar contrato" onClick={() => abrirEdicao(c)}>
+                    <Pencil className="size-4 text-muted-foreground" />
+                  </Button>
                 </CardTitle>
                 <p className="mt-0.5 text-sm text-muted-foreground">
                   {c.titulo}
@@ -232,7 +412,7 @@ export function AlugueisView({ empresaId, contratos }: { empresaId: string; cont
             {c.parcelas.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 {c.valorMensal === null
-                  ? "Este contrato não tem valor mensal — informe-o em Contratos para gerar as parcelas."
+                  ? "Este contrato não tem valor mensal — edite-o (lápis acima) para gerar as parcelas."
                   : "Escolha o dia de vencimento e gere as parcelas mensais deste contrato."}
               </p>
             ) : (

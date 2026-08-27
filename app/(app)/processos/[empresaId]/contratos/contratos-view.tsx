@@ -395,7 +395,9 @@ export function ContratosView({
             <label className="text-xs text-muted-foreground">
               Natureza
               <select {...campo("categoria")} className={CAMPO}>
-                {CATEGORIAS_CONTRATO.map((c) => (
+                {/* Receita sai das opções: aluguel a receber se cadastra na
+                    tela de Aluguéis (decisão do dono, 27/08/2026). */}
+                {CATEGORIAS_CONTRATO.filter((c) => c.value !== "RECEITA").map((c) => (
                   <option key={c.value} value={c.value}>{c.label}</option>
                 ))}
               </select>

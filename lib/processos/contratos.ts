@@ -132,6 +132,9 @@ export function proximoReajuste(
 }
 
 export const TIPOS_CONTRATO = [
+  // "Locação de imóvel" é o tipo do ALUGUEL A RECEBER (imóvel do grupo
+  // alugado a terceiro) — cadastrado na tela de Aluguéis, não na de Contratos.
+  { value: "LOCACAO_IMOVEL", label: "Locação de imóvel (receita)" },
   { value: "LOCACAO_TORRE", label: "Locação de torre" },
   { value: "LOCACAO_TERRENO", label: "Locação de terreno" },
   { value: "COMPARTILHAMENTO_POSTE", label: "Compartilhamento de poste" },
