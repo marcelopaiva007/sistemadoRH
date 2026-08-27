@@ -587,6 +587,12 @@ model Arquivo {
   curriculo               Candidato?
   tratamentoPonto         TratamentoPonto?
   ocorrenciaDisciplinar   OcorrenciaDisciplinar?
+  // Primeiro anexo do módulo Processos & Ativos (27/08/2026). Até aqui o
+  // `Arquivo` só servia ao RH; `DocumentoVeiculo.arquivoId` existia como
+  // coluna solta, sem relação — ninguém escrevia nela. Agora o CRLV, o
+  // licenciamento e a apólice do carro moram na mesma esteira do dossiê do
+  // colaborador: mesma validação, mesma auditoria de download.
+  documentoVeiculo        DocumentoVeiculo?
 
   @@index([empresaId])
   @@schema("rh")
@@ -2812,7 +2818,13 @@ model DocumentoVeiculo {
   dataEmissao    DateTime?
   dataVencimento DateTime?
   valor          Float?
-  arquivoId      String?
+  // O PDF/foto do documento — CRLV-e, licenciamento, apólice, laudo. `@unique`
+  // + relação (27/08/2026): a coluna existia solta desde a criação do módulo e
+  // nenhuma action escrevia nela. `SetNull` no lugar de `Cascade` pelo mesmo
+  // motivo do dossiê do colaborador: apagar o arquivo não pode apagar o
+  // registro do documento, que é o que sustenta o alerta de vencimento.
+  arquivoId      String?   @unique
+  arquivo        Arquivo?  @relation(fields: [arquivoId], references: [id], onDelete: SetNull)
   observacoes    String?
 
   criadoPorId   String?
