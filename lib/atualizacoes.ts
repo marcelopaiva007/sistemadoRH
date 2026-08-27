@@ -26,6 +26,16 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.127.0",
+    data: "27/08/2026",
+    horario: "14:00",
+    titulo: "Busca de placa na tela de Veículos",
+    itens: [
+      "A tela Frota › Veículos ganhou uma barra de busca: digite a placa — com ou sem hífen, maiúscula ou minúscula (KLU-5G08 e klu5g08 acham o mesmo carro) — e a lista filtra na hora.",
+      "O mesmo campo também busca por modelo, empresa e motorista. Pedido do RH, para localizar rápido numa frota de dezenas de veículos.",
+    ],
+  },
+  {
     versao: "1.126.0",
     data: "27/08/2026",
     horario: "13:15",

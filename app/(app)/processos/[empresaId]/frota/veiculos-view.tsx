@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Car, Plus, Pencil, ShieldCheck, ShieldAlert } from "lucide-react";
+import { Car, Plus, Pencil, Search, ShieldCheck, ShieldAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -15,6 +16,7 @@ import {
   SITUACAO_VEICULO,
   TIPOS_DOCUMENTO_VEICULO,
   formatarPlaca,
+  normalizarPlaca,
   rotulo,
 } from "@/lib/processos/ctb";
 
@@ -61,6 +63,24 @@ export function VeiculosView({
   const router = useRouter();
   const [pendente, iniciar] = useTransition();
   const [erro, setErro] = useState<string | null>(null);
+  // Busca pedida pelo RH em 27/08/2026 (Luana): com 64+ placas, achar uma no
+  // olho não dá. A placa digitada passa pelo MESMO normalizador do cadastro
+  // (maiúscula, sem hífen) — "klu-5g08" e "KLU5G08" acham o mesmo carro. O
+  // campo também aceita modelo, empresa e motorista, minúsculas ou não.
+  const [busca, setBusca] = useState("");
+  const veiculosFiltrados = useMemo(() => {
+    const consulta = busca.trim();
+    if (!consulta) return veiculos;
+    const placaConsulta = normalizarPlaca(consulta);
+    const textoConsulta = consulta.toLowerCase();
+    return veiculos.filter(
+      (v) =>
+        (placaConsulta !== "" && v.placa.includes(placaConsulta)) ||
+        [v.marca, v.modelo, v.empresaNome, v.condutorAtual, v.motoristaInformado].some((campo) =>
+          campo?.toLowerCase().includes(textoConsulta),
+        ),
+    );
+  }, [veiculos, busca]);
   // UM painel por vez, discriminado pelo tipo — não três estados soltos. Com
   // `form` + duas flags, abrir "Novo veículo" com o painel de documento aberto
   // deixava a flag antiga de pé: o formulário de veículo não aparecia (a
@@ -331,6 +351,17 @@ export function VeiculosView({
       ) : (
         <Card>
           <CardContent className="px-0 pt-0">
+            <div className="px-4 pt-4 pb-1 sm:max-w-xs">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar placa, modelo ou motorista…"
+                  className="pl-8"
+                  value={busca}
+                  onChange={(e) => setBusca(e.target.value)}
+                />
+              </div>
+            </div>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -344,7 +375,14 @@ export function VeiculosView({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {veiculos.map((v) => (
+                {veiculosFiltrados.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={7} className="py-8 text-center text-sm text-muted-foreground">
+                      Nenhum veículo encontrado para &ldquo;{busca}&rdquo;.
+                    </TableCell>
+                  </TableRow>
+                )}
+                {veiculosFiltrados.map((v) => (
                   <TableRow key={v.id}>
                     <TableCell className="font-medium tabular-nums">{formatarPlaca(v.placa)}</TableCell>
                     <TableCell className="text-muted-foreground">
