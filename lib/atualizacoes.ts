@@ -26,6 +26,18 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.124.2",
+    data: "27/08/2026",
+    horario: "07:45",
+    titulo: "Setores: editar setor de outro CNPJ funciona (e o erro fala a verdade)",
+    itens: [
+      "A tela de Setores lista o grupo inteiro, mas editar, ativar/desativar ou excluir um setor de outro CNPJ falhava — e a mensagem culpava um \"nome duplicado\" que não existia. Agora cada ação confere o acesso pela empresa do próprio setor, e funciona a partir de qualquer tela.",
+      "As mensagens de erro foram separadas: \"nome já existe\" só aparece quando o nome de fato já existe naquela empresa; setor que não está mais lá responde \"setor não encontrado\".",
+      "O formulário \"Novo Setor\" ganhou o seletor de empresa: dá para criar o setor em qualquer CNPJ visível, sem trocar de tela (antes ele nascia sempre na empresa da URL, sem avisar).",
+      "Desativar/ativar um setor agora avisa quando dá errado — antes o clique falhava em silêncio.",
+    ],
+  },
+  {
     versao: "1.124.1",
     data: "26/08/2026",
     horario: "20:15",

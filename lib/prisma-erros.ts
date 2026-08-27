@@ -18,3 +18,15 @@ export function violouUnique(e: unknown, indice?: string): boolean {
   if (!indice) return true;
   return JSON.stringify(e.meta ?? {}).includes(indice);
 }
+
+/**
+ * Registro não encontrado em update/delete (P2025).
+ *
+ * Distinguir do P2002 importa: um `catch` que trata os dois com a mesma
+ * mensagem mente para o usuário. Foi o caso na tela de Setores — editar um
+ * setor de outro CNPJ (a linha existia, o `where` por empresa da URL é que não
+ * casava) respondia "já existe um setor com esse nome", erro que não era.
+ */
+export function registroNaoEncontrado(e: unknown): boolean {
+  return e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2025";
+}
