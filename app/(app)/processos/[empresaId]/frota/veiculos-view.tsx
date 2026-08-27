@@ -1,15 +1,23 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useActionState, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Car, Plus, Pencil, Search, ShieldCheck, ShieldAlert } from "lucide-react";
+import { Car, Download, FileText, Paperclip, Plus, Pencil, Search, ShieldCheck, ShieldAlert, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { salvarVeiculo, salvarDocumentoVeiculo, abrirAlocacao } from "@/lib/actions/processos-frota";
+import {
+  salvarVeiculo,
+  salvarDocumentoVeiculo,
+  excluirDocumentoVeiculo,
+  abrirAlocacao,
+} from "@/lib/actions/processos-frota";
+import { formatarTamanho } from "@/lib/anexos";
+import { MIMES_ANEXO_ACEITOS, TAMANHO_MAXIMO_ANEXO } from "@/lib/constants-dp";
+import type { ActionResult } from "@/lib/constants";
 import {
   MOTORIZACAO_VEICULO,
   PROPRIEDADE_VEICULO,
@@ -19,6 +27,22 @@ import {
   normalizarPlaca,
   rotulo,
 } from "@/lib/processos/ctb";
+
+export type DocumentoNaTela = {
+  id: string;
+  tipo: string;
+  exercicio: number | null;
+  /** Formato do <input type="date"> — prefill da edição. */
+  dataEmissaoInput: string;
+  dataVencimentoInput: string;
+  /** "dd/mm/aaaa" pronto; null quando o tipo não tem vencimento (nota fiscal). */
+  vencimentoTexto: string | null;
+  vencido: boolean;
+  valor: number | null;
+  observacoes: string | null;
+  /** null = documento cadastrado sem anexo (só os metadados). */
+  arquivo: { id: string; nome: string; mimeType: string; tamanhoBytes: number } | null;
+};
 
 export type VeiculoNaTela = {
   id: string;
@@ -45,6 +69,7 @@ export type VeiculoNaTela = {
   empresaNome: string;
   condutorAtual: string | null;
   vencimentoMaisProximo: { tipo: string; texto: string; dias: number } | null;
+  documentos: DocumentoNaTela[];
 };
 
 const CAMPO = "w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm";
@@ -93,6 +118,13 @@ export function VeiculosView({
   >(null);
   const [form, setForm] = useState<Record<string, string>>({});
 
+  // O veículo do painel aberto — resolvido do id, para o painel de documentos
+  // receber a lista já pronta em vez de buscar de novo.
+  const veiculoDoPainel = useMemo(
+    () => (painel && "veiculoId" in painel ? veiculos.find((v) => v.id === painel.veiculoId) : undefined),
+    [painel, veiculos],
+  );
+
   function campo(nome: string) {
     return {
       value: form[nome] ?? "",
@@ -139,26 +171,6 @@ export function VeiculosView({
         motoristaInformado: form.motoristaInformado ?? null,
         observacoes: form.observacoes ?? null,
         empresaDestinoId: form.empresaDestino || null,
-      });
-      if (!r.ok) {
-        setErro(r.error);
-        return;
-      }
-      fechar();
-      router.refresh();
-    });
-  }
-
-  function salvarDoc(veiculoId: string) {
-    setErro(null);
-    iniciar(async () => {
-      const r = await salvarDocumentoVeiculo({
-        empresaId,
-        veiculoId,
-        tipo: form.tipo ?? "",
-        exercicio: form.exercicio ? Number(form.exercicio) : null,
-        dataVencimento: form.dataVencimento ?? null,
-        valor: form.valor ? Number(form.valor) : null,
       });
       if (!r.ok) {
         setErro(r.error);
@@ -476,33 +488,13 @@ export function VeiculosView({
         </Card>
       )}
 
-      {painel?.tipo === "documento" && (
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-base">Novo documento do veículo</CardTitle></CardHeader>
-          <CardContent className="grid gap-3 sm:grid-cols-4">
-            <label className="text-xs text-muted-foreground">
-              Tipo
-              <select {...campo("tipo")} className={CAMPO}>
-                <option value="">Escolha…</option>
-                {TIPOS_DOCUMENTO_VEICULO.map((o) => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
-            </label>
-            <label className="text-xs text-muted-foreground">
-              Exercício
-              <input {...campo("exercicio")} className={CAMPO} inputMode="numeric" placeholder="2026" />
-            </label>
-            <label className="text-xs text-muted-foreground">
-              Vence em
-              <input {...campo("dataVencimento")} type="date" className={CAMPO} />
-            </label>
-            <div className="flex items-end gap-2">
-              <Button size="sm" disabled={pendente} onClick={() => salvarDoc(painel.veiculoId)}>Salvar</Button>
-              <Button size="sm" variant="ghost" onClick={fechar}>Cancelar</Button>
-            </div>
-          </CardContent>
-        </Card>
+      {painel?.tipo === "documento" && veiculoDoPainel && (
+        <PainelDocumentos
+          empresaId={empresaId}
+          veiculo={veiculoDoPainel}
+          onFechar={fechar}
+          onSalvo={() => router.refresh()}
+        />
       )}
 
       {painel?.tipo === "entrega" && (
@@ -538,5 +530,283 @@ export function VeiculosView({
         </Card>
       )}
     </div>
+  );
+}
+
+/**
+ * O painel "Documento" do veículo — a papelada do carro num lugar só.
+ *
+ * Pedido do RH em 27/08/2026: além da data de vencimento (que já existia e é
+ * quem alimenta o alerta), poder ANEXAR o arquivo — CRLV, licenciamento,
+ * apólice, laudo — e depois ver, substituir ou excluir.
+ *
+ * Componente próprio, e não mais um bloco no formulário de cima, por um motivo
+ * concreto: `<input type="file">` não vive em estado controlado do React (o
+ * `campo()` da tela é controlled), então este painel é um `<form>` de verdade
+ * com `useActionState` — o mesmo padrão do dossiê do colaborador.
+ */
+function PainelDocumentos({
+  empresaId,
+  veiculo,
+  onFechar,
+  onSalvo,
+}: {
+  empresaId: string;
+  veiculo: VeiculoNaTela;
+  onFechar: () => void;
+  onSalvo: () => void;
+}) {
+  // null = formulário em modo "adicionar"; documento = modo "editar/substituir".
+  const [editando, setEditando] = useState<DocumentoNaTela | null>(null);
+  const [erroExclusao, setErroExclusao] = useState<string | null>(null);
+  const [excluindo, iniciarExclusao] = useTransition();
+
+  const [estado, enviar, enviando] = useActionState(
+    async (_prev: ActionResult, fd: FormData) => {
+      const r = await salvarDocumentoVeiculo(_prev, fd);
+      if (r.ok) {
+        setEditando(null);
+        onSalvo();
+      }
+      return r;
+    },
+    { ok: true } as ActionResult,
+  );
+
+  function excluir(doc: DocumentoNaTela) {
+    setErroExclusao(null);
+    iniciarExclusao(async () => {
+      const r = await excluirDocumentoVeiculo({ empresaId, id: doc.id });
+      if (!r.ok) {
+        setErroExclusao(r.error);
+        return;
+      }
+      if (editando?.id === doc.id) setEditando(null);
+      onSalvo();
+    });
+  }
+
+  const maximoMb = (TAMANHO_MAXIMO_ANEXO / 1024 / 1024).toFixed(0);
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base">
+          Documentos de {formatarPlaca(veiculo.placa)}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {veiculo.documentos.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Nenhum documento cadastrado ainda. Anexe o CRLV-e ou o licenciamento com a data de
+            vencimento — é ela que faz o sistema cobrar a renovação na Central de Pendências.
+          </p>
+        ) : (
+          <div className="rounded-md border border-border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Documento</TableHead>
+                  <TableHead>Vencimento</TableHead>
+                  <TableHead>Arquivo</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {veiculo.documentos.map((d) => (
+                  <TableRow key={d.id} className={cn(editando?.id === d.id && "bg-primary/5")}>
+                    <TableCell className="font-medium">
+                      {rotulo(TIPOS_DOCUMENTO_VEICULO, d.tipo)}
+                      {d.exercicio && (
+                        <span className="ml-1 font-normal text-muted-foreground">{d.exercicio}</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {d.vencimentoTexto ? (
+                        <span className={cn(d.vencido && "font-semibold text-destructive")}>
+                          {d.vencimentoTexto}
+                          {d.vencido && " · vencido"}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">sem vencimento</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {d.arquivo ? (
+                        <div className="flex items-center gap-1.5">
+                          {/* Abre na aba (inline); o ?download=1 força salvar. A
+                              rota valida sessão, empresa e módulo, e registra
+                              na auditoria quem baixou. */}
+                          <a
+                            href={`/api/processos/${empresaId}/arquivos/${d.arquivo.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-sm underline underline-offset-2 hover:text-foreground"
+                          >
+                            <FileText className="size-3.5 shrink-0" />
+                            <span className="max-w-40 truncate">{d.arquivo.nome}</span>
+                          </a>
+                          <span className="text-[11px] text-muted-foreground">
+                            {formatarTamanho(d.arquivo.tamanhoBytes)}
+                          </span>
+                          <a
+                            href={`/api/processos/${empresaId}/arquivos/${d.arquivo.id}?download=1`}
+                            title="Baixar"
+                            className="text-muted-foreground hover:text-foreground"
+                          >
+                            <Download className="size-3.5" />
+                          </a>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">sem anexo</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          title={d.arquivo ? "Editar / substituir o arquivo" : "Editar / anexar arquivo"}
+                          onClick={() => setEditando(d)}
+                        >
+                          <Pencil className="size-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          title="Excluir documento (e o anexo)"
+                          disabled={excluindo}
+                          onClick={() => excluir(d)}
+                        >
+                          <Trash2 className="size-4 text-muted-foreground hover:text-destructive" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+
+        {erroExclusao && (
+          <p className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+            {erroExclusao}
+          </p>
+        )}
+
+        {/* `key` no form: trocar de documento (ou voltar para "adicionar")
+            remonta os campos com os defaultValue certos — sem isso o React
+            reaproveita os inputs e mantém o valor do documento anterior. */}
+        <form key={editando?.id ?? "novo"} action={enviar} className="space-y-3 border-t border-border/70 pt-4">
+          <p className="text-sm font-medium">
+            {editando
+              ? `Editar ${rotulo(TIPOS_DOCUMENTO_VEICULO, editando.tipo)}`
+              : "Adicionar documento"}
+          </p>
+
+          <input type="hidden" name="empresaId" value={empresaId} />
+          <input type="hidden" name="veiculoId" value={veiculo.id} />
+          {editando && <input type="hidden" name="id" value={editando.id} />}
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <label className="text-xs text-muted-foreground">
+              Tipo
+              <select name="tipo" defaultValue={editando?.tipo ?? ""} required className={CAMPO}>
+                <option value="">Escolha…</option>
+                {TIPOS_DOCUMENTO_VEICULO.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="text-xs text-muted-foreground">
+              Exercício
+              <input
+                name="exercicio"
+                defaultValue={editando?.exercicio ?? ""}
+                className={CAMPO}
+                inputMode="numeric"
+                placeholder="2026"
+              />
+            </label>
+            <label className="text-xs text-muted-foreground">
+              Emitido em
+              <input
+                name="dataEmissao"
+                type="date"
+                defaultValue={editando?.dataEmissaoInput ?? ""}
+                className={CAMPO}
+              />
+            </label>
+            <label className="text-xs text-muted-foreground">
+              Vence em
+              <input
+                name="dataVencimento"
+                type="date"
+                defaultValue={editando?.dataVencimentoInput ?? ""}
+                className={CAMPO}
+              />
+              <span className="mt-0.5 block text-[11px] text-muted-foreground/80">
+                É esta data que vira alerta.
+              </span>
+            </label>
+            <label className="text-xs text-muted-foreground">
+              Valor (R$)
+              <input
+                name="valor"
+                type="number"
+                step="0.01"
+                defaultValue={editando?.valor ?? ""}
+                className={CAMPO}
+              />
+            </label>
+            <label className="text-xs text-muted-foreground sm:col-span-2 lg:col-span-3">
+              Arquivo (PDF ou foto, até {maximoMb} MB)
+              <input
+                name="arquivo"
+                type="file"
+                accept={MIMES_ANEXO_ACEITOS.join(",")}
+                className={cn(CAMPO, "file:mr-2 file:rounded file:border-0 file:bg-muted file:px-2 file:py-0.5 file:text-xs")}
+              />
+              <span className="mt-0.5 block text-[11px] text-muted-foreground/80">
+                {editando?.arquivo
+                  ? `Já tem "${editando.arquivo.nome}" — escolher um arquivo aqui SUBSTITUI o atual; deixar em branco mantém.`
+                  : "Opcional: dá para cadastrar só a data agora e anexar o arquivo depois."}
+              </span>
+            </label>
+            <label className="text-xs text-muted-foreground sm:col-span-2 lg:col-span-4">
+              Observações
+              <input
+                name="observacoes"
+                defaultValue={editando?.observacoes ?? ""}
+                className={CAMPO}
+                maxLength={500}
+              />
+            </label>
+          </div>
+
+          {!estado.ok && (
+            <p className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+              {estado.error}
+            </p>
+          )}
+
+          <div className="flex gap-2">
+            <Button type="submit" size="sm" disabled={enviando} className="gap-1.5">
+              <Paperclip className="size-4" />
+              {enviando ? "Salvando..." : editando ? "Salvar alterações" : "Adicionar documento"}
+            </Button>
+            {editando && (
+              <Button type="button" size="sm" variant="ghost" onClick={() => setEditando(null)}>
+                Cancelar edição
+              </Button>
+            )}
+            <Button type="button" size="sm" variant="ghost" onClick={onFechar}>
+              Fechar
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
   );
 }

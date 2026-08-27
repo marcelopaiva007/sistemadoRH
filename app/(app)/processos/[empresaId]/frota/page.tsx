@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireProcessosEmpresa } from "@/lib/processos-auth-guard";
 import { escopoDeEmpresas } from "@/lib/rh-auth-guard";
-import { diferencaEmDiasUTC, formatarData, hojeUTC } from "@/lib/datas";
+import { diferencaEmDiasUTC, formatarData, hojeUTC, paraInputDate } from "@/lib/datas";
 import { VeiculosView, type VeiculoNaTela } from "./veiculos-view";
 
 // Veículos da frota. Consolidada por padrão e filtrada por `?empresas=`, como
@@ -58,10 +58,22 @@ export default async function VeiculosPage({
           take: 1,
           select: { condutor: { select: { colaborador: { select: { nome: true } } } } },
         },
+        // A lista INTEIRA (era só os com vencimento, e sem id): desde
+        // 27/08/2026 a tela mostra os documentos do veículo com o anexo, para
+        // ver/substituir/excluir. Nota fiscal e ATPV não têm vencimento e
+        // precisam aparecer igual.
         documentos: {
-          where: { dataVencimento: { not: null } },
-          orderBy: { dataVencimento: "asc" },
-          select: { tipo: true, dataVencimento: true },
+          orderBy: [{ dataVencimento: "asc" }, { tipo: "asc" }],
+          select: {
+            id: true,
+            tipo: true,
+            exercicio: true,
+            dataEmissao: true,
+            dataVencimento: true,
+            valor: true,
+            observacoes: true,
+            arquivo: { select: { id: true, nome: true, mimeType: true, tamanhoBytes: true } },
+          },
         },
       },
     }),
@@ -83,8 +95,11 @@ export default async function VeiculosPage({
     // 2026 não é o "próximo vencimento" de coisa nenhuma.
     const maisRecentePorTipo = new Map<string, Date>();
     for (const d of v.documentos) {
+      // Documento sem vencimento (nota fiscal, ATPV) entra na lista mas não
+      // disputa o "próximo vencimento" — a query deixou de filtrar por data.
+      if (!d.dataVencimento) continue;
       const atual = maisRecentePorTipo.get(d.tipo);
-      if (!atual || d.dataVencimento! > atual) maisRecentePorTipo.set(d.tipo, d.dataVencimento!);
+      if (!atual || d.dataVencimento > atual) maisRecentePorTipo.set(d.tipo, d.dataVencimento);
     }
     let proximo: { tipo: string; texto: string; dias: number } | null = null;
     for (const [tipo, data] of maisRecentePorTipo) {
@@ -118,6 +133,18 @@ export default async function VeiculosPage({
       empresaNome: nomeDaEmpresa.get(v.empresaId) ?? "—",
       condutorAtual: v.alocacoes[0]?.condutor.colaborador.nome ?? null,
       vencimentoMaisProximo: proximo,
+      documentos: v.documentos.map((d) => ({
+        id: d.id,
+        tipo: d.tipo,
+        exercicio: d.exercicio,
+        dataEmissaoInput: d.dataEmissao ? paraInputDate(d.dataEmissao) : "",
+        dataVencimentoInput: d.dataVencimento ? paraInputDate(d.dataVencimento) : "",
+        vencimentoTexto: d.dataVencimento ? formatarData(d.dataVencimento) : null,
+        vencido: d.dataVencimento ? d.dataVencimento < hoje : false,
+        valor: d.valor,
+        observacoes: d.observacoes,
+        arquivo: d.arquivo,
+      })),
     };
   });
 

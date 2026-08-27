@@ -60,6 +60,45 @@ export async function enviarParaBlob(params: {
 }
 
 /**
+ * Sobe o anexo de um documento de VEÍCULO (CRLV, licenciamento, apólice, laudo).
+ *
+ * Irmã de `enviarParaBlob`, com caminho próprio (`frota/…`) em vez de `rh/…`:
+ * o segundo segmento aqui é um veículo, não uma pessoa, e reaproveitar a
+ * função de cima deixaria a apólice do carro guardada sob um caminho que diz
+ * "colaborador". Mesmo `access: "private"` — quem serve é a rota
+ * /api/processos/[empresaId]/arquivos/[arquivoId], que valida sessão, alcance
+ * à empresa e o módulo no perfil.
+ */
+export async function enviarDocumentoVeiculoParaBlob(params: {
+  empresaId: string;
+  veiculoId: string;
+  nome: string;
+  mimeType: string;
+  bytes: Uint8Array<ArrayBuffer>;
+}): Promise<EnvioBlob> {
+  if (!blobConfigurado()) {
+    return {
+      ok: false,
+      error: "Armazenamento de arquivos não configurado (BLOB_READ_WRITE_TOKEN). Avise o RH.",
+    };
+  }
+
+  const limpo = params.nome.replace(/[^\w.\-]/g, "_").slice(-120);
+  const caminho = `frota/${params.empresaId}/${params.veiculoId}/${limpo}`;
+
+  try {
+    const { url } = await put(caminho, Buffer.from(params.bytes), {
+      access: "private",
+      addRandomSuffix: true,
+      contentType: params.mimeType,
+    });
+    return { ok: true, url };
+  } catch (e) {
+    return { ok: false, error: `Falha ao enviar o arquivo: ${String(e).slice(0, 120)}` };
+  }
+}
+
+/**
  * Lê um anexo do Blob para servir pela nossa rota.
  *
  * Store privado não abre por URL — o arquivo tem que passar por aqui, o que é
