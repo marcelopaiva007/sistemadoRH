@@ -95,19 +95,34 @@ export function normalizarUsuario(username: string): string {
 }
 
 /**
- * IP de quem está tentando. Atrás da Vercel o IP real vem no
- * `x-forwarded-for` (primeiro da lista; os seguintes são os proxies do
- * caminho). Sem cabeçalho nenhum, todo mundo cai no mesmo balde
- * "desconhecido" — o que é conservador na direção certa: bloqueia demais em
- * vez de bloquear de menos.
+ * IP de quem está tentando.
+ *
+ * Fonte primária é o `x-real-ip`: atrás da Vercel ele é preenchido pela
+ * plataforma com o IP real da conexão, e o cliente não consegue sobrescrevê-lo.
+ * O `x-forwarded-for` NÃO serve como fonte primária — o cliente controla o
+ * COMEÇO da lista, então usar o primeiro valor deixava qualquer um trocar de
+ * "IP" a cada requisição só mandando um header diferente, e escapar do limite
+ * (o balde é por usuário+IP). Era a falha ALTA do pentest de 27/08/2026: a
+ * única defesa de força-bruta do login virava opcional.
+ *
+ * Sem `x-real-ip`, cai no ÚLTIMO valor do `x-forwarded-for` — o hop mais
+ * próximo, anexado pela infra à direita, não o forjável da ponta — e só então
+ * no "desconhecido", que é conservador na direção certa (bloqueia demais, não
+ * de menos). Uma trava global só por usuário NÃO foi adicionada de propósito:
+ * ela deixaria um atacante trancar a conta de qualquer um de fora (ver o
+ * cabeçalho deste arquivo).
  */
 export function ipDaRequisicao(headers: Headers): string {
+  const real = headers.get("x-real-ip")?.trim();
+  if (real) return real;
+
   const encaminhado = headers.get("x-forwarded-for");
   if (encaminhado) {
-    const primeiro = encaminhado.split(",")[0]?.trim();
-    if (primeiro) return primeiro;
+    const partes = encaminhado.split(",").map((p) => p.trim()).filter(Boolean);
+    const ultimo = partes[partes.length - 1];
+    if (ultimo) return ultimo;
   }
-  return headers.get("x-real-ip")?.trim() || "desconhecido";
+  return "desconhecido";
 }
 
 type Cliente = Pick<typeof prisma, "tentativaLogin">;

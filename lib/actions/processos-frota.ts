@@ -952,6 +952,19 @@ export async function registrarInfracao(input: {
   });
   if (!veiculo) return { ok: false, error: "Veículo não encontrado no seu acesso." };
 
+  // Edição: a infração-alvo também tem que estar no acesso do usuário. Sem
+  // isto, o `update({ where: { id } })` (id puro, logo abaixo) reatribuiria uma
+  // multa de OUTRO CNPJ para este veículo — a multa some da frota de origem e
+  // do prazo de indicação de condutor, sem rastro na trilha de lá. Achado ALTA
+  // do pentest de 27/08/2026 (escopo multi-empresa, mesma classe da v1.105.0).
+  if (input.id) {
+    const alvo = await prisma.infracao.findFirst({
+      where: { id: input.id, empresaId: { in: visiveis } },
+      select: { id: true },
+    });
+    if (!alvo) return { ok: false, error: "Infração não encontrada no seu acesso." };
+  }
+
   const numeroAIT = (input.numeroAIT ?? "").trim().toUpperCase();
   if (!numeroAIT) return { ok: false, error: "Informe o número do auto de infração (AIT)." };
 

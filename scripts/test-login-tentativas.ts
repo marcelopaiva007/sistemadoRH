@@ -151,11 +151,19 @@ console.log("\nChave do balde\n");
   ok(normalizarUsuario("  Marcelo  ") === "marcelo", "espaço e maiúscula caem no mesmo balde");
   ok(normalizarUsuario("marcelo") === "marcelo", "nome já normalizado não muda");
 
-  const comProxy = new Headers({ "x-forwarded-for": "203.0.113.9, 70.41.3.18" });
-  ok(ipDaRequisicao(comProxy) === "203.0.113.9", "x-forwarded-for usa o primeiro da lista");
+  // x-real-ip é a fonte primária (não forjável atrás da Vercel). Mesmo com um
+  // x-forwarded-for forjado na ponta, o balde usa o x-real-ip.
+  const comReal = new Headers({
+    "x-forwarded-for": "1.2.3.4, 203.0.113.9",
+    "x-real-ip": "198.51.100.7",
+  });
+  ok(ipDaRequisicao(comReal) === "198.51.100.7", "x-real-ip vence o x-forwarded-for forjado");
 
-  const semProxy = new Headers({ "x-real-ip": "198.51.100.7" });
-  ok(ipDaRequisicao(semProxy) === "198.51.100.7", "sem x-forwarded-for, cai no x-real-ip");
+  // Sem x-real-ip, cai no ÚLTIMO valor do XFF (o hop anexado pela infra à
+  // direita), não no primeiro — que o cliente controla. É o que impede trocar
+  // de "IP" a cada tentativa prefixando a lista.
+  const soXff = new Headers({ "x-forwarded-for": "1.2.3.4, 70.41.3.18" });
+  ok(ipDaRequisicao(soXff) === "70.41.3.18", "sem x-real-ip, usa o último do x-forwarded-for");
 
   ok(
     ipDaRequisicao(new Headers()) === "desconhecido",
