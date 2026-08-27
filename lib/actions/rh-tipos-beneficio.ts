@@ -3,7 +3,8 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
+import { requireEmpresaAccess, requireRHAccess, usuarioAlcancaEmpresa } from "@/lib/rh-auth-guard";
+import { violouUnique, registroNaoEncontrado } from "@/lib/prisma-erros";
 import type { ActionResult } from "@/lib/constants";
 
 // Catálogo ADITIVO de benefícios — ver comentário do model TipoBeneficio no
@@ -13,22 +14,47 @@ const tipoBeneficioSchema = z.object({
   nome: z.string().trim().min(2, "Informe o nome do tipo de benefício"),
 });
 
+/**
+ * Resolve o alvo pela empresa DO TIPO, não a da URL — mesmo conserto (e mesmo
+ * motivo) do de Setores na v1.124.2: a tela lista o grupo inteiro, e validar
+ * pela empresa da rota fazia o Prisma não achar tipo de outro CNPJ (P2025),
+ * com o catch mentindo "nome duplicado". Fora do alcance = inexistente.
+ */
+async function resolverTipoAlcancavel(
+  id: string,
+): Promise<{ ok: true; tipoEmpresaId: string } | { ok: false; error: string }> {
+  const usuario = await requireRHAccess();
+  const tipo = await prisma.tipoBeneficio.findUnique({ where: { id }, select: { empresaId: true } });
+  if (!tipo || !(await usuarioAlcancaEmpresa(usuario, tipo.empresaId))) {
+    return { ok: false, error: "Tipo de benefício não encontrado." };
+  }
+  return { ok: true, tipoEmpresaId: tipo.empresaId };
+}
+
+function revalidarTipos(empresaIdDaUrl: string, tipoEmpresaId: string) {
+  for (const id of new Set([empresaIdDaUrl, tipoEmpresaId])) {
+    revalidatePath(`/rh/${id}/tipos-beneficio`);
+    revalidatePath(`/rh/${id}/beneficios`);
+  }
+}
+
 export async function createTipoBeneficio(
   empresaId: string,
   _prev: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
-  await requireEmpresaAccess(empresaId);
+  const targetEmpresaId = (formData.get("empresaId") as string) || empresaId;
+  await requireEmpresaAccess(targetEmpresaId);
   const parsed = tipoBeneficioSchema.safeParse({ nome: formData.get("nome") });
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
 
   try {
-    await prisma.tipoBeneficio.create({ data: { empresaId, nome: parsed.data.nome } });
-  } catch {
-    return { ok: false, error: "Já existe um tipo de benefício com esse nome nessa empresa." };
+    await prisma.tipoBeneficio.create({ data: { empresaId: targetEmpresaId, nome: parsed.data.nome } });
+  } catch (e) {
+    if (violouUnique(e)) return { ok: false, error: "Já existe um tipo de benefício com esse nome nessa empresa." };
+    throw e;
   }
-  revalidatePath(`/rh/${empresaId}/tipos-beneficio`);
-  revalidatePath(`/rh/${empresaId}/beneficios`);
+  revalidarTipos(empresaId, targetEmpresaId);
   return { ok: true };
 }
 
@@ -38,17 +64,22 @@ export async function updateTipoBeneficio(
   _prev: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
-  await requireEmpresaAccess(empresaId);
+  const alvo = await resolverTipoAlcancavel(id);
+  if (!alvo.ok) return alvo;
   const parsed = tipoBeneficioSchema.safeParse({ nome: formData.get("nome") });
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
 
   try {
-    await prisma.tipoBeneficio.update({ where: { id, empresaId }, data: { nome: parsed.data.nome } });
-  } catch {
-    return { ok: false, error: "Já existe um tipo de benefício com esse nome nessa empresa." };
+    await prisma.tipoBeneficio.update({
+      where: { id, empresaId: alvo.tipoEmpresaId },
+      data: { nome: parsed.data.nome },
+    });
+  } catch (e) {
+    if (violouUnique(e)) return { ok: false, error: "Já existe um tipo de benefício com esse nome nessa empresa." };
+    if (registroNaoEncontrado(e)) return { ok: false, error: "Tipo de benefício não encontrado." };
+    throw e;
   }
-  revalidatePath(`/rh/${empresaId}/tipos-beneficio`);
-  revalidatePath(`/rh/${empresaId}/beneficios`);
+  revalidarTipos(empresaId, alvo.tipoEmpresaId);
   return { ok: true };
 }
 
@@ -57,22 +88,35 @@ export async function toggleTipoBeneficioAtivo(
   id: string,
   ativo: boolean,
 ): Promise<ActionResult> {
-  await requireEmpresaAccess(empresaId);
-  await prisma.tipoBeneficio.update({ where: { id, empresaId }, data: { ativo } });
-  revalidatePath(`/rh/${empresaId}/tipos-beneficio`);
-  revalidatePath(`/rh/${empresaId}/beneficios`);
+  const alvo = await resolverTipoAlcancavel(id);
+  if (!alvo.ok) return alvo;
+  try {
+    await prisma.tipoBeneficio.update({ where: { id, empresaId: alvo.tipoEmpresaId }, data: { ativo } });
+  } catch (e) {
+    if (registroNaoEncontrado(e)) return { ok: false, error: "Tipo de benefício não encontrado." };
+    throw e;
+  }
+  revalidarTipos(empresaId, alvo.tipoEmpresaId);
   return { ok: true };
 }
 
 export async function deleteTipoBeneficio(empresaId: string, id: string): Promise<ActionResult> {
-  await requireEmpresaAccess(empresaId);
+  const alvo = await resolverTipoAlcancavel(id);
+  if (!alvo.ok) return alvo;
 
-  const tipo = await prisma.tipoBeneficio.findFirst({ where: { id, empresaId }, select: { nome: true } });
+  const tipo = await prisma.tipoBeneficio.findFirst({
+    where: { id, empresaId: alvo.tipoEmpresaId },
+    select: { nome: true },
+  });
   if (!tipo) return { ok: false, error: "Tipo de benefício não encontrado." };
 
   // "Em uso" aqui é por NOME, não por FK: BeneficioColaborador.tipo é string
   // livre (aceita tanto valor do catálogo fixo quanto nome cadastrado aqui).
-  const emUso = await prisma.beneficioColaborador.count({ where: { empresaId, tipo: tipo.nome } });
+  // A contagem olha a empresa DO TIPO — a da URL respondia 0 para tipo de
+  // outro CNPJ e deixava a exclusão passar do aviso.
+  const emUso = await prisma.beneficioColaborador.count({
+    where: { empresaId: alvo.tipoEmpresaId, tipo: tipo.nome },
+  });
   if (emUso > 0) {
     return {
       ok: false,
@@ -80,8 +124,12 @@ export async function deleteTipoBeneficio(empresaId: string, id: string): Promis
     };
   }
 
-  await prisma.tipoBeneficio.delete({ where: { id, empresaId } });
-  revalidatePath(`/rh/${empresaId}/tipos-beneficio`);
-  revalidatePath(`/rh/${empresaId}/beneficios`);
+  try {
+    await prisma.tipoBeneficio.delete({ where: { id, empresaId: alvo.tipoEmpresaId } });
+  } catch (e) {
+    if (registroNaoEncontrado(e)) return { ok: false, error: "Tipo de benefício não encontrado." };
+    throw e;
+  }
+  revalidarTipos(empresaId, alvo.tipoEmpresaId);
   return { ok: true };
 }

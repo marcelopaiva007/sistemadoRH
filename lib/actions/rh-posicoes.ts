@@ -3,7 +3,13 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireEmpresaAccess, empresasVisiveis } from "@/lib/rh-auth-guard";
+import {
+  requireEmpresaAccess,
+  requireRHAccess,
+  usuarioAlcancaEmpresa,
+  empresasVisiveis,
+} from "@/lib/rh-auth-guard";
+import { violouUnique, registroNaoEncontrado } from "@/lib/prisma-erros";
 import { registrarAuditoria } from "@/lib/audit";
 import { validarFusao, carregarPosicoes } from "@/lib/actions/guarda-unificacao";
 import type { ActionResult } from "@/lib/constants";
@@ -11,6 +17,29 @@ import type { ActionResult } from "@/lib/constants";
 const posicaoSchema = z.object({
   nome: z.string().trim().min(2, "Informe o nome da posição"),
 });
+
+/**
+ * Resolve o alvo de editar/ativar/excluir pela empresa DA POSIÇÃO, não a da
+ * URL — mesmo conserto (e mesmo motivo) do de Setores na v1.124.2: a tela
+ * lista o grupo inteiro, e validar pela empresa da rota fazia o Prisma não
+ * achar cargo de outro CNPJ (P2025), com o catch mentindo "nome duplicado".
+ * Cargo fora do alcance responde igual a inexistente.
+ */
+async function resolverPosicaoAlcancavel(
+  id: string,
+): Promise<{ ok: true; posicaoEmpresaId: string } | { ok: false; error: string }> {
+  const usuario = await requireRHAccess();
+  const posicao = await prisma.posicao.findUnique({ where: { id }, select: { empresaId: true } });
+  if (!posicao || !(await usuarioAlcancaEmpresa(usuario, posicao.empresaId))) {
+    return { ok: false, error: "Posição não encontrada." };
+  }
+  return { ok: true, posicaoEmpresaId: posicao.empresaId };
+}
+
+function revalidarPosicoes(empresaIdDaUrl: string, posicaoEmpresaId: string) {
+  revalidatePath(`/rh/${empresaIdDaUrl}/posicoes`);
+  if (posicaoEmpresaId !== empresaIdDaUrl) revalidatePath(`/rh/${posicaoEmpresaId}/posicoes`);
+}
 
 export async function createPosicao(
   empresaIdDefault: string,
@@ -24,10 +53,11 @@ export async function createPosicao(
 
   try {
     await prisma.posicao.create({ data: { empresaId: targetEmpresaId, nome: parsed.data.nome } });
-  } catch {
-    return { ok: false, error: "Já existe uma posição com esse nome nessa empresa." };
+  } catch (e) {
+    if (violouUnique(e)) return { ok: false, error: "Já existe uma posição com esse nome nessa empresa." };
+    throw e;
   }
-  revalidatePath(`/rh/${empresaIdDefault}/posicoes`);
+  revalidarPosicoes(empresaIdDefault, targetEmpresaId);
   return { ok: true };
 }
 
@@ -37,34 +67,54 @@ export async function updatePosicao(
   _prev: ActionResult,
   formData: FormData
 ): Promise<ActionResult> {
-  await requireEmpresaAccess(empresaId);
+  const alvo = await resolverPosicaoAlcancavel(id);
+  if (!alvo.ok) return alvo;
   const parsed = posicaoSchema.safeParse({ nome: formData.get("nome") });
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
 
   try {
-    await prisma.posicao.update({ where: { id, empresaId }, data: { nome: parsed.data.nome } });
-  } catch {
-    return { ok: false, error: "Já existe uma posição com esse nome nessa empresa." };
+    await prisma.posicao.update({
+      where: { id, empresaId: alvo.posicaoEmpresaId },
+      data: { nome: parsed.data.nome },
+    });
+  } catch (e) {
+    if (violouUnique(e)) return { ok: false, error: "Já existe uma posição com esse nome nessa empresa." };
+    if (registroNaoEncontrado(e)) return { ok: false, error: "Posição não encontrada." };
+    throw e;
   }
-  revalidatePath(`/rh/${empresaId}/posicoes`);
+  revalidarPosicoes(empresaId, alvo.posicaoEmpresaId);
   return { ok: true };
 }
 
 export async function togglePosicaoAtiva(empresaId: string, id: string, ativo: boolean): Promise<ActionResult> {
-  await requireEmpresaAccess(empresaId);
-  await prisma.posicao.update({ where: { id, empresaId }, data: { ativo } });
-  revalidatePath(`/rh/${empresaId}/posicoes`);
+  const alvo = await resolverPosicaoAlcancavel(id);
+  if (!alvo.ok) return alvo;
+  try {
+    await prisma.posicao.update({ where: { id, empresaId: alvo.posicaoEmpresaId }, data: { ativo } });
+  } catch (e) {
+    if (registroNaoEncontrado(e)) return { ok: false, error: "Posição não encontrada." };
+    throw e;
+  }
+  revalidarPosicoes(empresaId, alvo.posicaoEmpresaId);
   return { ok: true };
 }
 
 export async function deletePosicao(empresaId: string, id: string): Promise<ActionResult> {
-  await requireEmpresaAccess(empresaId);
-  const emUso = await prisma.colaborador.count({ where: { posicaoId: id, empresaId } });
+  const alvo = await resolverPosicaoAlcancavel(id);
+  if (!alvo.ok) return alvo;
+  // Sem filtro de empresa: o vínculo colaborador→posição é que conta (contar
+  // pela empresa da URL respondia 0 para cargo de outro CNPJ).
+  const emUso = await prisma.colaborador.count({ where: { posicaoId: id } });
   if (emUso > 0) {
     return { ok: false, error: `Não é possível excluir: ${emUso} colaborador(es) vinculado(s) a essa posição.` };
   }
-  await prisma.posicao.delete({ where: { id, empresaId } });
-  revalidatePath(`/rh/${empresaId}/posicoes`);
+  try {
+    await prisma.posicao.delete({ where: { id, empresaId: alvo.posicaoEmpresaId } });
+  } catch (e) {
+    if (registroNaoEncontrado(e)) return { ok: false, error: "Posição não encontrada." };
+    throw e;
+  }
+  revalidarPosicoes(empresaId, alvo.posicaoEmpresaId);
   return { ok: true };
 }
 

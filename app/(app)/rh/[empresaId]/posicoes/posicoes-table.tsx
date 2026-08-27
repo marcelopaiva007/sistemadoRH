@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import {
   Plus,
   Pencil,
+  ChevronRight,
   Trash2,
   Users,
   Briefcase,
@@ -157,6 +158,41 @@ export function PosicoesTable({
     });
   }, [posicoes, empresasSelecionadas, busca, filtroStatus]);
 
+  // ── Agrupamento por NOME ──────────────────────────────────────────────
+  // Mesmo desenho da tela de Setores (v1.126.0): Posicao é uma linha por CNPJ
+  // e o mesmo cargo legítimo em várias empresas lia-se como repetição. Uma
+  // linha por nome, CNPJs dentro, expansíveis.
+  const [gruposAbertos, setGruposAbertos] = useState<Set<string>>(new Set());
+  const grupos = useMemo(() => {
+    const porChave = new Map<string, { chave: string; nome: string; linhas: Posicao[] }>();
+    for (const p of posicoesFiltradas) {
+      const chave = p.nome.trim().toLowerCase().replace(/\s+/g, " ");
+      let g = porChave.get(chave);
+      if (!g) {
+        g = { chave, nome: p.nome, linhas: [] };
+        porChave.set(chave, g);
+      }
+      g.linhas.push(p);
+    }
+    return [...porChave.values()]
+      .map((g) => ({
+        ...g,
+        colab: g.linhas.reduce((a, l) => a + (l._count?.colaboradores ?? 0), 0),
+        vagas: g.linhas.reduce((a, l) => a + (l._count?.vagas ?? 0), 0),
+        ativos: g.linhas.filter((l) => l.ativo).length,
+      }))
+      .sort((a, b) => b.colab - a.colab || a.nome.localeCompare(b.nome, "pt-BR"));
+  }, [posicoesFiltradas]);
+
+  function alternarGrupo(chave: string) {
+    setGruposAbertos((atual) => {
+      const proximo = new Set(atual);
+      if (proximo.has(chave)) proximo.delete(chave);
+      else proximo.add(chave);
+      return proximo;
+    });
+  }
+
   // Identificação de duplicatas por nome idêntico (trim + lowercase)
   const contagemDuplicatas = useMemo(() => {
     const contagem = new Map<string, number>();
@@ -186,27 +222,25 @@ export function PosicoesTable({
     return agruparCargosSemelhantes(formatadas);
   }, [posicoesFiltradas]);
 
-  // Cálculos de KPIs
+  // Cálculos de KPIs — contam CARGOS (nomes), não registros por CNPJ.
   const kpis = useMemo(() => {
-    const totalPosicoes = posicoesFiltradas.length;
-    const posicoesAtivas = posicoesFiltradas.filter((p) => p.ativo).length;
-    const totalColaboradores = posicoesFiltradas.reduce(
-      (acc, p) => acc + (p._count?.colaboradores ?? 0),
-      0,
-    );
-
-    const maiorPosicao = [...posicoesFiltradas].sort(
-      (a, b) => (b._count?.colaboradores ?? 0) - (a._count?.colaboradores ?? 0),
-    )[0];
+    const totalPosicoes = grupos.length;
+    const totalRegistros = posicoesFiltradas.length;
+    const posicoesAtivas = grupos.filter((g) => g.ativos > 0).length;
+    const totalColaboradores = grupos.reduce((acc, g) => acc + g.colab, 0);
+    const maiorPosicao = grupos[0]
+      ? { nome: grupos[0].nome, _count: { colaboradores: grupos[0].colab } }
+      : undefined;
 
     return {
       totalPosicoes,
+      totalRegistros,
       posicoesAtivas,
       totalColaboradores,
       maiorPosicaoNome: maiorPosicao?.nome ?? "Nenhum",
       maiorPosicaoCount: maiorPosicao?._count?.colaboradores ?? 0,
     };
-  }, [posicoesFiltradas]);
+  }, [grupos, posicoesFiltradas]);
 
   // Contagem de cargos sem nenhum colaborador cadastrado
   const cargosSemColabCount = useMemo(() => {
@@ -330,7 +364,7 @@ export function PosicoesTable({
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <KpiCard rotulo="Total de Cargos" valor={kpis.totalPosicoes} icone={Briefcase} />
+        <KpiCard rotulo="Total de Cargos" valor={kpis.totalPosicoes} subtitulo={`${kpis.totalRegistros} registro(s) por CNPJ`} icone={Briefcase} />
         <KpiCard rotulo="Cargos Ativos" valor={kpis.posicoesAtivas} icone={CheckCircle2} />
         <KpiCard rotulo="Colaboradores Vinculados" valor={kpis.totalColaboradores} icone={Users} />
         <KpiCard
@@ -383,45 +417,41 @@ export function PosicoesTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {posicoesFiltradas.length === 0 ? (
+            {grupos.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
                   Nenhum cargo/função encontrado com os filtros aplicados.
                 </TableCell>
               </TableRow>
             ) : (
-              posicoesFiltradas.map((p) => {
+              grupos.flatMap((g) => {
+                const aberto = gruposAbertos.has(g.chave);
                 const pctColaboradores =
                   kpis.totalColaboradores > 0
-                    ? Math.round(((p._count?.colaboradores ?? 0) / kpis.totalColaboradores) * 100)
+                    ? Math.round((g.colab / kpis.totalColaboradores) * 100)
                     : 0;
 
-                const temDuplicataNominal = posicoesFiltradas.some(
-                  (outro) =>
-                    outro.id !== p.id &&
-                    outro.empresaId === p.empresaId &&
-                    outro.nome.trim().toLowerCase() === p.nome.trim().toLowerCase(),
-                );
-
-                return (
-                  <TableRow key={p.id} className={p.ativo ? "" : "opacity-60"}>
+                const linhaDoGrupo = (
+                  <TableRow
+                    key={g.chave}
+                    className={cn("cursor-pointer", g.ativos === 0 && "opacity-60")}
+                    onClick={() => alternarGrupo(g.chave)}
+                  >
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2.5">
-                        <PosicaoAvatar nome={p.nome} id={p.id} />
+                        <ChevronRight
+                          className={cn(
+                            "size-4 shrink-0 text-muted-foreground transition-transform",
+                            aberto && "rotate-90",
+                          )}
+                        />
+                        <PosicaoAvatar nome={g.nome} id={g.linhas[0].id} />
                         <div>
-                          <div className="flex items-center gap-1.5">
-                            <p className="font-semibold text-foreground">{p.nome}</p>
-                            {temDuplicataNominal && (
-                              <Badge
-                                variant="outline"
-                                className="border-amber-400 bg-amber-50 text-[10px] text-amber-700 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
-                              >
-                                Duplicado
-                              </Badge>
-                            )}
-                          </div>
+                          <p className="font-semibold text-foreground">{g.nome}</p>
                           <p className="text-[11px] text-muted-foreground">
-                            ID: {p.id.slice(-6)}
+                            {g.linhas.length === 1
+                              ? g.linhas[0].empresa.nome
+                              : `em ${g.linhas.length} CNPJs`}
                           </p>
                         </div>
                       </div>
@@ -429,9 +459,7 @@ export function PosicoesTable({
 
                     <TableCell className="text-center">
                       <div className="flex flex-col items-center gap-1">
-                        <span className="font-medium tabular-nums">
-                          {p._count?.colaboradores ?? 0}
-                        </span>
+                        <span className="font-medium tabular-nums">{g.colab}</span>
                         <div className="h-1.5 w-16 overflow-hidden rounded-full bg-muted">
                           <div
                             className="h-full bg-primary transition-all"
@@ -445,51 +473,111 @@ export function PosicoesTable({
                     </TableCell>
 
                     <TableCell className="text-center">
-                      <span className="text-xs text-muted-foreground">
-                        🎯 {p._count?.vagas ?? 0} vaga(s)
-                      </span>
+                      <span className="text-xs text-muted-foreground">🎯 {g.vagas} vaga(s)</span>
                     </TableCell>
 
                     <TableCell className="text-center">
-                      <button
-                        type="button"
-                        className="cursor-pointer"
-                        onClick={async () => {
-                          const result = await togglePosicaoAtiva(empresaId, p.id, !p.ativo);
-                          if (result.ok) {
-                            toast.success(p.ativo ? "Cargo desativado." : "Cargo ativado.");
-                          }
-                        }}
-                      >
-                        <Badge variant={p.ativo ? "default" : "secondary"}>
-                          {p.ativo ? "Ativo" : "Inativo"}
-                        </Badge>
-                      </button>
+                      <Badge variant={g.ativos > 0 ? "default" : "secondary"}>
+                        {g.ativos === g.linhas.length
+                          ? "Ativo"
+                          : g.ativos === 0
+                          ? "Inativo"
+                          : `${g.ativos}/${g.linhas.length} ativos`}
+                      </Badge>
                     </TableCell>
 
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setUnificarPosicaoOrigem(p)}
-                          title="Unificar / Mesclar com outro cargo"
-                        >
-                          <GitMerge className="size-4 text-muted-foreground hover:text-foreground" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setEditPosicao(p)}
-                          title="Editar cargo"
-                        >
-                          <Pencil className="size-4" />
-                        </Button>
-                        <DeletePosicaoButton empresaId={empresaId} posicao={p} />
-                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        {aberto ? "Recolher" : "Abrir CNPJs"}
+                      </span>
                     </TableCell>
                   </TableRow>
                 );
+
+                if (!aberto) return [linhaDoGrupo];
+
+                const subLinhas = g.linhas.map((p) => {
+                  const temDuplicataNominal = g.linhas.some(
+                    (outro) => outro.id !== p.id && outro.empresaId === p.empresaId,
+                  );
+                  return (
+                    <TableRow key={p.id} className={cn("bg-muted/30", !p.ativo && "opacity-60")}>
+                      <TableCell>
+                        <div className="flex items-center gap-2 pl-11">
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <p className="text-sm text-foreground">{p.empresa.nome}</p>
+                              {temDuplicataNominal && (
+                                <Badge
+                                  variant="outline"
+                                  className="border-amber-400 bg-amber-50 text-[10px] text-amber-700 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
+                                >
+                                  Duplicado no CNPJ
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-muted-foreground">ID: {p.id.slice(-6)}</p>
+                          </div>
+                        </div>
+                      </TableCell>
+
+                      <TableCell className="text-center">
+                        <span className="font-medium tabular-nums">
+                          {p._count?.colaboradores ?? 0}
+                        </span>
+                      </TableCell>
+
+                      <TableCell className="text-center">
+                        <span className="text-xs text-muted-foreground">
+                          🎯 {p._count?.vagas ?? 0} vaga(s)
+                        </span>
+                      </TableCell>
+
+                      <TableCell className="text-center">
+                        <button
+                          type="button"
+                          className="cursor-pointer"
+                          onClick={async () => {
+                            const result = await togglePosicaoAtiva(empresaId, p.id, !p.ativo);
+                            if (result.ok) {
+                              toast.success(p.ativo ? "Cargo desativado." : "Cargo ativado.");
+                            } else {
+                              toast.error(result.error || "Erro ao alterar o status do cargo.");
+                            }
+                          }}
+                        >
+                          <Badge variant={p.ativo ? "default" : "secondary"}>
+                            {p.ativo ? "Ativo" : "Inativo"}
+                          </Badge>
+                        </button>
+                      </TableCell>
+
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setUnificarPosicaoOrigem(p)}
+                            title="Unificar / Mesclar com outro cargo"
+                          >
+                            <GitMerge className="size-4 text-muted-foreground hover:text-foreground" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setEditPosicao(p)}
+                            title="Editar cargo"
+                          >
+                            <Pencil className="size-4" />
+                          </Button>
+                          <DeletePosicaoButton empresaId={empresaId} posicao={p} />
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                });
+
+                return [linhaDoGrupo, ...subLinhas];
               })
             )}
           </TableBody>
