@@ -26,6 +26,18 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.132.0",
+    data: "27/08/2026",
+    horario: "19:00",
+    titulo: "Anexar o documento do veículo: CRLV, licenciamento, seguro e laudos",
+    itens: [
+      "O botão \"Documento\" de cada veículo virou a papelada do carro num lugar só: além do tipo e da data de vencimento, agora dá para ANEXAR o arquivo em PDF ou foto (até 4 MB) — CRLV-e, licenciamento, apólice, vistoria, laudo, nota fiscal.",
+      "Cada documento anexado pode ser aberto na hora, baixado, substituído (escolher outro arquivo troca o anterior) ou excluído — e excluir o documento leva o arquivo junto, sem deixar rastro guardado.",
+      "A data de vencimento continua sendo o que gera o alerta: o veículo com licenciamento vencendo aparece na lista de Veículos e na Central de Pendências. Documento sem vencimento (nota fiscal, ATPV) fica cadastrado sem cobrar prazo.",
+      "Quem baixa um anexo fica registrado na auditoria, e só entra quem tem acesso àquela empresa e ao sistema Processos & Ativos.",
+    ],
+  },
+  {
     versao: "1.131.0",
     data: "27/08/2026",
     horario: "18:00",

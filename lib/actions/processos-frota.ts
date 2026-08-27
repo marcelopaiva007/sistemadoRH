@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { requireProcessosEmpresa } from "@/lib/processos-auth-guard";
 import { empresasVisiveis } from "@/lib/rh-auth-guard";
 import { registrarAuditoria } from "@/lib/audit";
+import { lerAnexo } from "@/lib/anexos";
+import { blobConfigurado, enviarDocumentoVeiculoParaBlob, removerDoBlob } from "@/lib/blob";
 import { dataDoFormulario, dataHoraDoFormularioBrasilia, hojeUTC, somarDiasUTC } from "@/lib/datas";
 import {
   normalizarPlaca,
@@ -12,6 +14,8 @@ import {
   formatarPlaca,
   notificacaoFicta,
   prazoIndicacao,
+  rotulo,
+  TIPOS_DOCUMENTO_VEICULO,
   DIAS_NOVO_CRV,
   DIAS_COMUNICACAO_VENDA,
   PONTOS_POR_NATUREZA,
@@ -185,57 +189,202 @@ export async function salvarVeiculo(input: {
 }
 
 /** Documento com validade do veículo — é daqui que sai metade dos alertas. */
-export async function salvarDocumentoVeiculo(input: {
-  id?: string | null;
-  empresaId: string;
-  veiculoId: string;
-  tipo: string;
-  exercicio?: number | null;
-  dataEmissao?: string | null;
-  dataVencimento?: string | null;
-  valor?: number | null;
-  observacoes?: string | null;
-}): Promise<ActionResult> {
-  const usuario = await requireProcessosEmpresa(input.empresaId);
+/**
+ * Cadastra/edita um documento do veículo — e, desde 27/08/2026, ANEXA o arquivo.
+ *
+ * Passou a receber `FormData` (era objeto tipado) porque `<input type="file">`
+ * não vive em estado controlado do React: o arquivo só chega ao servidor por
+ * FormData. Mesmo contrato de `criarDocumento` do dossiê do colaborador, e a
+ * validação do anexo é a MESMA função (`lerAnexo`: 4 MB, PDF/JPG/PNG/WEBP/HEIC).
+ *
+ * Sobre onde o arquivo fica: Blob quando configurado, bytes no Postgres quando
+ * não. Não é indiferença — é o que mantém a funcionalidade viva num ambiente
+ * sem token (Preview) sem inchar o banco em produção, que é onde o Blob está
+ * ligado. Se o Blob ESTÁ configurado e a subida falha, a action devolve erro em
+ * vez de cair no Postgres: guardar 4 MB no banco por causa de uma falha de rede
+ * seria a decisão errada tomada em silêncio.
+ */
+export async function salvarDocumentoVeiculo(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const empresaId = String(formData.get("empresaId") ?? "");
+  const veiculoId = String(formData.get("veiculoId") ?? "");
+  const id = String(formData.get("id") ?? "") || null;
+
+  const usuario = await requireProcessosEmpresa(empresaId);
 
   // O id vem do cliente e a tela é consolidada: o veículo pode ser de OUTRO
   // CNPJ visível — o que não pode é ser de um CNPJ fora do alcance.
   const visiveis = await empresasVisiveis(usuario);
   const veiculo = await prisma.veiculo.findFirst({
-    where: { id: input.veiculoId, empresaId: { in: visiveis } },
+    where: { id: veiculoId, empresaId: { in: visiveis } },
     select: { id: true, placa: true, empresaId: true },
   });
   if (!veiculo) return { ok: false, error: "Veículo não encontrado no seu acesso." };
 
-  if (!input.tipo) return { ok: false, error: "Escolha o tipo de documento." };
-  const dataVencimento = dataDoFormulario(input.dataVencimento ?? null);
+  const tipo = String(formData.get("tipo") ?? "").trim();
+  if (!tipo) return { ok: false, error: "Escolha o tipo de documento." };
 
+  // Editando: o documento tem que ser DESTE veículo. Sem isto, um id de outro
+  // carro (ou de outro CNPJ) passaria pelo update — a checagem acima valida o
+  // veículo, não o documento.
+  const atual = id
+    ? await prisma.documentoVeiculo.findFirst({
+        where: { id, veiculoId: veiculo.id },
+        select: { id: true, arquivoId: true, arquivo: { select: { blobUrl: true } } },
+      })
+    : null;
+  if (id && !atual) return { ok: false, error: "Documento não encontrado neste veículo." };
+
+  const anexoLido = await lerAnexo(formData);
+  if (!anexoLido.ok) return { ok: false, error: anexoLido.error };
+  const anexo = anexoLido.anexo;
+
+  let blobUrl: string | null = null;
+  if (anexo && blobConfigurado()) {
+    const envio = await enviarDocumentoVeiculoParaBlob({
+      empresaId: veiculo.empresaId,
+      veiculoId: veiculo.id,
+      nome: anexo.nome,
+      mimeType: anexo.mimeType,
+      bytes: anexo.bytes,
+    });
+    if (!envio.ok) return { ok: false, error: envio.error };
+    blobUrl = envio.url;
+  }
+
+  const exercicioBruto = String(formData.get("exercicio") ?? "").trim();
+  const valorBruto = String(formData.get("valor") ?? "").trim();
   const dados = {
     // Do veículo, não da URL: o documento pertence ao CNPJ do carro.
     empresaId: veiculo.empresaId,
     veiculoId: veiculo.id,
-    tipo: input.tipo,
-    exercicio: input.exercicio ?? null,
-    dataEmissao: dataDoFormulario(input.dataEmissao ?? null),
-    dataVencimento,
-    valor: input.valor ?? null,
-    observacoes: (input.observacoes ?? "").trim().slice(0, 500) || null,
+    tipo,
+    exercicio: exercicioBruto ? Number(exercicioBruto) : null,
+    dataEmissao: dataDoFormulario(formData.get("dataEmissao")),
+    dataVencimento: dataDoFormulario(formData.get("dataVencimento")),
+    valor: valorBruto ? Number(valorBruto.replace(",", ".")) : null,
+    observacoes: String(formData.get("observacoes") ?? "").trim().slice(0, 500) || null,
   };
 
-  if (input.id) {
-    await prisma.documentoVeiculo.update({ where: { id: input.id }, data: dados });
-  } else {
-    await prisma.documentoVeiculo.create({
-      data: { ...dados, criadoPorId: usuario.id, criadoPorNome: usuario.name ?? usuario.username },
+  const arquivoAntigoId = atual?.arquivoId ?? null;
+  const blobAntigo = atual?.arquivo?.blobUrl ?? null;
+
+  const documentoId = await prisma.$transaction(async (tx) => {
+    // O arquivo nasce numa linha própria antes do documento (mesma transação,
+    // para não sobrar arquivo órfão se a segunda escrita falhar).
+    const arquivo = anexo
+      ? await tx.arquivo.create({
+          data: {
+            empresaId: veiculo.empresaId,
+            nome: anexo.nome,
+            mimeType: anexo.mimeType,
+            tamanhoBytes: anexo.bytes.byteLength,
+            // Um OU outro, nunca os dois: com Blob ligado o banco guarda só a URL.
+            blobUrl,
+            conteudo: blobUrl ? null : anexo.bytes,
+            criadoPorId: usuario.id,
+            criadoPorNome: usuario.name ?? usuario.username,
+          },
+          select: { id: true },
+        })
+      : null;
+
+    if (atual) {
+      await tx.documentoVeiculo.update({
+        where: { id: atual.id },
+        // Sem anexo novo o vínculo NÃO é tocado: editar a data de vencimento
+        // não pode apagar o PDF que já estava lá.
+        data: arquivo ? { ...dados, arquivoId: arquivo.id } : dados,
+      });
+      // `arquivoId` é UNIQUE: o antigo só sai DEPOIS de o vínculo apontar para
+      // o novo, na mesma transação (padrão de anexarViaAssinadaOcorrencia).
+      if (arquivo && arquivoAntigoId) {
+        await tx.arquivo.delete({ where: { id: arquivoAntigoId } });
+      }
+      return atual.id;
+    }
+
+    const criado = await tx.documentoVeiculo.create({
+      data: {
+        ...dados,
+        arquivoId: arquivo?.id ?? null,
+        criadoPorId: usuario.id,
+        criadoPorNome: usuario.name ?? usuario.username,
+      },
+      select: { id: true },
     });
-  }
+    return criado.id;
+  });
+
+  // Fora da transação, best-effort: o vínculo no banco é o que importa; blob
+  // órfão só ocupa espaço.
+  if (anexo && arquivoAntigoId && blobAntigo) await removerDoBlob(blobAntigo);
 
   await registrarAuditoria({
     empresaId: veiculo.empresaId,
-    acao: input.id ? "ATUALIZAR" : "CRIAR",
+    acao: id ? "ATUALIZAR" : "CRIAR",
     entidade: "DocumentoVeiculo",
-    entidadeId: input.id ?? null,
-    resumo: `${input.id ? "Editou" : "Registrou"} ${input.tipo} do veículo ${formatarPlaca(veiculo.placa)}`,
+    entidadeId: documentoId,
+    resumo:
+      `${id ? "Editou" : "Registrou"} ${rotulo(TIPOS_DOCUMENTO_VEICULO, tipo)} do veículo ` +
+      `${formatarPlaca(veiculo.placa)}` +
+      (anexo ? ` (anexo "${anexo.nome}"${arquivoAntigoId ? " substituiu o anterior" : ""})` : ""),
+    detalhes: {
+      tipo,
+      arquivo: anexo?.nome ?? null,
+      dataVencimento: dados.dataVencimento?.toISOString() ?? null,
+    },
+  });
+
+  revalidatePath(caminho(empresaId));
+  return { ok: true };
+}
+
+/**
+ * Exclui um documento do veículo — e o arquivo junto.
+ *
+ * O FK é ON DELETE SET NULL: apagar só o documento deixaria o arquivo órfão no
+ * banco (some da tela e continua guardado). Os dois saem na mesma transação, e
+ * o blob logo depois.
+ */
+export async function excluirDocumentoVeiculo(input: {
+  empresaId: string;
+  id: string;
+}): Promise<ActionResult> {
+  const usuario = await requireProcessosEmpresa(input.empresaId);
+  const visiveis = await empresasVisiveis(usuario);
+
+  // Pelo VEÍCULO do documento, não pela empresa da URL: a tela é consolidada e
+  // o documento pode ser de outro CNPJ visível.
+  const documento = await prisma.documentoVeiculo.findFirst({
+    where: { id: input.id, veiculo: { empresaId: { in: visiveis } } },
+    select: {
+      id: true,
+      tipo: true,
+      arquivoId: true,
+      arquivo: { select: { blobUrl: true } },
+      veiculo: { select: { placa: true, empresaId: true } },
+    },
+  });
+  if (!documento) return { ok: false, error: "Documento não encontrado no seu acesso." };
+
+  await prisma.$transaction(async (tx) => {
+    await tx.documentoVeiculo.delete({ where: { id: documento.id } });
+    if (documento.arquivoId) await tx.arquivo.delete({ where: { id: documento.arquivoId } });
+  });
+
+  if (documento.arquivo?.blobUrl) await removerDoBlob(documento.arquivo.blobUrl);
+
+  await registrarAuditoria({
+    empresaId: documento.veiculo.empresaId,
+    acao: "EXCLUIR",
+    entidade: "DocumentoVeiculo",
+    entidadeId: documento.id,
+    resumo:
+      `Excluiu ${rotulo(TIPOS_DOCUMENTO_VEICULO, documento.tipo)} do veículo ` +
+      `${formatarPlaca(documento.veiculo.placa)}${documento.arquivoId ? " (arquivo removido junto)" : ""}`,
   });
 
   revalidatePath(caminho(input.empresaId));
