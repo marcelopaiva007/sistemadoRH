@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.126.0",
+    data: "27/08/2026",
+    horario: "13:15",
+    titulo: "Tela de Setores agrupada: uma linha por setor, CNPJs dentro",
+    itens: [
+      "A tela de Setores deixou de mostrar um registro por CNPJ — \"Administrativo\" legítimo em 3 empresas aparecia 3 vezes e parecia repetição. Agora é uma linha por SETOR, com a soma de colaboradores, vagas e metas, e o número de CNPJs onde ele existe.",
+      "Clique na linha para abrir os CNPJs: é lá que vivem as ações (editar, ativar/desativar, unificar, excluir), agindo sempre num registro concreto.",
+      "O cartão \"Total de Setores\" passa a contar setores de verdade (nomes), com o número de registros por CNPJ como legenda.",
+    ],
+  },
+  {
     versao: "1.125.0",
     data: "27/08/2026",
     horario: "12:30",
