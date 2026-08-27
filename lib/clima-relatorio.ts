@@ -118,7 +118,7 @@ function analiseExecutivaHtml(analise: ResultadoClima["analiseExecutiva"]): stri
     if (!itens.length) return "";
     return `<div style="margin:8px 0">
       <h4 style="margin:6px 0;font-size:11px">${titulo}</h4>
-      <ul style="margin:4px 0;padding-left:18px">${itens.map((i) => `<li>${i}</li>`).join("")}</ul>
+      <ul style="margin:4px 0;padding-left:18px">${itens.map((i) => `<li>${esc(i)}</li>`).join("")}</ul>
     </div>`;
   };
 

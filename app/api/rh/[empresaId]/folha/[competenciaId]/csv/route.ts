@@ -12,15 +12,16 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { usuarioAlcancaEmpresa } from "@/lib/rh-auth-guard";
+import { neutralizarFormulaCsv } from "@/lib/csv";
 import { prisma } from "@/lib/prisma";
 import { registrarAuditoria } from "@/lib/audit";
 import { formatarCompetencia, rubricaLabel, rubricaNatureza, rubricaUnidade } from "@/lib/constants-folha";
 
 export const runtime = "nodejs";
 
-/** Escapa campo de CSV: aspas dobradas e o todo entre aspas quando precisa. */
+/** Escapa campo de CSV: neutraliza fórmula, dobra aspas e cita quando precisa. */
 function campo(v: string | number | null | undefined): string {
-  const s = v === null || v === undefined ? "" : String(v);
+  const s = neutralizarFormulaCsv(v === null || v === undefined ? "" : String(v));
   return /[";\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
