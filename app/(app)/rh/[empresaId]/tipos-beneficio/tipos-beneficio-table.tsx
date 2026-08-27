@@ -3,7 +3,7 @@
 import { useActionState, useState, useMemo } from "react";
 import { useFiltroEmpresas } from "../filtro-empresas";
 import { toast } from "sonner";
-import { ChevronRight, Plus, Pencil, Trash2 } from "lucide-react";
+import { ChevronRight, Plus, Pencil, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,13 +23,22 @@ import {
   updateTipoBeneficio,
   deleteTipoBeneficio,
   toggleTipoBeneficioAtivo,
+  removerTiposBeneficioSemUso,
 } from "@/lib/actions/rh-tipos-beneficio";
 import { TIPOS_BENEFICIO } from "@/lib/constants-beneficios";
 import { cn } from "@/lib/utils";
 import type { ActionResult } from "@/lib/constants";
 
 type Empresa = { id: string; nome: string };
-type TipoBeneficio = { id: string; nome: string; ativo: boolean; empresaId: string; empresa: Empresa };
+type TipoBeneficio = {
+  id: string;
+  nome: string;
+  ativo: boolean;
+  empresaId: string;
+  empresa: Empresa;
+  /** Quantas concessões (BeneficioColaborador) usam este tipo, por nome+empresa. */
+  concessoes: number;
+};
 
 const initialState: ActionResult = { ok: true };
 
@@ -51,6 +60,7 @@ export function TiposBeneficioTable({
   );
   const [createOpen, setCreateOpen] = useState(false);
   const [editTipo, setEditTipo] = useState<TipoBeneficio | null>(null);
+  const [isRemovingSemUso, setIsRemovingSemUso] = useState(false);
 
   // Uma linha por NOME, CNPJs dentro — mesmo desenho de Setores/Cargos
   // (v1.126.0/v1.129.0): a tela lista o grupo e o mesmo tipo em N empresas
@@ -68,7 +78,11 @@ export function TiposBeneficioTable({
       g.linhas.push(t);
     }
     return [...porChave.values()]
-      .map((g) => ({ ...g, ativos: g.linhas.filter((l) => l.ativo).length }))
+      .map((g) => ({
+        ...g,
+        ativos: g.linhas.filter((l) => l.ativo).length,
+        concessoes: g.linhas.reduce((a, l) => a + l.concessoes, 0),
+      }))
       .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
   }, [tiposFiltrados]);
 
@@ -79,6 +93,33 @@ export function TiposBeneficioTable({
       else proximo.add(chave);
       return proximo;
     });
+  }
+
+  // Elegível para remoção = nenhuma concessão usa o tipo, no CNPJ da URL —
+  // mesma régua do servidor (removerTiposBeneficioSemUso só mexe nesse CNPJ).
+  const semUsoCount = useMemo(
+    () => tiposFiltrados.filter((t) => t.empresaId === empresaId && t.concessoes === 0).length,
+    [tiposFiltrados, empresaId],
+  );
+
+  async function handleRemoverSemUso() {
+    setIsRemovingSemUso(true);
+    try {
+      const res = await removerTiposBeneficioSemUso(empresaId);
+      if (res.ok) {
+        toast.success(
+          res.removidos > 0
+            ? `${res.removidos} tipo(s) sem uso removido(s) com sucesso!`
+            : "Nenhum tipo sem uso para remover.",
+        );
+      } else {
+        toast.error(res.error || "Erro ao remover tipos sem uso.");
+      }
+    } catch {
+      toast.error("Erro inesperado ao remover tipos sem uso.");
+    } finally {
+      setIsRemovingSemUso(false);
+    }
   }
 
   return (
@@ -92,7 +133,19 @@ export function TiposBeneficioTable({
         </p>
       </div>
 
-      <div className="flex justify-end">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {semUsoCount > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 border-rose-300 bg-rose-50 text-rose-900 hover:bg-rose-100 dark:border-rose-800 dark:bg-rose-950/50 dark:text-rose-200"
+            onClick={handleRemoverSemUso}
+            disabled={isRemovingSemUso}
+          >
+            <Sparkles className="size-3.5 text-rose-600 dark:text-rose-400" />
+            {isRemovingSemUso ? "Removendo..." : `Remover ${semUsoCount} Sem Uso`}
+          </Button>
+        )}
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <DialogTrigger render={<Button />}>
             <Plus className="size-4" />
@@ -116,13 +169,14 @@ export function TiposBeneficioTable({
             <TableRow>
               <TableHead>Nome</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead className="text-center">Em uso</TableHead>
               <TableHead className="w-24 text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {tiposFiltrados.length === 0 && (
               <TableRow>
-                <TableCell colSpan={3} className="py-8 text-center text-muted-foreground">
+                <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
                   Nenhum tipo adicional cadastrado — o catálogo padrão segue disponível na tela de
                   Benefícios.
                 </TableCell>
@@ -161,6 +215,9 @@ export function TiposBeneficioTable({
                         : `${g.ativos}/${g.linhas.length} ativos`}
                     </Badge>
                   </TableCell>
+                  <TableCell className="text-center text-xs text-muted-foreground">
+                    {g.concessoes} concessão(ões)
+                  </TableCell>
                   <TableCell className="text-right">
                     <span className="text-xs text-muted-foreground">
                       {aberto ? "Recolher" : "Abrir CNPJs"}
@@ -188,6 +245,9 @@ export function TiposBeneficioTable({
                         {t.ativo ? "Ativo" : "Inativo"}
                       </Badge>
                     </button>
+                  </TableCell>
+                  <TableCell className="text-center text-xs text-muted-foreground">
+                    {t.concessoes} concessão(ões)
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">

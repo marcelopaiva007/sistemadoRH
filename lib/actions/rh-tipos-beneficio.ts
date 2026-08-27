@@ -133,3 +133,35 @@ export async function deleteTipoBeneficio(empresaId: string, id: string): Promis
   revalidarTipos(empresaId, alvo.tipoEmpresaId);
   return { ok: true };
 }
+
+/**
+ * Remove em lote os tipos cadastrados no CNPJ da URL que NENHUMA concessão usa
+ * — mesmo padrão de `removerSetoresSemColaboradores`/`removerPosicoesSemColaboradores`.
+ * "Em uso" aqui é por NOME (ver deleteTipoBeneficio): um tipo só é candidato se
+ * não houver `BeneficioColaborador.tipo` igual ao nome dele, na mesma empresa.
+ */
+export async function removerTiposBeneficioSemUso(
+  empresaId: string,
+): Promise<{ ok: boolean; removidos: number; error?: string }> {
+  await requireEmpresaAccess(empresaId);
+
+  try {
+    const tipos = await prisma.tipoBeneficio.findMany({
+      where: { empresaId },
+      select: { id: true, nome: true },
+    });
+    const semUso: string[] = [];
+    for (const t of tipos) {
+      const emUso = await prisma.beneficioColaborador.count({ where: { empresaId, tipo: t.nome } });
+      if (emUso === 0) semUso.push(t.id);
+    }
+    if (semUso.length === 0) return { ok: true, removidos: 0 };
+
+    await prisma.tipoBeneficio.deleteMany({ where: { id: { in: semUso } } });
+    revalidarTipos(empresaId, empresaId);
+    return { ok: true, removidos: semUso.length };
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : "Erro ao remover tipos sem uso.";
+    return { ok: false, removidos: 0, error: errorMsg };
+  }
+}

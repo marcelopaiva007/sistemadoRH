@@ -97,6 +97,46 @@ function similaridadeLevenshtein(str1: string, str2: string): number {
   return 1 - dp[m][n] / maxLen;
 }
 
+/**
+ * Radicais são PARECIDOS o bastante para sugerir fusão só quando a diferença
+ * é erro de digitação — nunca quando é substantivo trocado.
+ *
+ * Até 27/08/2026 a comparação rodava Levenshtein na STRING INTEIRA do radical,
+ * e isso confundia "Gerente de Vendas" com "Gerente de Redes" (radicais "de
+ * gerente vendas" / "de gerente redes", ~82% parecidos como string): duas
+ * palavras batiam ("de", "gerente") e só "vendas"/"redes" — um SUBSTANTIVO,
+ * não erro de grafia — divergia. A tela oferecia "Unificar este grupo" pronto
+ * para juntar um cargo comercial com um técnico de rede num clique.
+ *
+ * A régua agora é PALAVRA A PALAVRA: mesmo número de palavras, todas iguais
+ * MENOS NO MÁXIMO UMA — e essa uma só conta como "digitação" se ela própria
+ * for ≥85% parecida (typo real: "finaceiro"~"financeiro"). Palavra totalmente
+ * diferente ("vendas"/"redes") nunca aprova, não importa a nota da string
+ * inteira.
+ */
+function radicaisParecidosPorDigitacao(radicalA: string, radicalB: string): boolean {
+  const palavrasA = radicalA.split(" ").filter(Boolean);
+  const palavrasB = radicalB.split(" ").filter(Boolean);
+  if (palavrasA.length !== palavrasB.length) return false;
+
+  const restanteB = [...palavrasB];
+  const divergentes: string[] = [];
+  for (const palavra of palavrasA) {
+    const i = restanteB.indexOf(palavra);
+    if (i >= 0) restanteB.splice(i, 1);
+    else divergentes.push(palavra);
+  }
+  // Todas batem: já é o caso de radical idêntico, tratado antes de chegar aqui.
+  if (divergentes.length === 0) return true;
+  // Mais de uma palavra diferente = cargos distintos, não erro de digitação.
+  if (divergentes.length > 1 || restanteB.length > 1) return false;
+
+  const [unicaA] = divergentes;
+  const [unicaB] = restanteB;
+  if (unicaA.length <= 4 || unicaB.length <= 4) return false;
+  return similaridadeLevenshtein(unicaA, unicaB) >= 0.85;
+}
+
 /** Agrupa posições/cargos por semelhança semântica, gramatical e fonética. */
 export function agruparCargosSemelhantes(
   posicoes: {
@@ -124,12 +164,7 @@ export function agruparCargosSemelhantes(
       if (alocados.has(outra.id)) return false;
       const radicalOutra = extrairRadicalCargo(outra.nome);
       if (radical === radicalOutra) return true;
-
-      // Similaridade leve de Levenshtein para pequenos erros de digitação (> 82%)
-      if (radical.length > 4 && radicalOutra.length > 4) {
-        return similaridadeLevenshtein(radical, radicalOutra) >= 0.82;
-      }
-      return false;
+      return radicaisParecidosPorDigitacao(radical, radicalOutra);
     });
 
     if (semelhantes.length > 1) {
