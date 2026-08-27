@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.128.0",
+    data: "27/08/2026",
+    horario: "15:00",
+    titulo: "Contrato de aluguel se cadastra dentro de Aluguéis a receber",
+    itens: [
+      "A tela Aluguéis a receber ganhou o cadastro completo do contrato de aluguel: inquilino, imóvel, CNPJ dono, valor mensal, vigência e status — e o lápis para editar. Cadastrou, escolheu o dia de vencimento, gerou as parcelas: tudo sem sair da tela.",
+      "A tela de Contratos deixou de mostrar (e de oferecer) contratos de Receita — lá ficam só os demais: torres, terrenos, fornecedores, prestadores. Aluguel não se mistura com despesa.",
+      "Contratos de aluguel em rascunho ou encerrados aparecem no cadastro, mas ficam fora dos totais e não geram parcela — os números continuam batendo com a Central.",
+    ],
+  },
+  {
     versao: "1.127.0",
     data: "27/08/2026",
     horario: "14:00",
