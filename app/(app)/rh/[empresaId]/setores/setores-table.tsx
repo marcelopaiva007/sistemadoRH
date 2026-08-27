@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import {
   Plus,
   Pencil,
+  ChevronRight,
   Trash2,
   Users,
   Building2,
@@ -158,6 +159,44 @@ export function SetoresTable({
     });
   }, [setores, empresasSelecionadas, busca, filtroStatus]);
 
+  // ── Agrupamento por NOME ──────────────────────────────────────────────
+  // A tela lista o grupo inteiro e Setor é uma linha POR CNPJ — "Administrativo"
+  // legítimo em 3 empresas virava 3 linhas e lia-se como repetição (reclamação
+  // do dono em 27/08/2026). A tabela passa a mostrar UMA linha por nome, com os
+  // CNPJs dentro, expansíveis. A chave ignora caixa/espaço — mesma régua de
+  // chaveDeSetor no BI (lib/painel-setor.ts).
+  const [gruposAbertos, setGruposAbertos] = useState<Set<string>>(new Set());
+  const grupos = useMemo(() => {
+    const porChave = new Map<string, { chave: string; nome: string; linhas: Setor[] }>();
+    for (const s of setoresFiltrados) {
+      const chave = s.nome.trim().toLowerCase().replace(/\s+/g, " ");
+      let g = porChave.get(chave);
+      if (!g) {
+        g = { chave, nome: s.nome, linhas: [] };
+        porChave.set(chave, g);
+      }
+      g.linhas.push(s);
+    }
+    return [...porChave.values()]
+      .map((g) => ({
+        ...g,
+        colab: g.linhas.reduce((a, l) => a + (l._count?.colaboradores ?? 0), 0),
+        vagas: g.linhas.reduce((a, l) => a + (l._count?.vagas ?? 0), 0),
+        metas: g.linhas.reduce((a, l) => a + (l._count?.metas ?? 0), 0),
+        ativos: g.linhas.filter((l) => l.ativo).length,
+      }))
+      .sort((a, b) => b.colab - a.colab || a.nome.localeCompare(b.nome, "pt-BR"));
+  }, [setoresFiltrados]);
+
+  function alternarGrupo(chave: string) {
+    setGruposAbertos((atual) => {
+      const proximo = new Set(atual);
+      if (proximo.has(chave)) proximo.delete(chave);
+      else proximo.add(chave);
+      return proximo;
+    });
+  }
+
   // Identificação de duplicatas por nome
   const contagemDuplicatas = useMemo(() => {
     const contagem = new Map<string, number>();
@@ -188,27 +227,23 @@ export function SetoresTable({
     return agruparSetoresSemelhantes(formatados);
   }, [setoresFiltrados]);
 
-  // Cálculos de KPIs
+  // Cálculos de KPIs — contam SETORES (nomes), não registros por CNPJ: era o
+  // "Total de Setores: 17" que fazia a lista parecer cheia de repetido.
   const kpis = useMemo(() => {
-    const totalSetores = setoresFiltrados.length;
-    const setoresAtivos = setoresFiltrados.filter((s) => s.ativo).length;
-    const totalColaboradores = setoresFiltrados.reduce(
-      (acc, s) => acc + (s._count?.colaboradores ?? 0),
-      0,
-    );
-
-    const maiorSetor = [...setoresFiltrados].sort(
-      (a, b) => (b._count?.colaboradores ?? 0) - (a._count?.colaboradores ?? 0),
-    )[0];
+    const totalSetores = grupos.length;
+    const setoresAtivos = grupos.filter((g) => g.ativos > 0).length;
+    const totalColaboradores = grupos.reduce((acc, g) => acc + g.colab, 0);
+    const maiorSetor = grupos[0];
 
     return {
       totalSetores,
+      totalRegistros: setoresFiltrados.length,
       setoresAtivos,
       totalColaboradores,
       maiorSetorNome: maiorSetor?.nome ?? "Nenhum",
-      maiorSetorCount: maiorSetor?._count?.colaboradores ?? 0,
+      maiorSetorCount: maiorSetor?.colab ?? 0,
     };
-  }, [setoresFiltrados]);
+  }, [grupos, setoresFiltrados]);
 
   const setoresSemColabCount = useMemo(() => {
     return setoresFiltrados.filter((s) => (s._count?.colaboradores ?? 0) === 0).length;
@@ -333,7 +368,7 @@ export function SetoresTable({
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <KpiCard rotulo="Total de Setores" valor={kpis.totalSetores} icone={Layers} />
+        <KpiCard rotulo="Total de Setores" valor={kpis.totalSetores} subtitulo={`${kpis.totalRegistros} registro(s) por CNPJ`} icone={Layers} />
         <KpiCard rotulo="Setores Ativos" valor={kpis.setoresAtivos} icone={CheckCircle2} />
         <KpiCard rotulo="Colaboradores Alocados" valor={kpis.totalColaboradores} icone={Users} />
         <KpiCard
@@ -386,45 +421,41 @@ export function SetoresTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {setoresFiltrados.length === 0 ? (
+            {grupos.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
                   Nenhum setor encontrado com os filtros aplicados.
                 </TableCell>
               </TableRow>
             ) : (
-              setoresFiltrados.map((s) => {
+              grupos.flatMap((g) => {
+                const aberto = gruposAbertos.has(g.chave);
                 const pctColaboradores =
                   kpis.totalColaboradores > 0
-                    ? Math.round(((s._count?.colaboradores ?? 0) / kpis.totalColaboradores) * 100)
+                    ? Math.round((g.colab / kpis.totalColaboradores) * 100)
                     : 0;
 
-                const temDuplicataNominal = setoresFiltrados.some(
-                  (outro) =>
-                    outro.id !== s.id &&
-                    outro.empresaId === s.empresaId &&
-                    outro.nome.trim().toLowerCase() === s.nome.trim().toLowerCase(),
-                );
-
-                return (
-                  <TableRow key={s.id} className={s.ativo ? "" : "opacity-60"}>
+                const linhaDoGrupo = (
+                  <TableRow
+                    key={g.chave}
+                    className={cn("cursor-pointer", g.ativos === 0 && "opacity-60")}
+                    onClick={() => alternarGrupo(g.chave)}
+                  >
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2.5">
-                        <SetorAvatar nome={s.nome} id={s.id} />
+                        <ChevronRight
+                          className={cn(
+                            "size-4 shrink-0 text-muted-foreground transition-transform",
+                            aberto && "rotate-90",
+                          )}
+                        />
+                        <SetorAvatar nome={g.nome} id={g.linhas[0].id} />
                         <div>
-                          <div className="flex items-center gap-1.5">
-                            <p className="font-semibold text-foreground">{s.nome}</p>
-                            {temDuplicataNominal && (
-                              <Badge
-                                variant="outline"
-                                className="border-amber-400 bg-amber-50 text-[10px] text-amber-700 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
-                              >
-                                Duplicado
-                              </Badge>
-                            )}
-                          </div>
+                          <p className="font-semibold text-foreground">{g.nome}</p>
                           <p className="text-[11px] text-muted-foreground">
-                            ID: {s.id.slice(-6)}
+                            {g.linhas.length === 1
+                              ? g.linhas[0].empresa.nome
+                              : `em ${g.linhas.length} CNPJs`}
                           </p>
                         </div>
                       </div>
@@ -432,9 +463,7 @@ export function SetoresTable({
 
                     <TableCell className="text-center">
                       <div className="flex flex-col items-center gap-1">
-                        <span className="font-medium tabular-nums">
-                          {s._count?.colaboradores ?? 0}
-                        </span>
+                        <span className="font-medium tabular-nums">{g.colab}</span>
                         <div className="h-1.5 w-16 overflow-hidden rounded-full bg-muted">
                           <div
                             className="h-full bg-primary transition-all"
@@ -449,58 +478,119 @@ export function SetoresTable({
 
                     <TableCell className="text-center">
                       <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
-                        <span title="Vagas em aberto">
-                          🎯 {s._count?.vagas ?? 0} vaga(s)
-                        </span>
+                        <span title="Vagas em aberto">🎯 {g.vagas} vaga(s)</span>
                         <span>•</span>
-                        <span title="Metas ativas">
-                          📌 {s._count?.metas ?? 0} meta(s)
-                        </span>
+                        <span title="Metas ativas">📌 {g.metas} meta(s)</span>
                       </div>
                     </TableCell>
 
                     <TableCell className="text-center">
-                      <button
-                        type="button"
-                        className="cursor-pointer"
-                        onClick={async () => {
-                          const result = await toggleSetorAtivo(empresaId, s.id, !s.ativo);
-                          if (result.ok) {
-                            toast.success(s.ativo ? "Setor desativado." : "Setor ativado.");
-                          } else {
-                            toast.error(result.error || "Erro ao alterar o status do setor.");
-                          }
-                        }}
-                      >
-                        <Badge variant={s.ativo ? "default" : "secondary"}>
-                          {s.ativo ? "Ativo" : "Inativo"}
-                        </Badge>
-                      </button>
+                      <Badge variant={g.ativos > 0 ? "default" : "secondary"}>
+                        {g.ativos === g.linhas.length
+                          ? "Ativo"
+                          : g.ativos === 0
+                          ? "Inativo"
+                          : `${g.ativos}/${g.linhas.length} ativos`}
+                      </Badge>
                     </TableCell>
 
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setUnificarSetorOrigem(s)}
-                          title="Unificar / Mesclar com outro setor"
-                        >
-                          <GitMerge className="size-4 text-muted-foreground hover:text-foreground" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setEditSetor(s)}
-                          title="Editar setor"
-                        >
-                          <Pencil className="size-4" />
-                        </Button>
-                        <DeleteSetorButton empresaId={empresaId} setor={s} />
-                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        {aberto ? "Recolher" : "Abrir CNPJs"}
+                      </span>
                     </TableCell>
                   </TableRow>
                 );
+
+                if (!aberto) return [linhaDoGrupo];
+
+                // Sub-linhas: o REGISTRO por CNPJ, onde vivem as ações — editar,
+                // ativar/desativar, unificar e excluir agem numa linha concreta,
+                // nunca no "nome" agregado.
+                const subLinhas = g.linhas.map((s) => {
+                  const temDuplicataNominal = g.linhas.some(
+                    (outro) => outro.id !== s.id && outro.empresaId === s.empresaId,
+                  );
+                  return (
+                    <TableRow key={s.id} className={cn("bg-muted/30", !s.ativo && "opacity-60")}>
+                      <TableCell>
+                        <div className="flex items-center gap-2 pl-11">
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <p className="text-sm text-foreground">{s.empresa.nome}</p>
+                              {temDuplicataNominal && (
+                                <Badge
+                                  variant="outline"
+                                  className="border-amber-400 bg-amber-50 text-[10px] text-amber-700 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
+                                >
+                                  Duplicado no CNPJ
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-muted-foreground">ID: {s.id.slice(-6)}</p>
+                          </div>
+                        </div>
+                      </TableCell>
+
+                      <TableCell className="text-center">
+                        <span className="font-medium tabular-nums">
+                          {s._count?.colaboradores ?? 0}
+                        </span>
+                      </TableCell>
+
+                      <TableCell className="text-center">
+                        <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
+                          <span title="Vagas em aberto">🎯 {s._count?.vagas ?? 0}</span>
+                          <span>•</span>
+                          <span title="Metas ativas">📌 {s._count?.metas ?? 0}</span>
+                        </div>
+                      </TableCell>
+
+                      <TableCell className="text-center">
+                        <button
+                          type="button"
+                          className="cursor-pointer"
+                          onClick={async () => {
+                            const result = await toggleSetorAtivo(empresaId, s.id, !s.ativo);
+                            if (result.ok) {
+                              toast.success(s.ativo ? "Setor desativado." : "Setor ativado.");
+                            } else {
+                              toast.error(result.error || "Erro ao alterar o status do setor.");
+                            }
+                          }}
+                        >
+                          <Badge variant={s.ativo ? "default" : "secondary"}>
+                            {s.ativo ? "Ativo" : "Inativo"}
+                          </Badge>
+                        </button>
+                      </TableCell>
+
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setUnificarSetorOrigem(s)}
+                            title="Unificar / Mesclar com outro setor"
+                          >
+                            <GitMerge className="size-4 text-muted-foreground hover:text-foreground" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setEditSetor(s)}
+                            title="Editar setor"
+                          >
+                            <Pencil className="size-4" />
+                          </Button>
+                          <DeleteSetorButton empresaId={empresaId} setor={s} />
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                });
+
+                return [linhaDoGrupo, ...subLinhas];
               })
             )}
           </TableBody>
