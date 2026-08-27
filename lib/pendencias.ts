@@ -670,7 +670,9 @@ export async function pendenciasPorEmpresa(
       semSetor: cliente.colaborador.groupBy({
         by: [...por],
         _count: contar,
-        where: { empresaId, ativo: true, setor: { nome: { equals: "Não definido", mode: "insensitive" } } },
+        // "Demitidos" entrou em 27/08/2026: é o arquivo oculto dos desligados —
+        // um ATIVO ali é tão sem-setor quanto no "Não definido".
+        where: { empresaId, ativo: true, setor: { nome: { in: ["Não definido", "Demitidos"], mode: "insensitive" } } },
       }),
       // ---- as oito de 19/08/2026 (ver os comentários no tipo Pendencias) ----
       // Ajuste de ponto esperando decisão. Mesma consulta que a tela de

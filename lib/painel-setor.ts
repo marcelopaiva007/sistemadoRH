@@ -228,7 +228,9 @@ export async function montarPainelDoSetor(opts: {
 
   // Avisos de qualidade — os do motor do time mais os deste recorte.
   const avisos = [...time.avisos];
-  const naoDefinido = (nome: string) => nome.trim().toLowerCase() === "não definido";
+  // "Demitidos" (27/08/2026) é o arquivo oculto dos desligados históricos —
+  // conta como "fora de qualquer setor real" igual ao "Não definido".
+  const naoDefinido = (nome: string) => ["não definido", "demitidos"].includes(nome.trim().toLowerCase());
   const inicioJanela = new Date(Date.UTC(hoje.getUTCFullYear(), hoje.getUTCMonth() - janelaMeses, hoje.getUTCDate()));
   const desligadosSemSetor = vinculosEscopo.filter(
     (v) => !v.ativo && v.dataDesligamento && v.dataDesligamento >= inicioJanela && naoDefinido(v.setor.nome),

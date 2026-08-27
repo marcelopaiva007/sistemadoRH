@@ -10,7 +10,12 @@ export default async function PosicoesPage({ params }: { params: Promise<{ empre
 
   const [posicoes, empresas] = await Promise.all([
     prisma.posicao.findMany({
-      where: { empresaId: { in: empresasDoUsuario } },
+      // "Demitidos" é o arquivo OCULTO dos desligados históricos — ver o
+      // comentário gêmeo na tela de Setores.
+      where: {
+        empresaId: { in: empresasDoUsuario },
+        NOT: { nome: { equals: "Demitidos", mode: "insensitive" } },
+      },
       orderBy: [{ ativo: "desc" }, { empresaId: "asc" }, { nome: "asc" }],
       include: {
         // Só ATIVOS contam na tela — mesma ordem do dono aplicada em Setores.
