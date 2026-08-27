@@ -131,10 +131,10 @@ export async function lacunasDaBase(empresaIds: string[]): Promise<{
         where: { ...base, OR: [{ telegramChatId: null }, { telegramChatId: "" }] },
       }),
       prisma.colaborador.count({
-        where: { ...base, setor: { nome: { equals: "Não definido", mode: "insensitive" } } },
+        where: { ...base, setor: { nome: { in: ["Não definido", "Demitidos"], mode: "insensitive" } } },
       }),
       prisma.colaborador.count({
-        where: { ...base, posicao: { nome: { equals: "Não definido", mode: "insensitive" } } },
+        where: { ...base, posicao: { nome: { in: ["Não definido", "Demitidos"], mode: "insensitive" } } },
       }),
       // Mesma regra de lib/ferias-passivo.ts::semHistoricoDeFerias, em contagem:
       // 1+ ano de casa (então já existe período aquisitivo fechado) e NENHUMA

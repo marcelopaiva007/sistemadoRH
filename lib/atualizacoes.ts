@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.130.0",
+    data: "27/08/2026",
+    horario: "17:10",
+    titulo: "Arquivo \"Demitidos\": os desligados históricos saem das telas",
+    itens: [
+      "Os 71 desligados que estavam no setor \"Não definido\" e os 80 nos cargos \"Não definido\"/\"Inativo\" foram movidos para um setor e um cargo chamados \"Demitidos\" — inativos e OCULTOS: não aparecem nas telas de Setores e Cargos nem nos formulários. Os registros antigos, vazios, foram apagados.",
+      "As telas de Setores e Cargos agora mostram só a estrutura de quem trabalha. Desligado que tinha setor/cargo REAL continua onde estava — é isso que sustenta o turnover por setor.",
+      "Sentinela reforçada: se algum ATIVO um dia cair em \"Demitidos\" ou \"Não definido\", vira pendência e entra no e-mail de cobrança do RH — mesmo alarme nas lacunas da tela inicial.",
+    ],
+  },
+  {
     versao: "1.129.1",
     data: "27/08/2026",
     horario: "16:40",
