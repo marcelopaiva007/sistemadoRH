@@ -26,6 +26,16 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.129.1",
+    data: "27/08/2026",
+    horario: "16:40",
+    titulo: "Setores e Cargos contam só quem está trabalhando",
+    itens: [
+      "As telas de Setores e de Cargos passam a contar SOMENTE colaboradores ativos — demitido é história, não lotação. Os totais das telas agora batem com os painéis de gente ativa (225 hoje).",
+      "Os arquivos históricos (setor/cargo \"Não definido\", cargo \"Inativo\") aparecem com contagem 0 — e continuam protegidos: a remoção de \"sem funcionários\" segue olhando o vínculo total, então registro com desligados históricos nunca é oferecido para exclusão.",
+    ],
+  },
+  {
     versao: "1.129.0",
     data: "27/08/2026",
     horario: "16:00",

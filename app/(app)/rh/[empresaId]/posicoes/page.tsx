@@ -13,7 +13,8 @@ export default async function PosicoesPage({ params }: { params: Promise<{ empre
       where: { empresaId: { in: empresasDoUsuario } },
       orderBy: [{ ativo: "desc" }, { empresaId: "asc" }, { nome: "asc" }],
       include: {
-        _count: { select: { colaboradores: true, vagas: true } },
+        // Só ATIVOS contam na tela — mesma ordem do dono aplicada em Setores.
+        _count: { select: { colaboradores: { where: { ativo: true } }, vagas: true } },
         empresa: { select: { id: true, nome: true, marcaId: true } },
       },
     }),
@@ -24,11 +25,18 @@ export default async function PosicoesPage({ params }: { params: Promise<{ empre
     }),
   ]);
 
+  const vinculosPorPosicao = await prisma.colaborador.groupBy({
+    by: ["posicaoId"],
+    where: { empresaId: { in: empresasDoUsuario } },
+    _count: { _all: true },
+  });
+  const totalPorPosicao = new Map(vinculosPorPosicao.map((v) => [v.posicaoId, v._count._all]));
+
   return (
     <PosicoesTable
       empresaId={empresaId}
       empresasDoUsuario={empresasDoUsuario}
-      posicoes={posicoes}
+      posicoes={posicoes.map((p) => ({ ...p, vinculadosTotais: totalPorPosicao.get(p.id) ?? 0 }))}
       empresas={empresas}
     />
   );
