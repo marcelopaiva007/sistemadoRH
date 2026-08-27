@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.125.0",
+    data: "27/08/2026",
+    horario: "12:30",
+    titulo: "Ativo sem setor vira pendência — e entra no e-mail de cobrança do RH",
+    itens: [
+      "Todo colaborador ativo que estiver no setor \"Não definido\" aparece agora na tela de Pendências (grupo Cadastro), com atalho direto para a lista filtrada — e entra no e-mail diário de cobrança que o gestor do RH recebe.",
+      "Sem setor, a pessoa fica invisível no Painel do setor, no placar e no turnover por setor — por isso deixou de ser só uma nota na tela inicial e virou cobrança.",
+      "Hoje a pendência nasce zerada: a organização dos setores de 27/08 apontou setor real para todo mundo que está trabalhando. Ela fica de vigia para os próximos cadastros e importações.",
+    ],
+  },
+  {
     versao: "1.124.2",
     data: "27/08/2026",
     horario: "07:45",

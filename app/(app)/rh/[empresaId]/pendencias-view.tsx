@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import {
   AlertOctagon,
+  UsersRound,
   FileCheck,
   CalendarDays,
   CheckCircle2,
@@ -269,6 +270,18 @@ export function PendenciasView({
       descricao: "Declarado para IRRF sem CPF; a Receita exige em qualquer idade.",
       href: comFiltro(`/rh/${empresaId}/colaboradores`),
       icon: Users,
+    },
+    {
+      chave: "semSetor",
+      titulo: "Ativo sem setor definido",
+      // Pedido do CEO em 27/08/2026: sem setor a pessoa fica invisível no
+      // Painel do setor, no placar e no turnover por setor — e a lacuna da
+      // home não chegava ao e-mail diário. Mesma condição e mesmo destino da
+      // lacuna (?lacuna=setor).
+      descricao:
+        "Está no setor \"Não definido\" — fora do Painel do setor e das contas por setor. Abra a ficha e aponte o setor real.",
+      href: comFiltro(`/rh/${empresaId}/colaboradores`, "lacuna=setor"),
+      icon: UsersRound,
     },
     {
       chave: "semTelegram",

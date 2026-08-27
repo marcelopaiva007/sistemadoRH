@@ -61,6 +61,14 @@ export type Pendencias = {
   // CADASTRO_INCOMPLETO_WHERE / cadastroIncompleto logo abaixo: a regra é uma
   // só, usada pela contagem e pelo filtro da lista.
   cadastrosIncompletos: number;
+  // Ativo no setor "Não definido". Pedido do CEO em 27/08/2026: já era lacuna
+  // na tela inicial, mas lacuna não chega ao e-mail diário de cobrança — e sem
+  // setor a pessoa fica fora do Painel do setor, do placar e da conta de
+  // turnover por setor. Mesma condição de lib/dashboard.ts::lacunasDaBase
+  // (nome "Não definido", sem diferenciar caixa). Hoje nasce zerada — a
+  // organização de 27/08 esvaziou o balde de ativos — e fica de vigia para
+  // importação futura que entre sem setor.
+  semSetor: number;
 
   // ------------------------------------------------------------------
   // As OITO situações abaixo entraram em 19/08/2026, depois de uma varredura
@@ -290,6 +298,7 @@ export const ROTULOS_PENDENCIA: Record<keyof Pendencias, string> = {
   atestadosSemDocumento: "Atestado sem documento",
   dependentesSemCpf: "Dependente sem CPF",
   cadastrosIncompletos: "Cadastros incompletos",
+  semSetor: "Ativo sem setor definido",
   semTelegram: "Sem Telegram vinculado",
   ajustesPontoPendentes: "Ajuste/abono de ponto a decidir",
   mensagensSemResposta: "Mensagem do portal sem resposta",
@@ -369,6 +378,7 @@ export const PENDENCIAS_PRAZO = [
 
 export const PENDENCIAS_CADASTRO = [
   "cadastrosIncompletos",
+  "semSetor",
   "fichasDesatualizadas",
   "dependentesSemCpf",
   "atestadosSemDocumento",
@@ -431,6 +441,7 @@ export const zeradas = (): Pendencias => ({
   atestadosSemDocumento: 0,
   semTelegram: 0,
   cadastrosIncompletos: 0,
+  semSetor: 0,
   ajustesPontoPendentes: 0,
   mensagensSemResposta: 0,
   entregasNaoConfirmadas: 0,
@@ -499,7 +510,7 @@ export async function pendenciasPorEmpresa(
     feriasVencidas, avisoPrevio, desligamentosIncompletos, ciclosAvaliacaoAEncerrar,
     pesquisasAbertas, fichasDesatualizadas,
     contratosVencendo, dependentesSemCpf, atestadosSemDocumento, horasExtras,
-    semTelegram, cadastrosIncompletos,
+    semTelegram, cadastrosIncompletos, semSetor,
     ajustesPontoPendentes, mensagensSemResposta, entregasNaoConfirmadas,
     disciplinarSemAssinatura, planosAcaoVencidos, desligamentosSemChecklist,
     desligamentosSemEntrevista, sinaisAbertosPorEmpresa,
@@ -654,6 +665,13 @@ export async function pendenciasPorEmpresa(
         _count: contar,
         where: { empresaId, ativo: true, ...CADASTRO_INCOMPLETO_WHERE },
       }),
+      // Nome, não FK: "sem setor" no sistema é estar no setor "Não definido"
+      // (setorId é obrigatório no schema). Mesma condição da lacuna da home.
+      semSetor: cliente.colaborador.groupBy({
+        by: [...por],
+        _count: contar,
+        where: { empresaId, ativo: true, setor: { nome: { equals: "Não definido", mode: "insensitive" } } },
+      }),
       // ---- as oito de 19/08/2026 (ver os comentários no tipo Pendencias) ----
       // Ajuste de ponto esperando decisão. Mesma consulta que a tela de
       // Aprovações faz desde 11/08/2026 — se as duas divergirem, o cartão diz
@@ -770,6 +788,7 @@ export async function pendenciasPorEmpresa(
   somar(atestadosSemDocumento, (p, n) => (p.atestadosSemDocumento = n));
   somar(semTelegram, (p, n) => (p.semTelegram = n));
   somar(cadastrosIncompletos, (p, n) => (p.cadastrosIncompletos = n));
+  somar(semSetor, (p, n) => (p.semSetor = n));
   somar(ajustesPontoPendentes, (p, n) => (p.ajustesPontoPendentes = n));
   somar(mensagensSemResposta, (p, n) => (p.mensagensSemResposta = n));
   somar(entregasNaoConfirmadas, (p, n) => (p.entregasNaoConfirmadas = n));
