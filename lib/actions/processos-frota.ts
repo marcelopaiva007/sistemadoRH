@@ -398,26 +398,23 @@ export async function excluirDocumentoVeiculo(input: {
  * que não é a mesma coisa (o carro continua na lista, e a placa repetida
  * continua ocupando o `@unique`).
  *
- * POR QUE ESTA ACTION PEDE A PLACA DIGITADA. As seis tabelas filhas do veículo
- * — alocações, infrações, documentos, transferências, consumos e manutenções —
- * têm `onDelete: Cascade`. Apagar o veículo apaga TUDO isso em silêncio, sem
- * erro e sem lixo para trás. Num duplicado recém-criado isso é exatamente o
- * desejado: não há nada pendurado. Num veículo de verdade é a perda do
- * histórico de quem dirigia no dia de cada multa — que é a única prova que
- * sustenta a indicação de condutor e a defesa de autuação.
+ * O QUE CAI JUNTO. As seis tabelas filhas do veículo — alocações, infrações,
+ * documentos, transferências, consumos e manutenções — têm `onDelete: Cascade`.
+ * Apagar o veículo apaga TUDO isso, inclusive o histórico de quem dirigia no
+ * dia de cada multa, que é a prova que sustenta a indicação de condutor.
  *
- * Daí a regra: sem histórico, basta o "tem certeza?" da tela. Com histórico, a
- * pessoa digita a placa. Não é burocracia decorativa — é o que separa "cliquei
- * na linha errada" de "eu quis apagar este carro".
+ * A PRIMEIRA VERSÃO exigia a placa redigitada quando havia histórico. O CEO
+ * decidiu em 27/08/2026 que basta o "tem certeza?" da tela em todos os casos —
+ * a exclusão é operação de quem já pode editar a frota, e o atrito extra não
+ * pagava. A decisão está registrada aqui para a próxima pessoa não "consertar"
+ * de volta achando que foi esquecimento.
  *
- * E a checagem é AQUI, não só no diálogo: action "use server" é endpoint
- * público, e um POST à mão não passa por diálogo nenhum.
+ * O que ficou: o diálogo LISTA o que será apagado antes do clique, e a
+ * auditoria guarda a contagem. Informar continua; travar não.
  */
 export async function excluirVeiculo(input: {
   empresaId: string;
   id: string;
-  /** Placa redigitada. Só exigida quando o veículo tem histórico. */
-  confirmacaoPlaca?: string | null;
 }): Promise<ActionResult> {
   const usuario = await requireProcessosEmpresa(input.empresaId);
   const visiveis = await empresasVisiveis(usuario);
@@ -462,15 +459,6 @@ export async function excluirVeiculo(input: {
   ].filter((v) => v.n > 0);
   const total = vinculos.reduce((s, v) => s + v.n, 0);
   const listaDeVinculos = vinculos.map((v) => `${v.n} ${v.n === 1 ? v.um : v.varios}`).join(", ");
-
-  if (total > 0 && normalizarPlaca(input.confirmacaoPlaca ?? "") !== veiculo.placa) {
-    return {
-      ok: false,
-      error:
-        `Este veículo tem histórico (${listaDeVinculos}), que será apagado junto. ` +
-        `Para confirmar, digite a placa ${formatarPlaca(veiculo.placa)}.`,
-    };
-  }
 
   const arquivoIds = veiculo.documentos.map((d) => d.arquivoId).filter((id): id is string => !!id);
   const blobs = veiculo.documentos.map((d) => d.arquivo?.blobUrl).filter((u): u is string => !!u);

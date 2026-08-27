@@ -577,17 +577,15 @@ export function VeiculosView({
 }
 
 /**
- * Confirmação de exclusão de veículo.
+ * Confirmação de exclusão de veículo — um clique, em todos os casos.
  *
- * Dois pesos, e de propósito. Cadastro sem nada pendurado — o duplicado da
- * importação, o que alguém digitou errado — sai com um "tem certeza?" e pronto:
- * exigir mais aí é atrito sem risco do outro lado. Cadastro COM histórico é
- * outro bicho: as seis tabelas filhas caem por Cascade, e junto com elas vai o
- * registro de quem estava com o carro no dia de cada multa. Aí a pessoa
- * redigita a placa.
+ * A versão anterior pedia a placa redigitada quando o veículo tinha histórico.
+ * O CEO decidiu em 27/08/2026 que o "tem certeza?" basta sempre. Não repor o
+ * campo sem falar com ele.
  *
- * O diálogo mostra a lista do que some ANTES do clique. "Isto apagará dados
- * relacionados" não informa nada; "3 infrações, 2 entregas a condutor" informa.
+ * O que o diálogo mantém é a LISTA do que some antes do clique. "Isto apagará
+ * dados relacionados" não informa nada; "3 infrações, 2 entregas a condutor"
+ * informa — e informar era a metade útil da tela, não o campo de digitação.
  */
 function DialogoExcluirVeiculo({
   empresaId,
@@ -602,7 +600,6 @@ function DialogoExcluirVeiculo({
 }) {
   const [pendente, iniciar] = useTransition();
   const [erro, setErro] = useState<string | null>(null);
-  const [placaDigitada, setPlacaDigitada] = useState("");
 
   const vinculos = useMemo(
     () =>
@@ -617,19 +614,11 @@ function DialogoExcluirVeiculo({
     [veiculo],
   );
   const temHistorico = vinculos.length > 0;
-  // Pelo MESMO normalizador do cadastro: "klu-5g08" confirma "KLU5G08". A
-  // confirmação é contra o clique errado, não contra o hífen.
-  const placaConfere = normalizarPlaca(placaDigitada) === veiculo.placa;
-  const podeExcluir = !pendente && (!temHistorico || placaConfere);
 
   function excluir() {
     setErro(null);
     iniciar(async () => {
-      const r = await excluirVeiculo({
-        empresaId,
-        id: veiculo.id,
-        confirmacaoPlaca: temHistorico ? placaDigitada : null,
-      });
+      const r = await excluirVeiculo({ empresaId, id: veiculo.id });
       if (!r.ok) {
         setErro(r.error);
         return;
@@ -659,30 +648,16 @@ function DialogoExcluirVeiculo({
           </div>
 
           {temHistorico ? (
-            <>
-              <div className="space-y-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-                <p className="font-medium">Este veículo tem histórico, e ele será apagado junto:</p>
-                <ul className="list-inside list-disc">
-                  {vinculos.map((v) => (
-                    <li key={v.um}>
-                      {v.n} {v.n === 1 ? v.um : v.varios}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium" htmlFor="confirmacao-placa">
-                  Para confirmar, digite a placa {formatarPlaca(veiculo.placa)}
-                </label>
-                <Input
-                  id="confirmacao-placa"
-                  autoComplete="off"
-                  value={placaDigitada}
-                  onChange={(e) => setPlacaDigitada(e.target.value)}
-                  placeholder={formatarPlaca(veiculo.placa)}
-                />
-              </div>
-            </>
+            <div className="space-y-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+              <p className="font-medium">Este veículo tem histórico, e ele será apagado junto:</p>
+              <ul className="list-inside list-disc">
+                {vinculos.map((v) => (
+                  <li key={v.um}>
+                    {v.n} {v.n === 1 ? v.um : v.varios}
+                  </li>
+                ))}
+              </ul>
+            </div>
           ) : (
             <p className="text-sm text-muted-foreground">
               Este cadastro não tem infração, entrega, documento, manutenção, abastecimento nem
@@ -701,7 +676,7 @@ function DialogoExcluirVeiculo({
           <Button type="button" variant="ghost" disabled={pendente} onClick={onFechar}>
             Cancelar
           </Button>
-          <Button type="button" variant="destructive" disabled={!podeExcluir} onClick={excluir}>
+          <Button type="button" variant="destructive" disabled={pendente} onClick={excluir}>
             {pendente ? "Excluindo…" : "Excluir veículo"}
           </Button>
         </DialogFooter>
