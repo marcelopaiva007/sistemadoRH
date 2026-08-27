@@ -57,8 +57,50 @@ export async function usuarioAlcancaEmpresa(
 
 export async function requireEmpresaAccess(empresaId: string) {
   const user = await requireRHAccess();
+  // GESTOR_SETOR não navega em /rh/[empresaId] nem opera as actions escopadas
+  // por empresa: a tela dele é /rh/meu-setor, confinada ao próprio time. Barrar
+  // AQUI fecha as DUAS portas de uma vez — a página (o layout de /rh/[empresaId]
+  // chama isto) e a chamada DIRETA de server action (o redirect aborta antes de
+  // qualquer gravação). Até 27/08/2026 o confinamento era só o redirect da home
+  // e esconder o seletor no topo — nada impedia o gestor de digitar a URL de
+  // outro setor/empresa ou fazer um POST à mão na action, e ele lia e editava a
+  // empresa inteira (achado ALTA do pentest). A exceção legítima — agir sobre um
+  // SUBORDINADO do próprio time, como gerar a trilha de integração de um
+  // recém-chegado — passa por requireAcessoAoColaborador, não por aqui.
+  if (user.role === "GESTOR_SETOR") redirect("/rh/meu-setor");
   if (await usuarioAlcancaEmpresa(user, empresaId)) return user;
-  redirect(user.role === "GESTOR_SETOR" ? "/rh/meu-setor" : "/rh");
+  redirect("/rh");
+}
+
+/**
+ * Guarda de AÇÃO que um GESTOR_SETOR pode fazer sobre alguém do seu TIME.
+ *
+ * `requireEmpresaAccess` barra o gestor de /rh/[empresaId] por inteiro, mas a
+ * tela "Meu time" (dentro de /rh/meu-setor) oferece ações legítimas sobre um
+ * subordinado direto — hoje, gerar a trilha de integração de um recém-chegado.
+ * O vínculo que autoriza é `supervisorId`, NÃO o setor do papel: um gestor pode
+ * liderar gente de outro setor ou de outro CNPJ (mesma regra de
+ * `montarTimeDoGestor` e do portal). Fora do próprio time, volta para a tela do
+ * gestor. Para os demais papéis, é exatamente `requireEmpresaAccess`.
+ */
+export async function requireAcessoAoColaborador(empresaId: string, colaboradorId: string) {
+  const user = await requireRHAccess();
+  if (user.role === "GESTOR_SETOR") {
+    const eu = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { colaboradorId: true },
+    });
+    const alvo = eu?.colaboradorId
+      ? await prisma.colaborador.findUnique({
+          where: { id: colaboradorId },
+          select: { supervisorId: true },
+        })
+      : null;
+    if (alvo && alvo.supervisorId === eu!.colaboradorId) return user;
+    redirect("/rh/meu-setor");
+  }
+  if (await usuarioAlcancaEmpresa(user, empresaId)) return user;
+  redirect("/rh");
 }
 
 // Empresas que o usuário enxerga no módulo de RH — a base do filtro por
