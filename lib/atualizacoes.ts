@@ -26,6 +26,15 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.134.3",
+    data: "27/08/2026",
+    horario: "23:55",
+    titulo: "Tarefas automáticas: segredo só pelo cabeçalho seguro",
+    itens: [
+      "As tarefas agendadas (backup do banco, envios e cobranças automáticas) deixaram de aceitar o segredo de disparo pela URL — ele passa só pelo cabeçalho seguro que o próprio agendador usa. Fecha a chance de esse segredo aparecer em registros de acesso. Nada muda no funcionamento dos agendamentos.",
+    ],
+  },
+  {
     versao: "1.134.2",
     data: "27/08/2026",
     horario: "23:40",

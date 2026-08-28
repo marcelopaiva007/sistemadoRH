@@ -4,8 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { gestorSetorPodeAbrirMeuSetor } from "@/lib/usuarios-regras";
 import { sistemasPermitidos } from "@/lib/permissoes/efetivas";
 
-// DIRETORIA entra na lista: o papel é global e de consulta — barrá-lo aqui
-// fazia todo clique em empresa voltar para a home, sem mensagem nenhuma.
+// DIRETORIA entra na lista: o papel é GLOBAL (alcança qualquer empresa) —
+// barrá-lo aqui fazia todo clique em empresa voltar para a home, sem mensagem.
 const RH_ROLES = ["ADMIN", "DIRETORIA", "RH_MANAGER", "GESTOR_SETOR"] as const;
 
 export async function requireRHAccess() {
@@ -22,8 +22,14 @@ export async function requireRHAccess() {
 
 // ADMIN acessa qualquer empresa. RH_MANAGER/GESTOR_SETOR precisam ter uma
 // UserEmpresa ativa apontando para a empresaId solicitada. ADMIN e DIRETORIA
-// também podem acessar — ADMIN livre, DIRETORIA só para consulta (read-only
-// no módulo RH).
+// têm papel GLOBAL e alcançam qualquer empresa.
+//
+// ATENÇÃO — DIRETORIA **não** é somente-consulta imposta. O papel é de consulta
+// na INTENÇÃO, mas nenhuma escrita do módulo RH é bloqueada para ela hoje, por
+// decisão (a diretoria pode inclusive se promover a ADMIN pela tela de
+// usuários). Não trate "diretoria read-only" como fronteira de segurança: se um
+// dia isso precisar valer de verdade, é enforcement a construir, não algo que já
+// existe. (Pentest 27/08/2026 apontou o comentário antigo como promessa falsa.)
 /**
  * A pergunta "esta pessoa alcança esta empresa?", isolada da RESPOSTA.
  *
@@ -42,8 +48,10 @@ export async function usuarioAlcancaEmpresa(
   empresaId: string,
 ): Promise<boolean> {
   if (!RH_ROLES.includes(user.role as (typeof RH_ROLES)[number])) return false;
-  // Papel global: ADMIN opera, DIRETORIA consulta. Nenhum dos dois passa pelo
-  // pivô — exigir vínculo deles devolvia a diretoria para a home a cada clique.
+  // Papel global: ADMIN e DIRETORIA alcançam qualquer empresa (e ambos podem
+  // escrever — DIRETORIA não é read-only imposta; ver requireEmpresaAccess).
+  // Nenhum dos dois passa pelo pivô — exigir vínculo deles devolvia a diretoria
+  // para a home a cada clique.
   if (user.role === "ADMIN" || user.role === "DIRETORIA") return true;
   if (user.empresas.some((e) => e.empresaId === empresaId && e.ativo)) return true;
 

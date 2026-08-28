@@ -3,8 +3,9 @@
 // Dispara pg_dump via child_process, compacta e armazena no Backblaze B2.
 // Roda uma vez por dia às 06:00 (horário de SP) — janela de menor uso.
 //
-// Auth: Authorization: Bearer $CRON_SECRET — padrão dos outros crons.
-// Para rodar manualmente: GET /api/cron/backup-db?secret=$CRON_SECRET
+// Auth: SÓ `Authorization: Bearer $CRON_SECRET` — padrão dos outros crons.
+// O disparo por `?secret=` na URL foi removido em 27/08/2026 (vazava o
+// segredo em log/Referer). Para rodar à mão, mandar o header.
 //
 // Variáveis de ambiente necessárias:
 //   - DATABASE_URL: connection string do banco
@@ -25,8 +26,10 @@ export const maxDuration = 300;
 function autorizado(req: NextRequest): boolean {
   const secret = process.env.CRON_SECRET;
   if (!secret) return false;
-  if (req.headers.get("authorization") === `Bearer ${secret}`) return true;
-  return req.nextUrl.searchParams.get("secret") === secret;
+  // Só o header. O disparo por `?secret=` na URL foi removido (pentest
+  // 27/08/2026): o segredo vazava em log/Referer/histórico, e esta rota faz
+  // pg_dump do banco inteiro.
+  return req.headers.get("authorization") === `Bearer ${secret}`;
 }
 
 function extractPassword(url: string): string {

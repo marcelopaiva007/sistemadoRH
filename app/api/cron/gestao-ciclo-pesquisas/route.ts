@@ -2,8 +2,9 @@
 // Roda 1×/dia. Cria rascunhos de novos ciclos (anual/pulso), encerra
 // pesquisas vencidas. RH ativa manualmente o rascunho.
 //
-// Auth: Vercel Cron envia "Authorization: Bearer $CRON_SECRET"; para
-// disparo manual/diagnóstico aceita ?secret=$CRON_SECRET.
+// Auth: SÓ o header `Authorization: Bearer $CRON_SECRET` do Vercel Cron. O
+// `?secret=` na URL foi removido em 27/08/2026 (vazava o segredo em
+// log/Referer).
 import { NextRequest, NextResponse } from "next/server";
 import { executarGestaoCiclo } from "@/lib/pesquisa-ciclo";
 import { executarCicloEnps } from "@/lib/pesquisa-enps";
@@ -16,8 +17,9 @@ export const maxDuration = 120;
 function isAuthorized(req: NextRequest): boolean {
   const secret = process.env.CRON_SECRET;
   if (!secret) return false;
-  if (req.headers.get("authorization") === `Bearer ${secret}`) return true;
-  return req.nextUrl.searchParams.get("secret") === secret;
+  // Só o header — o `?secret=` na URL foi removido (pentest 27/08/2026):
+  // segredo em query string vaza em log/Referer/histórico.
+  return req.headers.get("authorization") === `Bearer ${secret}`;
 }
 
 export async function GET(req: NextRequest) {
