@@ -36,6 +36,16 @@ export const ATUALIZACOES: Atualizacao[] = [
     ],
   },
   {
+    versao: "1.134.1",
+    data: "27/08/2026",
+    horario: "23:10",
+    titulo: "Documento disciplinar e definição de líder respeitam o que você enxerga",
+    itens: [
+      "Abrir o documento de uma medida disciplinar e definir o líder de um colaborador agora só alcançam CNPJs que você realmente vê. Antes, num caso de borda (acesso a um único CNPJ de uma marca com vários), dava para chegar num colaborador de CNPJ irmão que não aparece em tela nenhuma.",
+      "A troca de líder passou a registrar na auditoria da empresa certa — a do próprio colaborador —, não a da tela onde a mudança foi feita.",
+    ],
+  },
+  {
     versao: "1.134.0",
     data: "27/08/2026",
     horario: "22:10",
