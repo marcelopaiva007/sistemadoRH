@@ -138,9 +138,24 @@ export function lerCsv(bytes: Uint8Array): {
   return { colunas, linhas };
 }
 
-/** Escapa um campo para escrita: aspas quando tiver separador, aspas ou quebra. */
+/**
+ * Neutraliza injeção de fórmula (CSV injection / DDE). Célula que começa com
+ * `= + - @ TAB CR` é executada como fórmula pelo Excel/Sheets ao ABRIR o
+ * arquivo — um nome ou observação com `=HYPERLINK(...)` / `=cmd|...` viraria
+ * ataque na máquina de quem importa. Prefixa com aspa simples para forçar
+ * texto, mas preserva número (inclusive negativo, como um desconto), que nunca
+ * é vetor de fórmula. Achado MÉDIO do pentest de 27/08/2026.
+ */
+export function neutralizarFormulaCsv(v: string): string {
+  if (!/^[=+\-@\t\r]/.test(v)) return v;
+  if (/^[-+]?\d[\d.,]*$/.test(v)) return v;
+  return `'${v}`;
+}
+
+/** Escapa um campo para escrita: neutraliza fórmula e cita quando tiver separador/aspas/quebra. */
 function campoCsv(v: string): string {
-  return /[";,\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+  const s = neutralizarFormulaCsv(v);
+  return /[";,\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
 /**

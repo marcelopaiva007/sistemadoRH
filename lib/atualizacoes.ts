@@ -26,6 +26,16 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.134.2",
+    data: "27/08/2026",
+    horario: "23:40",
+    titulo: "Exportações de CSV e Relatório de Clima mais seguros",
+    itens: [
+      "Os arquivos CSV (folha e indicadores) agora neutralizam texto que o Excel interpretaria como fórmula — um nome ou observação começando com \"=\" não executa mais nada ao abrir a planilha. Valores numéricos, inclusive descontos negativos, continuam iguais.",
+      "No Relatório de Clima, os nomes de setor listados passam a ser exibidos como texto puro, fechando uma brecha em que um nome de setor mal-intencionado poderia rodar script na tela de quem abre o relatório.",
+    ],
+  },
+  {
     versao: "1.134.1",
     data: "27/08/2026",
     horario: "23:10",
