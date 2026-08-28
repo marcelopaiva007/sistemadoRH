@@ -7,7 +7,7 @@
 // CNPJ pelo vínculo de marca precisa conseguir abrir o documento.
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { usuarioAlcancaEmpresa } from "@/lib/rh-auth-guard";
+import { usuarioAlcancaEmpresa, empresasVisiveis } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
 import { empresasDaMesmaMarca } from "@/lib/escopo-marca";
 import { responderComHtmlRelatorio } from "@/lib/pdf-browser";
@@ -39,8 +39,12 @@ export async function GET(
 
   // A ocorrência pode estar em outro CNPJ da MESMA marca — o RH abre a ficha
   // pela marca, não CNPJ a CNPJ. Escopo de busca, não de autorização: quem
-  // pode entrar já foi decidido acima.
-  const idsDaMarca = await empresasDaMesmaMarca(empresaId);
+  // pode entrar já foi decidido acima. Mas a marca é INTERSECTADA com o que o
+  // usuário enxerga: sem isto, quem alcança só um CNPJ da marca (vínculo por
+  // CNPJ, sem UserMarca) lia o documento disciplinar de um CNPJ irmão que não
+  // vê em tela nenhuma. Achado MÉDIO do pentest de 27/08/2026.
+  const visiveis = await empresasVisiveis(user);
+  const idsDaMarca = (await empresasDaMesmaMarca(empresaId)).filter((id) => visiveis.includes(id));
 
   const ocorrencia = await prisma.ocorrenciaDisciplinar.findFirst({
     where: { id: ocorrenciaId, empresaId: { in: idsDaMarca } },

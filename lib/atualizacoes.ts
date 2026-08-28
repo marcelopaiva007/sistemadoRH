@@ -35,6 +35,26 @@ export const ATUALIZACOES: Atualizacao[] = [
     ],
   },
   {
+    versao: "1.134.2",
+    data: "27/08/2026",
+    horario: "23:40",
+    titulo: "Exportações de CSV e Relatório de Clima mais seguros",
+    itens: [
+      "Os arquivos CSV (folha e indicadores) agora neutralizam texto que o Excel interpretaria como fórmula — um nome ou observação começando com \"=\" não executa mais nada ao abrir a planilha. Valores numéricos, inclusive descontos negativos, continuam iguais.",
+      "No Relatório de Clima, os nomes de setor listados passam a ser exibidos como texto puro, fechando uma brecha em que um nome de setor mal-intencionado poderia rodar script na tela de quem abre o relatório.",
+    ],
+  },
+  {
+    versao: "1.134.1",
+    data: "27/08/2026",
+    horario: "23:10",
+    titulo: "Documento disciplinar e definição de líder respeitam o que você enxerga",
+    itens: [
+      "Abrir o documento de uma medida disciplinar e definir o líder de um colaborador agora só alcançam CNPJs que você realmente vê. Antes, num caso de borda (acesso a um único CNPJ de uma marca com vários), dava para chegar num colaborador de CNPJ irmão que não aparece em tela nenhuma.",
+      "A troca de líder passou a registrar na auditoria da empresa certa — a do próprio colaborador —, não a da tela onde a mudança foi feita.",
+    ],
+  },
+  {
     versao: "1.134.0",
     data: "27/08/2026",
     horario: "22:10",

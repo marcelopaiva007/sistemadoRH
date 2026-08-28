@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
+import { requireEmpresaAccess, empresasVisiveis } from "@/lib/rh-auth-guard";
 import { proximaMatricula } from "@/lib/matricula";
 import { registrarAuditoria, diffCampos } from "@/lib/audit";
 import { criariCiclo } from "@/lib/organograma";
@@ -376,11 +376,19 @@ export async function definirSupervisor(
   id: string,
   supervisorId: string | null,
 ): Promise<ActionResult> {
-  await requireEmpresaAccess(empresaId);
+  const usuario = await requireEmpresaAccess(empresaId);
 
+  // O alvo tem que estar no que o usuário ENXERGA, não só na marca do CNPJ da
+  // URL: sem a interseção, quem alcança um único CNPJ da marca alterava o líder
+  // de um colaborador de CNPJ irmão que não vê em tela nenhuma (achado MÉDIO do
+  // pentest de 27/08/2026). O empresaId real do colaborador manda na trilha e no
+  // revalidate — a tela é consolidada, então o alvo pode ser de outro CNPJ que o
+  // da URL.
+  const visiveis = await empresasVisiveis(usuario);
+  const escopo = (await empresasDaMesmaMarca(empresaId)).filter((e) => visiveis.includes(e));
   const colaborador = await prisma.colaborador.findFirst({
-    where: { id, empresaId: { in: await empresasDaMesmaMarca(empresaId) } },
-    select: { nome: true, supervisorId: true },
+    where: { id, empresaId: { in: escopo } },
+    select: { nome: true, supervisorId: true, empresaId: true },
   });
   if (!colaborador) return { ok: false, error: "Colaborador não encontrado." };
 
@@ -400,7 +408,7 @@ export async function definirSupervisor(
   }
 
   await registrarAuditoria({
-    empresaId,
+    empresaId: colaborador.empresaId,
     acao: "ATUALIZAR",
     entidade: "Colaborador",
     entidadeId: id,
@@ -409,9 +417,13 @@ export async function definirSupervisor(
       : `${colaborador.nome} ficou sem líder definido.`,
   });
 
-  revalidatePath(`/rh/${empresaId}/organograma`);
-  revalidatePath(`/rh/${empresaId}/colaboradores`);
-  revalidatePath(`/rh/${empresaId}/colaboradores/${id}`);
+  // Refresca tanto a tela consolidada aberta (o CNPJ da URL) quanto a do CNPJ
+  // real do colaborador, quando diferem.
+  for (const eid of new Set([empresaId, colaborador.empresaId])) {
+    revalidatePath(`/rh/${eid}/organograma`);
+    revalidatePath(`/rh/${eid}/colaboradores`);
+  }
+  revalidatePath(`/rh/${colaborador.empresaId}/colaboradores/${id}`);
   return { ok: true };
 }
 
