@@ -95,6 +95,12 @@ model User {
   // Controle de acesso fino (Onda 1): perfis atribuídos a este usuário.
   perfis           UserPerfil[]
 
+  // Módulo Delegações: demandas em que este login é quem pediu / quem faz.
+  // FK de verdade (não snapshot): o motor de cobrança PRECISA de um dono vivo
+  // para cobrar — e usuário aqui é desativado (`ativo=false`), nunca apagado.
+  demandasSolicitadas Demanda[] @relation("DemandaSolicitante")
+  demandasRecebidas   Demanda[] @relation("DemandaResponsavel")
+
   @@index([empresaId])
   @@index([setorId])
   @@schema("rh")
@@ -164,6 +170,9 @@ model Marca {
   empresas  Empresa[]
   pesquisas Pesquisa[]
   usuarios  UserMarca[]
+  // Módulo Delegações: demandas etiquetadas com esta marca (decisão da
+  // Direção em 28/08/2026 — FK para o cadastro vivo, não texto livre).
+  demandas  Demanda[]
 
   @@schema("rh")
 }
@@ -593,6 +602,8 @@ model Arquivo {
   // licenciamento e a apólice do carro moram na mesma esteira do dossiê do
   // colaborador: mesma validação, mesma auditoria de download.
   documentoVeiculo        DocumentoVeiculo?
+  // Evidência de entrega do módulo Delegações (28/08/2026) — mesma esteira.
+  demandaEntrega          DemandaEntrega?
 
   @@index([empresaId])
   @@schema("rh")
@@ -3241,5 +3252,236 @@ model RecebimentoAluguel {
   @@unique([contratoId, competencia])
   @@index([empresaId, vencimento])
   @@index([empresaId, recebidoEm])
+  @@schema("rh")
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// MÓDULO DELEGAÇÕES — motor de cobrança de demandas da Direção (28/08/2026)
+//
+// Terceiro módulo do sistema (ao lado de RH e Processos & Ativos). NÃO é um
+// gerenciador de tarefas: é um motor de cobrança e accountability. A unidade é
+// a DEMANDA — "o que eu quero que aconteça", dono único, encerrada por quem
+// pediu. Subtarefas ("como vai acontecer") são da Fase 2 e NÃO existem aqui.
+//
+// A ordem de implementação original citava Firestore; a decisão registrada da
+// Direção (28/08/2026, PR 1 — mapeamento-convencoes-delegacoes.md no workspace)
+// é usar ESTA infraestrutura: Prisma/Postgres, schema `rh`, os arrays da spec
+// viram tabelas filhas (repactuacoes[] → DemandaRepactuacao, entregas[] →
+// DemandaEntrega).
+//
+// As 6 regras invioláveis moram no BACKEND (lib/delegacoes/estados.ts valida,
+// lib/actions/delegacoes.ts aplica), não na interface:
+//   1. Dono único         → `responsavelId` é escalar, nunca array.
+//   2. Critério de aceite → NOT NULL aqui + validação de texto não vazio.
+//   3. Quem encerra é quem pediu → transição ENCERRAR só pelo solicitante.
+//   4. Evidência obrigatória     → ENTREGAR sem evidência é rejeitado.
+//   5. Aceite ativo (24/48/72h)  → prazoLimiteAceite() + cron (PR 5).
+//   6. Repactuação registrada    → `prazoOriginal` imutável; toda mudança de
+//      prazo grava DemandaRepactuacao com motivo.
+// ════════════════════════════════════════════════════════════════════════════
+
+/// Uma demanda delegada. Escopo: o módulo NÃO é escopado por CNPJ — a demanda
+/// atravessa o grupo; `marcaId` é etiqueta opcional para filtro do painel.
+///
+/// Quem é quem: `solicitanteId` delegou (e é o ÚNICO que encerra, devolve ou
+/// cancela); `responsavelId` executa (e é o único que aceita, repactua e
+/// entrega). Ambos são `User` — decisão da Direção em 28/08/2026: pode-se
+/// delegar para qualquer login; quem não tem Telegram vinculado
+/// (User.colaboradorId → Colaborador.telegramChatId) é cobrado pelos canais
+/// restantes, e a tela AVISA (sem bloquear) na criação.
+model Demanda {
+  id     String  @id @default(cuid())
+  /// Máx. 120 caracteres — validado na action (convenção do repo: limite no
+  /// backend, não em @db).
+  titulo String
+  descricao String?
+
+  solicitanteId String
+  solicitante   User   @relation("DemandaSolicitante", fields: [solicitanteId], references: [id])
+  /// UM responsável, sempre. Regra 1: dono único — a coluna é escalar por
+  /// desenho, e não existe tabela pivô de responsáveis de propósito.
+  responsavelId String
+  responsavel   User   @relation("DemandaResponsavel", fields: [responsavelId], references: [id])
+
+  /// "Como sei que ficou pronto." Regra 2: sem isto o registro NÃO é salvo —
+  /// a action recusa antes do INSERT, e o NOT NULL segura via API direta.
+  criterioAceite String
+  /// LINK | ARQUIVO | NUMERO | TEXTO — que forma de evidência a entrega exige.
+  evidenciaExigida String
+  /// 1 = crítica, 2 = alta, 3 = normal. Decide a régua de cobrança e o limite
+  /// de aceite (24/48/72h) — ver lib/delegacoes/estados.ts.
+  criticidade Int
+
+  /// SEMPRE timestamp, nunca texto livre (spec §3.5). O prazo VIGENTE — muda
+  /// por repactuação.
+  prazo DateTime
+  /// O prazo pactuado na criação. IMUTÁVEL: nenhuma action escreve nesta
+  /// coluna depois do INSERT (regra 6) — é ele que denuncia quantas vezes a
+  /// demanda escorregou.
+  prazoOriginal DateTime
+
+  /// DIARIO | DUAS_POR_SEMANA | SEMANAL | SO_ENTREGA | SO_ATRASO — com que
+  /// frequência o solicitante quer retorno no digest.
+  periodicidadeRetorno String
+
+  /// Etiqueta de filtro do painel (LM Telecom, Centrysol, VAPT, FASTMAI…).
+  /// FK para o cadastro vivo de Marca, não texto livre — decisão da Direção
+  /// (28/08/2026) para o filtro não depender de grafia.
+  marcaId String?
+  marca   Marca?  @relation(fields: [marcaId], references: [id])
+  area    String?
+
+  /// RASCUNHO | ENVIADA | ACEITA | EM_EXECUCAO | ENTREGUE | ENCERRADA |
+  /// CANCELADA — máquina de estados em lib/delegacoes/estados.ts, com controle
+  /// de QUEM pode cada transição. O responsável nunca chega a ENCERRADA.
+  status String @default("RASCUNHO")
+  /// Flag ORTOGONAL ao status (spec §4): uma demanda ACEITA ou EM_EXECUCAO
+  /// pode estar em risco sem mudar de estado.
+  emRisco Boolean @default(false)
+
+  /// Quando saiu de RASCUNHO — âncora do limite de aceite (regra 5). Não está
+  /// na spec §3.1, mas sem ele o cron de aceite teria que caçar o evento
+  /// ENVIADA a cada varredura.
+  enviadaEm   DateTime?
+  aceiteEm    DateTime?
+  encerradaEm DateTime?
+
+  /// Guarda de idempotência das cobranças (spec §6.1): o cron só dispara se a
+  /// janela ainda não foi coberta.
+  ultimaCobranca  DateTime?
+  /// O QUE O CRON CONSULTA (`proximaCobranca <= agora`). Nula até o PR 5
+  /// ligar a régua — o modelo nasce pronto para ela.
+  proximaCobranca DateTime?
+  /// 0–3. Sobe a cada degrau da régua e NUNCA desce sozinho — só zera no
+  /// encerramento (spec §6.2).
+  nivelEscalonamento Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  repactuacoes DemandaRepactuacao[]
+  entregas     DemandaEntrega[]
+  interacoes   DemandaInteracao[]
+  eventos      DemandaEvento[]
+
+  // Índices da spec §3.6, na mesma ordem de consulta.
+  @@index([proximaCobranca, status])
+  @@index([responsavelId, status])
+  @@index([solicitanteId, status])
+  @@index([prazo, status])
+  @@index([marcaId])
+  @@schema("rh")
+}
+
+/// Uma repactuação de prazo (spec: `repactuacoes[]`). Repactuar é PERMITIDO e
+/// REGISTRADO — nunca sobrescreve `prazoOriginal`, sempre exige motivo.
+/// Autor como snapshot (id + nome), padrão AuditLog: o histórico continua
+/// legível mesmo se o login sumir.
+model DemandaRepactuacao {
+  id        String  @id @default(cuid())
+  demandaId String
+  demanda   Demanda @relation(fields: [demandaId], references: [id], onDelete: Cascade)
+
+  prazoAnterior DateTime
+  prazoNovo     DateTime
+  motivo        String
+  autorId       String?
+  autorNome     String?
+  createdAt     DateTime @default(now())
+
+  @@index([demandaId, createdAt])
+  @@schema("rh")
+}
+
+/// Uma tentativa de entrega (spec: `entregas[]`). As DEVOLVIDAS ficam no
+/// histórico (`aceita=false` + motivo) — é assim que o painel conta quantas
+/// vezes a entrega voltou.
+model DemandaEntrega {
+  id        String  @id @default(cuid())
+  demandaId String
+  demanda   Demanda @relation(fields: [demandaId], references: [id], onDelete: Cascade)
+
+  /// Cópia de `evidenciaExigida` NO MOMENTO da entrega — se a exigência mudar
+  /// um dia, o histórico não muda junto.
+  evidenciaTipo  String
+  /// O conteúdo da evidência quando é LINK, NUMERO ou TEXTO.
+  evidenciaTexto String?
+  /// A evidência quando é ARQUIVO — mesma esteira Arquivo/Blob do dossiê do
+  /// colaborador e do documento do veículo. SetNull: apagar o arquivo não
+  /// pode apagar o registro de que a entrega aconteceu.
+  arquivoId String?  @unique
+  arquivo   Arquivo? @relation(fields: [arquivoId], references: [id], onDelete: SetNull)
+
+  /// O que o responsável declarou ao entregar.
+  resultado String?
+  /// null = aguardando o solicitante; true = aceita (demanda encerrou);
+  /// false = devolvida (demanda voltou a EM_EXECUCAO).
+  aceita          Boolean?
+  motivoDevolucao String?
+  avaliadaEm      DateTime?
+  createdAt       DateTime @default(now())
+
+  @@index([demandaId, createdAt])
+  @@schema("rh")
+}
+
+/// Cada cobrança enviada e cada resposta recebida (spec §3.2). É onde a
+/// classificação da IA fica gravada com a confiança — auditável por demanda.
+model DemandaInteracao {
+  id        String  @id @default(cuid())
+  demandaId String
+  demanda   Demanda @relation(fields: [demandaId], references: [id], onDelete: Cascade)
+
+  /// ENVIADA (o sistema cobrou) | RECEBIDA (o responsável respondeu).
+  tipo   String
+  /// TELEGRAM | EMAIL | PAINEL
+  canal  String
+  conteudo String
+  /// NO_PRAZO | EM_RISCO | TRAVADO_DEPENDENCIA | PRECISA_DECISAO_SUA —
+  /// preenchidos pelo classificador (PR 6) nas interações RECEBIDAS.
+  classificacaoIa String?
+  confiancaIa     Float?
+  createdAt       DateTime @default(now())
+
+  @@index([demandaId, createdAt])
+  @@schema("rh")
+}
+
+/// Log de auditoria do módulo, IMUTÁVEL (spec §3.3): toda transição,
+/// repactuação, escalonamento e entrega gera um evento. Nenhuma action
+/// atualiza ou apaga linhas — mesmo contrato do AuditLog. Autor snapshot;
+/// eventos do sistema (cron, classificador) saem com autorId nulo e
+/// autorNome "sistema".
+model DemandaEvento {
+  id        String  @id @default(cuid())
+  demandaId String
+  demanda   Demanda @relation(fields: [demandaId], references: [id], onDelete: Cascade)
+
+  /// CRIADA | ENVIADA | ACEITA | EXECUCAO_INICIADA | REPACTUADA | ENTREGUE |
+  /// DEVOLVIDA | ENCERRADA | CANCELADA | EM_RISCO_LIGADO | EM_RISCO_DESLIGADO
+  /// — e os do motor (PR 5): COBRANCA_ENVIADA | ESCALONADA | ACEITE_COBRADO.
+  tipoEvento String
+  autorId    String?
+  autorNome  String?
+  dados      Json?
+  createdAt  DateTime @default(now())
+
+  @@index([demandaId, createdAt])
+  @@schema("rh")
+}
+
+/// Régua de cobrança por criticidade, horários de digest, limites de
+/// escalonamento — editável SEM deploy (spec §3.4), mesmo espírito da
+/// ConfiguracaoLembrete. Os PADRÕES vivem no código (lib/delegacoes, PR 5);
+/// uma linha aqui sobrepõe o padrão daquela chave. Sem seed: tabela vazia =
+/// todo mundo no padrão.
+model DemandaConfig {
+  id        String   @id @default(cuid())
+  chave     String   @unique
+  valor     Json
+  descricao String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@schema("rh")
 }
