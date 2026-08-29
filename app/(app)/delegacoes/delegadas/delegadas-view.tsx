@@ -33,11 +33,29 @@ const SECAO = "sm:col-span-2 lg:col-span-4 pt-2 text-[11px] font-semibold tracki
  */
 type UsuarioOpcao = {
   tipo: "USUARIO" | "COLABORADOR";
+  /**
+   * `true` quando `id` é de uma FICHA (pessoa que ainda não recebeu demanda
+   * nenhuma). Depois da primeira, ela passa a ter acesso de portal e o id vira
+   * de USUÁRIO — continuando "Colaborador" aos olhos de quem delega. Sem esta
+   * distinção a tela manda um id no campo do outro, e a action não acha nada.
+   */
+  idEhFicha: boolean;
   id: string;
   nome: string;
   temTelegram: boolean;
   favorito: boolean;
 };
+
+/**
+ * Como a pessoa aparece na lista: estrela do favorito, a etiqueta do tipo e o
+ * nome — nesta ordem. "Usuário" entra no sistema e responde nas telas;
+ * "Colaborador" responde pelo portal do RH, pelo celular.
+ */
+function rotuloPessoa(u: UsuarioOpcao): string {
+  const estrela = u.favorito ? "★ " : "";
+  const tipo = u.tipo === "USUARIO" ? "[Usuário]" : "[Colaborador]";
+  return `${estrela}${tipo} ${u.nome}`;
+}
 
 /** O formulário nasce com estes valores — os mesmos padrões da spec. */
 const FORM_VAZIO: Record<string, string> = {
@@ -113,7 +131,12 @@ export function DelegadasView({
     setAviso(null);
     setPensando(true);
     iniciar(async () => {
-      const r = await rascunharComIA({ responsavelId: responsavelIA, contexto });
+      const alvo = usuarios.find((u) => u.id === responsavelIA);
+      const r = await rascunharComIA({
+        responsavelId: responsavelIA,
+        idEhFicha: alvo?.idEhFicha,
+        contexto,
+      });
       setPensando(false);
       if (!r.ok) {
         setErro(r.erro);
@@ -139,7 +162,13 @@ export function DelegadasView({
   function favoritar(u: UsuarioOpcao) {
     setErro(null);
     iniciar(async () => {
-      const r = await alternarFavorito({ favoritoId: u.id, favoritar: !u.favorito });
+      const r = await alternarFavorito({
+        favoritoId: u.id,
+        // Ficha ainda sem acesso de portal: o id é o da FICHA, e a action
+        // cria o acesso antes de favoritar.
+        ehColaborador: u.idEhFicha,
+        favoritar: !u.favorito,
+      });
       if (!r.ok) {
         setErro(r.error);
         return;
@@ -156,7 +185,7 @@ export function DelegadasView({
       const r = await criarDemanda({
         titulo: form.titulo,
         descricao: form.descricao,
-        ...(escolhido?.tipo === "COLABORADOR"
+        ...(escolhido?.idEhFicha
           ? { responsavelColaboradorId: form.responsavelId }
           : { responsavelId: form.responsavelId }),
         criterioAceite: form.criterioAceite,
@@ -275,7 +304,12 @@ export function DelegadasView({
                 <div className="mb-2 divide-y rounded-md border border-border">
                   {usuarios.map((u) => (
                     <div key={u.id} className="flex items-center justify-between gap-2 px-3 py-1.5">
-                      <span className="truncate text-sm">{u.nome}</span>
+                      <span className="truncate text-sm">
+                        <span className="text-xs text-muted-foreground">
+                          {u.tipo === "USUARIO" ? "Usuário" : "Colaborador"}
+                        </span>{" "}
+                        {u.nome}
+                      </span>
                       <button
                         type="button"
                         disabled={pendente}
@@ -307,8 +341,11 @@ export function DelegadasView({
                 <option value="">Escolha uma pessoa</option>
                 {usuarios.map((u) => (
                   <option key={u.id} value={u.id}>
-                    {u.favorito ? `★ ${u.nome}` : u.nome}
-                    {u.tipo === "COLABORADOR" ? " — responde pelo portal" : ""}
+                    {/* A etiqueta vem NA FRENTE (pedido da Direção): num
+                        `<select>` nativo o nome pode truncar no celular e o
+                        sufixo é a primeira coisa a sumir — justamente a
+                        informação que muda por onde a pessoa vai responder. */}
+                    {rotuloPessoa(u)}
                   </option>
                 ))}
               </select>

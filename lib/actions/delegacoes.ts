@@ -6,7 +6,7 @@ import { requireDelegacoesAccess } from "@/lib/delegacoes-auth-guard";
 import { registrarAuditoria } from "@/lib/audit";
 import { podeVerDemanda } from "@/lib/delegacoes/consultas";
 import { sistemasPermitidos } from "@/lib/permissoes/efetivas";
-import { garantirAcessoDoColaborador } from "@/lib/delegacoes/acesso-colaborador";
+import { garantirAcessoDoColaborador, PAPEL_PORTAL } from "@/lib/delegacoes/acesso-colaborador";
 import type { ActionResult } from "@/lib/constants";
 import {
   EVENTO_DA_TRANSICAO,
@@ -198,7 +198,14 @@ export async function criarDemanda(
   // Acesso de portal NÃO precisa alcançar o módulo: ele responde pelo portal,
   // que tem porta própria. A exigência vale para quem é usuário do sistema —
   // aí sim, delegar a quem a guarda barra criaria demanda que ninguém vê.
-  if (!ehPortal && !(await sistemasPermitidos(responsavel)).includes("delegacoes")) {
+  // `ehPortal` cobre quem acabou de ganhar o acesso; `role === PAPEL_PORTAL`
+  // cobre quem já o tinha de uma demanda anterior. Sem o segundo, delegar duas
+  // vezes para a mesma pessoa falhava na segunda.
+  if (
+    !ehPortal &&
+    responsavel.role !== PAPEL_PORTAL &&
+    !(await sistemasPermitidos(responsavel)).includes("delegacoes")
+  ) {
     return {
       ok: false,
       error: `${responsavel.nome} ainda não tem acesso ao módulo Delegações — libere em Usuários e perfis antes de delegar.`,
@@ -706,21 +713,43 @@ async function avaliarEntregaPendente(
  * guarda barra criaria um atalho para o erro que `criarDemanda` recusa.
  */
 export async function alternarFavorito(input: {
+  /** Id de `User` OU de `Colaborador` — ver `ehColaborador`. */
   favoritoId: string;
+  /**
+   * true quando o id é de uma FICHA (pessoa que ainda não recebeu demanda
+   * nenhuma e por isso ainda não tem acesso de portal). Favoritar cria o
+   * acesso — o mesmo que a primeira demanda criaria —, porque a lista de
+   * favoritos guarda `User.id`. O acesso criado não abre nada sozinho: sem
+   * senha e sem e-mail, ele só existe para a pessoa ser alcançável.
+   */
+  ehColaborador?: boolean;
   favoritar: boolean;
 }): Promise<ActionResult> {
   const ator = await atorDaSessao();
   if (!ator) return { ok: false, error: ERRO_SESSAO };
 
+  let favoritoId = input.favoritoId;
+  if (input.ehColaborador) {
+    const acesso = await garantirAcessoDoColaborador(input.favoritoId);
+    if (!acesso.ok) return { ok: false, error: acesso.erro };
+    favoritoId = acesso.userId;
+  }
+
   if (input.favoritar) {
     const pessoa = await prisma.user.findUnique({
-      where: { id: input.favoritoId },
+      where: { id: favoritoId },
       select: { id: true, nome: true, role: true, ativo: true },
     });
     if (!pessoa || !pessoa.ativo) {
       return { ok: false, error: "Pessoa não encontrada entre os usuários ativos." };
     }
-    if (!(await sistemasPermitidos(pessoa)).includes("delegacoes")) {
+    // Acesso de portal não precisa alcançar o módulo — ele responde pelo
+    // portal. A exigência vale só para quem opera o sistema.
+    if (
+      !input.ehColaborador &&
+      pessoa.role !== PAPEL_PORTAL &&
+      !(await sistemasPermitidos(pessoa)).includes("delegacoes")
+    ) {
       return {
         ok: false,
         error: `${pessoa.nome} ainda não tem acesso ao módulo Delegações — libere em Usuários e perfis.`,
@@ -737,7 +766,7 @@ export async function alternarFavorito(input: {
     // `deleteMany` em vez de `delete`: desfavoritar quem já não está na lista
     // é sucesso, não erro — o estado final é o que a pessoa pediu.
     await prisma.delegacaoFavorito.deleteMany({
-      where: { userId: ator.id, favoritoId: input.favoritoId },
+      where: { userId: ator.id, favoritoId },
     });
   }
 

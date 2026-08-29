@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.137.1",
+    data: "29/08/2026",
+    horario: "18:20",
+    titulo: "Delegações: quem é usuário e quem é colaborador, e favoritos no topo",
+    itens: [
+      "Na hora de escolher para quem delegar, cada pessoa agora vem marcada na frente do nome: [Usuário] responde pelas telas do sistema; [Colaborador] responde pelo Portal do RH, no celular. Antes essa informação vinha no fim da linha e sumia quando o nome era comprido.",
+      "Seus favoritos aparecem no topo da lista, antes de todo mundo — e agora você também pode favoritar quem só tem ficha, não só quem tem login.",
+      "Correção: depois de delegar uma vez a um funcionário sem login, ele sumia da lista e não dava para delegar de novo para a mesma pessoa. Corrigido.",
+    ],
+  },
+  {
     versao: "1.137.0",
     data: "29/08/2026",
     horario: "18:20",
