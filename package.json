@@ -1,6 +1,6 @@
 {
   "name": "sistema-rh",
-  "version": "1.136.0",
+  "version": "1.137.0",
   "private": true,
   "scripts": {
     "// ━━━━━━━━━━━━━━━━ DESENVOLVIMENTO ━━━━━━━━━━━━━━━━": "",
@@ -56,6 +56,7 @@
     "test:alugueis": "tsx scripts/test-alugueis.ts",
     "test:delegacoes": "tsx scripts/test-delegacoes.ts",
     "test:delegacoes-visibilidade": "tsx scripts/test-delegacoes-visibilidade.ts",
+    "test:delegacoes-redator": "tsx scripts/test-delegacoes-redator.ts",
     "// ━━━━━━━━━━━━━━━━ SMOKE TESTS ━━━━━━━━━━━━━━━━": "",
     "smoke:dp": "tsx scripts/smoke-dp.ts",
     "smoke:sst": "tsx scripts/smoke-sst.ts",

@@ -667,3 +667,57 @@ async function avaliarEntregaPendente(
   if (!pendente) return;
   await tx.demandaEntrega.update({ where: { id: pendente.id }, data: dados });
 }
+
+// ── Favoritos de quem delega ────────────────────────────────────────────────
+
+/**
+ * Liga/desliga uma pessoa na SUA lista de favoritos — a turma que aparece com
+ * um clique na hora de delegar.
+ *
+ * A lista é de cada um: `userId` vem sempre da sessão, nunca do formulário.
+ * Favoritar não concede acesso nenhum a ninguém (é preferência de tela), e por
+ * isso NÃO gera evento nem auditoria: seria ruído numa trilha que existe para
+ * responder quem mexeu em demanda.
+ *
+ * Só entra na lista quem realmente alcança o módulo — favoritar alguém que a
+ * guarda barra criaria um atalho para o erro que `criarDemanda` recusa.
+ */
+export async function alternarFavorito(input: {
+  favoritoId: string;
+  favoritar: boolean;
+}): Promise<ActionResult> {
+  const ator = await atorDaSessao();
+  if (!ator) return { ok: false, error: ERRO_SESSAO };
+
+  if (input.favoritar) {
+    const pessoa = await prisma.user.findUnique({
+      where: { id: input.favoritoId },
+      select: { id: true, nome: true, role: true, ativo: true },
+    });
+    if (!pessoa || !pessoa.ativo) {
+      return { ok: false, error: "Pessoa não encontrada entre os usuários ativos." };
+    }
+    if (!(await sistemasPermitidos(pessoa)).includes("delegacoes")) {
+      return {
+        ok: false,
+        error: `${pessoa.nome} ainda não tem acesso ao módulo Delegações — libere em Usuários e perfis.`,
+      };
+    }
+    // `upsert` em vez de `create`: favoritar duas vezes (dois cliques, duas
+    // abas) não pode virar erro de chave duplicada na cara de quem usa.
+    await prisma.delegacaoFavorito.upsert({
+      where: { userId_favoritoId: { userId: ator.id, favoritoId: pessoa.id } },
+      create: { userId: ator.id, favoritoId: pessoa.id },
+      update: {},
+    });
+  } else {
+    // `deleteMany` em vez de `delete`: desfavoritar quem já não está na lista
+    // é sucesso, não erro — o estado final é o que a pessoa pediu.
+    await prisma.delegacaoFavorito.deleteMany({
+      where: { userId: ator.id, favoritoId: input.favoritoId },
+    });
+  }
+
+  revalidarModulo();
+  return { ok: true };
+}

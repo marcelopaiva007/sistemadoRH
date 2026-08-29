@@ -16,7 +16,7 @@ import { DelegadasView } from "./delegadas-view";
 export default async function DelegadasPage() {
   const usuario = await requireDelegacoesAccess();
 
-  const [linhas, usuarios, marcas] = await Promise.all([
+  const [linhas, usuarios, marcas, favoritos] = await Promise.all([
     prisma.demanda.findMany({
       // Aqui NÃO se usa APENAS_ATIVAS: o RASCUNHO é meu e precisa aparecer,
       // senão salvar rascunho grava algo que nenhuma tela lista depois — e o
@@ -46,6 +46,11 @@ export default async function DelegadasPage() {
       select: { id: true, nome: true },
       orderBy: { nome: "asc" },
     }),
+    // A lista de favoritos é de cada um — a de quem está logado.
+    prisma.delegacaoFavorito.findMany({
+      where: { userId: usuario.id },
+      select: { favoritoId: true },
+    }),
   ]);
 
   const demandas = linhas.map((d) => paraLinha(d));
@@ -60,6 +65,7 @@ export default async function DelegadasPage() {
   const alcancam = await Promise.all(
     usuarios.map(async (u) => (await sistemasPermitidos(u)).includes("delegacoes")),
   );
+  const favoritoIds = new Set(favoritos.map((f) => f.favoritoId));
 
   return (
     <DelegadasView
@@ -70,6 +76,7 @@ export default async function DelegadasPage() {
           id: u.id,
           nome: u.nome,
           temTelegram: !!u.colaborador?.telegramChatId,
+          favorito: favoritoIds.has(u.id),
         }))}
       marcas={marcas}
     />
