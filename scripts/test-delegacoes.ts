@@ -18,10 +18,12 @@ import {
   TITULO_MAXIMO,
   TRANSICOES,
   papelNaDemanda,
+  prazoDoFormulario,
   prazoLimiteAceite,
   validarCriacao,
   validarMarcarEmRisco,
   validarRepactuacao,
+  validarReporte,
   validarTransicao,
   type DadosCriacao,
   type StatusDemanda,
@@ -296,6 +298,73 @@ console.log("\nLog imutável — toda transição tem evento, 1:1\n");
     (TIPOS_EVENTO as readonly string[]).includes("REPACTUADA"),
     "a repactuação também tem evento (REPACTUADA)",
   );
+}
+
+console.log("\nTipo de evidência — a entrega tem que ser DO TIPO exigido\n");
+{
+  // A regra 4 tem duas metades: TER evidência (coberto acima) e ser a
+  // evidência COMBINADA — quem exigiu arquivo não aceita link no lugar.
+  const emExec = demandaEm("EM_EXECUCAO");
+  ok(
+    !validarTransicao("ENTREGAR", emExec, RESP, { evidenciaTexto: "segue o link", evidenciaExigida: "ARQUIVO" }).ok,
+    "exigiu ARQUIVO: texto/link no lugar, nega",
+  );
+  ok(
+    validarTransicao("ENTREGAR", emExec, RESP, { arquivoId: "arq_1", evidenciaExigida: "ARQUIVO" }).ok,
+    "exigiu ARQUIVO e veio arquivo, passa",
+  );
+  ok(
+    !validarTransicao("ENTREGAR", emExec, RESP, { arquivoId: "arq_1", evidenciaExigida: "NUMERO" }).ok,
+    "exigiu NÚMERO: só arquivo, nega — o número vai no campo de evidência",
+  );
+  ok(
+    validarTransicao("ENTREGAR", emExec, RESP, { evidenciaTexto: "R$ 41.320,00", evidenciaExigida: "NUMERO" }).ok,
+    "exigiu NÚMERO e veio no texto, passa",
+  );
+  ok(
+    validarTransicao("ENTREGAR", emExec, RESP, {
+      evidenciaTexto: "https://drive.exemplo/x",
+      arquivoId: "arq_1",
+      evidenciaExigida: "LINK",
+    }).ok,
+    "veio dos dois jeitos e o exigido (link) está lá, passa",
+  );
+  ok(
+    validarTransicao("ENTREGAR", emExec, RESP, { evidenciaTexto: "qualquer prova" }).ok,
+    "sem o tipo informado (chamador antigo), qualquer evidência não-vazia segue valendo",
+  );
+}
+
+console.log("\nReporte de progresso — quem, quando, e o gatilho da execução\n");
+{
+  ok(
+    validarReporte(demandaEm("ACEITA"), RESP, "comecei hoje").ok,
+    "responsável reporta em ACEITA (a action dispara EM_EXECUCAO sozinha — spec §4)",
+  );
+  ok(validarReporte(demandaEm("EM_EXECUCAO"), RESP, "60% pronto").ok, "responsável reporta em EM_EXECUCAO");
+  ok(!validarReporte(demandaEm("ENVIADA"), RESP, "olhando").ok, "antes do aceite não há reporte — aceite primeiro");
+  ok(!validarReporte(demandaEm("ENTREGUE"), RESP, "x").ok, "depois da entrega não há reporte");
+  ok(!validarReporte(demandaEm("ACEITA"), SOL, "x").ok, "solicitante não reporta");
+  ok(!validarReporte(demandaEm("ACEITA"), OUTRO, "x").ok, "terceiro não reporta");
+  ok(!validarReporte(demandaEm("ACEITA"), RESP, "   ").ok, "reporte vazio não vale");
+}
+
+console.log("\nPrazo do formulário — timestamp, nunca texto livre\n");
+{
+  igual(
+    prazoDoFormulario("2026-09-05")?.toISOString(),
+    "2026-09-06T02:59:59.000Z",
+    "só a data: vira 23:59:59 de Brasília DAQUELE dia (não a véspera, como seria em UTC)",
+  );
+  igual(
+    prazoDoFormulario("2026-09-05T14:30")?.toISOString(),
+    "2026-09-05T17:30:00.000Z",
+    "data e hora: lidas como horário de Brasília",
+  );
+  igual(prazoDoFormulario("semana que vem"), null, "texto livre não vira prazo");
+  igual(prazoDoFormulario("05/09/2026"), null, "formato dd/mm/aaaa digitado não vira prazo — o input manda ISO");
+  igual(prazoDoFormulario(""), null, "vazio, null");
+  igual(prazoDoFormulario(null), null, "null, null");
 }
 
 console.log(falhas === 0 ? "\n✅ Tudo passou.\n" : `\n❌ ${falhas} falha(s).\n`);

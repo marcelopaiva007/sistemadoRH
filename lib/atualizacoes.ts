@@ -26,6 +26,16 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.135.0",
+    data: "28/08/2026",
+    horario: "22:50",
+    titulo: "Delegações: a fundação do terceiro sistema (ainda sem tela)",
+    itens: [
+      "Nasce por dentro o módulo Delegações — o motor que vai registrar as demandas da Direção e cobrar o responsável no prazo certo. Esta entrega é só a fundação: as tabelas no banco e as regras do jogo, validadas no servidor (toda demanda tem critério de aceite e prazo; um único responsável; quem encerra é sempre quem pediu; entrega exige evidência; mudar prazo fica registrado com motivo, sem apagar o prazo combinado).",
+      "Nada muda na tela ainda: o item \"Delegações\" no topo, as telas e a cobrança pelo Telegram chegam nas próximas versões.",
+    ],
+  },
+  {
     versao: "1.134.3",
     data: "27/08/2026",
     horario: "23:55",
