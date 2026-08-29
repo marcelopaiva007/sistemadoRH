@@ -86,6 +86,14 @@ export type DemandaParaRegras = {
   status: string;
   solicitanteId: string;
   responsavelId: string;
+  /**
+   * O tipo de evidência que ESTA demanda exige (Demanda.evidenciaExigida).
+   * Mora aqui — no retrato da demanda, obrigatório — e não no payload da
+   * transição, para a regra 4 falhar FECHADA: uma action que esquecesse de
+   * repassar a exigência não ganharia aprovação silenciosa, ganharia erro de
+   * compilação.
+   */
+  evidenciaExigida: string;
 };
 
 /**
@@ -207,12 +215,6 @@ export type DadosTransicao = {
   /** ENTREGAR: a evidência (texto/link/número OU id de arquivo). */
   evidenciaTexto?: string | null;
   arquivoId?: string | null;
-  /**
-   * ENTREGAR: o tipo que a DEMANDA exige (Demanda.evidenciaExigida). Quando
-   * informado, a evidência entregue tem que ser DAQUELE tipo — exigiu arquivo,
-   * link não serve.
-   */
-  evidenciaExigida?: string | null;
   /** DEVOLVER e CANCELAR: o motivo é obrigatório. */
   motivo?: string | null;
   /** ENVIAR: o retrato completo, para revalidar criterioAceite e prazo. */
@@ -285,17 +287,14 @@ export function validarTransicao(
         );
       }
       // E do TIPO que a demanda pediu: quem exigiu arquivo não aceita link no
-      // lugar — a exigência foi combinada na delegação, não na entrega.
-      if (dados.evidenciaExigida === "ARQUIVO" && !temArquivo) {
+      // lugar — a exigência foi combinada na delegação, não na entrega. Vem do
+      // RETRATO da demanda, não do payload: assim não há como omiti-la.
+      if (demanda.evidenciaExigida === "ARQUIVO" && !temArquivo) {
         return nega("Esta demanda exige a evidência como ARQUIVO anexado.");
       }
-      if (
-        dados.evidenciaExigida &&
-        dados.evidenciaExigida !== "ARQUIVO" &&
-        !temTexto
-      ) {
+      if (demanda.evidenciaExigida !== "ARQUIVO" && !temTexto) {
         return nega(
-          `Esta demanda exige a evidência como ${dados.evidenciaExigida.toLowerCase()} — escreva-a no campo de evidência.`,
+          `Esta demanda exige a evidência como ${demanda.evidenciaExigida.toLowerCase()} — escreva-a no campo de evidência.`,
         );
       }
       return OK;
@@ -348,9 +347,14 @@ function mensagemEstadoErrado(transicao: Transicao, status: StatusDemanda): stri
  * ENVIADA, ACEITA e EM_EXECUCAO, pelo RESPONSÁVEL (é ele quem pede mais
  * prazo; o solicitante que discorda cancela ou devolve). Sempre com motivo.
  *
- * O que ela NUNCA faz é tocar `prazoOriginal` — a action atualiza só `prazo` e
- * grava a linha em DemandaRepactuacao; o teste confere que o dado de saída
- * desta função nem carrega o campo.
+ * O que ela NUNCA faz é tocar `prazoOriginal`. Dito com precisão, porque a
+ * regra 6 depende disto: esta função só devolve um veredito — a imutabilidade
+ * é CONTRATO DE ESCRITA das actions (repactuar atualiza `prazo` e insere em
+ * DemandaRepactuacao, nunca escreve `prazoOriginal`), e não há trigger nem
+ * constraint no banco a impedir uma action futura de violá-la. O que existe
+ * hoje: o tipo do payload, que não tem o campo, e a revisão de quem escrever
+ * a action. Se um dia a regra escorregar, o lugar de fechar de vez é um
+ * trigger no Postgres.
  */
 export const STATUS_QUE_REPACTUAM: StatusDemanda[] = ["ENVIADA", "ACEITA", "EM_EXECUCAO"];
 
@@ -466,15 +470,36 @@ export function prazoLimiteAceite(demanda: {
  */
 export function prazoDoFormulario(valor: string | null | undefined): Date | null {
   const texto = (valor ?? "").trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(texto)) {
-    const d = new Date(`${texto}T23:59:59-03:00`);
-    return Number.isNaN(d.getTime()) ? null : d;
-  }
-  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(texto)) {
-    const d = new Date(`${texto}-03:00`);
-    return Number.isNaN(d.getTime()) ? null : d;
-  }
-  return null;
+  const casa = texto.match(
+    /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2}))?)?$/,
+  );
+  if (!casa) return null;
+
+  const [, ano, mes, dia, hora, minuto, segundo] = casa;
+  // A hora só existe na forma com "T"; sem ela o prazo é o FIM do dia — "até
+  // sexta" significa sexta inteira, e meia-noite UTC seria 21:00 da quinta em
+  // Brasília, com a cobrança de atraso disparando no dia ainda válido.
+  const hhmmss = hora ? `${hora}:${minuto}:${segundo ?? "00"}` : "23:59:59";
+  const instante = new Date(`${ano}-${mes}-${dia}T${hhmmss}-03:00`);
+  if (Number.isNaN(instante.getTime())) return null;
+
+  // O parser de data do V8 ACEITA dia inexistente dentro de 01–31 e o ROLA
+  // para o mês seguinte: "2026-02-30" virava 2 de março, "2026-09-31" virava
+  // 1º de outubro — um prazo dias depois do combinado, gravado em silêncio.
+  // Isso não vem do <input type="date"> do navegador, mas vem de POST forjado
+  // e viria do bot do Telegram (PR 4) montando a string à mão. Conferir os
+  // componentes de volta, no MESMO fuso da âncora (-03:00), é o que fecha:
+  // rolou de dia, não é a data que a pessoa digitou.
+  const emBrasilia = new Date(instante.getTime() - 3 * 60 * 60 * 1000);
+  const conferem =
+    emBrasilia.getUTCFullYear() === Number(ano) &&
+    emBrasilia.getUTCMonth() + 1 === Number(mes) &&
+    emBrasilia.getUTCDate() === Number(dia) &&
+    (!hora || emBrasilia.getUTCHours() === Number(hora)) &&
+    (!hora || emBrasilia.getUTCMinutes() === Number(minuto));
+  // A conferência da hora cobre de quebra o "T24:00", que é ISO-legal (vira
+  // meia-noite do dia seguinte) mas nunca sai de um <input datetime-local>.
+  return conferem ? instante : null;
 }
 
 // ── Eventos (log imutável) ──────────────────────────────────────────────────
