@@ -39,14 +39,23 @@ export default async function DelegadasPage() {
     }),
     // Quem pode receber demanda. `telegramChatId` vem junto para a tela AVISAR
     // (não bloquear) que a pessoa ainda não é cobrável pelo bot — decisão da
-    // Direção de 28/08/2026.
+    // Direção de 28/08/2026. `posicao`/`empresa.marca` vêm para o rótulo
+    // (marca na frente, cargo junto) — pedido da Direção em 29/08/2026; nem
+    // todo User tem colaborador ligado (contas do sistema puras), por isso
+    // tudo aqui é opcional.
     prisma.user.findMany({
       where: { ativo: true },
       select: {
         id: true,
         nome: true,
         role: true,
-        colaborador: { select: { telegramChatId: true } },
+        colaborador: {
+          select: {
+            telegramChatId: true,
+            posicao: { select: { nome: true } },
+            empresa: { select: { marca: { select: { nome: true } } } },
+          },
+        },
       },
       orderBy: { nome: "asc" },
     }),
@@ -60,7 +69,14 @@ export default async function DelegadasPage() {
     // para não aparecer duas vezes na mesma lista.
     prisma.colaborador.findMany({
       where: { ativo: true },
-      select: { id: true, nome: true, telegramChatId: true, usuario: { select: { id: true } } },
+      select: {
+        id: true,
+        nome: true,
+        telegramChatId: true,
+        usuario: { select: { id: true } },
+        posicao: { select: { nome: true } },
+        empresa: { select: { marca: { select: { nome: true } } } },
+      },
       orderBy: { nome: "asc" },
     }),
     // A lista de favoritos é de cada um — a de quem está logado.
@@ -99,6 +115,8 @@ export default async function DelegadasPage() {
             nome: u.nome,
             temTelegram: !!u.colaborador?.telegramChatId,
             favorito: favoritoIds.has(u.id),
+            cargo: u.colaborador?.posicao?.nome ?? null,
+            marcaNome: u.colaborador?.empresa.marca.nome ?? null,
           })),
         // Quem JÁ TEM acesso de portal (recebeu alguma demanda antes). Sem
         // esta fatia a pessoa SUMIA da lista depois da primeira demanda: ela
@@ -115,6 +133,8 @@ export default async function DelegadasPage() {
             nome: u.nome,
             temTelegram: !!u.colaborador?.telegramChatId,
             favorito: favoritoIds.has(u.id),
+            cargo: u.colaborador?.posicao?.nome ?? null,
+            marcaNome: u.colaborador?.empresa.marca.nome ?? null,
           })),
         // Quem só tem ficha e nunca recebeu nada: o acesso de portal é criado
         // na hora da primeira demanda — por isso o id aqui é o da FICHA.
@@ -129,6 +149,8 @@ export default async function DelegadasPage() {
             nome: c.nome,
             temTelegram: !!c.telegramChatId,
             favorito: false,
+            cargo: c.posicao.nome,
+            marcaNome: c.empresa.marca.nome,
           })),
       ]
         // FAVORITOS PRIMEIRO — pedido da Direção em 29/08/2026. Quem delega

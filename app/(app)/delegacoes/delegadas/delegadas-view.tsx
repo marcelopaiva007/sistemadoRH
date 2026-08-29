@@ -46,17 +46,24 @@ type UsuarioOpcao = {
   nome: string;
   temTelegram: boolean;
   favorito: boolean;
+  /** Cargo do colaborador (Posicao.nome) — null quando não há ficha ligada. */
+  cargo: string | null;
+  /** Marca da empresa da ficha — null quando não há ficha ligada. */
+  marcaNome: string | null;
 };
 
 /**
- * Como a pessoa aparece na lista: estrela do favorito, a etiqueta do tipo e o
- * nome — nesta ordem. "Usuário" entra no sistema e responde nas telas;
- * "Colaborador" responde pelo portal do RH, pelo celular.
+ * Como a pessoa aparece na lista: estrela do favorito, a etiqueta do tipo, a
+ * MARCA na frente do nome, o nome, e o cargo por último — pedido da Direção
+ * em 29/08/2026. Marca e cargo faltam para quem não tem ficha ligada (contas
+ * puras do sistema), e o rótulo some com elas de mansinho.
  */
 function rotuloPessoa(u: UsuarioOpcao): string {
   const estrela = u.favorito ? "★ " : "";
   const tipo = u.tipo === "USUARIO" ? "[Usuário]" : "[Colaborador]";
-  return `${estrela}${tipo} ${u.nome}`;
+  const marca = u.marcaNome ? `${u.marcaNome} · ` : "";
+  const cargo = u.cargo ? ` — ${u.cargo}` : "";
+  return `${estrela}${tipo} ${marca}${u.nome}${cargo}`;
 }
 
 // Mesma normalização do slug de vaga (lib/constants-ats.ts): NFD separa o
@@ -192,7 +199,7 @@ export function DelegadasView({
     });
   }
 
-  /** Uma linha do gerenciador — nome à esquerda, estrela à direita. */
+  /** Uma linha do gerenciador — nome à esquerda (marca na frente, cargo depois), estrela à direita. */
   function linhaFavorito(u: UsuarioOpcao) {
     return (
       <div key={u.id} className="flex items-center justify-between gap-2 px-3 py-1.5">
@@ -200,7 +207,9 @@ export function DelegadasView({
           <span className="text-xs text-muted-foreground">
             {u.tipo === "USUARIO" ? "Usuário" : "Colaborador"}
           </span>{" "}
+          {u.marcaNome && <span className="text-xs text-muted-foreground">{u.marcaNome} · </span>}
           {u.nome}
+          {u.cargo && <span className="text-xs text-muted-foreground"> — {u.cargo}</span>}
         </span>
         <button
           type="button"
@@ -503,7 +512,7 @@ export function DelegadasView({
                 <option value="">Escolha uma pessoa</option>
                 {usuarios.map((u) => (
                   <option key={u.id} value={u.id}>
-                    {u.nome}
+                    {rotuloPessoa(u)}
                   </option>
                 ))}
               </select>

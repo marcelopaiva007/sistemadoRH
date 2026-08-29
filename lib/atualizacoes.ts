@@ -26,6 +26,16 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.140.1",
+    data: "29/08/2026",
+    horario: "20:35",
+    titulo: "Delegações: a marca e o cargo aparecem junto do nome, na hora de escolher a pessoa",
+    itens: [
+      "No seletor de pessoas e no gerenciador de favoritos, quem tem ficha no RH agora aparece com a marca na frente do nome e o cargo logo depois — antes só o nome (e o tipo) apareciam.",
+      "Quem opera o sistema sem ficha ligada (conta pura) continua aparecendo só com o nome, sem inventar marca ou cargo.",
+    ],
+  },
+  {
     versao: "1.140.0",
     data: "29/08/2026",
     horario: "20:20",
