@@ -24,7 +24,7 @@ export const ROTULO_STATUS: Record<StatusDemanda, string> = {
   ENVIADA: "Aguardando aceite",
   ACEITA: "Aceita",
   EM_EXECUCAO: "Em execução",
-  ENTREGUE: "Entregue — aguarda seu aceite",
+  ENTREGUE: "Entregue",
   ENCERRADA: "Encerrada",
   CANCELADA: "Cancelada",
 };
@@ -45,9 +45,29 @@ export const STATUS_DEMANDA_BADGE: StatusBadgeMap<StatusDemanda> = {
   ACEITA: { label: ROTULO_STATUS.ACEITA, variant: "default" },
   EM_EXECUCAO: { label: ROTULO_STATUS.EM_EXECUCAO, variant: "default" },
   ENTREGUE: { label: ROTULO_STATUS.ENTREGUE, variant: "secondary" },
+  // Ver `badgeParaQuemOlha` abaixo: quem lê muda o que a frase deve dizer.
   ENCERRADA: { label: ROTULO_STATUS.ENCERRADA, variant: "outline" },
   CANCELADA: { label: ROTULO_STATUS.CANCELADA, variant: "outline" },
 };
+
+/**
+ * O mesmo status, dito para a pessoa certa.
+ *
+ * "Entregue — aguarda seu aceite" só é verdade para QUEM PEDIU: a regra 3 diz
+ * que o responsável nunca encerra, então mandá-lo aceitar é mandá-lo procurar
+ * um botão que não existe para ele. E a tela Recebidas é lida sempre pelo
+ * responsável. Um rótulo fixo não consegue servir aos dois lados.
+ */
+export function badgeParaQuemOlha(
+  quemOlha: "solicitante" | "responsavel",
+): StatusBadgeMap<StatusDemanda> {
+  if (quemOlha === "responsavel") return STATUS_DEMANDA_BADGE;
+  return {
+    ...STATUS_DEMANDA_BADGE,
+    ENVIADA: { label: "Aguardando o aceite dele", variant: "secondary" },
+    ENTREGUE: { label: "Entregue — aguarda seu aceite", variant: "secondary" },
+  };
+}
 
 const ROTULO_EVIDENCIA: Record<(typeof EVIDENCIAS_EXIGIDAS)[number], string> = {
   LINK: "Link",
@@ -74,12 +94,23 @@ const ROTULO_PERIODICIDADE: Record<(typeof PERIODICIDADES_RETORNO)[number], stri
 
 export type Opcao = { value: string; label: string; ajuda?: string };
 
-/** As opções dos `<select>`, na ordem do domínio. */
-export const OPCOES_EVIDENCIA: Opcao[] = EVIDENCIAS_EXIGIDAS.map((v) => ({
-  value: v,
-  label: ROTULO_EVIDENCIA[v],
-  ajuda: AJUDA_EVIDENCIA[v],
-}));
+/**
+ * As opções do `<select>` de evidência — SEM "arquivo".
+ *
+ * O domínio aceita ARQUIVO (a coluna existe, e `DemandaEntrega.arquivoId` está
+ * ligado à esteira Arquivo/Blob desde o PR 2), mas a tela de entrega ainda não
+ * tem o campo de upload. Oferecer a opção criaria uma demanda que NINGUÉM
+ * consegue entregar: a regra 4 exigiria o arquivo, e não há por onde anexá-lo.
+ * Volta a aparecer no mesmo commit em que o upload existir — a constante do
+ * domínio segue completa para o dia em que isso acontecer.
+ */
+export const OPCOES_EVIDENCIA: Opcao[] = EVIDENCIAS_EXIGIDAS.filter((v) => v !== "ARQUIVO").map(
+  (v) => ({
+    value: v,
+    label: ROTULO_EVIDENCIA[v],
+    ajuda: AJUDA_EVIDENCIA[v],
+  }),
+);
 
 export const OPCOES_PERIODICIDADE: Opcao[] = PERIODICIDADES_RETORNO.map((v) => ({
   value: v,

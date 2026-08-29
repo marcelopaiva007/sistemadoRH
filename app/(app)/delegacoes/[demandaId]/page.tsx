@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireDelegacoesAccess } from "@/lib/delegacoes-auth-guard";
-import { podeVerDemanda } from "@/lib/delegacoes/consultas";
+import { podeVerDemanda, prazoEmTexto } from "@/lib/delegacoes/consultas";
 import {
   papelNaDemanda,
   prazoLimiteAceite,
@@ -10,7 +10,7 @@ import {
   validarReporte,
   validarTransicao,
 } from "@/lib/delegacoes/estados";
-import { formatarData, formatarDataHoraBrasilia } from "@/lib/datas";
+import { formatarDataHoraBrasilia } from "@/lib/datas";
 import { DemandaDetalhe } from "./demanda-detalhe";
 
 /**
@@ -113,8 +113,8 @@ export default async function DemandaPage({
         criticidade: demanda.criticidade,
         status: demanda.status,
         emRisco: demanda.emRisco,
-        prazoTexto: formatarData(demanda.prazo),
-        prazoOriginalTexto: formatarData(demanda.prazoOriginal),
+        prazoTexto: prazoEmTexto(demanda.prazo),
+        prazoOriginalTexto: prazoEmTexto(demanda.prazoOriginal),
         prazoMudou: demanda.prazo.getTime() !== demanda.prazoOriginal.getTime(),
         periodicidadeRetorno: demanda.periodicidadeRetorno,
         area: demanda.area,
@@ -143,8 +143,8 @@ export default async function DemandaPage({
       }}
       repactuacoes={demanda.repactuacoes.map((r) => ({
         id: r.id,
-        de: formatarData(r.prazoAnterior),
-        para: formatarData(r.prazoNovo),
+        de: prazoEmTexto(r.prazoAnterior),
+        para: prazoEmTexto(r.prazoNovo),
         motivo: r.motivo,
         autorNome: r.autorNome ?? "—",
         quandoTexto: formatarDataHoraBrasilia(r.createdAt),

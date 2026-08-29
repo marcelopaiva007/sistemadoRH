@@ -97,16 +97,23 @@ export function DelegadasView({
       }
       setForm(null);
       // O aviso de Telegram persiste depois de fechar o formulário: é
-      // informação sobre o que o sistema NÃO vai conseguir fazer (cobrar pelo
-      // bot), e some junto com o formulário seria escondê-la.
+      // informação sobre o que o sistema ainda não vai conseguir fazer, e
+      // escondê-la junto com o formulário seria omitir.
       setAviso(r.avisoTelegram ?? null);
+      // Rascunho leva direto ao detalhe: é lá que mora o "Enviar ao
+      // responsável", e voltar para a lista deixaria a pessoa procurando.
+      if (!enviar && r.id) {
+        router.push(`/delegacoes/${r.id}`);
+        return;
+      }
       router.refresh();
     });
   }
 
   const responsavelEscolhido = usuarios.find((u) => u.id === form?.responsavelId);
   const aguardandoMeuAceite = demandas.filter((d) => d.status === "ENTREGUE");
-  const emAndamento = demandas.filter((d) => d.status !== "ENTREGUE");
+  const rascunhos = demandas.filter((d) => d.status === "RASCUNHO");
+  const emAndamento = demandas.filter((d) => d.status !== "ENTREGUE" && d.status !== "RASCUNHO");
 
   return (
     <div className="space-y-6">
@@ -164,7 +171,8 @@ export function DelegadasView({
                   Telegram é PERMITIDO, e a pessoa precisa saber o que muda. */}
               {responsavelEscolhido && !responsavelEscolhido.temTelegram && (
                 <span className="mt-1 block text-xs text-amber-700 dark:text-amber-500">
-                  Sem Telegram vinculado — a cobrança sai só por e-mail e pelo painel.
+                  Sem Telegram vinculado — quando a cobrança automática entrar no ar, ela não
+                  vai alcançar essa pessoa por lá.
                 </span>
               )}
             </label>
@@ -283,6 +291,22 @@ export function DelegadasView({
         </Card>
       )}
 
+      {rascunhos.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              Rascunhos — ainda não enviados
+              <Badge variant="outline">{rascunhos.length}</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            {rascunhos.map((d) => (
+              <LinhaDemanda key={d.id} d={d} mostrar="responsavel" />
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
       {emAndamento.length > 0 && (
         <Card>
           <CardHeader>
@@ -304,7 +328,7 @@ export function DelegadasView({
           <CardContent className="py-10 text-center">
             <p className="text-sm text-muted-foreground">Você ainda não delegou nada por aqui.</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Ao delegar, o sistema passa a cobrar o prazo no seu lugar.
+              Ao delegar, o combinado e o prazo ficam registrados aqui.
             </p>
           </CardContent>
         </Card>

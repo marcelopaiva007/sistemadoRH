@@ -33,11 +33,15 @@ export default async function RecebidasPage() {
   // As fatias, na ordem em que a pessoa deve olhar. `aguardandoAceite` sai da
   // corrida por prazo de propósito: aceitar é o que destrava tudo.
   const aguardandoAceite = demandas.filter((d) => d.status === "ENVIADA");
-  const emAndamento = demandas.filter((d) => d.status !== "ENVIADA");
+  // ENTREGUE sai da corrida por prazo: a bola está com quem pediu, e contar
+  // essas como "atrasadas" cobraria de quem já entregou. Elas ganham bloco
+  // próprio — e é isso que faz o indicador bater com o que a tela mostra, a
+  // regra que a Central de Pendências aprendeu na marra.
+  const entregues = demandas.filter((d) => d.status === "ENTREGUE");
+  const emAndamento = demandas.filter((d) => d.status !== "ENVIADA" && d.status !== "ENTREGUE");
   const atrasadas = emAndamento.filter((d) => d.diasParaPrazo < 0);
   const estaSemana = emAndamento.filter((d) => d.diasParaPrazo >= 0 && d.diasParaPrazo <= 7);
   const adiante = emAndamento.filter((d) => d.diasParaPrazo > 7);
-  const entregues = demandas.filter((d) => d.status === "ENTREGUE").length;
 
   return (
     <div className="space-y-6">
@@ -56,10 +60,11 @@ export default async function RecebidasPage() {
         <Indicador rotulo="Aguardando seu aceite" valor={aguardandoAceite.length} estado={aguardandoAceite.length > 0 ? "atencao" : "padrao"} />
         <Indicador rotulo="Atrasadas" valor={atrasadas.length} estado={atrasadas.length > 0 ? "alerta" : "padrao"} />
         <Indicador rotulo="Vencem em 7 dias" valor={estaSemana.length} />
-        <Indicador rotulo="Entregues, aguardando aceite de quem pediu" valor={entregues} />
+        <Indicador rotulo="Entregues, aguardando quem pediu" valor={entregues.length} />
       </div>
 
       <Bloco titulo="Esperando seu aceite" itens={aguardandoAceite} tom="atencao" />
+      <Bloco titulo="Entregues — a bola está com quem pediu" itens={entregues} />
       <Bloco titulo="Atrasadas" itens={atrasadas} tom="alerta" />
       <Bloco titulo="Vencem nos próximos 7 dias" itens={estaSemana} />
       <Bloco titulo="Mais adiante" itens={adiante} />
@@ -69,7 +74,7 @@ export default async function RecebidasPage() {
           <CardContent className="py-10 text-center">
             <p className="text-sm text-muted-foreground">Nenhuma demanda para você agora.</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Quando alguém delegar algo a você, aparece aqui — e o sistema cobra no prazo.
+              Quando alguém delegar algo a você, aparece aqui.
             </p>
           </CardContent>
         </Card>

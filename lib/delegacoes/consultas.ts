@@ -1,5 +1,5 @@
 import type { Prisma } from "@/app/generated/prisma/client";
-import { diferencaEmDiasUTC, formatarData, hojeUTC, inicioDoDiaUTC } from "@/lib/datas";
+import { diaBrasilia } from "@/lib/datas";
 import { severidadeDoPrazo, type SeveridadePrazo } from "@/lib/constants-delegacoes";
 import { STATUS_ATIVOS } from "@/lib/delegacoes/estados";
 
@@ -142,13 +142,40 @@ type LinhaDoBanco = {
 };
 
 /**
+ * O prazo NO CALENDÁRIO DE BRASÍLIA, como "05/09/2026".
+ *
+ * `formatarData` lê componentes UTC, e aqui isso mente: `prazoDoFormulario`
+ * ancora a data digitada em 23:59:59 de Brasília, que em UTC já é o dia
+ * SEGUINTE. Quem digitava 05/09 via a tela responder 06/09. O helper certo já
+ * existia (`diaBrasilia`, escrito para este mesmo problema no ponto
+ * eletrônico) — só não estava sendo usado aqui.
+ */
+export function prazoEmTexto(prazo: Date): string {
+  const [ano, mes, dia] = diaBrasilia(prazo).split("-");
+  return `${dia}/${mes}/${ano}`;
+}
+
+/**
+ * Quantos dias faltam, contados em DIAS DE CALENDÁRIO DE BRASÍLIA — não em
+ * milissegundos nem em componentes UTC. Negativo = atrasada.
+ *
+ * Os dois lados passam por `diaBrasilia` de propósito: comparar o instante
+ * cru faria a virada do dia acontecer às 21:00 (meia-noite UTC), e a mesma
+ * demanda mostraria "1d" de manhã e "0d" à noite do MESMO dia.
+ */
+export function diasAtePrazo(prazo: Date, agora = new Date()): number {
+  const dia = (d: Date) => Date.parse(`${diaBrasilia(d)}T00:00:00Z`);
+  return Math.round((dia(prazo) - dia(agora)) / 86_400_000);
+}
+
+/**
  * Do banco para a tela: tudo que é apresentação (dias restantes, data
  * formatada, severidade) é calculado AQUI, no servidor. O cliente recebe
  * string e número — nunca `Date`, que atravessaria a fronteira serializado e
  * seria formatado no fuso do navegador.
  */
-export function paraLinha(d: LinhaDoBanco, hoje = hojeUTC()): DemandaNaTela {
-  const diasParaPrazo = diferencaEmDiasUTC(inicioDoDiaUTC(d.prazo), hoje);
+export function paraLinha(d: LinhaDoBanco, agora = new Date()): DemandaNaTela {
+  const diasParaPrazo = diasAtePrazo(d.prazo, agora);
   return {
     id: d.id,
     titulo: d.titulo,
@@ -157,7 +184,7 @@ export function paraLinha(d: LinhaDoBanco, hoje = hojeUTC()): DemandaNaTela {
     criticidade: d.criticidade,
     emRisco: d.emRisco,
     diasParaPrazo,
-    prazoTexto: formatarData(d.prazo),
+    prazoTexto: prazoEmTexto(d.prazo),
     severidade: severidadeDoPrazo(diasParaPrazo, d.criticidade),
     repactuada: d._count.repactuacoes > 0,
     solicitanteNome: d.solicitante.nome,

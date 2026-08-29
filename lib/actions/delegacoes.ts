@@ -5,6 +5,7 @@ import { prisma, type Cliente } from "@/lib/prisma";
 import { requireDelegacoesAccess } from "@/lib/delegacoes-auth-guard";
 import { registrarAuditoria } from "@/lib/audit";
 import { podeVerDemanda } from "@/lib/delegacoes/consultas";
+import { sistemasPermitidos } from "@/lib/permissoes/efetivas";
 import type { ActionResult } from "@/lib/constants";
 import {
   EVENTO_DA_TRANSICAO,
@@ -162,12 +163,23 @@ export async function criarDemanda(
     select: {
       id: true,
       nome: true,
+      role: true,
       ativo: true,
       colaborador: { select: { telegramChatId: true } },
     },
   });
   if (!responsavel || !responsavel.ativo) {
     return { ok: false, error: "Responsável não encontrado entre os usuários ativos." };
+  }
+  // A tela já filtra a lista, mas a recusa mora AQUI: sem isto, uma chamada
+  // direta grava uma demanda para quem a guarda redireciona — e ela fica presa
+  // em "aguardando aceite" para sempre, com o relógio correndo contra alguém
+  // que nunca vai ver a tela. Filtro de front não é regra.
+  if (!(await sistemasPermitidos(responsavel)).includes("delegacoes")) {
+    return {
+      ok: false,
+      error: `${responsavel.nome} ainda não tem acesso ao módulo Delegações — libere em Usuários e perfis antes de delegar.`,
+    };
   }
 
   if (input.marcaId) {
@@ -229,7 +241,7 @@ export async function criarDemanda(
     id: demanda.id,
     avisoTelegram: responsavel.colaborador?.telegramChatId
       ? undefined
-      : `${responsavel.nome} ainda não vinculou o Telegram — a cobrança automática desta pessoa sai só por e-mail e painel até o vínculo (/start no bot).`,
+      : `${responsavel.nome} ainda não vinculou o Telegram ao sistema. Quando a cobrança automática entrar no ar, ela não vai alcançar essa pessoa por lá — o vínculo é feito por ela mesma, enviando /start ao bot do RH.`,
   };
 }
 
@@ -399,6 +411,13 @@ export async function repactuarPrazo(input: {
   });
 
   if (resultado === "conflito") return { ok: false, error: ERRO_CONFLITO };
+  await registrarAuditoria({
+    acao: "ATUALIZAR",
+    entidade: "Demanda",
+    entidadeId: demanda.id,
+    resumo: `Repactuou o prazo da demanda (de ${demanda.prazo.toISOString().slice(0, 10)} para ${prazoNovo!.toISOString().slice(0, 10)})`,
+    detalhes: { motivo: input.motivo.trim() },
+  });
   revalidarModulo();
   return { ok: true };
 }
@@ -446,6 +465,14 @@ export async function reportarProgresso(input: {
   });
 
   if (resultado === "conflito") return { ok: false, error: ERRO_CONFLITO };
+  await registrarAuditoria({
+    acao: "ATUALIZAR",
+    entidade: "Demanda",
+    entidadeId: demanda.id,
+    // O texto do reporte NÃO vai para a trilha: ele é conversa entre as duas
+    // pessoas e já vive em DemandaInteracao. A trilha registra QUE houve.
+    resumo: "Reportou andamento da demanda",
+  });
   revalidarModulo();
   return { ok: true };
 }
@@ -466,16 +493,32 @@ export async function marcarEmRisco(input: { id: string; ligar: boolean }): Prom
   // Já está como pediu: nada a gravar — evento repetido só sujaria o log.
   if (demanda.emRisco === input.ligar) return { ok: true };
 
-  await prisma.$transaction(async (tx) => {
-    await tx.demanda.update({ where: { id: demanda.id }, data: { emRisco: input.ligar } });
+  const resultado = await prisma.$transaction(async (tx) => {
+    // Mesma guarda das transições, e pelo mesmo motivo: `update` cru gravaria
+    // risco numa demanda que outra aba acabou de encerrar, e ainda somaria um
+    // evento ao log imutável — que não se apaga. `emRisco` entra no `where`
+    // junto porque dois cliques no mesmo botão não podem virar dois eventos.
+    const { count } = await tx.demanda.updateMany({
+      where: { id: demanda.id, status: demanda.status, emRisco: demanda.emRisco },
+      data: { emRisco: input.ligar },
+    });
+    if (count === 0) return "conflito" as const;
     await registrarEvento(
       tx,
       demanda.id,
       input.ligar ? "EM_RISCO_LIGADO" : "EM_RISCO_DESLIGADO",
       ator,
     );
+    return "ok" as const;
   });
 
+  if (resultado === "conflito") return { ok: false, error: ERRO_CONFLITO };
+  await registrarAuditoria({
+    acao: "ATUALIZAR",
+    entidade: "Demanda",
+    entidadeId: demanda.id,
+    resumo: input.ligar ? "Marcou a demanda em risco" : "Removeu o sinal de risco da demanda",
+  });
   revalidarModulo();
   return { ok: true };
 }
@@ -550,6 +593,13 @@ export async function entregarDemanda(input: {
   });
 
   if (resultado === "conflito") return { ok: false, error: ERRO_CONFLITO };
+  await registrarAuditoria({
+    acao: "ATUALIZAR",
+    entidade: "Demanda",
+    entidadeId: demanda.id,
+    resumo: "Entregou a demanda com evidência",
+    detalhes: { evidenciaTipo: demanda.evidenciaExigida, comArquivo: !!input.arquivoId },
+  });
   revalidarModulo();
   return { ok: true };
 }

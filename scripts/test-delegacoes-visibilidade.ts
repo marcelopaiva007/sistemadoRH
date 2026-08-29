@@ -8,7 +8,14 @@
 //
 //   npx tsx scripts/test-delegacoes-visibilidade.ts
 
-import { demandasVisiveisPara, ehDirecao, podeVerDemanda } from "../lib/delegacoes/consultas";
+import {
+  demandasVisiveisPara,
+  diasAtePrazo,
+  ehDirecao,
+  podeVerDemanda,
+  prazoEmTexto,
+} from "../lib/delegacoes/consultas";
+import { prazoDoFormulario } from "../lib/delegacoes/estados";
 
 let falhas = 0;
 function ok(condicao: boolean, descricao: string) {
@@ -80,6 +87,31 @@ console.log("\nO recorte não se mistura com filtro de tela\n");
   // que some é o de ACESSO. A prova é estrutural: o recorte É um OR.
   const recorte = demandasVisiveisPara(SOL) as { OR?: unknown[] };
   ok(Array.isArray(recorte.OR), "o recorte de acesso usa OR — por isso combina com AND, nunca espalhado");
+}
+
+console.log("\nO prazo na tela é o dia que a pessoa digitou — em Brasília\n");
+{
+  // O defeito que a revisão adversarial de 29/08/2026 pegou: `prazoDoFormulario`
+  // ancora a data em 23:59:59 de BRASÍLIA, que em UTC já é o dia seguinte.
+  // Formatar ou contar dias por componentes UTC fazia a tela responder 06/09
+  // para quem digitou 05/09 — e uma demanda vencida ontem aparecer como "0d",
+  // fora do bloco "Atrasadas" por um dia inteiro.
+  const prazo = prazoDoFormulario("2026-09-05")!;
+  igual(prazoEmTexto(prazo), "05/09/2026", "digitou 05/09, a tela mostra 05/09 (não 06/09)");
+
+  const em = (iso: string) => new Date(iso);
+  igual(diasAtePrazo(prazo, em("2026-09-01T12:00:00-03:00")), 4, "quatro dias antes: 4d");
+  igual(diasAtePrazo(prazo, em("2026-09-05T09:00:00-03:00")), 0, "no dia, de manhã: 0d");
+  igual(diasAtePrazo(prazo, em("2026-09-05T22:00:00-03:00")), 0, "no dia, às 22h: AINDA 0d");
+  igual(diasAtePrazo(prazo, em("2026-09-06T09:00:00-03:00")), -1, "no dia seguinte: -1d (atrasada)");
+  igual(diasAtePrazo(prazo, em("2026-09-07T09:00:00-03:00")), -2, "dois dias depois: -2d");
+
+  // A virada do dia é à meia-noite de Brasília, não às 21h (meia-noite UTC).
+  igual(
+    diasAtePrazo(prazo, em("2026-09-04T23:30:00-03:00")),
+    1,
+    "23h30 da véspera ainda falta 1 dia — a virada é à meia-noite de Brasília",
+  );
 }
 
 console.log(falhas === 0 ? "\n✅ Tudo passou.\n" : `\n❌ ${falhas} falha(s).\n`);

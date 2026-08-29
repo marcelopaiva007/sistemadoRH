@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/status-badge";
 import {
   ROTULO_EVENTO,
-  STATUS_DEMANDA_BADGE,
+  badgeParaQuemOlha,
   rotuloCriticidade,
   rotuloEvidencia,
   rotuloPeriodicidade,
@@ -160,7 +160,12 @@ export function DemandaDetalhe({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-xl font-semibold tracking-tight">{demanda.titulo}</h2>
-            <StatusBadge status={demanda.status} map={STATUS_DEMANDA_BADGE} />
+            {/* O mesmo status, dito para quem está lendo: "aguarda seu aceite"
+                só é verdade para quem pediu — o responsável nunca encerra. */}
+            <StatusBadge
+              status={demanda.status}
+              map={badgeParaQuemOlha(papel === "RESPONSAVEL" ? "responsavel" : "solicitante")}
+            />
             {demanda.emRisco && (
               <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300">
                 em risco
@@ -242,9 +247,12 @@ export function DemandaDetalhe({
             // Honestidade sobre o que ainda não existe: o anexo de arquivo usa a
             // esteira Arquivo/Blob e entra junto com a tela de upload. Prometer
             // um campo que não grava seria pior que dizer o que falta.
+            // Demanda com exigência de ARQUIVO não é mais criável pela tela
+            // (ver OPCOES_EVIDENCIA); se existir alguma, é anterior ao upload.
             <p className="rounded-md border border-amber-500/40 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
-              O anexo de arquivo ainda não está disponível nesta tela. Combine com quem pediu
-              uma evidência em texto ou link, ou peça para trocar a exigência da demanda.
+              Esta demanda exige arquivo anexado, e o anexo ainda não está disponível nesta
+              tela. Fale com {demanda.solicitanteNome}, que pode cancelar esta demanda e
+              recriá-la pedindo link ou texto como evidência.
             </p>
           ) : (
             <label className="block">

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { StatusBadge } from "@/components/status-badge";
-import { CORES_PRAZO, STATUS_DEMANDA_BADGE, rotuloCriticidade } from "@/lib/constants-delegacoes";
+import { CORES_PRAZO, badgeParaQuemOlha, rotuloCriticidade } from "@/lib/constants-delegacoes";
 import type { DemandaNaTela } from "@/lib/delegacoes/consultas";
 import { cn } from "@/lib/utils";
 
@@ -25,16 +25,26 @@ export function LinhaDemanda({
   d: DemandaNaTela;
   mostrar: "solicitante" | "responsavel";
 }) {
-  const atrasada = d.diasParaPrazo < 0;
+  // Quem OLHA é o oposto de quem é MOSTRADO na linha: em Recebidas exibimos o
+  // solicitante ("de fulano"), então quem lê é o responsável.
+  const quemOlha = mostrar === "solicitante" ? "responsavel" : "solicitante";
+  // Atraso só vale enquanto a bola está com o responsável. Já entregue, o
+  // relógio dele parou: contar como atrasada seria cobrar de quem já fez.
+  const atrasada = d.diasParaPrazo < 0 && d.status !== "ENTREGUE";
   const pessoa = mostrar === "solicitante" ? d.solicitanteNome : d.responsavelNome;
   const rotuloPessoa = mostrar === "solicitante" ? "de" : "com";
 
   return (
     <div className="flex flex-col gap-2 border-b border-border/60 py-3 last:border-b-0 sm:flex-row sm:items-start sm:gap-4">
-      <div className={cn("w-16 shrink-0 text-sm font-semibold tabular-nums", CORES_PRAZO[d.severidade])}>
-        {atrasada ? `${Math.abs(d.diasParaPrazo)}d` : `${d.diasParaPrazo}d`}
+      <div
+        className={cn(
+          "w-16 shrink-0 text-sm font-semibold tabular-nums",
+          d.status === "ENTREGUE" ? "text-muted-foreground" : CORES_PRAZO[d.severidade],
+        )}
+      >
+        {d.status === "ENTREGUE" ? "—" : atrasada ? `${Math.abs(d.diasParaPrazo)}d` : `${d.diasParaPrazo}d`}
         <span className="block text-[10px] font-normal text-muted-foreground">
-          {atrasada ? "atrasada" : d.prazoTexto}
+          {d.status === "ENTREGUE" ? "entregue" : atrasada ? "atrasada" : d.prazoTexto}
         </span>
       </div>
 
@@ -65,7 +75,7 @@ export function LinhaDemanda({
             em risco
           </span>
         )}
-        <StatusBadge status={d.status} map={STATUS_DEMANDA_BADGE} />
+        <StatusBadge status={d.status} map={badgeParaQuemOlha(quemOlha)} />
       </div>
     </div>
   );
