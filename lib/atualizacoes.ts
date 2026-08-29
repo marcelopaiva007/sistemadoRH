@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.140.0",
+    data: "29/08/2026",
+    horario: "20:20",
+    titulo: "Delegações: painel de como andam as entregas, por pessoa",
+    itens: [
+      "Nova seção em \"Delegadas por mim\": para cada pessoa a quem você já delegou, quantas demandas estão com ela agora, quantas atrasadas, o percentual entregue no prazo, quantas devoluções e repactuações, e o tempo médio até entregar.",
+      "\"Tempo até entregar\" conta do aceite até a entrega — é tempo corrido com a demanda na mão, não apontamento de horas trabalhadas, que o sistema não tem. A tela diz isso com todas as letras.",
+      "O painel olha o histórico inteiro que você delegou, inclusive demandas já encerradas — não só as que ainda estão em aberto.",
+    ],
+  },
+  {
     versao: "1.139.0",
     data: "29/08/2026",
     horario: "19:55",

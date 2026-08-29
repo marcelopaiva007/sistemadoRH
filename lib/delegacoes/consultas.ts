@@ -2,6 +2,7 @@ import type { Prisma } from "@/app/generated/prisma/client";
 import { diaBrasilia } from "@/lib/datas";
 import { severidadeDoPrazo, type SeveridadePrazo } from "@/lib/constants-delegacoes";
 import { STATUS_ATIVOS } from "@/lib/delegacoes/estados";
+import type { DemandaParaPainel } from "@/lib/delegacoes/painel-entregas";
 
 // QUEM ENXERGA QUAL DEMANDA — a regra de visibilidade por linha, no servidor.
 //
@@ -202,3 +203,44 @@ export function paraLinha(d: LinhaDoBanco, agora = new Date()): DemandaNaTela {
  * pede explicitamente na tela.
  */
 export const APENAS_ATIVAS: Prisma.DemandaWhereInput = { status: { in: [...STATUS_ATIVOS] } };
+
+// ── Painel de entregas (lib/delegacoes/painel-entregas.ts) ─────────────────
+//
+// `select` PRÓPRIO, separado de SELECT_LISTA: o painel precisa de
+// `enviadaEm`/`aceiteEm` (o relógio da entrega) e do array de `entregas` com
+// `aceita`, que a lista de demandas não usa. Estender SELECT_LISTA para
+// carregar isto em toda tela (Recebidas incluída) seria payload morto na
+// tela que não é dona da conta — o painel é olhar do SOLICITANTE.
+
+export const SELECT_PAINEL = {
+  status: true,
+  prazo: true,
+  enviadaEm: true,
+  aceiteEm: true,
+  responsavel: { select: { nome: true } },
+  _count: { select: { repactuacoes: true } },
+  entregas: { select: { createdAt: true, aceita: true } },
+} as const;
+
+type LinhaPainelDoBanco = {
+  status: string;
+  prazo: Date;
+  enviadaEm: Date | null;
+  aceiteEm: Date | null;
+  responsavel: { nome: string };
+  _count: { repactuacoes: number };
+  entregas: { createdAt: Date; aceita: boolean | null }[];
+};
+
+/** Do banco (SELECT_PAINEL) para o formato que `montarPainelEntregas` come. */
+export function paraPainel(d: LinhaPainelDoBanco): DemandaParaPainel {
+  return {
+    status: d.status,
+    prazo: d.prazo,
+    enviadaEm: d.enviadaEm,
+    aceiteEm: d.aceiteEm,
+    responsavelNome: d.responsavel.nome,
+    repactuacoes: d._count.repactuacoes,
+    entregas: d.entregas,
+  };
+}

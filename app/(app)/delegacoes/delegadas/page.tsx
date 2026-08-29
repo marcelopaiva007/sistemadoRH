@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { requireDelegacoesAccess } from "@/lib/delegacoes-auth-guard";
-import { paraLinha, SELECT_LISTA } from "@/lib/delegacoes/consultas";
+import { paraLinha, paraPainel, SELECT_LISTA, SELECT_PAINEL } from "@/lib/delegacoes/consultas";
 import { STATUS_TERMINAIS } from "@/lib/delegacoes/estados";
+import { montarPainelEntregas } from "@/lib/delegacoes/painel-entregas";
 import { quemAlcancaSistema } from "@/lib/permissoes/efetivas";
 import { PAPEL_PORTAL } from "@/lib/delegacoes/acesso-colaborador";
 import { DelegadasView } from "./delegadas-view";
@@ -17,7 +18,7 @@ import { DelegadasView } from "./delegadas-view";
 export default async function DelegadasPage() {
   const usuario = await requireDelegacoesAccess();
 
-  const [linhas, usuarios, marcas, colaboradores, favoritos] = await Promise.all([
+  const [linhas, linhasPainel, usuarios, marcas, colaboradores, favoritos] = await Promise.all([
     prisma.demanda.findMany({
       // Aqui NÃO se usa APENAS_ATIVAS: o RASCUNHO é meu e precisa aparecer,
       // senão salvar rascunho grava algo que nenhuma tela lista depois — e o
@@ -28,6 +29,13 @@ export default async function DelegadasPage() {
       },
       select: SELECT_LISTA,
       orderBy: { prazo: "asc" },
+    }),
+    // O painel de entregas quer o HISTÓRICO inteiro — inclusive ENCERRADA,
+    // que a lista acima esconde de propósito. Sem filtro de status: quem não
+    // conta (RASCUNHO, CANCELADA) é descartado dentro de montarPainelEntregas.
+    prisma.demanda.findMany({
+      where: { solicitanteId: usuario.id },
+      select: SELECT_PAINEL,
     }),
     // Quem pode receber demanda. `telegramChatId` vem junto para a tela AVISAR
     // (não bloquear) que a pessoa ainda não é cobrável pelo bot — decisão da
@@ -63,6 +71,7 @@ export default async function DelegadasPage() {
   ]);
 
   const demandas = linhas.map((d) => paraLinha(d));
+  const painel = montarPainelEntregas(linhasPainel.map((d) => paraPainel(d)));
 
   // SÓ quem consegue entrar no módulo pode ser responsável. Delegar a quem a
   // guarda redireciona grava uma demanda que a pessoa nunca vê, nunca aceita e
@@ -78,6 +87,7 @@ export default async function DelegadasPage() {
   return (
     <DelegadasView
       demandas={demandas}
+      painel={painel}
       usuarios={[
         // Quem opera o sistema: recebe demanda e responde nas telas normais.
         ...usuarios

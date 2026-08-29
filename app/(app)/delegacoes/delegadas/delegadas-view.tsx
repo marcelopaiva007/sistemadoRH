@@ -16,6 +16,8 @@ import {
 } from "@/lib/constants-delegacoes";
 import { TITULO_MAXIMO } from "@/lib/delegacoes/estados";
 import type { DemandaNaTela } from "@/lib/delegacoes/consultas";
+import type { Painel } from "@/lib/delegacoes/painel-entregas";
+import { duracaoEmTexto, fracaoEmTexto } from "@/lib/delegacoes/painel-entregas";
 import { cn } from "@/lib/utils";
 import { LinhaDemanda } from "../linha-demanda";
 
@@ -83,10 +85,12 @@ const FORM_VAZIO: Record<string, string> = {
 
 export function DelegadasView({
   demandas,
+  painel,
   usuarios,
   marcas,
 }: {
   demandas: DemandaNaTela[];
+  painel: Painel;
   usuarios: UsuarioOpcao[];
   marcas: { id: string; nome: string }[];
 }) {
@@ -606,6 +610,66 @@ export function DelegadasView({
               <Button variant="ghost" onClick={fechar}>
                 Cancelar
               </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {painel.linhas.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Como andam as entregas</CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Por pessoa, sobre tudo que você já delegou. &quot;Tempo até entregar&quot; conta
+              do aceite até a entrega — é tempo corrido com a demanda na mão, não apontamento
+              de horas trabalhadas, que o sistema não tem.
+            </p>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left text-xs text-muted-foreground">
+                    <th className="p-2 font-medium">Pessoa</th>
+                    <th className="p-2 text-center font-medium">Com ela agora</th>
+                    <th className="p-2 text-center font-medium">Atrasadas</th>
+                    <th className="p-2 text-center font-medium">Entregou no prazo</th>
+                    <th className="p-2 text-center font-medium">Devoluções</th>
+                    <th className="p-2 text-center font-medium">Repactuou</th>
+                    <th className="p-2 text-center font-medium">Tempo até entregar</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {painel.linhas.map((l) => (
+                    <tr key={l.nome} className="border-b border-border last:border-0">
+                      <td className="p-2 font-medium">{l.nome}</td>
+                      <td className="p-2 text-center">{l.abertas || "—"}</td>
+                      <td className={cn("p-2 text-center", l.atrasadas > 0 && "font-medium text-destructive")}>
+                        {l.atrasadas || "—"}
+                      </td>
+                      <td className="p-2 text-center">{fracaoEmTexto(l.noPrazo, l.entregues)}</td>
+                      <td className="p-2 text-center">{l.devolucoes || "—"}</td>
+                      <td className="p-2 text-center">{l.repactuadas || "—"}</td>
+                      <td className="p-2 text-center">{duracaoEmTexto(l.horasMediaEntrega)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                {painel.linhas.length > 1 && (
+                  <tfoot>
+                    <tr className="border-t border-border font-medium">
+                      <td className="p-2">Todos</td>
+                      <td className="p-2 text-center">{painel.totais.abertas}</td>
+                      <td className="p-2 text-center">{painel.totais.atrasadas || "—"}</td>
+                      <td className="p-2 text-center">
+                        {fracaoEmTexto(painel.totais.noPrazo, painel.totais.entregues)}
+                      </td>
+                      <td className="p-2 text-center">{painel.totais.devolucoes || "—"}</td>
+                      <td className="p-2 text-center">{painel.totais.repactuadas || "—"}</td>
+                      <td className="p-2 text-center">{duracaoEmTexto(painel.totais.horasMediaEntrega)}</td>
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
             </div>
           </CardContent>
         </Card>
