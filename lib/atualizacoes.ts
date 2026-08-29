@@ -26,6 +26,19 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.136.0",
+    data: "29/08/2026",
+    horario: "16:40",
+    titulo: "Delegações no ar: delegar, acompanhar e cobrar num lugar só",
+    itens: [
+      "O sistema ganhou um terceiro módulo, \"Delegações\", ao lado de Pessoas (RH) e Processos & Ativos. Ele registra o que a Direção pede, para quem, com que prazo e com que critério de aceite — e guarda a história inteira de cada demanda.",
+      "Duas telas: \"Recebidas\" mostra o que pediram a você, do prazo mais curto ao mais longo, com as que esperam seu aceite no topo; \"Delegadas por mim\" mostra o que você pediu, com as entregas que aguardam o seu aval em destaque.",
+      "Ao delegar, o sistema exige o critério de aceite — como saber que ficou pronto — e o prazo. Sem os dois a demanda não é salva, de propósito: é o que evita a cobrança virar discussão sobre o que era para ter sido feito.",
+      "Quem executa aceita, reporta andamento, pede repactuação de prazo com motivo e entrega anexando a evidência combinada. Quem encerra é sempre quem pediu — o responsável chega até \"entregue\" e para ali.",
+      "Por enquanto o acesso é da Direção. Para liberar outras pessoas, use Usuários e perfis; a cobrança automática pelo Telegram e o painel da Direção chegam nas próximas versões.",
+    ],
+  },
+  {
     versao: "1.135.0",
     data: "28/08/2026",
     horario: "22:50",

@@ -193,6 +193,16 @@ export function SeletorMarcaEmpresa({
     setAbertoLista(false);
   }
 
+  // Dentro de um módulo que NÃO é escopado por CNPJ (Delegações, desde
+  // 29/08/2026), este seletor não tem o que fazer: as telas de lá não filtram
+  // por empresa, e escolher uma marca só poderia jogar a pessoa para fora do
+  // módulo — troca silenciosa de contexto, a mesma classe do defeito da
+  // v1.105.0. Some da barra em vez de virar um clique inerte, que confunde
+  // igual. Fora de módulo (Início, Usuários) ele continua aparecendo, porque
+  // ali escolher um CNPJ tem destino: o RH.
+  const moduloAtual = moduloDoCaminho(pathname);
+  if (moduloAtual && !moduloAtual.escopadoPorEmpresa) return null;
+
   // `min-w-0` em vez de `shrink-0`: os rótulos dentro já truncam
   // (`max-w-36`/`max-w-48`), mas com o container travado eles nunca chegavam a
   // truncar — a barra inteira é que crescia e levava a página junto no celular.
