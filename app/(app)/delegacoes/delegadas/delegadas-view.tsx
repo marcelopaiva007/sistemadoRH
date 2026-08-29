@@ -26,7 +26,18 @@ import { LinhaDemanda } from "../linha-demanda";
 const CAMPO = "w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm";
 const SECAO = "sm:col-span-2 lg:col-span-4 pt-2 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase";
 
-type UsuarioOpcao = { id: string; nome: string; temTelegram: boolean; favorito: boolean };
+/**
+ * Quem pode receber demanda. `tipo` decide o CAMPO que a action recebe: um
+ * usuário do sistema vai em `responsavelId`; um funcionário sem login vai em
+ * `responsavelColaboradorId`, e o acesso de portal dele é criado na hora.
+ */
+type UsuarioOpcao = {
+  tipo: "USUARIO" | "COLABORADOR";
+  id: string;
+  nome: string;
+  temTelegram: boolean;
+  favorito: boolean;
+};
 
 /** O formulário nasce com estes valores — os mesmos padrões da spec. */
 const FORM_VAZIO: Record<string, string> = {
@@ -141,10 +152,13 @@ export function DelegadasView({
     if (!form) return;
     setErro(null);
     iniciar(async () => {
+      const escolhido = usuarios.find((u) => u.id === form.responsavelId);
       const r = await criarDemanda({
         titulo: form.titulo,
         descricao: form.descricao,
-        responsavelId: form.responsavelId,
+        ...(escolhido?.tipo === "COLABORADOR"
+          ? { responsavelColaboradorId: form.responsavelId }
+          : { responsavelId: form.responsavelId }),
         criterioAceite: form.criterioAceite,
         evidenciaExigida: form.evidenciaExigida,
         criticidade: Number(form.criticidade || "3"),
@@ -294,13 +308,15 @@ export function DelegadasView({
                 {usuarios.map((u) => (
                   <option key={u.id} value={u.id}>
                     {u.favorito ? `★ ${u.nome}` : u.nome}
+                    {u.tipo === "COLABORADOR" ? " — responde pelo portal" : ""}
                   </option>
                 ))}
               </select>
               {responsavelEscolhido && !responsavelEscolhido.temTelegram && (
                 <span className="mt-1 block text-xs text-amber-700 dark:text-amber-500">
-                  Sem Telegram vinculado — quando a cobrança automática entrar no ar, ela não
-                  vai alcançar essa pessoa por lá.
+                  {responsavelEscolhido.tipo === "COLABORADOR"
+                    ? "Sem Telegram vinculado — e é por ele que essa pessoa entra no portal. Ela precisa enviar /start ao bot do RH antes de conseguir responder."
+                    : "Sem Telegram vinculado — quando a cobrança automática entrar no ar, ela não vai alcançar essa pessoa por lá."}
                 </span>
               )}
             </div>

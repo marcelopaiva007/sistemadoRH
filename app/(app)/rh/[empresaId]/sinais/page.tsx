@@ -1,4 +1,5 @@
 import { empresasVisiveis, requireEmpresaAccess } from "@/lib/rh-auth-guard";
+import { PAPEL_PORTAL } from "@/lib/delegacoes/acesso-colaborador";
 import { prisma } from "@/lib/prisma";
 import { diferencaEmDiasUTC, formatarData, hojeUTC, paraInputDate } from "@/lib/datas";
 import { SinaisView, type SinalNaTela } from "./sinais-view";
@@ -60,8 +61,12 @@ export default async function SinaisPage({
     // Dono é escolha MANUAL entre os usuários existentes — são 5 hoje, nenhum
     // com papel de gestor de setor, e User não tem vínculo com Colaborador:
     // qualquer escalonamento automático devolveria vazio em 100% dos casos.
+      // Acessos de portal (funcionários sem login do sistema, criados pelo
+      // módulo Delegações) ficam FORA desta lista: eles não operam o sistema,
+      // e com algumas centenas deles a tela viraria uma lista de gente que
+      // nunca vai entrar aqui. Ver lib/delegacoes/acesso-colaborador.ts.
     prisma.user.findMany({
-      where: { ativo: true },
+      where: { ativo: true, role: { not: PAPEL_PORTAL } },
       orderBy: { nome: "asc" },
       select: { id: true, nome: true },
     }),

@@ -81,3 +81,47 @@ export async function sistemasPermitidos(user: { id?: string; role: string }): P
   if (grants.length === 0) return porPapel();
   return sistemasDosGrants(grants);
 }
+
+/**
+ * A mesma pergunta de `sistemasPermitidos`, para MUITAS pessoas de uma vez.
+ *
+ * Existe porque a versão de uma pessoa faz uma consulta por chamada, e a tela
+ * de delegar precisa saber isso de TODO mundo que pode receber demanda. Com os
+ * cinco usuários de escritório de hoje o laço passava despercebido; com os
+ * acessos de portal dos funcionários seriam ~350 consultas por carregamento —
+ * num banco que já estourou cota este mês. Aqui são DUAS, sempre.
+ *
+ * Devolve um Set com os ids que alcançam `slug`. Mantém a rede de segurança da
+ * transição: quem não tem perfil nenhum cai no papel, igual à versão unitária —
+ * as duas precisam responder o mesmo, senão a tela mostra uma lista e a guarda
+ * aplica outra.
+ */
+export async function quemAlcancaSistema(
+  usuarios: { id: string; role: string }[],
+  slug: string,
+): Promise<Set<string>> {
+  const alcancam = new Set<string>();
+  if (usuarios.length === 0) return alcancam;
+
+  const vinculos = await prisma.userPerfil.findMany({
+    where: { userId: { in: usuarios.map((u) => u.id) }, perfil: { ativo: true } },
+    select: { userId: true, perfil: { select: { grants: true } } },
+  });
+
+  const grantsPorUsuario = new Map<string, string[]>();
+  for (const v of vinculos) {
+    const lista = grantsPorUsuario.get(v.userId) ?? [];
+    for (const g of v.perfil.grants.split(",").map((s) => s.trim()).filter(Boolean)) {
+      lista.push(g);
+    }
+    grantsPorUsuario.set(v.userId, lista);
+  }
+
+  for (const u of usuarios) {
+    const grants = grantsPorUsuario.get(u.id) ?? [];
+    const slugs =
+      grants.length === 0 ? modulosDoPapel(u.role).map((m) => m.slug) : sistemasDosGrants(grants);
+    if (slugs.includes(slug)) alcancam.add(u.id);
+  }
+  return alcancam;
+}

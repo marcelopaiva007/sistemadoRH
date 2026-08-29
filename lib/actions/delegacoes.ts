@@ -6,6 +6,7 @@ import { requireDelegacoesAccess } from "@/lib/delegacoes-auth-guard";
 import { registrarAuditoria } from "@/lib/audit";
 import { podeVerDemanda } from "@/lib/delegacoes/consultas";
 import { sistemasPermitidos } from "@/lib/permissoes/efetivas";
+import { garantirAcessoDoColaborador } from "@/lib/delegacoes/acesso-colaborador";
 import type { ActionResult } from "@/lib/constants";
 import {
   EVENTO_DA_TRANSICAO,
@@ -116,7 +117,15 @@ const SELECT_REGRAS = {
 export type NovaDemanda = {
   titulo: string;
   descricao?: string | null;
-  responsavelId: string;
+  /**
+   * Quem executa. UM dos dois, nunca os dois: `responsavelId` quando a pessoa
+   * já é usuário do sistema, `responsavelColaboradorId` quando é funcionário
+   * sem login — nesse caso o acesso de portal é criado na hora e a demanda
+   * passa a apontar para ele. A demanda continua com UM dono (regra 1); o que
+   * muda é só por onde ele chegou.
+   */
+  responsavelId?: string;
+  responsavelColaboradorId?: string;
   criterioAceite: string;
   /** LINK | ARQUIVO | NUMERO | TEXTO */
   evidenciaExigida: string;
@@ -145,6 +154,17 @@ export async function criarDemanda(
   const ator = await atorDaSessao();
   if (!ator) return { ok: false, error: ERRO_SESSAO };
 
+  // Funcionário sem login vira (ou reencontra) o acesso de portal ANTES da
+  // validação: daqui para baixo existe só um responsável, que é um `User`.
+  let responsavelId = input.responsavelId ?? "";
+  let ehPortal = false;
+  if (!responsavelId && input.responsavelColaboradorId) {
+    const acesso = await garantirAcessoDoColaborador(input.responsavelColaboradorId);
+    if (!acesso.ok) return { ok: false, error: acesso.erro };
+    responsavelId = acesso.userId;
+    ehPortal = true;
+  }
+
   const prazo = prazoDoFormulario(input.prazo);
   const veredito = validarCriacao({
     titulo: input.titulo,
@@ -154,12 +174,12 @@ export async function criarDemanda(
     prazo,
     periodicidadeRetorno: input.periodicidadeRetorno,
     solicitanteId: ator.id,
-    responsavelId: input.responsavelId,
+    responsavelId,
   });
   if (!veredito.ok) return { ok: false, error: veredito.erro };
 
   const responsavel = await prisma.user.findUnique({
-    where: { id: input.responsavelId },
+    where: { id: responsavelId },
     select: {
       id: true,
       nome: true,
@@ -175,7 +195,10 @@ export async function criarDemanda(
   // direta grava uma demanda para quem a guarda redireciona — e ela fica presa
   // em "aguardando aceite" para sempre, com o relógio correndo contra alguém
   // que nunca vai ver a tela. Filtro de front não é regra.
-  if (!(await sistemasPermitidos(responsavel)).includes("delegacoes")) {
+  // Acesso de portal NÃO precisa alcançar o módulo: ele responde pelo portal,
+  // que tem porta própria. A exigência vale para quem é usuário do sistema —
+  // aí sim, delegar a quem a guarda barra criaria demanda que ninguém vê.
+  if (!ehPortal && !(await sistemasPermitidos(responsavel)).includes("delegacoes")) {
     return {
       ok: false,
       error: `${responsavel.nome} ainda não tem acesso ao módulo Delegações — libere em Usuários e perfis antes de delegar.`,

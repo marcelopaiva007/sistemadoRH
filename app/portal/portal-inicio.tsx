@@ -4,6 +4,7 @@ import { Clock, FileText, LogOut, MessageCircle, PencilLine, Star, Stethoscope, 
 import { BaterPontoCard } from "./bater-ponto-card";
 import { SolicitacoesPontoCard } from "./solicitacoes-ponto-card";
 import { ConfirmarEntregasCard, type EntregaAConfirmar } from "./confirmar-entregas-card";
+import { MinhasDemandasCard } from "./minhas-demandas-card";
 import { MeuBancoHorasCard } from "./meu-banco-horas-card";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/status-badge";
@@ -135,6 +136,11 @@ export function PortalInicio({
           topo custa pouco e é o único jeito de a confirmação acontecer no dia
           da entrega em vez de na semana seguinte. */}
       <ConfirmarEntregasCard entregas={entregasAConfirmar} />
+
+      {/* O que pediram a esta pessoa (módulo Delegações). Fica no topo, junto
+          das outras coisas com PRAZO, e some sozinho quando não há nenhuma —
+          a maioria das pessoas nunca vai ver este card. */}
+      <MinhasDemandasCard />
 
       {/* Card de Ponto Eletrônico PWA / Mobile — só para quem o RH já
           liberou (Colaborador.pontoLiberado). Esconder aqui é conveniência de
