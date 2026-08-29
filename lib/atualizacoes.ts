@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.139.0",
+    data: "29/08/2026",
+    horario: "19:55",
+    titulo: "Delegações: pesquisa de pessoas para montar a lista de favoritos",
+    itens: [
+      "Em \"Escolher favoritos\", agora há um campo de pesquisa pelo nome — com acento ou sem. Antes era preciso rolar a lista inteira do quadro para achar alguém.",
+      "Os favoritos ficam fixados no topo da lista do gerenciador, fáceis de desmarcar; o resto do quadro aparece conforme você digita.",
+      "Os atalhos de favoritos também aparecem no formulário de preencher à mão, acima do campo Responsável — um toque escolhe a pessoa.",
+    ],
+  },
+  {
     versao: "1.138.0",
     data: "29/08/2026",
     horario: "19:10",

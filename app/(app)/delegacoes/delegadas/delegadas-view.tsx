@@ -57,6 +57,16 @@ function rotuloPessoa(u: UsuarioOpcao): string {
   return `${estrela}${tipo} ${u.nome}`;
 }
 
+// Mesma normalização do slug de vaga (lib/constants-ats.ts): NFD separa o
+// acento e \p{M} o derruba — "Á" casa com "a". Sem isto, pesquisar "jose" não
+// acha "José", e metade do quadro tem acento no nome.
+function semAcento(s: string): string {
+  return s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+}
+
+/** Quantas pessoas a pesquisa mostra por vez — o resto pede mais letras. */
+const MAX_RESULTADOS_BUSCA = 30;
+
 /** O formulário nasce com estes valores — os mesmos padrões da spec. */
 const FORM_VAZIO: Record<string, string> = {
   titulo: "",
@@ -93,6 +103,7 @@ export function DelegadasView({
   // Enquanto o formulário não existe, o responsável mora no campo da IA.
   const [responsavelIA, setResponsavelIA] = useState("");
   const [editandoFavoritos, setEditandoFavoritos] = useState(false);
+  const [buscaFavoritos, setBuscaFavoritos] = useState("");
 
   function campo(nome: string) {
     return {
@@ -177,6 +188,30 @@ export function DelegadasView({
     });
   }
 
+  /** Uma linha do gerenciador — nome à esquerda, estrela à direita. */
+  function linhaFavorito(u: UsuarioOpcao) {
+    return (
+      <div key={u.id} className="flex items-center justify-between gap-2 px-3 py-1.5">
+        <span className="truncate text-sm">
+          <span className="text-xs text-muted-foreground">
+            {u.tipo === "USUARIO" ? "Usuário" : "Colaborador"}
+          </span>{" "}
+          {u.nome}
+        </span>
+        <button
+          type="button"
+          disabled={pendente}
+          onClick={() => favoritar(u)}
+          aria-pressed={u.favorito}
+          title={u.favorito ? "Tirar dos favoritos" : "Pôr nos favoritos"}
+          className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+        >
+          <Star className={cn("size-4", u.favorito && "fill-amber-400 text-amber-500")} />
+        </button>
+      </div>
+    );
+  }
+
   function salvar(enviar: boolean) {
     if (!form) return;
     setErro(null);
@@ -220,6 +255,13 @@ export function DelegadasView({
   }
 
   const favoritos = usuarios.filter((u) => u.favorito);
+  // A pesquisa do gerenciador: os favoritos ficam FIXADOS no topo (à mão para
+  // desmarcar) e o resto do quadro — centenas de pessoas — só aparece pelo que
+  // se digita. Antes a lista inteira era o único caminho até a estrela.
+  const buscaLimpa = semAcento(buscaFavoritos.trim());
+  const encontrados = buscaLimpa
+    ? usuarios.filter((u) => !u.favorito && semAcento(u.nome).includes(buscaLimpa))
+    : [];
   const responsavelEscolhido = usuarios.find((u) => u.id === (form?.responsavelId ?? responsavelIA));
   const aguardandoMeuAceite = demandas.filter((d) => d.status === "ENTREGUE");
   const rascunhos = demandas.filter((d) => d.status === "RASCUNHO");
@@ -268,7 +310,10 @@ export function DelegadasView({
                 <button
                   type="button"
                   className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-                  onClick={() => setEditandoFavoritos((v) => !v)}
+                  onClick={() => {
+                    setBuscaFavoritos("");
+                    setEditandoFavoritos((v) => !v);
+                  }}
                 >
                   {editandoFavoritos ? "Concluir" : "Escolher favoritos"}
                 </button>
@@ -297,33 +342,41 @@ export function DelegadasView({
                 </div>
               )}
 
-              {/* O gerenciador: a lista de quem pode receber demanda, com a
-                  estrela. Fica escondido até alguém pedir — a tela do dia a dia
-                  é a de delegar, não a de configurar. */}
+              {/* O gerenciador: pesquisa em cima, favoritos fixados no topo da
+                  lista, resultados embaixo. Fica escondido até alguém pedir — a
+                  tela do dia a dia é a de delegar, não a de configurar. */}
               {editandoFavoritos && (
-                <div className="mb-2 divide-y rounded-md border border-border">
-                  {usuarios.map((u) => (
-                    <div key={u.id} className="flex items-center justify-between gap-2 px-3 py-1.5">
-                      <span className="truncate text-sm">
-                        <span className="text-xs text-muted-foreground">
-                          {u.tipo === "USUARIO" ? "Usuário" : "Colaborador"}
-                        </span>{" "}
-                        {u.nome}
-                      </span>
-                      <button
-                        type="button"
-                        disabled={pendente}
-                        onClick={() => favoritar(u)}
-                        aria-pressed={u.favorito}
-                        title={u.favorito ? "Tirar dos favoritos" : "Pôr nos favoritos"}
-                        className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-                      >
-                        <Star
-                          className={cn("size-4", u.favorito && "fill-amber-400 text-amber-500")}
-                        />
-                      </button>
-                    </div>
-                  ))}
+                <div className="mb-2 rounded-md border border-border">
+                  <div className="border-b border-border p-2">
+                    <input
+                      className={CAMPO}
+                      autoFocus
+                      placeholder={`Pesquisar pelo nome — ${usuarios.length} pessoas`}
+                      value={buscaFavoritos}
+                      onChange={(e) => setBuscaFavoritos(e.target.value)}
+                    />
+                  </div>
+                  <div className="max-h-72 divide-y overflow-y-auto">
+                    {favoritos.map((u) => linhaFavorito(u))}
+                    {encontrados.slice(0, MAX_RESULTADOS_BUSCA).map((u) => linhaFavorito(u))}
+                  </div>
+                  {encontrados.length > MAX_RESULTADOS_BUSCA && (
+                    <p className="border-t border-border px-3 py-2 text-xs text-muted-foreground">
+                      Mostrando {MAX_RESULTADOS_BUSCA} de {encontrados.length} — escreva mais
+                      uma parte do nome para afunilar.
+                    </p>
+                  )}
+                  {buscaLimpa && encontrados.length === 0 && (
+                    <p className="px-3 py-3 text-xs text-muted-foreground">
+                      Ninguém com esse nome fora dos favoritos.
+                    </p>
+                  )}
+                  {!buscaLimpa && favoritos.length === 0 && usuarios.length > 0 && (
+                    <p className="px-3 py-3 text-xs text-muted-foreground">
+                      Nenhum favorito ainda. Pesquise pelo nome e toque na estrela — a pessoa
+                      passa a aparecer como atalho na hora de delegar.
+                    </p>
+                  )}
                   {usuarios.length === 0 && (
                     <p className="px-3 py-3 text-xs text-muted-foreground">
                       Ninguém além de você alcança o módulo ainda. Libere as pessoas em
@@ -421,6 +474,27 @@ export function DelegadasView({
 
             <label className="sm:col-span-2">
               <span className="mb-1 block text-xs text-muted-foreground">Responsável</span>
+              {/* Os mesmos atalhos do caminho da IA: quem preenche à mão também
+                  delega para as mesmas pessoas o dia inteiro. */}
+              {favoritos.length > 0 && (
+                <div className="mb-2 flex flex-wrap gap-1.5">
+                  {favoritos.map((u) => (
+                    <button
+                      key={u.id}
+                      type="button"
+                      onClick={() => setForm((f) => (f ? { ...f, responsavelId: u.id } : f))}
+                      className={cn(
+                        "rounded-full border px-2.5 py-1 text-xs transition-colors",
+                        form.responsavelId === u.id
+                          ? "border-primary bg-primary/10 font-medium text-primary dark:text-foreground"
+                          : "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
+                      )}
+                    >
+                      {u.nome}
+                    </button>
+                  ))}
+                </div>
+              )}
               <select className={CAMPO} required {...campo("responsavelId")}>
                 <option value="">Escolha uma pessoa</option>
                 {usuarios.map((u) => (

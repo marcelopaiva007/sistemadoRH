@@ -124,9 +124,12 @@ export default async function DelegadasPage() {
         // FAVORITOS PRIMEIRO — pedido da Direção em 29/08/2026. Quem delega
         // dezenas de coisas por dia manda para as mesmas pessoas; deixá-las no
         // meio de 235 nomes em ordem alfabética obriga a procurar toda vez.
-        // Dentro de cada grupo, ordem alfabética.
+        // Dentro de cada grupo (favorito ou não), USUÁRIO antes de
+        // COLABORADOR — pedido da Direção em 29/08/2026: quem opera o sistema
+        // primeiro, quem responde só pelo portal depois. Por fim, alfabética.
         .sort((a, b) => {
           if (a.favorito !== b.favorito) return a.favorito ? -1 : 1;
+          if (a.tipo !== b.tipo) return a.tipo === "USUARIO" ? -1 : 1;
           return a.nome.localeCompare(b.nome, "pt-BR");
         })}
       marcas={marcas}
