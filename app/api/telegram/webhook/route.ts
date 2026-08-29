@@ -22,10 +22,24 @@ import { conferirNascimento, extrairCpfEData } from "@/lib/telegram-identidade";
 import { sendTelegramMessage, telegramWebhookSecret } from "@/lib/telegram";
 import { criarLinkDeAcesso, MINUTOS_VALIDADE_LINK } from "@/lib/portal-auth";
 import { sufixoTelefone } from "@/lib/telefone";
+import {
+  tratarCallbackDelegacoes,
+  tratarTextoDelegacoes,
+} from "@/lib/delegacoes/telegram-webhook";
 
 export const runtime = "nodejs";
 
 type TelegramUpdate = {
+  /**
+   * O toque num botão inline. Até 29/08/2026 o webhook não lia este campo — os
+   * botões do módulo Delegações não fariam nada. Extensão aditiva: o fluxo de
+   * `message` abaixo continua idêntico.
+   */
+  callback_query?: {
+    id?: string;
+    data?: string;
+    message?: { message_id?: number; chat?: { id?: number | string } };
+  };
   message?: {
     chat?: { id?: number | string };
     from?: { id?: number | string; first_name?: string };
@@ -291,6 +305,27 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
+  // 0) Toque em botão inline (módulo Delegações). Vem ANTES do fluxo de
+  // mensagem porque é outro tipo de update — `update.message` é indefinido
+  // aqui, e sem este ramo o clique morria em silêncio.
+  const callback = update.callback_query;
+  if (callback?.id && callback.data) {
+    const chatDoBotao = callback.message?.chat?.id;
+    if (chatDoBotao !== undefined) {
+      try {
+        await tratarCallbackDelegacoes({
+          callbackQueryId: callback.id,
+          chatId: String(chatDoBotao),
+          messageId: callback.message?.message_id,
+          data: callback.data,
+        });
+      } catch (e) {
+        console.error("telegram-webhook (callback delegacoes):", e);
+      }
+    }
+    return NextResponse.json({ ok: true });
+  }
+
   const message = update.message;
   const chatIdRaw = message?.chat?.id;
   if (!message || chatIdRaw === undefined) return NextResponse.json({ ok: true });
@@ -338,6 +373,17 @@ export async function POST(req: NextRequest) {
     }
 
     const texto = (message.text || "").trim();
+
+    // 1.5) Texto que responde a uma DEMANDA em conversa (módulo Delegações).
+    // Fica antes do resto e devolve `tratado: false` quando não há demanda
+    // aberta com esta pessoa — é o que preserva, intacto, o caminho de quem
+    // manda /start, /portal ou o CPF.
+    try {
+      const delegacoes = await tratarTextoDelegacoes({ chatId, texto });
+      if (delegacoes.tratado) return NextResponse.json({ ok: true });
+    } catch (e) {
+      console.error("telegram-webhook (texto delegacoes):", e);
+    }
 
     // 2) /portal -> link de acesso ao portal do colaborador.
     if (texto.startsWith("/portal")) {

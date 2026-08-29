@@ -53,3 +53,57 @@ export async function telegramWebhookSecret(): Promise<string | null> {
   if (!token) return null;
   return createHash("sha256").update(`rh-telegram-webhook:${token}`).digest("hex").slice(0, 48);
 }
+
+/**
+ * Responde ao clique de um botão inline. O Telegram EXIGE esta chamada: sem
+ * ela o botão fica com a ampulheta girando por ~30s no celular da pessoa,
+ * mesmo que a ação já tenha acontecido do lado de cá.
+ *
+ * `texto` aparece como um aviso curto no topo da conversa (ou como alerta, se
+ * `alerta`). Falha aqui é registrada e engolida: o clique já foi processado, e
+ * derrubar a resposta ao webhook faria o Telegram reenviar o mesmo update —
+ * ou seja, aplicar a ação duas vezes.
+ */
+export async function answerCallbackQuery(
+  callbackQueryId: string,
+  texto?: string,
+  alerta = false,
+): Promise<void> {
+  const token = await segredo(CHAVE_TELEGRAM);
+  if (!token) return;
+  try {
+    await fetch(`https://api.telegram.org/bot${token}/answerCallbackQuery`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        callback_query_id: callbackQueryId,
+        ...(texto ? { text: texto.slice(0, 200) } : {}),
+        show_alert: alerta,
+      }),
+    });
+  } catch {
+    console.error("telegram: falha ao responder callback query");
+  }
+}
+
+/**
+ * Tira os botões de uma mensagem já enviada — usado depois que a pessoa
+ * escolheu. Sem isto os botões continuam clicáveis para sempre, e um toque no
+ * "✅ Aceito" de três semanas atrás viraria erro de estado na cara dela.
+ *
+ * Silencioso de propósito: se a mensagem foi apagada ou é antiga demais para
+ * editar, não há o que fazer nem o que contar a ninguém.
+ */
+export async function removerBotoes(chatId: string, messageId: number): Promise<void> {
+  const token = await segredo(CHAVE_TELEGRAM);
+  if (!token) return;
+  try {
+    await fetch(`https://api.telegram.org/bot${token}/editMessageReplyMarkup`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, message_id: messageId, reply_markup: { inline_keyboard: [] } }),
+    });
+  } catch {
+    /* mensagem antiga ou apagada: não há o que consertar */
+  }
+}

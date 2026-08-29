@@ -112,6 +112,7 @@ export function DemandaDetalhe({
   const router = useRouter();
   const [painel, setPainel] = useState<Painel>(null);
   const [erro, setErro] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
   const [campos, setCampos] = useState<Record<string, string>>({});
   const [pendente, iniciar] = useTransition();
 
@@ -130,14 +131,21 @@ export function DemandaDetalhe({
   }
 
   /** Toda ação passa por aqui: mesmo tratamento de erro, mesmo refresh. */
-  function agir(fn: () => Promise<{ ok: true } | { ok: false; error: string }>) {
+  function agir(
+    fn: () => Promise<{ ok: true; aviso?: string } | { ok: false; error: string }>,
+  ) {
     setErro(null);
+    setAviso(null);
     iniciar(async () => {
       const r = await fn();
       if (!r.ok) {
         setErro(r.error);
         return;
       }
+      // Sucesso COM ressalva: a ação aconteceu, mas algo secundário não (o
+      // aviso pelo Telegram). Esconder isso faria a pessoa achar que o
+      // responsável foi notificado quando não foi.
+      if (r.aviso) setAviso(r.aviso);
       setPainel(null);
       setCampos({});
       router.refresh();
@@ -235,6 +243,11 @@ export function DemandaDetalhe({
       {erro && (
         <p className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
           {erro}
+        </p>
+      )}
+      {aviso && (
+        <p className="rounded-md border border-amber-500/40 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+          {aviso}
         </p>
       )}
 

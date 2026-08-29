@@ -26,6 +26,18 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.138.0",
+    data: "29/08/2026",
+    horario: "19:10",
+    titulo: "Delegações no Telegram: a demanda chega no celular, e dá para responder por lá",
+    itens: [
+      "Ao delegar, a pessoa recebe a demanda no Telegram — com o prazo e o critério de aceite junto, que é o que ela está aceitando — e três botões: Aceito, Repactuar prazo e Preciso de contexto.",
+      "Depois do aceite, ela responde sem abrir nada: escrever no bot vira andamento registrado; \"15/09 fornecedor atrasou\" repactua o prazo com motivo (o prazo combinado fica guardado); e \"ENTREGA\" seguido da prova registra a entrega.",
+      "Os botões de cobrança — No prazo, Em risco, Travado e Entregar — já funcionam. O disparo automático deles, no horário certo, é a próxima entrega.",
+      "Quem não tem Telegram vinculado continua respondendo pelo Portal do RH; e quem delega é avisado na hora quando a mensagem não pôde ser entregue.",
+    ],
+  },
+  {
     versao: "1.137.1",
     data: "29/08/2026",
     horario: "18:20",

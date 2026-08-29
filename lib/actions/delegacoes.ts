@@ -7,6 +7,7 @@ import { registrarAuditoria } from "@/lib/audit";
 import { podeVerDemanda } from "@/lib/delegacoes/consultas";
 import { sistemasPermitidos } from "@/lib/permissoes/efetivas";
 import { garantirAcessoDoColaborador, PAPEL_PORTAL } from "@/lib/delegacoes/acesso-colaborador";
+import { avisarDemandaEnviada } from "@/lib/delegacoes/telegram";
 import type { ActionResult } from "@/lib/constants";
 import {
   EVENTO_DA_TRANSICAO,
@@ -265,11 +266,22 @@ export async function criarDemanda(
     resumo: `Delegou "${input.titulo.trim()}" para ${responsavel.nome}`,
   });
 
+  // O aviso pelo Telegram sai DEPOIS de a demanda estar gravada, e a falha
+  // dele não desfaz nada: a demanda existe, vale no painel, e o motivo de não
+  // ter chegado ao celular volta para a tela em vez de virar exceção.
+  let avisoEnvio: string | undefined;
+  if (enviar) {
+    const aviso = await avisarDemandaEnviada(demanda.id);
+    if (!aviso.ok) avisoEnvio = `Demanda criada, mas não avisei pelo Telegram: ${aviso.motivo}`;
+  }
+
   revalidarModulo();
   return {
     ok: true,
     id: demanda.id,
-    avisoTelegram: responsavel.colaborador?.telegramChatId
+    avisoTelegram: avisoEnvio
+      ? avisoEnvio
+      : responsavel.colaborador?.telegramChatId
       ? undefined
       : `${responsavel.nome} ainda não vinculou o Telegram ao sistema. Quando a cobrança automática entrar no ar, ela não vai alcançar essa pessoa por lá — o vínculo é feito por ela mesma, enviando /start ao bot do RH.`,
   };
@@ -353,7 +365,9 @@ const RESUMO_AUDITORIA: Record<Parameters<typeof validarTransicao>[0], string> =
 };
 
 /** RASCUNHO → ENVIADA, pelo solicitante. Revalida critério e prazo na porta. */
-export async function enviarDemanda(input: { id: string }): Promise<ActionResult> {
+export async function enviarDemanda(
+  input: { id: string },
+): Promise<ActionResult & { aviso?: string }> {
   // A guarda vem ANTES da leitura, e não só antes da escrita: consultar o
   // banco para quem ainda não provou quem é já é uso indevido, mesmo quando o
   // resultado não volta para a tela.
@@ -361,12 +375,23 @@ export async function enviarDemanda(input: { id: string }): Promise<ActionResult
   if (!ator) return { ok: false, error: ERRO_SESSAO };
   const demanda = await carregarDemanda(input.id, ator);
   if (!demanda) return { ok: false, error: ERRO_NAO_ENCONTRADA };
-  return executarTransicao({
+  const r = await executarTransicao({
     demandaId: input.id,
     transicao: "ENVIAR",
     dadosValidacao: { criterioAceite: demanda.criterioAceite, prazo: demanda.prazo },
     colunas: { status: "ENVIADA", enviadaEm: new Date() },
   });
+  if (!r.ok) return r;
+  // Mesmo contrato de `criarDemanda`: avisa depois de gravar, e a falha do
+  // aviso NÃO vira erro. A demanda foi enviada de verdade — devolver `ok:
+  // false` faria a tela convidar a pessoa a tentar de novo, e a segunda
+  // tentativa seria recusada pela máquina ("já foi enviada"), deixando-a com
+  // a impressão de que nada funcionou. O que não chegou ao celular volta como
+  // AVISO, que é o que de fato aconteceu.
+  const aviso = await avisarDemandaEnviada(input.id);
+  return aviso.ok
+    ? { ok: true }
+    : { ok: true, aviso: `Enviada, mas não avisei pelo Telegram: ${aviso.motivo}` };
 }
 
 /** ENVIADA → ACEITA — só o responsável; registra `aceiteEm` (regra 5). */
