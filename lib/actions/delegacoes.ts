@@ -8,6 +8,7 @@ import { podeVerDemanda } from "@/lib/delegacoes/consultas";
 import { sistemasPermitidos } from "@/lib/permissoes/efetivas";
 import { garantirAcessoDoColaborador, PAPEL_PORTAL } from "@/lib/delegacoes/acesso-colaborador";
 import { avisarDemandaEnviada } from "@/lib/delegacoes/telegram";
+import { avisarDemandaEnviadaPorEmail } from "@/lib/delegacoes/email";
 import type { ActionResult } from "@/lib/constants";
 import {
   EVENTO_DA_TRANSICAO,
@@ -266,24 +267,29 @@ export async function criarDemanda(
     resumo: `Delegou "${input.titulo.trim()}" para ${responsavel.nome}`,
   });
 
-  // O aviso pelo Telegram sai DEPOIS de a demanda estar gravada, e a falha
-  // dele não desfaz nada: a demanda existe, vale no painel, e o motivo de não
-  // ter chegado ao celular volta para a tela em vez de virar exceção.
-  let avisoEnvio: string | undefined;
+  // Os avisos por Telegram E por e-mail saem DEPOIS de a demanda estar
+  // gravada, e a falha de um (ou dos dois) não desfaz nada: a demanda existe,
+  // vale no painel, e o que não chegou volta para a tela em vez de virar
+  // exceção. Os dois canais são tentados sempre — não é fallback um do outro.
+  const avisos: string[] = [];
   if (enviar) {
-    const aviso = await avisarDemandaEnviada(demanda.id);
-    if (!aviso.ok) avisoEnvio = `Demanda criada, mas não avisei pelo Telegram: ${aviso.motivo}`;
+    const [aviso, avisoEmail] = await Promise.all([
+      avisarDemandaEnviada(demanda.id),
+      avisarDemandaEnviadaPorEmail(demanda.id),
+    ]);
+    if (!aviso.ok) avisos.push(`não avisei pelo Telegram: ${aviso.motivo}`);
+    if (!avisoEmail.ok) avisos.push(`não avisei por e-mail: ${avisoEmail.motivo}`);
+  } else if (!responsavel.colaborador?.telegramChatId) {
+    avisos.push(
+      `${responsavel.nome} ainda não vinculou o Telegram ao sistema — o vínculo é feito por ela mesma, enviando /start ao bot do RH.`,
+    );
   }
 
   revalidarModulo();
   return {
     ok: true,
     id: demanda.id,
-    avisoTelegram: avisoEnvio
-      ? avisoEnvio
-      : responsavel.colaborador?.telegramChatId
-      ? undefined
-      : `${responsavel.nome} ainda não vinculou o Telegram ao sistema. Quando a cobrança automática entrar no ar, ela não vai alcançar essa pessoa por lá — o vínculo é feito por ela mesma, enviando /start ao bot do RH.`,
+    avisoTelegram: avisos.length > 0 ? `Demanda criada, mas ${avisos.join("; ")}.` : undefined,
   };
 }
 
@@ -386,12 +392,18 @@ export async function enviarDemanda(
   // aviso NÃO vira erro. A demanda foi enviada de verdade — devolver `ok:
   // false` faria a tela convidar a pessoa a tentar de novo, e a segunda
   // tentativa seria recusada pela máquina ("já foi enviada"), deixando-a com
-  // a impressão de que nada funcionou. O que não chegou ao celular volta como
-  // AVISO, que é o que de fato aconteceu.
-  const aviso = await avisarDemandaEnviada(input.id);
-  return aviso.ok
-    ? { ok: true }
-    : { ok: true, aviso: `Enviada, mas não avisei pelo Telegram: ${aviso.motivo}` };
+  // a impressão de que nada funcionou. O que não chegou volta como AVISO, que
+  // é o que de fato aconteceu — pelos DOIS canais, sempre tentados.
+  const [aviso, avisoEmail] = await Promise.all([
+    avisarDemandaEnviada(input.id),
+    avisarDemandaEnviadaPorEmail(input.id),
+  ]);
+  const problemas: string[] = [];
+  if (!aviso.ok) problemas.push(`não avisei pelo Telegram: ${aviso.motivo}`);
+  if (!avisoEmail.ok) problemas.push(`não avisei por e-mail: ${avisoEmail.motivo}`);
+  return problemas.length > 0
+    ? { ok: true, aviso: `Enviada, mas ${problemas.join("; ")}.` }
+    : { ok: true };
 }
 
 /** ENVIADA → ACEITA — só o responsável; registra `aceiteEm` (regra 5). */

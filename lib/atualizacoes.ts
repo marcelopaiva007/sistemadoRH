@@ -26,6 +26,19 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.141.0",
+    data: "29/08/2026",
+    horario: "21:40",
+    titulo: "Delegações: a demanda chega por e-mail também, e a cobrança automática entra no ar",
+    itens: [
+      "Toda demanda enviada agora chega por Telegram E por e-mail ao responsável — os dois canais são tentados sempre, não é um substituindo o outro.",
+      "Motor de cobrança automática (PR 5): o sistema passa a cobrar sozinho, no horário certo, sem precisar de ninguém empurrar. A régua se adapta ao PRAZO de cada demanda — não é um horário fixo, é uma porcentagem do tempo entre o envio e o prazo (40/70/90% para crítica, 60/90% para alta, 75% para normal), então uma demanda de 2 dias e uma de 20 dias cobram nas proporções certas, em momentos diferentes.",
+      "Depois do prazo vencido, a cobrança escala por 4 dias (D+0 a D+3): cresce o tom, some Telegram e e-mail juntos, e nas demandas críticas a Direção é avisada diretamente a partir do segundo dia de atraso, com o painel marcando vermelho.",
+      "Regra do aceite (24h para crítica, 48h para alta, 72h para normal) também passa a cobrar sozinha: sem aceite dentro do prazo, o sistema lembra o responsável e liga o sinal de risco.",
+      "Uma repactuação de prazo desloca a régua inteira automaticamente — não precisa reconfigurar nada, os próximos toques recalculam sozinhos a partir do novo prazo.",
+    ],
+  },
+  {
     versao: "1.140.1",
     data: "29/08/2026",
     horario: "20:35",
