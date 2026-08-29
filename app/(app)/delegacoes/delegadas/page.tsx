@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { requireDelegacoesAccess } from "@/lib/delegacoes-auth-guard";
 import { paraLinha, SELECT_LISTA } from "@/lib/delegacoes/consultas";
 import { STATUS_TERMINAIS } from "@/lib/delegacoes/estados";
-import { sistemasPermitidos } from "@/lib/permissoes/efetivas";
+import { quemAlcancaSistema } from "@/lib/permissoes/efetivas";
 import { DelegadasView } from "./delegadas-view";
 
 /**
@@ -16,7 +16,7 @@ import { DelegadasView } from "./delegadas-view";
 export default async function DelegadasPage() {
   const usuario = await requireDelegacoesAccess();
 
-  const [linhas, usuarios, marcas] = await Promise.all([
+  const [linhas, usuarios, marcas, colaboradores, favoritos] = await Promise.all([
     prisma.demanda.findMany({
       // Aqui NÃO se usa APENAS_ATIVAS: o RASCUNHO é meu e precisa aparecer,
       // senão salvar rascunho grava algo que nenhuma tela lista depois — e o
@@ -46,6 +46,19 @@ export default async function DelegadasPage() {
       select: { id: true, nome: true },
       orderBy: { nome: "asc" },
     }),
+    // Funcionários da folha: qualquer um pode receber demanda (decisão da
+    // Direção em 29/08/2026). Quem já é usuário do sistema é filtrado abaixo
+    // para não aparecer duas vezes na mesma lista.
+    prisma.colaborador.findMany({
+      where: { ativo: true },
+      select: { id: true, nome: true, telegramChatId: true, usuario: { select: { id: true } } },
+      orderBy: { nome: "asc" },
+    }),
+    // A lista de favoritos é de cada um — a de quem está logado.
+    prisma.delegacaoFavorito.findMany({
+      where: { userId: usuario.id },
+      select: { favoritoId: true },
+    }),
   ]);
 
   const demandas = linhas.map((d) => paraLinha(d));
@@ -57,20 +70,37 @@ export default async function DelegadasPage() {
   // mesmo cuidado que a Central de Pendências documenta ao montar a lista de
   // responsáveis dela. A pergunta é feita a `sistemasPermitidos`, a mesma
   // fonte da guarda — não a uma lista de papéis copiada, que divergiria.
-  const alcancam = await Promise.all(
-    usuarios.map(async (u) => (await sistemasPermitidos(u)).includes("delegacoes")),
-  );
+  // Uma consulta para todos, não uma por pessoa: ver `quemAlcancaSistema`.
+  const alcancam = await quemAlcancaSistema(usuarios, "delegacoes");
+  const favoritoIds = new Set(favoritos.map((f) => f.favoritoId));
 
   return (
     <DelegadasView
       demandas={demandas}
-      usuarios={usuarios
-        .filter((_, i) => alcancam[i])
-        .map((u) => ({
-          id: u.id,
-          nome: u.nome,
-          temTelegram: !!u.colaborador?.telegramChatId,
-        }))}
+      usuarios={[
+        // Quem opera o sistema: recebe demanda e responde nas telas normais.
+        ...usuarios
+          .filter((u) => alcancam.has(u.id))
+          .map((u) => ({
+            tipo: "USUARIO" as const,
+            id: u.id,
+            nome: u.nome,
+            temTelegram: !!u.colaborador?.telegramChatId,
+            favorito: favoritoIds.has(u.id),
+          })),
+        // Quem só tem ficha: responde pelo PORTAL. O acesso é criado na hora
+        // da primeira demanda — por isso o id aqui é o da FICHA, não de um
+        // usuário que ainda não existe.
+        ...colaboradores
+          .filter((c) => !c.usuario)
+          .map((c) => ({
+            tipo: "COLABORADOR" as const,
+            id: c.id,
+            nome: c.nome,
+            temTelegram: !!c.telegramChatId,
+            favorito: false,
+          })),
+      ].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"))}
       marcas={marcas}
     />
   );

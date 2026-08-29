@@ -26,6 +26,19 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.137.0",
+    data: "29/08/2026",
+    horario: "18:20",
+    titulo: "Delegar virou duas coisas: para quem, e o que você precisa",
+    itens: [
+      "Agora dá para delegar a QUALQUER pessoa: quem usa o sistema recebe nas telas de Delegações; quem não tem login recebe no Portal do Colaborador — o mesmo que já usa para bater ponto —, onde vê o que foi pedido, o prazo e o critério de aceite, e pode aceitar, dar notícia e entregar. Sem senha e sem cadastro novo: a entrada continua sendo pelo bot do Telegram.",
+      "Delegar não exige mais preencher formulário. Você escolhe a pessoa, escreve o pedido como falaria (\"preciso do orçamento do gerador da torre 12, pelo menos três fornecedores, até sexta\") e a IA monta a demanda inteira: título, critério de aceite, prazo, criticidade, tipo de evidência e frequência de retorno.",
+      "Antes de virar demanda, a tela mostra o que a IA ASSUMIU por conta própria — por exemplo, \"prazo: você não disse até quando, assumi 5 dias\". Você confere e delega num clique, ou ajusta o que quiser. O combinado é seu, então ele passa pelos seus olhos.",
+      "Favoritos: marque com a estrela as pessoas para quem você delega sempre e elas passam a aparecer como atalho, na frente da lista, na hora de criar a demanda.",
+      "Quem preferir continuar preenchendo os campos à mão tem o botão \"Preencher à mão\", com o formulário completo de antes.",
+    ],
+  },
+  {
     versao: "1.136.0",
     data: "29/08/2026",
     horario: "16:40",

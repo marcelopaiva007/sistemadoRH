@@ -95,6 +95,11 @@ model User {
   // Controle de acesso fino (Onda 1): perfis atribuídos a este usuário.
   perfis           UserPerfil[]
 
+  // Módulo Delegações: as pessoas que este login marcou como favoritas para
+  // delegar, e as listas em que ele aparece como favorito de alguém.
+  favoritosDelegacao   DelegacaoFavorito[] @relation("FavoritosDeDelegacao")
+  favoritadoPorDelegacao DelegacaoFavorito[] @relation("FavoritadoParaDelegacao")
+
   // Módulo Delegações: demandas em que este login é quem pediu / quem faz.
   // FK de verdade (não snapshot): o motor de cobrança PRECISA de um dono vivo
   // para cobrar — e usuário aqui é desativado (`ativo=false`), nunca apagado.
@@ -3483,5 +3488,36 @@ model DemandaConfig {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@schema("rh")
+}
+
+/// Os FAVORITOS de quem delega: as pessoas que aparecem na frente, com um
+/// clique, na hora de criar a demanda.
+///
+/// Pedido da Direção em 29/08/2026, e a razão é o uso real: quem delega
+/// dezenas de coisas por dia manda para as MESMAS cinco ou dez pessoas. Uma
+/// lista alfabética de todos os usuários faz procurar toda vez; a lista dos
+/// diretos resolve em um toque — e é exatamente a turma do piloto.
+///
+/// É preferência de tela, não permissão: favoritar alguém não concede nada, e
+/// quem não é favorito continua alcançável pelo seletor completo.
+model DelegacaoFavorito {
+  id String @id @default(cuid())
+
+  /// Quem favoritou (a lista é de cada um).
+  userId String
+  user   User   @relation("FavoritosDeDelegacao", fields: [userId], references: [id], onDelete: Cascade)
+
+  /// A pessoa favoritada.
+  favoritoId String
+  favorito   User   @relation("FavoritadoParaDelegacao", fields: [favoritoId], references: [id], onDelete: Cascade)
+
+  /// Ordem de exibição — hoje sempre 0 (ordenamos por nome). Existe para o dia
+  /// em que a Direção quiser arrastar a lista, sem migration nova.
+  ordem     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, favoritoId])
+  @@index([userId])
   @@schema("rh")
 }

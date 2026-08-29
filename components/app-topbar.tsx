@@ -18,6 +18,9 @@ const ROLE_LABELS: Record<string, string> = {
   DIRETORIA: "Diretoria/Gestão",
   RH_MANAGER: "RH",
   GESTOR_SETOR: "Gestor de Setor",
+  // Acesso de portal (funcionário sem login do sistema). Não navega por aqui —
+  // a porta dele é /portal —, mas o rótulo existe para não cair no fallback.
+  COLABORADOR: "Colaborador",
 };
 
 /**
@@ -88,7 +91,12 @@ export function AppTopbar({
   sistemasPermitidos: string[];
 }) {
   const pathname = usePathname();
-  const items = navByRole[role] ?? diretoriaNav;
+  // Papel desconhecido não pode herdar o menu da DIRETORIA. O fallback antigo
+  // (`?? diretoriaNav`) falhava ABERTO: qualquer papel novo — e o acesso de
+  // portal é um — passaria a ver a navegação de diretor. As páginas têm guarda
+  // própria e barrariam a entrada, mas mostrar caminho que não abre é ensinar
+  // a pessoa a bater na porta trancada. Sem menu é o comportamento honesto.
+  const items = navByRole[role] ?? [];
   const itensGlobais = globalNavByRole[role] ?? [];
 
   return (
@@ -216,7 +224,7 @@ export function AppTopbar({
             <div className="hidden max-w-40 text-right sm:block" title={nome}>
               <p className="truncate text-sm font-medium leading-tight text-foreground">{nome}</p>
               <p className="truncate text-[11px] leading-tight text-muted-foreground font-medium">
-                {ROLE_LABELS[role] ?? "Diretoria/Gestão"} · <span className="font-mono text-[10px] text-muted-foreground/60">{versao}</span>
+                {ROLE_LABELS[role] ?? "Acesso restrito"} · <span className="font-mono text-[10px] text-muted-foreground/60">{versao}</span>
               </p>
             </div>
             <KeyRound className="size-4 text-muted-foreground" />

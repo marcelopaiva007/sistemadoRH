@@ -3,13 +3,19 @@ import { requireGestaoUsuarios } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { AjudaDaTela } from "@/components/ajuda-da-tela";
 import { PERFIS_SEMENTE } from "@/lib/permissoes/catalogo";
+import { PAPEL_PORTAL } from "@/lib/delegacoes/acesso-colaborador";
 import { UsuariosTable } from "./usuarios-table";
 
 export default async function UsuariosPage() {
   const admin = await requireGestaoUsuarios();
 
   const [usuarios, empresas, setores, marcas, perfis] = await Promise.all([
+      // Acessos de portal (funcionários sem login do sistema, criados pelo
+      // módulo Delegações) ficam FORA desta lista: eles não operam o sistema,
+      // e com algumas centenas deles a tela viraria uma lista de gente que
+      // nunca vai entrar aqui. Ver lib/delegacoes/acesso-colaborador.ts.
     prisma.user.findMany({
+      where: { role: { not: PAPEL_PORTAL } },
       orderBy: [{ role: "asc" }, { nome: "asc" }],
       include: {
         empresas: {
