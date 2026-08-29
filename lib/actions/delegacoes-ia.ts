@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requireDelegacoesAccess } from "@/lib/delegacoes-auth-guard";
 import { CHAVE_ANTHROPIC, segredo } from "@/lib/segredos";
 import { sistemasPermitidos } from "@/lib/permissoes/efetivas";
+import { PAPEL_PORTAL } from "@/lib/delegacoes/acesso-colaborador";
 import {
   ESQUEMA_DEMANDA,
   montarSistema,
@@ -46,7 +47,16 @@ export type ResultadoRedacao =
  * `criarDemanda`, na hora de gravar.
  */
 export async function rascunharComIA(input: {
+  /** Id de `User` OU de `Colaborador` — ver `idEhFicha`. */
   responsavelId: string;
+  /**
+   * true quando o id é de uma FICHA (funcionário que ainda não recebeu demanda
+   * e por isso não tem acesso de portal). Aqui NÃO se cria acesso nenhum: a IA
+   * só precisa do NOME para o texto sair na pessoa certa, e criar usuário para
+   * um rascunho que pode ser descartado deixaria lixo no cadastro. Quem cria o
+   * acesso é `criarDemanda`, na hora de gravar.
+   */
+  idEhFicha?: boolean;
   contexto: string;
 }): Promise<ResultadoRedacao> {
   await requireDelegacoesAccess();
@@ -64,16 +74,32 @@ export async function rascunharComIA(input: {
     };
   }
 
-  const responsavel = await prisma.user.findUnique({
-    where: { id: input.responsavelId },
-    select: { id: true, nome: true, ativo: true, role: true },
-  });
+  // O id pode ser de FICHA (funcionário que nunca recebeu demanda) ou de
+  // USUÁRIO. Aqui não se cria acesso nenhum: a IA só precisa do NOME, e
+  // provisionar usuário para um rascunho que pode ser descartado deixaria
+  // lixo no cadastro. Quem cria o acesso é `criarDemanda`, ao gravar.
+  const responsavel = input.idEhFicha
+    ? await prisma.colaborador.findUnique({
+        where: { id: input.responsavelId },
+        select: { id: true, nome: true, ativo: true },
+      })
+    : await prisma.user.findUnique({
+        where: { id: input.responsavelId },
+        select: { id: true, nome: true, ativo: true, role: true },
+      });
   if (!responsavel || !responsavel.ativo) {
     return { ok: false, erro: "Escolha primeiro para quem é a demanda." };
   }
-  // Mesma recusa da criação, feita ANTES de gastar token: não faz sentido a IA
-  // redigir uma demanda para quem não consegue entrar no módulo.
-  if (!(await sistemasPermitidos(responsavel)).includes("delegacoes")) {
+
+  // Mesma recusa da criação, feita ANTES de gastar token. Não vale para quem
+  // responde pelo PORTAL (ficha, ou acesso de portal já criado): esta porta é
+  // sobre alcançar o MÓDULO, e o portal tem porta própria.
+  const papel: string = "role" in responsavel ? String(responsavel.role) : PAPEL_PORTAL;
+  if (
+    !input.idEhFicha &&
+    papel !== PAPEL_PORTAL &&
+    !(await sistemasPermitidos({ id: responsavel.id, role: papel })).includes("delegacoes")
+  ) {
     return {
       ok: false,
       erro: `${responsavel.nome} ainda não tem acesso ao módulo Delegações — libere em Usuários e perfis antes de delegar.`,

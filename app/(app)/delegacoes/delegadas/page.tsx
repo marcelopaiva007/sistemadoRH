@@ -3,6 +3,7 @@ import { requireDelegacoesAccess } from "@/lib/delegacoes-auth-guard";
 import { paraLinha, SELECT_LISTA } from "@/lib/delegacoes/consultas";
 import { STATUS_TERMINAIS } from "@/lib/delegacoes/estados";
 import { quemAlcancaSistema } from "@/lib/permissoes/efetivas";
+import { PAPEL_PORTAL } from "@/lib/delegacoes/acesso-colaborador";
 import { DelegadasView } from "./delegadas-view";
 
 /**
@@ -83,24 +84,51 @@ export default async function DelegadasPage() {
           .filter((u) => alcancam.has(u.id))
           .map((u) => ({
             tipo: "USUARIO" as const,
+            idEhFicha: false,
             id: u.id,
             nome: u.nome,
             temTelegram: !!u.colaborador?.telegramChatId,
             favorito: favoritoIds.has(u.id),
           })),
-        // Quem só tem ficha: responde pelo PORTAL. O acesso é criado na hora
-        // da primeira demanda — por isso o id aqui é o da FICHA, não de um
-        // usuário que ainda não existe.
+        // Quem JÁ TEM acesso de portal (recebeu alguma demanda antes). Sem
+        // esta fatia a pessoa SUMIA da lista depois da primeira demanda: ela
+        // deixa de contar como "só ficha" (passa a ter usuário) e não entra em
+        // `alcancam`, porque o papel de portal não alcança módulo nenhum de
+        // propósito. Era impossível delegar duas vezes para a mesma pessoa.
+        ...usuarios
+          .filter((u) => u.role === PAPEL_PORTAL)
+          .map((u) => ({
+            tipo: "COLABORADOR" as const,
+            // Já tem acesso: o id é de USUÁRIO.
+            idEhFicha: false,
+            id: u.id,
+            nome: u.nome,
+            temTelegram: !!u.colaborador?.telegramChatId,
+            favorito: favoritoIds.has(u.id),
+          })),
+        // Quem só tem ficha e nunca recebeu nada: o acesso de portal é criado
+        // na hora da primeira demanda — por isso o id aqui é o da FICHA.
         ...colaboradores
           .filter((c) => !c.usuario)
           .map((c) => ({
             tipo: "COLABORADOR" as const,
+            // Ainda não tem acesso: o id é da FICHA, e quem o converte é a
+            // action (garantirAcessoDoColaborador).
+            idEhFicha: true,
             id: c.id,
             nome: c.nome,
             temTelegram: !!c.telegramChatId,
             favorito: false,
           })),
-      ].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"))}
+      ]
+        // FAVORITOS PRIMEIRO — pedido da Direção em 29/08/2026. Quem delega
+        // dezenas de coisas por dia manda para as mesmas pessoas; deixá-las no
+        // meio de 235 nomes em ordem alfabética obriga a procurar toda vez.
+        // Dentro de cada grupo, ordem alfabética.
+        .sort((a, b) => {
+          if (a.favorito !== b.favorito) return a.favorito ? -1 : 1;
+          return a.nome.localeCompare(b.nome, "pt-BR");
+        })}
       marcas={marcas}
     />
   );

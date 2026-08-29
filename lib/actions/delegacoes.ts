@@ -6,7 +6,8 @@ import { requireDelegacoesAccess } from "@/lib/delegacoes-auth-guard";
 import { registrarAuditoria } from "@/lib/audit";
 import { podeVerDemanda } from "@/lib/delegacoes/consultas";
 import { sistemasPermitidos } from "@/lib/permissoes/efetivas";
-import { garantirAcessoDoColaborador } from "@/lib/delegacoes/acesso-colaborador";
+import { garantirAcessoDoColaborador, PAPEL_PORTAL } from "@/lib/delegacoes/acesso-colaborador";
+import { avisarDemandaEnviada } from "@/lib/delegacoes/telegram";
 import type { ActionResult } from "@/lib/constants";
 import {
   EVENTO_DA_TRANSICAO,
@@ -198,7 +199,14 @@ export async function criarDemanda(
   // Acesso de portal NÃO precisa alcançar o módulo: ele responde pelo portal,
   // que tem porta própria. A exigência vale para quem é usuário do sistema —
   // aí sim, delegar a quem a guarda barra criaria demanda que ninguém vê.
-  if (!ehPortal && !(await sistemasPermitidos(responsavel)).includes("delegacoes")) {
+  // `ehPortal` cobre quem acabou de ganhar o acesso; `role === PAPEL_PORTAL`
+  // cobre quem já o tinha de uma demanda anterior. Sem o segundo, delegar duas
+  // vezes para a mesma pessoa falhava na segunda.
+  if (
+    !ehPortal &&
+    responsavel.role !== PAPEL_PORTAL &&
+    !(await sistemasPermitidos(responsavel)).includes("delegacoes")
+  ) {
     return {
       ok: false,
       error: `${responsavel.nome} ainda não tem acesso ao módulo Delegações — libere em Usuários e perfis antes de delegar.`,
@@ -258,11 +266,22 @@ export async function criarDemanda(
     resumo: `Delegou "${input.titulo.trim()}" para ${responsavel.nome}`,
   });
 
+  // O aviso pelo Telegram sai DEPOIS de a demanda estar gravada, e a falha
+  // dele não desfaz nada: a demanda existe, vale no painel, e o motivo de não
+  // ter chegado ao celular volta para a tela em vez de virar exceção.
+  let avisoEnvio: string | undefined;
+  if (enviar) {
+    const aviso = await avisarDemandaEnviada(demanda.id);
+    if (!aviso.ok) avisoEnvio = `Demanda criada, mas não avisei pelo Telegram: ${aviso.motivo}`;
+  }
+
   revalidarModulo();
   return {
     ok: true,
     id: demanda.id,
-    avisoTelegram: responsavel.colaborador?.telegramChatId
+    avisoTelegram: avisoEnvio
+      ? avisoEnvio
+      : responsavel.colaborador?.telegramChatId
       ? undefined
       : `${responsavel.nome} ainda não vinculou o Telegram ao sistema. Quando a cobrança automática entrar no ar, ela não vai alcançar essa pessoa por lá — o vínculo é feito por ela mesma, enviando /start ao bot do RH.`,
   };
@@ -346,7 +365,9 @@ const RESUMO_AUDITORIA: Record<Parameters<typeof validarTransicao>[0], string> =
 };
 
 /** RASCUNHO → ENVIADA, pelo solicitante. Revalida critério e prazo na porta. */
-export async function enviarDemanda(input: { id: string }): Promise<ActionResult> {
+export async function enviarDemanda(
+  input: { id: string },
+): Promise<ActionResult & { aviso?: string }> {
   // A guarda vem ANTES da leitura, e não só antes da escrita: consultar o
   // banco para quem ainda não provou quem é já é uso indevido, mesmo quando o
   // resultado não volta para a tela.
@@ -354,12 +375,23 @@ export async function enviarDemanda(input: { id: string }): Promise<ActionResult
   if (!ator) return { ok: false, error: ERRO_SESSAO };
   const demanda = await carregarDemanda(input.id, ator);
   if (!demanda) return { ok: false, error: ERRO_NAO_ENCONTRADA };
-  return executarTransicao({
+  const r = await executarTransicao({
     demandaId: input.id,
     transicao: "ENVIAR",
     dadosValidacao: { criterioAceite: demanda.criterioAceite, prazo: demanda.prazo },
     colunas: { status: "ENVIADA", enviadaEm: new Date() },
   });
+  if (!r.ok) return r;
+  // Mesmo contrato de `criarDemanda`: avisa depois de gravar, e a falha do
+  // aviso NÃO vira erro. A demanda foi enviada de verdade — devolver `ok:
+  // false` faria a tela convidar a pessoa a tentar de novo, e a segunda
+  // tentativa seria recusada pela máquina ("já foi enviada"), deixando-a com
+  // a impressão de que nada funcionou. O que não chegou ao celular volta como
+  // AVISO, que é o que de fato aconteceu.
+  const aviso = await avisarDemandaEnviada(input.id);
+  return aviso.ok
+    ? { ok: true }
+    : { ok: true, aviso: `Enviada, mas não avisei pelo Telegram: ${aviso.motivo}` };
 }
 
 /** ENVIADA → ACEITA — só o responsável; registra `aceiteEm` (regra 5). */
@@ -706,21 +738,43 @@ async function avaliarEntregaPendente(
  * guarda barra criaria um atalho para o erro que `criarDemanda` recusa.
  */
 export async function alternarFavorito(input: {
+  /** Id de `User` OU de `Colaborador` — ver `ehColaborador`. */
   favoritoId: string;
+  /**
+   * true quando o id é de uma FICHA (pessoa que ainda não recebeu demanda
+   * nenhuma e por isso ainda não tem acesso de portal). Favoritar cria o
+   * acesso — o mesmo que a primeira demanda criaria —, porque a lista de
+   * favoritos guarda `User.id`. O acesso criado não abre nada sozinho: sem
+   * senha e sem e-mail, ele só existe para a pessoa ser alcançável.
+   */
+  ehColaborador?: boolean;
   favoritar: boolean;
 }): Promise<ActionResult> {
   const ator = await atorDaSessao();
   if (!ator) return { ok: false, error: ERRO_SESSAO };
 
+  let favoritoId = input.favoritoId;
+  if (input.ehColaborador) {
+    const acesso = await garantirAcessoDoColaborador(input.favoritoId);
+    if (!acesso.ok) return { ok: false, error: acesso.erro };
+    favoritoId = acesso.userId;
+  }
+
   if (input.favoritar) {
     const pessoa = await prisma.user.findUnique({
-      where: { id: input.favoritoId },
+      where: { id: favoritoId },
       select: { id: true, nome: true, role: true, ativo: true },
     });
     if (!pessoa || !pessoa.ativo) {
       return { ok: false, error: "Pessoa não encontrada entre os usuários ativos." };
     }
-    if (!(await sistemasPermitidos(pessoa)).includes("delegacoes")) {
+    // Acesso de portal não precisa alcançar o módulo — ele responde pelo
+    // portal. A exigência vale só para quem opera o sistema.
+    if (
+      !input.ehColaborador &&
+      pessoa.role !== PAPEL_PORTAL &&
+      !(await sistemasPermitidos(pessoa)).includes("delegacoes")
+    ) {
       return {
         ok: false,
         error: `${pessoa.nome} ainda não tem acesso ao módulo Delegações — libere em Usuários e perfis.`,
@@ -737,7 +791,7 @@ export async function alternarFavorito(input: {
     // `deleteMany` em vez de `delete`: desfavoritar quem já não está na lista
     // é sucesso, não erro — o estado final é o que a pessoa pediu.
     await prisma.delegacaoFavorito.deleteMany({
-      where: { userId: ator.id, favoritoId: input.favoritoId },
+      where: { userId: ator.id, favoritoId },
     });
   }
 
