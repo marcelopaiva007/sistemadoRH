@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Users, FolderKanban } from "lucide-react";
+import { Users, FolderKanban, ClipboardCheck } from "lucide-react";
 
 /**
  * Os MÓDULOS do sistema — o primeiro segmento da URL depois da raiz.
@@ -61,6 +61,26 @@ export const MODULOS: Modulo[] = [
     icone: FolderKanban,
     papeis: PAPEIS_DE_ESCRITORIO,
     escopadoPorEmpresa: true,
+  },
+  {
+    slug: "delegacoes",
+    nome: "Delegações",
+    descricao: "Demandas com dono, prazo, evidência e cobrança automática.",
+    icone: ClipboardCheck,
+    // ADMIN e DIRETORIA, NÃO `PAPEIS_DE_ESCRITORIO`. Este campo é o FALLBACK
+    // de quem ainda não tem perfil, e `scripts/test-permissoes.ts` exige que
+    // ele case exatamente com o alcance do perfil-semente do papel. O semente
+    // do Gestor de RH concede `rh:*` e `processos:*` — incluir RH_MANAGER aqui
+    // faria o papel enxergar três sistemas e o perfil dois, e o teste de
+    // equivalência ("ninguém perde nem ganha sistema na virada") quebraria.
+    // Quem quiser dar Delegações ao RH concede na tela de Perfis, que é onde
+    // essa decisão deve ser tomada — não no fallback.
+    papeis: ["ADMIN", "DIRETORIA"],
+    // O PRIMEIRO módulo não escopado por CNPJ. A demanda atravessa o grupo:
+    // ela tem dono (um `User`) e, no máximo, uma MARCA como etiqueta de filtro
+    // — não um empregador. Por isso a rota é `/delegacoes` inteira, sem
+    // `<empresaId>`, e o seletor de módulo entra por ela sem levar o CNPJ.
+    escopadoPorEmpresa: false,
   },
 ];
 

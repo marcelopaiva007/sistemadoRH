@@ -132,10 +132,17 @@ console.log("\nEnforcement de módulo — quem alcança o quê pelos grants\n");
   const alcanca = (grants: string[], slug: string) => sistemasDosGrants(grants).includes(slug);
 
   const admin = PERFIS_SEMENTE.find((p) => p.papelDeOrigem === "ADMIN")!.grants;
-  ok(alcanca(admin, "rh") && alcanca(admin, "processos"), "Administrador alcança os dois sistemas");
+  ok(
+    alcanca(admin, "rh") && alcanca(admin, "processos") && alcanca(admin, "delegacoes"),
+    "Administrador alcança os TRÊS sistemas — o grant '*' cobre módulo novo sozinho",
+  );
 
   const rh = PERFIS_SEMENTE.find((p) => p.papelDeOrigem === "RH_MANAGER")!.grants;
-  ok(alcanca(rh, "rh") && alcanca(rh, "processos"), "Gestor de RH alcança os dois (como hoje)");
+  ok(alcanca(rh, "rh") && alcanca(rh, "processos"), "Gestor de RH alcança RH e Processos (como hoje)");
+  // Módulo novo NÃO chega de graça a quem tem grant explícito: Delegações só
+  // entra no Gestor de RH quando alguém conceder na tela de Perfis. É o que
+  // impede uma entrega de código de alargar acesso sem decisão de gestão.
+  ok(!alcanca(rh, "delegacoes"), "Gestor de RH NÃO ganha Delegações sem alguém conceder");
 
   // Um perfil "só RH" (o que o CEO quer poder criar) NÃO alcança processos.
   ok(alcanca(["rh:*"], "rh") && !alcanca(["rh:*"], "processos"), "perfil só-RH não alcança Processos");

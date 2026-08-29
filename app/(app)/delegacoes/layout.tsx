@@ -1,0 +1,34 @@
+import { requireDelegacoesAccess } from "@/lib/delegacoes-auth-guard";
+import { DelegacoesNav } from "./delegacoes-nav";
+
+/**
+ * Casca do módulo Delegações — o molde de
+ * `app/(app)/processos/[empresaId]/layout.tsx`, sem o que é de CNPJ.
+ *
+ * O que NÃO está aqui, e por quê: não há `params`/`empresaId`, nem consulta da
+ * empresa, nem a logo da marca no topo da lateral, nem o override de
+ * `--primary` com a cor da marca. Os três existem lá porque quem está em
+ * `/rh/<empresa>` ou `/processos/<empresa>` está DENTRO de uma marca, e o
+ * sistema se pinta com a cor dela. Uma demanda atravessa o grupo — pintar a
+ * tela com a cor de uma marca só seria dizer que ela pertence àquela marca.
+ *
+ * A guarda é chamada aqui E em cada page/action: layout não é guarda de API.
+ */
+export default async function DelegacoesLayout({ children }: { children: React.ReactNode }) {
+  await requireDelegacoesAccess();
+
+  return (
+    <div className="flex gap-6">
+      <aside className="sticky top-[94px] hidden h-[calc(100vh-94px)] w-52 shrink-0 overflow-y-auto border-r pr-3 pt-2 md:block">
+        <DelegacoesNav />
+      </aside>
+
+      <div className="min-w-0 flex-1 py-2">
+        <div className="mb-4 overflow-x-auto md:hidden">
+          <DelegacoesNav />
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}

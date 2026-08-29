@@ -163,16 +163,40 @@ export const AREAS_PROCESSOS: GrupoDeAreas[] = [
   },
 ];
 
+/**
+ * As áreas do módulo Delegações, na ordem de `delegacoes-nav.tsx`.
+ *
+ * "Recebidas" é só leitura de permissão porque agir nela (aceitar, repactuar,
+ * entregar) é direito de QUEM É O RESPONSÁVEL daquela demanda, não de quem tem
+ * a permissão da tela — a máquina de estados decide isso por demanda, olhando
+ * quem é o dono. Permissão de tela aqui responde "você enxerga esta lista?";
+ * quem responde "você pode agir NESTA demanda?" é lib/delegacoes/estados.ts.
+ * O mesmo vale para o Painel, que é a leitura da Direção.
+ */
+export const AREAS_DELEGACOES: GrupoDeAreas[] = [
+  {
+    titulo: "Minhas demandas",
+    areas: [
+      { slug: "recebidas", label: "Recebidas", soLeitura: true },
+      // `editar` aqui = criar demanda nova. É por isso que esta área não é só
+      // leitura, e é por isso que não existe área "Nova demanda": delegar é
+      // uma ação da tela de quem delega, não um item de menu à parte.
+      { slug: "delegadas", label: "Delegadas por mim" },
+    ],
+  },
+];
+
 export type Sistema = {
   slug: string;
   nome: string;
   grupos: GrupoDeAreas[];
 };
 
-/** Os dois sistemas e suas áreas — o que a matriz de permissão desenha. */
+/** Os três sistemas e suas áreas — o que a matriz de permissão desenha. */
 export const SISTEMAS: Sistema[] = [
   { slug: "rh", nome: "Pessoas (RH)", grupos: AREAS_RH },
   { slug: "processos", nome: "Processos & Ativos", grupos: AREAS_PROCESSOS },
+  { slug: "delegacoes", nome: "Delegações", grupos: AREAS_DELEGACOES },
 ];
 
 /** Toda permissão que existe, `sistema:area:acao`, na ordem do catálogo. */
