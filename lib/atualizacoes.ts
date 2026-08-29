@@ -26,6 +26,18 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.142.0",
+    data: "29/08/2026",
+    horario: "22:20",
+    titulo: "Delegações: o Painel — todas as demandas do grupo, num lugar só",
+    itens: [
+      "Item novo no menu, só para Admin e Diretoria: \"Painel\". Mostra TODAS as demandas do sistema — de quem foi pedido, para quem, prazo e o que está em dia ou atrasado.",
+      "Semáforo geral no topo (🟢 no prazo · 🟡 em risco ou repactuada · 🔴 atrasada · ⚪ aguardando aceite) — clique num número para filtrar só aquele grupo. Exceções (atrasadas e em risco) aparecem primeiro na lista.",
+      "Filtros por pessoa, empresa e criticidade; um toque mostra ou esconde o histórico (encerradas e canceladas).",
+      "A tela é preparada para o classificador de IA do próximo PR: quando ele existir e começar a rotular as respostas, os rótulos que ele gerar aparecem sozinhos como filtro aqui — hoje, sem classificador, esse filtro simplesmente não aparece.",
+    ],
+  },
+  {
     versao: "1.141.0",
     data: "29/08/2026",
     horario: "21:40",
