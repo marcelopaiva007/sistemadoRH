@@ -60,6 +60,14 @@ export function PontoView({
   });
 
   function exportarCSV() {
+    // Neutraliza injeção de fórmula (DDE) e escapa aspas: um campo controlável
+    // pelo colaborador (nome, setor) iniciado por = + - @ viraria fórmula ao
+    // abrir o CSV no Excel. Mesma proteção do helper de servidor (lib/csv.ts).
+    const celula = (valor: string) => {
+      const s = String(valor ?? "");
+      const seguro = /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
+      return `"${seguro.replace(/"/g, '""')}"`;
+    };
     const csv = [
       ["Data", "Hora", "Colaborador", "Setor", "Tipo", "Localização", "Status"],
       ...pontosFiltrados.map((p) => [
@@ -72,7 +80,7 @@ export function PontoView({
         p.dentro_janela ? "No horário" : "Fora da janela",
       ]),
     ]
-      .map((row) => row.map((cell) => `"${cell}"`).join(","))
+      .map((row) => row.map(celula).join(","))
       .join("\n");
 
     const blob = new Blob([csv], { type: "text/csv" });

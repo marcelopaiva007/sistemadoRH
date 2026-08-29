@@ -50,11 +50,13 @@ export async function inscreverSePublicamente(
   if (!anexoLido.ok) return { ok: false, error: anexoLido.error };
   const anexo = anexoLido.anexo;
 
+  // Limites de tamanho: entrada pública não autenticada não pode gravar linhas
+  // gigantes (armazenamento/DoS) nem alimentar exportações com campos enormes.
   const dados = {
-    nome,
-    email: String(formData.get("email") ?? "").trim() || null,
-    telefone,
-    cidade: String(formData.get("cidade") ?? "").trim() || null,
+    nome: nome.slice(0, 120),
+    email: String(formData.get("email") ?? "").trim().slice(0, 160) || null,
+    telefone: telefone.slice(0, 40),
+    cidade: String(formData.get("cidade") ?? "").trim().slice(0, 120) || null,
   };
 
   const existente = await prisma.candidato.findUnique({
@@ -64,29 +66,33 @@ export async function inscreverSePublicamente(
 
   try {
     await prisma.$transaction(async (tx) => {
-      const arquivo = anexo
-        ? await tx.arquivo.create({
-            data: {
-              empresaId: vaga.empresaId,
-              nome: anexo.nome,
-              mimeType: anexo.mimeType,
-              tamanhoBytes: anexo.bytes.byteLength,
-              conteudo: anexo.bytes,
-              // Sem usuário: quem enviou foi o próprio candidato.
-              criadoPorNome: `Candidato: ${nome}`,
-            },
-            select: { id: true },
-          })
-        : null;
+      // Só grava o currículo para candidato NOVO. Num CPF já cadastrado, o
+      // caminho público não guarda anexo (evita órfão e a sobrescrita abaixo).
+      const arquivo =
+        anexo && !existente
+          ? await tx.arquivo.create({
+              data: {
+                empresaId: vaga.empresaId,
+                nome: anexo.nome,
+                mimeType: anexo.mimeType,
+                tamanhoBytes: anexo.bytes.byteLength,
+                conteudo: anexo.bytes,
+                // Sem usuário: quem enviou foi o próprio candidato.
+                criadoPorNome: `Candidato: ${nome}`,
+              },
+              select: { id: true },
+            })
+          : null;
 
       const candidato = existente
-        ? await tx.candidato.update({
+        ? // CPF já cadastrado: o caminho público NÃO sobrescreve identidade
+          // nem currículo. Como aqui só o CPF (dado de baixo sigilo) "autentica",
+          // permitir a edição deixaria qualquer um que saiba o CPF adulterar os
+          // dados/currículo de outra pessoa. Só registra o novo consentimento; a
+          // candidatura na vaga é criada abaixo. Correção de dados fica com o RH.
+          await tx.candidato.update({
             where: { id: existente.id },
-            data: {
-              ...dados,
-              consentimentoEm: new Date(),
-              ...(arquivo ? { arquivoId: arquivo.id } : {}),
-            },
+            data: { consentimentoEm: new Date() },
           })
         : await tx.candidato.create({
             data: {

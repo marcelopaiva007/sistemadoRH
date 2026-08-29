@@ -26,6 +26,20 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.153.2",
+    data: "03/09/2026",
+    horario: "14:30",
+    titulo: "Mais correções de segurança: relatórios, exportações, uploads e recuperação de senha",
+    itens: [
+      "O título dos relatórios em PDF passa a ser exibido como texto puro — um nome de colaborador ou de campanha mal-intencionado não executa mais nada ao abrir o relatório.",
+      "A exportação de CSV do Ponto passou a neutralizar texto que o Excel interpretaria como fórmula, igual às demais exportações.",
+      "Anexos (dossiê, atestados, currículos) passam a ter o conteúdo conferido contra o formato informado — um arquivo que se diz PDF mas não é, é recusado.",
+      "Na inscrição pública de vagas, quem já é candidato não tem mais seus dados ou currículo sobrescritos por quem apenas informe o CPF; a candidatura na vaga é registrada normalmente.",
+      "Pedir recuperação de senha passou a ter limite por e-mail e origem, evitando bombardeio de mensagens e o esgotamento da cota diária de envio. A tela de login já barrava por tempo quem erra a senha repetidamente.",
+      "Ajustes internos: o backup do banco não expõe mais a senha na lista de processos, as tarefas automáticas comparam o segredo em tempo constante, e mensagens de erro internas não vão mais ao chamador.",
+    ],
+  },
+  {
     versao: "1.153.0",
     data: "01/09/2026",
     horario: "00:30",

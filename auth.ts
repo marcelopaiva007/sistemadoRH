@@ -11,6 +11,13 @@ import {
   registrarFalha,
 } from "@/lib/login-tentativas";
 
+// Hash descartável, calculado uma vez no cold start. Serve só para gastar o
+// mesmo tempo de bcrypt no ramo de "usuário inexistente/inativo" que se gasta
+// no ramo de usuário real — sem isso, a diferença de tempo (consulta indexada
+// barata vs. um bcrypt.compare de propósito lento) revela quais usernames
+// existem (enumeração por timing). O custo 10 acompanha o dos hashes reais.
+const HASH_DESCARTAVEL = bcrypt.hashSync("::timing-guard::", 10);
+
 type EmpresaNaSessao = {
   empresaId: string;
   papel: "RH_MANAGER" | "GESTOR_SETOR";
@@ -53,6 +60,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         // usuário, e é o que não teria onde ser contado se o contador
         // morasse numa coluna de `User`.
         if (!user || !user.ativo) {
+          // Gasta o mesmo tempo de bcrypt do caminho de usuário real, para que
+          // "usuário não existe" e "senha errada" respondam em tempo
+          // indistinguível (fecha a enumeração por timing).
+          await bcrypt.compare(password, HASH_DESCARTAVEL).catch(() => false);
           await registrarFalha(username, ip).catch(() => {});
           return null;
         }

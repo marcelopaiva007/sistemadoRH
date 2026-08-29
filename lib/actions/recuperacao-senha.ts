@@ -1,11 +1,13 @@
 "use server";
 
 import { randomBytes, createHash } from "node:crypto";
+import { headers } from "next/headers";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/email";
 import { registrarAuditoria } from "@/lib/audit";
+import { estadoDoLogin, ipDaRequisicao, registrarFalha } from "@/lib/login-tentativas";
 import type { ActionResult } from "@/lib/constants";
 
 const RECUPERACAO_EXPIRA_EM_HORAS = 1;
@@ -25,6 +27,17 @@ export async function solicitarRecuperacaoSenha(_prev: ActionResult, formData: F
   const parsed = solicitarSchema.safeParse({ email: formData.get("email") });
   if (!parsed.success) return { ok: false, error: "Informe um e-mail válido." };
   const email = parsed.data.email.toLowerCase();
+
+  // Rate limit por (e-mail, IP), reaproveitando o balde do login (5 em 15 min).
+  // Sem isso, cada pedido dispara um e-mail: dá para bombardear um endereço
+  // conhecido e ESGOTAR a cota diária de envio compartilhada — convites,
+  // pesquisas e lembretes ficariam sem sair. Bloqueado, devolve o mesmo
+  // `{ ok: true }` genérico (não revela se o e-mail existe) e não envia nada.
+  const ip = ipDaRequisicao(await headers());
+  const chaveLimite = `reset:${email}`;
+  const limite = await estadoDoLogin(chaveLimite, ip).catch(() => null);
+  if (limite?.bloqueado) return { ok: true };
+  await registrarFalha(chaveLimite, ip).catch(() => {});
 
   const user = await prisma.user.findUnique({
     where: { email },
