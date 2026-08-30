@@ -1,4 +1,5 @@
 import { requireDelegacoesAccess } from "@/lib/delegacoes-auth-guard";
+import { ehDirecao } from "@/lib/delegacoes/consultas";
 import { DelegacoesNav } from "./delegacoes-nav";
 
 /**
@@ -15,17 +16,21 @@ import { DelegacoesNav } from "./delegacoes-nav";
  * A guarda é chamada aqui E em cada page/action: layout não é guarda de API.
  */
 export default async function DelegacoesLayout({ children }: { children: React.ReactNode }) {
-  await requireDelegacoesAccess();
+  const usuario = await requireDelegacoesAccess();
+  // O item "Painel" (Direção) só aparece para quem `ehDirecao` — a mesma
+  // pergunta que já recorta o `where` das consultas (§10 da ordem: "direcao
+  // vê tudo"). Esconder do menu não é a guarda — a página tem a dela própria.
+  const souDirecao = ehDirecao(usuario);
 
   return (
     <div className="flex gap-6">
       <aside className="sticky top-[94px] hidden h-[calc(100vh-94px)] w-52 shrink-0 overflow-y-auto border-r pr-3 pt-2 md:block">
-        <DelegacoesNav />
+        <DelegacoesNav souDirecao={souDirecao} />
       </aside>
 
       <div className="min-w-0 flex-1 py-2">
         <div className="mb-4 overflow-x-auto md:hidden">
-          <DelegacoesNav />
+          <DelegacoesNav souDirecao={souDirecao} />
         </div>
         {children}
       </div>

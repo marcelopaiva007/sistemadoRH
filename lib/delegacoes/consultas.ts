@@ -1,6 +1,6 @@
 import type { Prisma } from "@/app/generated/prisma/client";
 import { diaBrasilia } from "@/lib/datas";
-import { severidadeDoPrazo, type SeveridadePrazo } from "@/lib/constants-delegacoes";
+import { severidadeDoPrazo, semaforoDaDemanda, type SeveridadePrazo, type Semaforo } from "@/lib/constants-delegacoes";
 import { STATUS_ATIVOS } from "@/lib/delegacoes/estados";
 import type { DemandaParaPainel } from "@/lib/delegacoes/painel-entregas";
 
@@ -242,5 +242,68 @@ export function paraPainel(d: LinhaPainelDoBanco): DemandaParaPainel {
     responsavelNome: d.responsavel.nome,
     repactuacoes: d._count.repactuacoes,
     entregas: d.entregas,
+  };
+}
+
+// ── Painel da Direção (spec §9.2/§9.3) — só quem `ehDirecao` vê ────────────
+//
+// Uma linha aqui é a de `DemandaNaTela` (as duas listas já provaram que essa
+// forma serve para exibir demanda) MAIS o que só a Direção precisa: o
+// semáforo do §9.3 (cruza status/emRisco/repactuação, eixo diferente da
+// severidade de prazo), e a classificação da IA quando existir.
+//
+// "MUTÁVEL — a própria IA vai se adaptando" (pedido da Direção, 29/08/2026):
+// `classificacaoIa`/`confiancaIa` vêm da interação RECEBIDA mais recente que
+// tiver classificação. O classificador (PR 6) ainda não existe — hoje a
+// coluna está sempre vazia, e a tela mostra isso sem fingir. No dia em que o
+// PR 6 começar a gravar `DemandaInteracao.classificacaoIa`, ESTA MESMA
+// consulta passa a devolver o valor, sem migration nem mudança de código
+// aqui: os baldes que aparecerem na tela são os baldes que a IA de fato
+// gerou, nunca uma lista fixa que alguém precisou adivinhar hoje.
+
+export const SELECT_PAINEL_DIRECAO = {
+  ...SELECT_LISTA,
+  nivelEscalonamento: true,
+  // A mais recente RECEBIDA com classificação — não a mais recente de
+  // qualquer tipo, senão uma cobrança ENVIADA sem resposta apagaria a última
+  // leitura válida da IA.
+  interacoes: {
+    where: { tipo: "RECEBIDA", classificacaoIa: { not: null } },
+    orderBy: { createdAt: "desc" },
+    take: 1,
+    select: { classificacaoIa: true, confiancaIa: true },
+  },
+} as const;
+
+export type DemandaPainelDirecao = DemandaNaTela & {
+  semaforo: Semaforo;
+  nivelEscalonamento: number;
+  /** null até o PR 6 existir — ver o comentário acima. */
+  classificacaoIa: string | null;
+  confiancaIa: number | null;
+};
+
+type LinhaPainelDirecaoDoBanco = LinhaDoBanco & {
+  nivelEscalonamento: number;
+  interacoes: { classificacaoIa: string | null; confiancaIa: number | null }[];
+};
+
+export function paraLinhaPainelDirecao(
+  d: LinhaPainelDirecaoDoBanco,
+  agora = new Date(),
+): DemandaPainelDirecao {
+  const base = paraLinha(d, agora);
+  const ultima = d.interacoes[0];
+  return {
+    ...base,
+    nivelEscalonamento: d.nivelEscalonamento,
+    classificacaoIa: ultima?.classificacaoIa ?? null,
+    confiancaIa: ultima?.confiancaIa ?? null,
+    semaforo: semaforoDaDemanda({
+      status: base.status,
+      diasParaPrazo: base.diasParaPrazo,
+      emRisco: d.emRisco,
+      repactuada: base.repactuada,
+    }),
   };
 }

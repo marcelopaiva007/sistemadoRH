@@ -504,7 +504,7 @@ export function prazoDoFormulario(valor: string | null | undefined): Date | null
 
 // ── Eventos (log imutável) ──────────────────────────────────────────────────
 
-/** Os tipos de evento que as actions gravam — PR 5/6 somam os do motor. */
+/** Os tipos de evento que as actions gravam — PR 6 soma os do classificador. */
 export const TIPOS_EVENTO = [
   "CRIADA",
   "ENVIADA",
@@ -517,6 +517,13 @@ export const TIPOS_EVENTO = [
   "CANCELADA",
   "EM_RISCO_LIGADO",
   "EM_RISCO_DESLIGADO",
+  // Do motor de cobrança (PR 5, lib/delegacoes/regua.ts + lib/delegacoes/cobranca.ts).
+  /** Um degrau da régua disparou — antes ou depois do prazo. */
+  "COBRANCA_ENVIADA",
+  /** O degrau que disparou envolveu a Direção (ccDirecao/notificaDirecao) ou ligou o painel vermelho. */
+  "ESCALADA",
+  /** O cron de aceite cobrou (regra 5: aceite ativo 24/48/72h). */
+  "ACEITE_COBRADO",
 ] as const;
 export type TipoEvento = (typeof TIPOS_EVENTO)[number];
 

@@ -186,3 +186,40 @@ export const CORES_PRAZO: Record<SeveridadePrazo, string> = {
   ALTA: "text-amber-600 dark:text-amber-500",
   ATENCAO: "text-muted-foreground",
 };
+
+/**
+ * O SEMÁFORO do Painel da Direção (spec §9.3) — eixo DIFERENTE de
+ * `SeveridadePrazo` acima. Aquele é urgência de tempo (usado nas linhas de
+ * Recebidas/Delegadas); este é "o estado do jogo" — cruza status, `emRisco` e
+ * repactuação, não só quantos dias faltam. Uma demanda ATENCAO (5 dias de
+ * folga) que já foi repactuada duas vezes é AMARELA aqui e não seria lá.
+ */
+export type Semaforo = "VERDE" | "AMARELO" | "VERMELHO" | "CINZA";
+
+export function semaforoDaDemanda(d: {
+  status: string;
+  diasParaPrazo: number;
+  emRisco: boolean;
+  repactuada: boolean;
+}): Semaforo {
+  // Aguardando aceite: o relógio do prazo ainda nem é o que vale (regra 5 tem
+  // o próprio prazo de aceite) — cinza é "ainda não é sobre atraso".
+  if (d.status === "ENVIADA") return "CINZA";
+  if (d.diasParaPrazo < 0 && d.status !== "ENTREGUE" && d.status !== "ENCERRADA") return "VERMELHO";
+  if (d.emRisco || d.repactuada) return "AMARELO";
+  return "VERDE";
+}
+
+export const EMOJI_SEMAFORO: Record<Semaforo, string> = {
+  VERDE: "🟢",
+  AMARELO: "🟡",
+  VERMELHO: "🔴",
+  CINZA: "⚪",
+};
+
+export const ROTULO_SEMAFORO: Record<Semaforo, string> = {
+  VERDE: "No prazo",
+  AMARELO: "Em risco ou repactuada",
+  VERMELHO: "Atrasada",
+  CINZA: "Aguardando aceite",
+};
