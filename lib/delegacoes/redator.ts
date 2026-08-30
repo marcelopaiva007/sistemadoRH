@@ -33,6 +33,7 @@ export type PropostaBruta = {
   evidenciaExigida?: unknown;
   criticidade?: unknown;
   prazo?: unknown;
+  horasEstimadas?: unknown;
   periodicidadeRetorno?: unknown;
   marcaNome?: unknown;
   area?: unknown;
@@ -47,6 +48,8 @@ export type Proposta = {
   criticidade: Criticidade;
   /** "aaaa-mm-dd" — o que vai para o `<input type="date">`. */
   prazo: string;
+  /** Esforço esperado, em horas — nunca null: sem base no contexto, cai no padrão. */
+  horasEstimadas: number;
   periodicidadeRetorno: string;
   marcaNome: string | null;
   area: string | null;
@@ -68,6 +71,18 @@ export const EVIDENCIAS_DA_IA = ["LINK", "NUMERO", "TEXTO"] as const;
  * que o responsável não citou"); aqui a regra é a mesma, do outro lado.
  */
 export const DIAS_PADRAO_POR_CRITICIDADE: Record<Criticidade, number> = { 1: 2, 2: 5, 3: 10 };
+
+/**
+ * Quando o contexto não dá base nenhuma para estimar ESFORÇO (diferente de
+ * prazo, que é data limite), o padrão é um único número fixo — um dia útil —
+ * em vez de uma tabela por criticidade: urgência não prediz tamanho de
+ * tarefa, e fingir essa correlação seria pior que um default honesto e único.
+ * Sempre declarado em `assumiu[]`, como o prazo.
+ */
+export const HORAS_ESTIMADAS_PADRAO = 8;
+/** Faixa sã: abaixo/acima disto a IA devolveu um número que não faz sentido de esforço. */
+const HORAS_ESTIMADAS_MINIMO = 0.5;
+const HORAS_ESTIMADAS_MAXIMO = 400;
 
 /** O esquema que o modelo é OBRIGADO a preencher (tool use força a forma). */
 export const ESQUEMA_DEMANDA = {
@@ -102,6 +117,11 @@ export const ESQUEMA_DEMANDA = {
       type: "string",
       description:
         "aaaa-mm-dd. Use a data que o contexto disser ('até sexta', 'dia 10'). Se o contexto NÃO disser prazo, deixe vazio — o sistema aplica o padrão da criticidade.",
+    },
+    horasEstimadas: {
+      type: "number",
+      description:
+        "Quantas HORAS DE TRABALHO isto deve exigir para concluir — esforço, não confundir com prazo (que é a data limite). Baseie-se na complexidade que o contexto sugere. Se o contexto não dá base nenhuma para estimar, deixe vazio — o sistema aplica um padrão.",
     },
     periodicidadeRetorno: {
       type: "string",
@@ -154,6 +174,7 @@ export function montarSistema(params: {
     "- Você REDIGE, não INVENTA FATO. Não crie valores, nomes de fornecedor, números de contrato, quantidades ou combinações que o contexto não trouxe. Se o contexto é vago, o título e o critério ficam genéricos — e você diz isso em `assumiu`.",
     "- O critério de aceite tem que ser VERIFICÁVEL por quem pediu, olhando a entrega. Nada de 'bem feito', 'com qualidade', 'conforme combinado'.",
     "- Prazo: só preencha se o contexto indicar. 'Até sexta' você converte para a data. Sem indicação, deixe vazio — NÃO chute.",
+    "- Horas estimadas: é esforço de trabalho, não a data limite (isso é o prazo). Só estime se a complexidade descrita der base — 'levantar três orçamentos' é diferente de 'reformular o processo inteiro'. Sem base nenhuma, deixe vazio.",
     "- `assumiu` é o seu compromisso de honestidade: liste tudo que você decidiu por conta própria. Uma pessoa vai ler isso antes de delegar e é o que a protege de mandar um combinado que ela não fez.",
     "- Escreva em português do Brasil, direto, sem elogio e sem preâmbulo. O texto vai ser lido por quem executa.",
   ].join("\n");
@@ -228,6 +249,25 @@ export function normalizarProposta(
     );
   }
 
+  // Horas estimadas: aceita só número finito e positivo, dentro da faixa sã;
+  // fora disso (ausente, zero, negativo, texto, ou um número absurdo), cai no
+  // padrão fixo — sempre declarado, mesmo tratamento do prazo.
+  const horasBrutas = Number(bruto.horasEstimadas);
+  let horasEstimadas: number;
+  if (
+    !Number.isFinite(horasBrutas) ||
+    horasBrutas < HORAS_ESTIMADAS_MINIMO ||
+    horasBrutas > HORAS_ESTIMADAS_MAXIMO
+  ) {
+    horasEstimadas = HORAS_ESTIMADAS_PADRAO;
+    assumiu.push(
+      `horas estimadas: você não deu base para estimar o esforço, assumi ${HORAS_ESTIMADAS_PADRAO}h.`,
+    );
+  } else {
+    // Arredonda para a meia hora — precisão maior que essa seria fingida.
+    horasEstimadas = Math.round(horasBrutas * 2) / 2;
+  }
+
   // Marca só vale se casar com o cadastro. Nome parecido não serve: seria
   // etiquetar a demanda com uma empresa que ninguém escolheu.
   const marcaBruta = texto(bruto.marcaNome);
@@ -245,6 +285,7 @@ export function normalizarProposta(
       evidenciaExigida,
       criticidade,
       prazo,
+      horasEstimadas,
       periodicidadeRetorno,
       marcaNome,
       area: texto(bruto.area) || null,

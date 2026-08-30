@@ -14,6 +14,7 @@ import {
   rotuloEvidencia,
   rotuloPeriodicidade,
 } from "@/lib/constants-delegacoes";
+import { duracaoEmTexto } from "@/lib/delegacoes/painel-entregas";
 import {
   aceitarDemanda,
   aceitarEntrega,
@@ -35,6 +36,7 @@ type Demanda = {
   criterioAceite: string;
   evidenciaExigida: string;
   criticidade: number;
+  horasEstimadas: number | null;
   status: string;
   emRisco: boolean;
   prazoTexto: string;
@@ -186,6 +188,7 @@ export function DemandaDetalhe({
             {rotuloCriticidade(demanda.criticidade)}
             {" · prazo "}
             {demanda.prazoTexto}
+            {demanda.horasEstimadas != null && <> · {duracaoEmTexto(demanda.horasEstimadas)} estimadas</>}
             {demanda.marcaNome && <> · {demanda.marcaNome}</>}
             {demanda.area && <> · {demanda.area}</>}
           </p>

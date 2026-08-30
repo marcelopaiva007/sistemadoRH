@@ -14,6 +14,12 @@ import { diaBrasilia } from "@/lib/datas";
 // aceite → entrega. Por isso o painel fala em "tempo até entregar" — tempo
 // CORRIDO com a demanda na mão da pessoa — e nunca em "horas trabalhadas",
 // que seria um número inventado.
+//
+// `horasEstimadas` (pedido do CEO em 29/08/2026) é a exceção deliberada a essa
+// honestidade: é PLANEJAMENTO declarado antes de começar (a IA sugere, quem
+// delega confirma ou ajusta — ver redator.ts), nunca uma medição. Comparar o
+// tempo real contra ela é comparar "o que se esperava" com "o que aconteceu",
+// não inventar uma hora trabalhada que ninguém apontou.
 
 /** O retrato mínimo de uma demanda para a conta do painel. */
 export type DemandaParaPainel = {
@@ -24,6 +30,8 @@ export type DemandaParaPainel = {
   responsavelNome: string;
   /** Quantas vezes o prazo foi repactuado. */
   repactuacoes: number;
+  /** Esforço planejado, em horas — null quando ninguém estimou. */
+  horasEstimadas: number | null;
   /** Toda tentativa de entrega, devolvidas incluídas. */
   entregas: { createdAt: Date; aceita: boolean | null }[];
 };
@@ -46,6 +54,12 @@ export type LinhaPainel = {
   horasMediaEntrega: number | null;
   /** Soma dos tempos aceite→entrega das entregues, em horas. */
   horasSomadas: number;
+  /** Média do esforço PLANEJADO (horasEstimadas), entre as demandas que têm estimativa. */
+  horasEstimadasMedia: number | null;
+  /** Entre as entregues com estimativa E tempo medível, quantas têm denominador comparável. */
+  comEstimativa: number;
+  /** Dentre `comEstimativa`, quantas o tempo real ficou dentro do estimado. */
+  dentroEstimativa: number;
 };
 
 export type Painel = {
@@ -96,6 +110,9 @@ function linhaVazia(nome: string): LinhaPainel {
     repactuadas: 0,
     horasMediaEntrega: null,
     horasSomadas: 0,
+    horasEstimadasMedia: null,
+    comEstimativa: 0,
+    dentroEstimativa: 0,
   };
 }
 
@@ -106,19 +123,23 @@ function linhaVazia(nome: string): LinhaPainel {
  */
 export function montarPainelEntregas(demandas: DemandaParaPainel[], agora = new Date()): Painel {
   const hoje = diaBrasilia(agora);
-  const porPessoa = new Map<string, LinhaPainel & { medicoes: number[] }>();
+  const porPessoa = new Map<string, LinhaPainel & { medicoes: number[]; estimativas: number[] }>();
 
   for (const d of demandas) {
     if (!ABERTAS.includes(d.status) && !ENTREGARAM.includes(d.status)) continue;
 
     let linha = porPessoa.get(d.responsavelNome);
     if (!linha) {
-      linha = { ...linhaVazia(d.responsavelNome), medicoes: [] };
+      linha = { ...linhaVazia(d.responsavelNome), medicoes: [], estimativas: [] };
       porPessoa.set(d.responsavelNome, linha);
     }
 
     linha.devolucoes += d.entregas.filter((e) => e.aceita === false).length;
     if (d.repactuacoes > 0) linha.repactuadas++;
+    // O que se ESPERAVA de esforço entra na média independente de a demanda já
+    // ter sido entregue — é "quanto trabalho eu costumo dar a essa pessoa",
+    // não uma medida de desempenho.
+    if (d.horasEstimadas != null) linha.estimativas.push(d.horasEstimadas);
 
     if (ABERTAS.includes(d.status)) {
       linha.abertas++;
@@ -134,6 +155,13 @@ export function montarPainelEntregas(demandas: DemandaParaPainel[], agora = new 
     if (horas !== null) {
       linha.medicoes.push(horas);
       linha.horasSomadas += horas;
+      // "Dentro da estimativa" só compara o que TEM os dois números — tempo
+      // real medível e uma estimativa declarada. Sem isso, comparar seria
+      // fingir um denominador que não existe.
+      if (d.horasEstimadas != null) {
+        linha.comEstimativa++;
+        if (horas <= d.horasEstimadas) linha.dentroEstimativa++;
+      }
     }
   }
 
@@ -144,10 +172,12 @@ export function montarPainelEntregas(demandas: DemandaParaPainel[], agora = new 
       a.nome.localeCompare(b.nome, "pt-BR"),
   );
 
-  const linhas = agregadas.map(({ medicoes, ...linha }) => ({
+  const linhas = agregadas.map(({ medicoes, estimativas, ...linha }) => ({
     ...linha,
     horasMediaEntrega:
       medicoes.length > 0 ? medicoes.reduce((a, b) => a + b, 0) / medicoes.length : null,
+    horasEstimadasMedia:
+      estimativas.length > 0 ? estimativas.reduce((a, b) => a + b, 0) / estimativas.length : null,
   }));
 
   const totais = linhas.reduce((t, l) => {
@@ -158,12 +188,21 @@ export function montarPainelEntregas(demandas: DemandaParaPainel[], agora = new 
     t.devolucoes += l.devolucoes;
     t.repactuadas += l.repactuadas;
     t.horasSomadas += l.horasSomadas;
+    t.comEstimativa += l.comEstimativa;
+    t.dentroEstimativa += l.dentroEstimativa;
     return t;
   }, linhaVazia("Todos"));
-  // A média geral pondera pelo nº de MEDIÇÕES, não pela média de cada pessoa —
-  // média de médias daria peso igual a quem entregou 1 e a quem entregou 20.
+  // As médias gerais ponderam pelo nº de MEDIÇÕES/ESTIMATIVAS, não pela média
+  // de cada pessoa — média de médias daria peso igual a quem entregou 1 e a
+  // quem entregou 20.
   const totalMedicoes = agregadas.reduce((s, l) => s + l.medicoes.length, 0);
   totais.horasMediaEntrega = totalMedicoes > 0 ? totais.horasSomadas / totalMedicoes : null;
+  const totalEstimativas = agregadas.reduce((s, l) => s + l.estimativas.length, 0);
+  const somaEstimativas = agregadas.reduce(
+    (s, l) => s + l.estimativas.reduce((a, b) => a + b, 0),
+    0,
+  );
+  totais.horasEstimadasMedia = totalEstimativas > 0 ? somaEstimativas / totalEstimativas : null;
 
   return { linhas, totais };
 }
