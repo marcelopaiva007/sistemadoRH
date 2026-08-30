@@ -9,6 +9,7 @@ import { sistemasPermitidos } from "@/lib/permissoes/efetivas";
 import { garantirAcessoDoColaborador, PAPEL_PORTAL } from "@/lib/delegacoes/acesso-colaborador";
 import { avisarDemandaEnviada } from "@/lib/delegacoes/telegram";
 import { avisarDemandaEnviadaPorEmail } from "@/lib/delegacoes/email";
+import { classificarInteracao } from "@/lib/delegacoes/classificar";
 import type { ActionResult } from "@/lib/constants";
 import {
   EVENTO_DA_TRANSICAO,
@@ -520,15 +521,16 @@ export async function reportarProgresso(input: {
       if (count === 0) return "conflito" as const;
       await registrarEvento(tx, demanda.id, "EXECUCAO_INICIADA", ator);
     }
-    await tx.demandaInteracao.create({
+    const interacao = await tx.demandaInteracao.create({
       data: {
         demandaId: demanda.id,
         tipo: "RECEBIDA",
         canal: "PAINEL",
         conteudo: input.conteudo.trim(),
       },
+      select: { id: true },
     });
-    return "ok" as const;
+    return interacao.id;
   });
 
   if (resultado === "conflito") return { ok: false, error: ERRO_CONFLITO };
@@ -540,6 +542,9 @@ export async function reportarProgresso(input: {
     // pessoas e já vive em DemandaInteracao. A trilha registra QUE houve.
     resumo: "Reportou andamento da demanda",
   });
+  // O classificador (PR 6) lê o texto DEPOIS de gravado — falhar aqui nunca
+  // desfaz o reporte, que já vale independente de a IA conseguir lê-lo.
+  await classificarInteracao(demanda.id, resultado);
   revalidarModulo();
   return { ok: true };
 }

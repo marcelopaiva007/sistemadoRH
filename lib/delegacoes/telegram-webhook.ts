@@ -3,6 +3,7 @@ import { answerCallbackQuery, removerBotoes, sendTelegramMessage } from "@/lib/t
 import { validarReporte, validarTransicao } from "@/lib/delegacoes/estados";
 import { diasAtePrazo, prazoEmTexto } from "@/lib/delegacoes/consultas";
 import { botoesDaCobranca, lerCallback } from "@/lib/delegacoes/telegram";
+import { classificarInteracao } from "@/lib/delegacoes/classificar";
 
 // O que acontece quando a pessoa TOCA num botão ou ESCREVE no bot.
 //
@@ -226,14 +227,20 @@ export async function tratarCallbackDelegacoes(params: {
   }
 }
 
-/** Reporte curto vindo de botão — mesma regra do reporte por texto. */
+/**
+ * Reporte curto vindo de botão — mesma regra do reporte por texto. Devolve o
+ * id da interação criada (ou null se a máquina recusou) para quem chamar
+ * decidir se manda pro classificador — os botões (np/er/tv/ct) já dizem
+ * exatamente o que aconteceu, sem precisar de IA para interpretar; só o
+ * TEXTO LIVRE (chamador em `tratarTextoDelegacoes`) classifica.
+ */
 async function registrarReporte(
   demanda: { id: string; status: string; solicitanteId: string; responsavelId: string; evidenciaExigida: string },
   autor: { userId: string; nome: string },
   conteudo: string,
-) {
+): Promise<string | null> {
   const veredito = validarReporte(demanda, autor.userId, conteudo);
-  if (!veredito.ok) return;
+  if (!veredito.ok) return null;
   if (demanda.status === "ACEITA") {
     const { count } = await prisma.demanda.updateMany({
       where: { id: demanda.id, status: "ACEITA" },
@@ -241,9 +248,11 @@ async function registrarReporte(
     });
     if (count > 0) await evento(demanda.id, "EXECUCAO_INICIADA", autor);
   }
-  await prisma.demandaInteracao.create({
+  const interacao = await prisma.demandaInteracao.create({
     data: { demandaId: demanda.id, tipo: "RECEBIDA", canal: "TELEGRAM", conteudo },
+    select: { id: true },
   });
+  return interacao.id;
 }
 
 /**
@@ -340,13 +349,17 @@ export async function tratarTextoDelegacoes(params: {
     return { tratado: true };
   }
 
-  // Qualquer outro texto é reporte de andamento — o caso mais comum.
+  // Qualquer outro texto é reporte de andamento — o caso mais comum, e o
+  // único que passa pelo classificador (PR 6): é TEXTO LIVRE de verdade, ao
+  // contrário dos botões (np/er/tv/ct), que já dizem o que aconteceu sem
+  // precisar de leitura nenhuma.
   const veredito = validarReporte(demanda, autor.userId, texto);
   if (!veredito.ok) {
     await sendTelegramMessage(params.chatId, veredito.erro);
     return { tratado: true };
   }
-  await registrarReporte(demanda, autor, texto);
+  const interacaoId = await registrarReporte(demanda, autor, texto);
+  if (interacaoId) await classificarInteracao(demanda.id, interacaoId);
   const dias = diasAtePrazo(demanda.prazo);
   await sendTelegramMessage(
     params.chatId,
