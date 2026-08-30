@@ -10,6 +10,7 @@
 
 import {
   DIAS_PADRAO_POR_CRITICIDADE,
+  HORAS_ESTIMADAS_PADRAO,
   normalizarProposta,
   type PropostaBruta,
 } from "../lib/delegacoes/redator";
@@ -43,6 +44,7 @@ const COMPLETA: PropostaBruta = {
   evidenciaExigida: "LINK",
   criticidade: 2,
   prazo: "2026-09-10",
+  horasEstimadas: 6,
   periodicidadeRetorno: "SEMANAL",
   marcaNome: "LM Telecom",
   area: "Infraestrutura",
@@ -57,6 +59,7 @@ console.log("\nO caminho feliz — a IA devolveu tudo certo\n");
     igual(r.proposta.prazo, "2026-09-10", "o prazo que a IA deu é respeitado");
     igual(r.proposta.criticidade, 2, "criticidade preservada");
     igual(r.proposta.marcaNome, "LM Telecom", "marca casada com o cadastro");
+    igual(r.proposta.horasEstimadas, 6, "horas estimadas preservadas");
     igual(r.proposta.assumiu, [], "nada assumido — o contexto disse tudo");
   }
 }
@@ -135,6 +138,42 @@ console.log("\nPrazo — o campo em que inventar dói mais\n");
   // Formato livre: "sexta que vem" não é data.
   const texto = normalizarProposta({ ...COMPLETA, prazo: "sexta que vem" }, params);
   ok(texto.ok && /^\d{4}-\d{2}-\d{2}$/.test(texto.proposta.prazo), "texto livre não passa como prazo");
+}
+
+console.log("\nHoras estimadas — esforço declarado, nunca inventando correlação com prazo\n");
+{
+  // Presente e válida: respeitada, arredondada para a meia hora.
+  const r1 = normalizarProposta({ ...COMPLETA, horasEstimadas: 12.3 }, params);
+  ok(r1.ok && r1.proposta.horasEstimadas === 12.5, "arredonda para a meia hora mais próxima");
+  ok(r1.ok && !r1.proposta.assumiu.some((a) => a.includes("horas estimadas")), "valor válido não gera assumiu");
+
+  // Ausente: cai no padrão fixo, declarado.
+  const r2 = normalizarProposta({ ...COMPLETA, horasEstimadas: undefined }, params);
+  ok(r2.ok && r2.proposta.horasEstimadas === HORAS_ESTIMADAS_PADRAO, "sem base no contexto, cai no padrão");
+  ok(
+    r2.ok && r2.proposta.assumiu.some((a) => a.includes("horas estimadas")),
+    "e o padrão assumido é declarado",
+  );
+
+  // Zero, negativa, e não numérica: mesmo tratamento — nunca um esforço absurdo.
+  for (const bruta of [0, -5, "duas semanas", null]) {
+    const r = normalizarProposta({ ...COMPLETA, horasEstimadas: bruta as unknown }, params);
+    ok(r.ok && r.proposta.horasEstimadas === HORAS_ESTIMADAS_PADRAO, `"${bruta}" cai no padrão, não vira esforço negativo/zero/texto`);
+  }
+
+  // Fora da faixa sã: um número technically-positivo mas absurdo também cai no padrão.
+  const r3 = normalizarProposta({ ...COMPLETA, horasEstimadas: 100000 }, params);
+  ok(r3.ok && r3.proposta.horasEstimadas === HORAS_ESTIMADAS_PADRAO, "número absurdo (100000h) cai no padrão, não é aceito cru");
+
+  // NÃO existe tabela por criticidade aqui — ao contrário do prazo, esforço
+  // não se correlaciona com urgência. O padrão é o MESMO em toda criticidade.
+  for (const c of CRITICIDADES) {
+    const r = normalizarProposta({ ...COMPLETA, criticidade: c, horasEstimadas: undefined }, params);
+    ok(
+      r.ok && r.proposta.horasEstimadas === HORAS_ESTIMADAS_PADRAO,
+      `criticidade ${c} sem estimativa: mesmo padrão fixo, não uma tabela por urgência`,
+    );
+  }
 }
 
 console.log("\nO que faz a proposta ser RECUSADA (em vez de remendada)\n");

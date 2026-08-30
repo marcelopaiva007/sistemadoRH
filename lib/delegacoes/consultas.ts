@@ -217,6 +217,7 @@ export const SELECT_PAINEL = {
   prazo: true,
   enviadaEm: true,
   aceiteEm: true,
+  horasEstimadas: true,
   responsavel: { select: { nome: true } },
   _count: { select: { repactuacoes: true } },
   entregas: { select: { createdAt: true, aceita: true } },
@@ -227,6 +228,7 @@ type LinhaPainelDoBanco = {
   prazo: Date;
   enviadaEm: Date | null;
   aceiteEm: Date | null;
+  horasEstimadas: number | null;
   responsavel: { nome: string };
   _count: { repactuacoes: number };
   entregas: { createdAt: Date; aceita: boolean | null }[];
@@ -239,6 +241,7 @@ export function paraPainel(d: LinhaPainelDoBanco): DemandaParaPainel {
     prazo: d.prazo,
     enviadaEm: d.enviadaEm,
     aceiteEm: d.aceiteEm,
+    horasEstimadas: d.horasEstimadas,
     responsavelNome: d.responsavel.nome,
     repactuacoes: d._count.repactuacoes,
     entregas: d.entregas,

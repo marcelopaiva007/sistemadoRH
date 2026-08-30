@@ -3317,6 +3317,15 @@ model Demanda {
   /// de aceite (24/48/72h) — ver lib/delegacoes/estados.ts.
   criticidade Int
 
+  /// Estimativa de ESFORÇO para concluir, em horas — sugerida pela IA ao
+  /// redigir (redator.ts), editável antes de enviar. PLANEJAMENTO, não
+  /// medição: o sistema não tem apontamento de horas trabalhadas (ver
+  /// lib/delegacoes/painel-entregas.ts) — isto é só o que se esperava antes
+  /// de começar, comparado depois com o tempo corrido real. Nula quando
+  /// ninguém estimou (demanda anterior a este campo, ou preenchida à mão sem
+  /// valor).
+  horasEstimadas Float?
+
   /// SEMPRE timestamp, nunca texto livre (spec §3.5). O prazo VIGENTE — muda
   /// por repactuação.
   prazo DateTime

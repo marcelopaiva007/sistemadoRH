@@ -17,9 +17,9 @@ import {
 import { TITULO_MAXIMO } from "@/lib/delegacoes/estados";
 import type { DemandaNaTela } from "@/lib/delegacoes/consultas";
 import type { Painel } from "@/lib/delegacoes/painel-entregas";
-import { duracaoEmTexto, fracaoEmTexto } from "@/lib/delegacoes/painel-entregas";
 import { cn } from "@/lib/utils";
 import { LinhaDemanda } from "../linha-demanda";
+import { TabelaEntregas } from "../tabela-entregas";
 
 // Mesmas duas constantes de classe do módulo de Processos (contratos-view.tsx,
 // veiculos-view.tsx, alugueis-view.tsx). Campo nativo com `CAMPO`, não os
@@ -85,6 +85,7 @@ const FORM_VAZIO: Record<string, string> = {
   evidenciaExigida: "TEXTO",
   criticidade: "3",
   prazo: "",
+  horasEstimadas: "",
   periodicidadeRetorno: "SEMANAL",
   marcaId: "",
   area: "",
@@ -174,6 +175,7 @@ export function DelegadasView({
         evidenciaExigida: p.evidenciaExigida,
         criticidade: String(p.criticidade),
         prazo: p.prazo,
+        horasEstimadas: String(p.horasEstimadas),
         periodicidadeRetorno: p.periodicidadeRetorno,
         marcaId: marcas.find((m) => m.nome === p.marcaNome)?.id ?? "",
         area: p.area ?? "",
@@ -240,6 +242,7 @@ export function DelegadasView({
         evidenciaExigida: form.evidenciaExigida,
         criticidade: Number(form.criticidade || "3"),
         prazo: form.prazo,
+        horasEstimadas: form.horasEstimadas ? Number(form.horasEstimadas) : undefined,
         periodicidadeRetorno: form.periodicidadeRetorno,
         marcaId: form.marcaId || null,
         area: form.area,
@@ -545,6 +548,14 @@ export function DelegadasView({
               </select>
             </label>
 
+            <label>
+              <span className="mb-1 block text-xs text-muted-foreground">Horas estimadas</span>
+              <input type="number" min="0.5" step="0.5" className={CAMPO} {...campo("horasEstimadas")} />
+              <span className="mt-1 block text-xs text-muted-foreground">
+                Esforço esperado — não é a data limite, é quanto trabalho isso deve levar.
+              </span>
+            </label>
+
             <p className={SECAO}>Como vamos saber que ficou pronto</p>
 
             <label className="sm:col-span-2 lg:col-span-4">
@@ -624,65 +635,19 @@ export function DelegadasView({
         </Card>
       )}
 
-      {painel.linhas.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Como andam as entregas</CardTitle>
-            <p className="text-xs text-muted-foreground">
-              Por pessoa, sobre tudo que você já delegou. &quot;Tempo até entregar&quot; conta
-              do aceite até a entrega — é tempo corrido com a demanda na mão, não apontamento
-              de horas trabalhadas, que o sistema não tem.
-            </p>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                    <th className="p-2 font-medium">Pessoa</th>
-                    <th className="p-2 text-center font-medium">Com ela agora</th>
-                    <th className="p-2 text-center font-medium">Atrasadas</th>
-                    <th className="p-2 text-center font-medium">Entregou no prazo</th>
-                    <th className="p-2 text-center font-medium">Devoluções</th>
-                    <th className="p-2 text-center font-medium">Repactuou</th>
-                    <th className="p-2 text-center font-medium">Tempo até entregar</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {painel.linhas.map((l) => (
-                    <tr key={l.nome} className="border-b border-border last:border-0">
-                      <td className="p-2 font-medium">{l.nome}</td>
-                      <td className="p-2 text-center">{l.abertas || "—"}</td>
-                      <td className={cn("p-2 text-center", l.atrasadas > 0 && "font-medium text-destructive")}>
-                        {l.atrasadas || "—"}
-                      </td>
-                      <td className="p-2 text-center">{fracaoEmTexto(l.noPrazo, l.entregues)}</td>
-                      <td className="p-2 text-center">{l.devolucoes || "—"}</td>
-                      <td className="p-2 text-center">{l.repactuadas || "—"}</td>
-                      <td className="p-2 text-center">{duracaoEmTexto(l.horasMediaEntrega)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                {painel.linhas.length > 1 && (
-                  <tfoot>
-                    <tr className="border-t border-border font-medium">
-                      <td className="p-2">Todos</td>
-                      <td className="p-2 text-center">{painel.totais.abertas}</td>
-                      <td className="p-2 text-center">{painel.totais.atrasadas || "—"}</td>
-                      <td className="p-2 text-center">
-                        {fracaoEmTexto(painel.totais.noPrazo, painel.totais.entregues)}
-                      </td>
-                      <td className="p-2 text-center">{painel.totais.devolucoes || "—"}</td>
-                      <td className="p-2 text-center">{painel.totais.repactuadas || "—"}</td>
-                      <td className="p-2 text-center">{duracaoEmTexto(painel.totais.horasMediaEntrega)}</td>
-                    </tr>
-                  </tfoot>
-                )}
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <TabelaEntregas
+        painel={painel}
+        titulo="Como andam as entregas"
+        descricao={
+          <>
+            Por pessoa, sobre tudo que você já delegou. &quot;Tempo até entregar&quot; conta do
+            aceite até a entrega — é tempo corrido com a demanda na mão, não apontamento de horas
+            trabalhadas, que o sistema não tem. &quot;Horas estimadas&quot; é o que se planejou
+            antes de começar (a IA sugere, você confirma ao delegar); &quot;dentro da
+            estimativa&quot; só conta entre as entregas que têm os dois números.
+          </>
+        }
+      />
 
       {aguardandoMeuAceite.length > 0 && (
         <Card className="border-amber-500/30">

@@ -26,6 +26,18 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.144.0",
+    data: "30/08/2026",
+    horario: "00:01",
+    titulo: "Delegações: horas estimadas por demanda e um Relatório com histórico e exportação",
+    itens: [
+      "Ao montar a demanda pela IA, ela agora também sugere quantas horas de trabalho aquilo deve levar — você confirma ou ajusta antes de enviar, igual já faz com prazo e critério de aceite. Sem base no contexto, ela assume um padrão e avisa.",
+      "\"Como andam as entregas\" (em Delegadas por mim) ganhou duas colunas: a média de horas estimadas e quantas entregas ficaram dentro do que se planejou.",
+      "Novo item de menu, Relatório (só Direção): a mesma conta, mas do grupo inteiro, com período (7/30/90 dias) e exportação em CSV.",
+      "Novo e-mail semanal para a Direção, toda segunda de manhã, com o resumo de como o grupo está entregando.",
+    ],
+  },
+  {
     versao: "1.143.0",
     data: "30/08/2026",
     horario: "00:40",

@@ -136,6 +136,8 @@ export type NovaDemanda = {
   criticidade: number;
   /** "aaaa-mm-dd" ou "aaaa-mm-ddThh:mm" — ver prazoDoFormulario. */
   prazo: string;
+  /** Esforço esperado, em horas. Ausente/≤0 grava null — só a IA sempre estima algo. */
+  horasEstimadas?: number | null;
   periodicidadeRetorno: string;
   marcaId?: string | null;
   area?: string | null;
@@ -236,6 +238,10 @@ export async function criarDemanda(
         criterioAceite: input.criterioAceite.trim(),
         evidenciaExigida: input.evidenciaExigida,
         criticidade: input.criticidade,
+        horasEstimadas:
+          typeof input.horasEstimadas === "number" && input.horasEstimadas > 0
+            ? input.horasEstimadas
+            : null,
         prazo: prazo!,
         // Regra 6: gravado UMA vez, aqui — nenhuma outra action escreve nele.
         prazoOriginal: prazo!,

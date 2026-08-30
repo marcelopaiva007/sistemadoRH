@@ -34,6 +34,7 @@ function demanda(over: Partial<DemandaParaPainel>): DemandaParaPainel {
     aceiteEm: h(47),
     responsavelNome: "Ana",
     repactuacoes: 0,
+    horasEstimadas: null,
     entregas: [],
     ...over,
   };
@@ -191,6 +192,61 @@ console.log("\nOrdenação — mais carga primeiro, empate por nome\n");
     demanda({ status: "EM_EXECUCAO", responsavelNome: "Bia" }),
   ]);
   igual(p.linhas.map((l) => l.nome), ["Zeca", "Ana", "Bia"], "Zeca (2) antes de Ana e Bia (1 cada, alfabético)");
+}
+
+console.log("\nHoras estimadas — média entra mesmo sem entrega (é planejamento, não medição)\n");
+{
+  const p = montarPainelEntregas([
+    demanda({ status: "EM_EXECUCAO", responsavelNome: "Ivo", horasEstimadas: 4 }),
+    demanda({ status: "ACEITA", responsavelNome: "Ivo", horasEstimadas: 8 }),
+  ]);
+  const ivo = p.linhas.find((l) => l.nome === "Ivo")!;
+  igual(ivo.horasEstimadasMedia, 6, "média de 4h e 8h, mesmo as duas ainda abertas");
+  igual(ivo.comEstimativa, 0, "nenhuma entregue ainda — sem denominador de 'dentro da estimativa'");
+  igual(ivo.dentroEstimativa, 0, "idem");
+}
+
+console.log("\nDentro da estimativa — só compara quem tem os DOIS números\n");
+{
+  const p = montarPainelEntregas([
+    demanda({
+      status: "ENCERRADA",
+      responsavelNome: "Juli",
+      horasEstimadas: 10,
+      aceiteEm: h(8),
+      entregas: [{ createdAt: h(0), aceita: true }], // 8h reais, estimativa 10h → dentro
+    }),
+    demanda({
+      status: "ENCERRADA",
+      responsavelNome: "Juli",
+      horasEstimadas: 5,
+      aceiteEm: h(8),
+      entregas: [{ createdAt: h(0), aceita: true }], // 8h reais, estimativa 5h → fora
+    }),
+    demanda({
+      status: "ENCERRADA",
+      responsavelNome: "Juli",
+      horasEstimadas: null,
+      aceiteEm: h(8),
+      entregas: [{ createdAt: h(0), aceita: true }], // sem estimativa → não entra na conta
+    }),
+  ]);
+  const juli = p.linhas.find((l) => l.nome === "Juli")!;
+  igual(juli.entregues, 3, "as três contam como entregues, com estimativa ou sem");
+  igual(juli.comEstimativa, 2, "só as duas com estimativa E tempo medível entram no denominador");
+  igual(juli.dentroEstimativa, 1, "só a de 8h real dentro dos 10h estimados conta");
+}
+
+console.log("\nHoras estimadas — total geral pondera por estimativa, não por pessoa\n");
+{
+  const p = montarPainelEntregas([
+    demanda({ status: "EM_EXECUCAO", responsavelNome: "Ken", horasEstimadas: 2 }),
+    demanda({ status: "EM_EXECUCAO", responsavelNome: "Ken", horasEstimadas: 6 }),
+    demanda({ status: "EM_EXECUCAO", responsavelNome: "Léo", horasEstimadas: 40 }),
+  ]);
+  // Ken: média 4h. Léo: média 40h. Ponderada por estimativa: (2+6+40)/3 = 16.
+  // Média das médias daria (4+40)/2 = 22 — errado, mesma armadilha do tempo real.
+  igual(Math.round(p.totais.horasEstimadasMedia ?? -1), 16, "total pondera por estimativa, não por pessoa");
 }
 
 console.log("\nTextos — duração e fração\n");
