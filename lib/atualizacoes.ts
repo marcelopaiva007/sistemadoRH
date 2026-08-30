@@ -26,6 +26,19 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.143.0",
+    data: "30/08/2026",
+    horario: "00:40",
+    titulo: "Delegações: a IA lê a resposta do responsável, e o digest por e-mail entra no ar",
+    itens: [
+      "Quando o responsável escreve em texto livre (pelo Telegram ou pelo painel), a IA agora lê e classifica: no prazo, em risco, travado esperando alguém, ou pedindo uma decisão sua.",
+      "Só quando o pedido é claramente para VOCÊ decidir é que você é avisado na hora — pelos dois canais. Nos outros casos, o sistema anota e segue: em risco, oferece repactuação ao responsável; travado, registra o que está travando; no prazo, só fica registrado.",
+      "Se a IA não tem certeza (confiança baixa), a classificação nunca vira \"precisa da sua decisão\" — incerteza nunca interrompe você.",
+      "O Painel (item do menu) já estava pronto para isso: agora que a classificação existe de verdade, o filtro por classificação passa a aparecer sozinho lá.",
+      "Novo digest por e-mail, 2x por dia (7h e 18h): um resumo do que você delegou, respeitando o retorno que você pediu para cada demanda (diário, semanal, duas vezes por semana, só quando atrasar, ou só na entrega). Atrasadas e em risco aparecem primeiro.",
+    ],
+  },
+  {
     versao: "1.142.0",
     data: "29/08/2026",
     horario: "22:20",

@@ -159,6 +159,10 @@ export const ROTULO_EVENTO: Record<string, string> = {
   CANCELADA: "Cancelada",
   EM_RISCO_LIGADO: "Marcada em risco",
   EM_RISCO_DESLIGADO: "Risco removido",
+  // Do motor de cobrança (PR 5) e do classificador (PR 6) — autoria "sistema".
+  COBRANCA_ENVIADA: "Cobrança automática enviada",
+  ESCALADA: "Escalada — envolveu a Direção ou ligou o painel vermelho",
+  ACEITE_COBRADO: "Aceite cobrado automaticamente",
 };
 
 /**
