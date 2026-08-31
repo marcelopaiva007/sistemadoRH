@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Car, Download, FileText, Paperclip, Plus, Pencil, Search, ShieldCheck, ShieldAlert, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -68,6 +69,9 @@ export type VeiculoNaTela = {
   setor: string | null;
   emplacado: boolean;
   motoristaInformado: string | null;
+  motoristaColaboradorId: string | null;
+  /** Nome do motorista VINCULADO ao cadastro de colaboradores. */
+  motoristaNome: string | null;
   empresaId: string;
   ufEmplacamento: string | null;
   propriedade: string;
@@ -79,6 +83,14 @@ export type VeiculoNaTela = {
   empresaNome: string;
   condutorAtual: string | null;
   vencimentoMaisProximo: { tipo: string; texto: string; dias: number } | null;
+  /** Semáforo do Financeiro da Frota, derivado no servidor (spec §4/§6). */
+  financeiro: {
+    status: string;
+    rotulo: string;
+    vencimentoTexto: string | null;
+    vencimentoTs: number | null;
+    dias: number | null;
+  };
   /** Quantos registros o Cascade levaria junto se o veículo fosse excluído. */
   historico: {
     infracoes: number;
@@ -98,11 +110,17 @@ export function VeiculosView({
   veiculos,
   condutores,
   empresas,
+  colaboradores,
+  empresasParam,
 }: {
   empresaId: string;
   veiculos: VeiculoNaTela[];
   condutores: { id: string; nome: string }[];
   empresas: { id: string; nome: string }[];
+  /** Colaboradores ativos — o select de motorista busca daqui (31/08/2026). */
+  colaboradores: { id: string; nome: string }[];
+  /** O `?empresas=` da URL — o CSV herda quando nenhum CNPJ é escolhido aqui. */
+  empresasParam?: string;
 }) {
   const router = useRouter();
   const [pendente, iniciar] = useTransition();
@@ -112,19 +130,38 @@ export function VeiculosView({
   // (maiúscula, sem hífen) — "klu-5g08" e "KLU5G08" acham o mesmo carro. O
   // campo também aceita modelo, empresa e motorista, minúsculas ou não.
   const [busca, setBusca] = useState("");
+  // Filtro por CNPJ na PRÓPRIA tela + contagem — pedido do RH em 31/08/2026,
+  // para tirar o relatório por empresa sem depender do seletor do topo.
+  const [empresaFiltro, setEmpresaFiltro] = useState("");
+  const [financeiroFiltro, setFinanceiroFiltro] = useState("");
+  // Clique no cabeçalho "Financeiro" liga a ordenação por vencimento (§6.2):
+  // vencidos no topo, sem registro no fim. Novo clique volta à ordem padrão.
+  const [ordenarPorVencimento, setOrdenarPorVencimento] = useState(false);
   const veiculosFiltrados = useMemo(() => {
     const consulta = busca.trim();
-    if (!consulta) return veiculos;
     const placaConsulta = normalizarPlaca(consulta);
     const textoConsulta = consulta.toLowerCase();
-    return veiculos.filter(
-      (v) =>
+    const filtrados = veiculos.filter((v) => {
+      if (empresaFiltro && v.empresaId !== empresaFiltro) return false;
+      if (financeiroFiltro && v.financeiro.status !== financeiroFiltro) return false;
+      if (!consulta) return true;
+      return (
         (placaConsulta !== "" && v.placa.includes(placaConsulta)) ||
-        [v.marca, v.modelo, v.empresaNome, v.condutorAtual, v.motoristaInformado].some((campo) =>
-          campo?.toLowerCase().includes(textoConsulta),
-        ),
-    );
-  }, [veiculos, busca]);
+        [v.marca, v.modelo, v.empresaNome, v.condutorAtual, v.motoristaNome, v.motoristaInformado].some(
+          (campo) => campo?.toLowerCase().includes(textoConsulta),
+        )
+      );
+    });
+    if (!ordenarPorVencimento) return filtrados;
+    return [...filtrados].sort((a, b) => {
+      const ta = a.financeiro.vencimentoTs;
+      const tb = b.financeiro.vencimentoTs;
+      if (ta != null && tb != null) return ta - tb;
+      if (ta != null) return -1;
+      if (tb != null) return 1;
+      return a.placa.localeCompare(b.placa);
+    });
+  }, [veiculos, busca, empresaFiltro, financeiroFiltro, ordenarPorVencimento]);
   // UM painel por vez, discriminado pelo tipo — não três estados soltos. Com
   // `form` + duas flags, abrir "Novo veículo" com o painel de documento aberto
   // deixava a flag antiga de pé: o formulário de veículo não aparecia (a
@@ -201,6 +238,7 @@ export function VeiculosView({
         setor: form.setor ?? null,
         emplacado: form.emplacado === "sim",
         motoristaInformado: form.motoristaInformado ?? null,
+        motoristaColaboradorId: form.motoristaColaboradorId || null,
         observacoes: form.observacoes ?? null,
         empresaDestinoId: form.empresaDestino || null,
       });
@@ -308,10 +346,17 @@ export function VeiculosView({
               </select>
             </label>
             <label className="text-xs text-muted-foreground">
-              Motorista (informado)
-              <input {...campo("motoristaInformado")} className={CAMPO} placeholder="Nome (texto)" />
+              Motorista (do cadastro de colaboradores)
+              <select {...campo("motoristaColaboradorId")} className={CAMPO}>
+                <option value="">— sem motorista definido —</option>
+                {colaboradores.map((c) => (
+                  <option key={c.id} value={c.id}>{c.nome}</option>
+                ))}
+              </select>
               <span className="mt-0.5 block text-[11px] text-muted-foreground/80">
-                Só texto. Vincular ao condutor de verdade é na aba Condutores.
+                {form.motoristaInformado
+                  ? `Texto legado da planilha: ${form.motoristaInformado} — escolher aqui substitui.`
+                  : "Quem dirige o carro. O termo formal de alocação é na aba Condutores."}
               </span>
             </label>
             <label className="text-xs text-muted-foreground">
@@ -399,8 +444,8 @@ export function VeiculosView({
       ) : (
         <Card>
           <CardContent className="px-0 pt-0">
-            <div className="px-4 pt-4 pb-1 sm:max-w-xs">
-              <div className="relative">
+            <div className="flex flex-wrap items-end gap-2 px-4 pt-4 pb-1">
+              <div className="relative sm:w-64">
                 <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
                 <Input
                   placeholder="Buscar placa, modelo ou motorista…"
@@ -409,6 +454,55 @@ export function VeiculosView({
                   onChange={(e) => setBusca(e.target.value)}
                 />
               </div>
+              <label className="text-xs text-muted-foreground">
+                Empresa
+                <select
+                  className={CAMPO}
+                  value={empresaFiltro}
+                  onChange={(e) => setEmpresaFiltro(e.target.value)}
+                >
+                  <option value="">Todas</option>
+                  {empresas.map((e) => (
+                    <option key={e.id} value={e.id}>{e.nome}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-xs text-muted-foreground">
+                Financeiro
+                <select
+                  className={CAMPO}
+                  value={financeiroFiltro}
+                  onChange={(e) => setFinanceiroFiltro(e.target.value)}
+                >
+                  <option value="">Todos</option>
+                  <option value="VENCIDO">🚨 Vencido</option>
+                  <option value="PROXIMO">🟠 Próximo do vencimento</option>
+                  <option value="EM_DIA">🟢 Em dia</option>
+                  <option value="QUITADO">⚪ Quitado</option>
+                  <option value="SEM_DADOS">➖ Não informado</option>
+                </select>
+              </label>
+              {/* Contagem pedida em 31/08/2026 — acompanha os filtros. */}
+              <span className="pb-2 text-xs text-muted-foreground">
+                {veiculosFiltrados.length === veiculos.length
+                  ? `${veiculos.length} veículo(s)`
+                  : `${veiculosFiltrados.length} de ${veiculos.length} veículo(s)`}
+              </span>
+              {/* O CSV respeita o CNPJ escolhido AQUI; sem escolha, o filtro
+                  do topo (`?empresas=`) — relatório por empresa, como pedido. */}
+              <a
+                className="mb-1 ml-auto inline-flex h-8 items-center rounded-md border border-border bg-background px-3 text-xs font-medium hover:bg-accent"
+                href={`/api/processos/${empresaId}/frota/relatorio/csv${
+                  empresaFiltro
+                    ? `?empresas=${empresaFiltro}`
+                    : empresasParam
+                      ? `?empresas=${encodeURIComponent(empresasParam)}`
+                      : ""
+                }`}
+                download
+              >
+                Relatório (CSV)
+              </a>
             </div>
             <Table>
               <TableHeader>
@@ -418,6 +512,16 @@ export function VeiculosView({
                   <TableHead>Empresa</TableHead>
                   <TableHead>Com quem está</TableHead>
                   <TableHead>Próximo vencimento</TableHead>
+                  <TableHead>
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 hover:text-foreground"
+                      title="Ordenar pelo vencimento financeiro (vencidos primeiro, sem registro no fim)"
+                      onClick={() => setOrdenarPorVencimento((o) => !o)}
+                    >
+                      Financeiro{ordenarPorVencimento ? " ↑" : ""}
+                    </button>
+                  </TableHead>
                   <TableHead>SNE</TableHead>
                   <TableHead />
                 </TableRow>
@@ -451,11 +555,18 @@ export function VeiculosView({
                           como resposta de "com quem está", com o aviso do que
                           falta formalizar. */}
                       {v.condutorAtual ??
-                        (v.motoristaInformado ? (
+                        (v.motoristaNome ? (
+                          <span>
+                            {v.motoristaNome}
+                            <span className="block text-[11px] text-muted-foreground">
+                              do cadastro — formalize a alocação para a indicação de multa
+                            </span>
+                          </span>
+                        ) : v.motoristaInformado ? (
                           <span>
                             {v.motoristaInformado}
                             <span className="block text-[11px] text-muted-foreground">
-                              do cadastro — formalize a alocação para a indicação de multa
+                              texto legado — vincule ao cadastro na edição do veículo
                             </span>
                           </span>
                         ) : (
@@ -480,6 +591,40 @@ export function VeiculosView({
                         </span>
                       ) : (
                         <span className="text-xs text-muted-foreground">sem documento registrado</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {v.financeiro.status === "SEM_DADOS" ? (
+                        <Link
+                          href={`/processos/${empresaId}/frota/financeiro`}
+                          className="text-xs text-muted-foreground hover:underline"
+                        >
+                          ➖ Não informado — cadastrar
+                        </Link>
+                      ) : (
+                        <span
+                          className={cn(
+                            "text-xs",
+                            v.financeiro.status === "VENCIDO" && "font-semibold text-destructive",
+                            v.financeiro.status === "PROXIMO" && "text-amber-600 dark:text-amber-500",
+                            v.financeiro.status === "EM_DIA" && "text-emerald-700 dark:text-emerald-500",
+                            (v.financeiro.status === "QUITADO" ||
+                              v.financeiro.status === "SUSPENSO" ||
+                              v.financeiro.status === "SEM_COBRANCA") &&
+                              "text-muted-foreground",
+                          )}
+                        >
+                          {v.financeiro.rotulo}
+                          {v.financeiro.vencimentoTexto && (
+                            <span className="block tabular-nums text-muted-foreground">
+                              {v.financeiro.vencimentoTexto}
+                              {v.financeiro.dias != null &&
+                                (v.financeiro.dias < 0
+                                  ? ` · vencido há ${Math.abs(v.financeiro.dias)} dia(s)`
+                                  : ` · vence em ${v.financeiro.dias} dia(s)`)}
+                            </span>
+                          )}
+                        </span>
                       )}
                     </TableCell>
                     <TableCell>
@@ -519,6 +664,7 @@ export function VeiculosView({
                               setor: v.setor ?? "",
                               emplacado: v.emplacado ? "sim" : "",
                               motoristaInformado: v.motoristaInformado ?? "",
+                              motoristaColaboradorId: v.motoristaColaboradorId ?? "",
                               empresaDestino: v.empresaId,
                             })
                           }

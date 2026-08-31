@@ -26,6 +26,7 @@ const GRUPOS = [
     itens: [
       { slug: "frota/panorama", label: "Panorama", icon: PieChart },
       { slug: "frota", label: "Veículos", icon: Car },
+      { slug: "frota/financeiro", label: "Financeiro", icon: CircleDollarSign },
       { slug: "frota/multas", label: "Multas", icon: FileWarning },
       { slug: "frota/condutores", label: "Condutores", icon: IdCard },
       { slug: "frota/consumo", label: "Consumo", icon: Fuel },

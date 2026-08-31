@@ -75,6 +75,8 @@ export async function salvarVeiculo(input: {
   setor?: string | null;
   emplacado?: boolean;
   motoristaInformado?: string | null;
+  /** Motorista do CADASTRO de colaboradores (31/08/2026) — o texto acima é legado. */
+  motoristaColaboradorId?: string | null;
   /** Só na edição: mover o veículo para outro CNPJ que o usuário alcança — é
    *  como o RH tira da empresa provisória "A DEFINIR" da importação da frota. */
   empresaDestinoId?: string | null;
@@ -141,6 +143,20 @@ export async function salvarVeiculo(input: {
     return { ok: false, error: `A placa ${formatarPlaca(placa)} já está cadastrada.` };
   }
 
+  // O motorista vem do CADASTRO (31/08/2026) — e só de ficha ativa que o
+  // usuário alcança: id solto no payload não vira vínculo com gente de fora.
+  const motoristaColaboradorId = input.motoristaColaboradorId || null;
+  if (motoristaColaboradorId) {
+    const visiveis = await empresasVisiveis(usuario);
+    const ficha = await prisma.colaborador.findFirst({
+      where: { id: motoristaColaboradorId, ativo: true, empresaId: { in: visiveis } },
+      select: { id: true },
+    });
+    if (!ficha) {
+      return { ok: false, error: "Motorista não encontrado entre os colaboradores ativos do seu acesso." };
+    }
+  }
+
   const dados = {
     // Criando, o dono é o CNPJ da tela; editando, o carro fica onde está —
     // exceto quando o usuário escolhe MOVER (empresaDestino), que é como se
@@ -170,6 +186,7 @@ export async function salvarVeiculo(input: {
     setor: (input.setor ?? "").trim() || null,
     emplacado: input.emplacado ?? false,
     motoristaInformado: (input.motoristaInformado ?? "").trim() || null,
+    motoristaColaboradorId,
   };
 
   const veiculo = input.id
@@ -1079,14 +1096,29 @@ export async function sugerirCondutor(input: {
   }
 
   // Sem alocação formal, o MOTORISTA DO CADASTRO ainda responde à pergunta —
-  // pedido do RH em 31/08/2026. Ele é texto livre da planilha (pode trazer
-  // "A / B"), então só vira sugestão quando casa com UM condutor cadastrado:
-  // a indicação em si continua exigindo um Condutor de verdade (CNH), e
-  // ambiguidade aqui indicaria a pessoa errada num ato formal perante o órgão.
+  // pedido do RH em 31/08/2026. O vínculo com a ficha (motoristaColaboradorId)
+  // vem primeiro: é direto, sem ambiguidade. O texto da planilha é o fallback
+  // (pode trazer "A / B"), e só vira sugestão quando casa com UM condutor
+  // cadastrado: a indicação em si continua exigindo um Condutor de verdade
+  // (CNH), e ambiguidade aqui indicaria a pessoa errada num ato formal.
   const veiculo = await prisma.veiculo.findFirst({
     where: { id: input.veiculoId, empresaId: { in: visiveis } },
-    select: { motoristaInformado: true },
+    select: { motoristaInformado: true, motoristaColaboradorId: true },
   });
+  if (veiculo?.motoristaColaboradorId) {
+    const condutorDaFicha = await prisma.condutor.findFirst({
+      where: { colaboradorId: veiculo.motoristaColaboradorId, empresaId: { in: visiveis } },
+      select: { id: true, colaborador: { select: { nome: true } } },
+    });
+    if (condutorDaFicha) {
+      return {
+        ok: true,
+        condutorId: condutorDaFicha.id,
+        nome: condutorDaFicha.colaborador.nome,
+        origem: "cadastro",
+      };
+    }
+  }
   const informado = veiculo?.motoristaInformado?.trim();
   if (!informado) return { ok: true, condutorId: null, nome: null, origem: null };
 

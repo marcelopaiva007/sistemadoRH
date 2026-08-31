@@ -5,6 +5,7 @@ import { sistemasPermitidos } from "@/lib/permissoes/efetivas";
 import { prisma } from "@/lib/prisma";
 import { gerarCsv } from "@/lib/csv";
 import { diferencaEmDiasUTC, formatarData, hojeUTC } from "@/lib/datas";
+import { retratoFinanceiro, ROTULO_STATUS_VENCIMENTO } from "@/lib/processos/frota-financeiro";
 import {
   formatarPlaca,
   MOTORIZACAO_VEICULO,
@@ -69,12 +70,27 @@ export async function GET(
         hodometroAtual: true,
         valorFipe: true,
         motoristaInformado: true,
+        motoristaColaborador: { select: { nome: true } },
         alocacoes: {
           where: { dataFim: null },
           take: 1,
           select: { condutor: { select: { colaborador: { select: { nome: true } } } } },
         },
         documentos: { select: { tipo: true, dataVencimento: true } },
+        financeiro: {
+          select: {
+            tipoAquisicao: true,
+            situacao: true,
+            valorParcela: true,
+            qtdParcelasTotal: true,
+            qtdParcelasPagas: true,
+            dataPrimeiraParcela: true,
+            recorrencia: true,
+            recorrenciaIntervaloDias: true,
+            dataProximoVencimento: true,
+            credor: true,
+          },
+        },
         _count: { select: { infracoes: true } },
       },
     }),
@@ -110,6 +126,9 @@ export async function GET(
     "Próximo vencimento",
     "Vencimento em",
     "Dias p/ vencer",
+    "Situação financeira",
+    "Credor",
+    "Venc. financeiro",
     "Multas registradas",
     "Renavam",
     "Chassi",
@@ -130,9 +149,14 @@ export async function GET(
       if (!proximo || dias < proximo.dias) proximo = { tipo, data, dias };
     }
 
+    // Mesma resolução da tela: alocação formal → vínculo do cadastro → texto
+    // legado da planilha.
     const motorista =
       v.alocacoes[0]?.condutor.colaborador.nome ??
-      (v.motoristaInformado ? `${v.motoristaInformado} (do cadastro)` : "");
+      v.motoristaColaborador?.nome ??
+      (v.motoristaInformado ? `${v.motoristaInformado} (texto legado)` : "");
+
+    const fin = retratoFinanceiro(v.financeiro, hoje);
 
     return [
       formatarPlaca(v.placa),
@@ -155,6 +179,9 @@ export async function GET(
       proximo ? rotulo(TIPOS_DOCUMENTO_VEICULO, proximo.tipo) : "",
       proximo ? formatarData(proximo.data) : "",
       proximo ? String(proximo.dias) : "",
+      ROTULO_STATUS_VENCIMENTO[fin.status],
+      v.financeiro?.credor ?? "",
+      fin.proximoVencimento ? formatarData(fin.proximoVencimento) : "",
       String(v._count.infracoes),
       v.renavam ?? "",
       v.chassi ?? "",

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireProcessosEmpresa } from "@/lib/processos-auth-guard";
 import { escopoDeEmpresas } from "@/lib/rh-auth-guard";
 import { diferencaEmDiasUTC, formatarData, hojeUTC, paraInputDate } from "@/lib/datas";
+import { retratoFinanceiro, ROTULO_STATUS_VENCIMENTO } from "@/lib/processos/frota-financeiro";
 import { VeiculosView, type VeiculoNaTela } from "./veiculos-view";
 
 // Veículos da frota. Consolidada por padrão e filtrada por `?empresas=`, como
@@ -23,7 +24,7 @@ export default async function VeiculosPage({
   // O cabeçalho entra no mesmo Promise.all das listas: ele só depende do
   // empresaId da URL, e serializá-lo antes custava um round-trip a mais por
   // carregamento.
-  const [empresa, veiculos, condutores, empresas] = await Promise.all([
+  const [empresa, veiculos, condutores, empresas, colaboradores] = await Promise.all([
     prisma.empresa.findUnique({
       where: { id: empresaId },
       select: { nome: true, marca: { select: { nome: true } } },
@@ -46,6 +47,8 @@ export default async function VeiculosPage({
         setor: true,
         emplacado: true,
         motoristaInformado: true,
+        motoristaColaboradorId: true,
+        motoristaColaborador: { select: { nome: true } },
         ufEmplacamento: true,
         propriedade: true,
         motorizacao: true,
@@ -89,6 +92,21 @@ export default async function VeiculosPage({
             arquivo: { select: { id: true, nome: true, mimeType: true, tamanhoBytes: true } },
           },
         },
+        // O financeiro vem no MESMO findMany (§6.5 da spec) — nunca uma
+        // consulta por linha. Só o que o semáforo da coluna precisa.
+        financeiro: {
+          select: {
+            tipoAquisicao: true,
+            situacao: true,
+            valorParcela: true,
+            qtdParcelasTotal: true,
+            qtdParcelasPagas: true,
+            dataPrimeiraParcela: true,
+            recorrencia: true,
+            recorrenciaIntervaloDias: true,
+            dataProximoVencimento: true,
+          },
+        },
       },
     }),
     prisma.condutor.findMany({
@@ -97,6 +115,13 @@ export default async function VeiculosPage({
       select: { id: true, colaborador: { select: { nome: true } } },
     }),
     prisma.empresa.findMany({ where: { id: { in: escopo } }, select: { id: true, nome: true } }),
+    // O select de motorista do formulário — o CADASTRO de colaboradores, como
+    // pedido em 31/08/2026: escolher da lista, não digitar texto solto.
+    prisma.colaborador.findMany({
+      where: { empresaId: { in: escopo }, ativo: true },
+      orderBy: { nome: "asc" },
+      select: { id: true, nome: true },
+    }),
   ]);
   if (!empresa) notFound();
 
@@ -136,6 +161,8 @@ export default async function VeiculosPage({
       setor: v.setor,
       emplacado: v.emplacado,
       motoristaInformado: v.motoristaInformado,
+      motoristaColaboradorId: v.motoristaColaboradorId,
+      motoristaNome: v.motoristaColaborador?.nome ?? null,
       empresaId: v.empresaId,
       ufEmplacamento: v.ufEmplacamento,
       propriedade: v.propriedade,
@@ -148,6 +175,17 @@ export default async function VeiculosPage({
       empresaNome: nomeDaEmpresa.get(v.empresaId) ?? "—",
       condutorAtual: v.alocacoes[0]?.condutor.colaborador.nome ?? null,
       vencimentoMaisProximo: proximo,
+      financeiro: (() => {
+        // Derivado no servidor (spec §4) — a view não refaz o semáforo.
+        const ret = retratoFinanceiro(v.financeiro, hoje);
+        return {
+          status: ret.status,
+          rotulo: ROTULO_STATUS_VENCIMENTO[ret.status],
+          vencimentoTexto: ret.proximoVencimento ? formatarData(ret.proximoVencimento) : null,
+          vencimentoTs: ret.proximoVencimento ? ret.proximoVencimento.getTime() : null,
+          dias: ret.diasParaVencimento,
+        };
+      })(),
       // `documentos` sai do array que já veio; os outros cinco, do _count.
       historico: {
         infracoes: v._count.infracoes,
@@ -185,15 +223,6 @@ export default async function VeiculosPage({
             no dia da multa.
           </p>
         </div>
-        {/* Mesmo escopo da tela: o `?empresas=` segue junto para o CSV nunca
-            divergir do que está sendo mostrado. */}
-        <a
-          href={`/api/processos/${empresaId}/frota/relatorio/csv${empresasParam ? `?empresas=${encodeURIComponent(empresasParam)}` : ""}`}
-          className="inline-flex h-9 items-center rounded-md border border-border bg-background px-3 text-sm font-medium hover:bg-accent"
-          download
-        >
-          Relatório (CSV)
-        </a>
       </div>
 
       <VeiculosView
@@ -201,6 +230,8 @@ export default async function VeiculosPage({
         veiculos={naTela}
         condutores={condutores.map((c) => ({ id: c.id, nome: c.colaborador.nome }))}
         empresas={empresas}
+        colaboradores={colaboradores}
+        empresasParam={empresasParam}
       />
     </div>
   );

@@ -373,6 +373,8 @@ model Colaborador {
   // colaboradores — quem lidera e quem é o assunto.
   avisosComoGestor    AvisoGestor[] @relation("AvisosRecebidosComoGestor")
   avisosSobreMim      AvisoGestor[] @relation("AvisosSobreMim")
+  // Veículos da frota em que esta pessoa é o motorista vinculado.
+  veiculosQueDirige   Veiculo[]     @relation("MotoristaDoVeiculo")
   // O login desta pessoa no sistema, quando existe — ver User.colaboradorId.
   // A maioria das fichas não tem: colaborador de chão de fábrica entra pelo
   // portal, pelo Telegram, sem usuário e sem senha.
@@ -2590,6 +2592,12 @@ model Veiculo {
   // NÃO substitui o cadastro de Condutor (via AlocacaoVeiculo): é o dado cru
   // para o RH formalizar a alocação depois.
   motoristaInformado    String?
+  // Motorista VINCULADO ao cadastro de colaboradores — pedido do RH em
+  // 31/08/2026: "com quem está" busca no cadastro, não em texto solto. O texto
+  // acima vira legado (exibido só quando este vínculo não existe). SetNull: o
+  // colaborador sair não apaga o veículo, só o deixa sem motorista definido.
+  motoristaColaboradorId String?
+  motoristaColaborador   Colaborador? @relation("MotoristaDoVeiculo", fields: [motoristaColaboradorId], references: [id], onDelete: SetNull)
 
   // PROPRIO | ALUGADO | COMODATO | LEASING
   propriedade String @default("PROPRIO")
@@ -2626,6 +2634,7 @@ model Veiculo {
   criadoEm      DateTime @default(now())
   atualizadoEm  DateTime @updatedAt
 
+  financeiro     VeiculoFinanceiro?
   alocacoes      AlocacaoVeiculo[]
   infracoes      Infracao[]
   documentos     DocumentoVeiculo[]
@@ -2704,6 +2713,56 @@ model Condutor {
 /// condutor deixa de ser trabalho manual de trinta dias e vira uma consulta.
 ///
 /// `dataFim` nula = está com a pessoa agora.
+/// Situação de pagamento do veículo — 1:1 com a frota (spec "Financeiro da
+/// Frota", 31/08/2026): quitado, financiado, consórcio, leasing ou alugado, e
+/// o vencimento da próxima parcela. `qtdParcelasPagas` é CONTADOR simples de
+/// propósito: a v2 (tabela de parcelas individualizadas, com comprovante)
+/// nasce ao lado sem migrar estado espalhado.
+///
+/// `dataProximoVencimento` gravada é OVERRIDE MANUAL — vazia, o vencimento é
+/// derivado (dataPrimeiraParcela + pagas × recorrência) na leitura, em
+/// lib/processos/frota-financeiro.ts. A regra de não avançar sozinho quando a
+/// data passa mora lá: vencido fica vencido até alguém registrar a parcela.
+model VeiculoFinanceiro {
+  id        String  @id @default(cuid())
+  empresaId String
+  veiculoId String  @unique
+  veiculo   Veiculo @relation(fields: [veiculoId], references: [id], onDelete: Cascade)
+
+  /// A_VISTA | FINANCIADO | CONSORCIO | LEASING | ALUGADO
+  tipoAquisicao String
+  /// QUITADO | EM_PAGAMENTO | SUSPENSO
+  situacao      String
+
+  credor         String?
+  contratoNumero String?
+  valorTotal     Float?
+  valorParcela   Float?
+
+  qtdParcelasTotal    Int?
+  qtdParcelasPagas    Int       @default(0)
+  dataPrimeiraParcela DateTime?
+
+  /// MENSAL | QUINZENAL | SEMANAL | BIMESTRAL | TRIMESTRAL | SEMESTRAL |
+  /// ANUAL | PERSONALIZADA | SEM_RECORRENCIA
+  recorrencia              String @default("MENSAL")
+  recorrenciaIntervaloDias Int?
+
+  /// Só o OVERRIDE manual — o vencimento calculado NUNCA é persistido aqui.
+  dataProximoVencimento DateTime?
+
+  observacoes String?
+  ativo       Boolean @default(true)
+
+  criadoPorId   String?
+  criadoPorNome String?
+  criadoEm      DateTime @default(now())
+  atualizadoEm  DateTime @updatedAt
+
+  @@index([empresaId, dataProximoVencimento])
+  @@schema("rh")
+}
+
 model AlocacaoVeiculo {
   id         String   @id @default(cuid())
   empresaId  String
