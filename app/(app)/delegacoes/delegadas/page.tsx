@@ -3,7 +3,6 @@ import { requireDelegacoesAccess } from "@/lib/delegacoes-auth-guard";
 import { paraLinha, paraPainel, SELECT_LISTA, SELECT_PAINEL } from "@/lib/delegacoes/consultas";
 import { STATUS_TERMINAIS } from "@/lib/delegacoes/estados";
 import { montarPainelEntregas } from "@/lib/delegacoes/painel-entregas";
-import { quemAlcancaSistema } from "@/lib/permissoes/efetivas";
 import { PAPEL_PORTAL } from "@/lib/delegacoes/acesso-colaborador";
 import { DelegadasView } from "./delegadas-view";
 
@@ -89,15 +88,6 @@ export default async function DelegadasPage() {
   const demandas = linhas.map((d) => paraLinha(d));
   const painel = montarPainelEntregas(linhasPainel.map((d) => paraPainel(d)));
 
-  // SÓ quem consegue entrar no módulo pode ser responsável. Delegar a quem a
-  // guarda redireciona grava uma demanda que a pessoa nunca vê, nunca aceita e
-  // nunca entrega — ela fica presa em "aguardando aceite" para sempre, e o
-  // relógio do aceite corre contra alguém que não foi avisado de nada. É o
-  // mesmo cuidado que a Central de Pendências documenta ao montar a lista de
-  // responsáveis dela. A pergunta é feita a `sistemasPermitidos`, a mesma
-  // fonte da guarda — não a uma lista de papéis copiada, que divergiria.
-  // Uma consulta para todos, não uma por pessoa: ver `quemAlcancaSistema`.
-  const alcancam = await quemAlcancaSistema(usuarios, "delegacoes");
   const favoritoIds = new Set(favoritos.map((f) => f.favoritoId));
 
   return (
@@ -105,19 +95,12 @@ export default async function DelegadasPage() {
       demandas={demandas}
       painel={painel}
       usuarios={[
-        // Quem opera o sistema: recebe demanda e responde nas telas normais.
-        ...usuarios
-          .filter((u) => alcancam.has(u.id))
-          .map((u) => ({
-            tipo: "USUARIO" as const,
-            idEhFicha: false,
-            id: u.id,
-            nome: u.nome,
-            temTelegram: !!u.colaborador?.telegramChatId,
-            favorito: favoritoIds.has(u.id),
-            cargo: u.colaborador?.posicao?.nome ?? null,
-            marcaNome: u.colaborador?.empresa.marca.nome ?? null,
-          })),
+        // SÓ COLABORADORES — decisão da Direção em 31/08/2026: os usuários do
+        // sistema (contas de login) saíram da chamada da demanda, porque a
+        // cobrança pelo bot depende do Telegram e ele é vinculado à FICHA de
+        // colaborador. Um usuário puro (sem ficha) não é cobrável por lá; para
+        // voltar a receber demanda, o caminho é ter ficha de colaborador.
+        //
         // Quem JÁ TEM acesso de portal (recebeu alguma demanda antes). Sem
         // esta fatia a pessoa SUMIA da lista depois da primeira demanda: ela
         // deixa de contar como "só ficha" (passa a ter usuário) e não entra em
@@ -156,12 +139,11 @@ export default async function DelegadasPage() {
         // FAVORITOS PRIMEIRO — pedido da Direção em 29/08/2026. Quem delega
         // dezenas de coisas por dia manda para as mesmas pessoas; deixá-las no
         // meio de 235 nomes em ordem alfabética obriga a procurar toda vez.
-        // Dentro de cada grupo (favorito ou não), USUÁRIO antes de
-        // COLABORADOR — pedido da Direção em 29/08/2026: quem opera o sistema
-        // primeiro, quem responde só pelo portal depois. Por fim, alfabética.
+        // (O desempate USUÁRIO antes de COLABORADOR de 29/08 morreu junto com
+        // a fatia de usuários, em 31/08 — a lista agora é toda de
+        // colaboradores.) Por fim, alfabética.
         .sort((a, b) => {
           if (a.favorito !== b.favorito) return a.favorito ? -1 : 1;
-          if (a.tipo !== b.tipo) return a.tipo === "USUARIO" ? -1 : 1;
           return a.nome.localeCompare(b.nome, "pt-BR");
         })}
       marcas={marcas}

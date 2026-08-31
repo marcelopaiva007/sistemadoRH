@@ -147,6 +147,14 @@ export function montarPainelEntregas(demandas: DemandaParaPainel[], agora = new 
       continue;
     }
 
+    // BAIXA DIRETA (decisão da Direção, 31/08/2026): demanda ENCERRADA sem
+    // nenhuma entrega aceita foi concluída pelo SOLICITANTE, sem entrega
+    // formal do responsável. Ela não mede a pessoa: não conta como entregue,
+    // não entra no "% no prazo" nem gera tempo de trabalho — mesma lógica da
+    // CANCELADA ("quem a matou foi o solicitante"). O que aconteceu antes
+    // dela (devoluções, repactuações, estimativa) já foi contado acima.
+    if (d.status === "ENCERRADA" && !d.entregas.some((e) => e.aceita === true)) continue;
+
     linha.entregues++;
     const entrega = entregaQueVale(d);
     if (!entrega) continue;

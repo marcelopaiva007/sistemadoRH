@@ -187,6 +187,41 @@ console.log("\nMotivo obrigatório — devolver e cancelar\n");
   ok(validarTransicao("CANCELAR", demandaEm("RASCUNHO"), SOL, { motivo: "Perdeu o sentido" }).ok, "cancelar rascunho com motivo passa");
 }
 
+console.log("\nBaixa direta — o solicitante conclui SEM entrega formal\n");
+{
+  const motivo = { motivo: "Resolvida na reunião de segunda, sem precisar da entrega" };
+  for (const status of ["ENVIADA", "ACEITA", "EM_EXECUCAO"] as const) {
+    ok(
+      validarTransicao("CONCLUIR_DIRETO", demandaEm(status), SOL, motivo).ok,
+      `solicitante dá baixa direta em ${status}`,
+    );
+  }
+  ok(
+    !validarTransicao("CONCLUIR_DIRETO", demandaEm("ACEITA"), SOL, {}).ok,
+    "baixa direta sem motivo, nega — o motivo fica no lugar da entrega que não houve",
+  );
+  // Regra 3 continua de pé: quem conclui é quem pediu, nunca o responsável.
+  ok(
+    !validarTransicao("CONCLUIR_DIRETO", demandaEm("EM_EXECUCAO"), RESP, motivo).ok,
+    "REGRA 3: responsável não dá baixa na própria demanda",
+  );
+  ok(!validarTransicao("CONCLUIR_DIRETO", demandaEm("ACEITA"), OUTRO, motivo).ok, "terceiro também não");
+  // Com entrega na mesa, o caminho é avaliá-la — aceitar ou devolver.
+  const emEntregue = validarTransicao("CONCLUIR_DIRETO", demandaEm("ENTREGUE"), SOL, motivo);
+  ok(!emEntregue.ok, "ENTREGUE não aceita baixa direta — a entrega está aguardando avaliação");
+  ok(
+    !emEntregue.ok && emEntregue.erro.includes("aceite-a ou devolva-a"),
+    "e a negativa aponta o caminho certo: aceitar ou devolver a entrega",
+  );
+  ok(!validarTransicao("CONCLUIR_DIRETO", demandaEm("RASCUNHO"), SOL, motivo).ok, "rascunho não tem o que baixar");
+  igual(TRANSICOES.CONCLUIR_DIRETO.para, "ENCERRADA", "a baixa direta termina em ENCERRADA — concluída, não cancelada");
+  igual(
+    EVENTO_DA_TRANSICAO.CONCLUIR_DIRETO,
+    "CONCLUIDA_DIRETO",
+    "e o log a distingue do encerramento com entrega — o histórico não mente",
+  );
+}
+
 console.log("\nRegra 2 na porta do envio — revalidada em ENVIAR\n");
 {
   const rascunho = demandaEm("RASCUNHO");
@@ -341,7 +376,11 @@ console.log("\nStatus fora do domínio — falha FECHADA\n");
       }
     }
   }
-  igual(vazou, 0, `status inválido nega em todas as portas (${lixo.length} valores × 7 transições × 3 papéis)`);
+  igual(
+    vazou,
+    0,
+    `status inválido nega em todas as portas (${lixo.length} valores × ${Object.keys(TRANSICOES).length} transições × 3 papéis)`,
+  );
   ok(
     !validarRepactuacao({ status: "aceita", solicitanteId: SOL, responsavelId: RESP, evidenciaExigida: "TEXTO" }, RESP, {
       prazoNovo: new Date("2026-09-20"),

@@ -156,6 +156,7 @@ export const ROTULO_EVENTO: Record<string, string> = {
   ENTREGUE: "Entregue, com evidência",
   DEVOLVIDA: "Devolvida pelo solicitante",
   ENCERRADA: "Encerrada por quem pediu",
+  CONCLUIDA_DIRETO: "Baixada como concluída por quem pediu — sem entrega formal",
   CANCELADA: "Cancelada",
   EM_RISCO_LIGADO: "Marcada em risco",
   EM_RISCO_DESLIGADO: "Risco removido",

@@ -11,7 +11,6 @@ import {
   validarTransicao,
 } from "@/lib/delegacoes/estados";
 import { formatarDataHoraBrasilia } from "@/lib/datas";
-import { quemAlcancaSistema } from "@/lib/permissoes/efetivas";
 import { PAPEL_PORTAL } from "@/lib/delegacoes/acesso-colaborador";
 import { DemandaDetalhe } from "./demanda-detalhe";
 
@@ -111,11 +110,10 @@ export default async function DemandaPage({
             orderBy: { nome: "asc" },
           }),
         ]);
-        const alcancam = await quemAlcancaSistema(usuarios, "delegacoes");
+        // SÓ COLABORADORES, como na criação da demanda (decisão da Direção em
+        // 31/08/2026): os usuários do sistema saíram do seletor porque o
+        // Telegram — o canal de cobrança — é vinculado à ficha de colaborador.
         return [
-          ...usuarios
-            .filter((u) => alcancam.has(u.id))
-            .map((u) => ({ tipo: "USUARIO" as const, idEhFicha: false, id: u.id, nome: u.nome })),
           ...usuarios
             .filter((u) => u.role === PAPEL_PORTAL)
             .map((u) => ({ tipo: "COLABORADOR" as const, idEhFicha: false, id: u.id, nome: u.nome })),
@@ -175,6 +173,7 @@ export default async function DemandaPage({
         aceitar: validarTransicao("ACEITAR", paraRegras, eu).ok,
         entregar: validarTransicao("ENTREGAR", paraRegras, eu, evidenciaFicticia).ok,
         encerrar: validarTransicao("ENCERRAR", paraRegras, eu).ok,
+        concluirDireto: validarTransicao("CONCLUIR_DIRETO", paraRegras, eu, { motivo: "?" }).ok,
         devolver: validarTransicao("DEVOLVER", paraRegras, eu, { motivo: "?" }).ok,
         cancelar: validarTransicao("CANCELAR", paraRegras, eu, { motivo: "?" }).ok,
         repactuar: validarRepactuacao(paraRegras, eu, { prazoNovo: new Date(), motivo: "?" }).ok,

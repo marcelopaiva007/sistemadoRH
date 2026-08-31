@@ -18,6 +18,9 @@
 //                  │                                         mantém status)
 //                  └─► CANCELADA          ENTREGUE ─devolver─► EM_EXECUCAO
 //
+//   ENVIADA / ACEITA / EM_EXECUCAO ─baixa direta─► ENCERRADA  (solicitante
+//   conclui SEM entrega formal — não mede o responsável)
+//
 // `emRisco` é FLAG, não status — liga/desliga em ACEITA e EM_EXECUCAO sem
 // mudar de estado.
 
@@ -184,6 +187,7 @@ export type Transicao =
   | "INICIAR_EXECUCAO"
   | "ENTREGAR"
   | "ENCERRAR"
+  | "CONCLUIR_DIRETO"
   | "DEVOLVER"
   | "CANCELAR";
 
@@ -203,6 +207,18 @@ export const TRANSICOES: Record<
   ENTREGAR: { de: [...STATUS_EM_ANDAMENTO], para: "ENTREGUE", quem: "RESPONSAVEL" },
   // Regra 3: quem encerra é quem pediu. O responsável PARA em ENTREGUE.
   ENCERRAR: { de: ["ENTREGUE"], para: "ENCERRADA", quem: "SOLICITANTE" },
+  // A BAIXA DIRETA: o solicitante dá a demanda por concluída SEM a entrega
+  // formal do responsável — resolvida por fora, verbalmente, por outro
+  // caminho. Não fere a regra 3 (quem encerra segue sendo quem pediu) nem a
+  // regra 4 (que rege a ENTREGA — aqui não há entrega, e é exatamente isso
+  // que o painel de entregas lê: baixa direta não mede o responsável, não
+  // conta tempo de trabalho nem entra no "% no prazo"). Não sai de ENTREGUE
+  // de propósito: lá o caminho é avaliar a entrega — aceitar ou devolver.
+  CONCLUIR_DIRETO: {
+    de: ["ENVIADA", "ACEITA", "EM_EXECUCAO"],
+    para: "ENCERRADA",
+    quem: "SOLICITANTE",
+  },
   DEVOLVER: { de: ["ENTREGUE"], para: "EM_EXECUCAO", quem: "SOLICITANTE" },
   CANCELAR: {
     de: ["RASCUNHO", "ENVIADA", "ACEITA", "EM_EXECUCAO", "ENTREGUE"],
@@ -305,6 +321,16 @@ export function validarTransicao(
       }
       return OK;
     }
+    case "CONCLUIR_DIRETO": {
+      // O motivo é o que fica no lugar da evidência que não existe: por que
+      // esta demanda terminou sem entrega formal.
+      if (!dados.motivo?.trim()) {
+        return nega(
+          "Dar baixa como concluída exige o motivo — ele fica no histórico no lugar da entrega que não houve.",
+        );
+      }
+      return OK;
+    }
     case "CANCELAR": {
       if (!dados.motivo?.trim()) {
         return nega("Cancelar exige o motivo — ele fica no histórico da demanda.");
@@ -335,6 +361,10 @@ function mensagemEstadoErrado(transicao: Transicao, status: StatusDemanda): stri
     case "ENCERRAR":
     case "DEVOLVER":
       return "Só uma demanda ENTREGUE pode ser aceita ou devolvida.";
+    case "CONCLUIR_DIRETO":
+      return status === "ENTREGUE"
+        ? "Esta demanda tem uma entrega aguardando você — aceite-a ou devolva-a, em vez de dar baixa direta."
+        : "Baixa direta vale para demanda já enviada e ainda sem entrega.";
     default:
       return "Esta ação não vale para o estado atual da demanda.";
   }
@@ -514,6 +544,7 @@ export const TIPOS_EVENTO = [
   "ENTREGUE",
   "DEVOLVIDA",
   "ENCERRADA",
+  "CONCLUIDA_DIRETO",
   "CANCELADA",
   "EM_RISCO_LIGADO",
   "EM_RISCO_DESLIGADO",
@@ -536,6 +567,7 @@ export const EVENTO_DA_TRANSICAO: Record<Transicao, TipoEvento> = {
   INICIAR_EXECUCAO: "EXECUCAO_INICIADA",
   ENTREGAR: "ENTREGUE",
   ENCERRAR: "ENCERRADA",
+  CONCLUIR_DIRETO: "CONCLUIDA_DIRETO",
   DEVOLVER: "DEVOLVIDA",
   CANCELAR: "CANCELADA",
 };
