@@ -2614,6 +2614,11 @@ model Veiculo {
   dataAquisicao  DateTime?
   dataVenda      DateTime?
   hodometroAtual Int?
+  // Valor de referência da tabela FIPE, em reais — informado à mão (pedido do
+  // RH em 31/08/2026, para o relatório da frota). Sem integração com a API da
+  // FIPE de propósito: o valor gravado é o do mês em que o RH consultou, e
+  // atualizar é decisão dele, não de um cron.
+  valorFipe      Float?
   observacoes    String?
 
   criadoPorId   String?

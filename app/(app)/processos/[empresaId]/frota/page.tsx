@@ -41,6 +41,7 @@ export default async function VeiculosPage({
         anoFab: true,
         chassi: true,
         hodometroAtual: true,
+        valorFipe: true,
         cidadeBase: true,
         setor: true,
         emplacado: true,
@@ -130,6 +131,7 @@ export default async function VeiculosPage({
       anoFab: v.anoFab,
       chassi: v.chassi,
       hodometroAtual: v.hodometroAtual,
+      valorFipe: v.valorFipe,
       cidadeBase: v.cidadeBase,
       setor: v.setor,
       emplacado: v.emplacado,
@@ -172,15 +174,26 @@ export default async function VeiculosPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-          {empresa.marca.nome} · {empresa.nome}
-        </p>
-        <h1 className="mt-1 text-xl font-semibold tracking-tight">Veículos</h1>
-        <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-          A frota e o que vence em cada carro. A coluna &ldquo;com quem está&rdquo; é a que importa
-          no dia da multa.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+            {empresa.marca.nome} · {empresa.nome}
+          </p>
+          <h1 className="mt-1 text-xl font-semibold tracking-tight">Veículos</h1>
+          <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
+            A frota e o que vence em cada carro. A coluna &ldquo;com quem está&rdquo; é a que importa
+            no dia da multa.
+          </p>
+        </div>
+        {/* Mesmo escopo da tela: o `?empresas=` segue junto para o CSV nunca
+            divergir do que está sendo mostrado. */}
+        <a
+          href={`/api/processos/${empresaId}/frota/relatorio/csv${empresasParam ? `?empresas=${encodeURIComponent(empresasParam)}` : ""}`}
+          className="inline-flex h-9 items-center rounded-md border border-border bg-background px-3 text-sm font-medium hover:bg-accent"
+          download
+        >
+          Relatório (CSV)
+        </a>
       </div>
 
       <VeiculosView

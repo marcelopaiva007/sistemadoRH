@@ -68,6 +68,8 @@ export async function salvarVeiculo(input: {
   dataAdesaoSne?: string | null;
   recallPendente?: boolean;
   hodometroAtual?: number | null;
+  /** Valor de referência da tabela FIPE, em reais — informado à mão. */
+  valorFipe?: number | null;
   observacoes?: string | null;
   cidadeBase?: string | null;
   setor?: string | null;
@@ -160,6 +162,9 @@ export async function salvarVeiculo(input: {
     dataAdesaoSne,
     recallPendente: input.recallPendente ?? false,
     hodometroAtual: input.hodometroAtual ?? null,
+    // Zero e negativo viram null: valor FIPE inexistente se declara vazio, não
+    // com um número que entraria na soma do relatório como se fosse real.
+    valorFipe: typeof input.valorFipe === "number" && input.valorFipe > 0 ? input.valorFipe : null,
     observacoes: (input.observacoes ?? "").trim().slice(0, 1000) || null,
     cidadeBase: (input.cidadeBase ?? "").trim() || null,
     setor: (input.setor ?? "").trim() || null,

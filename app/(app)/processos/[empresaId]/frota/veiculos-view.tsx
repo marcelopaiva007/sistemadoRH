@@ -63,6 +63,7 @@ export type VeiculoNaTela = {
   anoFab: number | null;
   chassi: string | null;
   hodometroAtual: number | null;
+  valorFipe: number | null;
   cidadeBase: string | null;
   setor: string | null;
   emplacado: boolean;
@@ -182,6 +183,14 @@ export function VeiculosView({
         anoFab: form.anoFab ? Number(form.anoFab) : null,
         chassi: form.chassi ?? null,
         hodometroAtual: form.hodometroAtual ? Number(form.hodometroAtual) : null,
+        // Com vírgula é escrita pt-BR ("45.900,00": ponto de milhar); sem
+        // vírgula, o ponto é decimal ("45900.50"). Cobrir os dois evita que
+        // 45900.50 vire 4590050 por remoção cega de pontos.
+        valorFipe: form.valorFipe
+          ? (form.valorFipe.includes(",")
+              ? Number(form.valorFipe.replace(/\./g, "").replace(",", "."))
+              : Number(form.valorFipe)) || null
+          : null,
         ufEmplacamento: form.ufEmplacamento ?? null,
         propriedade: form.propriedade || "PROPRIO",
         motorizacao: form.motorizacao || "COMBUSTAO",
@@ -278,6 +287,10 @@ export function VeiculosView({
             <label className="text-xs text-muted-foreground">
               Quilometragem (km)
               <input {...campo("hodometroAtual")} className={CAMPO} inputMode="numeric" />
+            </label>
+            <label className="text-xs text-muted-foreground">
+              Valor tabela FIPE (R$)
+              <input {...campo("valorFipe")} className={CAMPO} inputMode="decimal" placeholder="45.900,00" />
             </label>
             <label className="text-xs text-muted-foreground">
               Cidade-base
@@ -493,6 +506,9 @@ export function VeiculosView({
                               anoFab: v.anoFab ? String(v.anoFab) : "",
                               chassi: v.chassi ?? "",
                               hodometroAtual: v.hodometroAtual ? String(v.hodometroAtual) : "",
+                              valorFipe: v.valorFipe
+                                ? v.valorFipe.toLocaleString("pt-BR", { minimumFractionDigits: 2 })
+                                : "",
                               ufEmplacamento: v.ufEmplacamento ?? "",
                               propriedade: v.propriedade,
                               motorizacao: v.motorizacao,
