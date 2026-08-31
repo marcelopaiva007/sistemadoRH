@@ -9,6 +9,7 @@ import { sistemasPermitidos } from "@/lib/permissoes/efetivas";
 import { garantirAcessoDoColaborador, PAPEL_PORTAL } from "@/lib/delegacoes/acesso-colaborador";
 import { avisarDemandaEnviada, avisarDemandaEntregue } from "@/lib/delegacoes/telegram";
 import { avisarDemandaEnviadaPorEmail, avisarDemandaEntreguePorEmail } from "@/lib/delegacoes/email";
+import { cobrarAceite } from "@/lib/delegacoes/cobranca-aceite";
 import { classificarInteracao } from "@/lib/delegacoes/classificar";
 import type { ActionResult } from "@/lib/constants";
 import {
@@ -596,6 +597,46 @@ export async function marcarEmRisco(input: { id: string; ligar: boolean }): Prom
     entidade: "Demanda",
     entidadeId: demanda.id,
     resumo: input.ligar ? "Marcou a demanda em risco" : "Removeu o sinal de risco da demanda",
+  });
+  revalidarModulo();
+  return { ok: true };
+}
+
+/**
+ * Cobra o aceite AGORA, por vontade de quem pediu — sem esperar o prazo de
+ * 24/48/72h da regra 5 (`cobranca-aceite.ts`, que roda 4x/dia sozinha). Mesma
+ * função dos dois: `cobrarAceite` liga `emRisco` e manda o mesmo aviso duplo
+ * (Telegram com botão + e-mail) — aqui só muda QUEM decide a hora.
+ *
+ * Só o SOLICITANTE, e só enquanto ENVIADA: cobrar depois de aceita não faz
+ * sentido (é outra régua, a de cobranca.ts), e cobrar quem não pediu abriria
+ * a porta pra qualquer um incomodar o responsável de uma demanda alheia.
+ */
+export async function cobrarAceiteAgora(input: { id: string }): Promise<ActionResult> {
+  const ator = await atorDaSessao();
+  if (!ator) return { ok: false, error: ERRO_SESSAO };
+
+  const demanda = await carregarDemanda(input.id, ator);
+  if (!demanda) return { ok: false, error: ERRO_NAO_ENCONTRADA };
+  if (demanda.solicitanteId !== ator.id) {
+    return { ok: false, error: "Só quem pediu a demanda pode cobrar o aceite." };
+  }
+  if (demanda.status !== "ENVIADA") {
+    return { ok: false, error: "Só dá para cobrar aceite de demanda enviada, ainda sem aceite." };
+  }
+
+  const resultado = await cobrarAceite(demanda.id);
+  if (resultado === "conflito") {
+    return {
+      ok: false,
+      error: "Já foi cobrada (ou a pessoa acabou de aceitar) — recarregue a tela.",
+    };
+  }
+  await registrarAuditoria({
+    acao: "ATUALIZAR",
+    entidade: "Demanda",
+    entidadeId: demanda.id,
+    resumo: "Cobrou o aceite fora do prazo automático (a pedido de quem pediu a demanda)",
   });
   revalidarModulo();
   return { ok: true };

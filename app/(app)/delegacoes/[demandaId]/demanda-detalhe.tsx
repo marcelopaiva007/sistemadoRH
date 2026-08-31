@@ -19,6 +19,7 @@ import {
   aceitarDemanda,
   aceitarEntrega,
   cancelarDemanda,
+  cobrarAceiteAgora,
   devolverEntrega,
   enviarDemanda,
   entregarDemanda,
@@ -62,6 +63,7 @@ type Podem = {
   repactuar: boolean;
   reportar: boolean;
   marcarRisco: boolean;
+  cobrarAceite: boolean;
 };
 
 type Entrega = {
@@ -203,6 +205,15 @@ export function DemandaDetalhe({
           {podem.aceitar && (
             <Button disabled={pendente} onClick={() => agir(() => aceitarDemanda({ id: demanda.id }))}>
               Aceito
+            </Button>
+          )}
+          {podem.cobrarAceite && (
+            <Button
+              variant="outline"
+              disabled={pendente}
+              onClick={() => agir(() => cobrarAceiteAgora({ id: demanda.id }))}
+            >
+              🔔 Cobrar aceite agora
             </Button>
           )}
           {podem.reportar && (

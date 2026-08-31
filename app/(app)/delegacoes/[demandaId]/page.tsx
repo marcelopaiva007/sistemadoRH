@@ -142,6 +142,13 @@ export default async function DemandaPage({
         repactuar: validarRepactuacao(paraRegras, eu, { prazoNovo: new Date(), motivo: "?" }).ok,
         reportar: validarReporte(paraRegras, eu, "?").ok,
         marcarRisco: validarMarcarEmRisco(paraRegras, eu).ok,
+        // Não é transição de estado (por isso não mora em `validarX` da máquina
+        // de estados) — é um cutucão único: só quem pediu, só enquanto ainda
+        // não foi cobrada (regra 5 ou este botão, o que vier primeiro).
+        cobrarAceite:
+          papelNaDemanda(eu, paraRegras) === "SOLICITANTE" &&
+          demanda.status === "ENVIADA" &&
+          !demanda.emRisco,
       }}
       repactuacoes={demanda.repactuacoes.map((r) => ({
         id: r.id,
