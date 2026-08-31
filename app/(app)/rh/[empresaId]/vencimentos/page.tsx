@@ -9,6 +9,7 @@ import { tipoExameLabel } from "@/lib/constants-sst";
 import { tipoEpiLabel } from "@/lib/constants-epi";
 import { diferencaEmDiasUTC, formatarData, hojeUTC, somarDiasUTC } from "@/lib/datas";
 import { Indicador } from "@/components/indicador";
+import { AsoView, type LinhaAso } from "./aso-view";
 
 // Painel de vencimentos: o que está prestes a vencer (ou já venceu) na empresa
 // — documentos com validade, NRs, ASO e EPIs.
@@ -38,7 +39,7 @@ export default async function VencimentosPage({
   const hoje = hojeUTC();
   const limite = somarDiasUTC(hoje, DIAS_ALERTA_VENCIMENTO);
 
-  const [documentos, certificados, exames, epis] = await Promise.all([
+  const [documentos, certificados, colaboradoresAso, epis] = await Promise.all([
     prisma.documentoColaborador.findMany({
       where: { empresaId: { in: escopo }, validoAte: { not: null, lte: limite }, colaborador: { ativo: true } },
       orderBy: { validoAte: "asc" },
@@ -69,18 +70,26 @@ export default async function VencimentosPage({
         colaborador: { select: { nome: true, setor: { select: { nome: true } }, empresa: { select: { nome: true } } } },
       },
     }),
-    prisma.exameOcupacional.findMany({
-      where: { empresaId: { in: escopo }, validoAte: { not: null }, tipo: { not: "DEMISSIONAL" }, colaborador: { ativo: true } },
-      orderBy: { realizadoEm: "desc" },
+    // ASO parte do COLABORADOR, não da tabela de exames — pedido do RH em
+    // 31/08/2026 (regularização dos ASOs vencidos): quem nunca teve ASO
+    // cadastrado precisa aparecer na fila, e partindo dos exames essa pessoa
+    // não existe para a tela. `take: 1` por pessoa = o exame vigente.
+    prisma.colaborador.findMany({
+      where: { empresaId: { in: escopo }, ativo: true },
       select: {
         id: true,
-        tipo: true,
-        realizadoEm: true,
-        validoAte: true,
-        colaboradorId: true,
+        nome: true,
         empresaId: true,
-        colaborador: { select: { nome: true, setor: { select: { nome: true } }, empresa: { select: { nome: true } } } },
+        setor: { select: { nome: true } },
+        empresa: { select: { nome: true } },
+        exames: {
+          where: { tipo: { not: "DEMISSIONAL" } },
+          orderBy: { realizadoEm: "desc" },
+          take: 1,
+          select: { tipo: true, validoAte: true },
+        },
       },
+      orderBy: { nome: "asc" },
     }),
     // Mesmo cuidado dos certificados: sem filtrar validoAte<=limite aqui, para
     // uma troca antiga já reposta não aparecer como vencida junto da nova.
@@ -119,10 +128,23 @@ export default async function VencimentosPage({
   const certificadosVigentes = reduzirAoMaisRecente(certificados, (c) => c.norma).filter(
     (c) => c.validoAte! <= limite,
   );
-  const examesVigentes = reduzirAoMaisRecente(exames, () => "exame")
-    .filter((e) => e.validoAte! <= limite)
-    .sort((a, b) => a.validoAte!.getTime() - b.validoAte!.getTime());
   certificadosVigentes.sort((a, b) => a.validoAte!.getTime() - b.validoAte!.getTime());
+
+  // A base inteira, um por pessoa: o card de ASO filtra/ordena no cliente.
+  const linhasAso: LinhaAso[] = colaboradoresAso.map((c) => {
+    const exame = c.exames[0] ?? null;
+    return {
+      colaboradorId: c.id,
+      empresaId: c.empresaId,
+      nome: c.nome,
+      empresaNome: c.empresa.nome,
+      setorNome: c.setor.nome,
+      tipoLabel: exame ? tipoExameLabel(exame.tipo) : null,
+      validadeTexto: exame?.validoAte ? formatarData(exame.validoAte) : null,
+      dias: exame?.validoAte ? diferencaEmDiasUTC(exame.validoAte, hoje) : null,
+      temExame: !!exame,
+    };
+  });
 
   const episVigentes = reduzirAoMaisRecente(epis, (e) => e.tipo)
     .filter((e) => e.validoAte! <= limite)
@@ -131,7 +153,8 @@ export default async function VencimentosPage({
 
   const vencidos = documentos.filter((d) => diferencaEmDiasUTC(d.validoAte!, hoje) < 0).length;
   const nrVencidos = certificadosVigentes.filter((c) => diferencaEmDiasUTC(c.validoAte!, hoje) < 0).length;
-  const asoVencidos = examesVigentes.filter((e) => diferencaEmDiasUTC(e.validoAte!, hoje) < 0).length;
+  const asoVencidos = linhasAso.filter((l) => l.dias !== null && l.dias < 0).length;
+  const asoSem = linhasAso.filter((l) => l.dias === null).length;
   const epiVencidos = episVigentes.filter((e) => diferencaEmDiasUTC(e.validoAte!, hoje) < 0).length;
 
   return (
@@ -148,7 +171,7 @@ export default async function VencimentosPage({
         <Indicador rotulo="Documentos vencidos" valor={vencidos} estado={vencidos > 0 ? "alerta" : "padrao"} />
         <Indicador rotulo="Documentos a vencer" valor={documentos.length - vencidos} />
         <Indicador rotulo="Treinamentos NR" valor={certificadosVigentes.length} complemento={`${nrVencidos} vencido(s)`} estado={nrVencidos > 0 ? "alerta" : "padrao"} />
-        <Indicador rotulo="ASO / PCMSO" valor={examesVigentes.length} complemento={`${asoVencidos} vencido(s)`} estado={asoVencidos > 0 ? "alerta" : "padrao"} />
+        <Indicador rotulo="ASO / PCMSO" valor={asoVencidos} complemento={`vencido(s) · ${asoSem} sem ASO`} estado={asoVencidos > 0 || asoSem > 0 ? "alerta" : "padrao"} />
         <Indicador rotulo="EPIs para trocar" valor={episVigentes.length} complemento={`${epiVencidos} vencido(s)`} estado={epiVencidos > 0 ? "alerta" : "padrao"} />
       </div>
 
@@ -273,62 +296,7 @@ export default async function VencimentosPage({
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>ASO / PCMSO</CardTitle>
-          <CardDescription>O exame ocupacional vigente de cada pessoa (demissional não entra aqui).</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {examesVigentes.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">
-              Nenhum ASO vencendo nos próximos {DIAS_ALERTA_VENCIMENTO} dias.
-            </p>
-          ) : (
-            <div className="rounded-md border">
-              <Table compacta>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Colaborador</TableHead>
-                    <TableHead>CNPJ</TableHead>
-                    <TableHead>Setor</TableHead>
-                    <TableHead>Tipo</TableHead>
-                    <TableHead>Validade</TableHead>
-                    <TableHead>Situação</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {examesVigentes.map((e) => {
-                    const dias = diferencaEmDiasUTC(e.validoAte!, hoje);
-                    return (
-                      <TableRow key={e.id}>
-                        <TableCell>
-                          <Link
-                            href={`/rh/${e.empresaId}/colaboradores/${e.colaboradorId}`}
-                            className="font-medium hover:underline"
-                          >
-                            {e.colaborador.nome}
-                          </Link>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">{e.colaborador.empresa.nome}</TableCell>
-                        <TableCell className="text-muted-foreground">{e.colaborador.setor.nome}</TableCell>
-                        <TableCell>{tipoExameLabel(e.tipo)}</TableCell>
-                        <TableCell className="tabular-nums">{formatarData(e.validoAte)}</TableCell>
-                        <TableCell>
-                          {dias < 0 ? (
-                            <Badge variant="destructive">Vencido há {Math.abs(dias)} d</Badge>
-                          ) : (
-                            <Badge variant="secondary">Vence em {dias} d</Badge>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <AsoView linhas={linhasAso} />
 
       <Card>
         <CardHeader>
