@@ -12,6 +12,7 @@ import {
 } from "@/lib/delegacoes/estados";
 import { diasAtePrazo, prazoEmTexto } from "@/lib/delegacoes/consultas";
 import { rotuloEvidencia, severidadeDoPrazo, type SeveridadePrazo } from "@/lib/constants-delegacoes";
+import { formatarDataHoraBrasilia } from "@/lib/datas";
 
 // As demandas pela porta do COLABORADOR — o portal.
 //
@@ -71,6 +72,14 @@ export type DemandaNoPortal = {
   podeAceitar: boolean;
   podeReportar: boolean;
   podeEntregar: boolean;
+  /**
+   * O que ELA MESMA já reportou, do mais recente para o mais antigo. Sem isto
+   * a pessoa escrevia no escuro: dava para mandar notícia, mas não para ver o
+   * que já tinha mandado — e o caminho até a entrega só existia na tela de
+   * quem delegou. Só as RECEBIDAS (o que ela disse), nunca as ENVIADAS (as
+   * cobranças que o sistema disparou), que aqui virariam ruído.
+   */
+  atualizacoes: { id: string; quandoTexto: string; conteudo: string }[];
 };
 
 /** As demandas em aberto desta pessoa, da mais urgente para a menos. */
@@ -96,6 +105,11 @@ export async function minhasDemandasNoPortal(): Promise<DemandaNoPortal[]> {
       solicitanteId: true,
       responsavelId: true,
       solicitante: { select: { nome: true } },
+      interacoes: {
+        where: { tipo: "RECEBIDA" },
+        orderBy: { createdAt: "desc" },
+        select: { id: true, conteudo: true, createdAt: true },
+      },
     },
     orderBy: { prazo: "asc" },
   });
@@ -127,6 +141,11 @@ export async function minhasDemandasNoPortal(): Promise<DemandaNoPortal[]> {
         evidenciaTexto: "?",
         arquivoId: null,
       }).ok,
+      atualizacoes: d.interacoes.map((i) => ({
+        id: i.id,
+        quandoTexto: formatarDataHoraBrasilia(i.createdAt),
+        conteudo: i.conteudo,
+      })),
     };
   });
 }

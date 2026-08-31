@@ -141,6 +141,21 @@ export function MinhasDemandasCard() {
                   {d.criterioAceite}
                 </p>
 
+                {/* O caminho percorrido até aqui, na letra da própria pessoa.
+                    Ela precisa VER o que já contou para não repetir a mesma
+                    notícia — e é isto que, na entrega, mostra como se chegou lá. */}
+                {d.atualizacoes.length > 0 && (
+                  <div className="mt-2 space-y-1.5 border-l-2 border-muted pl-3">
+                    <p className="text-xs text-muted-foreground">O que você já contou</p>
+                    {d.atualizacoes.map((a) => (
+                      <p key={a.id} className="text-sm">
+                        <span className="text-xs text-muted-foreground">{a.quandoTexto} · </span>
+                        {a.conteudo}
+                      </p>
+                    ))}
+                  </div>
+                )}
+
                 <div className="mt-2 flex flex-wrap gap-2">
                   {d.podeAceitar && (
                     <Button
@@ -162,7 +177,7 @@ export function MinhasDemandasCard() {
                         setPainel({ id: d.id, modo: "reportar" });
                       }}
                     >
-                      Dar notícia
+                      Atualizar andamento
                     </Button>
                   )}
                   {d.podeEntregar && (
@@ -210,7 +225,7 @@ export function MinhasDemandasCard() {
                               )
                             : agir(
                                 () => reportarNoPortal({ id: d.id, conteudo: texto }),
-                                "Notícia enviada.",
+                                "Andamento salvo.",
                               )
                         }
                       >
