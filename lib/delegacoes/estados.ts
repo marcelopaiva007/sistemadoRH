@@ -524,6 +524,8 @@ export const TIPOS_EVENTO = [
   "ESCALADA",
   /** O cron de aceite cobrou (regra 5: aceite ativo 24/48/72h). */
   "ACEITE_COBRADO",
+  /** Solicitante trocou o responsável antes do aceite (RASCUNHO ou ENVIADA). */
+  "TRANSFERIDA",
 ] as const;
 export type TipoEvento = (typeof TIPOS_EVENTO)[number];
 

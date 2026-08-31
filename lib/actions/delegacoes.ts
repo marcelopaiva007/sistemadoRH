@@ -603,6 +603,109 @@ export async function marcarEmRisco(input: { id: string; ligar: boolean }): Prom
 }
 
 /**
+ * Troca o responsável de uma demanda que AINDA NÃO foi aceita (RASCUNHO ou
+ * ENVIADA) — só quem pediu decide, mesma regra 1 (dono único) de sempre, só
+ * que reatribuível até o aceite: depois disso a pessoa já se comprometeu com
+ * o prazo, e trocar vira "devolver" ou "cancelar e criar de novo", não isto.
+ *
+ * Mesmas checagens de `criarDemanda` para o NOVO responsável (ativo, alcança
+ * o módulo ou ganha acesso de portal) — é o mesmo risco de delegar para quem
+ * a guarda barra, só que na troca em vez da criação. Reinicia `enviadaEm` e
+ * `emRisco` quando a demanda já estava ENVIADA: o relógio da regra 5 é desta
+ * pessoa, que ainda nem viu a demanda — não pode nascer já "cobrada".
+ */
+export async function transferirDemanda(input: {
+  id: string;
+  novoResponsavelId?: string;
+  novoResponsavelColaboradorId?: string;
+}): Promise<ActionResult> {
+  const ator = await atorDaSessao();
+  if (!ator) return { ok: false, error: ERRO_SESSAO };
+
+  const demanda = await carregarDemanda(input.id, ator);
+  if (!demanda) return { ok: false, error: ERRO_NAO_ENCONTRADA };
+  if (demanda.solicitanteId !== ator.id) {
+    return { ok: false, error: "Só quem pediu a demanda pode transferi-la." };
+  }
+  if (demanda.status !== "RASCUNHO" && demanda.status !== "ENVIADA") {
+    return {
+      ok: false,
+      error: "Só dá para transferir antes do aceite — depois disso, devolva ou cancele e crie de novo.",
+    };
+  }
+
+  let novoResponsavelId = input.novoResponsavelId ?? "";
+  let ehPortal = false;
+  if (!novoResponsavelId && input.novoResponsavelColaboradorId) {
+    const acesso = await garantirAcessoDoColaborador(input.novoResponsavelColaboradorId);
+    if (!acesso.ok) return { ok: false, error: acesso.erro };
+    novoResponsavelId = acesso.userId;
+    ehPortal = true;
+  }
+  if (!novoResponsavelId) return { ok: false, error: "Escolha para quem transferir." };
+  if (novoResponsavelId === demanda.responsavelId) {
+    return { ok: false, error: "A demanda já é dessa pessoa." };
+  }
+
+  const novoResponsavel = await prisma.user.findUnique({
+    where: { id: novoResponsavelId },
+    select: { id: true, nome: true, role: true, ativo: true },
+  });
+  if (!novoResponsavel || !novoResponsavel.ativo) {
+    return { ok: false, error: "Responsável não encontrado entre os usuários ativos." };
+  }
+  if (
+    !ehPortal &&
+    novoResponsavel.role !== PAPEL_PORTAL &&
+    !(await sistemasPermitidos(novoResponsavel)).includes("delegacoes")
+  ) {
+    return {
+      ok: false,
+      error: `${novoResponsavel.nome} ainda não tem acesso ao módulo Delegações — libere em Usuários e perfis antes de transferir.`,
+    };
+  }
+
+  const antigoResponsavel = await prisma.user.findUnique({
+    where: { id: demanda.responsavelId },
+    select: { nome: true },
+  });
+
+  const resultado = await prisma.$transaction(async (tx) => {
+    const { count } = await tx.demanda.updateMany({
+      where: { id: demanda.id, status: demanda.status, responsavelId: demanda.responsavelId },
+      data: {
+        responsavelId: novoResponsavel.id,
+        ...(demanda.status === "ENVIADA" ? { enviadaEm: new Date(), emRisco: false } : {}),
+      },
+    });
+    if (count === 0) return "conflito" as const;
+    await registrarEvento(tx, demanda.id, "TRANSFERIDA", ator, {
+      responsavelAnteriorId: demanda.responsavelId,
+      responsavelAnteriorNome: antigoResponsavel?.nome ?? "—",
+      novoResponsavelId: novoResponsavel.id,
+      novoResponsavelNome: novoResponsavel.nome,
+    });
+    return "ok" as const;
+  });
+
+  if (resultado === "conflito") return { ok: false, error: ERRO_CONFLITO };
+  await registrarAuditoria({
+    acao: "ATUALIZAR",
+    entidade: "Demanda",
+    entidadeId: demanda.id,
+    resumo: `Transferiu a demanda de ${antigoResponsavel?.nome ?? "—"} para ${novoResponsavel.nome}`,
+  });
+  revalidarModulo();
+
+  // Mesmo aviso duplo de sempre — pro NOVO responsável, que ainda não viu
+  // nada disso. Falha aqui não desfaz a troca, que já está gravada.
+  if (demanda.status === "ENVIADA") {
+    await Promise.all([avisarDemandaEnviada(demanda.id), avisarDemandaEnviadaPorEmail(demanda.id)]);
+  }
+  return { ok: true };
+}
+
+/**
  * Cobra o aceite AGORA, por vontade de quem pediu — sem esperar o prazo de
  * 24/48/72h da regra 5 (`cobranca-aceite.ts`, que roda 4x/dia sozinha). Mesma
  * função dos dois: `cobrarAceite` liga `emRisco` e manda o mesmo aviso duplo

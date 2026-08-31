@@ -21,6 +21,7 @@ import {
   cancelarDemanda,
   cobrarAceiteAgora,
   devolverEntrega,
+  transferirDemanda,
   enviarDemanda,
   entregarDemanda,
   marcarEmRisco,
@@ -64,6 +65,7 @@ type Podem = {
   reportar: boolean;
   marcarRisco: boolean;
   cobrarAceite: boolean;
+  transferir: boolean;
 };
 
 type Entrega = {
@@ -96,7 +98,9 @@ type ItemLinha = {
 };
 
 /** Qual formulário está aberto — um de cada vez, no lugar da ação. */
-type Painel = "entregar" | "repactuar" | "reportar" | "devolver" | "cancelar" | null;
+type Painel = "entregar" | "repactuar" | "reportar" | "devolver" | "cancelar" | "transferir" | null;
+
+type UsuarioParaTransferir = { tipo: "USUARIO" | "COLABORADOR"; idEhFicha: boolean; id: string; nome: string };
 
 export function DemandaDetalhe({
   demanda,
@@ -105,6 +109,7 @@ export function DemandaDetalhe({
   entregas,
   repactuacoes,
   linhaDoTempo,
+  usuariosParaTransferir,
 }: {
   demanda: Demanda;
   papel: "SOLICITANTE" | "RESPONSAVEL" | "TERCEIRO";
@@ -112,6 +117,7 @@ export function DemandaDetalhe({
   entregas: Entrega[];
   repactuacoes: Repactuacao[];
   linhaDoTempo: ItemLinha[];
+  usuariosParaTransferir: UsuarioParaTransferir[];
 }) {
   const router = useRouter();
   const [painel, setPainel] = useState<Painel>(null);
@@ -123,7 +129,7 @@ export function DemandaDetalhe({
   function texto(nome: string) {
     return {
       value: campos[nome] ?? "",
-      onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+      onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
         setCampos((c) => ({ ...c, [nome]: e.target.value })),
     };
   }
@@ -214,6 +220,11 @@ export function DemandaDetalhe({
               onClick={() => agir(() => cobrarAceiteAgora({ id: demanda.id }))}
             >
               🔔 Cobrar aceite agora
+            </Button>
+          )}
+          {podem.transferir && (
+            <Button variant="outline" onClick={() => abrir("transferir")}>
+              Transferir
             </Button>
           )}
           {podem.reportar && (
@@ -373,6 +384,41 @@ export function DemandaDetalhe({
             onConfirmar={() =>
               agir(() => devolverEntrega({ id: demanda.id, motivo: campos.motivo ?? "" }))
             }
+            onCancelar={() => setPainel(null)}
+          />
+        </Painel>
+      )}
+
+      {painel === "transferir" && (
+        <Painel titulo="Transferir para outro responsável">
+          <label className="block">
+            <span className="mb-1 block text-xs text-muted-foreground">Novo responsável</span>
+            <select className={CAMPO} required {...texto("novoResponsavelId")}>
+              <option value="">Selecione…</option>
+              {usuariosParaTransferir.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.nome}
+                  {u.tipo === "COLABORADOR" ? " (sem login ainda)" : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+          <Acoes
+            pendente={pendente}
+            rotulo="Transferir"
+            desabilitado={!campos.novoResponsavelId}
+            onConfirmar={() => {
+              const escolhido = usuariosParaTransferir.find((u) => u.id === campos.novoResponsavelId);
+              if (!escolhido) return;
+              agir(() =>
+                transferirDemanda({
+                  id: demanda.id,
+                  ...(escolhido.idEhFicha
+                    ? { novoResponsavelColaboradorId: escolhido.id }
+                    : { novoResponsavelId: escolhido.id }),
+                }),
+              );
+            }}
             onCancelar={() => setPainel(null)}
           />
         </Painel>

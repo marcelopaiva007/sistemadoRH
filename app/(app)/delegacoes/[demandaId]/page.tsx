@@ -11,6 +11,8 @@ import {
   validarTransicao,
 } from "@/lib/delegacoes/estados";
 import { formatarDataHoraBrasilia } from "@/lib/datas";
+import { quemAlcancaSistema } from "@/lib/permissoes/efetivas";
+import { PAPEL_PORTAL } from "@/lib/delegacoes/acesso-colaborador";
 import { DemandaDetalhe } from "./demanda-detalhe";
 
 /**
@@ -88,6 +90,42 @@ export default async function DemandaPage({
   // "não existe" e "não é sua" transforma a URL em oráculo de ids.
   if (!demanda || !podeVerDemanda(usuario, demanda)) notFound();
 
+  // Candidatos a NOVO responsável, só para quem pode transferir (solicitante,
+  // antes do aceite) — em qualquer outro caso a lista nunca é usada, mas
+  // buscá-la sempre é mais simples do que replicar aqui a condição de
+  // `podem.transferir` mais abaixo, e o custo é o mesmo de `/delegacoes/delegadas`.
+  const podeTransferir =
+    demanda.solicitanteId === usuario.id &&
+    (demanda.status === "RASCUNHO" || demanda.status === "ENVIADA");
+  const usuariosParaTransferir = podeTransferir
+    ? await (async () => {
+        const [usuarios, colaboradores] = await Promise.all([
+          prisma.user.findMany({
+            where: { ativo: true, NOT: { id: demanda.responsavelId } },
+            select: { id: true, nome: true, role: true },
+            orderBy: { nome: "asc" },
+          }),
+          prisma.colaborador.findMany({
+            where: { ativo: true },
+            select: { id: true, nome: true, usuario: { select: { id: true } } },
+            orderBy: { nome: "asc" },
+          }),
+        ]);
+        const alcancam = await quemAlcancaSistema(usuarios, "delegacoes");
+        return [
+          ...usuarios
+            .filter((u) => alcancam.has(u.id))
+            .map((u) => ({ tipo: "USUARIO" as const, idEhFicha: false, id: u.id, nome: u.nome })),
+          ...usuarios
+            .filter((u) => u.role === PAPEL_PORTAL)
+            .map((u) => ({ tipo: "COLABORADOR" as const, idEhFicha: false, id: u.id, nome: u.nome })),
+          ...colaboradores
+            .filter((c) => !c.usuario)
+            .map((c) => ({ tipo: "COLABORADOR" as const, idEhFicha: true, id: c.id, nome: c.nome })),
+        ].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+      })()
+    : [];
+
   const paraRegras = {
     status: demanda.status,
     solicitanteId: demanda.solicitanteId,
@@ -149,7 +187,9 @@ export default async function DemandaPage({
           papelNaDemanda(eu, paraRegras) === "SOLICITANTE" &&
           demanda.status === "ENVIADA" &&
           !demanda.emRisco,
+        transferir: podeTransferir,
       }}
+      usuariosParaTransferir={usuariosParaTransferir}
       repactuacoes={demanda.repactuacoes.map((r) => ({
         id: r.id,
         de: prazoEmTexto(r.prazoAnterior),
