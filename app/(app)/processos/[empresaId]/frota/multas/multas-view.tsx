@@ -58,7 +58,11 @@ export function MultasView({
   // multa que veio pelo botão "Abrir defesa" seria a ação errada com cara de
   // atalho.
   const [indicando, setIndicando] = useState<string | null>(null);
-  const [sugestao, setSugestao] = useState<{ condutorId: string | null; nome: string | null } | null>(null);
+  const [sugestao, setSugestao] = useState<{
+    condutorId: string | null;
+    nome: string | null;
+    origem?: "alocacao" | "cadastro" | null;
+  } | null>(null);
   const focoRef = useRef<HTMLDivElement>(null);
 
   // Rolagem do deep link. Só na montagem — não faz setState (o eslint barra).
@@ -108,7 +112,7 @@ export function MultasView({
     // a placa naquele instante. Vem preenchida; a pessoa confirma ou corrige.
     iniciar(async () => {
       const r = await sugerirCondutor({ empresaId, veiculoId: m.veiculoId, quando: m.dataHoraInfracaoISO });
-      if (r.ok) setSugestao({ condutorId: r.condutorId, nome: r.nome });
+      if (r.ok) setSugestao({ condutorId: r.condutorId, nome: r.nome, origem: r.origem });
     });
   }
 
@@ -303,7 +307,17 @@ export function MultasView({
                       <div className="flex flex-wrap items-center gap-2">
                         <Sparkles className="size-4 text-primary" />
                         <span className="text-sm">
-                          Pelo registro de entrega, <strong>{sugestao.nome}</strong> estava com o veículo nesse momento.
+                          {sugestao.origem === "cadastro" ? (
+                            <>
+                              Pelo cadastro do veículo, o motorista é <strong>{sugestao.nome}</strong>{" "}
+                              (sem termo de alocação registrado).
+                            </>
+                          ) : (
+                            <>
+                              Pelo registro de entrega, <strong>{sugestao.nome}</strong> estava com o
+                              veículo nesse momento.
+                            </>
+                          )}
                         </span>
                         <Button size="sm" disabled={pendente} onClick={() => confirmarIndicacao(m.id, sugestao.condutorId!)}>
                           Confirmar e indicar

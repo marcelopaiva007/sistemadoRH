@@ -1045,7 +1045,10 @@ export async function sugerirCondutor(input: {
   empresaId: string;
   veiculoId: string;
   quando: string;
-}): Promise<{ ok: true; condutorId: string | null; nome: string | null } | { ok: false; error: string }> {
+}): Promise<
+  | { ok: true; condutorId: string | null; nome: string | null; origem: "alocacao" | "cadastro" | null }
+  | { ok: false; error: string }
+> {
   const usuario = await requireProcessosEmpresa(input.empresaId);
   const quando = new Date(input.quando);
   if (Number.isNaN(quando.getTime())) return { ok: false, error: "Data inválida." };
@@ -1061,12 +1064,44 @@ export async function sugerirCondutor(input: {
     orderBy: { dataInicio: "desc" },
     select: { condutorId: true, condutor: { select: { colaborador: { select: { nome: true } } } } },
   });
+  if (alocacao) {
+    return {
+      ok: true,
+      condutorId: alocacao.condutorId,
+      nome: alocacao.condutor.colaborador.nome,
+      origem: "alocacao",
+    };
+  }
 
-  return {
-    ok: true,
-    condutorId: alocacao?.condutorId ?? null,
-    nome: alocacao?.condutor.colaborador.nome ?? null,
-  };
+  // Sem alocação formal, o MOTORISTA DO CADASTRO ainda responde à pergunta —
+  // pedido do RH em 31/08/2026. Ele é texto livre da planilha (pode trazer
+  // "A / B"), então só vira sugestão quando casa com UM condutor cadastrado:
+  // a indicação em si continua exigindo um Condutor de verdade (CNH), e
+  // ambiguidade aqui indicaria a pessoa errada num ato formal perante o órgão.
+  const veiculo = await prisma.veiculo.findFirst({
+    where: { id: input.veiculoId, empresaId: { in: visiveis } },
+    select: { motoristaInformado: true },
+  });
+  const informado = veiculo?.motoristaInformado?.trim();
+  if (!informado) return { ok: true, condutorId: null, nome: null, origem: null };
+
+  const normalizar = (s: string) =>
+    s.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim().toUpperCase();
+  const nomesInformados = informado.split("/").map(normalizar).filter(Boolean);
+
+  const condutores = await prisma.condutor.findMany({
+    where: { empresaId: { in: visiveis } },
+    select: { id: true, colaborador: { select: { nome: true } } },
+  });
+  const casados = condutores.filter((c) => {
+    const nome = normalizar(c.colaborador.nome);
+    return nomesInformados.some((n) => nome === n || nome.startsWith(`${n} `) || n.startsWith(`${nome} `));
+  });
+
+  // Só match ÚNICO sugere. Dois nomes na planilha, dois homônimos, nada: o RH
+  // escolhe na lista, como sempre pôde.
+  if (casados.length !== 1) return { ok: true, condutorId: null, nome: null, origem: null };
+  return { ok: true, condutorId: casados[0].id, nome: casados[0].colaborador.nome, origem: "cadastro" };
 }
 
 /** Indica o condutor e fecha o relógio de 30 dias. */
