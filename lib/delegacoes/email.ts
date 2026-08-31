@@ -140,3 +140,86 @@ export async function avisarDemandaEnviadaPorEmail(demandaId: string): Promise<R
 
   return { ok: true };
 }
+
+type DemandaEntregueParaEmail = {
+  id: string;
+  titulo: string;
+  responsavel: { nome: string };
+};
+
+function assuntoDaEntrega(d: DemandaEntregueParaEmail): string {
+  return `[Delegações] Entregue: ${d.titulo}`;
+}
+
+function textoDaEntrega(d: DemandaEntregueParaEmail, linkDemanda: string): string {
+  return [
+    `${d.titulo}`,
+    "",
+    `${d.responsavel.nome} entregou. Só falta a sua aprovação para encerrar.`,
+    "",
+    `Abrir: ${linkDemanda}`,
+  ].join("\n");
+}
+
+function htmlDaEntrega(d: DemandaEntregueParaEmail, linkDemanda: string): string {
+  return [
+    `<p><b>${esc(d.titulo)}</b></p>`,
+    `<p>${esc(d.responsavel.nome)} entregou. Só falta a sua aprovação para encerrar.</p>`,
+    `<p><a href="${linkDemanda}">Abrir no sistema</a></p>`,
+  ].join("");
+}
+
+/**
+ * Irmã de `avisarDemandaEnviadaPorEmail`, mas para o SOLICITANTE quando a
+ * entrega chega — mesmo pedido da Direção de 29/08/2026 (e-mail sempre
+ * junto do Telegram), aplicado ao evento que faltava avisar.
+ */
+export async function avisarDemandaEntreguePorEmail(demandaId: string): Promise<ResultadoEnvio> {
+  const demanda = await prisma.demanda.findUnique({
+    where: { id: demandaId },
+    select: {
+      id: true,
+      titulo: true,
+      responsavel: { select: { nome: true } },
+      solicitante: {
+        select: {
+          nome: true,
+          email: true,
+          colaborador: { select: { empresa: { select: { marca: { select: { nome: true } } } } } },
+        },
+      },
+    },
+  });
+  if (!demanda) return { ok: false, motivo: "Demanda não encontrada." };
+
+  if (!demanda.solicitante.email) {
+    return { ok: false, motivo: `${demanda.solicitante.nome} não tem e-mail cadastrado.` };
+  }
+
+  const linkDemanda = `${APP_URL}/delegacoes/${demanda.id}`;
+  const fromName = demanda.solicitante.colaborador?.empresa.marca.nome
+    ? `RH ${demanda.solicitante.colaborador.empresa.marca.nome}`
+    : "Delegações";
+
+  const envio = await sendEmail({
+    to: demanda.solicitante.email,
+    subject: assuntoDaEntrega(demanda),
+    text: textoDaEntrega(demanda, linkDemanda),
+    html: htmlDaEntrega(demanda, linkDemanda),
+    fromName,
+    chave: `delegacoes-entrega:${demanda.id}`,
+  });
+  if (!envio.ok) return { ok: false, motivo: envio.error };
+  if (envio.deduplicado) return { ok: true, deduplicado: true };
+
+  await prisma.demandaInteracao.create({
+    data: {
+      demandaId: demanda.id,
+      tipo: "ENVIADA",
+      canal: "EMAIL",
+      conteudo: "Entrega avisada ao solicitante por e-mail.",
+    },
+  });
+
+  return { ok: true };
+}

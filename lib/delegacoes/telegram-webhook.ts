@@ -2,7 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { answerCallbackQuery, removerBotoes, sendTelegramMessage } from "@/lib/telegram";
 import { validarReporte, validarTransicao } from "@/lib/delegacoes/estados";
 import { diasAtePrazo, prazoEmTexto } from "@/lib/delegacoes/consultas";
-import { botoesDaCobranca, lerCallback } from "@/lib/delegacoes/telegram";
+import { avisarDemandaEntregue, botoesDaCobranca, lerCallback } from "@/lib/delegacoes/telegram";
+import { avisarDemandaEntreguePorEmail } from "@/lib/delegacoes/email";
 import { classificarInteracao } from "@/lib/delegacoes/classificar";
 
 // O que acontece quando a pessoa TOCA num botão ou ESCREVE no bot.
@@ -309,6 +310,10 @@ export async function tratarTextoDelegacoes(params: {
       params.chatId,
       `✅ Entregue: "${demanda.titulo}".\n\nAgora é com quem pediu — só ele encerra.`,
     );
+    // Mesmo aviso que a entrega pelo painel dispara (lib/actions/delegacoes.ts
+    // `entregarDemanda`) — sem ele quem pediu nunca fica sabendo que a entrega
+    // chegou, nem por Telegram nem por e-mail, e só descobre abrindo o painel.
+    await Promise.all([avisarDemandaEntregue(demanda.id), avisarDemandaEntreguePorEmail(demanda.id)]);
     return { tratado: true };
   }
 

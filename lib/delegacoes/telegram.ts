@@ -163,3 +163,66 @@ export async function avisarDemandaEnviada(demandaId: string): Promise<Resultado
 
   return { ok: true };
 }
+
+type DemandaEntregueParaMensagem = {
+  id: string;
+  titulo: string;
+  responsavel: { nome: string };
+};
+
+function textoDaEntrega(d: DemandaEntregueParaMensagem): string {
+  return [
+    `📦 ${d.titulo}`,
+    "",
+    `${d.responsavel.nome} entregou. Só falta a sua aprovação para encerrar.`,
+  ].join("\n");
+}
+
+/**
+ * Avisa o SOLICITANTE quando o responsável entrega — hoje o único jeito de
+ * saber que uma entrega chegou é abrir o painel (`/delegacoes/delegadas`), e
+ * ninguém é avisado disso nem por Telegram nem por e-mail. Mesmo contrato de
+ * `avisarDemandaEnviada`: nunca lança, e quem chama decide se a falha vira
+ * aviso na tela — a entrega já está gravada de qualquer jeito.
+ *
+ * SÓ o link: aprovar/devolver continuam exigindo o painel (regra 3 mora na
+ * máquina de estados e no `where` de cada action, não é reimplementada aqui).
+ */
+export async function avisarDemandaEntregue(demandaId: string): Promise<ResultadoEnvio> {
+  const demanda = await prisma.demanda.findUnique({
+    where: { id: demandaId },
+    select: {
+      id: true,
+      titulo: true,
+      responsavel: { select: { nome: true } },
+      solicitante: { select: { nome: true, colaborador: { select: { telegramChatId: true } } } },
+    },
+  });
+  if (!demanda) return { ok: false, motivo: "Demanda não encontrada." };
+
+  const chatId = demanda.solicitante.colaborador?.telegramChatId;
+  if (!chatId) {
+    return {
+      ok: false,
+      motivo: `${demanda.solicitante.nome} ainda não vinculou o Telegram (precisa enviar /start ao bot do RH).`,
+    };
+  }
+
+  const linkDemanda = `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/delegacoes/${demanda.id}`;
+  const envio = await sendTelegramMessage(
+    chatId,
+    `${textoDaEntrega(demanda)}\n\nAbrir: ${linkDemanda}`,
+  );
+  if (!envio.ok) return { ok: false, motivo: envio.error };
+
+  await prisma.demandaInteracao.create({
+    data: {
+      demandaId: demanda.id,
+      tipo: "ENVIADA",
+      canal: "TELEGRAM",
+      conteudo: "Entrega avisada ao solicitante, com o link para aprovar ou devolver.",
+    },
+  });
+
+  return { ok: true };
+}

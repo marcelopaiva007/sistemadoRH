@@ -7,8 +7,8 @@ import { registrarAuditoria } from "@/lib/audit";
 import { podeVerDemanda } from "@/lib/delegacoes/consultas";
 import { sistemasPermitidos } from "@/lib/permissoes/efetivas";
 import { garantirAcessoDoColaborador, PAPEL_PORTAL } from "@/lib/delegacoes/acesso-colaborador";
-import { avisarDemandaEnviada } from "@/lib/delegacoes/telegram";
-import { avisarDemandaEnviadaPorEmail } from "@/lib/delegacoes/email";
+import { avisarDemandaEnviada, avisarDemandaEntregue } from "@/lib/delegacoes/telegram";
+import { avisarDemandaEnviadaPorEmail, avisarDemandaEntreguePorEmail } from "@/lib/delegacoes/email";
 import { classificarInteracao } from "@/lib/delegacoes/classificar";
 import type { ActionResult } from "@/lib/constants";
 import {
@@ -616,7 +616,7 @@ export async function entregarDemanda(input: {
   evidenciaTexto?: string | null;
   /** A evidência quando é ARQUIVO — id na esteira Arquivo/Blob. */
   arquivoId?: string | null;
-}): Promise<ActionResult> {
+}): Promise<ActionResult & { aviso?: string }> {
   const ator = await atorDaSessao();
   if (!ator) return { ok: false, error: ERRO_SESSAO };
 
@@ -679,7 +679,18 @@ export async function entregarDemanda(input: {
     detalhes: { evidenciaTipo: demanda.evidenciaExigida, comArquivo: !!input.arquivoId },
   });
   revalidarModulo();
-  return { ok: true };
+  // Mesmo contrato de `enviarDemanda`: a entrega já está gravada, e a falha do
+  // aviso NÃO vira erro — só um aviso na tela dizendo o que não chegou.
+  const [aviso, avisoEmail] = await Promise.all([
+    avisarDemandaEntregue(demanda.id),
+    avisarDemandaEntreguePorEmail(demanda.id),
+  ]);
+  const problemas: string[] = [];
+  if (!aviso.ok) problemas.push(`não avisei pelo Telegram: ${aviso.motivo}`);
+  if (!avisoEmail.ok) problemas.push(`não avisei por e-mail: ${avisoEmail.motivo}`);
+  return problemas.length > 0
+    ? { ok: true, aviso: `Entregue, mas ${problemas.join("; ")}.` }
+    : { ok: true };
 }
 
 /**
