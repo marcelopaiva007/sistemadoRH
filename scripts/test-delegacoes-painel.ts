@@ -94,6 +94,44 @@ console.log("\nEntrega no prazo — mesma régua: dia de calendário\n");
   igual(carla.entregues, 1, "ENTREGUE (aguardando aceite) também conta como entregue");
 }
 
+console.log("\nBaixa direta — ENCERRADA sem entrega aceita não mede a pessoa\n");
+{
+  // Decisão da Direção (31/08/2026): quando o solicitante dá baixa direta
+  // (concluída sem entrega formal), a demanda NÃO conta tempo de trabalho nem
+  // entra no "% no prazo" do responsável — ele não entregou nada.
+  const p = montarPainelEntregas(
+    [
+      demanda({ status: "ENCERRADA", responsavelNome: "Elisa", entregas: [] }),
+      // Devolvida e depois baixada direto: a única entrega existente foi
+      // recusada — a devolução conta, a "entrega" não.
+      demanda({
+        status: "ENCERRADA",
+        responsavelNome: "Elisa",
+        entregas: [{ createdAt: h(30), aceita: false }],
+      }),
+      // Uma entrega de verdade, para a linha existir e provar o contraste.
+      demanda({
+        status: "ENCERRADA",
+        responsavelNome: "Elisa",
+        prazo: AGORA,
+        entregas: [{ createdAt: h(10), aceita: true }],
+      }),
+    ],
+    AGORA,
+  );
+  const elisa = p.linhas.find((l) => l.nome === "Elisa")!;
+  igual(elisa.entregues, 1, "só a demanda com entrega ACEITA conta como entregue");
+  igual(elisa.abertas, 0, "as baixadas também não voltam a contar como abertas");
+  igual(elisa.noPrazo, 1, "o % no prazo só olha a entrega real");
+  igual(elisa.devolucoes, 1, "a devolução que aconteceu antes da baixa continua contando");
+  // aceite h(47) → entrega h(10): 37h corridas, vindas SÓ da entrega real.
+  igual(
+    elisa.horasMediaEntrega !== null && Math.round(elisa.horasMediaEntrega),
+    37,
+    "o tempo médio vem SÓ da entrega real — baixa direta não gera medição",
+  );
+}
+
 console.log("\nQual entrega vale — a aceita, ou a última quando nenhuma foi aceita\n");
 {
   const p = montarPainelEntregas([

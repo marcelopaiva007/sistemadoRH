@@ -223,3 +223,68 @@ export async function avisarDemandaEntreguePorEmail(demandaId: string): Promise<
 
   return { ok: true };
 }
+
+/**
+ * Irmã de `avisarDemandaConcluidaDireto` (Telegram): avisa o RESPONSÁVEL por
+ * e-mail quando o solicitante dá baixa direta — a demanda terminou sem
+ * entrega, e a pessoa não deve mais trabalhar nela.
+ *
+ * `chave` fixa por demanda: ENCERRADA é estado terminal, a baixa só acontece
+ * uma vez na vida da demanda — retry de rede não duplica o e-mail.
+ */
+export async function avisarDemandaConcluidaDiretoPorEmail(
+  demandaId: string,
+): Promise<ResultadoEnvio> {
+  const demanda = await prisma.demanda.findUnique({
+    where: { id: demandaId },
+    select: {
+      id: true,
+      titulo: true,
+      solicitante: { select: { nome: true } },
+      responsavel: {
+        select: {
+          nome: true,
+          email: true,
+          colaborador: { select: { empresa: { select: { marca: { select: { nome: true } } } } } },
+        },
+      },
+    },
+  });
+  if (!demanda) return { ok: false, motivo: "Demanda não encontrada." };
+
+  if (!demanda.responsavel.email) {
+    return { ok: false, motivo: `${demanda.responsavel.nome} não tem e-mail cadastrado.` };
+  }
+
+  const linkDemanda = `${APP_URL}/delegacoes/${demanda.id}`;
+  const fromName = demanda.responsavel.colaborador?.empresa.marca.nome
+    ? `RH ${demanda.responsavel.colaborador.empresa.marca.nome}`
+    : "Delegações";
+
+  const frase = `${demanda.solicitante.nome} deu baixa nesta demanda como concluída — você não precisa mais entregar nada nela.`;
+  const envio = await sendEmail({
+    to: demanda.responsavel.email,
+    subject: `[Delegações] Concluída: ${demanda.titulo}`,
+    text: [`${demanda.titulo}`, "", frase, "", `Abrir: ${linkDemanda}`].join("\n"),
+    html: [
+      `<p><b>${esc(demanda.titulo)}</b></p>`,
+      `<p>${esc(frase)}</p>`,
+      `<p><a href="${linkDemanda}">Abrir no sistema</a></p>`,
+    ].join(""),
+    fromName,
+    chave: `delegacoes-baixa:${demanda.id}`,
+  });
+  if (!envio.ok) return { ok: false, motivo: envio.error };
+  if (envio.deduplicado) return { ok: true, deduplicado: true };
+
+  await prisma.demandaInteracao.create({
+    data: {
+      demandaId: demanda.id,
+      tipo: "ENVIADA",
+      canal: "EMAIL",
+      conteudo: "Baixa direta avisada ao responsável por e-mail.",
+    },
+  });
+
+  return { ok: true };
+}

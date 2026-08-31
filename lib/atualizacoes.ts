@@ -26,6 +26,18 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.151.0",
+    data: "31/08/2026",
+    horario: "20:45",
+    titulo: "Delegações: baixa direta como concluída, e a demanda vai só para colaboradores",
+    itens: [
+      "Quem delegou agora pode dar baixa numa demanda como CONCLUÍDA sem esperar a entrega formal — para quando ela se resolveu por fora (numa conversa, por outro caminho). O motivo é obrigatório e fica no histórico no lugar da entrega.",
+      "A baixa direta não mede o responsável: não conta como entrega dele, não entra no % no prazo nem gera tempo de trabalho no painel de entregas — diferente de cancelar, que registra a demanda como não feita.",
+      "O responsável é avisado na hora, por Telegram e e-mail, de que não precisa mais entregar nada naquela demanda.",
+      "Na criação e na transferência de demanda, o seletor de pessoas agora lista SÓ colaboradores — os usuários do sistema saíram, porque a cobrança pelo bot depende do Telegram, que é vinculado à ficha de colaborador.",
+    ],
+  },
+  {
     versao: "1.144.0",
     data: "30/08/2026",
     horario: "00:01",

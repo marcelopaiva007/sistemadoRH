@@ -7,8 +7,16 @@ import { registrarAuditoria } from "@/lib/audit";
 import { podeVerDemanda } from "@/lib/delegacoes/consultas";
 import { sistemasPermitidos } from "@/lib/permissoes/efetivas";
 import { garantirAcessoDoColaborador, PAPEL_PORTAL } from "@/lib/delegacoes/acesso-colaborador";
-import { avisarDemandaEnviada, avisarDemandaEntregue } from "@/lib/delegacoes/telegram";
-import { avisarDemandaEnviadaPorEmail, avisarDemandaEntreguePorEmail } from "@/lib/delegacoes/email";
+import {
+  avisarDemandaEnviada,
+  avisarDemandaEntregue,
+  avisarDemandaConcluidaDireto,
+} from "@/lib/delegacoes/telegram";
+import {
+  avisarDemandaEnviadaPorEmail,
+  avisarDemandaEntreguePorEmail,
+  avisarDemandaConcluidaDiretoPorEmail,
+} from "@/lib/delegacoes/email";
 import { cobrarAceite } from "@/lib/delegacoes/cobranca-aceite";
 import { classificarInteracao } from "@/lib/delegacoes/classificar";
 import type { ActionResult } from "@/lib/constants";
@@ -364,6 +372,7 @@ const ACAO_AUDITORIA: Record<
   INICIAR_EXECUCAO: "ATUALIZAR",
   ENTREGAR: "ATUALIZAR",
   ENCERRAR: "APROVAR",
+  CONCLUIR_DIRETO: "APROVAR",
   DEVOLVER: "REPROVAR",
   CANCELAR: "CANCELAR",
 };
@@ -374,6 +383,7 @@ const RESUMO_AUDITORIA: Record<Parameters<typeof validarTransicao>[0], string> =
   INICIAR_EXECUCAO: "Iniciou a execução da demanda",
   ENTREGAR: "Entregou a demanda com evidência",
   ENCERRAR: "Aceitou a entrega e encerrou a demanda",
+  CONCLUIR_DIRETO: "Deu baixa na demanda como concluída, sem entrega formal",
   DEVOLVER: "Devolveu a entrega da demanda",
   CANCELAR: "Cancelou a demanda",
 };
@@ -859,6 +869,51 @@ export async function aceitarEntrega(input: { id: string }): Promise<ActionResul
       await avaliarEntregaPendente(tx, input.id, { aceita: true, avaliadaEm: agora });
     },
   });
+}
+
+/**
+ * ENVIADA/ACEITA/EM_EXECUCAO → ENCERRADA, SEM entrega — a BAIXA DIRETA: o
+ * solicitante dá a demanda por concluída quando ela se resolveu por fora
+ * (verbalmente, por outro caminho), sem esperar a entrega formal. Motivo
+ * obrigatório: ele fica no histórico no lugar da evidência que não houve.
+ *
+ * O que a baixa direta NÃO faz, por decisão da Direção (31/08/2026): medir o
+ * responsável. Sem entrega não há "tempo até entregar" nem "% no prazo" — o
+ * painel de entregas ignora demanda encerrada sem entrega aceita (ver
+ * lib/delegacoes/painel-entregas.ts).
+ */
+export async function concluirDemandaDireto(
+  input: { id: string; motivo: string },
+): Promise<ActionResult & { aviso?: string }> {
+  const agora = new Date();
+  const r = await executarTransicao({
+    demandaId: input.id,
+    transicao: "CONCLUIR_DIRETO",
+    dadosValidacao: { motivo: input.motivo },
+    colunas: {
+      status: "ENCERRADA",
+      encerradaEm: agora,
+      // Mesma casa de `aceitarEntrega`: encerrou, zera o motor de cobrança.
+      nivelEscalonamento: 0,
+      emRisco: false,
+      proximaCobranca: null,
+    },
+    dadosEvento: { motivo: input.motivo.trim() },
+  });
+  if (!r.ok) return r;
+  // O responsável precisa saber que a bola saiu da mão dele — senão continua
+  // trabalhando numa demanda que já morreu. Mesmo contrato de `enviarDemanda`:
+  // a baixa já está gravada, falha de aviso vira ressalva, nunca erro.
+  const [aviso, avisoEmail] = await Promise.all([
+    avisarDemandaConcluidaDireto(input.id),
+    avisarDemandaConcluidaDiretoPorEmail(input.id),
+  ]);
+  const problemas: string[] = [];
+  if (!aviso.ok) problemas.push(`não avisei pelo Telegram: ${aviso.motivo}`);
+  if (!avisoEmail.ok) problemas.push(`não avisei por e-mail: ${avisoEmail.motivo}`);
+  return problemas.length > 0
+    ? { ok: true, aviso: `Baixa registrada, mas ${problemas.join("; ")}.` }
+    : { ok: true };
 }
 
 /**

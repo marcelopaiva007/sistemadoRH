@@ -226,3 +226,51 @@ export async function avisarDemandaEntregue(demandaId: string): Promise<Resultad
 
   return { ok: true };
 }
+
+/**
+ * Avisa o RESPONSÁVEL quando o solicitante dá baixa direta na demanda
+ * (concluída sem entrega formal) — sem este aviso a pessoa continuaria
+ * trabalhando numa demanda que já morreu. Mesmo contrato dos irmãos acima:
+ * nunca lança, a baixa já está gravada de qualquer jeito.
+ */
+export async function avisarDemandaConcluidaDireto(demandaId: string): Promise<ResultadoEnvio> {
+  const demanda = await prisma.demanda.findUnique({
+    where: { id: demandaId },
+    select: {
+      id: true,
+      titulo: true,
+      solicitante: { select: { nome: true } },
+      responsavel: { select: { nome: true, colaborador: { select: { telegramChatId: true } } } },
+    },
+  });
+  if (!demanda) return { ok: false, motivo: "Demanda não encontrada." };
+
+  const chatId = demanda.responsavel.colaborador?.telegramChatId;
+  if (!chatId) {
+    return {
+      ok: false,
+      motivo: `${demanda.responsavel.nome} ainda não vinculou o Telegram (precisa enviar /start ao bot do RH).`,
+    };
+  }
+
+  const envio = await sendTelegramMessage(
+    chatId,
+    [
+      `✅ ${demanda.titulo}`,
+      "",
+      `${demanda.solicitante.nome} deu baixa nesta demanda como concluída — você não precisa mais entregar nada nela.`,
+    ].join("\n"),
+  );
+  if (!envio.ok) return { ok: false, motivo: envio.error };
+
+  await prisma.demandaInteracao.create({
+    data: {
+      demandaId: demanda.id,
+      tipo: "ENVIADA",
+      canal: "TELEGRAM",
+      conteudo: "Baixa direta avisada ao responsável — a demanda foi concluída pelo solicitante.",
+    },
+  });
+
+  return { ok: true };
+}

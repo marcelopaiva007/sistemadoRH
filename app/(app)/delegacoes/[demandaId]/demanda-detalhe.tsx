@@ -20,6 +20,7 @@ import {
   aceitarEntrega,
   cancelarDemanda,
   cobrarAceiteAgora,
+  concluirDemandaDireto,
   devolverEntrega,
   transferirDemanda,
   enviarDemanda,
@@ -59,6 +60,7 @@ type Podem = {
   aceitar: boolean;
   entregar: boolean;
   encerrar: boolean;
+  concluirDireto: boolean;
   devolver: boolean;
   cancelar: boolean;
   repactuar: boolean;
@@ -98,7 +100,15 @@ type ItemLinha = {
 };
 
 /** Qual formulário está aberto — um de cada vez, no lugar da ação. */
-type Painel = "entregar" | "repactuar" | "reportar" | "devolver" | "cancelar" | "transferir" | null;
+type Painel =
+  | "entregar"
+  | "repactuar"
+  | "reportar"
+  | "devolver"
+  | "cancelar"
+  | "transferir"
+  | "concluir"
+  | null;
 
 type UsuarioParaTransferir = { tipo: "USUARIO" | "COLABORADOR"; idEhFicha: boolean; id: string; nome: string };
 
@@ -246,6 +256,11 @@ export function DemandaDetalhe({
           {podem.devolver && (
             <Button variant="outline" onClick={() => abrir("devolver")}>
               Devolver
+            </Button>
+          )}
+          {podem.concluirDireto && (
+            <Button variant="outline" onClick={() => abrir("concluir")}>
+              Dar baixa como concluída
             </Button>
           )}
           {podem.marcarRisco && (
@@ -419,6 +434,30 @@ export function DemandaDetalhe({
                 }),
               );
             }}
+            onCancelar={() => setPainel(null)}
+          />
+        </Painel>
+      )}
+
+      {painel === "concluir" && (
+        <Painel titulo="Dar baixa como concluída">
+          <p className="text-xs text-muted-foreground">
+            A demanda encerra sem entrega formal de {demanda.responsavelNome} — ele é avisado, e
+            esta baixa <strong>não conta</strong> como entrega nem tempo de trabalho dele no
+            painel de entregas.
+          </p>
+          <label className="block">
+            <span className="mb-1 block text-xs text-muted-foreground">
+              Por que ficou concluída — fica no histórico no lugar da entrega
+            </span>
+            <textarea className={CAMPO} rows={2} {...texto("motivo")} />
+          </label>
+          <Acoes
+            pendente={pendente}
+            rotulo="Dar baixa"
+            onConfirmar={() =>
+              agir(() => concluirDemandaDireto({ id: demanda.id, motivo: campos.motivo ?? "" }))
+            }
             onCancelar={() => setPainel(null)}
           />
         </Painel>
