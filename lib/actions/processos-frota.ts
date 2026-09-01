@@ -8,6 +8,7 @@ import { registrarAuditoria } from "@/lib/audit";
 import { lerAnexo } from "@/lib/anexos";
 import { blobConfigurado, enviarDocumentoVeiculoParaBlob, removerDoBlob } from "@/lib/blob";
 import { dataDoFormulario, dataHoraDoFormularioBrasilia, hojeUTC, somarDiasUTC } from "@/lib/datas";
+import { retratoLicenciamento } from "@/lib/processos/licenciamento";
 import {
   normalizarPlaca,
   placaValida,
@@ -407,6 +408,143 @@ export async function excluirDocumentoVeiculo(input: {
     resumo:
       `Excluiu ${rotulo(TIPOS_DOCUMENTO_VEICULO, documento.tipo)} do veículo ` +
       `${formatarPlaca(documento.veiculo.placa)}${documento.arquivoId ? " (arquivo removido junto)" : ""}`,
+  });
+
+  revalidatePath(caminho(input.empresaId));
+  return { ok: true };
+}
+
+/**
+ * Marca o licenciamento de UM exercício como EM DIA — o clique da tela de
+ * Emplacamento (pedido da Direção em 31/08/2026: "ter como a gestão dizer que
+ * está tudo em dia").
+ *
+ * O que se grava é um DocumentoVeiculo tipo LICENCIAMENTO com o exercício —
+ * a MESMA linha que a aba de documentos do veículo mostra e que o alerta de
+ * vencimento lê. Não é um flag paralelo de propósito: duas fontes de "está em
+ * dia" é como o sistema acaba com telas que discordam entre si. O vencimento
+ * gravado é a data limite derivada da placa (lib/processos/licenciamento.ts);
+ * sem calendário derivável, grava sem vencimento — o pagamento aconteceu do
+ * mesmo jeito.
+ */
+export async function marcarLicenciamentoEmDia(input: {
+  empresaId: string;
+  veiculoId: string;
+  exercicio: number;
+}): Promise<ActionResult> {
+  const usuario = await requireProcessosEmpresa(input.empresaId);
+
+  if (!Number.isInteger(input.exercicio) || input.exercicio < 2020 || input.exercicio > 2100) {
+    return { ok: false, error: "Exercício inválido." };
+  }
+
+  // Tela consolidada: o veículo pode ser de outro CNPJ visível — nunca de um
+  // fora do alcance (mesma regra de salvarDocumentoVeiculo).
+  const visiveis = await empresasVisiveis(usuario);
+  const veiculo = await prisma.veiculo.findFirst({
+    where: { id: input.veiculoId, empresaId: { in: visiveis } },
+    select: { id: true, placa: true, empresaId: true, emplacado: true, ufEmplacamento: true },
+  });
+  if (!veiculo) return { ok: false, error: "Veículo não encontrado no seu acesso." };
+  if (!veiculo.emplacado) {
+    return {
+      ok: false,
+      error:
+        "Este veículo está marcado como NÃO emplacado — emplaque (e registre no cadastro) antes de falar em licenciamento em dia.",
+    };
+  }
+
+  const jaRegistrado = await prisma.documentoVeiculo.findFirst({
+    where: { veiculoId: veiculo.id, tipo: "LICENCIAMENTO", exercicio: input.exercicio },
+    select: { id: true },
+  });
+  if (jaRegistrado) {
+    return { ok: false, error: `O licenciamento ${input.exercicio} deste veículo já está em dia.` };
+  }
+
+  const retrato = retratoLicenciamento(
+    { ...veiculo, registradoNoExercicio: false },
+    input.exercicio,
+    hojeUTC(),
+  );
+
+  const criado = await prisma.documentoVeiculo.create({
+    data: {
+      // Do veículo, não da URL: o documento pertence ao CNPJ do carro.
+      empresaId: veiculo.empresaId,
+      veiculoId: veiculo.id,
+      tipo: "LICENCIAMENTO",
+      exercicio: input.exercicio,
+      dataVencimento: retrato.dataLimite,
+      observacoes: "Marcado como em dia pela tela de Emplacamento.",
+      criadoPorId: usuario.id,
+      criadoPorNome: usuario.name ?? usuario.username,
+    },
+    select: { id: true },
+  });
+
+  await registrarAuditoria({
+    empresaId: veiculo.empresaId,
+    acao: "CRIAR",
+    entidade: "DocumentoVeiculo",
+    entidadeId: criado.id,
+    resumo:
+      `Marcou o licenciamento ${input.exercicio} do veículo ` +
+      `${formatarPlaca(veiculo.placa)} como em dia (tela de Emplacamento)`,
+    detalhes: {
+      exercicio: input.exercicio,
+      dataLimite: retrato.dataLimite?.toISOString() ?? null,
+      finalDaPlaca: retrato.final,
+      uf: retrato.ufEfetiva + (retrato.ufAssumida ? " (assumida)" : ""),
+    },
+  });
+
+  revalidatePath(caminho(input.empresaId));
+  return { ok: true };
+}
+
+/**
+ * Desfaz um "em dia" marcado por engano — SÓ quando o registro veio da tela de
+ * Emplacamento e ainda não tem arquivo anexado. Um LICENCIAMENTO com o PDF do
+ * CRLV anexado se exclui pela aba de documentos do veículo, olhando para ele —
+ * não por um desfazer genérico que apagaria a prova junto.
+ */
+export async function desfazerLicenciamentoEmDia(input: {
+  empresaId: string;
+  veiculoId: string;
+  exercicio: number;
+}): Promise<ActionResult> {
+  const usuario = await requireProcessosEmpresa(input.empresaId);
+  const visiveis = await empresasVisiveis(usuario);
+
+  const documento = await prisma.documentoVeiculo.findFirst({
+    where: {
+      veiculoId: input.veiculoId,
+      tipo: "LICENCIAMENTO",
+      exercicio: input.exercicio,
+      veiculo: { empresaId: { in: visiveis } },
+    },
+    select: { id: true, arquivoId: true, veiculo: { select: { placa: true, empresaId: true } } },
+  });
+  if (!documento) return { ok: false, error: "Registro de licenciamento não encontrado no seu acesso." };
+  if (documento.arquivoId) {
+    return {
+      ok: false,
+      error:
+        "Este licenciamento tem arquivo anexado — para removê-lo, use a aba de documentos do veículo, onde dá para ver o que será apagado.",
+    };
+  }
+
+  await prisma.documentoVeiculo.delete({ where: { id: documento.id } });
+
+  await registrarAuditoria({
+    empresaId: documento.veiculo.empresaId,
+    acao: "EXCLUIR",
+    entidade: "DocumentoVeiculo",
+    entidadeId: documento.id,
+    resumo:
+      `Desfez o "em dia" do licenciamento ${input.exercicio} do veículo ` +
+      `${formatarPlaca(documento.veiculo.placa)} (tela de Emplacamento)`,
   });
 
   revalidatePath(caminho(input.empresaId));
