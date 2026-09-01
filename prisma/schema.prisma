@@ -105,6 +105,7 @@ model User {
   // para cobrar — e usuário aqui é desativado (`ativo=false`), nunca apagado.
   demandasSolicitadas Demanda[] @relation("DemandaSolicitante")
   demandasRecebidas   Demanda[] @relation("DemandaResponsavel")
+  reunioesMarcadas    Reuniao[] @relation("ReuniaoSolicitante")
 
   @@index([empresaId])
   @@index([setorId])
@@ -3367,6 +3368,13 @@ model Demanda {
 
   solicitanteId String
   solicitante   User   @relation("DemandaSolicitante", fields: [solicitanteId], references: [id])
+
+  /// A reunião que gerou esta demanda (uma demanda POR CONVOCADO — a regra 1
+  /// do responsável único fica intacta: quem agrupa os convocados é a
+  /// Reuniao, nunca a demanda). Null nas demandas comuns. SetNull: apagar a
+  /// reunião não pode apagar as cobranças que já correm.
+  reuniaoId String?
+  reuniao   Reuniao? @relation(fields: [reuniaoId], references: [id], onDelete: SetNull)
   /// UM responsável, sempre. Regra 1: dono único — a coluna é escalar por
   /// desenho, e não existe tabela pivô de responsáveis de propósito.
   responsavelId String
@@ -3530,6 +3538,34 @@ model DemandaInteracao {
 /// atualiza ou apaga linhas — mesmo contrato do AuditLog. Autor snapshot;
 /// eventos do sistema (cron, classificador) saem com autorId nulo e
 /// autorNome "sistema".
+/// Uma reunião marcada por quem delega (pedido da Direção em 31/08/2026):
+/// o agrupador dos convocados. Cada convocado recebe UMA demanda própria
+/// (Demanda.reuniaoId) — aceitar a demanda é confirmar presença, e a régua de
+/// cobrança que já existe faz o lembrete. A reunião em si não tem máquina de
+/// estados: quem tem status são as demandas dela.
+model Reuniao {
+  id String @id @default(cuid())
+
+  /// Máx. 120 caracteres — validado na action, como o título da demanda.
+  titulo String
+  pauta  String?
+  /// Onde acontece — sala, endereço ou link de vídeo.
+  local  String?
+  /// QUANDO acontece — timestamp, nunca texto livre (mesma regra do prazo da
+  /// demanda). É ele que vira o prazo das demandas dos convocados.
+  dataHora DateTime
+
+  solicitanteId String
+  solicitante   User   @relation("ReuniaoSolicitante", fields: [solicitanteId], references: [id])
+
+  criadoEm DateTime @default(now())
+
+  demandas Demanda[]
+
+  @@index([solicitanteId, dataHora])
+  @@schema("rh")
+}
+
 model DemandaEvento {
   id        String  @id @default(cuid())
   demandaId String

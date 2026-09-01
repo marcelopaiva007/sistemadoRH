@@ -30,6 +30,7 @@ import {
   validarTransicao,
   type TipoEvento,
 } from "@/lib/delegacoes/estados";
+import { demandaDaReuniao, validarReuniao } from "@/lib/delegacoes/reunioes";
 
 // Server actions do módulo Delegações — a ÚNICA porta de escrita das demandas.
 //
@@ -150,6 +151,12 @@ export type NovaDemanda = {
   periodicidadeRetorno: string;
   marcaId?: string | null;
   area?: string | null;
+  /**
+   * A reunião que gera esta demanda (uma por convocado — ver criarReuniao).
+   * Só aceita reunião de quem está LOGADO: um POST forjado não pendura a
+   * própria demanda na reunião de outra pessoa.
+   */
+  reuniaoId?: string | null;
   /** true = cria e envia num passo só (o fluxo normal da tela). */
   enviar?: boolean;
 };
@@ -234,6 +241,16 @@ export async function criarDemanda(
     if (!marca || !marca.ativo) return { ok: false, error: "Marca não encontrada." };
   }
 
+  if (input.reuniaoId) {
+    const reuniao = await prisma.reuniao.findUnique({
+      where: { id: input.reuniaoId },
+      select: { solicitanteId: true },
+    });
+    if (!reuniao || reuniao.solicitanteId !== ator.id) {
+      return { ok: false, error: "Reunião não encontrada entre as suas." };
+    }
+  }
+
   const enviar = input.enviar === true;
   const agora = new Date();
 
@@ -257,6 +274,7 @@ export async function criarDemanda(
         periodicidadeRetorno: input.periodicidadeRetorno,
         marcaId: input.marcaId || null,
         area: input.area?.trim() || null,
+        reuniaoId: input.reuniaoId || null,
         status: enviar ? "ENVIADA" : "RASCUNHO",
         enviadaEm: enviar ? agora : null,
       },
@@ -306,6 +324,128 @@ export async function criarDemanda(
     ok: true,
     id: demanda.id,
     avisoTelegram: avisos.length > 0 ? `Demanda criada, mas ${avisos.join("; ")}.` : undefined,
+  };
+}
+
+// ── Reuniões ────────────────────────────────────────────────────────────────
+
+export type NovaReuniao = {
+  titulo: string;
+  pauta?: string | null;
+  local?: string | null;
+  /** "aaaa-mm-ddThh:mm" (Brasília) — ver prazoDoFormulario. */
+  dataHora: string;
+  /** 1 crítica · 2 alta · 3 normal — vale para as demandas dos convocados. */
+  criticidade: number;
+  marcaId?: string | null;
+  /** Quem vai — mesmo formato do seletor de pessoas (id de usuário ou ficha). */
+  convocados: { id: string; idEhFicha: boolean }[];
+};
+
+/**
+ * Marca a reunião e convoca: cria a Reuniao e UMA demanda POR CONVOCADO
+ * (regra 1 intacta — quem agrupa é a reunião, nunca a demanda), cada uma já
+ * ENVIADA com o aviso duplo de sempre. Aceitar a demanda é confirmar
+ * presença; a régua de cobrança existente lembra quem não confirmou.
+ *
+ * Reaproveita criarDemanda por convocado DE PROPÓSITO: toda a validação
+ * (acesso ao módulo, acesso de portal criado na hora, marca ativa) e os dois
+ * canais de aviso já moram lá — reimplementar aqui seria a segunda versão da
+ * regra, que diverge. Convocado que falhar não derruba os outros: a reunião
+ * vale com quem entrou, e a tela recebe a lista do que não deu.
+ */
+export async function criarReuniao(
+  input: NovaReuniao,
+): Promise<ActionResult & { id?: string; aviso?: string }> {
+  const ator = await atorDaSessao();
+  if (!ator) return { ok: false, error: ERRO_SESSAO };
+
+  // Dedupe silencioso: convocar a mesma pessoa duas vezes é clique repetido,
+  // não intenção de duas demandas.
+  const vistos = new Set<string>();
+  const convocados = (input.convocados ?? []).filter((c) => {
+    if (!c.id?.trim() || vistos.has(c.id)) return false;
+    vistos.add(c.id);
+    return true;
+  });
+
+  const dataHora = prazoDoFormulario(input.dataHora);
+  const veredito = validarReuniao(
+    { titulo: input.titulo, dataHora, qtdConvocados: convocados.length },
+    new Date(),
+  );
+  if (!veredito.ok) return { ok: false, error: veredito.erro };
+
+  const reuniao = await prisma.reuniao.create({
+    data: {
+      titulo: input.titulo.trim(),
+      pauta: input.pauta?.trim() || null,
+      local: input.local?.trim() || null,
+      dataHora: dataHora!,
+      solicitanteId: ator.id,
+    },
+    select: { id: true },
+  });
+
+  const modelo = demandaDaReuniao({
+    titulo: input.titulo,
+    pauta: input.pauta,
+    local: input.local,
+    dataHora: dataHora!,
+  });
+
+  // Sequencial, não Promise.all: N criações disparam N pares de aviso
+  // (Telegram + e-mail), e o SMTP/bot atrás de rajada é como aviso se perde.
+  const falhas: string[] = [];
+  const avisos: string[] = [];
+  let criadas = 0;
+  for (const convocado of convocados) {
+    const r = await criarDemanda({
+      ...modelo,
+      criticidade: input.criticidade,
+      marcaId: input.marcaId,
+      prazo: input.dataHora,
+      reuniaoId: reuniao.id,
+      enviar: true,
+      ...(convocado.idEhFicha
+        ? { responsavelColaboradorId: convocado.id }
+        : { responsavelId: convocado.id }),
+    });
+    if (!r.ok) {
+      falhas.push(r.error);
+      continue;
+    }
+    criadas++;
+    if (r.avisoTelegram) avisos.push(r.avisoTelegram);
+  }
+
+  // Nenhum convocado entrou: reunião sem ninguém não fica no banco — o erro
+  // volta inteiro para a tela e a pessoa tenta de novo.
+  if (criadas === 0) {
+    await prisma.reuniao.delete({ where: { id: reuniao.id } });
+    return { ok: false, error: `Nenhum convocado pôde ser chamado: ${falhas.join("; ")}` };
+  }
+
+  await registrarAuditoria({
+    acao: "CRIAR",
+    entidade: "Reuniao",
+    entidadeId: reuniao.id,
+    resumo: `Marcou a reunião "${input.titulo.trim()}" com ${criadas} convocado(s)`,
+    detalhes: { dataHora: dataHora!.toISOString(), convocados: criadas, falhas: falhas.length },
+  });
+
+  revalidarModulo();
+  const ressalvas = [
+    ...falhas.map((f) => `um convocado ficou de fora (${f})`),
+    ...avisos,
+  ];
+  return {
+    ok: true,
+    id: reuniao.id,
+    aviso:
+      ressalvas.length > 0
+        ? `Reunião marcada com ${criadas} convocado(s), mas ${ressalvas.join("; ")}`
+        : undefined,
   };
 }
 

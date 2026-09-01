@@ -50,6 +50,8 @@ type Demanda = {
   marcaNome: string | null;
   solicitanteNome: string;
   responsavelNome: string;
+  /** Título da reunião que gerou a demanda — null nas demandas comuns. */
+  reuniaoTitulo: string | null;
   aceiteEmTexto: string | null;
   encerradaEmTexto: string | null;
   limiteAceiteTexto: string | null;
@@ -209,6 +211,7 @@ export function DemandaDetalhe({
             {demanda.horasEstimadas != null && <> · {duracaoEmTexto(demanda.horasEstimadas)} estimadas</>}
             {demanda.marcaNome && <> · {demanda.marcaNome}</>}
             {demanda.area && <> · {demanda.area}</>}
+            {demanda.reuniaoTitulo && <> · reunião: {demanda.reuniaoTitulo}</>}
           </p>
         </div>
 
