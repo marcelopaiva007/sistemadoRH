@@ -26,6 +26,18 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.153.0",
+    data: "01/09/2026",
+    horario: "00:30",
+    titulo: "Delegações: Reuniões — marque uma vez, convoque todo mundo",
+    itens: [
+      "Novo item Reuniões no menu: assunto, data e hora, local, pauta e os convocados (com pesquisa e favoritos). Ao marcar, CADA convocado recebe a própria demanda — no Telegram e no e-mail, como qualquer demanda.",
+      "Aceitar a demanda é confirmar presença; quem não confirmar é lembrado pela cobrança automática de sempre, na régua da criticidade escolhida.",
+      "A tela da reunião mostra quem confirmou, quem ainda não, e o atalho para cada demanda. Depois da reunião, encerre aceitando a participação entregue ou dando a baixa direta em quem compareceu.",
+      "No detalhe de cada demanda de reunião, aparece de qual reunião ela nasceu.",
+    ],
+  },
+  {
     versao: "1.152.0",
     data: "31/08/2026",
     horario: "21:40",

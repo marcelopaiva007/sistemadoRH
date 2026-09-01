@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Inbox, Send, LayoutDashboard, FileBarChart } from "lucide-react";
+import { Inbox, Send, CalendarClock, LayoutDashboard, FileBarChart } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Menu do módulo, no mesmo formato de app/(app)/processos/[empresaId]/processos-nav.tsx.
@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 const ITENS = [
   { slug: "", label: "Recebidas", icon: Inbox },
   { slug: "delegadas", label: "Delegadas por mim", icon: Send },
+  { slug: "reunioes", label: "Reuniões", icon: CalendarClock },
   { slug: "painel", label: "Painel", icon: LayoutDashboard, soDirecao: true },
   { slug: "relatorio", label: "Relatório", icon: FileBarChart, soDirecao: true },
 ] as const;

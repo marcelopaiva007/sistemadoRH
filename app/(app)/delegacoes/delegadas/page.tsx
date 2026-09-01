@@ -3,7 +3,7 @@ import { requireDelegacoesAccess } from "@/lib/delegacoes-auth-guard";
 import { paraLinha, paraPainel, SELECT_LISTA, SELECT_PAINEL } from "@/lib/delegacoes/consultas";
 import { STATUS_TERMINAIS } from "@/lib/delegacoes/estados";
 import { montarPainelEntregas } from "@/lib/delegacoes/painel-entregas";
-import { PAPEL_PORTAL } from "@/lib/delegacoes/acesso-colaborador";
+import { listarPessoasParaDelegar } from "@/lib/delegacoes/pessoas";
 import { DelegadasView } from "./delegadas-view";
 
 /**
@@ -17,7 +17,7 @@ import { DelegadasView } from "./delegadas-view";
 export default async function DelegadasPage() {
   const usuario = await requireDelegacoesAccess();
 
-  const [linhas, linhasPainel, usuarios, marcas, colaboradores, favoritos] = await Promise.all([
+  const [linhas, linhasPainel, pessoas, marcas] = await Promise.all([
     prisma.demanda.findMany({
       // Aqui NÃO se usa APENAS_ATIVAS: o RASCUNHO é meu e precisa aparecer,
       // senão salvar rascunho grava algo que nenhuma tela lista depois — e o
@@ -36,117 +36,18 @@ export default async function DelegadasPage() {
       where: { solicitanteId: usuario.id },
       select: SELECT_PAINEL,
     }),
-    // Quem pode receber demanda. `telegramChatId` vem junto para a tela AVISAR
-    // (não bloquear) que a pessoa ainda não é cobrável pelo bot — decisão da
-    // Direção de 28/08/2026. `posicao`/`empresa.marca` vêm para o rótulo
-    // (marca na frente, cargo junto) — pedido da Direção em 29/08/2026; nem
-    // todo User tem colaborador ligado (contas do sistema puras), por isso
-    // tudo aqui é opcional.
-    prisma.user.findMany({
-      where: { ativo: true },
-      select: {
-        id: true,
-        nome: true,
-        role: true,
-        colaborador: {
-          select: {
-            telegramChatId: true,
-            posicao: { select: { nome: true } },
-            empresa: { select: { marca: { select: { nome: true } } } },
-          },
-        },
-      },
-      orderBy: { nome: "asc" },
-    }),
+    // A lista de quem pode receber demanda — fonte única, compartilhada com a
+    // tela de Reuniões (ver lib/delegacoes/pessoas.ts, extraída em 31/08/2026).
+    listarPessoasParaDelegar(usuario.id),
     prisma.marca.findMany({
       where: { ativo: true },
       select: { id: true, nome: true },
       orderBy: { nome: "asc" },
-    }),
-    // Funcionários da folha: qualquer um pode receber demanda (decisão da
-    // Direção em 29/08/2026). Quem já é usuário do sistema é filtrado abaixo
-    // para não aparecer duas vezes na mesma lista.
-    prisma.colaborador.findMany({
-      where: { ativo: true },
-      select: {
-        id: true,
-        nome: true,
-        telegramChatId: true,
-        usuario: { select: { id: true } },
-        posicao: { select: { nome: true } },
-        empresa: { select: { marca: { select: { nome: true } } } },
-      },
-      orderBy: { nome: "asc" },
-    }),
-    // A lista de favoritos é de cada um — a de quem está logado.
-    prisma.delegacaoFavorito.findMany({
-      where: { userId: usuario.id },
-      select: { favoritoId: true },
     }),
   ]);
 
   const demandas = linhas.map((d) => paraLinha(d));
   const painel = montarPainelEntregas(linhasPainel.map((d) => paraPainel(d)));
 
-  const favoritoIds = new Set(favoritos.map((f) => f.favoritoId));
-
-  return (
-    <DelegadasView
-      demandas={demandas}
-      painel={painel}
-      usuarios={[
-        // SÓ COLABORADORES — decisão da Direção em 31/08/2026: os usuários do
-        // sistema (contas de login) saíram da chamada da demanda, porque a
-        // cobrança pelo bot depende do Telegram e ele é vinculado à FICHA de
-        // colaborador. Um usuário puro (sem ficha) não é cobrável por lá; para
-        // voltar a receber demanda, o caminho é ter ficha de colaborador.
-        //
-        // Quem JÁ TEM acesso de portal (recebeu alguma demanda antes). Sem
-        // esta fatia a pessoa SUMIA da lista depois da primeira demanda: ela
-        // deixa de contar como "só ficha" (passa a ter usuário) e não entra em
-        // `alcancam`, porque o papel de portal não alcança módulo nenhum de
-        // propósito. Era impossível delegar duas vezes para a mesma pessoa.
-        ...usuarios
-          .filter((u) => u.role === PAPEL_PORTAL)
-          .map((u) => ({
-            tipo: "COLABORADOR" as const,
-            // Já tem acesso: o id é de USUÁRIO.
-            idEhFicha: false,
-            id: u.id,
-            nome: u.nome,
-            temTelegram: !!u.colaborador?.telegramChatId,
-            favorito: favoritoIds.has(u.id),
-            cargo: u.colaborador?.posicao?.nome ?? null,
-            marcaNome: u.colaborador?.empresa.marca.nome ?? null,
-          })),
-        // Quem só tem ficha e nunca recebeu nada: o acesso de portal é criado
-        // na hora da primeira demanda — por isso o id aqui é o da FICHA.
-        ...colaboradores
-          .filter((c) => !c.usuario)
-          .map((c) => ({
-            tipo: "COLABORADOR" as const,
-            // Ainda não tem acesso: o id é da FICHA, e quem o converte é a
-            // action (garantirAcessoDoColaborador).
-            idEhFicha: true,
-            id: c.id,
-            nome: c.nome,
-            temTelegram: !!c.telegramChatId,
-            favorito: false,
-            cargo: c.posicao.nome,
-            marcaNome: c.empresa.marca.nome,
-          })),
-      ]
-        // FAVORITOS PRIMEIRO — pedido da Direção em 29/08/2026. Quem delega
-        // dezenas de coisas por dia manda para as mesmas pessoas; deixá-las no
-        // meio de 235 nomes em ordem alfabética obriga a procurar toda vez.
-        // (O desempate USUÁRIO antes de COLABORADOR de 29/08 morreu junto com
-        // a fatia de usuários, em 31/08 — a lista agora é toda de
-        // colaboradores.) Por fim, alfabética.
-        .sort((a, b) => {
-          if (a.favorito !== b.favorito) return a.favorito ? -1 : 1;
-          return a.nome.localeCompare(b.nome, "pt-BR");
-        })}
-      marcas={marcas}
-    />
-  );
+  return <DelegadasView demandas={demandas} painel={painel} usuarios={pessoas} marcas={marcas} />;
 }

@@ -57,6 +57,7 @@ export default async function DemandaPage({
       solicitante: { select: { nome: true } },
       responsavel: { select: { nome: true } },
       marca: { select: { nome: true } },
+      reuniao: { select: { id: true, titulo: true } },
       repactuacoes: {
         orderBy: { createdAt: "asc" },
         select: { id: true, prazoAnterior: true, prazoNovo: true, motivo: true, autorNome: true, createdAt: true },
@@ -159,6 +160,7 @@ export default async function DemandaPage({
         marcaNome: demanda.marca?.nome ?? null,
         solicitanteNome: demanda.solicitante.nome,
         responsavelNome: demanda.responsavel.nome,
+        reuniaoTitulo: demanda.reuniao?.titulo ?? null,
         aceiteEmTexto: demanda.aceiteEm ? formatarDataHoraBrasilia(demanda.aceiteEm) : null,
         encerradaEmTexto: demanda.encerradaEm ? formatarDataHoraBrasilia(demanda.encerradaEm) : null,
         limiteAceiteTexto:
