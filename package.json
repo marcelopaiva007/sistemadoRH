@@ -1,6 +1,6 @@
 {
   "name": "sistema-rh",
-  "version": "1.151.0",
+  "version": "1.152.0",
   "private": true,
   "scripts": {
     "// ━━━━━━━━━━━━━━━━ DESENVOLVIMENTO ━━━━━━━━━━━━━━━━": "",
@@ -54,6 +54,7 @@
     "test:guarda-unificacao": "tsx scripts/test-guarda-unificacao.ts",
     "test:telegram-identidade": "tsx scripts/test-telegram-identidade.ts",
     "test:alugueis": "tsx scripts/test-alugueis.ts",
+    "test:processos-licenciamento": "tsx scripts/test-processos-licenciamento.ts",
     "test:delegacoes": "tsx scripts/test-delegacoes.ts",
     "test:delegacoes-visibilidade": "tsx scripts/test-delegacoes-visibilidade.ts",
     "test:delegacoes-redator": "tsx scripts/test-delegacoes-redator.ts",

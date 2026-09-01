@@ -26,6 +26,18 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.152.0",
+    data: "31/08/2026",
+    horario: "21:40",
+    titulo: "Frota: tela de Emplacamento — o mês de cada placa e o \"está tudo em dia\"",
+    itens: [
+      "Novo item Emplacamento no menu da Frota: cada veículo com o mês de pagamento do licenciamento derivado do FINAL DA PLACA, pelo calendário oficial do DETRAN-PB 2026 (final 1 vence em março, final 0 em dezembro).",
+      "Semáforo por veículo — em dia, vence em breve (30 dias), vencido, não emplacado, sem calendário — e a resposta no topo da tela: \"frota toda em dia\" ou quantos veículos pedem atenção.",
+      "Um clique em \"Marcar em dia\" registra o licenciamento do ano na ficha do veículo (aba de documentos, onde o comprovante pode ser anexado depois); dá para desfazer enquanto não houver arquivo anexado. Tudo com auditoria.",
+      "Veículo com a UF de emplacamento vazia no cadastro é calculado pelo calendário da Paraíba, com o aviso \"(UF? → PB)\" na linha — preencher a UF no cadastro remove a suposição.",
+    ],
+  },
+  {
     versao: "1.151.0",
     data: "31/08/2026",
     horario: "20:45",

@@ -551,29 +551,18 @@ export function VeiculosView({
                       {/* Três degraus — pedido do RH em 31/08/2026: quem tem
                           motorista no CADASTRO não pode aparecer como "ninguém".
                           A alocação formal (com termo) continua sendo o que vale
-                          para a indicação de multa; o nome do cadastro entra
-                          como resposta de "com quem está", com o aviso do que
-                          falta formalizar. */}
+                          para a indicação de multa. SÓ O NOME, sem legenda —
+                          decisão da Direção em 31/08/2026: as linhas "texto
+                          legado…"/"do cadastro…" poluíam a lista inteira; a
+                          orientação do que falta formalizar mora na edição do
+                          veículo, onde a ação acontece. */}
                       {v.condutorAtual ??
-                        (v.motoristaNome ? (
-                          <span>
-                            {v.motoristaNome}
-                            <span className="block text-[11px] text-muted-foreground">
-                              do cadastro — formalize a alocação para a indicação de multa
-                            </span>
-                          </span>
-                        ) : v.motoristaInformado ? (
-                          <span>
-                            {v.motoristaInformado}
-                            <span className="block text-[11px] text-muted-foreground">
-                              texto legado — vincule ao cadastro na edição do veículo
-                            </span>
-                          </span>
-                        ) : (
+                        v.motoristaNome ??
+                        v.motoristaInformado ?? (
                           <span className="text-xs text-amber-600 dark:text-amber-500">
                             sem motorista definido — a multa não terá a quem indicar
                           </span>
-                        ))}
+                        )}
                     </TableCell>
                     <TableCell>
                       {v.vencimentoMaisProximo ? (
