@@ -34,8 +34,19 @@ export default async function ColaboradoresPage({
   ]);
   const daMarcaVisiveis = todasDaMarca.filter((id) => visiveis.includes(id));
   const pedidas = (empresasParam ?? "").split(",").filter(Boolean);
+  // SEM filtro, o padrão segue sendo a MARCA do caminho (pedido do RH de
+  // 10/08/2026 — abrir a Vapt não mistura os 11 CNPJs do grupo). Mas um
+  // `?empresas=` EXPLÍCITO pode atravessar marcas: é o que os cartões da
+  // Central de Pendências mandam — eles somam o GRUPO inteiro, e intersectar
+  // o pedido com a marca fazia o cartão "Sem Telegram vinculado" dizer 8 e a
+  // lista abrir com 1 (reclamação do RH em 01/09/2026; valia igual para "sem
+  // setor" e "cadastros incompletos"). A fronteira de segurança continua a
+  // interseção com `visiveis`: id digitado à mão na URL não vira acesso.
   const escopo =
-    pedidas.length === 0 ? daMarcaVisiveis : daMarcaVisiveis.filter((id) => pedidas.includes(id));
+    pedidas.length === 0 ? daMarcaVisiveis : pedidas.filter((id) => visiveis.includes(id));
+  // Catálogos e mapa de marca cobrem TUDO que a tela pode mostrar — a marca
+  // do caminho e as que entraram pelo filtro explícito.
+  const escopoCatalogo = [...new Set([...daMarcaVisiveis, ...escopo])];
 
   const [linhas, setores, posicoes] = await Promise.all([
     // `select` explícito, não `include`: esta lista vai inteira para um Client
@@ -93,8 +104,8 @@ export default async function ColaboradoresPage({
     // Buscar setores/posições para TODA a marca, não apenas o escopo filtrado.
     // O usuário pode ter aberto um CNPJ específico sem cargos, mas quer oferecer
     // aqueles que existem em irmãos da mesma marca (catálogo unificado).
-    prisma.setor.findMany({ where: { empresaId: { in: daMarcaVisiveis }, ativo: true }, orderBy: { nome: "asc" } }),
-    prisma.posicao.findMany({ where: { empresaId: { in: daMarcaVisiveis }, ativo: true }, orderBy: { nome: "asc" } }),
+    prisma.setor.findMany({ where: { empresaId: { in: escopoCatalogo }, ativo: true }, orderBy: { nome: "asc" } }),
+    prisma.posicao.findMany({ where: { empresaId: { in: escopoCatalogo }, ativo: true }, orderBy: { nome: "asc" } }),
   ]);
 
   // empresaId → marcaId, para o formulário de novo/editar colaborador oferecer
@@ -104,7 +115,7 @@ export default async function ColaboradoresPage({
   // Busca para TODA a marca visível (daMarcaVisiveis), não apenas o escopo
   // filtrado, porque os cargos/setores são catálogo unificado da marca.
   const empresasComMarca = await prisma.empresa.findMany({
-    where: { id: { in: daMarcaVisiveis } },
+    where: { id: { in: escopoCatalogo } },
     select: { id: true, marcaId: true },
   });
   const marcaPorEmpresa = Object.fromEntries(empresasComMarca.map((e) => [e.id, e.marcaId]));
