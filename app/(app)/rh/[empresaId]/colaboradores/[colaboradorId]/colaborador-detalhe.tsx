@@ -5,7 +5,18 @@ import { useSearchParams } from "next/navigation";
 import { ClipboardList, Send } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { FichaCabecalho, SubNav } from "@/components/padroes/ficha-com-subnav";
+import { FaixaDeIndicadores } from "@/components/padroes/faixa-de-indicadores";
+import { Indicador } from "@/components/indicador";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
+import { ChevronDown } from "lucide-react";
 import { tipoContratoLabel } from "@/lib/constants-dp";
 import { formatarData, tempoDeCasa } from "@/lib/datas";
 import type { ResumoFerias } from "@/lib/ferias";
@@ -38,6 +49,12 @@ type Colaborador = Parameters<typeof FichaBlocos>[0]["colaborador"] & {
   checklistDispensadoEm: Date | null;
   checklistDispensadoPorNome: string | null;
 };
+
+/** "Ana Carolina Ribeiro" → "AC". */
+function iniciais(nome: string): string {
+  const partes = nome.trim().split(/\s+/).filter(Boolean);
+  return ((partes[0]?.[0] ?? "") + (partes[1]?.[0] ?? "")).toUpperCase() || "?";
+}
 
 export function ColaboradorDetalhe({
   empresaId,
@@ -143,54 +160,84 @@ export function ColaboradorDetalhe({
         ← Colaboradores
       </Link>
 
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-semibold tracking-tight">{colaborador.nome}</h2>
-          <p className="text-sm text-muted-foreground">
+      <FichaCabecalho
+        iniciais={iniciais(colaborador.nome)}
+        titulo={colaborador.nome}
+        contexto={
+          <>
             {colaborador.setor.nome} · {colaborador.posicao.nome}
             {colaborador.matricula && ` · matrícula ${colaborador.matricula}`}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant={colaborador.ativo ? "default" : "secondary"}>
-            {colaborador.ativo ? "Ativo" : "Inativo"}
-          </Badge>
-          <AtivarDesativarButton
-            empresaId={empresaId}
-            id={colaborador.id}
-            ativo={colaborador.ativo}
-            comRotulo
-          />
-          {colaborador.tipoContrato && (
-            <Badge variant="outline">{tipoContratoLabel(colaborador.tipoContrato)}</Badge>
-          )}
-          {colaborador.telegramChatId && (
-            <DesvincularTelegramButton
-              empresaId={empresaId}
-              colaboradorId={colaborador.id}
-              nome={colaborador.nome}
-            />
-          )}
-          {resumoFerias?.temVencido && <Badge variant="destructive">Férias vencidas</Badge>}
-          {!resumoFerias?.temVencido && resumoFerias?.temVencendo && (
-            <Badge variant="secondary">Férias vencendo</Badge>
-          )}
-          {irregular && <Badge variant="destructive">Irregular (SST)</Badge>}
-        </div>
-      </div>
+          </>
+        }
+        situacao={
+          <>
+            <Badge variant={colaborador.ativo ? "default" : "secondary"}>
+              {colaborador.ativo ? "Ativo" : "Inativo"}
+            </Badge>
+            {colaborador.tipoContrato && (
+              <Badge variant="secondary">{tipoContratoLabel(colaborador.tipoContrato)}</Badge>
+            )}
+            {colaborador.telegramChatId && <Badge variant="secondary">Telegram vinculado</Badge>}
+            {resumoFerias?.temVencido && <Badge variant="destructive">Férias vencidas</Badge>}
+            {!resumoFerias?.temVencido && resumoFerias?.temVencendo && (
+              <Badge variant="outline">Férias vencendo</Badge>
+            )}
+            {irregular && <Badge variant="destructive">Irregular (SST)</Badge>}
+          </>
+        }
+        acoes={
+          // Os comandos da ficha atrás de um botão só: ativar/desativar,
+          // desvincular Telegram e cobrar cadastro eram três botões soltos
+          // disputando o cabeçalho com as tags de situação.
+          <DropdownMenu>
+            <DropdownMenuTrigger render={<Button variant="outline" />}>
+              Ações
+              <ChevronDown data-icon="inline-end" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64">
+              <DropdownMenuItem closeOnClick={false}>
+                <AtivarDesativarButton
+                  empresaId={empresaId}
+                  id={colaborador.id}
+                  ativo={colaborador.ativo}
+                  comRotulo
+                />
+              </DropdownMenuItem>
+              {colaborador.telegramChatId && (
+                <DropdownMenuItem closeOnClick={false}>
+                  <DesvincularTelegramButton
+                    empresaId={empresaId}
+                    colaboradorId={colaborador.id}
+                    nome={colaborador.nome}
+                  />
+                </DropdownMenuItem>
+              )}
+              {colaborador.ativo && cobrancaCadastro.faltas.length > 0 && cobrancaCadastro.temCanal && (
+                <DropdownMenuItem closeOnClick={false}>
+                  <CobrarCadastroButton empresaId={empresaId} colaboradorIds={[colaborador.id]} />
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        }
+      />
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Resumo label="Admissão" valor={formatarData(colaborador.dataAdmissao)} />
-        <Resumo
-          label="Tempo de casa"
+      <FaixaDeIndicadores>
+        <Indicador rotulo="Admissão" valor={formatarData(colaborador.dataAdmissao)} />
+        <Indicador
+          rotulo="Tempo de casa"
           valor={colaborador.dataAdmissao ? tempoDeCasa(colaborador.dataAdmissao) : "—"}
         />
-        <Resumo
-          label="Saldo de férias"
+        <Indicador
+          rotulo="Saldo de férias"
           valor={resumoFerias ? `${resumoFerias.saldoDisponivel} dias` : "—"}
         />
-        <Resumo label="Pendências de aprovação" valor={pendencias > 0 ? `${pendencias}` : "nenhuma"} />
-      </div>
+        <Indicador
+          rotulo="Pendências de aprovação"
+          valor={pendencias > 0 ? `${pendencias}` : "nenhuma"}
+          estado={pendencias > 0 ? "alerta" : "padrao"}
+        />
+      </FaixaDeIndicadores>
 
       {/* O que a cobrança automática pediria a esta pessoa, com o botão de
           mandar agora. Só para quem está ativo: cobrar cadastro de desligado
@@ -243,66 +290,67 @@ export function ColaboradorDetalhe({
         </Alert>
       )}
 
-      <Tabs defaultValue={abaPadrao} className="w-full">
-        <TabsList variant="default" className="w-full flex flex-wrap h-auto justify-start gap-1.5 p-1.5 bg-muted/60 rounded-lg">
-          <TabsTrigger value="ficha" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
-            Ficha
-          </TabsTrigger>
-          <TabsTrigger value="dependentes" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
-            Dependentes ({dependentes.length})
-          </TabsTrigger>
-          <TabsTrigger value="dossie" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
-            Dossiê ({documentos.length})
-          </TabsTrigger>
-          <TabsTrigger value="ferias" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
-            Férias
-          </TabsTrigger>
-          <TabsTrigger value="ausencias" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
-            Ausências ({ausencias.length})
-          </TabsTrigger>
-          <TabsTrigger value="seguranca" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
-            Segurança {irregular && <Badge variant="destructive" className="ml-1 px-1 py-0 text-[10px]">!</Badge>}
-          </TabsTrigger>
-          <TabsTrigger value="carreira" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
-            Carreira ({movimentacoes.length})
-          </TabsTrigger>
-          <TabsTrigger value="beneficios" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
-            Benefícios ({beneficios.length})
-          </TabsTrigger>
-          <TabsTrigger value="epis" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
-            EPIs ({entregasEpi.length})
-          </TabsTrigger>
-          <TabsTrigger value="entregas" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
-            Entregas ({entregas.length})
-          </TabsTrigger>
-          <TabsTrigger value="acidentes" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
-            Acidentes ({acidentes.length})
-          </TabsTrigger>
-          <TabsTrigger value="desempenho" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
-            Desempenho ({avaliacoes.length})
-          </TabsTrigger>
-          <TabsTrigger value="metas-pdi" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
-            Metas &amp; PDI
-          </TabsTrigger>
-          <TabsTrigger value="treinamentos" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
-            Treinamentos ({participacoesTreinamento.length})
-          </TabsTrigger>
-          <TabsTrigger value="disciplinar" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
-            Disciplinar ({ocorrenciasDisciplinares.length})
-          </TabsTrigger>
-          {colaborador.ativo && (
-            <TabsTrigger value="integracao" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
-              Integração
-            </TabsTrigger>
-          )}
-          {colaborador.dataDesligamento && (
-            <TabsTrigger value="desligamento" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background data-active:shadow-xs">
-              Desligamento
-            </TabsTrigger>
-          )}
-        </TabsList>
+      {/* 19 abas numa linha viraram sub-navegação lateral agrupada
+          (arquétipo C). O `?tab=` na URL e cada TabsContent continuam iguais. */}
+      <Tabs
+        defaultValue={abaPadrao}
+        orientation="vertical"
+        className="group/tabs w-full flex-row items-start gap-8 data-vertical:flex-row"
+      >
+        <SubNav
+          grupos={[
+            {
+              titulo: "Cadastro",
+              itens: [
+                { value: "ficha", label: "Ficha" },
+                { value: "dependentes", label: "Dependentes", contagem: dependentes.length },
+                { value: "dossie", label: "Dossiê", contagem: documentos.length },
+              ],
+            },
+            {
+              titulo: "Tempo",
+              itens: [
+                { value: "ferias", label: "Férias", alerta: !!resumoFerias?.temVencido },
+                { value: "ausencias", label: "Ausências", contagem: ausencias.length },
+              ],
+            },
+            {
+              titulo: "Segurança",
+              itens: [
+                { value: "seguranca", label: "SST (ASO, NR)", alerta: irregular },
+                { value: "epis", label: "EPIs", contagem: entregasEpi.length },
+                { value: "acidentes", label: "Acidentes", contagem: acidentes.length },
+              ],
+            },
+            {
+              titulo: "Carreira",
+              itens: [
+                { value: "carreira", label: "Movimentações", contagem: movimentacoes.length },
+                { value: "desempenho", label: "Desempenho", contagem: avaliacoes.length },
+                { value: "metas-pdi", label: "Metas & PDI" },
+                { value: "treinamentos", label: "Treinamentos", contagem: participacoesTreinamento.length },
+                { value: "disciplinar", label: "Disciplinar", contagem: ocorrenciasDisciplinares.length },
+              ],
+            },
+            {
+              titulo: "Patrimônio",
+              itens: [
+                { value: "beneficios", label: "Benefícios", contagem: beneficios.length },
+                { value: "entregas", label: "Entregas", contagem: entregas.length },
+              ],
+            },
+            {
+              titulo: "Ciclo",
+              itens: [
+                { value: "integracao", label: "Integração", oculto: !colaborador.ativo },
+                { value: "desligamento", label: "Desligamento", oculto: !colaborador.dataDesligamento },
+              ],
+            },
+          ]}
+        />
+        <div className="min-w-0 flex-1">
 
-        <TabsContent value="ficha" className="pt-4">
+        <TabsContent value="ficha">
           <FichaBlocos
             empresaId={empresaId}
             colaborador={colaborador}
@@ -311,13 +359,13 @@ export function ColaboradorDetalhe({
             candidatosSupervisor={candidatosSupervisor}
           />
         </TabsContent>
-        <TabsContent value="dependentes" className="pt-4">
+        <TabsContent value="dependentes">
           <DependentesCard empresaId={empresaId} colaboradorId={colaborador.id} dependentes={dependentes} />
         </TabsContent>
-        <TabsContent value="dossie" className="pt-4">
+        <TabsContent value="dossie">
           <DocumentosCard empresaId={empresaId} colaboradorId={colaborador.id} documentos={documentos} />
         </TabsContent>
-        <TabsContent value="ferias" className="pt-4">
+        <TabsContent value="ferias">
           <FeriasCard
             empresaId={empresaId}
             colaboradorId={colaborador.id}
@@ -325,10 +373,10 @@ export function ColaboradorDetalhe({
             resumo={resumoFerias}
           />
         </TabsContent>
-        <TabsContent value="ausencias" className="pt-4">
+        <TabsContent value="ausencias">
           <AusenciasCard empresaId={empresaId} colaboradorId={colaborador.id} ausencias={ausencias} />
         </TabsContent>
-        <TabsContent value="seguranca" className="pt-4">
+        <TabsContent value="seguranca">
           <SegurancaCard
             empresaId={empresaId}
             colaboradorId={colaborador.id}
@@ -339,7 +387,7 @@ export function ColaboradorDetalhe({
             situacaoExame={situacaoExame}
           />
         </TabsContent>
-        <TabsContent value="carreira" className="pt-4">
+        <TabsContent value="carreira">
           <MovimentacoesCard
             empresaId={empresaId}
             colaboradorId={colaborador.id}
@@ -353,7 +401,7 @@ export function ColaboradorDetalhe({
             tiposMovimentacaoDisponiveis={tiposMovimentacaoDisponiveis}
           />
         </TabsContent>
-        <TabsContent value="beneficios" className="pt-4">
+        <TabsContent value="beneficios">
           <BeneficiosCard
             empresaId={empresaId}
             colaboradorId={colaborador.id}
@@ -362,7 +410,7 @@ export function ColaboradorDetalhe({
             temDependentesNoPlano={dependentesNoPlanoSaude}
           />
         </TabsContent>
-        <TabsContent value="epis" className="pt-4">
+        <TabsContent value="epis">
           <EpisCard
             empresaId={empresaId}
             colaboradorId={colaborador.id}
@@ -371,7 +419,7 @@ export function ColaboradorDetalhe({
             motivosEntregaDisponiveis={motivosEntregaDisponiveis}
           />
         </TabsContent>
-        <TabsContent value="entregas" className="pt-4">
+        <TabsContent value="entregas">
           <EntregasCard
             empresaId={empresaId}
             colaboradorId={colaborador.id}
@@ -379,7 +427,7 @@ export function ColaboradorDetalhe({
             tiposEntregaDisponiveis={tiposEntregaDisponiveis}
           />
         </TabsContent>
-        <TabsContent value="acidentes" className="pt-4">
+        <TabsContent value="acidentes">
           <AcidentesCard
             empresaId={empresaId}
             colaboradorId={colaborador.id}
@@ -388,7 +436,7 @@ export function ColaboradorDetalhe({
             tiposAcidenteDisponiveis={tiposAcidenteDisponiveis}
           />
         </TabsContent>
-        <TabsContent value="desempenho" className="pt-4">
+        <TabsContent value="desempenho">
           <DesempenhoCard
             empresaId={empresaId}
             colaboradorId={colaborador.id}
@@ -396,7 +444,7 @@ export function ColaboradorDetalhe({
             competenciasDisponiveis={competenciasDisponiveis}
           />
         </TabsContent>
-        <TabsContent value="metas-pdi" className="pt-4">
+        <TabsContent value="metas-pdi">
           <MetasPdiCard
             empresaId={empresaId}
             colaboradorId={colaborador.id}
@@ -405,7 +453,7 @@ export function ColaboradorDetalhe({
             statusMetaDisponiveis={statusMetaDisponiveis}
           />
         </TabsContent>
-        <TabsContent value="treinamentos" className="pt-4">
+        <TabsContent value="treinamentos">
           <TreinamentosCard
             empresaId={empresaId}
             colaboradorId={colaborador.id}
@@ -413,7 +461,7 @@ export function ColaboradorDetalhe({
             treinamentosAtivos={treinamentosAtivos}
           />
         </TabsContent>
-        <TabsContent value="disciplinar" className="pt-4">
+        <TabsContent value="disciplinar">
           <DisciplinarCard
             empresaId={empresaId}
             colaboradorId={colaborador.id}
@@ -421,7 +469,7 @@ export function ColaboradorDetalhe({
           />
         </TabsContent>
         {colaborador.ativo && (
-          <TabsContent value="integracao" className="pt-4">
+          <TabsContent value="integracao">
             <IntegracaoCard
               empresaId={empresaId}
               colaboradorId={colaborador.id}
@@ -430,7 +478,7 @@ export function ColaboradorDetalhe({
           </TabsContent>
         )}
         {colaborador.dataDesligamento && (
-          <TabsContent value="desligamento" className="pt-4">
+          <TabsContent value="desligamento">
             <OffboardingCard
               empresaId={empresaId}
               colaboradorId={colaborador.id}
@@ -444,16 +492,9 @@ export function ColaboradorDetalhe({
             />
           </TabsContent>
         )}
+        </div>
       </Tabs>
     </div>
   );
 }
 
-function Resumo({ label, valor }: { label: string; valor: string }) {
-  return (
-    <div className="rounded-lg bg-card px-4 py-3 ring-1 ring-foreground/10">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="text-lg font-semibold tabular-nums">{valor}</div>
-    </div>
-  );
-}
