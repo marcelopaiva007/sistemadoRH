@@ -26,6 +26,18 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.157.0",
+    data: "03/09/2026",
+    horario: "18:50",
+    titulo: "Central de aprovações: uma fila só, da mais antiga para a mais nova",
+    itens: [
+      "Férias, documentos, ausências e ajustes de ponto deixaram de ser quatro blocos separados e viraram UMA lista, ordenada pelo tempo de espera — o item mais antigo é o primeiro da tela.",
+      "No topo, um filtro por tipo com as contagens (Todas · Férias · Documentos · Ausências · Ponto); cada linha mostra o tipo, há quantos dias espera, quem pediu, o que pediu, e os dois botões.",
+      "À direita ficam as últimas decisões registradas e o lembrete de que recusar sempre pede motivo.",
+      "Nada mudou no que os botões fazem: aprovar continua um clique, recusar continua abrindo o campo de motivo (obrigatório em documento e em ajuste de ponto).",
+    ],
+  },
+  {
     versao: "1.156.0",
     data: "03/09/2026",
     horario: "18:20",
