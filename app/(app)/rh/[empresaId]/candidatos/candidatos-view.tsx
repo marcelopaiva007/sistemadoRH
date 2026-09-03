@@ -121,7 +121,7 @@ export function CandidatosView({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold tracking-tight">Banco de talentos</h2>
+        <h1>Banco de talentos</h1>
         <p className="text-sm text-muted-foreground">
           Todo mundo que já se candidatou. Quem foi reprovado numa vaga continua aqui e pode ser
           chamado para outra sem recadastrar.

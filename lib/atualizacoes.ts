@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.162.0",
+    data: "03/09/2026",
+    horario: "21:30",
+    titulo: "Títulos de tela e estados vazios no padrão novo, em 48 telas",
+    itens: [
+      "O título de cada tela (Colaboradores, Vagas, Férias, Escalas, Folha, Placar, Importações…) passou para o tamanho e peso do visual novo — 25px em peso 800 — nas 39 telas que ainda usavam o antigo.",
+      "O círculo cinza dos estados vazios (\"Nenhum colaborador encontrado\" e afins) virou o quadrado de superfície, em 16 lugares.",
+      "Abas em pílula que ainda tinham estilo próprio passaram para o sublinhado; o último cartão com sombra em volta de uma tabela saiu.",
+    ],
+  },
+  {
     versao: "1.161.0",
     data: "03/09/2026",
     horario: "21:10",

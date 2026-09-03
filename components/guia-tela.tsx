@@ -219,7 +219,7 @@ export function GuiaTelaPara({ guia }: { guia: Guia }) {
                   key={i}
                   type="button"
                   onClick={() => irPara(i)}
-                  className="h-1.5 min-w-0 overflow-hidden rounded-full bg-muted"
+                  className="h-1.5 min-w-0 overflow-hidden bg-card"
                   style={{ flexGrow: duracaoDoPasso(p) }}
                   tabIndex={-1}
                 >

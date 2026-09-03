@@ -76,7 +76,7 @@ export function PlanosAcaoView({
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h2 className="text-xl font-semibold tracking-tight">Planos de ação</h2>
+          <h1>Planos de ação</h1>
           <p className="text-sm text-muted-foreground">
             Ações corretivas com dono, prazo e status — de pesquisas (clima, NR-01) ou de qualquer
             outra origem. Plano vencido e ainda aberto dispara alerta diário (AL09).

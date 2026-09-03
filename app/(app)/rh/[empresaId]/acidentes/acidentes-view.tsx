@@ -34,7 +34,7 @@ export function AcidentesView({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold tracking-tight">Acidentes de trabalho / CAT</h2>
+        <h1>Acidentes de trabalho / CAT</h1>
         <p className="text-sm text-muted-foreground">
           Todos os registros da empresa. A Comunicação de Acidente de Trabalho (CAT) tem prazo legal
           de 1 dia útil ao INSS — imediato se o acidente for fatal.

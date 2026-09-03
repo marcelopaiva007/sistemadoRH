@@ -109,7 +109,7 @@ export function TreinamentosView({
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h2 className="text-xl font-semibold tracking-tight">Treinamentos & trilhas</h2>
+          <h1>Treinamentos & trilhas</h1>
           <p className="text-sm text-muted-foreground">
             Capacitação de desenvolvimento geral — a obrigatória de segurança (NRs) fica em
             Conformidade.

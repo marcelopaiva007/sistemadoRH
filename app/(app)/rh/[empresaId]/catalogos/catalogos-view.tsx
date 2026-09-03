@@ -46,7 +46,7 @@ export function CatalogosView({
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-xl font-semibold tracking-tight">Catálogos</h2>
+        <h1>Catálogos</h1>
         <p className="text-sm text-muted-foreground">
           {/* Contado, não escrito: o número dizia "9" enquanto a décima lista
               (tipos de entrega) já estava na tela. */}

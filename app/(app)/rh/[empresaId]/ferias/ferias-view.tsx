@@ -227,7 +227,7 @@ export function FeriasView({
     <div className="space-y-6">
       <div>
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-xl font-semibold tracking-tight">Férias</h2>
+          <h1>Férias</h1>
           <AjudaDaTela modulo="ferias" />
         </div>
         <p className="text-sm text-muted-foreground">

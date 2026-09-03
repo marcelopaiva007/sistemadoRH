@@ -89,7 +89,7 @@ export function EscalasView({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold tracking-tight">Escalas</h2>
+        <h1>Escalas</h1>
         <p className="text-sm text-muted-foreground">
           Quem está de plantão em cada dia, por setor. Clique numa célula para atribuir o turno.
         </p>

@@ -146,7 +146,7 @@ export function OrganogramaView({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold tracking-tight">Organograma</h2>
+        <h1>Organograma</h1>
         <p className="text-sm text-muted-foreground">
           Marca <strong>{marcaNome}</strong> — {totalCnpjs} CNPJ{totalCnpjs > 1 ? "s" : ""}, todos na
           mesma árvore. Montado a partir de quem reporta a quem, e atualiza sozinho quando uma
@@ -188,7 +188,7 @@ export function OrganogramaView({
               )}
             </div>
             <div className="flex items-center gap-2 sm:w-48">
-              <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+              <div className="h-1.5 flex-1 overflow-hidden bg-card">
                 <div
                   className="h-full rounded-full bg-primary transition-all"
                   style={{ width: `${pct}%` }}
@@ -375,7 +375,7 @@ function Nodo({
         ) : (
           <span className="inline-block w-[18px] shrink-0" />
         )}
-        <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-semibold text-muted-foreground">
+        <span className="flex size-7 shrink-0 items-center justify-center bg-card text-[10px] font-semibold text-muted-foreground">
           {iniciais(no.nome)}
         </span>
         <div className="min-w-0 flex-1">
@@ -493,7 +493,7 @@ function PessoaSemLider({
   return (
     <div className="rounded-md px-2 py-1.5 hover:bg-muted/50">
       <div className="flex items-center gap-2">
-        <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-semibold text-muted-foreground">
+        <span className="flex size-7 shrink-0 items-center justify-center bg-card text-[10px] font-semibold text-muted-foreground">
           {iniciais(pessoa.nome)}
         </span>
         <div className="min-w-0 flex-1">

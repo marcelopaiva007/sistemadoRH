@@ -63,7 +63,7 @@ export function VagasView({
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h2 className="text-xl font-semibold tracking-tight">Vagas &amp; recrutamento</h2>
+          <h1>Vagas &amp; recrutamento</h1>
           <p className="text-sm text-muted-foreground">
             Funil de candidatos por vaga. Vaga publicada ganha uma página pública de inscrição.
           </p>

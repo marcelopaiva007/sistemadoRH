@@ -70,7 +70,7 @@ export function EstruturaView({
       <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h2 className="text-xl font-semibold tracking-tight">Marcas &amp; CNPJs</h2>
+          <h1>Marcas &amp; CNPJs</h1>
           <p className="medida-de-leitura text-sm text-muted-foreground">
             Uma marca é como o grupo se apresenta; o CNPJ é a pessoa jurídica de onde a folha sai.
             Uma marca pode ter vários CNPJs, e cada colaborador pertence a um deles.

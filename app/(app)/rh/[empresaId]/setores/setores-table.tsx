@@ -469,7 +469,7 @@ export function SetoresTable({
                     <TableCell className="text-center">
                       <div className="flex flex-col items-center gap-1">
                         <span className="font-medium tabular-nums">{g.colab}</span>
-                        <div className="h-1.5 w-16 overflow-hidden rounded-full bg-muted">
+                        <div className="h-1.5 w-16 overflow-hidden bg-card">
                           <div
                             className="h-full bg-primary transition-all"
                             style={{ width: `${pctColaboradores}%` }}

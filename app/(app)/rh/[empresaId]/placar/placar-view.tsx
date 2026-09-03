@@ -240,7 +240,7 @@ export function PlacarView({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold tracking-tight">Placar do grupo</h2>
+        <h1>Placar do grupo</h1>
         <p className="max-w-3xl text-sm text-muted-foreground">
           Um CNPJ por linha — não uma linha por marca. Painel e Indicadores consolidam pela marca, e
           a média some com o extremo: os CNPJs da LM Telecom aparecem juntos como uma empresa só,

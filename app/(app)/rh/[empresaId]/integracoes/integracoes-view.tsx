@@ -40,7 +40,7 @@ export function IntegracoesView({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold tracking-tight">Integrações em andamento</h2>
+        <h1>Integrações em andamento</h1>
         <p className="text-sm text-muted-foreground">
           O que ainda falta para quem acabou de entrar começar de fato. Quem tem item atrasado
           aparece primeiro.

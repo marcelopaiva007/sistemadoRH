@@ -567,7 +567,7 @@ export function ColaboradoresTable({
 
       {/* Cabeçalho com identidade visual e KPIs — responde "quantos são" e
           "tem pendência grave" sem precisar entrar na tabela. */}
-      <div className="rounded-xl border bg-card p-4 shadow-xs">
+      <div className="bg-card p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="space-y-0.5">
             <div className="flex flex-wrap items-center gap-2">

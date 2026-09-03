@@ -125,7 +125,7 @@ export function TiposBeneficioTable({
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-xl font-semibold tracking-tight">Tipos de benefício</h2>
+        <h1>Tipos de benefício</h1>
         <p className="text-sm text-muted-foreground">
           O catálogo padrão ({TIPOS_BENEFICIO.length} tipos — vale-transporte, plano de saúde etc.)
           continua disponível sempre. Cadastre aqui só o que essa empresa oferece e não está no

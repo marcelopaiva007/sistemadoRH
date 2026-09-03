@@ -336,7 +336,7 @@ export function DashboardClimaView({
                           {d.media100} — {classificarScore(d.media100).label}
                         </span>
                       </div>
-                      <div className="h-2 w-full rounded-full bg-muted">
+                      <div className="h-2 w-full bg-card">
                         <div
                           className="h-2 rounded-full transition-all"
                           style={{ width: `${d.media100}%`, backgroundColor: CORES_NIVEL[d.nivel] }}
@@ -405,7 +405,7 @@ export function DashboardClimaView({
                           <span>{s.respostas} resp.</span>
                           <span style={{ color: cls.cor }}>{s.media100} — {cls.label}</span>
                         </div>
-                        <div className="h-2 w-full rounded-full bg-muted">
+                        <div className="h-2 w-full bg-card">
                           <div
                             className="h-2 rounded-full"
                             style={{ width: `${s.media100}%`, backgroundColor: cls.cor }}

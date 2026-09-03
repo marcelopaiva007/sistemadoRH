@@ -68,7 +68,7 @@ export function AssistenteView({
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-xl font-semibold tracking-tight">Assistente de RH</h2>
+        <h1>Assistente de RH</h1>
         <p className="text-sm text-muted-foreground">
           Pergunte em português sobre os dados desta empresa. O assistente só lê — não altera nada —
           e cada pergunta fica registrada na auditoria.

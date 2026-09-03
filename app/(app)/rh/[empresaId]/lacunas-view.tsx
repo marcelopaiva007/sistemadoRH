@@ -106,7 +106,7 @@ export function LacunasView({
                   {/* A barra mostra o PREENCHIDO, não o que falta: a mesma
                       informação lida como progresso, não como dívida. */}
                   <div
-                    className="h-1.5 overflow-hidden rounded-full bg-muted"
+                    className="h-1.5 overflow-hidden bg-card"
                     role="progressbar"
                     aria-valuenow={pct}
                     aria-valuemin={0}

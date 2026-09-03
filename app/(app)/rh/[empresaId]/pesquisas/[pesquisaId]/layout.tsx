@@ -56,7 +56,7 @@ export default async function PesquisaLayout({
       <Trilha empresaId={empresaId} atual={pesquisa.titulo} />
 
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <h2 className="text-xl font-semibold tracking-tight">{pesquisa.titulo}</h2>
+        <h1>{pesquisa.titulo}</h1>
         <AcoesPesquisa empresaId={empresaId} pesquisaId={pesquisa.id} status={pesquisa.status} />
       </div>
 

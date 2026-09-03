@@ -104,7 +104,7 @@ export function PainelDirecaoView({
     <div className="space-y-6">
       <div>
         <p className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">Delegações</p>
-        <h2 className="text-xl font-semibold tracking-tight">Painel</h2>
+        <h1>Painel</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Todas as demandas do grupo, prazo e responsável — o que está em dia e o que está
           atrasado.

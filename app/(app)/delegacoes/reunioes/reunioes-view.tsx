@@ -138,7 +138,7 @@ export function ReunioesView({
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold tracking-tight">Reuniões</h2>
+          <h1>Reuniões</h1>
           <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
             Marque uma vez e convoque todo mundo: cada convocado recebe a própria demanda no
             Telegram e no e-mail — aceitar é confirmar presença, e a cobrança automática lembra

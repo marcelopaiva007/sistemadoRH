@@ -66,7 +66,7 @@ export function MetasView({
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h2 className="text-xl font-semibold tracking-tight">Metas</h2>
+          <h1>Metas</h1>
           <p className="text-sm text-muted-foreground">
             Individuais ou de setor. PDI (plano de desenvolvimento) fica na ficha de cada pessoa.
           </p>

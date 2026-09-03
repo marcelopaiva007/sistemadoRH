@@ -189,7 +189,7 @@ export function DemandaDetalhe({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-xl font-semibold tracking-tight">{demanda.titulo}</h2>
+            <h1>{demanda.titulo}</h1>
             {/* O mesmo status, dito para quem está lendo: "aguarda seu aceite"
                 só é verdade para quem pediu — o responsável nunca encerra. */}
             <StatusBadge

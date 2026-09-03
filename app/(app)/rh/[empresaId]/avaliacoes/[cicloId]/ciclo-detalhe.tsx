@@ -91,7 +91,7 @@ export function CicloDetalhe({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-xl font-semibold tracking-tight">{ciclo.nome}</h2>
+            <h1>{ciclo.nome}</h1>
             <Badge variant={ciclo.encerrado ? "secondary" : "default"}>
               {ciclo.encerrado ? "Encerrado" : "Aberto"}
             </Badge>

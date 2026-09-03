@@ -160,7 +160,7 @@ export default async function VencimentosPage({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold tracking-tight">Vencimentos</h2>
+        <h1>Vencimentos</h1>
         <p className="text-sm text-muted-foreground">
           Tudo que vence nos próximos {DIAS_ALERTA_VENCIMENTO} dias (ou já venceu): documentos, NRs,
           ASO e EPIs. Só colaboradores ativos. Férias têm tela própria.

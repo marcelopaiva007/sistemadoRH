@@ -194,7 +194,7 @@ export function PainelView({
       {/* --- Cabeçalho ------------------------------------------------------ */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold tracking-tight">Painel</h2>
+          <h1>Painel</h1>
           <p className="max-w-3xl text-sm text-muted-foreground">
             Quadro, movimentação, tempo de casa e custo — calculados na hora a partir da ficha, das
             ausências e dos benefícios já cadastrados. O que era a tela de Indicadores virou o botão{" "}

@@ -276,7 +276,7 @@ export function LiderancaView({
                   {f.liderados === 1 ? "pessoa" : "pessoas"}
                 </span>
               </div>
-              <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+              <div className="h-1.5 overflow-hidden bg-card">
                 <div
                   className={cn(
                     "h-full rounded-full",
@@ -589,7 +589,7 @@ function PontosUnicosDeFalha({
 function Cabecalho({ malha, marcas }: { malha: MalhaDeLideranca; marcas: string[] }) {
   return (
     <div>
-      <h2 className="text-xl font-semibold tracking-tight">Malha de liderança</h2>
+      <h1>Malha de liderança</h1>
       <p className="text-sm text-muted-foreground">
         Quantas pessoas cada líder carrega, quem está fora de qualquer equipe e onde as duas fontes
         de cadastro se contradizem. Recorte: {malha.cnpjsNoRecorte}{" "}

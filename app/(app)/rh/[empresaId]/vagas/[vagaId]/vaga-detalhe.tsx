@@ -93,7 +93,7 @@ export function VagaDetalhe({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-xl font-semibold tracking-tight">{vaga.titulo}</h2>
+            <h1>{vaga.titulo}</h1>
             <StatusBadge status={vaga.status} map={STATUS_VAGA_BADGE} />
             {vaga.publicada && vaga.status === "ABERTA" && <Badge variant="outline">Página pública no ar</Badge>}
           </div>

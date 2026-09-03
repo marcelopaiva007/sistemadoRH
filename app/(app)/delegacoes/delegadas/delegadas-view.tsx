@@ -290,7 +290,7 @@ export function DelegadasView({
           <p className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
             Delegações
           </p>
-          <h2 className="text-xl font-semibold tracking-tight">Delegadas por mim</h2>
+          <h1>Delegadas por mim</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             O que você pediu e ainda não recebeu de volta. Só você encerra uma demanda sua.
           </p>

@@ -45,7 +45,7 @@ export function FolhaView({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-xl font-semibold tracking-tight">Folha — eventos variáveis</h2>
+          <h1>Folha — eventos variáveis</h1>
           <AjudaDaTela modulo="folha" />
         </div>
           <p className="text-sm text-muted-foreground">

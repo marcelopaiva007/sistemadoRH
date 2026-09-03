@@ -85,7 +85,7 @@ export function ConformidadeView({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold tracking-tight">Conformidade — Saúde e Segurança</h2>
+        <h1>Conformidade — Saúde e Segurança</h1>
         <p className="text-sm text-muted-foreground">
           O que cada função exige (matriz de NRs) e quem está com o treinamento ou o ASO vencido.
         </p>

@@ -54,7 +54,7 @@ export function AvaliacoesView({
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h2 className="text-xl font-semibold tracking-tight">Avaliação de desempenho</h2>
+          <h1>Avaliação de desempenho</h1>
           <p className="text-sm text-muted-foreground">
             Ciclos 90° (só gestor), 180° (autoavaliação + gestor) e 360° (múltiplas fontes), com
             competências e nine-box.
