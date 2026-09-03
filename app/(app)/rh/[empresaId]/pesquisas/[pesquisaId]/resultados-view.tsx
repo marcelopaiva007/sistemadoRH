@@ -5,7 +5,6 @@ import {
   ResponsiveContainer,
   BarChart,
   Bar,
-  CartesianGrid,
   XAxis,
   YAxis,
   Tooltip,
@@ -18,8 +17,8 @@ const estiloTooltip = {
   backgroundColor: "var(--card)",
   borderColor: "var(--border)",
   color: "var(--card-foreground)",
-  borderRadius: "var(--radius)",
-  boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+  borderRadius: 0,
+  boxShadow: "none",
 } as const;
 
 export function ResultadosView({
@@ -137,7 +136,6 @@ export function ResultadosView({
               <p className="mb-2 text-sm font-medium">Média por dimensão GPTW</p>
               <ResponsiveContainer width="100%" height="90%">
                 <BarChart data={mediaPorDimensao} margin={{ left: 0, right: 16 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                   <XAxis dataKey="dimensao" tick={{ fontSize: 12 }} />
                   <YAxis tick={{ fontSize: 12 }} />
                   <Tooltip contentStyle={estiloTooltip} formatter={(v) => Number(v).toFixed(2)} />
@@ -149,7 +147,6 @@ export function ResultadosView({
               <p className="mb-2 text-sm font-medium">Média por setor</p>
               <ResponsiveContainer width="100%" height="90%">
                 <BarChart data={mediaPorSetor} layout="vertical" margin={{ left: 24 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                   <XAxis type="number" tick={{ fontSize: 12 }} />
                   <YAxis dataKey="setor" type="category" tick={{ fontSize: 12 }} width={100} />
                   <Tooltip contentStyle={estiloTooltip} formatter={(v) => Number(v).toFixed(2)} />

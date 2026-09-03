@@ -20,7 +20,6 @@ import {
   XAxis,
   YAxis,
   Tooltip,
-  CartesianGrid,
   Cell,
   LineChart,
   Line,
@@ -48,15 +47,15 @@ const estiloTooltip = {
   backgroundColor: "var(--card)",
   borderColor: "var(--border)",
   color: "var(--card-foreground)",
-  borderRadius: "var(--radius)",
-  boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+  borderRadius: 0,
+  boxShadow: "none",
 } as const;
 
 const CORES_NIVEL: Record<string, string> = {
-  critico: "#dc2626",
-  atencao: "#f59e0b",
-  bom: "#22c55e",
-  excelente: "#16a34a",
+  critico: "var(--chart-2)",
+  atencao: "var(--chart-3)",
+  bom: "var(--success)",
+  excelente: "var(--success)",
 };
 
 type Props = {
@@ -283,7 +282,7 @@ export function DashboardClimaView({
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold" style={{ color: alertas.length > 0 ? "#dc2626" : "#22c55e" }}>
+            <div className="text-2xl font-bold" style={{ color: alertas.length > 0 ? "var(--destructive)" : "var(--success)" }}>
               {alertas.length}
             </div>
             <p className="text-xs text-muted-foreground">Dimensões em alerta</p>
@@ -320,7 +319,7 @@ export function DashboardClimaView({
                     <PolarGrid stroke="var(--border)" />
                     <PolarAngleAxis dataKey="dimensao" tick={{ fontSize: 11 }} />
                     <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fontSize: 10 }} />
-                    <Radar name="Score" dataKey="score" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.3} />
+                    <Radar name="Score" dataKey="score" stroke="var(--chart-1)" fill="var(--chart-1)" fillOpacity={0.3} />
                   </RadarChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -355,7 +354,7 @@ export function DashboardClimaView({
               <CardContent>
                 <div className="grid gap-4 sm:grid-cols-3">
                   <div className="text-center">
-                    <div className="text-3xl font-bold" style={{ color: "#16a34a" }}>
+                    <div className="text-3xl font-bold" style={{ color: "var(--success)" }}>
                       {resultado.nps.promotores}
                     </div>
                     <div className="text-xs text-muted-foreground">Promotores (9-10)</div>
@@ -364,7 +363,7 @@ export function DashboardClimaView({
                     </div>
                   </div>
                   <div className="text-center">
-                    <div className="text-3xl font-bold" style={{ color: "#f59e0b" }}>
+                    <div className="text-3xl font-bold" style={{ color: "var(--chart-3)" }}>
                       {resultado.nps.neutros}
                     </div>
                     <div className="text-xs text-muted-foreground">Neutros (7-8)</div>
@@ -373,7 +372,7 @@ export function DashboardClimaView({
                     </div>
                   </div>
                   <div className="text-center">
-                    <div className="text-3xl font-bold" style={{ color: "#6b7280" }}>
+                    <div className="text-3xl font-bold" style={{ color: "var(--muted-foreground)" }}>
                       {resultado.nps.detratores}
                     </div>
                     <div className="text-xs text-muted-foreground">Detratores (0-6)</div>
@@ -444,13 +443,13 @@ export function DashboardClimaView({
                             const cell = resultado.heatmap.find(
                               (h) => h.setor === setor && h.dimensao === d.dimensao,
                             );
-                            const cor = cell ? CORES_NIVEL[cell.nivel] : "#f3f4f6";
+                            const cor = cell ? CORES_NIVEL[cell.nivel] : "var(--card)";
                             return (
                               <td
                                 key={d.dimensao}
                                 className="p-2 text-center font-bold"
                                 style={{
-                                  backgroundColor: cell ? `${cor}1a` : "#f3f4f6",
+                                  backgroundColor: cell ? `color-mix(in srgb, ${cor} 12%, transparent)` : "var(--card)",
                                   color: cor,
                                 }}
                               >
@@ -515,11 +514,10 @@ export function DashboardClimaView({
                       <h4 className="text-sm font-medium mb-2">Por sexo</h4>
                       <ResponsiveContainer width="100%" height={200}>
                         <BarChart data={resultado.demografia.porSexo}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                           <XAxis dataKey="sexo" tick={{ fontSize: 11 }} />
                           <YAxis tick={{ fontSize: 11 }} />
                           <Tooltip />
-                          <Bar dataKey="count" name="Colaboradores" fill="#3b82f6" />
+                          <Bar dataKey="count" name="Colaboradores" fill="var(--chart-1)" />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
@@ -529,11 +527,10 @@ export function DashboardClimaView({
                       <h4 className="text-sm font-medium mb-2">Por faixa etária</h4>
                       <ResponsiveContainer width="100%" height={200}>
                         <BarChart data={resultado.demografia.porFaixaEtaria}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                           <XAxis dataKey="faixa" tick={{ fontSize: 11 }} />
                           <YAxis tick={{ fontSize: 11 }} />
                           <Tooltip />
-                          <Bar dataKey="count" name="Colaboradores" fill="#8b5cf6" />
+                          <Bar dataKey="count" name="Colaboradores" fill="var(--chart-4)" />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
@@ -598,14 +595,13 @@ export function DashboardClimaView({
                       ciclo: e.encerradaEm.toLocaleDateString("pt-BR", { month: "short", year: "2-digit" }),
                       "Score Geral": e.scoreGeral,
                     }))}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                       <XAxis dataKey="ciclo" tick={{ fontSize: 11 }} />
                       <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} />
                       <Tooltip />
                       <Line
                         type="monotone"
                         dataKey="Score Geral"
-                        stroke="#3b82f6"
+                        stroke="var(--chart-1)"
                         strokeWidth={2}
                         dot={{ r: 4 }}
                       />
@@ -626,13 +622,12 @@ export function DashboardClimaView({
                           Atual: d.media100,
                         };
                       })}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                         <XAxis dataKey="dimensao" tick={{ fontSize: 11 }} />
                         <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} />
                         <Tooltip />
                         <Legend />
-                        <Bar dataKey="Anterior" fill="#94a3b8" radius={[4, 4, 0, 0]} />
-                        <Bar dataKey="Atual" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="Anterior" fill="var(--chart-4)" />
+                        <Bar dataKey="Atual" fill="var(--chart-1)" />
                       </BarChart>
                     </ResponsiveContainer>
                   </CardContent>

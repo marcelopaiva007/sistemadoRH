@@ -5,7 +5,6 @@ import {
   AreaChart,
   Bar,
   BarChart,
-  CartesianGrid,
   Legend,
   ResponsiveContainer,
   Tooltip,
@@ -21,7 +20,7 @@ import type { PainelDoSetor } from "@/lib/painel-setor";
 // A MESMA vista serve a diretoria (que escolheu o setor no seletor) e o gestor
 // (que chega com o setor do vínculo, em /rh/meu-setor) — duas portas, um
 // número: gestor e diretoria nunca leem valores diferentes do mesmo setor.
-const CORES = { total: "#2563eb", admissoes: "#16a34a", desligamentos: "#dc2626" };
+const CORES = { total: "var(--chart-1)", admissoes: "var(--success)", desligamentos: "var(--chart-2)" };
 
 function pct(v: number): string {
   return `${v.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
@@ -84,7 +83,6 @@ export function PainelSetorView({ painel, rotuloEscopo }: { painel: PainelDoSeto
           <CardContent>
             <ResponsiveContainer width="100%" height={220}>
               <AreaChart data={serie} margin={{ top: 4, right: 8, left: 8, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
                 <XAxis dataKey="mes" fontSize={11} tickLine={false} />
                 <YAxis fontSize={11} tickLine={false} allowDecimals={false} width={32} />
                 <Tooltip
@@ -108,7 +106,6 @@ export function PainelSetorView({ painel, rotuloEscopo }: { painel: PainelDoSeto
           <CardContent>
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={serie} margin={{ top: 4, right: 8, left: 8, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
                 <XAxis dataKey="mes" fontSize={11} tickLine={false} />
                 <YAxis fontSize={11} tickLine={false} allowDecimals={false} width={32} />
                 <Tooltip />

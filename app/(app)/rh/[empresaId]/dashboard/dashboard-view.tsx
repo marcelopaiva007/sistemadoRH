@@ -80,7 +80,7 @@ function CelulaNivel({ nr, nivel, detalhe }: { nr: number; nivel: keyof typeof N
   return (
     <div
       className="rounded px-2 py-1 text-center text-xs font-semibold"
-      style={{ backgroundColor: cfg.corBg, color: "#1f2937" }}
+      style={{ backgroundColor: cfg.corBg, color: "var(--foreground)" }}
       title={detalhe}
     >
       {nr} · {cfg.label}
@@ -93,7 +93,7 @@ function BadgeNivel({ nivel }: { nivel: keyof typeof NIVEIS_RISCO }) {
   return (
     <span
       className="inline-block rounded-full px-3 py-1 text-sm font-semibold"
-      style={{ backgroundColor: cfg.corBg, color: "#1f2937" }}
+      style={{ backgroundColor: cfg.corBg, color: "var(--foreground)" }}
     >
       {cfg.label}
     </span>
@@ -206,7 +206,7 @@ export function DashboardNR01View({
             {zonaGeral && (
               <span
                 className="mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-semibold"
-                style={{ backgroundColor: zonaGeral.cor, color: "#1f2937" }}
+                style={{ backgroundColor: zonaGeral.cor, color: "var(--foreground)" }}
                 title={`Zona ${zonaGeral.rotulo}: plano de ação em até ${zonaGeral.prazoPlanoDias} dias`}
               >
                 Zona {zonaGeral.rotulo}
@@ -262,7 +262,7 @@ export function DashboardNR01View({
                     <PolarGrid stroke="var(--border)" />
                     <PolarAngleAxis dataKey="dimensao" tick={{ fontSize: 12 }} />
                     <PolarRadiusAxis domain={[0, 100]} tick={{ fontSize: 10 }} />
-                    <Radar dataKey="escore" name="Risco" stroke="#dc2626" fill="#dc2626" fillOpacity={0.35} />
+                    <Radar dataKey="escore" name="Risco" stroke="var(--chart-2)" fill="var(--chart-2)" fillOpacity={0.35} />
                     <Tooltip
                       formatter={(v) => [`${v} / 100`, "Risco"]}
                       labelFormatter={(_, payload) =>
@@ -408,7 +408,7 @@ function BlocoZonaSetor({
           <span className="text-sm font-semibold">{grupo.grupo}</span>
           <span
             className="rounded-full px-2 py-0.5 text-xs font-semibold"
-            style={{ backgroundColor: zona.cor, color: "#1f2937" }}
+            style={{ backgroundColor: zona.cor, color: "var(--foreground)" }}
           >
             Zona {zona.rotulo} · índice {Math.round(grupo.indiceGeral100)}
           </span>

@@ -1,6 +1,6 @@
 "use client";
 
-import { ResponsiveContainer, BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip } from "recharts";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AMOSTRA_MINIMA_ANONIMATO } from "@/lib/constants-rh";
 
@@ -8,8 +8,8 @@ const estiloTooltip = {
   backgroundColor: "var(--card)",
   borderColor: "var(--border)",
   color: "var(--card-foreground)",
-  borderRadius: "var(--radius)",
-  boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+  borderRadius: 0,
+  boxShadow: "none",
 } as const;
 
 type Resultado = {
@@ -41,7 +41,6 @@ export function MeuSetorView({ resultados }: { resultados: Resultado[] }) {
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={r.mediaPorDimensao} margin={{ left: 0, right: 16 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                     <XAxis dataKey="dimensao" tick={{ fontSize: 12 }} />
                     <YAxis tick={{ fontSize: 12 }} />
                     <Tooltip contentStyle={estiloTooltip} formatter={(v) => Number(v).toFixed(2)} />
