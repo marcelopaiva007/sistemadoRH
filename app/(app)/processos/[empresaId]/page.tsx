@@ -208,9 +208,9 @@ export default async function CentralPendenciasPage({
           </CardContent>
         </Card>
       ) : nadaNaJanela ? (
-        <Card className="border-emerald-600/40 bg-emerald-600/5">
+        <Card className="border-success bg-card">
           <CardHeader className="flex flex-row items-center gap-2 pb-2">
-            <CheckCircle2 className="size-4 shrink-0 text-emerald-700 dark:text-emerald-500" />
+            <CheckCircle2 className="size-4 shrink-0 text-success" />
             <CardTitle className="text-base">Nada vencendo nos próximos 30 dias</CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">

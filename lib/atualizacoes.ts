@@ -26,6 +26,18 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.163.0",
+    data: "03/09/2026",
+    horario: "21:50",
+    titulo: "Faxina de cores: âmbar, verde, azul e roxo saem de 97 arquivos",
+    itens: [
+      "As 340 cores soltas que sobravam pelo sistema (avisos em âmbar, sucessos em verde-esmeralda, etiquetas em azul e roxo, cinzas de várias famílias) passaram para as cores do visual novo: aviso é texto cinza, sucesso é o único verde, erro e prazo são o vermelho, o resto é tinta.",
+      "As ilustrações da tela inicial do RH ficaram em escala de cinza.",
+      "Limpeza interna: 307 classes do tema escuro (que já não existia) foram removidas do código.",
+      "Organograma, Assistente, Relatórios, Metas, Integrações e Configuração já vinham no visual novo pelos componentes de base — esta versão só tira as cores que restavam.",
+    ],
+  },
+  {
     versao: "1.162.0",
     data: "03/09/2026",
     horario: "21:30",

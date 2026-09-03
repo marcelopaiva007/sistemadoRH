@@ -5,7 +5,7 @@
 
 export function PeopleCollaborationIcon({ className = "w-32 h-32" }: { className?: string }) {
   return (
-    <svg className={className} viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+    <svg className={`grayscale ${className}`} viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
       {/* Three people in collaboration */}
       <circle cx="30" cy="30" r="12" fill="currentColor" opacity="0.3" />
       <path d="M 30 45 L 30 65 M 20 55 L 40 55" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" opacity="0.4" />
@@ -25,7 +25,7 @@ export function PeopleCollaborationIcon({ className = "w-32 h-32" }: { className
 
 export function TimeManagementIcon({ className = "w-24 h-24" }: { className?: string }) {
   return (
-    <svg className={className} viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <svg className={`grayscale ${className}`} viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
       {/* Clock representing time management */}
       <circle cx="50" cy="50" r="40" fill="none" stroke="currentColor" strokeWidth="2" opacity="0.3" />
       <path d="M 50 50 L 50 25" stroke="currentColor" strokeWidth="2" strokeLinecap="round" opacity="0.5" />
@@ -41,7 +41,7 @@ export function TimeManagementIcon({ className = "w-24 h-24" }: { className?: st
 
 export function AnalyticsIcon({ className = "w-24 h-24" }: { className?: string }) {
   return (
-    <svg className={className} viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <svg className={`grayscale ${className}`} viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
       {/* Bar chart representing analytics */}
       <rect x="15" y="60" width="12" height="25" fill="currentColor" opacity="0.3" />
       <rect x="35" y="45" width="12" height="40" fill="currentColor" opacity="0.4" />
@@ -57,7 +57,7 @@ export function AnalyticsIcon({ className = "w-24 h-24" }: { className?: string 
 
 export function PeopleIcon({ className = "w-12 h-12" }: { className?: string }) {
   return (
-    <svg className={className} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <svg className={`grayscale ${className}`} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
       {/* Multiple people icon */}
       <circle cx="8" cy="7" r="3" fill="currentColor" opacity="0.6" />
       <path d="M 8 11 L 8 17 M 5 14 L 11 14" stroke="currentColor" strokeWidth="1.5" fill="none" opacity="0.6" strokeLinecap="round" />
@@ -70,7 +70,7 @@ export function PeopleIcon({ className = "w-12 h-12" }: { className?: string }) 
 
 export function CheckmarkIcon({ className = "w-12 h-12" }: { className?: string }) {
   return (
-    <svg className={className} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <svg className={`grayscale ${className}`} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
       {/* Checkmark for success/completion */}
       <path d="M 3 12 L 9 18 L 21 6" stroke="currentColor" strokeWidth="2" fill="none" opacity="0.7" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
@@ -79,24 +79,24 @@ export function CheckmarkIcon({ className = "w-12 h-12" }: { className?: string 
 
 export function HRWelcomeBanner() {
   return (
-    <div className="relative overflow-hidden rounded-lg bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-950/50 dark:to-blue-950/50 p-8 mb-6 border border-indigo-200 dark:border-indigo-800">
+    <div className="relative overflow-hidden rounded-lg bg-gradient-to-r from-card to-card p-8 mb-6 border border-border">
       <div className="relative flex items-center justify-between gap-8">
         <div className="flex-1">
-          <h2 className="text-3xl font-bold text-indigo-900 dark:text-indigo-100 mb-2">
+          <h2 className="text-3xl font-bold text-foreground mb-2">
             Bem-vindo ao Sistema RH
           </h2>
-          <p className="text-indigo-700 dark:text-indigo-300 text-lg">
+          <p className="text-foreground text-lg">
             Gerenciamento moderno de recursos humanos com foco em pessoas
           </p>
         </div>
-        <div className="hidden md:flex text-indigo-200 dark:text-indigo-800">
+        <div className="hidden md:flex text-background">
           <PeopleCollaborationIcon className="w-32 h-32" />
         </div>
       </div>
 
       {/* Decorative elements */}
-      <div className="absolute top-0 right-0 w-48 h-48 bg-indigo-100 dark:bg-indigo-900 rounded-full mix-blend-multiply filter blur-3xl opacity-20 -z-10" />
-      <div className="absolute bottom-0 left-12 w-48 h-48 bg-blue-100 dark:bg-blue-900 rounded-full mix-blend-multiply filter blur-3xl opacity-20 -z-10" />
+      <div className="absolute top-0 right-0 w-48 h-48 bg-card rounded-full mix-blend-multiply filter blur-3xl opacity-20 -z-10" />
+      <div className="absolute bottom-0 left-12 w-48 h-48 bg-card rounded-full mix-blend-multiply filter blur-3xl opacity-20 -z-10" />
     </div>
   );
 }
@@ -111,13 +111,13 @@ export function ModuleCard({
   description: string
 }) {
   return (
-    <div className="flex items-start gap-4 p-4 rounded-lg bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border border-slate-200 dark:border-slate-700 hover:shadow-md transition-shadow">
-      <div className="text-indigo-600 dark:text-indigo-400 flex-shrink-0 mt-1">
+    <div className="flex items-start gap-4 p-4 rounded-lg bg-gradient-to-br from-card to-card border border-border hover:shadow-md transition-shadow">
+      <div className="text-foreground flex-shrink-0 mt-1">
         <Icon className="w-6 h-6" />
       </div>
       <div className="flex-1">
-        <h3 className="font-semibold text-slate-900 dark:text-slate-100 mb-1">{title}</h3>
-        <p className="text-sm text-slate-600 dark:text-slate-400">{description}</p>
+        <h3 className="font-semibold text-muted-foreground mb-1">{title}</h3>
+        <p className="text-sm text-muted-foreground">{description}</p>
       </div>
     </div>
   );

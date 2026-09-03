@@ -278,7 +278,7 @@ function CenaCalendario({ rotulos }: { rotulos: string[] }) {
               DIAS_MARCADOS.includes(i)
                 ? "bg-primary/20 font-semibold text-primary"
                 : DIAS_ALTERNATIVOS.includes(i)
-                  ? "bg-warning/25 font-semibold text-foreground"
+                  ? "bg-card font-semibold text-foreground"
                   : "bg-muted/60 text-muted-foreground/60",
             )}
             style={{ animationDelay: `${i * 22}ms` }}
@@ -297,7 +297,7 @@ function CenaCalendario({ rotulos }: { rotulos: string[] }) {
             <span
               className={cn(
                 "size-2 rounded-none",
-                i === 0 ? "bg-primary/60" : i === 1 ? "bg-warning/70" : "bg-muted-foreground/25",
+                i === 0 ? "bg-primary/60" : i === 1 ? "bg-card" : "bg-muted-foreground/25",
               )}
             />
             {rotulo}

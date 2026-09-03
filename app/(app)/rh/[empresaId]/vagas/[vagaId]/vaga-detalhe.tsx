@@ -31,7 +31,7 @@ import { Trilha } from "@/components/trilha";
 
 const initialState: ActionResult = { ok: true };
 const classeSelect =
-  "h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:bg-input/30";
+  "h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
 
 type Candidatura = {
   id: string;
@@ -404,7 +404,7 @@ function SeletorEtapa({ empresaId, candidatura }: { empresaId: string; candidatu
         if (r.ok) toast.success(`Movido para ${etapaFunilLabel(etapaNova)}.`);
         else toast.error(r.error);
       }}
-      className="h-7 rounded-md border border-input bg-transparent px-2 text-xs outline-none focus-visible:border-ring dark:bg-input/30"
+      className="h-7 rounded-md border border-input bg-transparent px-2 text-xs outline-none focus-visible:border-ring"
     >
       {ETAPAS_FUNIL.map((e) => (
         <option key={e.value} value={e.value}>

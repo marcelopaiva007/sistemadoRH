@@ -197,7 +197,7 @@ export function DemandaDetalhe({
               map={badgeParaQuemOlha(papel === "RESPONSAVEL" ? "responsavel" : "solicitante")}
             />
             {demanda.emRisco && (
-              <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+              <span className="rounded-md bg-card px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
                 em risco
               </span>
             )}
@@ -289,7 +289,7 @@ export function DemandaDetalhe({
         </p>
       )}
       {aviso && (
-        <p className="rounded-md border border-amber-500/40 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+        <p className="rounded-md border border-border bg-card px-3 py-2 text-sm text-muted-foreground">
           {aviso}
         </p>
       )}
@@ -305,7 +305,7 @@ export function DemandaDetalhe({
             // um campo que não grava seria pior que dizer o que falta.
             // Demanda com exigência de ARQUIVO não é mais criável pela tela
             // (ver OPCOES_EVIDENCIA); se existir alguma, é anterior ao upload.
-            <p className="rounded-md border border-amber-500/40 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+            <p className="rounded-md border border-border bg-card px-3 py-2 text-sm text-muted-foreground">
               Esta demanda exige arquivo anexado, e o anexo ainda não está disponível nesta
               tela. Fale com {demanda.solicitanteNome}, que pode cancelar esta demanda e
               recriá-la pedindo link ou texto como evidência.

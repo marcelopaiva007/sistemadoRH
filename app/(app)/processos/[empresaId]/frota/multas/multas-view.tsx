@@ -140,7 +140,7 @@ export function MultasView({
         <p className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">{erro}</p>
       )}
       {aviso && (
-        <p className="rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">{aviso}</p>
+        <p className="rounded-md border border-border bg-card px-3 py-2 text-sm text-muted-foreground">{aviso}</p>
       )}
 
       <div className="flex justify-end">
@@ -242,7 +242,7 @@ export function MultasView({
                 ref={emFoco ? focoRef : undefined}
                 className={cn(
                   atrasada && "border-destructive/50",
-                  !atrasada && aIndicar && m.diasParaIndicar !== null && m.diasParaIndicar <= 7 && "border-amber-500/50",
+                  !atrasada && aIndicar && m.diasParaIndicar !== null && m.diasParaIndicar <= 7 && "border-border",
                   emFoco && "ring-2 ring-primary/40",
                 )}
               >
@@ -276,7 +276,7 @@ export function MultasView({
                         <p
                           className={cn(
                             "text-sm font-semibold tabular-nums",
-                            atrasada ? "text-destructive" : m.diasParaIndicar !== null && m.diasParaIndicar <= 7 ? "text-amber-600 dark:text-amber-500" : "",
+                            atrasada ? "text-destructive" : m.diasParaIndicar !== null && m.diasParaIndicar <= 7 ? "text-muted-foreground" : "",
                           )}
                         >
                           {m.diasParaIndicar === null

@@ -57,13 +57,13 @@ function BadgeStatus({ status }: { status: StatusLicenciamento }) {
     return <Badge variant="destructive">{rotulo}</Badge>;
   if (status === "VENCE_EM_BREVE")
     return (
-      <Badge className="border-transparent bg-amber-500 text-white hover:bg-amber-500 dark:bg-amber-600">
+      <Badge className="border-transparent bg-neutral-500 text-white hover:bg-neutral-500">
         {rotulo}
       </Badge>
     );
   if (status === "EM_DIA")
     return (
-      <Badge className="border-transparent bg-emerald-600 text-white hover:bg-emerald-600 dark:bg-emerald-700">
+      <Badge className="border-transparent bg-success text-white hover:bg-success">
         {rotulo}
       </Badge>
     );
@@ -151,14 +151,14 @@ export function EmplacamentoView({
     <div className="space-y-4">
       {/* A resposta que a gestão veio buscar, antes de qualquer tabela. */}
       {resumo.tudoEmDia ? (
-        <p className="rounded-md border border-emerald-600/40 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200">
+        <p className="rounded-md border border-success bg-card px-3 py-2 text-sm font-medium text-success">
           ✅ Frota com o licenciamento {exercicio} todo em dia
           {resumo.semCalendario > 0 &&
             ` — com a ressalva de ${resumo.semCalendario} veículo(s) sem calendário derivável (placa provisória ou UF sem tabela)`}
           .
         </p>
       ) : (
-        <p className="rounded-md border border-amber-500/40 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+        <p className="rounded-md border border-border bg-card px-3 py-2 text-sm text-muted-foreground">
           Ainda não dá para dizer que está tudo em dia: {pendencias} veículo(s) pedem atenção no
           exercício {exercicio}.
         </p>

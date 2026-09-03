@@ -188,7 +188,7 @@ export function severidadeDoPrazo(diasRestantes: number, criticidade: number): S
 export const CORES_PRAZO: Record<SeveridadePrazo, string> = {
   ATRASADA: "text-destructive",
   CRITICA: "text-destructive",
-  ALTA: "text-amber-600 dark:text-amber-500",
+  ALTA: "text-muted-foreground",
   ATENCAO: "text-muted-foreground",
 };
 

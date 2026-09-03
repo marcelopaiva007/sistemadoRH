@@ -79,7 +79,7 @@ const ESTILO_FAIXA: Record<
 > = {
   fragmentado: { variante: "secondary" },
   saudavel: { variante: "outline" },
-  atencao: { variante: "outline", classe: "border-warning/40 text-warning" },
+  atencao: { variante: "outline", classe: "border-border text-muted-foreground" },
   sobrecarga: { variante: "destructive" },
 };
 
@@ -90,7 +90,7 @@ const ESTILO_SEVERIDADE: Record<
   { variante: "secondary" | "outline" | "destructive"; classe?: string }
 > = {
   critica: { variante: "destructive" },
-  alta: { variante: "outline", classe: "border-warning/40 text-warning" },
+  alta: { variante: "outline", classe: "border-border text-muted-foreground" },
   media: { variante: "secondary" },
   fragil: { variante: "outline" },
 };
@@ -156,9 +156,9 @@ export function LiderancaView({
         // não é um detalhe do número — é o número inteiro que está errado. O
         // maior líder do grupo cai de 57 diretos para 7 e a tela mostra uma
         // estrutura saudável que não existe em lugar nenhum.
-        <Card className="border-warning/40">
+        <Card className="border-border">
           <CardContent className="flex items-start gap-3 py-1">
-            <AlertTriangle className="mt-0.5 size-5 shrink-0 text-warning" />
+            <AlertTriangle className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
             <div>
               <p className="font-medium">Recorte de um CNPJ só — spans truncados</p>
               <p className="text-sm text-muted-foreground">
@@ -358,7 +358,7 @@ export function LiderancaView({
                           {nomeExibicao(l.nome)}
                         </Link>
                         {!l.gerente && (
-                          <Badge variant="outline" className="ml-2 border-warning/40 text-warning">
+                          <Badge variant="outline" className="ml-2 border-border text-muted-foreground">
                             sem flag de gerente
                           </Badge>
                         )}

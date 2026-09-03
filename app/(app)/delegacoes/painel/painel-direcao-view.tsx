@@ -29,7 +29,7 @@ const CAMPO = "w-full rounded-md border border-border bg-background px-2.5 py-1.
 const ORDEM_SEMAFORO: Record<Semaforo, number> = { VERMELHO: 0, AMARELO: 1, CINZA: 2, VERDE: 3 };
 const CLASSES_SEMAFORO: Record<Semaforo, string> = {
   VERMELHO: "border-destructive/40 bg-destructive/5",
-  AMARELO: "border-amber-500/40 bg-amber-50 dark:bg-amber-950/20",
+  AMARELO: "border-border bg-card",
   CINZA: "border-border",
   VERDE: "border-border",
 };
@@ -221,7 +221,7 @@ export function PainelDirecaoView({
                   <div className="flex shrink-0 flex-wrap items-center gap-1.5">
                     {d.classificacaoIa && (
                       <span
-                        className="rounded-md bg-sky-100 px-1.5 py-0.5 text-[11px] font-medium text-sky-800 dark:bg-sky-950 dark:text-sky-300"
+                        className="rounded-md bg-card px-1.5 py-0.5 text-[11px] font-medium text-foreground"
                         title={
                           d.confiancaIa !== null ? `Confiança: ${Math.round(d.confiancaIa * 100)}%` : undefined
                         }

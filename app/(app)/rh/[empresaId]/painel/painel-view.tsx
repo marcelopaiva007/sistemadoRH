@@ -681,7 +681,7 @@ function BlocoTempoDeCasa({
 
             {/* O aviso é FIXO ao lado da média, não um rodapé opcional: é a
                 única defesa contra ler "tempo médio subiu" como boa notícia. */}
-            <div className="rounded-lg border border-warning/40 bg-warning/5 p-3">
+            <div className="rounded-lg border border-border bg-card p-3">
               <div className="flex items-baseline justify-between gap-2">
                 <span className="text-xs text-muted-foreground">Média</span>
                 <span className="text-lg font-semibold tabular-nums">
@@ -995,12 +995,12 @@ function BlocoCusto({ custo, vista }: { custo: LinhaCustoNaTela[]; vista: Vista 
 function BlocoAbsenteismo({ absenteismo }: { absenteismo: AbsenteismoNaTela }) {
   if (absenteismo.registrosNoEscopo === 0) {
     return (
-      <Card className="border-warning/40">
+      <Card className="border-border">
         <CardHeader>
           <CardTitle className="text-base">Absenteísmo</CardTitle>
         </CardHeader>
         <CardContent className="flex items-start gap-3 text-sm">
-          <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning" />
+          <TriangleAlert className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
           <p>
             <span className="font-medium">Sem medição: nenhuma ausência registrada</span> nos CNPJs
             do recorte — nem falta, nem atestado, nem licença. A taxa não é 0,0%: ela não existe.

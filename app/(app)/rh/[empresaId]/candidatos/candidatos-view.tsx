@@ -43,14 +43,14 @@ function AvatarIniciais({ nome, id }: { nome: string; id: string }) {
   const iniciais = (partes[0]?.[0] ?? "") + (partes.length > 1 ? partes[partes.length - 1][0] : "");
   const codigo = [...id].reduce((acc, ch) => (acc * 31 + ch.charCodeAt(0)) >>> 0, 7);
   const cores = [
-    "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300",
-    "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
-    "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300",
-    "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
-    "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
-    "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300",
-    "bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300",
-    "bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/40 dark:text-fuchsia-300",
+    "bg-card text-foreground",
+    "bg-card text-success",
+    "bg-card text-foreground",
+    "bg-card text-muted-foreground",
+    "bg-accent text-destructive",
+    "bg-card text-foreground",
+    "bg-card text-success",
+    "bg-fuchsia-100 text-fuchsia-700",
   ];
   const cor = cores[codigo % cores.length];
   return (
@@ -254,15 +254,15 @@ export function CandidatosView({
                       </TableCell>
                       <TableCell>
                         {c.jaContratado ? (
-                          <Badge className="bg-emerald-600 hover:bg-emerald-600">Contratado</Badge>
+                          <Badge className="bg-success hover:bg-success">Contratado</Badge>
                         ) : c.emProcesso ? (
-                          <Badge variant="secondary" className="text-sky-700 dark:text-sky-300">
+                          <Badge variant="secondary" className="text-foreground">
                             Em processo
                           </Badge>
                         ) : (
                           <Badge
                             variant="outline"
-                            className="border-emerald-200 text-emerald-700 dark:border-emerald-800 dark:text-emerald-300"
+                            className="border-success text-success"
                           >
                             Disponível
                           </Badge>

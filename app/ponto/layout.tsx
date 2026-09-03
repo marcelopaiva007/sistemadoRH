@@ -27,11 +27,11 @@ export const viewport: Viewport = {
 
 export default function PontoLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex flex-1 flex-col bg-gradient-to-b from-emerald-50/60 to-background dark:from-emerald-950/20">
+    <div className="flex flex-1 flex-col bg-gradient-to-b from-card to-background">
       <header className="border-b bg-background/80 backdrop-blur">
         <div className="mx-auto flex w-full max-w-md items-center justify-between gap-3 px-4 py-3">
           <div className="flex items-center gap-2.5">
-            <div className="rounded-xl bg-emerald-600 p-2 text-white shadow-sm">
+            <div className="rounded-xl bg-success p-2 text-white shadow-sm">
               <Clock className="size-5" />
             </div>
             <div className="leading-tight">

@@ -139,7 +139,7 @@ export function ImportacoesView({
               </Button>
             </form>
             {!empresaTemCnpj && (
-              <p className="mt-3 text-xs text-warning">
+              <p className="mt-3 text-xs text-muted-foreground">
                 Esta empresa ainda está sem o número do CNPJ (Configuração → Marcas &amp; CNPJs).
                 Dá para importar mesmo assim; só não use a coluna opcional de CNPJ na planilha.
               </p>

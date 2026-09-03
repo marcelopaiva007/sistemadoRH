@@ -89,7 +89,7 @@ function CartaoArquivos({ ligado }: { ligado: boolean }) {
           <span
             className={
               ligado
-                ? "rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-400"
+                ? "rounded-full bg-card px-2 py-0.5 text-xs font-medium text-success"
                 : "rounded-full bg-destructive/15 px-2 py-0.5 text-xs font-medium text-destructive"
             }
           >

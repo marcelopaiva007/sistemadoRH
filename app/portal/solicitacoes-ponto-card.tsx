@@ -123,7 +123,7 @@ export function SolicitacoesPontoCard() {
       </div>
 
       {sucesso && (
-        <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-xs text-emerald-700 dark:text-emerald-400 flex items-center gap-2">
+        <div className="p-3 bg-card border border-success rounded-lg text-xs text-success flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4 shrink-0" />
           <span>{sucesso}</span>
         </div>
@@ -254,12 +254,12 @@ export function SolicitacoesPontoCard() {
                       : ""}
                   </span>
                   {s.status === "PENDENTE" && (
-                    <span className="flex items-center gap-1 font-semibold text-amber-600 dark:text-amber-400 shrink-0">
+                    <span className="flex items-center gap-1 font-semibold text-muted-foreground shrink-0">
                       <Clock3 className="w-3.5 h-3.5" /> Aguardando RH
                     </span>
                   )}
                   {s.status === "APROVADO" && (
-                    <span className="flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400 shrink-0">
+                    <span className="flex items-center gap-1 font-semibold text-success shrink-0">
                       <CheckCircle2 className="w-3.5 h-3.5" /> Aprovado
                     </span>
                   )}

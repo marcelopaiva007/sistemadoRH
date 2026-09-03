@@ -100,7 +100,7 @@ function Bloco({
         tom === "alerta"
           ? "border-destructive/30"
           : tom === "atencao"
-            ? "border-amber-500/30"
+            ? "border-border"
             : undefined
       }
     >

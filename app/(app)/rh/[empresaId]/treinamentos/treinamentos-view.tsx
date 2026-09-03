@@ -265,7 +265,7 @@ export function TreinamentosView({
                       {competenciasDisponiveis.map((c) => (
                         <TableCell key={c.value} className="text-center">
                           {linha.competencias.includes(c.value) && (
-                            <Check className="mx-auto size-4 text-emerald-600 dark:text-emerald-400" />
+                            <Check className="mx-auto size-4 text-success" />
                           )}
                         </TableCell>
                       ))}

@@ -116,7 +116,7 @@ export function CondutoresView({
         </p>
       )}
       {aviso && (
-        <p className="rounded-md border border-emerald-600/40 bg-emerald-600/5 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-400">
+        <p className="rounded-md border border-success bg-card px-3 py-2 text-sm text-success">
           {aviso}
         </p>
       )}
@@ -230,17 +230,17 @@ export function CondutoresView({
                         "tabular-nums",
                         c.diasParaCnh !== null && c.diasParaCnh < 0 && "font-semibold text-destructive",
                         c.diasParaCnh !== null && c.diasParaCnh >= 0 && c.diasParaCnh <= 60 &&
-                          "text-amber-600 dark:text-amber-500",
+                          "text-muted-foreground",
                       )}
                     >
                       {c.cnhValidadeTexto}
                     </TableCell>
                     <TableCell>
-                      <span className={cn("tabular-nums", perto && "font-semibold text-amber-600 dark:text-amber-500")}>
+                      <span className={cn("tabular-nums", perto && "font-semibold text-muted-foreground")}>
                         {c.pontosAcumulados} / {c.limitePontos}
                       </span>
                       {podeCurso && (
-                        <span className="ml-2 inline-flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-500">
+                        <span className="ml-2 inline-flex items-center gap-1 text-[11px] text-muted-foreground">
                           <TriangleAlert className="size-3" />
                           pode fazer o curso que zera
                         </span>

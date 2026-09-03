@@ -444,10 +444,10 @@ export function PlacarView({
       )}
 
       {/* --- Rodapé: o que ficou de fora ------------------------------------ */}
-      <Card className="border-warning/40">
+      <Card className="border-border">
         <CardContent className="space-y-3 py-4 text-sm">
           <div className="flex items-start gap-3">
-            <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning" />
+            <TriangleAlert className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
             <div className="space-y-2">
               {foraDoRecorte.desligadosSemData > 0 && (
                 <p>
@@ -577,14 +577,14 @@ function SecaoQualidadeSalarial({ qualidade }: { qualidade: QualidadeSalarial })
                       {l.comSalario} de {l.ativos}
                     </TableCell>
                     <TableCell
-                      className={cn("text-right tabular-nums", l.valoresDistintos === 1 && "text-warning")}
+                      className={cn("text-right tabular-nums", l.valoresDistintos === 1 && "text-muted-foreground")}
                     >
                       {l.valoresDistintos}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
                       {Math.round(l.noModalPct)}% em {formatarReais(l.valorModal)}
                     </TableCell>
-                    <TableCell className={cn("text-right tabular-nums", l.achatado && "text-warning")}>
+                    <TableCell className={cn("text-right tabular-nums", l.achatado && "text-muted-foreground")}>
                       {l.achatado ? "R$ 0 — todos iguais" : formatarReais(l.amplitudeReais)}
                     </TableCell>
                   </TableRow>
@@ -624,7 +624,7 @@ function SecaoQualidadeSalarial({ qualidade }: { qualidade: QualidadeSalarial })
                         {listar(f.cargos)}
                       </span>
                       {f.comJornada < f.pessoas && (
-                        <Badge variant="outline" className="border-warning/50 font-normal text-warning">
+                        <Badge variant="outline" className="border-border font-normal text-muted-foreground">
                           jornada não cadastrada
                         </Badge>
                       )}
@@ -669,11 +669,11 @@ function SecaoQualidadeSalarial({ qualidade }: { qualidade: QualidadeSalarial })
           </Card>
 
           {/* --- Limitações, nas palavras da lib ----------------------------- */}
-          <Card className="border-warning/40">
+          <Card className="border-border">
             <CardContent className="space-y-2 py-4 text-sm">
               {q.avisos.map(a => (
                 <div key={a} className="flex items-start gap-3">
-                  <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning" />
+                  <TriangleAlert className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                   <p className="text-muted-foreground">{a}</p>
                 </div>
               ))}
@@ -768,7 +768,7 @@ function LinhaEmpresa({ linha, atenuada }: { linha: LinhaPlacar; atenuada?: bool
           {/* O aviso mora na linha, não só no rodapé: quem ordena por turnover e
               lê a primeira linha precisa saber ali que ela está subestimada. */}
           {linha.desligadosSemData > 0 && (
-            <Badge variant="outline" className="border-warning/50 font-normal text-warning">
+            <Badge variant="outline" className="border-border font-normal text-muted-foreground">
               +{linha.desligadosSemData} saíram sem data
             </Badge>
           )}
@@ -803,7 +803,7 @@ function Celulas({ linha }: { linha: LinhaPlacar }) {
             className={cn(
               "tabular-nums",
               linha.turnoverPct >= 30 && "font-medium text-destructive",
-              linha.turnoverPct >= 20 && linha.turnoverPct < 30 && "text-warning"
+              linha.turnoverPct >= 20 && linha.turnoverPct < 30 && "text-muted-foreground"
             )}
           >
             {formatarPct(linha.turnoverPct)}
@@ -841,7 +841,7 @@ function Celulas({ linha }: { linha: LinhaPlacar }) {
         {linha.coberturaPct === null ? (
           <SemDado />
         ) : (
-          <span className={cn("tabular-nums", linha.coberturaPct < 50 && "text-warning")}>
+          <span className={cn("tabular-nums", linha.coberturaPct < 50 && "text-muted-foreground")}>
             {Math.round(linha.coberturaPct)}%
           </span>
         )}

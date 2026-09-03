@@ -247,12 +247,12 @@ function Caixa({
 }) {
   const codigo = [...no.id].reduce((acc, ch) => (acc * 31 + ch.charCodeAt(0)) >>> 0, 7);
   const cores = [
-    "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20",
-    "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20",
-    "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
-    "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
-    "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20",
-    "bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20",
+    "bg-card text-foreground border-border",
+    "bg-card text-foreground border-border",
+    "bg-card text-success border-success",
+    "bg-card text-muted-foreground border-border",
+    "bg-accent text-destructive border-primary",
+    "bg-card text-foreground border-border",
   ];
   const corAvatar = cores[codigo % cores.length];
 

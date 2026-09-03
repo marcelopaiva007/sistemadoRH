@@ -114,7 +114,7 @@ export function LacunasView({
                     aria-label={`${l.rotulo}: ${pct}% preenchido`}
                   >
                     <div
-                      className={pct === 0 ? "h-full bg-warning" : "h-full bg-primary"}
+                      className={pct === 0 ? "h-full bg-card" : "h-full bg-primary"}
                       style={{ width: `${Math.max(pct, 2)}%` }}
                     />
                   </div>

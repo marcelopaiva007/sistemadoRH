@@ -256,7 +256,7 @@ export function FeriasCard({
                     <select
                       name="periodoAquisitivoInicio"
                       required
-                      className="h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:bg-input/30"
+                      className="h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
                     >
                       {periodosSelecionaveis.map((p) => (
                         <option key={p.inicio.toISOString()} value={paraInputDate(p.inicio)}>
@@ -303,7 +303,7 @@ export function FeriasCard({
                     <select
                       name="periodoAquisitivoInicio"
                       required
-                      className="h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:bg-input/30"
+                      className="h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
                     >
                       {periodosSelecionaveis.map((p) => (
                         <option key={p.inicio.toISOString()} value={paraInputDate(p.inicio)}>

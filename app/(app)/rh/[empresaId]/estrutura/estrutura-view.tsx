@@ -241,7 +241,7 @@ function LinhaEmpresa({
         {empresa.cnpj ? (
           formatarCnpj(empresa.cnpj)
         ) : (
-          <span className="text-warning">a preencher</span>
+          <span className="text-muted-foreground">a preencher</span>
         )}
       </TableCell>
       <TableCell className="text-muted-foreground">{empresa.razaoSocial ?? "—"}</TableCell>

@@ -18,7 +18,7 @@ import type { Narrativa, GravidadeFato, DestinoFato } from "@/lib/narrativa";
 
 const COR_GRAVIDADE: Record<GravidadeFato, string> = {
   critica: "border-destructive/40 bg-destructive/5",
-  alta: "border-warning/40 bg-warning/5",
+  alta: "border-border bg-card",
   media: "border-border bg-card",
 };
 

@@ -272,14 +272,14 @@ function AvatarIniciais({ nome, id, ativo }: { nome: string; id: string; ativo: 
   const iniciais = (partes[0]?.[0] ?? "") + (partes.length > 1 ? partes[partes.length - 1][0] : "");
   const codigo = [...id].reduce((acc, ch) => (acc * 31 + ch.charCodeAt(0)) >>> 0, 7);
   const cores = [
-    "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300",
-    "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
-    "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300",
-    "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
-    "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
-    "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300",
-    "bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300",
-    "bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/40 dark:text-fuchsia-300",
+    "bg-card text-foreground",
+    "bg-card text-success",
+    "bg-card text-foreground",
+    "bg-card text-muted-foreground",
+    "bg-accent text-destructive",
+    "bg-card text-foreground",
+    "bg-card text-success",
+    "bg-fuchsia-100 text-fuchsia-700",
   ];
   const cor = cores[codigo % cores.length];
   return (
@@ -298,14 +298,14 @@ function ChipStatus({ ativo }: { ativo: boolean }) {
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset",
         ativo
-          ? "bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:ring-emerald-800"
-          : "bg-zinc-100 text-zinc-600 ring-zinc-200 dark:bg-zinc-800/40 dark:text-zinc-400 dark:ring-zinc-700",
+          ? "bg-card text-success ring-success"
+          : "bg-card text-muted-foreground ring-border",
       )}
     >
       <span
         className={cn(
           "size-1.5 rounded-full",
-          ativo ? "bg-emerald-500 dark:bg-emerald-400" : "bg-zinc-400 dark:bg-zinc-500",
+          ativo ? "bg-success" : "bg-neutral-500",
         )}
       />
       {ativo ? "Ativo" : "Inativo"}
@@ -327,9 +327,9 @@ function Kpi({
 }) {
   const cores =
     tom === "warning"
-      ? "bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:ring-amber-800"
+      ? "bg-card text-muted-foreground ring-border"
       : tom === "muted"
-        ? "bg-zinc-50 text-zinc-600 ring-zinc-200 dark:bg-zinc-800/40 dark:text-zinc-300 dark:ring-zinc-700"
+        ? "bg-card text-muted-foreground ring-border"
         : "bg-primary/10 text-primary ring-primary/20";
   return (
     <div className="flex items-center gap-3 rounded-lg border bg-card px-3 py-2.5 shadow-xs">
@@ -848,7 +848,7 @@ export function ColaboradoresTable({
                 <TableCell className="text-center">
                   {c.telegramChatId ? (
                     <span
-                      className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-700 ring-1 ring-inset ring-sky-200 dark:bg-sky-900/30 dark:text-sky-300 dark:ring-sky-800"
+                      className="inline-flex items-center gap-1 rounded-full bg-card px-2 py-0.5 text-xs font-medium text-foreground ring-1 ring-inset ring-border"
                       title="Vinculará ao Telegram"
                     >
                       <Send className="size-3" />

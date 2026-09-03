@@ -107,14 +107,14 @@ function SetorAvatar({ nome, id }: { nome: string; id: string }) {
   const iniciais = (partes[0]?.[0] ?? "") + (partes.length > 1 ? partes[partes.length - 1][0] : "");
   const codigo = [...id].reduce((acc, ch) => (acc * 31 + ch.charCodeAt(0)) >>> 0, 7);
   const cores = [
-    "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300",
-    "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
-    "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300",
-    "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
-    "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
-    "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300",
-    "bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300",
-    "bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/40 dark:text-fuchsia-300",
+    "bg-card text-foreground",
+    "bg-card text-success",
+    "bg-card text-foreground",
+    "bg-card text-muted-foreground",
+    "bg-accent text-destructive",
+    "bg-card text-foreground",
+    "bg-card text-success",
+    "bg-fuchsia-100 text-fuchsia-700",
   ];
   const cor = cores[codigo % cores.length];
 
@@ -312,10 +312,10 @@ export function SetoresTable({
             <Button
               variant="outline"
               size="sm"
-              className="gap-1.5 border-violet-300 bg-violet-50 text-violet-900 hover:bg-violet-100 dark:border-violet-800 dark:bg-violet-950/50 dark:text-violet-200"
+              className="gap-1.5 border-border bg-card text-foreground hover:bg-card"
               onClick={() => setPainelSemelhantesAberto(true)}
             >
-              <Wand2 className="size-3.5 text-violet-600 dark:text-violet-400" />
+              <Wand2 className="size-3.5 text-foreground" />
               Análise de Setores Semelhantes ({gruposSemelhantes.length})
             </Button>
           )}
@@ -324,11 +324,11 @@ export function SetoresTable({
             <Button
               variant="secondary"
               size="sm"
-              className="gap-1.5 border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-200"
+              className="gap-1.5 border-border bg-card text-muted-foreground hover:bg-card"
               onClick={handleAutoLimpeza}
               disabled={isCleaning}
             >
-              <Sparkles className="size-3.5 text-amber-600 dark:text-amber-400" />
+              <Sparkles className="size-3.5 text-muted-foreground" />
               {isCleaning ? "Unificando..." : `Limpar ${contagemDuplicatas} Exatas`}
             </Button>
           )}
@@ -337,11 +337,11 @@ export function SetoresTable({
             <Button
               variant="outline"
               size="sm"
-              className="gap-1.5 border-rose-300 bg-rose-50 text-rose-900 hover:bg-rose-100 dark:border-rose-800 dark:bg-rose-950/50 dark:text-rose-200"
+              className="gap-1.5 border-primary bg-accent text-destructive hover:bg-accent"
               onClick={handleRemoverSemColaboradores}
               disabled={isRemovingSemColab}
             >
-              <Trash2 className="size-3.5 text-rose-600 dark:text-rose-400" />
+              <Trash2 className="size-3.5 text-destructive" />
               {isRemovingSemColab ? "Removendo..." : `Remover ${setoresSemColabCount} Sem Funcionários`}
             </Button>
           )}
@@ -526,7 +526,7 @@ export function SetoresTable({
                               {temDuplicataNominal && (
                                 <Badge
                                   variant="outline"
-                                  className="border-amber-400 bg-amber-50 text-[10px] text-amber-700 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
+                                  className="border-border bg-card text-[10px] text-muted-foreground"
                                 >
                                   Duplicado no CNPJ
                                 </Badge>
@@ -635,7 +635,7 @@ export function SetoresTable({
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Wand2 className="size-5 text-violet-600 dark:text-violet-400" />
+              <Wand2 className="size-5 text-foreground" />
               Análise & Unificação Semântica de Setores
             </DialogTitle>
           </DialogHeader>
@@ -708,7 +708,7 @@ function GrupoSetorSemelhanteCard({
     <div className="space-y-3 rounded-lg border bg-card p-3.5 text-xs shadow-xs">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Badge variant="secondary" className="font-semibold text-violet-700 bg-violet-50 border-violet-200 dark:text-violet-300 dark:bg-violet-950/50 dark:border-violet-800">
+          <Badge variant="secondary" className="font-semibold text-foreground bg-card border-border">
             {grupo.setores.length} setores equivalentes encontrados
           </Badge>
           <span className="text-muted-foreground font-medium">
@@ -723,7 +723,7 @@ function GrupoSetorSemelhanteCard({
             <span className="flex items-center gap-1.5">
               <span>• {s.nome}</span>
               {s.id === destinoId && (
-                <Badge variant="outline" className="text-[10px] text-emerald-700 border-emerald-400 bg-emerald-50 dark:text-emerald-300 dark:border-emerald-700 dark:bg-emerald-950/50">
+                <Badge variant="outline" className="text-[10px] text-success border-success bg-card">
                   Principal Escolhido
                 </Badge>
               )}
@@ -766,7 +766,7 @@ function GrupoSetorSemelhanteCard({
       <div className="flex justify-end pt-1">
         <Button
           size="sm"
-          className="h-8 gap-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs"
+          className="h-8 gap-1.5 bg-foreground hover:bg-foreground text-white text-xs"
           onClick={handleUnificarGrupo}
           disabled={isPending || !destinoId}
         >

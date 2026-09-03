@@ -29,7 +29,7 @@ type Usuario = { id: string; nome: string };
 
 const CORES: Record<string, string> = {
   CRITICA: "text-destructive",
-  ALTA: "text-amber-600 dark:text-amber-500",
+  ALTA: "text-muted-foreground",
   ATENCAO: "text-muted-foreground",
 };
 
@@ -145,7 +145,7 @@ function Bloco({
 }) {
   if (itens.length === 0) return null;
   return (
-    <Card className={cn(tom === "critico" && "border-destructive/40", tom === "alerta" && "border-amber-500/40")}>
+    <Card className={cn(tom === "critico" && "border-destructive/40", tom === "alerta" && "border-border")}>
       <CardHeader className="pb-1">
         <CardTitle className="flex items-center gap-2 text-base">
           {tom === "critico" && <AlertTriangle className="size-4 text-destructive" />}

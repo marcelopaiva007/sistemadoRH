@@ -76,7 +76,7 @@ export function DashboardEmpresa({ empresaId, resumo }: { empresaId: string; res
                   <span>{c.rotulo}</span>
                 </div>
                 <div className="text-3xl font-bold text-foreground tabular-nums">{c.valor}</div>
-                <p className={`text-xs leading-relaxed ${c.alerta ? "text-warning font-medium" : "text-muted-foreground"}`}>
+                <p className={`text-xs leading-relaxed ${c.alerta ? "text-muted-foreground font-medium" : "text-muted-foreground"}`}>
                   {c.apoio}
                 </p>
               </CardContent>

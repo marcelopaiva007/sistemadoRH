@@ -140,7 +140,7 @@ export function EntrarPontoForm() {
 
           <Button
             type="submit"
-            className="h-12 w-full bg-emerald-600 text-base hover:bg-emerald-700"
+            className="h-12 w-full bg-success text-base hover:bg-success"
             disabled={salvando || soDigitos(cpf).length !== 11 || pin.length < 4}
           >
             <LogIn className="size-4" />
@@ -167,7 +167,7 @@ export function EntrarPontoForm() {
       />
 
       <p className="flex items-center justify-center gap-1.5 text-[11px] text-muted-foreground">
-        <ShieldCheck className="size-3.5 text-emerald-600" />
+        <ShieldCheck className="size-3.5 text-success" />
         Registro conforme REP-P · Portaria MTP 671/2021
       </p>
     </div>

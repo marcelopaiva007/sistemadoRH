@@ -78,7 +78,7 @@ export function CampoData({
 }
 
 const classeSelect =
-  "h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:bg-input/30";
+  "h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
 
 export function CampoSelect({
   name,
@@ -204,7 +204,7 @@ export function FormularioAction({
       )}
       <div className="flex items-center justify-between gap-3">
         {dirty && !isPending ? (
-          <span className="text-xs text-warning">Alterações não salvas neste bloco.</span>
+          <span className="text-xs text-muted-foreground">Alterações não salvas neste bloco.</span>
         ) : (
           <span />
         )}

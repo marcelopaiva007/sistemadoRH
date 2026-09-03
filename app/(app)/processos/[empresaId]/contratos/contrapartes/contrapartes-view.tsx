@@ -253,7 +253,7 @@ export function ContrapartesView({
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {c.emailNotificacaoFormal ?? (
-                      <span className="text-amber-600 dark:text-amber-500">sem e-mail</span>
+                      <span className="text-muted-foreground">sem e-mail</span>
                     )}
                   </TableCell>
                   <TableCell className="text-center tabular-nums">{c.contratosNoEscopo}</TableCell>

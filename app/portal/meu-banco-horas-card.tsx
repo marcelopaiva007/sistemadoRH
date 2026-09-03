@@ -54,14 +54,14 @@ export function MeuBancoHorasCard({ dados }: { dados: DadosBancoHorasPortal }) {
         <CardContent className="grid grid-cols-3 gap-3 text-center border-t pt-3">
           <div className="p-2 bg-muted/40 rounded-lg">
             <span className="text-[11px] text-muted-foreground block">Créditos (H.E.)</span>
-            <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 flex items-center justify-center gap-1">
+            <span className="text-sm font-semibold text-success flex items-center justify-center gap-1">
               <TrendingUp className="w-3.5 h-3.5" />
               {formatarMinutosParaHoras(dados.creditosMesMin)}
             </span>
           </div>
           <div className="p-2 bg-muted/40 rounded-lg">
             <span className="text-[11px] text-muted-foreground block">Débitos (Atrasos)</span>
-            <span className="text-sm font-semibold text-rose-600 dark:text-rose-400 flex items-center justify-center gap-1">
+            <span className="text-sm font-semibold text-destructive flex items-center justify-center gap-1">
               <TrendingDown className="w-3.5 h-3.5" />
               {formatarMinutosParaHoras(dados.debitosMesMin)}
             </span>
@@ -91,8 +91,8 @@ export function MeuBancoHorasCard({ dados }: { dados: DadosBancoHorasPortal }) {
               <div key={idx} className="flex items-center justify-between text-xs border-b pb-2 last:border-0 last:pb-0">
                 <span className="font-medium text-foreground">{h.competencia}</span>
                 <div className="flex items-center gap-3">
-                  <span className="text-emerald-600 dark:text-emerald-400">+{formatarMinutosParaHoras(h.creditosMin)}</span>
-                  <span className="text-rose-600 dark:text-rose-400">-{formatarMinutosParaHoras(h.debitosMin)}</span>
+                  <span className="text-success">+{formatarMinutosParaHoras(h.creditosMin)}</span>
+                  <span className="text-destructive">-{formatarMinutosParaHoras(h.debitosMin)}</span>
                   <span className={`font-semibold font-mono ${h.saldoMin >= 0 ? "text-primary" : "text-destructive"}`}>
                     {formatarMinutosParaHoras(h.saldoMin)}
                   </span>

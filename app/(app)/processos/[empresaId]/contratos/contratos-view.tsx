@@ -294,7 +294,7 @@ export function ContratosView({
       </div>
 
       {semContraparte && (
-        <p className="rounded-md border border-amber-600/40 bg-amber-600/5 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
+        <p className="rounded-md border border-border bg-card px-3 py-2 text-sm text-muted-foreground">
           Cadastre primeiro a contraparte — quem assina do outro lado. Ela é do grupo inteiro:
           o mesmo locador ou fornecedor serve a todos os CNPJs, sem recadastrar.
         </p>
@@ -642,14 +642,14 @@ export function ContratosView({
                   <TableCell className="text-muted-foreground">{c.contraparteNome}</TableCell>
                   <TableCell className="text-muted-foreground">{c.empresaNome}</TableCell>
                   <TableCell className="text-muted-foreground">
-                    {c.gestorNome ?? <span className="text-amber-600 dark:text-amber-500">sem gestor</span>}
+                    {c.gestorNome ?? <span className="text-muted-foreground">sem gestor</span>}
                   </TableCell>
                   <TableCell
                     className={cn(
                       "tabular-nums",
                       c.diasParaFim !== null && c.diasParaFim < 0 && "font-semibold text-destructive",
                       c.diasParaFim !== null && c.diasParaFim >= 0 && c.diasParaFim <= 90 &&
-                        "text-amber-600 dark:text-amber-500",
+                        "text-muted-foreground",
                     )}
                   >
                     {c.dataFimTexto}
@@ -666,7 +666,7 @@ export function ContratosView({
                           c.diasParaDenuncia !== null && c.diasParaDenuncia < 0 &&
                             "font-semibold text-destructive",
                           c.diasParaDenuncia !== null && c.diasParaDenuncia >= 0 &&
-                            c.diasParaDenuncia <= 30 && "text-amber-600 dark:text-amber-500",
+                            c.diasParaDenuncia <= 30 && "text-muted-foreground",
                         )}
                       >
                         {c.dataLimiteDenunciaTexto}

@@ -188,7 +188,7 @@ function IncluirNaEquipe({ equipe }: { equipe: EquipeDoGerente }) {
             setEscolhido(e.target.value);
             setErro(null);
           }}
-          className="h-11 min-w-0 flex-1 rounded-md border border-input bg-transparent px-3 text-sm dark:bg-input/30"
+          className="h-11 min-w-0 flex-1 rounded-md border border-input bg-transparent px-3 text-sm"
         >
           <option value="">
             {termo && candidatos.length === 0 ? "Ninguém com esse nome" : "Escolha a pessoa"}
@@ -314,7 +314,7 @@ function FormularioAvaliacao({
             id={`potencial-${avaliacao.id}`}
             name="potencial"
             defaultValue={avaliacao.potencial ?? ""}
-            className="h-11 w-full rounded-md border border-input bg-transparent px-3 text-sm dark:bg-input/30"
+            className="h-11 w-full rounded-md border border-input bg-transparent px-3 text-sm"
           >
             <option value="">Prefiro não informar</option>
             {NIVEIS_POTENCIAL.map((p) => (

@@ -47,7 +47,7 @@ function BadgeConvocado({ status, emRisco }: { status: string; emRisco: boolean 
   const rotulo = ROTULO_CONVOCADO[status] ?? status;
   if (status === "ACEITA" || status === "EM_EXECUCAO" || status === "ENTREGUE" || status === "ENCERRADA")
     return (
-      <Badge className="border-transparent bg-emerald-600 text-white hover:bg-emerald-600 dark:bg-emerald-700">
+      <Badge className="border-transparent bg-success text-white hover:bg-success">
         {rotulo}
       </Badge>
     );
@@ -164,7 +164,7 @@ export function ReunioesView({
         </p>
       )}
       {aviso && (
-        <p className="rounded-md border border-amber-500/40 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+        <p className="rounded-md border border-border bg-card px-3 py-2 text-sm text-muted-foreground">
           {aviso}
         </p>
       )}
@@ -270,7 +270,7 @@ export function ReunioesView({
                       {p.cargo ? ` — ${p.cargo}` : ""}
                     </span>
                     {!p.temTelegram && (
-                      <span className="ml-auto shrink-0 text-[11px] text-amber-600 dark:text-amber-500">
+                      <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">
                         sem Telegram
                       </span>
                     )}
