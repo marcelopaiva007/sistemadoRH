@@ -87,7 +87,7 @@ export function SeletorModulo({
 
   return (
     <div className="flex min-w-0 items-center gap-2">
-      {/* Mesma moldura das pílulas de marca/CNPJ (rounded-[10px], borda,
+      {/* Mesma moldura das pílulas de marca/CNPJ (rounded-none, borda,
           bg-card), dividida em segmentos — os dois sistemas visíveis ao mesmo
           tempo, e o de dentro marcado. No celular ficam só os ícones: dois
           nomes por extenso não cabem em 375px, e o ícone com `title` continua
@@ -99,7 +99,7 @@ export function SeletorModulo({
       <div
         role="group"
         aria-label="Sistema"
-        className="flex min-w-0 items-stretch overflow-hidden rounded-[10px] border border-border bg-card"
+        className="flex min-w-0 items-stretch overflow-hidden rounded-none border border-border bg-card"
       >
         {modulos.map((modulo, i) => {
           const Icone = modulo.icone;

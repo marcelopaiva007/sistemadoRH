@@ -212,7 +212,7 @@ export function SeletorMarcaEmpresa({
           bastou a caixa interna não ter o dela para, na linha apertada, ela
           transbordar PINTANDO por cima do vizinho da direita (foi o que
           atropelou "Usuários e perfis" na v1.120.1). */}
-      <div className="flex min-w-0 items-stretch rounded-[10px] border border-border bg-card">
+      <div className="flex min-w-0 items-stretch rounded-none border border-border bg-card">
         {/* Segmento 1: pula direto para a visão consolidada de uma marca. */}
         <div className="relative flex min-w-0">
           <button
@@ -226,7 +226,7 @@ export function SeletorMarcaEmpresa({
             style={corMarcaAtiva ? ({ "--marca": corMarcaAtiva } as React.CSSProperties) : undefined}
             className={cn(
               "flex h-full min-w-0 items-center gap-1.5 px-2.5 py-1.5 text-sm transition-colors hover:bg-muted/60",
-              dentroDeEmpresa ? "rounded-l-[10px]" : "rounded-[10px]",
+              dentroDeEmpresa ? "rounded-l-[10px]" : "rounded-none",
             )}
           >
             {/* Com uma marca em foco, a marca responde "onde estou" de
@@ -262,7 +262,7 @@ export function SeletorMarcaEmpresa({
           </button>
 
           {abertoMarca && (
-            <div className="absolute top-[calc(100%+8px)] left-0 z-50 w-56 rounded-[10px] bg-popover p-1.5 shadow-lg ring-1 ring-foreground/10">
+            <div className="absolute top-[calc(100%+8px)] left-0 z-50 w-56 rounded-none bg-popover p-1.5 shadow-lg ring-1 ring-foreground/10">
               {/* Só dentro de /rh: é o botão de LIMPAR o filtro, e fora do
                   módulo não há filtro nenhum para limpar (a tela inicial já é a
                   visão do grupo). Mesmo ícone e rótulo da árvore lateral que
@@ -279,7 +279,7 @@ export function SeletorMarcaEmpresa({
                         : "text-foreground hover:bg-accent/50"
                     )}
                   >
-                    <span className="flex size-5 shrink-0 items-center justify-center rounded-[5px] bg-accent">
+                    <span className="flex size-5 shrink-0 items-center justify-center rounded-none bg-accent">
                       <LayoutGrid className="size-3 text-accent-foreground" />
                     </span>
                     <span className="min-w-0 flex-1 truncate">Todas as marcas</span>
@@ -360,7 +360,7 @@ export function SeletorMarcaEmpresa({
           </button>
 
           {abertoLista && (
-            <div className="absolute top-[calc(100%+8px)] right-0 z-50 max-h-96 w-72 overflow-y-auto rounded-[10px] bg-popover p-1.5 shadow-lg ring-1 ring-foreground/10">
+            <div className="absolute top-[calc(100%+8px)] right-0 z-50 max-h-96 w-72 overflow-y-auto rounded-none bg-popover p-1.5 shadow-lg ring-1 ring-foreground/10">
               {marcaEmFoco && (
                 <>
                   {/* Volta para a marca inteira sem passar pelo segmento 1 —

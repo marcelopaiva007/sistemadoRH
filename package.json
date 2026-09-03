@@ -1,6 +1,6 @@
 {
   "name": "sistema-rh",
-  "version": "1.153.2",
+  "version": "1.154.0",
   "private": true,
   "scripts": {
     "// ━━━━━━━━━━━━━━━━ DESENVOLVIMENTO ━━━━━━━━━━━━━━━━": "",
@@ -114,7 +114,6 @@
     "lucide-react": "^1.24.0",
     "next": "16.2.12",
     "next-auth": "^5.0.0-beta.31",
-    "next-themes": "^0.4.6",
     "nodemailer": "^9.0.3",
     "pg": "^8.22.0",
     "playwright-core": "^1.61.1",
