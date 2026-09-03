@@ -41,7 +41,7 @@ import { Button } from "@/components/ui/button";
 import { CabecalhoDePagina } from "@/components/padroes/cabecalho-de-pagina";
 import { FaixaDeIndicadores } from "@/components/padroes/faixa-de-indicadores";
 import { Indicador } from "@/components/indicador";
-import { PENDENCIAS_CADASTRO, PENDENCIAS_DECIDIR, PENDENCIAS_PRAZO } from "@/lib/pendencias";
+import { PENDENCIAS_CADASTRO, PENDENCIAS_DECIDIR, PENDENCIAS_PRAZO } from "@/lib/pendencias-natureza";
 // O tipo vem da lib, não de uma cópia local: a cópia divergiu quando as seis
 // situações novas entraram e o build caiu por isso.
 import type { CicloAEncerrar, Pendencias, PesquisaAberta } from "@/lib/pendencias";

@@ -26,6 +26,19 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.158.0",
+    data: "03/09/2026",
+    horario: "19:40",
+    titulo: "Ficha do colaborador: as 19 abas viraram um índice lateral em 6 grupos",
+    itens: [
+      "A fileira de 19 abas deu lugar a um índice à esquerda, agrupado: Cadastro (Ficha, Dependentes, Dossiê) · Tempo (Férias, Ausências) · Segurança (SST, EPIs, Acidentes) · Carreira (Movimentações, Desempenho, Metas & PDI, Treinamentos, Disciplinar) · Patrimônio (Benefícios, Entregas) · Ciclo (Integração, Desligamento).",
+      "Cada item mostra a contagem à direita e um \"!\" vermelho quando há algo a resolver (férias vencidas, SST irregular).",
+      "O cabeçalho ganhou o quadrado com as iniciais, e os três botões soltos (Ativar/Desativar, Desvincular Telegram, Cobrar cadastro) foram para um único botão \"Ações\".",
+      "Links antigos com ?tab= continuam abrindo direto na aba certa.",
+      "Correção: as versões 1.156.0 e 1.157.0 não chegaram a ser publicadas — o build falhava na tela de Pendências. Esta versão traz as três de uma vez.",
+    ],
+  },
+  {
     versao: "1.157.0",
     data: "03/09/2026",
     horario: "18:50",
