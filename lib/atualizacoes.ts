@@ -26,6 +26,19 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.155.0",
+    data: "03/09/2026",
+    horario: "17:40",
+    titulo: "Barra de topo de uma linha e lateral com grupos que recolhem",
+    itens: [
+      "A barra de topo tem uma linha só: os sistemas (Pessoas, Processos & Ativos, Delegações) viraram abas de texto ao lado do logo; o seletor de marca/CNPJ continua no meio; e tudo o que é seu — Início, Produtividade RH, Atualizações, Usuários e perfis, Conta, Sair e a versão — mora no menu do seu nome, à direita.",
+      "A lateral dos três sistemas é a mesma: 216px, sem ícones, item ativo marcado por uma barra vermelha à esquerda. Os grupos (Ciclo de vida, Departamento pessoal, Frota…) recolhem ao clicar no título e lembram como você deixou; o grupo da tela aberta nunca recolhe.",
+      "No RH, \"Pendências\" fica no topo da lateral com o total do CNPJ aberto.",
+      "A logo da marca saiu da lateral: ela aparece no seletor de marca/CNPJ da barra, em toda tela.",
+      "Sem mudança de tela, de dado ou de permissão — só onde as coisas ficam.",
+    ],
+  },
+  {
     versao: "1.154.0",
     data: "03/09/2026",
     horario: "16:30",

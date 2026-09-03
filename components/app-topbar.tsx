@@ -3,13 +3,19 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { LogOut, KeyRound } from "lucide-react";
+import { ChevronDown, KeyRound, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { navByRole, diretoriaNav, globalNavByRole } from "@/components/nav-config";
+import { navByRole, globalNavByRole } from "@/components/nav-config";
 import { FastmaiLogo } from "@/components/logo-fastmai";
 import { SeletorModulo } from "@/components/seletor-modulo";
 import { SeletorMarcaEmpresa } from "@/components/seletor-marca-empresa";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const ROLE_LABELS: Record<string, string> = {
   ADMIN: "Administrativo/Financeiro",
@@ -21,10 +27,28 @@ const ROLE_LABELS: Record<string, string> = {
   COLABORADOR: "Colaborador",
 };
 
-// O SeletorTema (Sol/Lua) morou aqui da v1.58.0 à v1.153.2 e saiu com o tema
-// escuro (v1.154.0): o visual Modernist não tem escuro desenhado.
-// Menu horizontal no topo (substitui a antiga sidebar) — libera a largura
-// inteira da tela para as tabelas do RH.
+/** "Marcelo da Silva Paiva" → "MP": primeira e última palavra. */
+function iniciaisDoNome(nome: string): string {
+  const partes = nome.trim().split(/\s+/).filter(Boolean);
+  const sigla = (partes[0]?.[0] ?? "") + (partes.length > 1 ? partes[partes.length - 1][0] : "");
+  return sigla.toUpperCase() || "?";
+}
+
+/**
+ * A barra de topo: UMA linha de 52px (v1.155.0). Eram duas (94px) desde que o
+ * seletor de marca entrou na v1.105.0 — a linha 2 existia para a navegação
+ * solta do usuário (Início, Produtividade, Atualizações) e para conta/sair.
+ * No visual Modernist isso tudo mora no menu do avatar, à direita, e a linha
+ * fica só com o que se opera: os MÓDULOS como abas de texto, o seletor de
+ * marca/CNPJ, e a pessoa.
+ *
+ * SEM `overflow` nesta linha, e isso é deliberado: `overflow-x: auto` faz o
+ * navegador tratar o eixo vertical como `auto` também, e todo painel suspenso
+ * daqui (marca, CNPJ, menu) passa a ser recortado pela altura da barra — foi
+ * o que aconteceu entre a v1.110.1 e a v1.111.1. O celular continua sem
+ * rolagem lateral porque os filhos ENCOLHEM: `min-w-0`, rótulos que truncam,
+ * nome que some nas larguras estreitas.
+ */
 export function AppTopbar({
   role,
   nome,
@@ -35,7 +59,7 @@ export function AppTopbar({
 }: {
   role: string;
   nome: string;
-  /** Ex.: "v1.0.0 - a1b2c3d". Vem do layout: o commit so existe no servidor. */
+  /** Ex.: "v1.0.0 · a1b2c3d". Vem do layout: o commit só existe no servidor. */
   versao: string;
   /** Marcas e empresas que este usuário enxerga — vazio para quem não navega
    *  em `/rh/[empresaId]` (GESTOR_SETOR). Alimenta o seletor do topo. */
@@ -45,153 +69,93 @@ export function AppTopbar({
   sistemasPermitidos: string[];
 }) {
   const pathname = usePathname();
-  // Papel desconhecido não pode herdar o menu da DIRETORIA. O fallback antigo
-  // (`?? diretoriaNav`) falhava ABERTO: qualquer papel novo — e o acesso de
-  // portal é um — passaria a ver a navegação de diretor. As páginas têm guarda
-  // própria e barrariam a entrada, mas mostrar caminho que não abre é ensinar
-  // a pessoa a bater na porta trancada. Sem menu é o comportamento honesto.
-  const items = navByRole[role] ?? [];
-  const itensGlobais = globalNavByRole[role] ?? [];
+  // Papel desconhecido não herda menu nenhum (falha fechada): as páginas têm
+  // guarda própria, e mostrar caminho que não abre é ensinar a pessoa a bater
+  // na porta trancada. `navByRole` + `globalNavByRole` continuam sendo a fonte
+  // por papel — só mudaram de lugar (da linha 2 para o menu do avatar).
+  const itensDoMenu = [...(navByRole[role] ?? []), ...(globalNavByRole[role] ?? [])];
+
+  function ativo(href: string) {
+    if (href === "/") return pathname === "/";
+    if (href === "/usuarios") return pathname.startsWith("/usuarios") || pathname.startsWith("/cadastros");
+    return pathname.startsWith(href);
+  }
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border/70 bg-background/85 backdrop-blur-md shadow-xs">
-      {/* Linha 1 — identidade: logo, marca/empresa ativa, conta. Linha 2 —
-          navegação, largura cheia. Eram uma linha só até o seletor de
-          marca/empresa entrar: aí "Produtividade RH" cortava — 4 itens de
-          menu + logo + seletor + conta não cabem em 1280px (a própria
-          max-w-7xl do layout), então a barra ficava um só amontoado disputando
-          espaço. Duas perguntas diferentes ("em que contexto estou" x "para
-          onde eu vou") ganham uma linha cada, e a navegação nunca mais fica
-          sem espaço, não importa o tamanho do nome da empresa. */}
-      {/* SEM `overflow` aqui, e isso é deliberado: `overflow-x: auto` faz o
-          navegador tratar o eixo VERTICAL como `auto` também, e aí todo painel
-          suspenso desta linha (marca, CNPJ) passa a ser recortado pela altura
-          da barra — quem clicava tinha de ROLAR dentro dela para escolher. Foi
-          o que aconteceu entre a v1.110.1 e a v1.111.1.
-          O celular continua sem rolagem lateral porque os filhos ENCOLHEM:
-          `min-w-0` aqui, rótulos que truncam nos seletores, e nome/cargo e
-          logo que somem nas larguras estreitas. */}
-      <div className="mx-auto flex h-12 w-full min-w-0 max-w-7xl items-center gap-2 px-4 sm:gap-3">
-        <div className="flex shrink-0 items-center gap-2">
-          {/* Some abaixo de `sm`: em 375px o espaço é do que se OPERA (sistema,
-              marca, CNPJ), e o seletor ao lado já responde "onde estou". */}
-          {/* A marca do PRODUTO — FASTMAI substituiu a logo da L&M em todo o
-              chrome do sistema em 26/08/2026, por pedido do dono ("vai ficar
-              só a logo do FASTMAI"). A L&M segue nas páginas em que a marca é
-              a da EMPREGADORA (carreiras, responder por token). */}
-          <FastmaiLogo className="hidden text-base sm:inline-flex" />
-          {/* Era o texto fixo "Sistema de RH" com a versao embaixo. Virou a
-              porta entre os modulos em 23/08/2026, sem sair do lugar: o rotulo
-              ja respondia "onde eu estou", e e ali que quem procura a saida
-              olha primeiro. A etiqueta de versao continua dentro dele — ela
-              responde "estou vendo a versao nova?" sem sair da tela. */}
-          <SeletorModulo sistemasPermitidos={sistemasPermitidos} empresaIds={empresas.map((e) => e.id)} />
-        </div>
+    <header className="sticky top-0 z-40 border-b-2 border-border bg-background">
+      <div className="mx-auto flex h-[52px] w-full min-w-0 max-w-7xl items-center gap-3 px-4 sm:gap-5">
+        {/* A marca do PRODUTO — FASTMAI em todo o chrome desde 26/08/2026. A
+            L&M segue nas páginas em que a marca é a da EMPREGADORA. */}
+        <FastmaiLogo className="shrink-0 text-[17px]" />
+
+        <SeletorModulo
+          sistemasPermitidos={sistemasPermitidos}
+          empresaIds={empresas.map((e) => e.id)}
+          role={role}
+        />
 
         <SeletorMarcaEmpresa marcas={marcas} empresas={empresas} />
 
-        {/* A administração GLOBAL — o que serve a todos os sistemas (usuários
-            e perfis, atualizações) — mora nesta linha, ao lado do nome dos
-            sistemas, por pedido do dono (26/08/2026): esta linha é a área do
-            que vale para tudo; a linha 2 é navegação. Rótulo some abaixo de
-            `lg` (o ícone + title continuam) — os filhos ENCOLHEM, nunca
-            overflow nesta linha (ver o aviso acima). */}
-        {itensGlobais.length > 0 && (
-          <>
-            <div aria-hidden className="hidden h-5 w-px shrink-0 bg-border sm:block" />
-            {itensGlobais.map((item) => {
-              const Icon = item.icon;
-              const ativo = pathname.startsWith(item.href) || (item.href === "/usuarios" && pathname.startsWith("/cadastros"));
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  title={item.label}
-                  className={cn(
-                    "flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-medium transition-colors",
-                    ativo
-                      ? "bg-primary/10 text-primary dark:text-foreground"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                  )}
-                >
-                  <Icon className="size-4 shrink-0" />
-                  {/* Rótulo só quando há folga de verdade (`xl`): em `lg` ele
-                      disputava a mesma faixa que o seletor de marca e foi o
-                      estopim do atropelo da v1.120.1. O ícone + `title`
-                      continuam em toda largura. */}
-                  <span className="hidden whitespace-nowrap xl:inline">{item.label}</span>
-                </Link>
-              );
-            })}
-          </>
-        )}
+        <div className="min-w-0 flex-1" />
 
-        <div className="flex-1" />
-      </div>
-
-      {/* Linha 2 — navegação do usuário à esquerda; tema, conta e sair à
-          direita (pedido do dono, 26/08/2026: "pode descer o nome do usuário e
-          o sair"). A linha 1 fica inteira para o que é DOS SISTEMAS. Só o
-          <nav> rola de lado quando aperta — o bloco da conta é fixo, senão o
-          Sair some atrás da rolagem. */}
-      <div className="border-t border-border/60 bg-muted/30">
-        <div className="mx-auto flex h-11 w-full min-w-0 max-w-7xl items-center gap-1.5 px-4">
-          <nav className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto scrollbar-none">
-            {items.map((item) => {
-              const active =
-                item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+        {/* A pessoa e tudo o que é dela: navegação solta, conta, sair e a
+            versão. Avatar quadrado com iniciais (sem foto no sistema); nome e
+            papel somem abaixo de `md` — quem está no próprio aparelho já sabe
+            quem é, e o menu continua a um toque. */}
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            title={nome}
+            className="flex h-9 min-w-0 shrink-0 items-center gap-2 px-1 text-left outline-none transition-colors hover:bg-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring aria-expanded:bg-card"
+          >
+            <span
+              aria-hidden
+              className="flex size-7 shrink-0 items-center justify-center bg-foreground text-[11px] leading-none font-extrabold text-background"
+            >
+              {iniciaisDoNome(nome)}
+            </span>
+            <span className="hidden min-w-0 md:block">
+              <span className="block max-w-44 truncate text-[13px] leading-tight font-semibold text-foreground">
+                {nome}
+              </span>
+              <span className="block truncate text-[11px] leading-tight text-muted-foreground">
+                {ROLE_LABELS[role] ?? "Acesso restrito"}
+              </span>
+            </span>
+            <ChevronDown aria-hidden className="hidden size-3.5 shrink-0 text-muted-foreground md:block" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" sideOffset={6} className="w-60">
+            {itensDoMenu.map((item) => {
               const Icon = item.icon;
               return (
-                <Link
+                <DropdownMenuItem
                   key={item.href}
-                  href={item.href}
-                  className={cn(
-                    "flex shrink-0 items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition-all duration-150",
-                    active
-                      ? "bg-primary text-primary-foreground shadow-xs font-semibold"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground active:scale-[0.98]"
-                  )}
+                  render={<Link href={item.href} />}
+                  className={cn(ativo(item.href) && "font-extrabold text-primary")}
                 >
-                  <Icon className="size-4" />
+                  <Icon />
                   {item.label}
-                </Link>
+                </DropdownMenuItem>
               );
             })}
-          </nav>
-
-          <Link
-            href="/conta"
-            className={cn(
-              "flex shrink-0 items-center gap-2 rounded-lg border border-transparent px-2.5 py-1 transition-all hover:bg-muted/80 hover:border-border/50",
-              pathname === "/conta" && "bg-muted border-border/60"
-            )}
-          >
-            {/* Some nas telas estreitas: nome + cargo custam ~130px, e quem está
-                no próprio aparelho já sabe quem é. O ícone continua ali, com o
-                mesmo destino e área de toque.
-                A VERSÃO mora aqui desde 24/08/2026 (pedido do dono do sistema):
-                ela responde "estou vendo a entrega nova?", que é uma pergunta
-                sobre a conta/sessão, não sobre em que sistema se está.
-                Cada linha TRUNCA (title dá o nome inteiro): sem isso, um nome
-                longo quebrava em duas linhas e estourava a altura da barra. */}
-            <div className="hidden max-w-40 text-right sm:block" title={nome}>
-              <p className="truncate text-sm font-medium leading-tight text-foreground">{nome}</p>
-              <p className="truncate text-[11px] leading-tight text-muted-foreground font-medium">
-                {ROLE_LABELS[role] ?? "Acesso restrito"} · <span className="font-mono text-[10px] text-muted-foreground/60">{versao}</span>
-              </p>
-            </div>
-            <KeyRound className="size-4 text-muted-foreground" />
-          </Link>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="shrink-0 gap-2 text-muted-foreground hover:text-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
-            onClick={() => signOut({ callbackUrl: "/login" })}
-          >
-            <LogOut className="size-4" />
-            <span className="hidden sm:inline">Sair</span>
-          </Button>
-        </div>
+            {itensDoMenu.length > 0 && <DropdownMenuSeparator />}
+            <DropdownMenuItem
+              render={<Link href="/conta" />}
+              className={cn(pathname === "/conta" && "font-extrabold text-primary")}
+            >
+              <KeyRound />
+              Conta
+            </DropdownMenuItem>
+            <DropdownMenuItem variant="destructive" onClick={() => signOut({ callbackUrl: "/login" })}>
+              <LogOut />
+              Sair
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            {/* A versão responde "estou vendo a entrega nova?" — pergunta sobre
+                a sessão, não sobre o sistema em que se está; por isso mora
+                aqui e não ao lado do logo. */}
+            <div className="px-1.5 py-1 font-mono text-[11px] text-muted-foreground">{versao}</div>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </header>
   );

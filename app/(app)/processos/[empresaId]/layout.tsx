@@ -35,29 +35,15 @@ export default async function ProcessosEmpresaLayout({
   // responder a mesma pergunta uma vez.
   const empresa = await prisma.empresa.findUnique({
     where: { id: empresaId },
-    select: {
-      id: true,
-      ativo: true,
-      marca: { select: { id: true, nome: true, logoUrl: true } },
-    },
+    select: { id: true, ativo: true },
   });
   if (!empresa || !empresa.ativo) notFound();
 
-  // Cor por marca saiu na v1.154.0 (Modernist, uma cor só) — ver o layout do RH.
+  // Cor por marca e logo na lateral saíram (v1.154.0 / v1.155.0) — ver o
+  // layout do RH: a marca vive no seletor da barra de topo.
   return (
     <div className="flex gap-6">
-      <aside className="sticky top-[94px] hidden h-[calc(100vh-94px)] w-52 shrink-0 overflow-y-auto border-r pr-3 pt-2 md:block">
-        {/* Mesma regra da lateral do RH: a logo da marca em tamanho visível
-            no topo da navegação (pedido do dono, 26/08/2026). */}
-        {empresa.marca.logoUrl && (
-          <div className="mb-2 border-b pb-3">
-            <img
-              src={empresa.marca.logoUrl}
-              alt={empresa.marca.nome}
-              className="max-h-12 w-auto max-w-40 object-contain"
-            />
-          </div>
-        )}
+      <aside className="sticky top-[52px] hidden h-[calc(100vh-52px)] w-[216px] shrink-0 overflow-y-auto border-r-2 border-border pr-4 pt-3 md:block">
         <ProcessosNav empresaId={empresaId} />
       </aside>
 

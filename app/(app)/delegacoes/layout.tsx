@@ -24,7 +24,7 @@ export default async function DelegacoesLayout({ children }: { children: React.R
 
   return (
     <div className="flex gap-6">
-      <aside className="sticky top-[94px] hidden h-[calc(100vh-94px)] w-52 shrink-0 overflow-y-auto border-r pr-3 pt-2 md:block">
+      <aside className="sticky top-[52px] hidden h-[calc(100vh-52px)] w-[216px] shrink-0 overflow-y-auto border-r-2 border-border pr-4 pt-3 md:block">
         <DelegacoesNav souDirecao={souDirecao} />
       </aside>
 
