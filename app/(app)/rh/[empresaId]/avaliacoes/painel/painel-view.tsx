@@ -11,11 +11,12 @@ import {
   XAxis,
   YAxis,
   Tooltip,
-  CartesianGrid,
   Cell,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Indicador } from "@/components/indicador";
+import { FaixaDeIndicadores } from "@/components/padroes/faixa-de-indicadores";
 import {
   Table,
   TableBody,
@@ -30,17 +31,17 @@ const classeSelect =
   "h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:bg-input/30";
 
 const CORES_FAIXA: Record<string, string> = {
-  BAIXO: "#dc2626",
-  MEDIO: "#f59e0b",
-  ALTO: "#16a34a",
+  BAIXO: "var(--chart-2)",
+  MEDIO: "var(--chart-3)",
+  ALTO: "var(--success)",
 };
 
 // Abaixo de 60% de participação a barra vira vermelha — mesmo corte visual
 // que o resto do sistema usa para "precisa de atenção".
 function corParticipacao(pct: number): string {
-  if (pct < 60) return "#dc2626";
-  if (pct < 90) return "#f59e0b";
-  return "#16a34a";
+  if (pct < 60) return "var(--chart-2)";
+  if (pct < 90) return "var(--chart-3)";
+  return "var(--success)";
 }
 
 export function PainelAvaliacaoView({
@@ -124,7 +125,7 @@ export function PainelAvaliacaoView({
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <FaixaDeIndicadores>
         <CardKpi
           titulo="Participação geral"
           valor={`${dados.participacaoPct}%`}
@@ -149,7 +150,7 @@ export function PainelAvaliacaoView({
           valor={String(dados.destaques.abaixoDaMedia.length + dados.destaques.acimaDaMedia.length)}
           apoio={`${dados.destaques.abaixoDaMedia.length} abaixo · ${dados.destaques.acimaDaMedia.length} acima`}
         />
-      </div>
+      </FaixaDeIndicadores>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
@@ -180,7 +181,6 @@ export function PainelAvaliacaoView({
           ) : (
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={dados.distribuicaoNotas} layout="vertical" margin={{ left: 24 }}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                 <XAxis type="number" allowDecimals={false} />
                 <YAxis type="category" dataKey="label" width={140} tick={{ fontSize: 12 }} />
                 <Tooltip formatter={(v) => `${Number(v)} avaliação(ões)`} />
@@ -220,16 +220,9 @@ export function PainelAvaliacaoView({
   );
 }
 
-function CardKpi({ titulo, valor, apoio }: { titulo: string; valor: string; apoio: string }) {
-  return (
-    <Card>
-      <CardContent className="space-y-1 py-4">
-        <p className="text-xs text-muted-foreground">{titulo}</p>
-        <p className="text-2xl font-semibold tabular-nums">{valor}</p>
-        <p className="text-xs text-muted-foreground">{apoio}</p>
-      </CardContent>
-    </Card>
-  );
+function CardKpi({ titulo, valor, apoio }: { titulo: string; valor: string; apoio?: string }) {
+  // Célula da FaixaDeIndicadores — o cartão com moldura saiu na v1.159.0.
+  return <Indicador rotulo={titulo} valor={valor} complemento={apoio} />;
 }
 
 function GraficoParticipacao({
@@ -243,7 +236,6 @@ function GraficoParticipacao({
   return (
     <ResponsiveContainer width="100%" height={Math.max(160, linhas.length * 36)}>
       <BarChart data={linhas} layout="vertical" margin={{ left: 24 }}>
-        <CartesianGrid strokeDasharray="3 3" horizontal={false} />
         <XAxis type="number" domain={[0, 100]} unit="%" />
         <YAxis type="category" dataKey="chave" width={140} tick={{ fontSize: 12 }} />
         <Tooltip

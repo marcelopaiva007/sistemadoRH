@@ -7,7 +7,6 @@ import {
   AreaChart,
   Bar,
   BarChart,
-  CartesianGrid,
   Legend,
   Line,
   LineChart,
@@ -37,6 +36,7 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Indicador } from "@/components/indicador";
+import { FaixaDeIndicadores } from "@/components/padroes/faixa-de-indicadores";
 import { formatarReais } from "@/lib/constants-beneficios";
 import { cn } from "@/lib/utils";
 import type { LinhaCusto, LinhaFaixaEtaria, LinhaHeadcount, ResultadoTurnover } from "@/lib/bi";
@@ -100,9 +100,9 @@ type Vista = "graficos" | "tabelas";
 
 // Cores validadas contra daltonismo e contraste (validador do guia de
 // dataviz, todos os pares PASS):
-//   série única/azul  #2563eb   (= --chart-1 do tema)
-//   admissões         #0d9488   × desligamentos #dc2626  (ΔE deutan 13.1)
-//   folha             #2563eb   × benefícios    #d97706  (ΔE protan 32.3)
+//   série única/azul  var(--chart-1)   (= --chart-1 do tema)
+//   admissões         #0d9488   × desligamentos var(--chart-2)  (ΔE deutan 13.1)
+//   folha             var(--chart-1)   × benefícios    var(--chart-3)  (ΔE protan 32.3)
 // Texto de rótulo/tooltip fica nos tokens de texto do tema, nunca na cor da
 // série — a cor mora só na marca do gráfico.
 const COR = {
@@ -117,8 +117,8 @@ const estiloTooltip = {
   backgroundColor: "var(--card)",
   borderColor: "var(--border)",
   color: "var(--card-foreground)",
-  borderRadius: "var(--radius)",
-  boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+  borderRadius: 0,
+  boxShadow: "none",
 } as const;
 
 const eixoTick = { fontSize: 11, fill: "var(--muted-foreground)" } as const;
@@ -351,9 +351,8 @@ export function PainelView({
               <RadarDesvio radar={radar} hrefCentral={`/rh/${empresaId}/sinais`} />
 
               {/* --- KPIs -------------------------------------------------------- */}
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <FaixaDeIndicadores>
                 <Indicador
-                  variante="cartao"
                   rotulo="Colaboradores ativos"
                   valor={`${totalAtivos}`}
                   complemento={
@@ -363,14 +362,12 @@ export function PainelView({
                   }
                 />
                 <Indicador
-                  variante="cartao"
                   rotulo={`Turnover (${janela} meses)`}
                   valor={turnover.headcountMedio > 0 ? `${turnover.taxaPct.toFixed(1)}%` : <SemDado />}
                   complemento={`${turnover.desligados} saída(s) · ${turnover.admissoes} admissão(ões)`}
                   estado={turnover.headcountMedio > 0 && turnover.taxaPct > 20 ? "alerta" : "padrao"}
                 />
                 <Indicador
-                  variante="cartao"
                   rotulo="Tempo de casa (mediana)"
                   valor={
                     tempo.quartis ? `${formatarNumero(tempo.quartis.mediana)} ano(s)` : <SemDado />
@@ -382,7 +379,6 @@ export function PainelView({
                   }
                 />
                 <Indicador
-                  variante="cartao"
                   rotulo="Folha + benefícios/mês"
                   valor={
                     folhaTotal === null ? <SemDado /> : formatarReais(folhaTotal + beneficiosTotal)
@@ -395,7 +391,7 @@ export function PainelView({
                         : "salário base + benefícios vigentes · sem encargos"
                   }
                 />
-              </div>
+              </FaixaDeIndicadores>
 
             </TabsContent>
 
@@ -416,11 +412,6 @@ export function PainelView({
                               <stop offset="100%" stopColor={COR.primaria} stopOpacity={0.02} />
                             </linearGradient>
                           </defs>
-                          <CartesianGrid
-                            strokeDasharray="3 3"
-                            stroke="var(--border)"
-                            vertical={false}
-                          />
                           <XAxis dataKey="mes" tick={eixoTick} tickLine={false} axisLine={false} />
                           <YAxis
                             allowDecimals={false}
@@ -458,11 +449,6 @@ export function PainelView({
                     <div className="h-64">
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart data={movimento} margin={{ left: -16, right: 8 }}>
-                          <CartesianGrid
-                            strokeDasharray="3 3"
-                            stroke="var(--border)"
-                            vertical={false}
-                          />
                           <XAxis dataKey="mes" tick={eixoTick} tickLine={false} axisLine={false} />
                           <YAxis
                             allowDecimals={false}
@@ -547,11 +533,6 @@ export function PainelView({
                           layout="vertical"
                           margin={{ left: 16, right: 24 }}
                         >
-                          <CartesianGrid
-                            strokeDasharray="3 3"
-                            stroke="var(--border)"
-                            horizontal={false}
-                          />
                           <XAxis
                             type="number"
                             allowDecimals={false}
@@ -601,11 +582,6 @@ export function PainelView({
                     <div className="h-64">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={faixaEtaria} margin={{ left: -16, right: 8 }}>
-                          <CartesianGrid
-                            strokeDasharray="3 3"
-                            stroke="var(--border)"
-                            vertical={false}
-                          />
                           <XAxis dataKey="faixa" tick={eixoTick} tickLine={false} axisLine={false} />
                           <YAxis
                             allowDecimals={false}
@@ -617,7 +593,6 @@ export function PainelView({
                           <Bar
                             dataKey="total"
                             fill={COR.primaria}
-                            radius={[4, 4, 0, 0]}
                             maxBarSize={40}
                           />
                         </BarChart>
@@ -722,7 +697,6 @@ function BlocoTempoDeCasa({
               <div className="h-56">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={tempo.faixas} margin={{ left: -16, right: 8, bottom: 8 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
                     <XAxis
                       dataKey="faixa"
                       tick={{ ...eixoTick, fontSize: 10 }}
@@ -743,7 +717,6 @@ function BlocoTempoDeCasa({
                     <Bar
                       dataKey="total"
                       fill={COR.primaria}
-                      radius={[4, 4, 0, 0]}
                       maxBarSize={44}
                     />
                   </BarChart>
@@ -932,7 +905,6 @@ function BlocoCusto({ custo, vista }: { custo: LinhaCustoNaTela[]; vista: Vista 
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={agruparOutrosCusto(confiaveis)} margin={{ left: 8, right: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
                 <XAxis dataKey="setor" tick={eixoTick} tickLine={false} axisLine={false} />
                 <YAxis
                   tick={eixoTick}
@@ -954,7 +926,6 @@ function BlocoCusto({ custo, vista }: { custo: LinhaCustoNaTela[]; vista: Vista 
                   name="Benefícios"
                   stackId="custo"
                   fill={COR.beneficios}
-                  radius={[4, 4, 0, 0]}
                   maxBarSize={40}
                 />
               </BarChart>

@@ -26,6 +26,18 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.159.0",
+    data: "03/09/2026",
+    horario: "20:20",
+    titulo: "Painéis e gráficos no visual novo: tinta e vermelho, sem grade",
+    itens: [
+      "Os gráficos dos painéis (executivo, setor, avaliações, pesquisas, clima, NR-01, Processos, frota) trocaram o azul, o verde e o âmbar por duas cores: tinta para a série principal e vermelho para o que é negativo ou crítico (desligamentos, alerta). Os demais recortes ficam em cinza.",
+      "A grade pontilhada atrás dos gráficos saiu; o eixo fica só com os rótulos. A caixa que aparece ao passar o mouse perdeu o canto arredondado e a sombra.",
+      "Os números de destaque do Painel executivo e do painel de Avaliações viraram a faixa sem moldura, como nas outras telas.",
+      "Verde continua sendo o único sinal de \"em dia\" / \"bom\", e só onde já era.",
+    ],
+  },
+  {
     versao: "1.158.0",
     data: "03/09/2026",
     horario: "19:40",

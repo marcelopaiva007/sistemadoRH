@@ -3,7 +3,6 @@
 import {
   Bar,
   BarChart,
-  CartesianGrid,
   Legend,
   ResponsiveContainer,
   Tooltip,
@@ -26,7 +25,7 @@ export type TopVeiculo = {
 
 // Azul do tema para combustível, âmbar para manutenção, vermelho para multa —
 // multa é a única das três que é desperdício puro, e a cor diz isso sozinha.
-const CORES = { combustivel: "#2563eb", manutencao: "#d97706", multas: "#dc2626" };
+const CORES = { combustivel: "var(--chart-1)", manutencao: "var(--chart-3)", multas: "var(--chart-2)" };
 
 function real(v: number): string {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
@@ -49,7 +48,6 @@ export function GraficoCustoMensal({ dados }: { dados: MesDeCusto[] }) {
       <CardContent>
         <ResponsiveContainer width="100%" height={260}>
           <BarChart data={dados} margin={{ top: 4, right: 8, left: 8, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
             <XAxis dataKey="mes" fontSize={11} tickLine={false} />
             <YAxis fontSize={11} tickLine={false} tickFormatter={(v: number) => `${Math.round(v / 1000)}k`} />
             <Tooltip formatter={(v: unknown) => real(Number(v ?? 0))} />

@@ -10,7 +10,7 @@ export type Fatia = { rotulo: string; valor: number };
 // todo número já chega pronto do servidor; aqui não se calcula nada. Barra
 // horizontal porque os rótulos são texto (placa de cidade, "Combustão"), e
 // texto lê melhor deitado do que virado no eixo X.
-const AZUL = "#2563eb";
+const AZUL = "var(--chart-1)";
 
 function veiculos(v: number): string {
   return `${v.toLocaleString("pt-BR")} ${v === 1 ? "veículo" : "veículos"}`;
