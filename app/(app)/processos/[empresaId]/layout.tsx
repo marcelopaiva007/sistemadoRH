@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireProcessosEmpresa } from "@/lib/processos-auth-guard";
-import { corDeContrasteDaMarca } from "@/lib/marca-cor";
 import { ProcessosNav } from "./processos-nav";
 
 /**
@@ -39,15 +38,14 @@ export default async function ProcessosEmpresaLayout({
     select: {
       id: true,
       ativo: true,
-      marca: { select: { id: true, nome: true, corPrimaria: true, logoUrl: true } },
+      marca: { select: { id: true, nome: true, logoUrl: true } },
     },
   });
   if (!empresa || !empresa.ativo) notFound();
 
-  const estiloCor = corDeContrasteDaMarca(empresa.marca.corPrimaria);
-
+  // Cor por marca saiu na v1.154.0 (Modernist, uma cor só) — ver o layout do RH.
   return (
-    <div className="flex gap-6" style={estiloCor}>
+    <div className="flex gap-6">
       <aside className="sticky top-[94px] hidden h-[calc(100vh-94px)] w-52 shrink-0 overflow-y-auto border-r pr-3 pt-2 md:block">
         {/* Mesma regra da lateral do RH: a logo da marca em tamanho visível
             no topo da navegação (pedido do dono, 26/08/2026). */}

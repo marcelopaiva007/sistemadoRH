@@ -26,6 +26,19 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.154.0",
+    data: "03/09/2026",
+    horario: "16:30",
+    titulo: "Visual novo: Modernist — tinta sobre papel, uma cor só",
+    itens: [
+      "O sistema inteiro trocou de roupa: fundo papel, texto tinta e o vermelho do FASTMAI como única cor de destaque — no botão principal, no item ativo e no que tem prazo. O índigo e os cantos arredondados saíram.",
+      "Fonte nova (Archivo) em tudo; títulos mais pesados e um pouco menores; números sempre alinhados em coluna.",
+      "O tema escuro saiu: ele nunca foi desenhado para o visual novo. O botão de sol/lua desapareceu da barra de topo.",
+      "A cor de cada marca deixou de pintar botões e menus dentro do CNPJ — a marca continua identificada pelo nome no seletor e pela logo na lateral.",
+      "Só a pintura mudou: nenhuma tela, campo ou regra de acesso foi alterada. A reorganização das telas vem nas próximas versões.",
+    ],
+  },
+  {
     versao: "1.153.2",
     data: "03/09/2026",
     horario: "14:30",

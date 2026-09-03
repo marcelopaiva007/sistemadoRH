@@ -207,7 +207,7 @@ function CenaChecklist({ rotulos }: { rotulos: string[] }) {
           style={atraso(i, 200)}
         >
           <span
-            className="guia-marcar flex size-4 shrink-0 items-center justify-center rounded-[4px] bg-success text-white"
+            className="guia-marcar flex size-4 shrink-0 items-center justify-center rounded-none bg-success text-white"
             style={{ animationDelay: `${i * 200 + 280}ms` }}
           >
             <Check className="size-3" strokeWidth={3} />
@@ -274,7 +274,7 @@ function CenaCalendario({ rotulos }: { rotulos: string[] }) {
           <span
             key={i}
             className={cn(
-              "guia-surgir flex h-5 items-center justify-center rounded-[4px] text-[9px] tabular-nums",
+              "guia-surgir flex h-5 items-center justify-center rounded-none text-[9px] tabular-nums",
               DIAS_MARCADOS.includes(i)
                 ? "bg-primary/20 font-semibold text-primary"
                 : DIAS_ALTERNATIVOS.includes(i)
@@ -296,7 +296,7 @@ function CenaCalendario({ rotulos }: { rotulos: string[] }) {
           >
             <span
               className={cn(
-                "size-2 rounded-[3px]",
+                "size-2 rounded-none",
                 i === 0 ? "bg-primary/60" : i === 1 ? "bg-warning/70" : "bg-muted-foreground/25",
               )}
             />

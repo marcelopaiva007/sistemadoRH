@@ -1,11 +1,14 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Archivo, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// Archivo nos três pesos do Modernist (corpo 400, ênfase 600, título 800).
+// Geist Mono continua para número de versão e afins (globals.css, --font-mono).
+const archivo = Archivo({
+  variable: "--font-archivo",
   subsets: ["latin"],
+  weight: ["400", "600", "800"],
 });
 
 const geistMono = Geist_Mono({
@@ -24,16 +27,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="pt-BR"
-      // O next-themes escreve a classe do tema (`dark`) no <html> por script,
-      // ANTES do React hidratar — é assim que ele evita o flash de tema
-      // errado. Então o HTML que sai do servidor e o que o cliente encontra
-      // divergem por construção, e sem isto o React reclama no console a cada
-      // carregamento de quem usa o tema escuro.
-      suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
+    <html lang="pt-BR" className={`${archivo.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col bg-background">
         {children}
         <Toaster richColors position="top-right" />

@@ -3,10 +3,6 @@ import { requireEmpresaAccess, empresasVisiveis } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
 import { RHEmpresaNav } from "./rh-empresa-nav";
 import { GuiaTela } from "@/components/guia-tela";
-// A conta de contraste saiu daqui para lib/marca-cor.ts em 23/08/2026: o
-// módulo Processos & Ativos pinta o subtree dele pela mesma regra, e duas
-// cópias do limiar de luminância acabam divergindo.
-import { corDeContrasteDaMarca } from "@/lib/marca-cor";
 
 export default async function RHEmpresaLayout({
   children,
@@ -31,20 +27,19 @@ export default async function RHEmpresaLayout({
   const marcas = await prisma.marca.findMany({
     where: { id: { in: marcasIds } },
     orderBy: { nome: "asc" },
-    select: { id: true, nome: true, corPrimaria: true, logoUrl: true },
+    select: { id: true, nome: true, logoUrl: true },
   });
 
   const empresa = empresas.find((e) => e.id === empresaId);
   if (!empresa) notFound();
 
-  // Cor da marca sobrescreve --primary só neste subtree (o resto do app —
-  // topbar, telas fora de /rh/<empresa> — fica no azul padrão do tema).
-  // Sem Marca.corPrimaria, `estiloCor` fica undefined e nada muda.
+  // A cor da marca (Marca.corPrimaria) pintava o --primary deste subtree da
+  // v1.4x à v1.153.2. Saiu na v1.154.0 (visual Modernist, uma cor só): a
+  // marca segue identificada pelo nome no seletor do topo e pela logo abaixo.
   const marcaAtiva = marcas.find((m) => m.id === empresa.marcaId);
-  const estiloCor = corDeContrasteDaMarca(marcaAtiva?.corPrimaria);
 
   return (
-    <div className="flex gap-6" style={estiloCor}>
+    <div className="flex gap-6">
       <aside className="sticky top-[94px] hidden h-[calc(100vh-94px)] w-56 shrink-0 overflow-y-auto border-r pr-3 pt-2 md:block">
         {/* A logo da marca em lugar visível — pedido do dono (26/08/2026):
             o selo do topo diz "onde estou" de relance, mas é pequeno; aqui a

@@ -19,7 +19,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   // Pinta a barra do sistema com a cor do sistema quando aberto como
   // aplicativo — sem isto sobra uma faixa branca no topo.
-  themeColor: "#4f46e5",
+  themeColor: "#c8280f",
   // `viewport-fit=cover` para o conteúdo alcançar a borda em telas com
   // recorte; o padding seguro fica com o CSS.
   viewportFit: "cover",

@@ -31,7 +31,7 @@ export function Selo({ nome, logoUrl }: { nome: string; logoUrl?: string | null 
   // é dela. Sem logo, o selo de iniciais continua exatamente como era.
   if (logoUrl) {
     return (
-      <span className="flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-[5px] bg-background p-px ring-1 ring-border">
+      <span className="flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-none bg-background p-px ring-1 ring-border">
         {/* <img> puro, como no restante do projeto: nada aqui é otimizado
             (images.unoptimized no next.config.ts) e a URL é externa (Blob). */}
         <img src={logoUrl} alt="" className="max-h-full max-w-full object-contain" />
@@ -41,7 +41,7 @@ export function Selo({ nome, logoUrl }: { nome: string; logoUrl?: string | null 
   return (
     <span
       className={cn(
-        "flex size-5 shrink-0 items-center justify-center rounded-[5px] text-[9px] font-bold",
+        "flex size-5 shrink-0 items-center justify-center rounded-none text-[9px] font-bold",
         TINTA_SELO,
         TEXTO_MARCA
       )}

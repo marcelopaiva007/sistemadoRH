@@ -8,13 +8,14 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   /* Apontar para a variável que o next/font publica em app/layout.tsx
-     (--font-geist-sans). Já esteve escrito `var(--font-sans)` aqui: uma
-     variável referenciando a si mesma é inválida em CSS, então ela resolvia
-     para vazio e o sistema INTEIRO caía no serifado padrão do navegador
-     (Times New Roman) — a Geist era baixada e nunca usada. */
-  --font-sans: var(--font-geist-sans);
+     (--font-archivo desde a v1.154.0; era --font-geist-sans). Já esteve
+     escrito `var(--font-sans)` aqui: uma variável referenciando a si mesma é
+     inválida em CSS, então ela resolvia para vazio e o sistema INTEIRO caía
+     no serifado padrão do navegador (Times New Roman) — a fonte era baixada
+     e nunca usada. Geist Mono fica para número de versão e afins. */
+  --font-sans: var(--font-archivo);
   --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-geist-sans);
+  --font-heading: var(--font-archivo);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -55,130 +56,76 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* Tema claro (o padrão): fundo off-white azulado, texto slate, índigo como cor
-   primária. O tema escuro existe e mora no bloco `.dark` logo abaixo — os dois
-   ficam colados de propósito, para comparar token a token.
+/* Tema Modernist (03/09/2026) — tinta sobre papel: um fundo, uma superfície,
+   uma tinta e UM acento. Veio do handoff de design (workspace,
+   design-fastmai-modernist/README.md) e substituiu o slate/índigo que valeu da
+   v1.52.0 à v1.153.2. Os NOMES das variáveis são os do shadcn e não mudaram —
+   as ~1.400 classes `text-muted-foreground` e afins continuam valendo.
 
-   ESTE COMENTÁRIO JÁ MENTIU: até 10/08/2026 ele dizia "o sistema roda só no
-   claro, não existe bloco .dark". Era verdade quando foi escrito (v1.52.0) e
-   deixou de ser na v1.58.0, quando o tema escuro entrou — mas ninguém voltou
-   aqui. Ficou seis versões afirmando o contrário do arquivo em que estava, a
-   46 linhas do bloco que negava. Quem mexer em cor, mexa aqui também.
+   O tema escuro (bloco `.dark`, v1.58.0 → v1.153.2) SAIU nesta versão por
+   decisão do dono: mono sobre papel escuro não foi desenhado. O
+   `@custom-variant dark` lá em cima FICA de propósito: sem a classe `dark` no
+   <html>, as ~340 classes `dark:` espalhadas viram inertes; removê-lo faria o
+   Tailwind cair no `prefers-color-scheme` do sistema operacional, e quem usa
+   o SO no escuro veria metade das telas escuras sobre fundo claro. A faxina
+   dessas classes é trabalho à parte.
 
-   Os valores aqui foram escolhidos por MEDIÇÃO, não por gosto: cada um passa
-   nos limites da WCAG AA no uso que tem (4,5:1 para texto, 3:1 para
-   controle). Antes de trocar qualquer cor, remedir — vários tons "bonitos"
-   dessa paleta reprovam por pouco, e dois deles reprovavam de fato até
-   11/08/2026 (ver --input e --sidebar-ring). */
+   Medido, não escolhido (WCAG AA: 4,5:1 texto, 3:1 controle e borda de campo):
+   - --muted-foreground #605d5d: 5,83 sobre o fundo, 5,38 sobre o cartão.
+   - --primary: o handoff pedia #ec3013 (o vermelho do wordmark), que mede
+     3,76 — passa para tag, ícone, anel de foco e título grande, e REPROVA
+     para texto pequeno (item ativo do menu, "Não informado") e para o rótulo
+     claro de um botão sólido. #c8280f é o mesmo vermelho um degrau abaixo:
+     4,99 sobre o fundo e sob o rótulo claro, 4,60 sobre o cartão. O #ec3013
+     continua no wordmark (logotipo é isento), no anel de foco e na série de
+     contraste dos gráficos — 3:1 basta nos dois.
+   - --destructive #ae1800 é TEXTO de erro (6,41 / 5,91); fill vermelho é o
+     --primary, nunca este.
+   - --border = tinta a 40%: divisória e régua de 2px, decorativas, sem
+     exigência. --input = tinta a 55% (#7f7d7d): 3,66 no fundo, 3,38 no
+     cartão — a borda do campo é a única pista de onde o formulário começa e
+     precisa dos 3:1 (mesma lição de 11/08/2026).
+   - --success #2d6a4f: 5,72 / 5,27 — o único verde, só para "em dia".
+   - --warning virou neutro (#605d5d): o Modernist é mono, aviso é texto +
+     tag neutra. O nome fica até as ~150 classes `text-warning` saírem.
+   - --radius 0 zera todos os `rounded-*` derivados. `rounded-full` e
+     `rounded-[Npx]` são literais e NÃO obedecem: os do chrome foram trocados
+     nesta versão; o resto sai tela a tela, junto com o padrão de cada uma. */
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
-  --card: #ffffff;
-  --card-foreground: #0f172a;
-  --popover: #ffffff;
-  --popover-foreground: #0f172a;
-  --primary: #4f46e5;
-  --primary-foreground: #ffffff;
-  --secondary: #f1f5f9;
-  --secondary-foreground: #0f172a;
-  --muted: #f1f5f9;
-  --muted-foreground: #475569;
-  --accent: #e0e7ff;
-  --accent-foreground: #3730a3;
-  --destructive: #dc2626;
-  --success: #047857;
-  --warning: #b45309;
-  --border: #e2e8f0;
-  /* 11/08/2026: era #8794a9, que media 3,07:1 sobre o cartão branco (passa) mas
-     2,93:1 sobre o --background (reprova o 3:1 da WCAG 1.4.11). O tom tinha
-     sido afinado só contra o cartão, e todo campo solto na página ficava
-     abaixo do mínimo. #7c8a9f passa nos dois: 3,50 no cartão, 3,35 no fundo. */
-  --input: #7c8a9f;
-  --ring: #4f46e5;
-  --chart-1: #4f46e5;
-  --chart-2: #0284c7;
-  --chart-3: #059669;
-  --chart-4: #d97706;
-  --chart-5: #db2777;
-  --radius: 0.625rem;
-  --sidebar: #ffffff;
-  --sidebar-foreground: #0f172a;
-  --sidebar-primary: #4f46e5;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #f1f5f9;
-  --sidebar-accent-foreground: #0f172a;
-  --sidebar-border: #e2e8f0;
-  /* 11/08/2026: era #818cf8, 2,98:1 sobre branco — anel de foco reprovando o
-     3:1 por 0,02. Indicador de foco invisível é barreira de teclado, não
-     detalhe estético. #6d78ee mantém o índigo claro e mede 3,77. */
-  --sidebar-ring: #6d78ee;
-}
-
-/* Tema escuro. Entrou na v1.58.0 e é alcançável de dois jeitos: pelo botão da
-   barra de topo (SeletorTema, em components/app-topbar.tsx) e sozinho, para
-   quem tem o sistema operacional no escuro — o ThemeProvider de
-   app/providers.tsx roda com defaultTheme="system".
-
-   Os tokens nasceram espelhando o :root acima, mas SEM passar pela medição de
-   contraste que o :root teve. Em 11/08/2026 a conta foi feita e quatro deles
-   reprovavam; estão marcados um a um abaixo. Vale para este bloco a mesma
-   regra do :root: antes de trocar qualquer cor, remedir — no escuro os pares
-   que mais apertam são texto sobre --card (a superfície de quase tudo) e
-   borda de campo, não o texto sobre o fundo da página. */
-.dark {
-  --background: #0f172a;
-  --foreground: #f8fafc;
-  --card: #1e293b;
-  --card-foreground: #f8fafc;
-  --popover: #1e293b;
-  --popover-foreground: #f8fafc;
-  /* Era #6366f1: o branco por cima media 4,4669:1 e reprovava o 4,5 por 0,03 —
-     o rótulo de TODO botão primário. Escurecer resolve um lado e ameaça o
-     outro (o preenchimento precisa de 3:1 contra a superfície); #6062ef é o
-     ponto que segura os dois — branco 4,68, botão 3,13 sobre o cartão. Não
-     escurecer mais: em #5d5eea o botão cai para 2,96 e reprova. */
-  --primary: #6062ef;
-  --primary-foreground: #ffffff;
-  --secondary: #334155;
-  --secondary-foreground: #f8fafc;
-  --muted: #1e293b;
-  /* Era #94a3b8, que passa sobre o fundo e sobre o cartão mas dá 4,04:1 sobre
-     --secondary #334155 — que é botão secundário, item de menu em hover e
-     linha alternada de tabela. Com `text-muted-foreground` em 846 lugares, o
-     par acontece. #a3b4c8 dá 4,89 ali e continua folgado no resto (6,91 no
-     cartão, 8,43 no fundo). */
-  --muted-foreground: #a3b4c8;
-  --accent: #312e81;
-  --accent-foreground: #e0e7ff;
-  /* Era #ef4444: 3,89:1 sobre o cartão, reprovação de verdade (não por pouco).
-     `text-destructive` aparece 55 vezes e quase sempre dentro de cartão — que
-     é justamente onde falhava, enquanto sobre o fundo da página passava. Erro
-     que aparece em metade das telas é pior que erro que aparece em todas.
-     #f87171 dá 5,29 no cartão e 6,45 no fundo. */
-  --destructive: #f87171;
-  --success: #10b981;
-  --warning: #f59e0b;
-  --border: #334155;
-  /* Era #475569: 1,93:1 sobre o cartão. A borda do campo é a única pista de
-     onde o formulário começa, então aqui não vale a isenção de "divisória
-     decorativa" da WCAG 1.4.11 — e formulário dentro de cartão é o padrão do
-     sistema. #687892 dá 3,27 no cartão e 3,99 no fundo. */
-  --input: #687892;
-  --ring: #6062ef;
-  --chart-1: #6366f1;
-  --chart-2: #38bdf8;
-  --chart-3: #34d399;
-  --chart-4: #fbbf24;
-  --chart-5: #f472b6;
-  --sidebar: #1e293b;
-  --sidebar-foreground: #f8fafc;
-  /* Mesmo caso do --primary acima: o branco por cima reprovava por 0,03. */
-  --sidebar-primary: #6062ef;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #334155;
-  --sidebar-accent-foreground: #f8fafc;
-  --sidebar-border: #334155;
-  --sidebar-ring: #6062ef;
+  --background: #f3f2f2;
+  --foreground: #201e1d;
+  --card: #eae9e9;
+  --card-foreground: #201e1d;
+  --popover: #eae9e9;
+  --popover-foreground: #201e1d;
+  --primary: #c8280f;
+  --primary-foreground: #f3f2f2;
+  --secondary: #eae9e9;
+  --secondary-foreground: #201e1d;
+  --muted: #eae9e9;
+  --muted-foreground: #605d5d;
+  --accent: #fff2ef;
+  --accent-foreground: #7c1405;
+  --destructive: #ae1800;
+  --success: #2d6a4f;
+  --warning: #605d5d;
+  --border: color-mix(in srgb, #201e1d 40%, transparent);
+  --input: color-mix(in srgb, #201e1d 55%, transparent);
+  --ring: #ec3013;
+  --chart-1: #201e1d;
+  --chart-2: #ec3013;
+  --chart-3: #7d7979;
+  --chart-4: #bab6b6;
+  --chart-5: #d7d3d3;
+  --radius: 0rem;
+  --sidebar: #f3f2f2;
+  --sidebar-foreground: #201e1d;
+  --sidebar-primary: #c8280f;
+  --sidebar-primary-foreground: #f3f2f2;
+  --sidebar-accent: #eae9e9;
+  --sidebar-accent-foreground: #201e1d;
+  --sidebar-border: color-mix(in srgb, #201e1d 40%, transparent);
+  --sidebar-ring: #ec3013;
 }
 
 /* Largura de leitura confortável — 45 a 75 caracteres por linha.
@@ -195,13 +142,6 @@
   max-width: 34em;
 }
 
-/* O tema escuro está no bloco `.dark` lá em cima, junto do `:root`.
-
-   Aqui havia um aviso de que ele não existia — verdadeiro até a v1.57.x, e
-   falso desde a v1.58.0. O aviso descrevia a remoção de um `.dark` ANTIGO,
-   herdado de um visual neon (ciano #00d4ff, fundo #0a0e27) que o sistema
-   abandonou ao virar claro. Essa parte continua valendo como história: o
-   `.dark` de hoje nasceu dos tokens do `:root`, não daquela herança. */
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -266,14 +206,18 @@
      Nos títulos, hierarquia por peso e cor, não só por tamanho: escala curta
      evita a inflação que vinha acontecendo (text-2xl, text-xl e text-lg
      disputando o mesmo papel em telas diferentes). */
+  /* Modernist (v1.154.0): título de página 25px, seção 20px, bloco 16px —
+     sempre peso 800. Hierarquia por peso, não por tamanho: os três degraus
+     são próximos de propósito. Rótulo de 11px em caixa alta (tracking .08em)
+     é o quarto degrau e mora nos componentes de padrão, não aqui. */
   h1 {
-    @apply text-xl font-semibold tracking-tight;
+    @apply text-[25px] font-extrabold tracking-tight;
   }
   h2 {
-    @apply text-lg font-semibold tracking-tight;
+    @apply text-xl font-extrabold tracking-tight;
   }
   h3 {
-    @apply text-sm font-semibold;
+    @apply text-base font-extrabold;
   }
 
   /* Texto longo não deve atravessar a tela inteira. */
@@ -295,8 +239,8 @@
   }
 }
 
-/* Barra de rolagem discreta, no tom do tema claro. A anterior tinha trilho
-   escuro e polegar em gradiente ciano, herança do tema neon. */
+/* Barra de rolagem discreta, em neutral-400 do Modernist e sem raio. A
+   anterior era um polegar arredondado no tom do texto secundário. */
 @media (pointer: fine) {
   ::-webkit-scrollbar {
     width: 10px;
@@ -306,13 +250,12 @@
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: color-mix(in oklab, var(--muted-foreground) 30%, transparent);
-    border-radius: 999px;
+    background: #bab6b6;
     border: 2px solid transparent;
     background-clip: content-box;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: color-mix(in oklab, var(--muted-foreground) 50%, transparent);
+    background: #9b9797;
     background-clip: content-box;
   }
 }
