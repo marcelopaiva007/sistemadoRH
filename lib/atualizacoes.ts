@@ -26,6 +26,18 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.160.0",
+    data: "03/09/2026",
+    horario: "20:50",
+    titulo: "Portal do colaborador: barra de cinco botões embaixo, e a tela inicial com o que há para fazer",
+    itens: [
+      "As nove abas do topo viraram uma barra fixa embaixo da tela, com cinco destinos: Início · Ponto · Documentos · Fale com RH · Meus dados. Um pontinho vermelho avisa quando há documento em conferência ou campo faltando no cadastro.",
+      "Início mostra o ponto (bater e ver as marcações do dia), a lista \"Para você fazer\" (avaliação pendente, cadastro incompleto) e dois números: banco de horas e tempo de casa. Cada item da lista leva direto para a tela certa.",
+      "Documentos reúne o que já existe, o envio de novos e os atestados; Meus dados reúne atualizar e conferir o cadastro. Avaliação e equipe (para quem tem) abrem a partir do Início, com o caminho de volta no topo.",
+      "Tudo com toque de pelo menos 44px e texto de 14px ou mais.",
+    ],
+  },
+  {
     versao: "1.159.0",
     data: "03/09/2026",
     horario: "20:20",

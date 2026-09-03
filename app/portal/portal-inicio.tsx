@@ -1,6 +1,9 @@
 "use client";
 
-import { Clock, FileText, LogOut, MessageCircle, PencilLine, Star, Stethoscope, Upload, User, UsersRound } from "lucide-react";
+import { useState } from "react";
+import { Clock, FileText, Home, LogOut, MessageCircle, Stethoscope, User, UsersRound } from "lucide-react";
+import { FaixaDeIndicadores } from "@/components/padroes/faixa-de-indicadores";
+import { Indicador } from "@/components/indicador";
 import { BaterPontoCard } from "./bater-ponto-card";
 import { SolicitacoesPontoCard } from "./solicitacoes-ponto-card";
 import { ConfirmarEntregasCard, type EntregaAConfirmar } from "./confirmar-entregas-card";
@@ -123,117 +126,130 @@ export function PortalInicio({
     // formulário deixaria o convite "faltam 3 dados" impossível de zerar.
   ].filter((v) => !v).length;
 
+  // Uma aba só é a inicial: as tarefas com prazo (avaliação, entregas,
+  // cadastro) aparecem em "Para você fazer" logo abaixo do ponto, e cada
+  // uma leva para a tela certa — em vez de a aba inicial trocar sozinha
+  // conforme o que está pendente, o que desorientava.
+  const [aba, setAba] = useState("inicio");
+  const paraFazer: { chave: string; titulo: string; detalhe: string; contagem?: number; aba: string }[] = [];
+  if (avaliacoesPendentes > 0) {
+    paraFazer.push({
+      chave: "avaliacao",
+      titulo: avaliacoesPendentes === 1 ? "Responder a avaliação" : "Responder as avaliações",
+      detalhe: "Tem prazo — o RH acompanha quem já concluiu.",
+      contagem: avaliacoesPendentes,
+      aba: "avaliacao",
+    });
+  } else if (equipe !== null && avaliacoes.length === 0) {
+    paraFazer.push({ chave: "equipe", titulo: "Avaliar a sua equipe", detalhe: "O ciclo está aberto.", aba: "avaliacao" });
+  }
+  if (camposFaltando > 0) {
+    paraFazer.push({
+      chave: "cadastro",
+      titulo: "Completar o cadastro",
+      detalhe: `${camposFaltando} ${camposFaltando === 1 ? "campo falta" : "campos faltam"} — o RH cobra por Telegram.`,
+      contagem: camposFaltando,
+      aba: "dados",
+    });
+  }
+  const docsEmConferencia = documentos.filter((d) => d.origem === "COLABORADOR" && d.conferidoEm === null).length;
+  const saldoBanco = bancoHoras?.saldoAtual ?? null;
+  const horasBanco =
+    saldoBanco === null
+      ? "—"
+      : `${saldoBanco < 0 ? "−" : "+"}${Math.floor(Math.abs(saldoBanco) / 60)}h ${String(Math.abs(saldoBanco) % 60).padStart(2, "0")}`;
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">{colaborador.nome}</h1>
-        <p className="text-sm text-muted-foreground">
-          {colaborador.setor.nome} · {colaborador.posicao.nome}
-        </p>
-      </div>
+    // `pb-24`: o conteúdo termina antes da barra fixa de 64px lá embaixo.
+    <Tabs value={aba} onValueChange={(v) => setAba(String(v))} className="gap-0 pb-24">
+      {/* ---------------- Início ---------------- */}
+      <TabsContent value="inicio" className="space-y-6">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="truncate">{colaborador.nome}</h1>
+            <p className="text-sm text-muted-foreground">
+              {colaborador.setor.nome} · {colaborador.posicao.nome}
+            </p>
+          </div>
+          <form action={sairDoPortal}>
+            <Button type="submit" variant="ghost" size="sm">
+              <LogOut />
+              Sair
+            </Button>
+          </form>
+        </div>
 
-      {/* Vem ANTES do ponto: some assim que a pessoa confirma, então ocupar o
-          topo custa pouco e é o único jeito de a confirmação acontecer no dia
-          da entrega em vez de na semana seguinte. */}
-      <ConfirmarEntregasCard entregas={entregasAConfirmar} />
+        {/* Confirmar entrega é a tarefa que mais vale no dia em que acontece;
+            demandas com prazo aparecem só quando existem. */}
+        <ConfirmarEntregasCard entregas={entregasAConfirmar} />
+        <MinhasDemandasCard />
 
-      {/* O que pediram a esta pessoa (módulo Delegações). Fica no topo, junto
-          das outras coisas com PRAZO, e some sozinho quando não há nenhuma —
-          a maioria das pessoas nunca vai ver este card. */}
-      <MinhasDemandasCard />
-
-      {/* Card de Ponto Eletrônico PWA / Mobile — só para quem o RH já
-          liberou (Colaborador.pontoLiberado). Esconder aqui é conveniência de
-          tela; quem trava de verdade é registrarPontoPortal, porque a action
-          é endpoint público. */}
-      {colaborador.pontoLiberado ? (
-        <BaterPontoCard />
-      ) : (
-        <Card className="border-dashed">
-          <CardContent className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
+        {/* Marcar o ponto é a ação mais frequente do portal: fica na inicial,
+            sem aba no caminho. Esconder aqui é conveniência de tela; quem
+            trava de verdade é registrarPontoPortal (endpoint público). */}
+        {colaborador.pontoLiberado ? (
+          <BaterPontoCard />
+        ) : (
+          <div className="flex items-center gap-2 border-2 border-border p-4 text-sm text-muted-foreground">
             <Clock className="size-4 shrink-0" />
             Seu acesso ao ponto eletrônico ainda não foi liberado pelo RH.
-          </CardContent>
-        </Card>
-      )}
+          </div>
+        )}
 
-      <div className="grid grid-cols-1 gap-3">
-        <Destaque
-          rotulo="Tempo de casa"
-          valor={colaborador.dataAdmissao ? tempoDeCasa(colaborador.dataAdmissao) : "—"}
-          complemento={colaborador.dataAdmissao ? `desde ${formatarData(colaborador.dataAdmissao)}` : ""}
-        />
-      </div>
+        {paraFazer.length > 0 && (
+          <div>
+            <p className="border-b-2 border-border pb-1.5 text-[11px] font-semibold tracking-[.08em] text-muted-foreground uppercase">
+              Para você fazer
+            </p>
+            <ul>
+              {paraFazer.map((item) => (
+                <li key={item.chave} className="border-b border-border">
+                  <button
+                    type="button"
+                    onClick={() => setAba(item.aba)}
+                    className="flex min-h-14 w-full items-center gap-3 py-2.5 text-left transition-colors hover:bg-foreground/4"
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[15px] font-semibold">{item.titulo}</span>
+                      <span className="block text-[13px] text-muted-foreground">{item.detalhe}</span>
+                    </span>
+                    {item.contagem != null && (
+                      <span className="shrink-0 bg-accent px-2 py-0.5 text-[12px] font-semibold tabular-nums text-accent-foreground">
+                        {item.contagem}
+                      </span>
+                    )}
+                    <span aria-hidden className="text-muted-foreground">
+                      ›
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
-      {/* Avaliação em aberto manda na aba inicial: é tarefa com prazo, vinda de
-          um convite que a pessoa acabou de receber. Passado o ciclo, a tela
-          volta a abrir em "Atualizar". */}
-      <Tabs
-        defaultValue={
-          avaliacoesPendentes > 0 || (equipe !== null && avaliacoes.length === 0)
-            ? "avaliacao"
-            : "atualizar"
-        }
-      >
-        <TabsList variant="line" className="w-full">
-          {temAvaliacao && (
-            <TabsTrigger value="avaliacao">
-              <Star />
-              Avaliação
-              {avaliacoesPendentes > 0 && (
-                <Badge variant="destructive" className="ml-1 px-1.5 tabular-nums">
-                  {avaliacoesPendentes}
-                </Badge>
-              )}
-            </TabsTrigger>
-          )}
-          {/* A aba do gestor: quem tem equipe (supervisorId apontando para si)
-              vê o time — leitura, com a mesma conta da tela do RH. */}
-          {meuTime !== null && (
-            <TabsTrigger value="time">
-              <UsersRound />
-              Meu time
-            </TabsTrigger>
-          )}
-          {/* "Atualizar" primeiro e como padrão: hoje o que o RH precisa de
-              cada pessoa é a ficha completa, e a aba que abre é a que é usada.
-              Atestados fica por último — é consulta, não tarefa pendente. */}
-          <TabsTrigger value="ponto">
-            <Clock />
-            Ponto Eletrônico
-          </TabsTrigger>
-          <TabsTrigger value="atualizar">
-            <PencilLine />
-            Atualizar
-          </TabsTrigger>
-          <TabsTrigger value="enviar">
-            <Upload />
-            Enviar documentos
-          </TabsTrigger>
-          <TabsTrigger value="documentos">
-            <FileText />
-            Documentos
-          </TabsTrigger>
-          <TabsTrigger value="dados">
-            <User />
-            Meus dados
-          </TabsTrigger>
-          <TabsTrigger value="mensagens">
-            <MessageCircle />
-            Fale com o RH
-          </TabsTrigger>
-          <TabsTrigger value="atestados">
-            <Stethoscope />
-            Atestados
-          </TabsTrigger>
-        </TabsList>
+        <FaixaDeIndicadores colunas={2}>
+          <Indicador rotulo="Banco de horas" valor={horasBanco} complemento={bancoHoras?.competencia ? `competência ${bancoHoras.competencia}` : undefined} />
+          <Indicador
+            rotulo="Tempo de casa"
+            valor={colaborador.dataAdmissao ? tempoDeCasa(colaborador.dataAdmissao) : "—"}
+            complemento={colaborador.dataAdmissao ? `desde ${formatarData(colaborador.dataAdmissao)}` : undefined}
+          />
+        </FaixaDeIndicadores>
 
-        {/* Sem BaterPontoCard aqui: ele já fica no topo da tela, sempre
-            visível. Até 14/08/2026 aparecia nos dois lugares, e quem abria
-            esta aba via dois cartões de bater ponto na mesma tela. O de cima
-            é o que fica — marcar o ponto é a ação mais frequente do portal, e
-            exigir um clique em aba antes é atrito no celular. */}
-        <TabsContent value="ponto" className="space-y-4 pt-4">
+        {meuTime !== null && (
+          <Button variant="outline" size="lg" className="w-full" onClick={() => setAba("time")}>
+            <UsersRound />
+            Ver a minha equipe
+            <span data-icon="inline-end" aria-hidden>›</span>
+          </Button>
+        )}
+      </TabsContent>
+
+      {/* ---------------- Ponto ---------------- */}
+      <TabsContent value="ponto" className="space-y-4">
+        <h1>Ponto</h1>
+        {colaborador.pontoLiberado && <BaterPontoCard />}
           {/* Pedidos de ajuste de marcação e abono em dia de folga — nada
               muda sozinho: cai na fila do RH (aba Tratamento), que aprova ou
               recusa. Aparece mesmo sem pontoLiberado: quem ainda não bate
@@ -249,56 +265,29 @@ export function PortalInicio({
               historicoMensal: [],
             }}
           />
-        </TabsContent>
+        
+      </TabsContent>
 
-        {temAvaliacao && (
-          <TabsContent value="avaliacao" className="pt-4">
+      {/* Avaliação e equipe não têm lugar na barra de cinco: chegam pelo
+          "Para você fazer" da inicial, e têm o caminho de volta no topo. */}
+      {temAvaliacao && (
+        <TabsContent value="avaliacao" className="space-y-4">
+          <Voltar aoVoltar={() => setAba("inicio")} />
             <MinhasAvaliacoes avaliacoes={avaliacoes} equipe={equipe} />
-          </TabsContent>
-        )}
-
-        {meuTime !== null && (
-          <TabsContent value="time" className="pt-4">
+          
+        </TabsContent>
+      )}
+      {meuTime !== null && (
+        <TabsContent value="time" className="space-y-4">
+          <Voltar aoVoltar={() => setAba("inicio")} />
             <MeuTimeDoGestor time={meuTime} />
-          </TabsContent>
-        )}
-
-        <TabsContent value="mensagens" className="pt-4">
-          <FaleComRh mensagens={mensagens} />
+          
         </TabsContent>
+      )}
 
-        <TabsContent value="atestados" className="space-y-4 pt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Stethoscope className="size-4" />
-                Atestados e ausências
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {ausencias.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Nenhuma ausência registrada.</p>
-              ) : (
-                ausencias.map((a) => (
-                  <div
-                    key={a.id}
-                    className="flex flex-wrap items-center justify-between gap-2 border-b pb-2 last:border-0 last:pb-0"
-                  >
-                    <div className="text-sm">
-                      {tipoAusenciaLabel(a.tipo)}
-                      <span className="ml-2 text-xs text-muted-foreground tabular-nums">
-                        {formatarData(a.dataInicio)} — {formatarData(a.dataFim)} · {a.dias} dia(s)
-                      </span>
-                    </div>
-                    <StatusBadge status={a.status} map={STATUS_SOLICITACAO_BADGE} />
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="documentos" className="pt-4">
+      {/* ---------------- Documentos: o que existe, enviar, atestados ---------------- */}
+      <TabsContent value="documentos" className="space-y-6">
+        <h1>Documentos</h1>
           <Card>
             <CardHeader>
               <CardTitle>Seus documentos</CardTitle>
@@ -349,9 +338,57 @@ export function PortalInicio({
               )}
             </CardContent>
           </Card>
-        </TabsContent>
+        
+          <EnviarDocumento
+            enviados={documentos.map((d) => ({
+              tipo: tipoDocumentoLabel(d.tipo),
+              conferido: d.origem !== "COLABORADOR" || d.conferidoEm !== null,
+            }))}
+          />
+        
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Stethoscope className="size-4" />
+                Atestados e ausências
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {ausencias.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nenhuma ausência registrada.</p>
+              ) : (
+                ausencias.map((a) => (
+                  <div
+                    key={a.id}
+                    className="flex flex-wrap items-center justify-between gap-2 border-b pb-2 last:border-0 last:pb-0"
+                  >
+                    <div className="text-sm">
+                      {tipoAusenciaLabel(a.tipo)}
+                      <span className="ml-2 text-xs text-muted-foreground tabular-nums">
+                        {formatarData(a.dataInicio)} — {formatarData(a.dataFim)} · {a.dias} dia(s)
+                      </span>
+                    </div>
+                    <StatusBadge status={a.status} map={STATUS_SOLICITACAO_BADGE} />
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        
+      </TabsContent>
 
-        <TabsContent value="dados" className="pt-4">
+      {/* ---------------- Fale com o RH ---------------- */}
+      <TabsContent value="rh" className="space-y-4">
+        <h1>Fale com o RH</h1>
+          <FaleComRh mensagens={mensagens} />
+        
+      </TabsContent>
+
+      {/* ---------------- Meus dados: atualizar + conferir ---------------- */}
+      <TabsContent value="dados" className="space-y-6">
+        <h1>Meus dados</h1>
+          <MeuCadastro dados={colaborador} faltando={camposFaltando} />
+        
           <Card>
             <CardHeader>
               <CardTitle>Meus dados</CardTitle>
@@ -385,53 +422,53 @@ export function PortalInicio({
               />
             </CardContent>
           </Card>
-        </TabsContent>
+        
+      </TabsContent>
 
-        {/* Contato, endereço e emergência gravam direto — nada aqui espera
-            aval do RH. Anexar documento é outra tarefa, com outro tempo e outra
-            expectativa, então mora na aba ao lado. */}
-        <TabsContent value="atualizar" className="pt-4">
-          <MeuCadastro dados={colaborador} faltando={camposFaltando} />
-        </TabsContent>
-
-        {/* O que o colaborador anexa espera conferência do RH antes de valer. */}
-        <TabsContent value="enviar" className="pt-4">
-          <EnviarDocumento
-            enviados={documentos.map((d) => ({
-              tipo: tipoDocumentoLabel(d.tipo),
-              conferido: d.origem !== "COLABORADOR" || d.conferidoEm !== null,
-            }))}
-          />
-        </TabsContent>
-      </Tabs>
-
-      <form action={sairDoPortal}>
-        <Button type="submit" variant="outline" size="lg" className="w-full">
-          <LogOut className="size-4" />
-          Sair
-        </Button>
-      </form>
-    </div>
+      {/* A barra de baixo: cinco destinos, 64px, toque ≥ 44px. Ícone de 20px
+          com rótulo de 10,5px; o ativo em --primary. */}
+      <TabsList
+        aria-label="Seções do portal"
+        className="fixed inset-x-0 bottom-0 z-40 grid h-16 w-full grid-cols-5 border-t-2 border-border bg-background pb-[env(safe-area-inset-bottom)]"
+      >
+        {(
+          [
+            { valor: "inicio", label: "Início", Icone: Home },
+            { valor: "ponto", label: "Ponto", Icone: Clock },
+            { valor: "documentos", label: "Documentos", Icone: FileText, marca: docsEmConferencia },
+            { valor: "rh", label: "Fale com RH", Icone: MessageCircle },
+            { valor: "dados", label: "Meus dados", Icone: User, marca: camposFaltando },
+          ] as const
+        ).map(({ valor, label, Icone, ...resto }) => (
+          <TabsTrigger
+            key={valor}
+            value={valor}
+            className="relative mb-0 h-full flex-col gap-1 border-b-0 px-1 text-[10.5px] font-semibold text-muted-foreground data-active:border-transparent data-active:text-primary"
+          >
+            <Icone className="size-5" />
+            {label}
+            {"marca" in resto && resto.marca > 0 && (
+              <span aria-hidden className="absolute top-2 right-[calc(50%-18px)] size-2 bg-primary" />
+            )}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+    </Tabs>
   );
 }
 
-function Destaque({
-  rotulo,
-  valor,
-  complemento,
-}: {
-  rotulo: string;
-  valor: string;
-  complemento?: string;
-}) {
+function Voltar({ aoVoltar }: { aoVoltar: () => void }) {
   return (
-    <div className="rounded-lg bg-card px-4 py-3 ring-1 ring-foreground/10">
-      <div className="text-xs text-muted-foreground">{rotulo}</div>
-      <div className="text-xl font-semibold tabular-nums">{valor}</div>
-      {complemento && <div className="text-xs text-muted-foreground">{complemento}</div>}
-    </div>
+    <button
+      type="button"
+      onClick={aoVoltar}
+      className="flex min-h-11 items-center gap-1 text-sm text-primary hover:underline"
+    >
+      ‹ Início
+    </button>
   );
 }
+
 
 function Dado({ rotulo, valor }: { rotulo: string; valor: string | null }) {
   return (
