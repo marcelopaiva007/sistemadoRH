@@ -11,6 +11,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { empresasVisiveis } from "@/lib/rh-auth-guard";
+import { sistemasPermitidos } from "@/lib/permissoes/efetivas";
 import { prisma } from "@/lib/prisma";
 import { mascararCpf } from "@/lib/cpf";
 
@@ -22,6 +23,12 @@ export async function GET(req: Request) {
   const user = session?.user;
   if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
   if (user.role === "GESTOR_SETOR") return NextResponse.json({ pessoas: [] });
+  // Enforcement de MÓDULO, não só de CNPJ: um perfil que só alcança Processos
+  // & Ativos não abre /rh/<empresa>/colaboradores — e por isso também não
+  // pode receber a lista de pessoas por aqui. Achado da revisão adversarial
+  // do PR (03/09/2026): a rota checava empresasVisiveis e esquecia o sistema.
+  const sistemas = await sistemasPermitidos(user);
+  if (!sistemas.includes("rh")) return NextResponse.json({ pessoas: [] });
 
   const q = (new URL(req.url).searchParams.get("q") ?? "").trim().slice(0, 80);
   if (q.length < 2) return NextResponse.json({ pessoas: [] });

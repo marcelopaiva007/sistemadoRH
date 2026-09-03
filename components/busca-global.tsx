@@ -63,7 +63,8 @@ export function BuscaGlobal({
   // estado não é zerado aqui (setState síncrono em efeito é o que o eslint
   // barra): quem decide se a lista aparece é `pessoasMostradas`, abaixo.
   useEffect(() => {
-    if (!aberta || role === "GESTOR_SETOR" || q.trim().length < 2) return;
+    // Pessoas só para quem alcança o RH: a rota barra do lado de lá também.
+    if (!aberta || role === "GESTOR_SETOR" || !sistemasPermitidos.includes("rh") || q.trim().length < 2) return;
     let ativo = true;
     const t = setTimeout(() => {
       fetch(`/api/busca?q=${encodeURIComponent(q.trim())}`)
@@ -77,7 +78,7 @@ export function BuscaGlobal({
       ativo = false;
       clearTimeout(t);
     };
-  }, [q, aberta, role]);
+  }, [q, aberta, role, sistemasPermitidos]);
 
   // O CNPJ das telas: o do caminho quando há um, senão o primeiro visível.
   const partes = pathname.split("/");
@@ -108,7 +109,8 @@ export function BuscaGlobal({
 
   const termo = normalizar(q.trim());
   const telasVisiveis = termo ? telas.filter((t) => normalizar(t.titulo).includes(termo)) : telas.slice(0, 8);
-  const pessoasMostradas = termo.length >= 2 && role !== "GESTOR_SETOR" ? pessoas : [];
+  const pessoasMostradas =
+    termo.length >= 2 && role !== "GESTOR_SETOR" && sistemasPermitidos.includes("rh") ? pessoas : [];
   const itens: Item[] = [
     ...telasVisiveis,
     ...pessoasMostradas.map((p) => ({
