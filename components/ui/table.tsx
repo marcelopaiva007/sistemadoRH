@@ -5,6 +5,11 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 
 /**
+ * Modernist (v1.156.0): a tabela senta DIRETO no fundo da página — o wrapper
+ * `rounded-xl border bg-card shadow-xs` que a envolvia em cada tela some.
+ * Cabeçalho em caixa alta de 11px sobre régua de 2px, linha de 40px separada
+ * por 1px, hover em tinta a 4%.
+ *
  * Dica visual de que a tabela rola na horizontal.
  *
  * O contêiner já rolava — mas sem sinal nenhum, uma coluna cortada na borda
@@ -22,7 +27,7 @@ import { cn } from "@/lib/utils"
 // `background-image: none` silenciosamente (foi o que aconteceu na primeira
 // tentativa, pego conferindo o CSS do build).
 const SOMBRA_DE_ROLAGEM = cn(
-  "[background-image:linear-gradient(to_right,var(--card),transparent),linear-gradient(to_left,var(--card),transparent),linear-gradient(to_right,rgba(15,23,42,0.13),transparent),linear-gradient(to_left,rgba(15,23,42,0.13),transparent)]",
+  "[background-image:linear-gradient(to_right,var(--background),transparent),linear-gradient(to_left,var(--background),transparent),linear-gradient(to_right,rgba(32,30,29,0.13),transparent),linear-gradient(to_left,rgba(32,30,29,0.13),transparent)]",
   "[background-size:28px_100%,28px_100%,12px_100%,12px_100%]",
   "[background-position:left_center,right_center,left_center,right_center]",
   "[background-repeat:no-repeat]",
@@ -65,7 +70,7 @@ function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
   return (
     <thead
       data-slot="table-header"
-      className={cn("[&_tr]:border-b", className)}
+      className={cn("[&_tr]:border-b-2 [&_tr]:border-border", className)}
       {...props}
     />
   )
@@ -86,7 +91,7 @@ function TableFooter({ className, ...props }: React.ComponentProps<"tfoot">) {
     <tfoot
       data-slot="table-footer"
       className={cn(
-        "border-t bg-muted/50 font-medium [&>tr]:last:border-b-0",
+        "border-t-2 border-border font-semibold [&>tr]:last:border-b-0",
         className
       )}
       {...props}
@@ -99,7 +104,7 @@ function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
     <tr
       data-slot="table-row"
       className={cn(
-        "border-b transition-colors hover:bg-muted/50 has-aria-expanded:bg-muted/50 data-[state=selected]:bg-muted",
+        "border-b border-border transition-colors hover:bg-foreground/4 has-aria-expanded:bg-foreground/4 data-[state=selected]:bg-foreground/6",
         className
       )}
       {...props}
@@ -112,7 +117,7 @@ function TableHead({ className, ...props }: React.ComponentProps<"th">) {
     <th
       data-slot="table-head"
       className={cn(
-        "h-10 px-2 text-left align-middle font-medium whitespace-nowrap text-foreground [&:has([role=checkbox])]:pr-0",
+        "h-9 px-2 text-left align-middle text-[11px] font-semibold tracking-[.08em] whitespace-nowrap text-muted-foreground uppercase [&:has([role=checkbox])]:pr-0",
         className
       )}
       {...props}
@@ -125,7 +130,7 @@ function TableCell({ className, ...props }: React.ComponentProps<"td">) {
     <td
       data-slot="table-cell"
       className={cn(
-        "p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0",
+        "h-10 px-2 py-1.5 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0",
         className
       )}
       {...props}

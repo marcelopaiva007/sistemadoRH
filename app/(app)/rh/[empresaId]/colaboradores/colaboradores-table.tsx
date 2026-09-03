@@ -28,6 +28,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { BarraDeFiltros, CLASSE_RECORTE, Segmentado } from "@/components/padroes/barra-de-filtros";
+import { BarraDeSelecao } from "@/components/padroes/barra-de-selecao";
 import {
   Select,
   SelectContent,
@@ -170,8 +172,6 @@ const initialState: ActionResult = { ok: true };
 // 20 linhas por página — melhor navegabilidade sem muito scroll.
 const POR_PAGINA = 20;
 
-const classeFiltro =
-  "h-9 rounded-md border border-input bg-transparent px-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
 
 type CampoOrdenavel = "nome" | "setor" | "posicao";
 
@@ -630,7 +630,7 @@ export function ColaboradoresTable({
           caiu e como sair dela — sem isso o filtro fica invisível e a lista
           parece só estar faltando gente. */}
       {lacuna && (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2 bg-accent px-3 py-2 text-sm text-accent-foreground">
           <span>
             Mostrando apenas quem está{" "}
             <strong>{ROTULO_LACUNA[lacuna] ?? lacuna}</strong> —{" "}
@@ -653,117 +653,110 @@ export function ColaboradoresTable({
         </div>
       )}
 
-      <div className="rounded-xl border bg-card p-3 shadow-xs">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative min-w-0 flex-1 sm:max-w-xs">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por nome, CPF, telefone, e-mail, setor ou cargo..."
-              value={busca}
-              onChange={(e) => {
-                setBusca(e.target.value);
-                setPagina(1);
-              }}
-              className="h-9 w-full pl-8"
-            />
-          </div>
-          <select
-            value={filtroSetor}
-            onChange={(e) => aoFiltrar(setFiltroSetor)(e.target.value)}
-            className={classeFiltro}
-            aria-label="Filtrar por setor"
-          >
-            <option value="todos">Todos os setores</option>
-            {setoresFiltrados.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.nome}
-              </option>
-            ))}
-          </select>
-          <select
-            value={filtroPosicao}
-            onChange={(e) => aoFiltrar(setFiltroPosicao)(e.target.value)}
-            className={classeFiltro}
-            aria-label="Filtrar por cargo"
-          >
-            <option value="todos">Todos os cargos</option>
-            {posicoesFiltradas.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.nome}
-              </option>
-            ))}
-          </select>
-          <select
-            value={filtroStatus}
-            onChange={(e) => aoFiltrar(setFiltroStatus)(e.target.value)}
-            className={classeFiltro}
-            aria-label="Filtrar por situação"
-          >
-            {/* "Ativos" é o padrão porque quem abre a tela quer o time de
-                hoje; desligado só interessa quando se procura por ele. */}
-            <option value="ativos">Somente ativos</option>
-            <option value="inativos">Somente inativos</option>
-            <option value="todos">Ativos e inativos</option>
-          </select>
-          {temFiltro && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={limparFiltros}
-              className="text-muted-foreground"
+      <BarraDeFiltros
+        busca={{
+          valor: busca,
+          aoMudar: (v) => {
+            setBusca(v);
+            setPagina(1);
+          },
+          placeholder: "Buscar por nome, CPF, telefone, e-mail, setor ou cargo",
+        }}
+        recortes={
+          <>
+            <select
+              value={filtroSetor}
+              onChange={(e) => aoFiltrar(setFiltroSetor)(e.target.value)}
+              className={CLASSE_RECORTE}
+              aria-label="Filtrar por setor"
             >
+              <option value="todos">Setor: todos</option>
+              {setoresFiltrados.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.nome}
+                </option>
+              ))}
+            </select>
+            <select
+              value={filtroPosicao}
+              onChange={(e) => aoFiltrar(setFiltroPosicao)(e.target.value)}
+              className={CLASSE_RECORTE}
+              aria-label="Filtrar por cargo"
+            >
+              <option value="todos">Cargo: todos</option>
+              {posicoesFiltradas.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.nome}
+                </option>
+              ))}
+            </select>
+          </>
+        }
+        estado={
+          <Segmentado
+            rotulo="Filtrar por situação"
+            valor={filtroStatus}
+            aoMudar={aoFiltrar(setFiltroStatus)}
+            opcoes={[
+              // "Ativos" é o padrão porque quem abre a tela quer o time de
+              // hoje; desligado só interessa quando se procura por ele.
+              { valor: "ativos", label: "Ativos" },
+              { valor: "inativos", label: "Inativos" },
+              { valor: "todos", label: "Todos" },
+            ]}
+          />
+        }
+        limpar={
+          temFiltro && (
+            <Button type="button" variant="ghost" onClick={limparFiltros}>
               <XCircle className="size-3.5" />
               Limpar
             </Button>
-          )}
-        </div>
-        {escondidosPeloStatus > 0 && (
-          <p className="mt-2 text-xs text-muted-foreground">
-            Mais {escondidosPeloStatus} ficha{escondidosPeloStatus > 1 ? "s" : ""} casa
-            {escondidosPeloStatus > 1 ? "m" : ""} com essa busca em{" "}
-            {filtroStatus === "ativos" ? "desligados" : "ativos"}.{" "}
-            <button
-              type="button"
-              onClick={() => aoFiltrar(setFiltroStatus)("todos")}
-              className="underline underline-offset-2 hover:text-foreground"
-            >
-              Mostrar ativos e inativos
-            </button>
-          </p>
-        )}
-      </div>
+          )
+        }
+        contagem={`${filtrados.length} ${filtrados.length === 1 ? "resultado" : "resultados"}`}
+        abaixo={
+          escondidosPeloStatus > 0 && (
+            <p className="text-xs text-muted-foreground">
+              Mais {escondidosPeloStatus} ficha{escondidosPeloStatus > 1 ? "s" : ""} casa
+              {escondidosPeloStatus > 1 ? "m" : ""} com essa busca em{" "}
+              {filtroStatus === "ativos" ? "desligados" : "ativos"}.{" "}
+              <button
+                type="button"
+                onClick={() => aoFiltrar(setFiltroStatus)("todos")}
+                className="underline underline-offset-2 hover:text-foreground"
+              >
+                Mostrar ativos e inativos
+              </button>
+            </p>
+          )
+        }
+      />
 
-      {/* Barra de ação da seleção. Só aparece com alguém marcado — uma barra
-          permanente vazia vira ruído em cima da tabela. */}
-      {selecionados.size > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-muted/40 px-4 py-2.5">
-          <span className="text-sm">
-            <b>{selecionados.size}</b> selecionado(s)
-            {selecionadosSemCanal > 0 && (
-              <span className="text-muted-foreground">
-                {" "}· {selecionadosSemCanal} sem Telegram nem e-mail, que não recebem
-              </span>
-            )}
-          </span>
-          <div className="flex items-center gap-2">
-            <CobrarCadastroButton
-              empresaId={empresaId}
-              colaboradorIds={[...selecionados]}
-              rotulo={`Cobrar cadastro (${selecionados.size})`}
-              onEnviado={() => setSelecionados(new Set())}
-            />
-            <Button type="button" variant="ghost" size="sm" onClick={() => setSelecionados(new Set())}>
-              Limpar seleção
-            </Button>
-          </div>
-        </div>
-      )}
+      {/* Só aparece com alguém marcado — uma barra permanente vazia vira
+          ruído em cima da tabela. */}
+      <BarraDeSelecao
+        quantidade={selecionados.size}
+        ressalva={
+          selecionadosSemCanal > 0
+            ? `${selecionadosSemCanal} sem Telegram nem e-mail, que não recebem`
+            : undefined
+        }
+        aoLimpar={() => setSelecionados(new Set())}
+        acoes={
+          <CobrarCadastroButton
+            empresaId={empresaId}
+            colaboradorIds={[...selecionados]}
+            rotulo={`Cobrar cadastro (${selecionados.size})`}
+            onEnviado={() => setSelecionados(new Set())}
+          />
+        }
+      />
 
-      <div className="rounded-xl border bg-card shadow-xs">
+      <div>
         <Table compacta>
           <TableHeader>
-            <TableRow className="bg-muted/40 hover:bg-muted/40">
+            <TableRow className="hover:bg-transparent">
               <TableHead className="w-10">
                 <Checkbox
                   aria-label="Selecionar todos os visíveis"
@@ -786,10 +779,8 @@ export function ColaboradoresTable({
               <TableRow>
                 <TableCell colSpan={9} className="py-12 text-center">
                   <div className="mx-auto flex max-w-sm flex-col items-center gap-2">
-                    <span className="flex size-12 items-center justify-center rounded-full bg-muted">
-                      <Users className="size-6 text-muted-foreground" />
-                    </span>
-                    <p className="font-medium">Nenhum colaborador encontrado</p>
+                    <Users className="size-6 text-muted-foreground" />
+                    <p className="font-extrabold">Nenhum colaborador encontrado</p>
                     <p className="text-sm text-muted-foreground">
                       {colaboradores.length === 0
                         ? "Cadastre o primeiro, ou suba a planilha em Configuração → Importações."
