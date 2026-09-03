@@ -1,6 +1,24 @@
 import { NextResponse } from "next/server";
 
 /**
+ * Escapa texto para interpolação segura em HTML. O `titulo` que entra na barra
+ * abaixo vem de dado do banco controlável por usuário de baixo privilégio
+ * (ex.: nome de colaborador no documento disciplinar, nome de campanha/ciclo),
+ * e a barra é servida como text/html. Sem escapar, um nome como
+ * `<img src=x onerror=...>` executa JavaScript na origem da aplicação quando
+ * ADMIN/DIRETORIA abre o relatório (XSS armazenado). O corpo do relatório já
+ * escapa os seus dados; esta função fecha a barra de ferramentas.
+ */
+function escaparHtml(texto: string): string {
+  return texto
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/**
  * Envia o HTML do relatório diretamente para o navegador com estilos de impressão A4
  * e acionamento automático da janela de salvar como PDF / impressão.
  *
@@ -14,7 +32,7 @@ export function responderComHtmlRelatorio(html: string, titulo: string): NextRes
   <div style="display:flex;align-items:center;gap:12px;">
     <span style="font-size:18px;">📄</span>
     <div>
-      <div style="font-weight:600;font-size:14px;color:#ffffff;">${titulo}</div>
+      <div style="font-weight:600;font-size:14px;color:#ffffff;">${escaparHtml(titulo)}</div>
       <div style="font-size:12px;color:#94a3b8;">Use o botão ao lado ou Ctrl+P / Cmd+P para Salvar como PDF</div>
     </div>
   </div>

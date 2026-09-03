@@ -17,6 +17,7 @@
 // Sempre respondemos 200 para updates entendidos ou não — o Telegram reenvia
 // updates com resposta != 2xx e isso viraria fila infinita de retries.
 import { NextRequest, NextResponse } from "next/server";
+import { segredoConfere } from "@/lib/cron-horario";
 import { prisma } from "@/lib/prisma";
 import { conferirNascimento, extrairCpfEData } from "@/lib/telegram-identidade";
 import { sendTelegramMessage, telegramWebhookSecret } from "@/lib/telegram";
@@ -294,7 +295,8 @@ async function enviarLinkDoPortal(chatId: string): Promise<void> {
 
 export async function POST(req: NextRequest) {
   const secret = await telegramWebhookSecret();
-  if (!secret || req.headers.get("x-telegram-bot-api-secret-token") !== secret) {
+  // Comparação em tempo constante — mesma régua dos segredos de cron.
+  if (!secret || !segredoConfere(req.headers.get("x-telegram-bot-api-secret-token"), secret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

@@ -14,6 +14,7 @@
 //   - B2_BUCKET: nome do bucket (ex: sistema-lm-rh)
 import { NextRequest, NextResponse } from "next/server";
 import { spawn } from "node:child_process";
+import { timingSafeEqual } from "node:crypto";
 import { promises as fs } from "node:fs";
 import { createGzip } from "node:zlib";
 import { pipeline } from "node:stream/promises";
@@ -28,16 +29,38 @@ function autorizado(req: NextRequest): boolean {
   if (!secret) return false;
   // Só o header. O disparo por `?secret=` na URL foi removido (pentest
   // 27/08/2026): o segredo vazava em log/Referer/histórico, e esta rota faz
-  // pg_dump do banco inteiro.
-  return req.headers.get("authorization") === `Bearer ${secret}`;
+  // pg_dump do banco inteiro. Comparação em tempo constante.
+  const recebido = req.headers.get("authorization");
+  if (!recebido) return false;
+  const a = Buffer.from(recebido);
+  const b = Buffer.from(`Bearer ${secret}`);
+  return a.length === b.length && timingSafeEqual(a, b);
 }
 
 function extractPassword(url: string): string {
   try {
     const u = new URL(url);
-    return u.password;
+    // `u.password` vem percent-encoded; PGPASSWORD precisa da senha crua.
+    // Antes a URL inteira (com a senha codificada) era o argv do pg_dump e o
+    // libpq a decodificava; agora a senha vai só por PGPASSWORD, então tem de
+    // ser decodificada aqui — senão uma senha com caractere especial quebraria
+    // a autenticação do backup em silêncio.
+    return decodeURIComponent(u.password);
   } catch {
     return "";
+  }
+}
+
+// Remove a senha da connection string. A senha vai só pelo env PGPASSWORD; a
+// URL passada como argumento do pg_dump fica sem ela, senão a senha do banco
+// apareceria na lista de processos do host (`ps aux` / /proc/<pid>/cmdline).
+function urlSemSenha(url: string): string {
+  try {
+    const u = new URL(url);
+    u.password = "";
+    return u.toString();
+  } catch {
+    return url;
   }
 }
 
@@ -48,7 +71,7 @@ async function gerarDump(): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const proc = spawn(
       "pg_dump",
-      ["--no-owner", "--no-acl", "--clean", "--if-exists", url],
+      ["--no-owner", "--no-acl", "--clean", "--if-exists", urlSemSenha(url)],
       { env: { ...process.env, PGPASSWORD: extractPassword(url) } },
     );
 
@@ -152,7 +175,11 @@ export async function GET(req: NextRequest) {
       retencao: "Backblaze B2 - sistema-lm-rh/db/",
     });
   } catch (err) {
+    // O detalhe do erro (mensagens do pg_dump/B2/driver, que podem revelar
+    // caminhos do host ou dados de conexão) fica só no log do servidor; ao
+    // chamador vai uma mensagem genérica.
     const mensagem = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: "Backup falhou", detalhe: mensagem }, { status: 500 });
+    console.error("cron/backup-db:", mensagem);
+    return NextResponse.json({ error: "Backup falhou" }, { status: 500 });
   }
 }

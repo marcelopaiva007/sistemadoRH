@@ -1,5 +1,17 @@
 import type { NextRequest } from "next/server";
+import { timingSafeEqual } from "node:crypto";
 import { prisma } from "@/lib/prisma";
+
+// Compara em tempo constante — não vaza, pelo tempo de resposta, quantos
+// caracteres do segredo bateram. Buffers de tamanhos diferentes nunca são
+// iguais (e a checagem de tamanho não revela o segredo: o esperado tem tamanho
+// fixo).
+export function segredoConfere(recebido: string | null, esperado: string): boolean {
+  if (!recebido) return false;
+  const a = Buffer.from(recebido);
+  const b = Buffer.from(esperado);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
 
 /**
  * Crons "de comunicação" com horário configurável pela tela (Configuração →
@@ -89,7 +101,7 @@ export function envioAutomaticoLigado(
 export function origemAutorizacao(req: NextRequest): "cron" | "manual" | null {
   const secret = process.env.CRON_SECRET;
   if (!secret) return null;
-  if (req.headers.get("authorization") === `Bearer ${secret}`) return "cron";
+  if (segredoConfere(req.headers.get("authorization"), `Bearer ${secret}`)) return "cron";
   return null;
 }
 

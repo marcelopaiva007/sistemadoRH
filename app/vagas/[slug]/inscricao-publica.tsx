@@ -43,8 +43,9 @@ export function InscricaoPublica({ slug, empresaNome }: { slug: string; empresaN
         <CheckCircle2 className="mx-auto mb-3 size-8 text-success" />
         <h2 className="text-lg font-semibold">Inscrição enviada</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Recebemos seus dados. Se o perfil for compatível, o RH entrará em contato pelo telefone ou
-          e-mail que você informou.
+          Recebemos sua inscrição. Se o perfil for compatível, o RH entrará em contato. Se você já
+          tinha cadastro conosco, valem os dados e o currículo que já constam — para atualizá-los,
+          fale com o RH.
         </p>
       </div>
     );

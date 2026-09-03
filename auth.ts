@@ -11,6 +11,13 @@ import {
   registrarFalha,
 } from "@/lib/login-tentativas";
 
+// Hash descartável, calculado uma vez no cold start. Serve só para gastar o
+// mesmo tempo de bcrypt no ramo de "usuário inexistente/inativo" que se gasta
+// no ramo de usuário real — sem isso, a diferença de tempo (consulta indexada
+// barata vs. um bcrypt.compare de propósito lento) revela quais usernames
+// existem (enumeração por timing). O custo 10 acompanha o dos hashes reais.
+const HASH_DESCARTAVEL = bcrypt.hashSync("::timing-guard::", 10);
+
 type EmpresaNaSessao = {
   empresaId: string;
   papel: "RH_MANAGER" | "GESTOR_SETOR";
@@ -31,8 +38,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         password: { label: "Senha", type: "password" },
       },
       async authorize(credentials, request) {
-        const username = credentials?.username as string | undefined;
-        const password = credentials?.password as string | undefined;
+        const username = credentials?.username;
+        const password = credentials?.password;
+        // `typeof`, e não cast: o callback de credentials aceita corpo JSON, e
+        // um `password` que não seja string (array, número) faz o bcrypt
+        // LANÇAR em vez de devolver false. Lançar aqui muda o erro que volta
+        // ao navegador (`Configuration` em vez de `CredentialsSignin`) e pula
+        // o `registrarFalha` — um oráculo de "este usuário existe" em uma
+        // requisição, sem medir tempo e sem gastar o balde.
+        if (typeof username !== "string" || typeof password !== "string") return null;
         if (!username || !password) return null;
 
         const ip = ipDaRequisicao(request.headers);
@@ -53,11 +67,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         // usuário, e é o que não teria onde ser contado se o contador
         // morasse numa coluna de `User`.
         if (!user || !user.ativo) {
+          // Gasta o mesmo tempo de bcrypt do caminho de usuário real, para que
+          // "usuário não existe" e "senha errada" respondam em tempo
+          // indistinguível (fecha a enumeração por timing).
+          await bcrypt.compare(password, HASH_DESCARTAVEL).catch(() => false);
           await registrarFalha(username, ip).catch(() => {});
           return null;
         }
 
-        const valid = await bcrypt.compare(password, user.passwordHash);
+        // Mesmo `.catch` do ramo de usuário inexistente: um hash malformado
+        // no banco vira "senha errada" (contada), não erro de configuração.
+        const valid = await bcrypt.compare(password, user.passwordHash).catch(() => false);
         if (!valid) {
           await registrarFalha(username, ip).catch(() => {});
           return null;
