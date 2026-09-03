@@ -26,6 +26,18 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.156.0",
+    data: "03/09/2026",
+    horario: "18:20",
+    titulo: "Botões, cartões e tabelas no visual novo — e a tela de Pendências redesenhada",
+    itens: [
+      "Botões, etiquetas, cartões, campos, abas, tabelas e caixas de diálogo passaram todos para o visual novo de uma vez: sem cantos arredondados, sem sombras, tabela com cabeçalho em caixa alta e linhas separadas por régua.",
+      "Pendências agora abre com quatro números (prazo legal ou vencido · esperando decisão · cadastro e dados · em dia) e três colunas pela natureza da ação — cada item mostra o número, o que é e o porquê em uma linha.",
+      "Colaboradores: a barra de filtros ficou na ordem fixa (busca · setor · cargo · situação · limpar) com a contagem de resultados à direita, e os botões de ação em massa só aparecem quando há alguém marcado, numa barra escura no topo da lista.",
+      "Os números de destaque (o \"148 ativos\" do topo das telas) perderam a moldura e ganharam tamanho: agora são uma faixa separada por réguas.",
+    ],
+  },
+  {
     versao: "1.155.0",
     data: "03/09/2026",
     horario: "17:40",

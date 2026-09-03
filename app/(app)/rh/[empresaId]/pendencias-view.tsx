@@ -37,11 +37,15 @@ import {
   Radar,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { CabecalhoDePagina } from "@/components/padroes/cabecalho-de-pagina";
+import { FaixaDeIndicadores } from "@/components/padroes/faixa-de-indicadores";
+import { Indicador } from "@/components/indicador";
+import { PENDENCIAS_CADASTRO, PENDENCIAS_DECIDIR, PENDENCIAS_PRAZO } from "@/lib/pendencias";
 // O tipo vem da lib, não de uma cópia local: a cópia divergiu quando as seis
 // situações novas entraram e o build caiu por isso.
 import type { CicloAEncerrar, Pendencias, PesquisaAberta } from "@/lib/pendencias";
+import { cn } from "@/lib/utils";
 
 export function PendenciasView({
   empresaId,
@@ -392,116 +396,181 @@ export function PendenciasView({
   const emDia = cartoes.filter((c) => pendencias[c.chave] === 0 && !vazio.has(c.chave));
   const total = Object.values(pendencias).reduce((s, n) => s + n, 0);
 
+  // As três colunas são a NATUREZA DA AÇÃO, e a classificação vem de
+  // lib/pendencias.ts (PENDENCIAS_DECIDIR / PRAZO / CADASTRO) — a mesma que
+  // alimenta a saudação da home e o e-mail diário, com prova de cobertura no
+  // tipo e teste no CI. Não é uma segunda lista mantida aqui: duas
+  // classificações da mesma coisa divergem no primeiro cartão novo.
+  const COLUNAS = [
+    {
+      chave: "prazo" as const,
+      titulo: "Prazo legal ou vencido",
+      vazia: "Nenhuma data correndo contra.",
+      chaves: PENDENCIAS_PRAZO as readonly (keyof Pendencias)[],
+    },
+    {
+      chave: "decisao" as const,
+      titulo: "Esperando decisão",
+      vazia: "Ninguém esperando resposta do RH.",
+      chaves: PENDENCIAS_DECIDIR as readonly (keyof Pendencias)[],
+    },
+    {
+      chave: "cadastro" as const,
+      titulo: "Cadastro e dados",
+      vazia: "Base completa.",
+      chaves: PENDENCIAS_CADASTRO as readonly (keyof Pendencias)[],
+    },
+  ];
+  const somar = (chaves: readonly (keyof Pendencias)[]) =>
+    chaves.reduce((soma, chave) => soma + pendencias[chave], 0);
+  const itensDa = (chaves: readonly (keyof Pendencias)[]) =>
+    comPendencia.filter((c) => chaves.includes(c.chave));
+
   return (
     // id-alvo do link "Pendências" na tela do grupo e dos cards de marca — sem
     // ele, o clique leva para o topo da página e a pessoa ainda precisa rolar
     // até achar a seção.
-    <div id="pendencias" className="space-y-6 scroll-mt-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-semibold tracking-tight">Pendências</h2>
-          <p className="text-sm text-muted-foreground">
-            {total === 0
-              ? `Nenhum item aberto — ${emDia.length} de ${cartoes.length} situações puderam ser avaliadas.`
-              : `${total} ${total === 1 ? "item precisa" : "itens precisam"} de atenção.`}
-          </p>
-        </div>
-        {comPendencia.length > 0 && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={exportarPDF}
-            disabled={exportando}
-            className="gap-2"
-          >
-            <Download className="size-4" />
-            {exportando ? "Exportando..." : "PDF"}
-          </Button>
-        )}
-      </div>
+    <div id="pendencias" className="scroll-mt-4 space-y-6">
+      <CabecalhoDePagina
+        titulo="Pendências"
+        resumo={
+          total === 0
+            ? `Nenhum item aberto — ${emDia.length} de ${cartoes.length} situações puderam ser avaliadas.`
+            : `${total} ${total === 1 ? "item precisa" : "itens precisam"} de atenção.`
+        }
+        acoes={
+          comPendencia.length > 0 && (
+            <Button variant="outline" onClick={exportarPDF} disabled={exportando}>
+              <Download />
+              {exportando ? "Exportando..." : "Exportar PDF"}
+            </Button>
+          )
+        }
+      />
 
-      <div id="pendencias-content" className="space-y-4">
+      <div id="pendencias-content" className="space-y-6">
+        {/* Os quatro números que resumem a fila. "Em dia" é o único verde do
+            sistema (--success); "prazo" é o único vermelho — o resto é tinta,
+            porque destacar tudo é não destacar nada. */}
+        <FaixaDeIndicadores>
+          <Indicador
+            rotulo="Prazo legal ou vencido"
+            valor={somar(PENDENCIAS_PRAZO as readonly (keyof Pendencias)[])}
+            estado={somar(PENDENCIAS_PRAZO as readonly (keyof Pendencias)[]) > 0 ? "alerta" : "padrao"}
+            complemento="Data correndo contra"
+          />
+          <Indicador
+            rotulo="Esperando decisão"
+            valor={somar(PENDENCIAS_DECIDIR as readonly (keyof Pendencias)[])}
+            complemento="Alguém aguarda o RH"
+          />
+          <Indicador
+            rotulo="Cadastro e dados"
+            valor={somar(PENDENCIAS_CADASTRO as readonly (keyof Pendencias)[])}
+            complemento="Não trava nada hoje"
+          />
+          <Indicador
+            rotulo="Em dia"
+            valor={emDia.length}
+            complemento={`de ${cartoes.length} situações`}
+          />
+        </FaixaDeIndicadores>
+
         {comPendencia.length === 0 ? (
-          <Card>
-            <CardContent className="flex flex-col items-center gap-2 py-12 text-center">
-              <CheckCircle2 className="size-8 text-success" />
-              <p className="font-medium">
-                {emDia.length > 0 ? "Nada esperando ação" : "Nada a mostrar ainda"}
-              </p>
-              <p className="max-w-md text-sm text-muted-foreground">
-                {emDia.length > 0
-                  ? `${emDia.length} ${emDia.length === 1 ? "situação está" : "situações estão"} em dia.`
-                  : "Nenhum dos módulos acompanhados tem registro."}{" "}
-                {semBase.length > 0 &&
-                  `Outras ${semBase.length} não puderam ser avaliadas — veja abaixo.`}
-              </p>
-            </CardContent>
-          </Card>
+          <div className="flex flex-col items-center gap-2 py-12 text-center">
+            <CheckCircle2 className="size-8 text-success" />
+            <p className="font-extrabold">
+              {emDia.length > 0 ? "Nada esperando ação" : "Nada a mostrar ainda"}
+            </p>
+            <p className="max-w-md text-sm text-muted-foreground">
+              {emDia.length > 0
+                ? `${emDia.length} ${emDia.length === 1 ? "situação está" : "situações estão"} em dia.`
+                : "Nenhum dos módulos acompanhados tem registro."}{" "}
+              {semBase.length > 0 &&
+                `Outras ${semBase.length} não puderam ser avaliadas — veja abaixo.`}
+            </p>
+          </div>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {comPendencia.map((c) => {
-              const Icon = c.icon;
-              const valor = pendencias[c.chave];
+          <div className="grid gap-x-8 gap-y-6 lg:grid-cols-3">
+            {COLUNAS.map((coluna) => {
+              const itens = itensDa(coluna.chaves);
+              const ehPrazo = coluna.chave === "prazo";
               return (
-                <Link key={c.chave} href={c.href}>
-                  <Card
-                    className={
-                      c.urgente
-                        ? "h-full border-destructive/40 transition-colors hover:bg-accent/40"
-                        : "h-full transition-colors hover:bg-accent/40"
-                    }
-                  >
-                    <CardContent className="flex items-start gap-3 py-4">
-                      <Icon
-                        className={`mt-0.5 size-5 shrink-0 ${c.urgente ? "text-destructive" : "text-muted-foreground"}`}
-                      />
-                      <div className="min-w-0">
-                        <div className="flex items-baseline gap-2">
-                          <span
-                            className={`text-2xl font-semibold tabular-nums ${c.urgente ? "text-destructive" : ""}`}
+                <div key={coluna.chave} className="min-w-0">
+                  <div className="flex items-baseline justify-between gap-2 border-b-2 border-border pb-1.5">
+                    <h2 className="text-[11px] font-semibold tracking-[.08em] text-muted-foreground uppercase">
+                      {coluna.titulo}
+                    </h2>
+                    <span className="text-[11px] tabular-nums text-muted-foreground">
+                      {itens.length} {itens.length === 1 ? "item" : "itens"}
+                    </span>
+                  </div>
+                  {itens.length === 0 ? (
+                    <p className="py-3 text-[12.5px] text-muted-foreground">{coluna.vazia}</p>
+                  ) : (
+                    <ul>
+                      {itens.map((c) => (
+                        <li key={c.chave} className="border-b border-border">
+                          <Link
+                            href={c.href}
+                            className="grid grid-cols-[44px_1fr_14px] items-baseline gap-2 py-2.5 transition-colors hover:bg-foreground/4"
                           >
-                            {valor}
-                          </span>
-                          <span className="font-medium">{c.titulo}</span>
-                        </div>
-                        <p className="text-xs text-muted-foreground">{c.descricao}</p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </Link>
+                            <span
+                              className={cn(
+                                "font-heading text-[22px] leading-none font-extrabold tabular-nums",
+                                ehPrazo && "text-primary",
+                              )}
+                            >
+                              {pendencias[c.chave]}
+                            </span>
+                            <span className="min-w-0">
+                              <span className="block text-[13.5px] font-semibold">{c.titulo}</span>
+                              {/* Uma linha, com a frase inteira no `title`: a
+                                  descrição de "Ciclo de avaliação a encerrar"
+                                  chega a três linhas e empurrava os itens
+                                  seguintes para fora da tela. */}
+                              <span
+                                title={c.descricao}
+                                className="block truncate text-[12px] text-muted-foreground"
+                              >
+                                {c.descricao}
+                              </span>
+                            </span>
+                            <span aria-hidden className="text-muted-foreground">
+                              ›
+                            </span>
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               );
             })}
           </div>
         )}
 
+        {/* Rodapé, não cartão tracejado: é uma ressalva sobre os números acima
+            ("o zero não quer dizer que está tudo certo"), não uma quinta caixa
+            competindo com eles. */}
         {semBase.length > 0 && (
-          <Card className="border-dashed">
-            <CardContent className="space-y-3 py-4">
-              <div className="flex items-start gap-3">
-                <CircleDashed className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
-                <div>
-                  <p className="font-medium">
-                    {semBase.length} {semBase.length === 1 ? "situação" : "situações"} sem base para
-                    avaliar
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    Estes módulos não têm nenhum registro, então o zero acima não quer dizer que
-                    esteja tudo certo — quer dizer que não há o que conferir. Começar a usá-los é o
-                    que liga a cobrança.
-                  </p>
-                </div>
-              </div>
-              <ul className="grid gap-x-6 gap-y-1 pl-8 text-sm text-muted-foreground sm:grid-cols-2">
-                {semBase.map((c) => (
-                  <li key={c.chave}>
-                    <Link href={c.href} className="hover:text-foreground hover:underline">
-                      {c.titulo}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
+          <p className="border-t border-border pt-3 text-[12.5px] text-muted-foreground">
+            <CircleDashed aria-hidden className="mr-1.5 inline size-3.5 align-[-2px]" />
+            <b className="font-semibold text-foreground">
+              {semBase.length} {semBase.length === 1 ? "situação" : "situações"} sem base para
+              avaliar
+            </b>{" "}
+            — estes módulos não têm nenhum registro, então o zero acima não quer dizer que esteja
+            tudo certo: quer dizer que não há o que conferir.{" "}
+            {semBase.map((c, i) => (
+              <span key={c.chave}>
+                {i > 0 && " · "}
+                <Link href={c.href} className="underline underline-offset-2 hover:text-foreground">
+                  {c.titulo}
+                </Link>
+              </span>
+            ))}
+          </p>
         )}
       </div>
     </div>
