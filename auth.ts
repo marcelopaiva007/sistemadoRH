@@ -38,8 +38,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         password: { label: "Senha", type: "password" },
       },
       async authorize(credentials, request) {
-        const username = credentials?.username as string | undefined;
-        const password = credentials?.password as string | undefined;
+        const username = credentials?.username;
+        const password = credentials?.password;
+        // `typeof`, e não cast: o callback de credentials aceita corpo JSON, e
+        // um `password` que não seja string (array, número) faz o bcrypt
+        // LANÇAR em vez de devolver false. Lançar aqui muda o erro que volta
+        // ao navegador (`Configuration` em vez de `CredentialsSignin`) e pula
+        // o `registrarFalha` — um oráculo de "este usuário existe" em uma
+        // requisição, sem medir tempo e sem gastar o balde.
+        if (typeof username !== "string" || typeof password !== "string") return null;
         if (!username || !password) return null;
 
         const ip = ipDaRequisicao(request.headers);
@@ -68,7 +75,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null;
         }
 
-        const valid = await bcrypt.compare(password, user.passwordHash);
+        // Mesmo `.catch` do ramo de usuário inexistente: um hash malformado
+        // no banco vira "senha errada" (contada), não erro de configuração.
+        const valid = await bcrypt.compare(password, user.passwordHash).catch(() => false);
         if (!valid) {
           await registrarFalha(username, ip).catch(() => {});
           return null;

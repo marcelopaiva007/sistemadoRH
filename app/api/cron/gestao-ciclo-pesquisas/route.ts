@@ -10,6 +10,7 @@ import { executarGestaoCiclo } from "@/lib/pesquisa-ciclo";
 import { executarCicloEnps } from "@/lib/pesquisa-enps";
 import { executarCicloOnboarding } from "@/lib/pesquisa-onboarding";
 import { executarReguaCobranca } from "@/lib/regua-cobranca";
+import { segredoConfere } from "@/lib/cron-horario";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -19,7 +20,9 @@ function isAuthorized(req: NextRequest): boolean {
   if (!secret) return false;
   // Só o header — o `?secret=` na URL foi removido (pentest 27/08/2026):
   // segredo em query string vaza em log/Referer/histórico.
-  return req.headers.get("authorization") === `Bearer ${secret}`;
+  // Em tempo constante, como os demais crons (lib/cron-horario.ts) — este é
+  // o único fora de `origemAutorizacao` e ficou com `===` até 03/09/2026.
+  return segredoConfere(req.headers.get("authorization"), `Bearer ${secret}`);
 }
 
 export async function GET(req: NextRequest) {

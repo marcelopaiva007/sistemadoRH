@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 // caracteres do segredo bateram. Buffers de tamanhos diferentes nunca são
 // iguais (e a checagem de tamanho não revela o segredo: o esperado tem tamanho
 // fixo).
-function segredoConfere(recebido: string | null, esperado: string): boolean {
+export function segredoConfere(recebido: string | null, esperado: string): boolean {
   if (!recebido) return false;
   const a = Buffer.from(recebido);
   const b = Buffer.from(esperado);

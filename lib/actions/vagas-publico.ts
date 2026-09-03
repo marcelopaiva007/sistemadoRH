@@ -78,7 +78,9 @@ export async function inscreverSePublicamente(
                 tamanhoBytes: anexo.bytes.byteLength,
                 conteudo: anexo.bytes,
                 // Sem usuário: quem enviou foi o próprio candidato.
-                criadoPorNome: `Candidato: ${nome}`,
+                // `dados.nome`, já cortado — o nome cru iria sem limite para
+                // Arquivo, EventoCandidatura e AuditLog (colunas TEXT).
+                criadoPorNome: `Candidato: ${dados.nome}`,
               },
               select: { id: true },
             })
@@ -113,7 +115,7 @@ export async function inscreverSePublicamente(
           candidaturaId: candidatura.id,
           etapaNova: "TRIAGEM",
           motivo: "Inscrição feita pelo candidato na página da vaga.",
-          registradoPorNome: `Candidato: ${nome}`,
+          registradoPorNome: `Candidato: ${dados.nome}`,
         },
       });
     });
@@ -132,7 +134,7 @@ export async function inscreverSePublicamente(
     resumo: `Inscrição pública recebida para a vaga "${vaga.titulo}".`,
     // O nome do candidato fica no registro, mas CPF/telefone não entram na
     // trilha — dado pessoal de quem nem é colaborador ainda.
-    ator: { id: "publico", nome: `Candidato: ${nome}`, papel: "CANDIDATO" },
+    ator: { id: "publico", nome: `Candidato: ${dados.nome}`, papel: "CANDIDATO" },
   });
 
   return { ok: true };
