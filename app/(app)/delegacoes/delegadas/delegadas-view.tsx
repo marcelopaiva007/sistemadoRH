@@ -221,7 +221,7 @@ export function DelegadasView({
           title={u.favorito ? "Tirar dos favoritos" : "Pôr nos favoritos"}
           className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
         >
-          <Star className={cn("size-4", u.favorito && "fill-amber-400 text-amber-500")} />
+          <Star className={cn("size-4", u.favorito && "fill-muted-foreground text-muted-foreground")} />
         </button>
       </div>
     );
@@ -290,7 +290,7 @@ export function DelegadasView({
           <p className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
             Delegações
           </p>
-          <h2 className="text-xl font-semibold tracking-tight">Delegadas por mim</h2>
+          <h1>Delegadas por mim</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             O que você pediu e ainda não recebeu de volta. Só você encerra uma demanda sua.
           </p>
@@ -303,7 +303,7 @@ export function DelegadasView({
         </p>
       )}
       {aviso && (
-        <p className="rounded-md border border-amber-500/40 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+        <p className="rounded-md border border-border bg-card px-3 py-2 text-sm text-muted-foreground">
           {aviso}
         </p>
       )}
@@ -348,7 +348,7 @@ export function DelegadasView({
                       className={cn(
                         "rounded-full border px-2.5 py-1 text-xs transition-colors",
                         responsavelIA === u.id
-                          ? "border-primary bg-primary/10 font-medium text-primary dark:text-foreground"
+                          ? "border-primary bg-primary/10 font-medium text-primary"
                           : "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
                       )}
                     >
@@ -419,7 +419,7 @@ export function DelegadasView({
                 ))}
               </select>
               {responsavelEscolhido && !responsavelEscolhido.temTelegram && (
-                <span className="mt-1 block text-xs text-amber-700 dark:text-amber-500">
+                <span className="mt-1 block text-xs text-muted-foreground">
                   {responsavelEscolhido.tipo === "COLABORADOR"
                     ? "Sem Telegram vinculado — e é por ele que essa pessoa entra no portal. Ela precisa enviar /start ao bot do RH antes de conseguir responder."
                     : "Sem Telegram vinculado — quando a cobrança automática entrar no ar, ela não vai alcançar essa pessoa por lá."}
@@ -502,7 +502,7 @@ export function DelegadasView({
                       className={cn(
                         "rounded-full border px-2.5 py-1 text-xs transition-colors",
                         form.responsavelId === u.id
-                          ? "border-primary bg-primary/10 font-medium text-primary dark:text-foreground"
+                          ? "border-primary bg-primary/10 font-medium text-primary"
                           : "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
                       )}
                     >
@@ -522,7 +522,7 @@ export function DelegadasView({
               {/* O aviso da decisão da Direção: delegar para quem não tem
                   Telegram é PERMITIDO, e a pessoa precisa saber o que muda. */}
               {responsavelEscolhido && !responsavelEscolhido.temTelegram && (
-                <span className="mt-1 block text-xs text-amber-700 dark:text-amber-500">
+                <span className="mt-1 block text-xs text-muted-foreground">
                   Sem Telegram vinculado — quando a cobrança automática entrar no ar, ela não
                   vai alcançar essa pessoa por lá.
                 </span>
@@ -650,7 +650,7 @@ export function DelegadasView({
       />
 
       {aguardandoMeuAceite.length > 0 && (
-        <Card className="border-amber-500/30">
+        <Card className="border-border">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               Entregues — esperando você

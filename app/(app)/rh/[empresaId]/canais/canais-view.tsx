@@ -39,7 +39,7 @@ export function CanaisView({
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-xl font-semibold tracking-tight">Canais de envio</h2>
+        <h1>Canais de envio</h1>
         <p className="text-sm text-muted-foreground">
           Telegram e e-mail são os dois caminhos de convite, lembrete e acesso ao portal do
           colaborador. Sem nenhum dos dois ligado, essas telas ficam sem como avisar ninguém.
@@ -89,7 +89,7 @@ function CartaoArquivos({ ligado }: { ligado: boolean }) {
           <span
             className={
               ligado
-                ? "rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-400"
+                ? "rounded-full bg-card px-2 py-0.5 text-xs font-medium text-success"
                 : "rounded-full bg-destructive/15 px-2 py-0.5 text-xs font-medium text-destructive"
             }
           >

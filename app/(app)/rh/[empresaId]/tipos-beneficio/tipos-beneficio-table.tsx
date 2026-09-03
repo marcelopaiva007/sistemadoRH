@@ -125,7 +125,7 @@ export function TiposBeneficioTable({
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-xl font-semibold tracking-tight">Tipos de benefício</h2>
+        <h1>Tipos de benefício</h1>
         <p className="text-sm text-muted-foreground">
           O catálogo padrão ({TIPOS_BENEFICIO.length} tipos — vale-transporte, plano de saúde etc.)
           continua disponível sempre. Cadastre aqui só o que essa empresa oferece e não está no
@@ -138,11 +138,11 @@ export function TiposBeneficioTable({
           <Button
             variant="outline"
             size="sm"
-            className="gap-1.5 border-rose-300 bg-rose-50 text-rose-900 hover:bg-rose-100 dark:border-rose-800 dark:bg-rose-950/50 dark:text-rose-200"
+            className="gap-1.5 border-primary bg-accent text-destructive hover:bg-accent"
             onClick={handleRemoverSemUso}
             disabled={isRemovingSemUso}
           >
-            <Sparkles className="size-3.5 text-rose-600 dark:text-rose-400" />
+            <Sparkles className="size-3.5 text-destructive" />
             {isRemovingSemUso ? "Removendo..." : `Remover ${semUsoCount} Sem Uso`}
           </Button>
         )}

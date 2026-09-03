@@ -49,7 +49,7 @@ export default async function RecebidasPage() {
         <p className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
           Delegações
         </p>
-        <h2 className="text-xl font-semibold tracking-tight">Recebidas</h2>
+        <h1>Recebidas</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           O que foi delegado a você, do prazo mais curto para o mais longo. Abra a demanda para
           ver o critério de aceite antes de aceitar.
@@ -100,7 +100,7 @@ function Bloco({
         tom === "alerta"
           ? "border-destructive/30"
           : tom === "atencao"
-            ? "border-amber-500/30"
+            ? "border-border"
             : undefined
       }
     >

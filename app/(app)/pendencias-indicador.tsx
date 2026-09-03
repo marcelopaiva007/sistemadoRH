@@ -42,7 +42,7 @@ export function PendenciasIndicador({
   // há alguém esperando; o grupo de cadastro fica em cor de texto comum mesmo
   // com número alto — foi o caso dos "163 cadastros incompletos" de
   // 12/08/2026, que em vermelho parecia incêndio e não era.
-  const corDoNumero = total === 0 ? "" : neutro ? "" : destaque ? "text-destructive" : "text-amber-600 dark:text-amber-400";
+  const corDoNumero = total === 0 ? "" : neutro ? "" : destaque ? "text-destructive" : "text-muted-foreground";
 
   const cartao = (
     <Card

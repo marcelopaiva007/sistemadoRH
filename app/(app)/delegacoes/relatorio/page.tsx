@@ -50,7 +50,7 @@ export default async function RelatorioPage({
           <p className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
             Delegações
           </p>
-          <h2 className="text-xl font-semibold tracking-tight">Relatório</h2>
+          <h1>Relatório</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Como o grupo inteiro está entregando — não só o que você delegou.
           </p>

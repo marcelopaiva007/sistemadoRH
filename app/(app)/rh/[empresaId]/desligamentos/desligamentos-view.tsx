@@ -48,7 +48,7 @@ export function DesligamentosView({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold tracking-tight">Desligamentos</h2>
+        <h1>Desligamentos</h1>
         <p className="text-sm text-muted-foreground">
           Checklist de saída e entrevista de desligamento de todas as pessoas desligadas nesta
           empresa. Abra a ficha do colaborador para gerar o checklist ou registrar a entrevista.

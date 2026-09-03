@@ -93,7 +93,7 @@ export default async function CarreirasPage() {
 
         <section>
           <div className="mb-4 flex items-baseline justify-between gap-4 border-b pb-3">
-            <h2 className="text-xl font-semibold tracking-tight">Vagas abertas</h2>
+            <h1>Vagas abertas</h1>
             {vagas.length > 0 && (
               <span className="text-sm text-muted-foreground tabular-nums">
                 {vagas.length === 1 ? "1 vaga" : `${vagas.length} vagas`}
@@ -120,7 +120,7 @@ export default async function CarreirasPage() {
                   >
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <h3 className="font-medium">{v.titulo}</h3>
-                      <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs text-muted-foreground">
+                      <span className="bg-card px-2.5 py-0.5 text-xs text-muted-foreground">
                         {marcaDaEmpresa.get(v.empresaId) ?? ""}
                       </span>
                     </div>

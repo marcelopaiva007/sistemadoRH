@@ -48,7 +48,7 @@ export default async function BeneficiosPage({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold tracking-tight">Benefícios</h2>
+        <h1>Benefícios</h1>
         <p className="text-sm text-muted-foreground">
           Panorama do que a empresa paga hoje. Só benefícios em vigor entram na conta.
         </p>

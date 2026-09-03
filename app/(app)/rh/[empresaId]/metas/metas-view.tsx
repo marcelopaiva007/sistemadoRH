@@ -22,7 +22,7 @@ import { Indicador } from "@/components/indicador";
 
 const initialState: ActionResult = { ok: true };
 const classeSelect =
-  "h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:bg-input/30";
+  "h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
 
 type Meta = {
   id: string;
@@ -66,7 +66,7 @@ export function MetasView({
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h2 className="text-xl font-semibold tracking-tight">Metas</h2>
+          <h1>Metas</h1>
           <p className="text-sm text-muted-foreground">
             Individuais ou de setor. PDI (plano de desenvolvimento) fica na ficha de cada pessoa.
           </p>

@@ -26,6 +26,51 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.164.0",
+    data: "03/09/2026",
+    horario: "22:15",
+    titulo: "Busca global: Ctrl K acha qualquer tela ou pessoa",
+    itens: [
+      "Na barra de topo há um campo de busca (ou Ctrl K / ⌘K de qualquer tela): digite o nome de uma tela (\"Férias\", \"Emplacamento\", \"Reuniões\") ou de uma pessoa e vá direto com Enter.",
+      "Pessoas aparecem com CPF mascarado, setor e CNPJ, e só as dos CNPJs que você enxerga — o mesmo recorte de todas as telas.",
+      "As telas listadas são as mesmas dos menus laterais dos três sistemas, respeitando o que o seu perfil alcança.",
+    ],
+  },
+  {
+    versao: "1.163.0",
+    data: "03/09/2026",
+    horario: "21:50",
+    titulo: "Faxina de cores: âmbar, verde, azul e roxo saem de 97 arquivos",
+    itens: [
+      "As 340 cores soltas que sobravam pelo sistema (avisos em âmbar, sucessos em verde-esmeralda, etiquetas em azul e roxo, cinzas de várias famílias) passaram para as cores do visual novo: aviso é texto cinza, sucesso é o único verde, erro e prazo são o vermelho, o resto é tinta.",
+      "As ilustrações da tela inicial do RH ficaram em escala de cinza.",
+      "Limpeza interna: 307 classes do tema escuro (que já não existia) foram removidas do código.",
+      "Organograma, Assistente, Relatórios, Metas, Integrações e Configuração já vinham no visual novo pelos componentes de base — esta versão só tira as cores que restavam.",
+    ],
+  },
+  {
+    versao: "1.162.0",
+    data: "03/09/2026",
+    horario: "21:30",
+    titulo: "Títulos de tela e estados vazios no padrão novo, em 48 telas",
+    itens: [
+      "O título de cada tela (Colaboradores, Vagas, Férias, Escalas, Folha, Placar, Importações…) passou para o tamanho e peso do visual novo — 25px em peso 800 — nas 39 telas que ainda usavam o antigo.",
+      "O círculo cinza dos estados vazios (\"Nenhum colaborador encontrado\" e afins) virou o quadrado de superfície, em 16 lugares.",
+      "Abas em pílula que ainda tinham estilo próprio passaram para o sublinhado; o último cartão com sombra em volta de uma tabela saiu.",
+    ],
+  },
+  {
+    versao: "1.161.0",
+    data: "03/09/2026",
+    horario: "21:10",
+    titulo: "Tela de login em duas metades",
+    itens: [
+      "A entrada do sistema ganhou a metade vermelha com o FASTMAI, a frase \"Pessoas, processos e delegações do grupo\" e as marcas; o formulário fica à direita, sem cartão, com \"Esqueci minha senha\" ao lado do campo de senha e o botão Entrar com a seta.",
+      "No rodapé, o caminho para quem é colaborador: o portal é pelo celular.",
+      "No celular a metade vermelha vira uma faixa no topo. A versão do sistema continua visível antes de entrar.",
+    ],
+  },
+  {
     versao: "1.160.0",
     data: "03/09/2026",
     horario: "20:50",

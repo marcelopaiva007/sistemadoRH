@@ -120,7 +120,7 @@ export default async function PainelSetorPage({
                             href={`${base}/painel-setor?${params.toString()}`}
                             className={cn(
                               "underline-offset-2 hover:underline",
-                              selecionado && "text-primary dark:text-foreground",
+                              selecionado && "text-primary",
                             )}
                           >
                             {l.nome}
@@ -129,7 +129,7 @@ export default async function PainelSetorPage({
                         <TableCell className="text-right tabular-nums">{l.ativos}</TableCell>
                         <TableCell className="text-right tabular-nums">
                           {l.turnoverPct > placar.escopo.turnoverPct && l.turnoverPct > 20 ? (
-                            <span className="font-semibold text-warning">{pct(l.turnoverPct)}</span>
+                            <span className="font-semibold text-muted-foreground">{pct(l.turnoverPct)}</span>
                           ) : (
                             pct(l.turnoverPct)
                           )}
@@ -147,7 +147,7 @@ export default async function PainelSetorPage({
                         <TableCell className="text-right tabular-nums">
                           {l.comCicloAberto > 0 ? (
                             l.semAvaliacao > 0 ? (
-                              <span className="font-semibold text-warning">{l.semAvaliacao}</span>
+                              <span className="font-semibold text-muted-foreground">{l.semAvaliacao}</span>
                             ) : (
                               "0"
                             )

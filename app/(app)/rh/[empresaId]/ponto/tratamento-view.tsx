@@ -316,7 +316,7 @@ function LinhaTratamento({
               etiqueta separa "fila de pedidos recebidos" de "trabalho próprio",
               que têm conversas diferentes com o colaborador. */}
           {t.origem === "COLABORADOR" && (
-            <Badge className="bg-sky-500/15 text-sky-700 dark:text-sky-400 border-sky-500/30 text-[10px]">
+            <Badge className="bg-card text-foreground border-border text-[10px]">
               Pedido do colaborador
             </Badge>
           )}
@@ -356,7 +356,7 @@ function LinhaTratamento({
       <div className="shrink-0 text-right text-xs text-muted-foreground">
         {t.status === "APROVADO" && (
           <>
-            <span className="flex items-center justify-end gap-1 font-semibold text-emerald-600 dark:text-emerald-400">
+            <span className="flex items-center justify-end gap-1 font-semibold text-success">
               <CheckCircle2 className="h-3.5 w-3.5" /> Aprovado
             </span>
             <span className="mt-0.5 block text-[10px]">Por: {t.aprovadoPorNome ?? "—"}</span>
@@ -372,7 +372,7 @@ function LinhaTratamento({
         )}
         {t.status === "PENDENTE" && (
           <div className="flex w-56 flex-col items-end gap-1.5">
-            <span className="flex items-center gap-1 font-semibold text-warning">
+            <span className="flex items-center gap-1 font-semibold text-muted-foreground">
               <Clock3 className="h-3.5 w-3.5" /> Aguardando decisão
             </span>
 

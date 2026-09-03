@@ -142,7 +142,7 @@ export function ColaboradoresPontoView({
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
                       {liberado ? (
-                        <Badge variant="default" className="bg-emerald-600 hover:bg-emerald-700">
+                        <Badge variant="default" className="bg-success hover:bg-success">
                           Liberado
                         </Badge>
                       ) : (

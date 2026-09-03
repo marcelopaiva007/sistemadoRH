@@ -84,7 +84,7 @@ export function ImportacoesView({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold tracking-tight">Importações</h2>
+        <h1>Importações</h1>
         <p className="medida-de-leitura text-sm text-muted-foreground">
           Suba a planilha de colaboradores de {empresaNome} em CSV. Nada é gravado antes de você
           conferir o resumo — linha com problema fica de fora e é listada com o motivo.
@@ -139,7 +139,7 @@ export function ImportacoesView({
               </Button>
             </form>
             {!empresaTemCnpj && (
-              <p className="mt-3 text-xs text-warning">
+              <p className="mt-3 text-xs text-muted-foreground">
                 Esta empresa ainda está sem o número do CNPJ (Configuração → Marcas &amp; CNPJs).
                 Dá para importar mesmo assim; só não use a coluna opcional de CNPJ na planilha.
               </p>

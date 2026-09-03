@@ -41,9 +41,9 @@ function Moldura({ children, titulo }: { children: React.ReactNode; titulo?: str
   return (
     <div className="flex h-full w-full flex-col overflow-hidden rounded-lg border bg-card shadow-sm">
       <div className="flex shrink-0 items-center gap-1.5 border-b bg-muted/40 px-3 py-2">
-        <span className="size-2 rounded-full bg-muted-foreground/25" />
-        <span className="size-2 rounded-full bg-muted-foreground/25" />
-        <span className="size-2 rounded-full bg-muted-foreground/25" />
+        <span className="size-2 bg-card-foreground/25" />
+        <span className="size-2 bg-card-foreground/25" />
+        <span className="size-2 bg-card-foreground/25" />
         {titulo ? (
           <span className="ml-2 truncate text-[11px] font-medium text-muted-foreground">
             {titulo}
@@ -278,7 +278,7 @@ function CenaCalendario({ rotulos }: { rotulos: string[] }) {
               DIAS_MARCADOS.includes(i)
                 ? "bg-primary/20 font-semibold text-primary"
                 : DIAS_ALTERNATIVOS.includes(i)
-                  ? "bg-warning/25 font-semibold text-foreground"
+                  ? "bg-card font-semibold text-foreground"
                   : "bg-muted/60 text-muted-foreground/60",
             )}
             style={{ animationDelay: `${i * 22}ms` }}
@@ -297,7 +297,7 @@ function CenaCalendario({ rotulos }: { rotulos: string[] }) {
             <span
               className={cn(
                 "size-2 rounded-none",
-                i === 0 ? "bg-primary/60" : i === 1 ? "bg-warning/70" : "bg-muted-foreground/25",
+                i === 0 ? "bg-primary/60" : i === 1 ? "bg-card" : "bg-muted-foreground/25",
               )}
             />
             {rotulo}

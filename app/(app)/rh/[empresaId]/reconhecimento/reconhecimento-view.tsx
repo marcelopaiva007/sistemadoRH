@@ -40,7 +40,7 @@ export function ReconhecimentoView({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold tracking-tight">Reconhecimento</h2>
+        <h1>Reconhecimento</h1>
         <p className="text-sm text-muted-foreground">
           Aniversariantes e marcos de tempo de casa de {NOMES_MES[mes - 1]}. O parabéns sai pelo mesmo
           bot do Telegram já usado nas pesquisas.

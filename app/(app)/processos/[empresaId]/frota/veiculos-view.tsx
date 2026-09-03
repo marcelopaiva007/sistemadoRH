@@ -559,7 +559,7 @@ export function VeiculosView({
                       {v.condutorAtual ??
                         v.motoristaNome ??
                         v.motoristaInformado ?? (
-                          <span className="text-xs text-amber-600 dark:text-amber-500">
+                          <span className="text-xs text-muted-foreground">
                             sem motorista definido — a multa não terá a quem indicar
                           </span>
                         )}
@@ -572,7 +572,7 @@ export function VeiculosView({
                             v.vencimentoMaisProximo.dias < 0 && "font-semibold text-destructive",
                             v.vencimentoMaisProximo.dias >= 0 &&
                               v.vencimentoMaisProximo.dias <= 30 &&
-                              "text-amber-600 dark:text-amber-500",
+                              "text-muted-foreground",
                           )}
                         >
                           {rotulo(TIPOS_DOCUMENTO_VEICULO, v.vencimentoMaisProximo.tipo)} ·{" "}
@@ -595,8 +595,8 @@ export function VeiculosView({
                           className={cn(
                             "text-xs",
                             v.financeiro.status === "VENCIDO" && "font-semibold text-destructive",
-                            v.financeiro.status === "PROXIMO" && "text-amber-600 dark:text-amber-500",
-                            v.financeiro.status === "EM_DIA" && "text-emerald-700 dark:text-emerald-500",
+                            v.financeiro.status === "PROXIMO" && "text-muted-foreground",
+                            v.financeiro.status === "EM_DIA" && "text-success",
                             (v.financeiro.status === "QUITADO" ||
                               v.financeiro.status === "SUSPENSO" ||
                               v.financeiro.status === "SEM_COBRANCA") &&
@@ -618,9 +618,9 @@ export function VeiculosView({
                     </TableCell>
                     <TableCell>
                       {v.aderidoSne ? (
-                        <ShieldCheck className="size-4 text-emerald-600 dark:text-emerald-500" />
+                        <ShieldCheck className="size-4 text-success" />
                       ) : (
-                        <ShieldAlert className="size-4 text-amber-600 dark:text-amber-500" />
+                        <ShieldAlert className="size-4 text-muted-foreground" />
                       )}
                     </TableCell>
                     <TableCell className="text-right">

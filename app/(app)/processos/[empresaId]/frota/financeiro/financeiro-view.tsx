@@ -66,13 +66,13 @@ function BadgeStatus({ status }: { status: StatusVencimento }) {
   if (status === "VENCIDO") return <Badge variant="destructive">{rotuloTexto}</Badge>;
   if (status === "PROXIMO")
     return (
-      <Badge className="border-transparent bg-amber-500 text-white hover:bg-amber-500 dark:bg-amber-600">
+      <Badge className="border-transparent bg-neutral-500 text-white hover:bg-neutral-500">
         {rotuloTexto}
       </Badge>
     );
   if (status === "EM_DIA")
     return (
-      <Badge className="border-transparent bg-emerald-600 text-white hover:bg-emerald-600 dark:bg-emerald-700">
+      <Badge className="border-transparent bg-success text-white hover:bg-success">
         {rotuloTexto}
       </Badge>
     );
@@ -241,7 +241,7 @@ export function FinanceiroView({
       </div>
 
       {erro && <p className="text-sm text-destructive">{erro}</p>}
-      {aviso && <p className="text-sm text-emerald-700 dark:text-emerald-400">{aviso}</p>}
+      {aviso && <p className="text-sm text-success">{aviso}</p>}
 
       {form && (
         <Card>

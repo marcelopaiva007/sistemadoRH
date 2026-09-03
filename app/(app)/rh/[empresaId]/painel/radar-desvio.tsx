@@ -184,7 +184,7 @@ function EstadoVazio({
   return (
     <div className="flex items-start gap-3 rounded-lg bg-muted/40 p-3 text-sm">
       {alerta ? (
-        <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning" />
+        <TriangleAlert className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
       ) : (
         <CircleCheck className="mt-0.5 size-4 shrink-0 text-success" />
       )}

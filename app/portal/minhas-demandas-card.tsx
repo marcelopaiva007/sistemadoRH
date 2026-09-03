@@ -103,7 +103,7 @@ export function MinhasDemandasCard() {
           </p>
         )}
         {sucesso && (
-          <p className="rounded-md border border-emerald-500/40 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200">
+          <p className="rounded-md border border-success bg-card px-3 py-2 text-sm text-success">
             {sucesso}
           </p>
         )}

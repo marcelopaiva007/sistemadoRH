@@ -121,7 +121,7 @@ export function EntregasCard({
           O que a empresa entregou a esta pessoa — cartão, notebook, uniforme. A confirmação vem
           dela, pelo portal, nunca daqui.
           {aguardando > 0 && (
-            <span className="mt-1 block text-warning">
+            <span className="mt-1 block text-muted-foreground">
               {aguardando} entrega(s) aguardando a confirmação do colaborador.
             </span>
           )}

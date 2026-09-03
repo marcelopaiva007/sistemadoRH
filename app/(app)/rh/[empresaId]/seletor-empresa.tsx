@@ -44,7 +44,7 @@ export function SeletorEmpresa({
           const secao = resto[0] ?? "";
           router.push(`/rh/${novo}${secao ? `/${secao}` : ""}`);
         }}
-        className="h-8 rounded-md border border-input bg-transparent px-2 text-sm font-medium outline-none focus-visible:border-ring dark:bg-input/30"
+        className="h-8 rounded-md border border-input bg-transparent px-2 text-sm font-medium outline-none focus-visible:border-ring"
       >
         {empresas.map((e) => (
           <option key={e.id} value={e.id}>

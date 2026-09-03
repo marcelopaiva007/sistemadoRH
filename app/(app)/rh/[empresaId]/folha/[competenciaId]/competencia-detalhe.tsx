@@ -32,7 +32,7 @@ import { Trilha } from "@/components/trilha";
 
 const initialState: ActionResult = { ok: true };
 const classeSelect =
-  "h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:bg-input/30";
+  "h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
 
 type Evento = {
   id: string;
@@ -85,9 +85,9 @@ export function CompetenciaDetalhe({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-xl font-semibold tracking-tight">
+            <h1>
               Competência {formatarCompetencia(competencia.referencia)}
-            </h2>
+            </h1>
             {fechada ? (
               <Badge variant="secondary" className="gap-1">
                 <Lock className="size-3" />

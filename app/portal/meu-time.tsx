@@ -187,7 +187,7 @@ function BadgeFerias({ ferias }: { ferias: FeriasDaLinha }) {
       return <Badge variant="secondary">{ferias.saldoTotal} dias de férias disponíveis</Badge>;
     case "VENCENDO":
       return (
-        <Badge variant="secondary" className="text-warning">
+        <Badge variant="secondary" className="text-muted-foreground">
           férias vencendo em {ferias.diasAteLimite} d
         </Badge>
       );
@@ -214,7 +214,7 @@ function BadgeAvaliacao({ avaliacao }: { avaliacao: AvaliacaoDaLinha }) {
       return null;
     case "SEM_AVALIACAO":
       return (
-        <Badge variant="secondary" className="text-warning">
+        <Badge variant="secondary" className="text-muted-foreground">
           sem avaliação no ciclo aberto
         </Badge>
       );
@@ -237,7 +237,7 @@ function BadgeContrato({ janela }: { janela: JanelaContrato }) {
       ? `contrato vencido há ${Math.abs(janela.diasAteFim)} d`
       : `contrato vence em ${janela.diasAteFim} d`;
   return (
-    <Badge variant={janela.urgencia === "critica" ? "destructive" : "secondary"} className={janela.urgencia === "atencao" ? "text-warning" : undefined}>
+    <Badge variant={janela.urgencia === "critica" ? "destructive" : "secondary"} className={janela.urgencia === "atencao" ? "text-muted-foreground" : undefined}>
       <FileWarning className="size-3" />
       {texto}
     </Badge>

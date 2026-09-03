@@ -40,7 +40,7 @@ export function IntegracoesView({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold tracking-tight">Integrações em andamento</h2>
+        <h1>Integrações em andamento</h1>
         <p className="text-sm text-muted-foreground">
           O que ainda falta para quem acabou de entrar começar de fato. Quem tem item atrasado
           aparece primeiro.
@@ -103,7 +103,7 @@ export function IntegracoesView({
 function SituacaoPrazo({ prazo }: { prazo: Date }) {
   const dias = diferencaEmDiasUTC(prazo, hojeUTC());
   if (dias < 0) return <span className="text-destructive">atrasado há {Math.abs(dias)} d</span>;
-  if (dias === 0) return <span className="text-warning">vence hoje</span>;
+  if (dias === 0) return <span className="text-muted-foreground">vence hoje</span>;
   return <span>vence em {dias} d</span>;
 }
 

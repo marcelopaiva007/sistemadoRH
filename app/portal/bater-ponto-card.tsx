@@ -437,8 +437,8 @@ export function BaterPontoCard() {
 
       {/* Comprovante Eletrônico Instantâneo (REP-P / Portaria MTP 671) */}
       {sucessoComprovante && (
-        <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg space-y-1.5 text-xs">
-          <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-semibold">
+        <div className="p-3 bg-card border border-success rounded-lg space-y-1.5 text-xs">
+          <div className="flex items-center gap-1.5 text-success font-semibold">
             <CheckCircle2 className="w-4 h-4" />
             <span>Ponto Registrado com Sucesso! (Comprovante REP-P)</span>
           </div>
@@ -469,8 +469,8 @@ export function BaterPontoCard() {
           não em vermelho: a marcação valeu, e o que precisa de ação é a
           jornada — conversa com o supervisor, não com o sistema. */}
       {aviso && (
-        <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg text-xs">
-          <p className="flex items-start gap-1.5 text-amber-700 dark:text-amber-400">
+        <div className="p-3 bg-card border border-border rounded-lg text-xs">
+          <p className="flex items-start gap-1.5 text-muted-foreground">
             <AlertTriangle className="mt-0.5 w-4 h-4 shrink-0" />
             <span>{aviso}</span>
           </p>
@@ -498,7 +498,7 @@ export function BaterPontoCard() {
             >
               <span>{formatarTipoLabel(tipo)}</span>
               {jaBatido ? (
-                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1 font-semibold">
+                <span className="text-[10px] text-success flex items-center gap-1 font-semibold">
                   <CheckCircle2 className="w-3 h-3" /> Registrado
                 </span>
               ) : (
@@ -530,7 +530,7 @@ export function BaterPontoCard() {
             <span>Obtendo geolocalização...</span>
           )}
         </div>
-        <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium shrink-0">
+        <div className="flex items-center gap-1 text-success font-medium shrink-0">
           <ShieldCheck className="w-3.5 h-3.5" />
           <span>REP-P Portaria 671</span>
         </div>

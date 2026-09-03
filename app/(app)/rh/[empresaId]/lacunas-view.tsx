@@ -106,7 +106,7 @@ export function LacunasView({
                   {/* A barra mostra o PREENCHIDO, não o que falta: a mesma
                       informação lida como progresso, não como dívida. */}
                   <div
-                    className="h-1.5 overflow-hidden rounded-full bg-muted"
+                    className="h-1.5 overflow-hidden bg-card"
                     role="progressbar"
                     aria-valuenow={pct}
                     aria-valuemin={0}
@@ -114,7 +114,7 @@ export function LacunasView({
                     aria-label={`${l.rotulo}: ${pct}% preenchido`}
                   >
                     <div
-                      className={pct === 0 ? "h-full bg-warning" : "h-full bg-primary"}
+                      className={pct === 0 ? "h-full bg-card" : "h-full bg-primary"}
                       style={{ width: `${Math.max(pct, 2)}%` }}
                     />
                   </div>

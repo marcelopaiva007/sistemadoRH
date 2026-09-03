@@ -28,7 +28,7 @@ import {
 import type { PainelAvaliacao } from "@/lib/avaliacao-painel";
 
 const classeSelect =
-  "h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:bg-input/30";
+  "h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
 
 const CORES_FAIXA: Record<string, string> = {
   BAIXO: "var(--chart-2)",
@@ -204,7 +204,7 @@ export function PainelAvaliacaoView({
         />
         <TabelaDestaque
           titulo="Acima da média"
-          icone={<TrendingUp className="size-4 text-green-600 dark:text-green-400" />}
+          icone={<TrendingUp className="size-4 text-success" />}
           linhas={dados.destaques.acimaDaMedia}
           vazio="Ninguém está estatisticamente acima da média."
         />

@@ -165,9 +165,9 @@ export function DashboardClimaView({
           </div>
 
           {resultado.analiseExecutiva.alertasTexto.length > 0 && (
-            <div className="rounded-lg border-2 border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 p-3">
-              <h4 className="font-semibold text-sm mb-2 text-amber-900 dark:text-amber-200">⚠️ Alertas</h4>
-              <ul className="space-y-1 text-sm text-amber-900 dark:text-amber-100">
+            <div className="rounded-lg border-2 border-border bg-card p-3">
+              <h4 className="font-semibold text-sm mb-2 text-muted-foreground">⚠️ Alertas</h4>
+              <ul className="space-y-1 text-sm text-muted-foreground">
                 {resultado.analiseExecutiva.alertasTexto.map((a, i) => (
                   <li key={i}>• {a}</li>
                 ))}
@@ -177,11 +177,11 @@ export function DashboardClimaView({
 
           {resultado.analiseExecutiva.pontosFortes.length > 0 && (
             <div>
-              <h4 className="font-semibold text-sm mb-2 text-green-700 dark:text-green-400">✓ Pontos fortes</h4>
+              <h4 className="font-semibold text-sm mb-2 text-success">✓ Pontos fortes</h4>
               <ul className="space-y-1 text-sm">
                 {resultado.analiseExecutiva.pontosFortes.map((p, i) => (
                   <li key={i} className="flex gap-2">
-                    <span className="text-green-600 dark:text-green-400">•</span>
+                    <span className="text-success">•</span>
                     <span>{p}</span>
                   </li>
                 ))}
@@ -191,11 +191,11 @@ export function DashboardClimaView({
 
           {resultado.analiseExecutiva.pontosCriticos.length > 0 && (
             <div>
-              <h4 className="font-semibold text-sm mb-2 text-red-700 dark:text-red-400">⚠ Pontos críticos</h4>
+              <h4 className="font-semibold text-sm mb-2 text-destructive">⚠ Pontos críticos</h4>
               <ul className="space-y-1 text-sm">
                 {resultado.analiseExecutiva.pontosCriticos.map((p, i) => (
                   <li key={i} className="flex gap-2">
-                    <span className="text-red-600 dark:text-red-400">•</span>
+                    <span className="text-destructive">•</span>
                     <span>{p}</span>
                   </li>
                 ))}
@@ -209,7 +209,7 @@ export function DashboardClimaView({
               <ul className="space-y-1 text-sm">
                 {resultado.analiseExecutiva.setoresEmRisco.map((s, i) => (
                   <li key={i} className="flex gap-2">
-                    <span className="text-red-600 dark:text-red-400">•</span>
+                    <span className="text-destructive">•</span>
                     <span>{s}</span>
                   </li>
                 ))}
@@ -223,7 +223,7 @@ export function DashboardClimaView({
               <ul className="space-y-1 text-sm">
                 {resultado.analiseExecutiva.setoresEmAlta.map((s, i) => (
                   <li key={i} className="flex gap-2">
-                    <span className="text-green-600 dark:text-green-400">•</span>
+                    <span className="text-success">•</span>
                     <span>{s}</span>
                   </li>
                 ))}
@@ -336,7 +336,7 @@ export function DashboardClimaView({
                           {d.media100} — {classificarScore(d.media100).label}
                         </span>
                       </div>
-                      <div className="h-2 w-full rounded-full bg-muted">
+                      <div className="h-2 w-full bg-card">
                         <div
                           className="h-2 rounded-full transition-all"
                           style={{ width: `${d.media100}%`, backgroundColor: CORES_NIVEL[d.nivel] }}
@@ -405,7 +405,7 @@ export function DashboardClimaView({
                           <span>{s.respostas} resp.</span>
                           <span style={{ color: cls.cor }}>{s.media100} — {cls.label}</span>
                         </div>
-                        <div className="h-2 w-full rounded-full bg-muted">
+                        <div className="h-2 w-full bg-card">
                           <div
                             className="h-2 rounded-full"
                             style={{ width: `${s.media100}%`, backgroundColor: cls.cor }}

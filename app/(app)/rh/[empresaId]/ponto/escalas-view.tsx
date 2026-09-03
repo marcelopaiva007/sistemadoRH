@@ -343,7 +343,7 @@ function CartaoJornada({
             : ""}
         </span>
         {j.ativo ? (
-          <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1 font-medium shrink-0">
+          <span className="text-success flex items-center gap-1 font-medium shrink-0">
             <CheckCircle2 className="w-3 h-3" /> Ativa
           </span>
         ) : (

@@ -52,7 +52,7 @@ function oQueFazer(motivo: MotivoDuplicado, gravidade: Gravidade, comTelegramPre
 
 const ESTILO_GRAVIDADE: Record<Gravidade, { card: string; rotulo: string; variante: "destructive" | "secondary" | "outline" }> = {
   alta: { card: "border-destructive/50 bg-destructive/5", rotulo: "Resolver agora", variante: "destructive" },
-  media: { card: "border-warning/50 bg-warning/5", rotulo: "Conferir", variante: "secondary" },
+  media: { card: "border-border bg-card", rotulo: "Conferir", variante: "secondary" },
   baixa: { card: "", rotulo: "Provável recontratação", variante: "outline" },
 };
 
@@ -87,7 +87,7 @@ export function AlertaDuplicados({ empresaId, colaboradores }: { empresaId: stri
   const totalPessoas = grupos.reduce((acc, g) => acc + g.pessoas.length, 0);
 
   return (
-    <Card className={urgentes > 0 ? "border-destructive/50 bg-destructive/5" : "border-warning/50 bg-warning/5"}>
+    <Card className={urgentes > 0 ? "border-destructive/50 bg-destructive/5" : "border-border bg-card"}>
       <CardContent className="space-y-3 py-4">
         <button
           type="button"
@@ -95,7 +95,7 @@ export function AlertaDuplicados({ empresaId, colaboradores }: { empresaId: stri
           className="flex w-full items-center justify-between gap-2 text-left"
         >
           <span className="flex items-center gap-2 text-sm font-medium">
-            <AlertTriangle className={`size-4 ${urgentes > 0 ? "text-destructive" : "text-warning"}`} />
+            <AlertTriangle className={`size-4 ${urgentes > 0 ? "text-destructive" : "text-muted-foreground"}`} />
             {grupos.length} prováve{grupos.length > 1 ? "is" : "l"} duplicata
             {grupos.length > 1 ? "s" : ""} ({totalPessoas} fichas)
             {urgentes > 0 && (

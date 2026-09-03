@@ -40,7 +40,7 @@ export function LembretesView({
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-xl font-semibold tracking-tight">Lembretes</h2>
+        <h1>Lembretes</h1>
         <p className="text-sm text-muted-foreground">
           Horário dos avisos automáticos (fuso de Brasília). O sistema confere a cada 15 minutos se
           é a hora configurada — mudar aqui não precisa de deploy nem mexe no que já está agendado

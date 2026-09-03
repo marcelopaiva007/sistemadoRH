@@ -39,12 +39,12 @@ export function DashboardDiretoriaPontoView({ dados }: { dados: MetricadDiretori
 
       {/* Bloco 1: Gestão Financeira da Jornada */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <Card className="p-4 bg-emerald-500/10 border-emerald-500/30">
+        <Card className="p-4 bg-card border-success">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-muted-foreground">Custo Est. Horas Extras (Mês)</span>
-            <DollarSign className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            <DollarSign className="w-4 h-4 text-success" />
           </div>
-          <span className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400 font-mono mt-2 block">
+          <span className="text-2xl font-extrabold text-success font-mono mt-2 block">
             {formatarMoeda(dados.custoEstimadoHE)}
           </span>
           <span className="text-[10px] text-muted-foreground block mt-1">
@@ -52,12 +52,12 @@ export function DashboardDiretoriaPontoView({ dados }: { dados: MetricadDiretori
           </span>
         </Card>
 
-        <Card className="p-4 bg-amber-500/10 border-amber-500/30">
+        <Card className="p-4 bg-card border-border">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-muted-foreground">Valoração Passivo Banco Horas</span>
-            <Scale className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+            <Scale className="w-4 h-4 text-muted-foreground" />
           </div>
-          <span className="text-2xl font-extrabold text-amber-600 dark:text-amber-400 font-mono mt-2 block">
+          <span className="text-2xl font-extrabold text-muted-foreground font-mono mt-2 block">
             {formatarMoeda(dados.valorPassivoBancoHorasR$)}
           </span>
           <span className="text-[10px] text-muted-foreground block mt-1">
@@ -78,15 +78,15 @@ export function DashboardDiretoriaPontoView({ dados }: { dados: MetricadDiretori
       </div>
 
       {/* Bloco 2: Governança & Alertas de Risco Trabalhista (CLT) */}
-      <Card className="border-rose-500/30 bg-card">
+      <Card className="border-primary bg-card">
         <CardHeader className="py-3">
           <div className="flex items-center gap-2">
-            <ShieldAlert className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+            <ShieldAlert className="w-4 h-4 text-destructive" />
             <CardTitle className="text-sm">Alertas de Compliance & Riscos CLT (MTE)</CardTitle>
           </div>
         </CardHeader>
         <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-0">
-          <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-lg flex items-center justify-between">
+          <div className="p-3 bg-accent border border-primary rounded-lg flex items-center justify-between">
             <div>
               <span className="text-xs font-semibold text-foreground block">Violação do Limite de 2h Extra/Dia</span>
               <span className="text-[11px] text-muted-foreground">Risco de autuação fiscal pelo MTE (CLT Art. 59)</span>
@@ -96,12 +96,12 @@ export function DashboardDiretoriaPontoView({ dados }: { dados: MetricadDiretori
             </Badge>
           </div>
 
-          <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg flex items-center justify-between">
+          <div className="p-3 bg-card border border-border rounded-lg flex items-center justify-between">
             <div>
               <span className="text-xs font-semibold text-foreground block">Supressão do Intervalo de Almoço</span>
               <span className="text-[11px] text-muted-foreground">Obrigatório 1h p/ jornada &gt; 6h (CLT Art. 71)</span>
             </div>
-            <Badge variant="secondary" className="text-sm font-mono px-2.5 bg-amber-500/20 text-amber-600 dark:text-amber-400">
+            <Badge variant="secondary" className="text-sm font-mono px-2.5 bg-card text-muted-foreground">
               {dados.supressoesIntervalo} casos
             </Badge>
           </div>

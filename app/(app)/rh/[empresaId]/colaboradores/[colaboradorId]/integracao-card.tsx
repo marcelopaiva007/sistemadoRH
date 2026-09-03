@@ -154,6 +154,6 @@ function SituacaoPrazo({ prazo, concluido }: { prazo: Date; concluido: boolean }
   if (concluido) return <span>prazo era {formatarData(prazo)}</span>;
   const dias = diferencaEmDiasUTC(prazo, hojeUTC());
   if (dias < 0) return <span className="text-destructive">atrasado há {Math.abs(dias)} d</span>;
-  if (dias === 0) return <span className="text-warning">vence hoje</span>;
+  if (dias === 0) return <span className="text-muted-foreground">vence hoje</span>;
   return <span>vence em {dias} d</span>;
 }

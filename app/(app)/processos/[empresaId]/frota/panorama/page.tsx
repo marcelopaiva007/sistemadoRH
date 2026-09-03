@@ -316,14 +316,14 @@ export default async function PanoramaFrotaPage({
                         <TableCell className="text-right tabular-nums">{l.total}</TableCell>
                         <TableCell className="text-right tabular-nums">
                           {l.incompletos > 0 ? (
-                            <span className="font-semibold text-warning">{l.incompletos}</span>
+                            <span className="font-semibold text-muted-foreground">{l.incompletos}</span>
                           ) : (
                             "0"
                           )}
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
                           {l.naoEmplacados > 0 ? (
-                            <span className="font-semibold text-warning">{l.naoEmplacados}</span>
+                            <span className="font-semibold text-muted-foreground">{l.naoEmplacados}</span>
                           ) : (
                             "0"
                           )}
@@ -359,7 +359,7 @@ export default async function PanoramaFrotaPage({
                   {camposFaltando.map((c) => (
                     <li key={c.campo} className="flex items-center justify-between py-2 text-sm">
                       <span className="capitalize">{c.campo}</span>
-                      <span className="font-semibold tabular-nums text-warning">
+                      <span className="font-semibold tabular-nums text-muted-foreground">
                         {c.qtd} veículo{c.qtd === 1 ? "" : "s"}
                       </span>
                     </li>

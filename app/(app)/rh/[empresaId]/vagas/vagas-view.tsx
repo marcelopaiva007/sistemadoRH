@@ -24,7 +24,7 @@ import { usePaginacao } from "@/lib/use-paginacao";
 
 const initialState: ActionResult = { ok: true };
 const classeSelect =
-  "h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:bg-input/30";
+  "h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
 
 type Vaga = {
   id: string;
@@ -63,7 +63,7 @@ export function VagasView({
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h2 className="text-xl font-semibold tracking-tight">Vagas &amp; recrutamento</h2>
+          <h1>Vagas &amp; recrutamento</h1>
           <p className="text-sm text-muted-foreground">
             Funil de candidatos por vaga. Vaga publicada ganha uma página pública de inscrição.
           </p>

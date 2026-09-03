@@ -310,7 +310,7 @@ export function PerfisView({ perfis, usuarios }: { perfis: PerfilNaTela[]; usuar
                 <span className="min-w-44 flex-1 text-sm font-medium">{u.nome}</span>
                 <span className="flex flex-wrap items-center gap-1">
                   {u.perfilIds.length === 0 && (
-                    <span className="text-xs text-amber-600 dark:text-amber-500">sem perfil</span>
+                    <span className="text-xs text-muted-foreground">sem perfil</span>
                   )}
                   {u.perfilIds.map((pid) => (
                     <Badge key={pid} variant="secondary" className="gap-1 pr-1">

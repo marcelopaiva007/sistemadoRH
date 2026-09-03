@@ -22,6 +22,13 @@ const ITENS = [
 
 const BASE = "/delegacoes";
 
+/** As telas do módulo, para a busca global. */
+export const TELAS_DELEGACOES = ITENS.map((i) => ({
+  slug: i.slug,
+  label: i.label,
+  soDirecao: "soDirecao" in i && i.soDirecao,
+}));
+
 export function DelegacoesNav({ souDirecao }: { souDirecao: boolean }) {
   const itens = ITENS.filter((i) => !("soDirecao" in i && i.soDirecao) || souDirecao).map((item) => ({
     href: item.slug ? `${BASE}/${item.slug}` : BASE,

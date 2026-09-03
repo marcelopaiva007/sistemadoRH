@@ -7,7 +7,7 @@ import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent } from "@/components/ui/card";
+import { ArrowRight } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { motivoDaFalhaDeLogin } from "@/lib/actions/login";
 
@@ -57,39 +57,42 @@ export function LoginForm() {
   }
 
   return (
-    <Card>
-      <CardContent className="pt-6">
-        <form action={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="username">Usuário</Label>
-            <Input id="username" name="username" autoComplete="username" required autoFocus />
-          </div>
-          <div className="space-y-2">
+    // Sem cartão: o formulário senta direto no papel (Modernist). Campos de
+    // 42px e o botão de 46px com o rótulo à esquerda e a seta à direita —
+    // "Esqueci minha senha" fica na linha do rótulo Senha, onde a pessoa
+    // está olhando quando trava.
+    <div>
+      <form action={handleSubmit} className="space-y-5">
+        <div className="space-y-1.5">
+          <Label htmlFor="username">Usuário</Label>
+          <Input id="username" name="username" autoComplete="username" required autoFocus className="h-[42px]" />
+        </div>
+        <div className="space-y-1.5">
+          <div className="flex items-baseline justify-between">
             <Label htmlFor="password">Senha</Label>
-            <Input
-              id="password"
-              name="password"
-              type="password"
-              autoComplete="current-password"
-              required
-            />
+            <Link href="/esqueci-senha" className="text-xs text-primary hover:underline">
+              Esqueci minha senha
+            </Link>
           </div>
-          {error && (
-            <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-          <Button type="submit" className="w-full" disabled={isPending}>
-            {isPending ? "Entrando..." : "Entrar"}
-          </Button>
-        </form>
-        <Link
-          href="/esqueci-senha"
-          className="mt-4 block text-center text-sm text-muted-foreground hover:underline"
-        >
-          Esqueci minha senha
-        </Link>
-      </CardContent>
-    </Card>
+          <Input
+            id="password"
+            name="password"
+            type="password"
+            autoComplete="current-password"
+            required
+            className="h-[42px]"
+          />
+        </div>
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        <Button type="submit" size="lg" className="h-[46px] w-full" disabled={isPending}>
+          {isPending ? "Entrando..." : "Entrar"}
+          <ArrowRight data-icon="inline-end" />
+        </Button>
+      </form>
+    </div>
   );
 }

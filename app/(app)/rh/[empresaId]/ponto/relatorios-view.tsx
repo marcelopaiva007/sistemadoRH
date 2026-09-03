@@ -106,7 +106,7 @@ export function RelatoriosPontoView({ empresaId }: { empresaId: string }) {
         <Card className="border shadow-xs">
           <CardHeader>
             <div className="flex items-center gap-2">
-              <div className="p-2 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-lg">
+              <div className="p-2 bg-card text-success rounded-lg">
                 <FileSpreadsheet className="w-5 h-5" />
               </div>
               <div>
@@ -131,7 +131,7 @@ export function RelatoriosPontoView({ empresaId }: { empresaId: string }) {
         <Card className="border shadow-xs sm:col-span-2">
           <CardHeader>
             <div className="flex items-center gap-2">
-              <div className="p-2 bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-lg">
+              <div className="p-2 bg-card text-foreground rounded-lg">
                 <Printer className="w-5 h-5" />
               </div>
               <div>

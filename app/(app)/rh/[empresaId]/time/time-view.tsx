@@ -311,7 +311,7 @@ export function TimeView({
                         )}
                         {l.nuncaAcessouPortal && <Badge variant="outline">nunca acessou o portal</Badge>}
                         {l.semLider && (
-                          <Badge variant="outline" className="text-warning">
+                          <Badge variant="outline" className="text-muted-foreground">
                             <UserX className="size-3" />
                             sem líder
                           </Badge>
@@ -458,7 +458,7 @@ function JanelaDeContrato({ linhas }: { linhas: LinhaTime[] }) {
                 </div>
                 <Badge
                   variant={l.janelaContrato.urgencia === "critica" ? "destructive" : "secondary"}
-                  className={l.janelaContrato.urgencia === "atencao" ? "text-warning" : undefined}
+                  className={l.janelaContrato.urgencia === "atencao" ? "text-muted-foreground" : undefined}
                 >
                   {(l.janelaContrato.diasAteFim ?? 0) < 0
                     ? `vencido há ${Math.abs(l.janelaContrato.diasAteFim ?? 0)} d`
@@ -606,7 +606,7 @@ function BadgeFerias({ ferias }: { ferias: LinhaTime["ferias"] }) {
       return (
         <Badge
           variant="secondary"
-          className="text-warning"
+          className="text-muted-foreground"
           title={`Vence em ${ferias.diasAteLimite} dia(s)${sufixoHistorico}`}
         >
           vencendo em {ferias.diasAteLimite} d
@@ -641,7 +641,7 @@ function BadgeAvaliacao({ avaliacao }: { avaliacao: LinhaTime["avaliacao"] }) {
       );
     case "SEM_AVALIACAO":
       return (
-        <Badge variant="secondary" className="text-warning" title="Há ciclo aberto e ninguém criou avaliação para esta pessoa">
+        <Badge variant="secondary" className="text-muted-foreground" title="Há ciclo aberto e ninguém criou avaliação para esta pessoa">
           sem avaliação
         </Badge>
       );

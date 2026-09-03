@@ -83,7 +83,7 @@ export function ResultadosView({
                         </div>
                         {/* Barra em vez de gráfico: são poucas opções por
                             pergunta, e a proporção se lê direto. */}
-                        <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                        <div className="h-1.5 w-full overflow-hidden bg-card">
                           <div
                             className="h-full rounded-full bg-primary"
                             style={{ width: `${fatia.percentual}%` }}

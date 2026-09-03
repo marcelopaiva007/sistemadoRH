@@ -47,9 +47,9 @@ export function PainelPresencaView({
   const badgeStatus = (status: string) => {
     switch (status) {
       case "PRESENTE":
-        return <Badge variant="default" className="bg-emerald-600 hover:bg-emerald-700">Presente</Badge>;
+        return <Badge variant="default" className="bg-success hover:bg-success">Presente</Badge>;
       case "EM_INTERVALO":
-        return <Badge variant="secondary" className="bg-amber-500/15 text-amber-600 dark:text-amber-400">Em Almoço/Intervalo</Badge>;
+        return <Badge variant="secondary" className="bg-card text-muted-foreground">Em Almoço/Intervalo</Badge>;
       case "ATRASADO":
         return <Badge variant="destructive">Atrasado</Badge>;
       default:
@@ -61,32 +61,32 @@ export function PainelPresencaView({
     <div className="space-y-4">
       {/* Cards de Métricas em Tempo Real */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Card className="p-3 bg-emerald-500/10 border-emerald-500/30">
+        <Card className="p-3 bg-card border-success">
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted-foreground font-medium">Presentes Agora</span>
-            <UserCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            <UserCheck className="w-4 h-4 text-success" />
           </div>
-          <span className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400 font-mono mt-1 block">
+          <span className="text-2xl font-extrabold text-success font-mono mt-1 block">
             {totalPresentes}
           </span>
         </Card>
 
-        <Card className="p-3 bg-amber-500/10 border-amber-500/30">
+        <Card className="p-3 bg-card border-border">
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted-foreground font-medium">Em Intervalo</span>
-            <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+            <Clock className="w-4 h-4 text-muted-foreground" />
           </div>
-          <span className="text-2xl font-extrabold text-amber-600 dark:text-amber-400 font-mono mt-1 block">
+          <span className="text-2xl font-extrabold text-muted-foreground font-mono mt-1 block">
             {totalIntervalo}
           </span>
         </Card>
 
-        <Card className="p-3 bg-rose-500/10 border-rose-500/30">
+        <Card className="p-3 bg-accent border-primary">
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted-foreground font-medium">Atrasados</span>
-            <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+            <AlertTriangle className="w-4 h-4 text-destructive" />
           </div>
-          <span className="text-2xl font-extrabold text-rose-600 dark:text-rose-400 font-mono mt-1 block">
+          <span className="text-2xl font-extrabold text-destructive font-mono mt-1 block">
             {totalAtrasados}
           </span>
         </Card>
@@ -153,7 +153,7 @@ export function PainelPresencaView({
                             className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] hover:bg-accent ${
                               item.referenciaConferida
                                 ? "border-primary/40 text-foreground"
-                                : "border-amber-500/50 text-amber-700 dark:text-amber-400"
+                                : "border-border text-muted-foreground"
                             }`}
                           >
                             <UserRound className="w-3 h-3" />

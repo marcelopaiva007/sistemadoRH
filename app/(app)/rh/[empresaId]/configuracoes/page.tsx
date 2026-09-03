@@ -118,7 +118,7 @@ export default async function ConfiguracoesPage({
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-xl font-semibold tracking-tight">Configurações</h2>
+        <h1>Configurações</h1>
         <p className="text-sm text-muted-foreground">
           O estado de cada área de configuração do sistema, num lugar só. Clique num cartão para
           ajustar.

@@ -56,7 +56,7 @@ export function Logo({
         height={height}
         priority
         unoptimized
-        className={cn(RECORTE_CLARO, "dark:hidden", className)}
+        className={cn(RECORTE_CLARO, "", className)}
       />
       <Image
         src={LOGO_WHITE}
@@ -66,7 +66,7 @@ export function Logo({
         priority
         unoptimized
         aria-hidden
-        className={cn("hidden object-contain dark:block", className)}
+        className={cn("hidden object-contain", className)}
       />
     </>
   );

@@ -217,7 +217,7 @@ export function AlugueisView({
         </p>
       )}
       {aviso && (
-        <p className="rounded-md border border-emerald-600/40 bg-emerald-600/5 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-400">
+        <p className="rounded-md border border-success bg-card px-3 py-2 text-sm text-success">
           {aviso}
         </p>
       )}
@@ -423,7 +423,7 @@ export function AlugueisView({
                     className={cn(
                       "flex items-center justify-between gap-2 rounded-md border px-2.5 py-1.5 text-sm",
                       p.recebido
-                        ? "border-emerald-600/30 bg-emerald-600/5"
+                        ? "border-success bg-card"
                         : p.vencido
                           ? "border-destructive/30 bg-destructive/5"
                           : "border-border",
