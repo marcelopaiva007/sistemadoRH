@@ -212,7 +212,7 @@ export function SeletorMarcaEmpresa({
           bastou a caixa interna não ter o dela para, na linha apertada, ela
           transbordar PINTANDO por cima do vizinho da direita (foi o que
           atropelou "Usuários e perfis" na v1.120.1). */}
-      <div className="flex min-w-0 items-stretch rounded-none border border-border bg-card">
+      <div className="flex h-8 min-w-0 items-stretch border border-border bg-transparent">
         {/* Segmento 1: pula direto para a visão consolidada de uma marca. */}
         <div className="relative flex min-w-0">
           <button
@@ -225,8 +225,7 @@ export function SeletorMarcaEmpresa({
             }}
             style={corMarcaAtiva ? ({ "--marca": corMarcaAtiva } as React.CSSProperties) : undefined}
             className={cn(
-              "flex h-full min-w-0 items-center gap-1.5 px-2.5 py-1.5 text-sm transition-colors hover:bg-muted/60",
-              dentroDeEmpresa ? "rounded-l-[10px]" : "rounded-none",
+              "flex h-full min-w-0 items-center gap-1.5 px-2.5 text-sm transition-colors hover:bg-foreground/7",
             )}
           >
             {/* Com uma marca em foco, a marca responde "onde estou" de
@@ -273,7 +272,7 @@ export function SeletorMarcaEmpresa({
                     type="button"
                     onClick={() => selecionar([])}
                     className={cn(
-                      "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors",
+                      "flex w-full items-center gap-2 px-2 py-1.5 text-left text-sm transition-colors",
                       semFiltro
                         ? "bg-primary/8 font-medium text-primary"
                         : "text-foreground hover:bg-accent/50"
@@ -299,7 +298,7 @@ export function SeletorMarcaEmpresa({
                     onClick={() => selecionar(idsDaMarca)}
                     style={{ "--marca": cor } as React.CSSProperties}
                     className={cn(
-                      "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors",
+                      "flex w-full items-center gap-2 px-2 py-1.5 text-left text-sm transition-colors",
                       ativa
                         ? "bg-[color-mix(in_oklab,var(--marca)_8%,transparent)] font-semibold text-[color-mix(in_oklab,var(--marca)_75%,var(--foreground))]"
                         : "text-foreground hover:bg-accent/50"
@@ -339,7 +338,7 @@ export function SeletorMarcaEmpresa({
               setAbertoMarca(false);
             }}
             style={corMarcaAtiva ? ({ "--marca": corMarcaAtiva } as React.CSSProperties) : undefined}
-            className="flex h-full min-w-0 items-center gap-1.5 rounded-r-[10px] px-2.5 py-1.5 text-sm transition-colors hover:bg-muted/60"
+            className="flex h-full min-w-0 items-center gap-1.5 px-2.5 text-sm transition-colors hover:bg-foreground/7"
           >
             <span
               className={cn(
@@ -371,7 +370,7 @@ export function SeletorMarcaEmpresa({
                       selecionar((empresasPorMarca.get(marcaEmFoco.id) ?? []).map((e) => e.id))
                     }
                     className={cn(
-                      "flex w-full items-center rounded-md px-2 py-1.5 text-left text-sm transition-colors",
+                      "flex w-full items-center px-2 py-1.5 text-left text-sm transition-colors",
                       marcaAtiva
                         ? "bg-primary/8 font-medium text-primary"
                         : "text-foreground hover:bg-accent/50"
@@ -403,7 +402,7 @@ export function SeletorMarcaEmpresa({
                           type="button"
                           onClick={() => selecionar([empresa.id])}
                           className={cn(
-                            "flex w-full items-center rounded-md px-2 py-1.5 text-left text-sm transition-colors",
+                            "flex w-full items-center px-2 py-1.5 text-left text-sm transition-colors",
                             ativa
                               ? "bg-primary/8 font-medium text-primary"
                               : "text-foreground hover:bg-accent/50"

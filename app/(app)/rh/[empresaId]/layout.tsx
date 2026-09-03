@@ -18,42 +18,19 @@ export default async function RHEmpresaLayout({
 
   const empresas = await prisma.empresa.findMany({
     where: { id: { in: empresasDoUsuario }, ativo: true },
-    orderBy: { nome: "asc" },
-    select: { id: true, nome: true, marcaId: true },
+    select: { id: true },
   });
+  if (!empresas.some((e) => e.id === empresaId)) notFound();
 
-  // Buscar marcas daquelas empresas
-  const marcasIds = [...new Set(empresas.map((e) => e.marcaId))];
-  const marcas = await prisma.marca.findMany({
-    where: { id: { in: marcasIds } },
-    orderBy: { nome: "asc" },
-    select: { id: true, nome: true, logoUrl: true },
-  });
-
-  const empresa = empresas.find((e) => e.id === empresaId);
-  if (!empresa) notFound();
-
-  // A cor da marca (Marca.corPrimaria) pintava o --primary deste subtree da
-  // v1.4x à v1.153.2. Saiu na v1.154.0 (visual Modernist, uma cor só): a
-  // marca segue identificada pelo nome no seletor do topo e pela logo abaixo.
-  const marcaAtiva = marcas.find((m) => m.id === empresa.marcaId);
-
+  // Aqui já morou a cor da marca pintando o --primary (até a v1.153.2) e a
+  // logo da marca no topo da lateral (26/08 → v1.154.0, pedido do dono). As
+  // duas saíram com o visual Modernist: a marca é identificada pelo NOME e
+  // pela LOGO no seletor de marca/CNPJ da barra de topo — em toda tela, não
+  // só dentro do CNPJ — e a lateral fica só com a navegação, que é o que se
+  // varre com o olho. A barra de topo tem 52px desde a v1.155.0 (era 94).
   return (
     <div className="flex gap-6">
-      <aside className="sticky top-[94px] hidden h-[calc(100vh-94px)] w-56 shrink-0 overflow-y-auto border-r pr-3 pt-2 md:block">
-        {/* A logo da marca em lugar visível — pedido do dono (26/08/2026):
-            o selo do topo diz "onde estou" de relance, mas é pequeno; aqui a
-            marca aparece em tamanho de verdade, em toda tela da empresa.
-            Marca sem logo não reserva espaço nenhum. */}
-        {marcaAtiva?.logoUrl && (
-          <div className="mb-2 border-b pb-3">
-            <img
-              src={marcaAtiva.logoUrl}
-              alt={marcaAtiva.nome}
-              className="max-h-12 w-auto max-w-44 object-contain"
-            />
-          </div>
-        )}
+      <aside className="sticky top-[52px] hidden h-[calc(100vh-52px)] w-[216px] shrink-0 overflow-y-auto border-r-2 border-border pr-4 pt-3 md:block">
         <RHEmpresaNav empresaId={empresaId} />
       </aside>
 

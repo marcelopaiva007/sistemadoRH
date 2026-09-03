@@ -1,97 +1,55 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { BarChart3, BellRing, Building2, CalendarCheck, Car, CircleDollarSign, FileSignature, FileWarning, Fuel, IdCard, LayoutDashboard, PieChart, Wrench } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { NavLateral } from "@/components/padroes/nav-lateral";
 
-// Menu do módulo, no mesmo formato do RH (app/(app)/rh/[empresaId]/rh-empresa-nav.tsx).
-//
-// Só aparece o que EXISTE. Patrimônio, documentos e processos estão no roadmap
-// e não estão aqui: item de menu que leva a página vazia é o começo clássico do
-// fracasso de implantação de GED — promete estrutura antes de ter conteúdo, e o
-// usuário aprende em uma semana que metade do menu não serve.
+// Menu do módulo. Mesmo desenho da lateral do RH (components/padroes/
+// nav-lateral.tsx desde a v1.155.0): grupos recolhíveis, sem ícones, e o item
+// ativo é sempre o de prefixo mais específico — "Veículos" (`frota`) não
+// acende junto com "Multas" (`frota/multas`).
 const GRUPOS = [
   {
     titulo: null,
     itens: [
-      { slug: "", label: "Pendências", icon: BellRing },
+      { slug: "", label: "Pendências" },
       // A leitura de diretoria: números e gráficos, sem botão de ação — agir é
       // na Central. Mesma divisão que o RH faz entre Painel executivo e filas.
-      { slug: "painel", label: "Painel", icon: LayoutDashboard },
+      { slug: "painel", label: "Painel" },
     ],
   },
   {
     titulo: "Frota",
     itens: [
-      { slug: "frota/panorama", label: "Panorama", icon: PieChart },
-      { slug: "frota", label: "Veículos", icon: Car },
-      { slug: "frota/financeiro", label: "Financeiro", icon: CircleDollarSign },
-      { slug: "frota/emplacamento", label: "Emplacamento", icon: CalendarCheck },
-      { slug: "frota/multas", label: "Multas", icon: FileWarning },
-      { slug: "frota/condutores", label: "Condutores", icon: IdCard },
-      { slug: "frota/consumo", label: "Consumo", icon: Fuel },
-      { slug: "frota/manutencoes", label: "Manutenções", icon: Wrench },
-      { slug: "frota/analise", label: "Análise", icon: BarChart3 },
+      { slug: "frota/panorama", label: "Panorama" },
+      { slug: "frota", label: "Veículos" },
+      { slug: "frota/financeiro", label: "Financeiro" },
+      { slug: "frota/emplacamento", label: "Emplacamento" },
+      { slug: "frota/multas", label: "Multas" },
+      { slug: "frota/condutores", label: "Condutores" },
+      { slug: "frota/consumo", label: "Consumo" },
+      { slug: "frota/manutencoes", label: "Manutenções" },
+      { slug: "frota/analise", label: "Análise" },
     ],
   },
   {
     titulo: "Contratos",
     itens: [
-      { slug: "contratos", label: "Contratos", icon: FileSignature },
-      { slug: "contratos/contrapartes", label: "Contrapartes", icon: Building2 },
-      { slug: "alugueis", label: "Aluguéis a receber", icon: CircleDollarSign },
+      { slug: "contratos", label: "Contratos" },
+      { slug: "contratos/contrapartes", label: "Contrapartes" },
+      { slug: "alugueis", label: "Aluguéis a receber" },
     ],
   },
 ] as const;
 
 export function ProcessosNav({ empresaId }: { empresaId: string }) {
-  const pathname = usePathname();
   const base = `/processos/${empresaId}`;
-
-  // O item ativo é o de prefixo MAIS ESPECÍFICO — um só, sempre. Com
-  // startsWith puro, "Veículos" (slug `frota`) acendia junto com "Multas"
-  // (`frota/multas`), porque um caminho é prefixo do outro. Os slugs do RH
-  // nunca aninham, então lá o problema não existia; aqui existe.
-  const hrefs = GRUPOS.flatMap((g) => g.itens.map((i) => (i.slug ? `${base}/${i.slug}` : base)));
-  const ativo = hrefs
-    .filter((h) => (h === base ? pathname === base : pathname === h || pathname.startsWith(`${h}/`)))
-    .sort((a, b) => b.length - a.length)[0];
-
-  return (
-    <nav className="flex gap-1 md:flex-col md:gap-0.5">
-      {GRUPOS.map((grupo) => (
-        <div key={grupo.titulo ?? "raiz"} className="flex gap-1 md:flex-col md:gap-0.5">
-          {grupo.titulo && (
-            <p className="hidden px-2 pt-4 pb-1 text-[11px] font-semibold tracking-wide text-muted-foreground/70 uppercase md:block">
-              {grupo.titulo}
-            </p>
-          )}
-          {grupo.itens.map((item) => {
-            const href = item.slug ? `${base}/${item.slug}` : base;
-            const esteAtivo = href === ativo;
-            const Icon = item.icon;
-            return (
-              <Link
-                key={href}
-                href={href}
-                className={cn(
-                  "flex shrink-0 items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm transition-colors",
-                  // Ver a nota em rh-empresa-nav.tsx: no escuro, a cor da marca
-                  // como texto fica abaixo do contraste mínimo, e ela muda por
-                  // empresa. O fundo tingido continua marcando o item ativo.
-                  esteAtivo
-                    ? "bg-primary/10 font-semibold text-primary dark:text-foreground"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                )}
-              >
-                <Icon className="size-4 shrink-0" />
-                <span className="whitespace-nowrap">{item.label}</span>
-              </Link>
-            );
-          })}
-        </div>
-      ))}
-    </nav>
-  );
+  const grupos = GRUPOS.map((grupo) => ({
+    titulo: grupo.titulo,
+    itens: grupo.itens.map((item) => ({
+      href: item.slug ? `${base}/${item.slug}` : base,
+      label: item.label,
+      // A raiz é prefixo de tudo: só acende com o caminho exato.
+      exato: !item.slug,
+    })),
+  }));
+  return <NavLateral grupos={grupos} />;
 }

@@ -29,8 +29,13 @@ const produtividadeItem: NavItem = { href: "/produtividade", label: "Produtivida
 const atualizacoesItem: NavItem = { href: "/atualizacoes", label: "Atualizações", icon: History };
 const meuSetorItem: NavItem = { href: "/rh/meu-setor", label: "Meu Setor", icon: HeartHandshake };
 
-// A barra tem DOIS níveis, e desde 26/08/2026 eles se dividem assim (pedido do
-// dono do sistema): a LINHA 1 é a área do que pertence a TODOS os sistemas —
+// v1.155.0: a barra virou UMA linha (Modernist). As duas listas abaixo
+// continuam sendo a fonte por papel, mas as duas alimentam o MENU DO AVATAR
+// (components/app-topbar.tsx), não mais duas linhas da barra. A divisão
+// linha 1 / linha 2 descrita a seguir é a história de como chegaram aqui.
+//
+// A barra tinha DOIS níveis, e desde 26/08/2026 eles se dividiam assim (pedido
+// do dono do sistema): a LINHA 1 é a área do que pertence a TODOS os sistemas —
 // o seletor de sistema, o de marca/CNPJ, e a administração global (usuários e
 // perfis, atualizações), ao lado do nome dos sistemas. A LINHA 2 é a navegação
 // de páginas soltas do usuário logado (início, produtividade). O que é de UM

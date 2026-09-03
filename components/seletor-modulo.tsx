@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { MODULOS, moduloDoCaminho, type Modulo } from "@/components/modulos";
@@ -28,9 +29,18 @@ import { PARAM } from "@/app/(app)/rh/[empresaId]/filtro-empresas";
  * de empresa — a mesma classe de erro que o seletor de marca causou na
  * v1.105.0.
  */
+// Classes das abas. `h-[54px]` com `-mb-0.5` faz a régua de 2px da aba ativa
+// cair EM CIMA da régua de 2px da barra (52px + borda), como no desenho —
+// sem isso ficava um risco vermelho flutuando 2px acima da linha.
+const ABA =
+  "flex min-w-0 items-center gap-1.5 border-b-2 px-0.5 text-sm whitespace-nowrap transition-colors";
+const ABA_ATIVA = "border-primary font-extrabold text-primary";
+const ABA_INATIVA = "border-transparent font-semibold text-muted-foreground hover:text-foreground";
+
 export function SeletorModulo({
   sistemasPermitidos,
   empresaIds,
+  role,
 }: {
   /** Slugs dos sistemas que ESTE usuário alcança — vem do servidor
    *  (`sistemasPermitidos`), já com o fallback de papel para quem não tem
@@ -43,6 +53,8 @@ export function SeletorModulo({
    *  `/rh/<algo>`, e um palpite pelo tamanho do texto erraria calado no dia em
    *  que uma rota nova tivesse nome comprido. */
   empresaIds: string[];
+  /** Para quem não alcança módulo nenhum (GESTOR_SETOR): a aba única é a tela dele. */
+  role: string;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -51,13 +63,19 @@ export function SeletorModulo({
   const modulos = MODULOS.filter((m) => sistemasPermitidos.includes(m.slug));
   const moduloAtual = moduloDoCaminho(pathname);
 
-  // Um módulo só (ou nenhum): não há troca a oferecer, então é rótulo, não
-  // controle. Fingir um botão que não leva a lugar nenhum é pior que texto.
-  if (modulos.length < 2) {
+  // Sem módulo nenhum: é o GESTOR_SETOR, cuja navegação é uma tela só
+  // (`/rh/meu-setor`). A aba mostra essa tela em vez de deixar a barra vazia.
+  // Outro papel sem módulo não ganha aba: as páginas barram, e aba que não
+  // abre é porta trancada com placa.
+  if (modulos.length === 0) {
+    if (role !== "GESTOR_SETOR") return null;
+    const ativo = pathname.startsWith("/rh/meu-setor");
     return (
-      <span className="hidden text-sm font-semibold text-foreground/90 lg:inline">
-        {moduloAtual?.nome ?? "Sistema de RH"}
-      </span>
+      <div className="-mb-0.5 flex h-[54px] min-w-0 items-stretch">
+        <Link href="/rh/meu-setor" aria-current={ativo ? "page" : undefined} className={cn(ABA, ativo ? ABA_ATIVA : ABA_INATIVA)}>
+          Meu Setor
+        </Link>
+      </div>
     );
   }
 
@@ -86,45 +104,31 @@ export function SeletorModulo({
   }
 
   return (
-    <div className="flex min-w-0 items-center gap-2">
-      {/* Mesma moldura das pílulas de marca/CNPJ (rounded-none, borda,
-          bg-card), dividida em segmentos — os dois sistemas visíveis ao mesmo
-          tempo, e o de dentro marcado. No celular ficam só os ícones: dois
-          nomes por extenso não cabem em 375px, e o ícone com `title` continua
-          dizendo qual é qual. */}
-      {/* `min-w-0`, não `shrink-0`: com a caixa travada, a linha apertada faz
-          ela transbordar por cima do vizinho (a mesma classe de defeito do
-          seletor de marca na v1.120.1). Os rótulos já truncam; deixá-los
-          encolher é o que mantém a linha 1 sem sobreposição em toda largura. */}
-      <div
-        role="group"
-        aria-label="Sistema"
-        className="flex min-w-0 items-stretch overflow-hidden rounded-none border border-border bg-card"
-      >
-        {modulos.map((modulo, i) => {
-          const Icone = modulo.icone;
-          const atual = modulo.slug === moduloAtual?.slug;
-          return (
-            <button
-              key={modulo.slug}
-              type="button"
-              aria-current={atual ? "true" : undefined}
-              title={modulo.nome}
-              onClick={() => irPara(modulo)}
-              className={cn(
-                "flex min-w-0 items-center gap-1.5 px-2 py-1.5 text-sm transition-colors sm:px-2.5",
-                i > 0 && "border-l border-border",
-                atual
-                  ? "bg-primary/10 font-semibold text-primary dark:text-foreground"
-                  : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-              )}
-            >
-              <Icone className="size-3.5 shrink-0" />
-              <span className="hidden max-w-40 truncate sm:inline">{modulo.nome}</span>
-            </button>
-          );
-        })}
-      </div>
+    // Os módulos como ABAS DE TEXTO (v1.155.0), não como pílulas num quadro:
+    // a aba ativa em `--primary` peso 800 com a régua vermelha embaixo. Um
+    // módulo só também vira aba (ativa) — o rótulo continua dizendo onde se
+    // está. No celular ficam só os ícones: três nomes por extenso não cabem
+    // em 375px, e o ícone com `title` continua dizendo qual é qual.
+    // `min-w-0`, não `shrink-0`: com a caixa travada, a linha apertada faz ela
+    // transbordar por cima do vizinho (a classe de defeito da v1.120.1).
+    <div role="group" aria-label="Sistema" className="-mb-0.5 flex h-[54px] min-w-0 items-stretch gap-2 sm:gap-4">
+      {modulos.map((modulo) => {
+        const Icone = modulo.icone;
+        const atual = modulo.slug === moduloAtual?.slug;
+        return (
+          <button
+            key={modulo.slug}
+            type="button"
+            aria-current={atual ? "page" : undefined}
+            title={modulo.nome}
+            onClick={() => irPara(modulo)}
+            className={cn(ABA, atual ? ABA_ATIVA : ABA_INATIVA)}
+          >
+            <Icone className="size-4 shrink-0 sm:hidden" />
+            <span className="hidden max-w-44 truncate sm:inline">{modulo.nome}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }
