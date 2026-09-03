@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.161.0",
+    data: "03/09/2026",
+    horario: "21:10",
+    titulo: "Tela de login em duas metades",
+    itens: [
+      "A entrada do sistema ganhou a metade vermelha com o FASTMAI, a frase \"Pessoas, processos e delegações do grupo\" e as marcas; o formulário fica à direita, sem cartão, com \"Esqueci minha senha\" ao lado do campo de senha e o botão Entrar com a seta.",
+      "No rodapé, o caminho para quem é colaborador: o portal é pelo celular.",
+      "No celular a metade vermelha vira uma faixa no topo. A versão do sistema continua visível antes de entrar.",
+    ],
+  },
+  {
     versao: "1.160.0",
     data: "03/09/2026",
     horario: "20:50",
