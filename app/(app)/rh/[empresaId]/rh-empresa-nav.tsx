@@ -131,6 +131,9 @@ const GRUPOS = [
  * "Talentos" e a trilha diga "Candidatos" — o slug é o mesmo, o usuário é que
  * fica sem saber se está na mesma tela.
  */
+/** As telas do módulo, para a busca global (components/busca-global.tsx). */
+export const TELAS_RH = GRUPOS.flatMap((g) => g.itens.map((i) => ({ slug: i.slug, label: i.label, grupo: g.titulo })));
+
 export const ROTULO_DO_MODULO: Record<string, string> = Object.fromEntries(
   GRUPOS.flatMap(g => g.itens.map(i => [i.slug, i.label]))
 );

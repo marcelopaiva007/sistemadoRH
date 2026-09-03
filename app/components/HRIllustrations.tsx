@@ -89,7 +89,7 @@ export function HRWelcomeBanner() {
             Gerenciamento moderno de recursos humanos com foco em pessoas
           </p>
         </div>
-        <div className="hidden md:flex text-background">
+        <div className="hidden md:flex text-foreground">
           <PeopleCollaborationIcon className="w-32 h-32" />
         </div>
       </div>

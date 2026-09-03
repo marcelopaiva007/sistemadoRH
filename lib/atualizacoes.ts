@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.164.0",
+    data: "03/09/2026",
+    horario: "22:15",
+    titulo: "Busca global: Ctrl K acha qualquer tela ou pessoa",
+    itens: [
+      "Na barra de topo há um campo de busca (ou Ctrl K / ⌘K de qualquer tela): digite o nome de uma tela (\"Férias\", \"Emplacamento\", \"Reuniões\") ou de uma pessoa e vá direto com Enter.",
+      "Pessoas aparecem com CPF mascarado, setor e CNPJ, e só as dos CNPJs que você enxerga — o mesmo recorte de todas as telas.",
+      "As telas listadas são as mesmas dos menus laterais dos três sistemas, respeitando o que o seu perfil alcança.",
+    ],
+  },
+  {
     versao: "1.163.0",
     data: "03/09/2026",
     horario: "21:50",

@@ -9,6 +9,7 @@ import { navByRole, globalNavByRole } from "@/components/nav-config";
 import { FastmaiLogo } from "@/components/logo-fastmai";
 import { SeletorModulo } from "@/components/seletor-modulo";
 import { SeletorMarcaEmpresa } from "@/components/seletor-marca-empresa";
+import { BuscaGlobal } from "@/components/busca-global";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -97,6 +98,8 @@ export function AppTopbar({
         <SeletorMarcaEmpresa marcas={marcas} empresas={empresas} />
 
         <div className="min-w-0 flex-1" />
+
+        <BuscaGlobal sistemasPermitidos={sistemasPermitidos} empresaIds={empresas.map((e) => e.id)} role={role} />
 
         {/* A pessoa e tudo o que é dela: navegação solta, conta, sair e a
             versão. Avatar quadrado com iniciais (sem foto no sistema); nome e

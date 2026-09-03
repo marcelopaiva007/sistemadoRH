@@ -40,6 +40,11 @@ const GRUPOS = [
   },
 ] as const;
 
+/** As telas do módulo, para a busca global. */
+export const TELAS_PROCESSOS = GRUPOS.flatMap((g) =>
+  g.itens.map((i) => ({ slug: i.slug, label: i.label, grupo: g.titulo ?? "Processos & Ativos" })),
+);
+
 export function ProcessosNav({ empresaId }: { empresaId: string }) {
   const base = `/processos/${empresaId}`;
   const grupos = GRUPOS.map((grupo) => ({
