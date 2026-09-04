@@ -73,7 +73,7 @@ export default async function ContrapartesPage({
         <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
           {empresa.marca.nome} · {empresa.nome}
         </p>
-        <h1 className="mt-1 text-xl font-semibold tracking-tight">Contrapartes</h1>
+        <h1 className="mt-1">Contrapartes</h1>
         <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
           Cadastro único do grupo — quem assina do outro lado serve a todos os CNPJs. A contagem de
           contratos ao lado é a dos contratos que você enxerga.

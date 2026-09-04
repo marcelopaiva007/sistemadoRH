@@ -66,7 +66,7 @@ export default async function ProdutividadePage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight">Produtividade da equipe de RH</h1>
+        <h1>Produtividade da equipe de RH</h1>
         <p className="text-sm text-muted-foreground">
           Ações registradas na trilha de auditoria, por conta de sistema (ADMIN, Diretoria, gestor de
           RH e gestor de setor) — não por colaborador. É contagem de eventos, não peso de esforço:

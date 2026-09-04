@@ -88,7 +88,10 @@ export function PesquisasTable({
           dos botoes que criam pesquisa — ninguem clica em "como usar" por engano
           querendo criar. */}
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <AjudaDaTela modulo="pesquisas" />
+        <div className="flex items-center gap-2">
+          <h1>Pesquisas</h1>
+          <AjudaDaTela modulo="pesquisas" />
+        </div>
         <div className="flex flex-wrap justify-end gap-2">
         <Button
           variant="outline"

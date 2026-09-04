@@ -105,7 +105,7 @@ export default async function ConsumoPage({
         <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
           {empresa.marca.nome} · {empresa.nome}
         </p>
-        <h1 className="mt-1 text-xl font-semibold tracking-tight">Consumo</h1>
+        <h1 className="mt-1">Consumo</h1>
         <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
           Abastecimentos e recargas, com o rendimento calculado pelo hodômetro. A leitura por
           veículo e por condutor está em Análise.

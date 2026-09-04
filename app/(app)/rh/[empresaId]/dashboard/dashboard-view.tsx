@@ -121,10 +121,13 @@ export function DashboardNR01View({
 
   if (!resultado || !pesquisaSelecionada) {
     return (
-      <div className="rounded-md border bg-background p-10 text-center text-muted-foreground">
-        <ShieldAlert className="mx-auto mb-3 size-8" />
-        <p>Nenhuma Avaliação de Riscos Psicossociais (NR-01) criada ainda.</p>
-        <p className="text-sm">Crie uma na aba Pesquisas com o botão &quot;Nova Avaliação NR-01&quot;.</p>
+      <div className="space-y-6">
+        <h1>Dashboard — Riscos Psicossociais (NR-01)</h1>
+        <div className="border-2 border-border p-10 text-center text-muted-foreground">
+          <ShieldAlert className="mx-auto mb-3 size-8" />
+          <p>Nenhuma Avaliação de Riscos Psicossociais (NR-01) criada ainda.</p>
+          <p className="text-sm">Crie uma na aba Pesquisas com o botão &quot;Nova Avaliação NR-01&quot;.</p>
+        </div>
       </div>
     );
   }
@@ -145,7 +148,7 @@ export function DashboardNR01View({
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-lg font-semibold">Dashboard — Riscos Psicossociais (NR-01)</h1>
+        <h1>Dashboard — Riscos Psicossociais (NR-01)</h1>
         <div className="flex items-center gap-2">
           {pesquisas.length > 1 && (
             <Select

@@ -241,7 +241,7 @@ export default async function PanoramaFrotaPage({
         <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
           {empresa.marca.nome} · {empresa.nome}
         </p>
-        <h1 className="mt-1 text-xl font-semibold tracking-tight">Panorama da frota</h1>
+        <h1 className="mt-1">Panorama da frota</h1>
         <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
           O retrato consolidado dos veículos em circulação: quantos, de que tipo, onde ficam, que
           idade têm e quanto falta regularizar. Custos e prazos ficam no Painel e na Central.

@@ -43,6 +43,7 @@ export default async function AppLayout({
           role={user.role}
           nome={user.name ?? user.username}
           versao={versaoDoSistema().rotulo}
+          versaoCurta={`v${versaoDoSistema().numero}`}
           marcas={marcas}
           empresas={empresas}
           sistemasPermitidos={sistemas}

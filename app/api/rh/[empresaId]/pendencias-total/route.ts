@@ -11,6 +11,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { usuarioAlcancaEmpresa } from "@/lib/rh-auth-guard";
+import { sistemasPermitidos } from "@/lib/permissoes/efetivas";
 import { pendenciasDaEmpresa, totalPendencias } from "@/lib/pendencias";
 
 export const runtime = "nodejs";
@@ -27,6 +28,16 @@ export async function GET(
   if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
   if (!(await usuarioAlcancaEmpresa(user, empresaId))) {
     return NextResponse.json({ error: "Sem acesso a esta empresa." }, { status: 403 });
+  }
+  // Enforcement de MÓDULO, além do CNPJ: `usuarioAlcancaEmpresa` responde
+  // "papel de RH + alcança este CNPJ?", e não olha o grant de sistema. Quem só
+  // tem Processos & Ativos no perfil é barrado em /rh pelo requireRHAccess do
+  // layout — e tem de ser barrado aqui também, senão a contagem de pendências
+  // do RH sai por uma porta que a tela fecha. Mesmo achado da revisão
+  // adversarial que corrigiu /api/busca em 03/09/2026.
+  const sistemas = await sistemasPermitidos(user);
+  if (!sistemas.includes("rh")) {
+    return NextResponse.json({ error: "Sem acesso ao módulo Pessoas (RH)." }, { status: 403 });
   }
 
   const total = totalPendencias(await pendenciasDaEmpresa([empresaId]));

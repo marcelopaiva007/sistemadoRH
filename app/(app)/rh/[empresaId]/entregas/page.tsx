@@ -66,7 +66,7 @@ export default async function EntregasPage({
           (app/(app)/rh/[empresaId]/layout.tsx) acha o roteiro pela rota em
           lib/guias.ts — a entrada de slug "entregas" já está lá. */}
       <div>
-        <h1 className="text-xl font-semibold tracking-tight">Entregas ao colaborador</h1>
+        <h1>Entregas ao colaborador</h1>
         <p className="text-sm text-muted-foreground">
           {empresa?.nome ?? "Empresa"} · cartão de benefícios, notebook, uniforme e o que mais a
           empresa entregar

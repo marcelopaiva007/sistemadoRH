@@ -155,7 +155,7 @@ export default async function PainelProcessosPage({
         <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
           {empresa.marca.nome} · {empresa.nome}
         </p>
-        <h1 className="mt-1 text-xl font-semibold tracking-tight">Painel</h1>
+        <h1 className="mt-1">Painel</h1>
         <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
           O resumo de quem decide: prazos em risco e o custo da frota, nos últimos 12 meses.
           Para agir, desça à Central — aqui nada tem botão, de propósito.

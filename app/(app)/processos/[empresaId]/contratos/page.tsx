@@ -157,7 +157,7 @@ export default async function ContratosPage({
         <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
           {empresa.marca.nome} · {empresa.nome}
         </p>
-        <h1 className="mt-1 text-xl font-semibold tracking-tight">Contratos</h1>
+        <h1 className="mt-1">Contratos</h1>
         <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
           Torres, terrenos, postes, prefeituras, fornecedores e prestadores. O que gera prazo —
           aviso de não-renovação, ação renovatória e reajuste — vira pendência com data e dono.

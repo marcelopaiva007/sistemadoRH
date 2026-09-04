@@ -117,7 +117,7 @@ export default async function EmplacamentoPage({
         <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
           {empresa.marca.nome} · {empresa.nome}
         </p>
-        <h1 className="mt-1 text-xl font-semibold tracking-tight">
+        <h1 className="mt-1">
           Emplacamento &amp; Licenciamento {exercicio}
         </h1>
         <p className="mt-1 max-w-3xl text-sm text-muted-foreground">

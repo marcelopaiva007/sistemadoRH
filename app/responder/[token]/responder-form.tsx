@@ -47,7 +47,7 @@ export function ResponderForm({ token, pesquisa }: { token: string; pesquisa: Pe
   return (
     <form action={formAction} className="space-y-6">
       <div className="text-center">
-        <h1 className="text-xl font-semibold tracking-tight">{pesquisa.titulo}</h1>
+        <h1>{pesquisa.titulo}</h1>
         {pesquisa.descricao && <p className="mt-1 text-sm text-muted-foreground">{pesquisa.descricao}</p>}
       </div>
 

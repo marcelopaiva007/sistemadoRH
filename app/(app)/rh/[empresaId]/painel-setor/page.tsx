@@ -68,7 +68,7 @@ export default async function PainelSetorPage({
         <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
           {empresa.marca.nome} · {empresa.nome}
         </p>
-        <h1 className="mt-1 text-xl font-semibold tracking-tight">Painel do setor</h1>
+        <h1 className="mt-1">Painel do setor</h1>
         <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
           A gestão de um setor num olhar: quadro, entradas e saídas, férias, avaliações e a
           comparação com {rotuloEscopo}. O gestor do setor vê estes mesmos números em Meu Setor.

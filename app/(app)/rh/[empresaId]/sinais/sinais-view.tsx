@@ -110,10 +110,10 @@ export function SinaisView({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="flex items-center gap-2 text-xl font-semibold tracking-tight">
+        <h1 className="flex items-center gap-2">
           <BellRing className="size-5" />
           Central de Sinais
-        </h2>
+        </h1>
         <p className="text-sm text-muted-foreground">
           Cada sinal é um desvio detectado pelo sistema esperando um desfecho: reconhecer, virar
           plano de ação ou descartar — com motivo escrito, sempre. O detector roda uma vez por dia.

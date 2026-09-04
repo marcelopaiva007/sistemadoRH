@@ -217,7 +217,7 @@ export default async function VeiculosPage({
           <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
             {empresa.marca.nome} · {empresa.nome}
           </p>
-          <h1 className="mt-1 text-xl font-semibold tracking-tight">Veículos</h1>
+          <h1 className="mt-1">Veículos</h1>
           <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
             A frota e o que vence em cada carro. A coluna &ldquo;com quem está&rdquo; é a que importa
             no dia da multa.

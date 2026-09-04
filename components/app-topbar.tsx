@@ -54,6 +54,7 @@ export function AppTopbar({
   role,
   nome,
   versao,
+  versaoCurta,
   marcas,
   empresas,
   sistemasPermitidos,
@@ -62,6 +63,8 @@ export function AppTopbar({
   nome: string;
   /** Ex.: "v1.0.0 · a1b2c3d". Vem do layout: o commit só existe no servidor. */
   versao: string;
+  /** Só o número ("v1.0.0"), para a linha sob o nome — o commit não cabe ali. */
+  versaoCurta: string;
   /** Marcas e empresas que este usuário enxerga — vazio para quem não navega
    *  em `/rh/[empresaId]` (GESTOR_SETOR). Alimenta o seletor do topo. */
   marcas: { id: string; nome: string; corPrimaria: string | null; logoUrl: string | null }[];
@@ -120,8 +123,15 @@ export function AppTopbar({
               <span className="block max-w-44 truncate text-[13px] leading-tight font-semibold text-foreground">
                 {nome}
               </span>
+              {/* Papel e versão dividem a linha 2. A versão VOLTOU para cá em
+                  04/09/2026: entre a v1.155.0 e a v1.165.0 ela só existia dentro
+                  deste menu, e "sempre visível" é o que foi combinado desde a
+                  v1.39.1 — é a etiqueta que responde "estou vendo a entrega
+                  nova?" sem precisar de clique. O rótulo completo, com o
+                  commit, continua no rodapé do menu. */}
               <span className="block truncate text-[11px] leading-tight text-muted-foreground">
                 {ROLE_LABELS[role] ?? "Acesso restrito"}
+                <span className="font-mono"> · {versaoCurta}</span>
               </span>
             </span>
             <ChevronDown aria-hidden className="hidden size-3.5 shrink-0 text-muted-foreground md:block" />

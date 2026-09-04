@@ -72,6 +72,7 @@ export default async function RelatoriosPage({
 
   return (
     <div className="flex flex-col gap-6">
+      <h1>Relatórios</h1>
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Pesquisas de gestão — {empresa?.nome}</CardTitle>

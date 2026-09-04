@@ -128,7 +128,7 @@ export function ProgramadasView({
           <ArrowLeft className="size-4" />
           Férias
         </Link>
-        <h2 className="mt-1 text-xl font-semibold tracking-tight">Férias programadas</h2>
+        <h1 className="mt-1">Férias programadas</h1>
         <p className="text-sm text-muted-foreground">
           Tudo que está agendado e ainda não terminou: quem está em gozo neste momento e quem ainda
           vai sair. Pedidos reprovados ou cancelados não são agenda e ficam de fora.

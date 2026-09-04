@@ -305,7 +305,7 @@ function ChipStatus({ ativo }: { ativo: boolean }) {
       <span
         className={cn(
           "size-1.5 rounded-full",
-          ativo ? "bg-success" : "bg-neutral-500",
+          ativo ? "bg-success" : "bg-muted-foreground",
         )}
       />
       {ativo ? "Ativo" : "Inativo"}
@@ -571,10 +571,10 @@ export function ColaboradoresTable({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="space-y-0.5">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="flex items-center gap-2 text-lg font-semibold">
+              <h1 className="flex items-center gap-2">
                 <Users className="size-5 text-primary" />
                 Equipe
-              </h2>
+              </h1>
               <AjudaDaTela modulo="colaboradores" />
             </div>
             {/* "no recorte atual", nunca "na empresa atual": aberta pelo menu,

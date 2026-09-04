@@ -67,7 +67,7 @@ export default async function ManutencoesPage({
         <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
           {empresa.marca.nome} · {empresa.nome}
         </p>
-        <h1 className="mt-1 text-xl font-semibold tracking-tight">Manutenções</h1>
+        <h1 className="mt-1">Manutenções</h1>
         <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
           O histórico de cada carro. Preencha a próxima revisão — ela vira aviso na Central antes
           de virar quebra na rua.

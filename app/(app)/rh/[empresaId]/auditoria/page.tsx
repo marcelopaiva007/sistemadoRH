@@ -81,6 +81,7 @@ export default async function AuditoriaPage({
     // depois de montado (ex.: Fast Refresh reaproveitando a instância) dispara
     // aviso do Base UI — com `key` cada valor inicial é sempre um mount novo.
     <Tabs key={diasParam ? "produtividade" : "trilha"} defaultValue={diasParam ? "produtividade" : "trilha"}>
+      <h1 className="mb-4">Auditoria</h1>
       <TabsList variant="line" className="mb-4">
         <TabsTrigger value="trilha">Trilha</TabsTrigger>
         <TabsTrigger value="produtividade">Produtividade</TabsTrigger>
