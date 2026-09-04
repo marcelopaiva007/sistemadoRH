@@ -660,9 +660,23 @@ export async function salvarLimiteEstagio(input: {
 
   // `upsert` porque a linha de configuração pode não existir: ela nasce quando
   // alguém abre esta tela pela primeira vez, não junto com a empresa.
+  //
+  // `exigirGps: false` explícito e SÓ no `create`: esta linha nasce aqui por
+  // efeito colateral de salvar o limite de estágio, e sem isto ela herdaria o
+  // default da coluna. Já custou caro uma vez — com o default `true`, salvar o
+  // teto do estagiário ligava a cerca de GPS de uma empresa sem coordenada
+  // cadastrada e o portal parava de aceitar a batida de quem negou a
+  // localização no celular. No `update` ele NÃO entra: quem edita o limite de
+  // estágio não está mexendo na cerca, e sobrescrever ali desligaria a trava
+  // de quem a configurou de propósito.
   await prisma.configuracaoPontoEmpresa.upsert({
     where: { empresaId: input.empresaId },
-    create: { empresaId: input.empresaId, estagioMinDia: dia, estagioMinSemana: semana },
+    create: {
+      empresaId: input.empresaId,
+      estagioMinDia: dia,
+      estagioMinSemana: semana,
+      exigirGps: false,
+    },
     update: { estagioMinDia: dia, estagioMinSemana: semana },
   });
 
@@ -741,9 +755,14 @@ export async function salvarTravaIpPonto(input: SalvarTravaIpInput): Promise<Act
     exigirIp,
   };
 
+  // `exigirGps: false` fica FORA de `dados`, de propósito: no `create` ele
+  // impede que a linha nasça com a cerca de GPS ligada sem coordenada nenhuma
+  // (ver o mesmo comentário em salvarLimiteEstagio), mas no `update` ele
+  // desligaria a cerca de quem a configurou — salvar um IP não pode mexer na
+  // trava de GPS.
   await prisma.configuracaoPontoEmpresa.upsert({
     where: { empresaId: input.empresaId },
-    create: { empresaId: input.empresaId, ...dados },
+    create: { empresaId: input.empresaId, ...dados, exigirGps: false },
     update: dados,
   });
 
