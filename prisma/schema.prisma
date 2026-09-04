@@ -526,6 +526,7 @@ model Colaborador {
   ocorrenciasDisciplinares OcorrenciaDisciplinar[]
   registrosPonto           RegistroPonto[]
   tratamentosPonto         TratamentoPonto[]
+  marcacoesTratadas        MarcacaoTratada[]
   bancosHoras              BancoHoras[]
   cobrancasCadastro        CobrancaCadastro[]
   sessoesPonto             PontoSessao[]
@@ -2308,12 +2309,51 @@ model TratamentoPonto {
   motivoDecisao   String?
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
+  // A marcação que esta decisão materializou (só INCLUSAO_MANUAL aprovado).
+  // Um tratamento gera no máximo UMA marcação — o @unique está do lado de lá.
+  marcacao        MarcacaoTratada?
 
   @@index([empresaId, dataFato])
   @@index([colaboradorId, dataFato])
   // A fila de pendentes é lida a cada abertura da tela de Ponto e da Central
   // de Aprovações, sempre filtrando por empresa + status.
   @@index([empresaId, status])
+  @@schema("rh")
+}
+
+// Marcação incluída por decisão do RH (PTRP). Nasce da aprovação de um
+// TratamentoPonto do tipo INCLUSAO_MANUAL — o pedido diz qual marcação faltou e
+// a que horas; a aprovação a MATERIALIZA aqui. NUNCA em RegistroPonto:
+// RegistroPonto é o que o REP-P coletou, a única fonte do AFD (Portaria MTP
+// 671/2021). Marcação decidida pelo RH é jornada TRATADA — entra no AEJ, no
+// monitor de presença e na apuração, nunca no AFD, e não consome NSR.
+// Leitor único das duas tabelas: marcacoesDaJornada em lib/ponto-jornada.ts.
+model MarcacaoTratada {
+  id              String          @id @default(cuid())
+  empresaId       String
+  colaboradorId   String
+  colaborador     Colaborador     @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  // Um tratamento aprovado gera UMA marcação — o unique é o que impede duplo
+  // clique na aprovação e re-execução do backfill.
+  tratamentoId    String          @unique
+  // NoAction e não Restrict: NO ACTION é conferido no FIM do statement, então o
+  // cascade da exclusão de ficha (Colaborador -> TratamentoPonto e
+  // Colaborador -> MarcacaoTratada) continua funcionando; RESTRICT quebraria
+  // deleteColaborador.
+  tratamento      TratamentoPonto @relation(fields: [tratamentoId], references: [id], onDelete: NoAction)
+  // Instante UTC, mesma convenção de RegistroPonto.dataHora.
+  dataHora        DateTime
+  tipo            String // "ENTRADA_1" | "SAIDA_1" | "ENTRADA_2" | "SAIDA_2"
+  justificativa   String // cópia de TratamentoPonto.motivo no instante da decisão
+  aprovadoPorId   String?
+  aprovadoPorNome String?
+  aprovadoEm      DateTime
+  hashSHA256      String // gerarHashMarcacaoTratadaSHA256 (lib/ponto-seguranca.ts)
+  origemRegistro  String          @default("DECISAO") // "DECISAO" | "BACKFILL"
+  createdAt       DateTime        @default(now())
+
+  @@index([empresaId, dataHora])
+  @@index([colaboradorId, dataHora])
   @@schema("rh")
 }
 

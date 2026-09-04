@@ -9,7 +9,14 @@ import { registrarAuditoria } from "@/lib/audit";
 import type { ActionResult } from "@/lib/constants";
 import { formatarData } from "@/lib/datas";
 import { gerarConteudoAFD, gerarConteudoAEJ } from "@/lib/ponto-afdaej";
-import { TIPOS_TRATAMENTO_VALIDOS } from "@/lib/constants-ponto";
+import { marcacoesDaJornada } from "@/lib/ponto-jornada";
+import { TIPOS_TRATAMENTO_VALIDOS, TIPOS_MARCACAO_VALIDOS, tipoMarcacaoLabel } from "@/lib/constants-ponto";
+// Hash PRÓPRIO da marcação tratada (cadeia "TRATADA|..."), não o da batida: a
+// marcação incluída por decisão do RH nunca se confunde com uma coleta do REP-P.
+import { gerarHashMarcacaoTratadaSHA256 } from "@/lib/ponto-seguranca";
+// A receita de data/hora (dia de `dataFato` lido em UTC + "HH:mm" de Brasília)
+// mora em lib/ponto-jornada.ts, junto do leitor único — o backfill usa a mesma.
+import { instanteDaMarcacaoTratada } from "@/lib/ponto-jornada";
 import {
   MINIMO_ESTAGIO_MIN_DIA,
   TETO_LEGAL_ESTAGIO_MIN_DIA,
@@ -78,6 +85,15 @@ export async function exportarArquivoAFDRH(empresaId: string) {
 
   if (!empresa) return { erro: "Empresa não localizada." };
 
+  // SÓ RegistroPonto, de propósito — e assim fica. O AFD (Arquivo Fonte de
+  // Dados, Portaria MTP 671/2021) é a cópia fiel do que o REP-P COLETOU: cada
+  // linha é uma batida com NSR próprio, imutável. A marcação incluída pelo RH
+  // por tratamento aprovado (rh.MarcacaoTratada) não foi coletada, não tem
+  // NSR e não pode entrar aqui: ela é jornada TRATADA e vai para o AEJ (ver
+  // exportarArquivoAEJRH), para o monitor e para a apuração. Misturar as duas
+  // seria entregar à fiscalização um arquivo-fonte com marcações que o
+  // equipamento nunca registrou. gerarConteudoAFD ainda filtra por origem,
+  // como segunda trava.
   const registros = await prisma.registroPonto.findMany({
     where: { empresaId },
     orderBy: { nsr: "asc" },
@@ -116,20 +132,32 @@ export async function exportarArquivoAEJRH(empresaId: string) {
 
   if (!empresa) return { erro: "Empresa não localizada." };
 
-  const registros = await prisma.registroPonto.findMany({
-    where: { empresaId },
-    orderBy: { nsr: "asc" },
-    include: {
-      colaborador: { select: { cpf: true } },
-    },
-  });
+  // O AEJ é o arquivo da JORNADA TRATADA (Portaria MTP 671/2021): entra o que
+  // o REP-P coletou (RegistroPonto) E o que o RH incluiu por tratamento
+  // aprovado (rh.MarcacaoTratada). Até 04/09/2026 lia só RegistroPonto — os
+  // pedidos de inclusão manual aprovados em produção não existiam para este
+  // arquivo. A leitura é a mesma do monitor e do portal (lib/ponto-jornada.ts),
+  // do primeiro instante até agora. A ordem passa a ser por dataHora, não por
+  // NSR: a marcação tratada não tem NSR. Ela sai distinguível na linha (ver
+  // gerarConteudoAEJ). O AFD continua lendo só RegistroPonto — ver
+  // exportarArquivoAFDRH. O CPF vem de um mapa da empresa, porque o leitor
+  // único devolve colaboradorId, não a ficha.
+  const [marcacoes, colaboradores] = await Promise.all([
+    marcacoesDaJornada(prisma, { empresaId, de: new Date(0), ate: new Date() }),
+    prisma.colaborador.findMany({ where: { empresaId }, select: { id: true, cpf: true } }),
+  ]);
+  const cpfPorColaborador = new Map<string, string | null>(
+    colaboradores.map((c) => [c.id, c.cpf] as const),
+  );
 
-  const registrosFormatados = registros.map((r: { nsr: bigint; tipo: string; dataHora: Date; colaborador: { cpf: string | null }; hashSHA256: string }) => ({
-    nsr: r.nsr,
-    tipo: r.tipo,
-    dataHora: r.dataHora,
-    cpfColaborador: r.colaborador.cpf || "00000000000",
-    hashSHA256: r.hashSHA256,
+  const registrosFormatados = marcacoes.map((m) => ({
+    nsr: m.nsr,
+    tipo: m.tipo,
+    dataHora: m.dataHora,
+    cpfColaborador: cpfPorColaborador.get(m.colaboradorId) || "00000000000",
+    hashSHA256: m.hashSHA256,
+    origem: m.origem,
+    justificativa: m.justificativa,
   }));
 
   const conteudoAEJ = gerarConteudoAEJ(
@@ -369,6 +397,16 @@ export type CriarTratamentoInput = {
   dataFato: Date;
   tipo: "INCLUSAO_MANUAL" | "ABONO_ATESTADO" | "JUSTIFICATIVA" | "CORRECAO";
   motivo: string;
+  /**
+   * Obrigatórios quando `tipo` é INCLUSAO_MANUAL (desde 04/09/2026): qual
+   * marcação faltou e a que horas (de Brasília, "HH:mm"). É o que a aprovação
+   * transforma em MarcacaoTratada — sem os dois, o pedido não descreve
+   * marcação nenhuma e a decisão não teria o que incluir na jornada. Para os
+   * outros tipos são ignorados. Mesmo par que o colaborador já informa em
+   * solicitarAjustePonto (portal-solicitacoes-ponto.ts).
+   */
+  tipoMarcacao?: string;
+  horaSolicitada?: string;
 };
 
 /**
@@ -402,6 +440,27 @@ export async function registrarTratamentoPonto(input: CriarTratamentoInput) {
     return { erro: "Informe a data da ocorrência." };
   }
 
+  // Inclusão manual sem dizer QUAL marcação e A QUE HORAS não é inclusão de
+  // nada: a aprovação (decidirTratamentoPonto) materializa exatamente esses
+  // dois campos numa MarcacaoTratada, e um pedido aberto sem eles ficaria
+  // travado na decisão. Validação no servidor porque a action é um POST
+  // público — o select da tela não é garantia. Regex idêntico ao do portal
+  // (REGEX_HORA em portal-solicitacoes-ponto.ts) e ao das jornadas.
+  let tipoMarcacao: string | null = null;
+  let horaSolicitada: string | null = null;
+  if (input.tipo === "INCLUSAO_MANUAL") {
+    const marcacao = String(input.tipoMarcacao ?? "").trim();
+    if (!TIPOS_MARCACAO_VALIDOS.has(marcacao)) {
+      return { erro: "Escolha qual marcação deveria ter sido registrada (1ª entrada, 1ª saída, 2ª entrada ou 2ª saída)." };
+    }
+    const hora = String(input.horaSolicitada ?? "").trim();
+    if (!REGEX_HORARIO_JORNADA.test(hora)) {
+      return { erro: "Informe o horário da marcação no formato HH:MM (ex.: 08:02)." };
+    }
+    tipoMarcacao = marcacao;
+    horaSolicitada = hora;
+  }
+
   // O colaborador tem que ser DESTA empresa: o id vem do cliente, e sem esta
   // conferência um id de outra empresa abriria tratamento no ponto alheio.
   const colaborador = await prisma.colaborador.findFirst({
@@ -428,6 +487,8 @@ export async function registrarTratamentoPonto(input: CriarTratamentoInput) {
       registroPontoId: input.registroPontoId || null,
       dataFato: input.dataFato,
       tipo: input.tipo,
+      tipoMarcacao,
+      horaSolicitada,
       motivo: input.motivo.trim(),
       status: "PENDENTE",
     },
@@ -442,8 +503,10 @@ export async function registrarTratamentoPonto(input: CriarTratamentoInput) {
     acao: "CRIAR",
     entidade: "TratamentoPonto",
     entidadeId: tratamento.id,
-    resumo: `Tratamento de ponto (${input.tipo}) aberto para ${colaborador.nome} em ${formatarData(input.dataFato)}.`,
-    detalhes: { tipo: input.tipo, status: "PENDENTE" },
+    resumo:
+      `Tratamento de ponto (${input.tipo}) aberto para ${colaborador.nome} em ${formatarData(input.dataFato)}` +
+      (tipoMarcacao && horaSolicitada ? `: ${tipoMarcacaoLabel(tipoMarcacao)} às ${horaSolicitada}.` : "."),
+    detalhes: { tipo: input.tipo, status: "PENDENTE", tipoMarcacao, horaSolicitada },
   });
 
   revalidatePath(`/rh/${input.empresaId}/ponto`);
@@ -470,7 +533,20 @@ export async function decidirTratamentoPonto(input: {
 
   const atual = await prisma.tratamentoPonto.findFirst({
     where: { id: input.tratamentoId, empresaId: input.empresaId },
-    select: { id: true, status: true, motivo: true, colaborador: { select: { nome: true } } },
+    // tipo/tipoMarcacao/horaSolicitada/dataFato/colaboradorId: é daqui que a
+    // aprovação de uma INCLUSAO_MANUAL monta a MarcacaoTratada (abaixo).
+    select: {
+      id: true,
+      status: true,
+      motivo: true,
+      tipo: true,
+      tipoMarcacao: true,
+      horaSolicitada: true,
+      dataFato: true,
+      colaboradorId: true,
+      empresaId: true,
+      colaborador: { select: { nome: true } },
+    },
   });
   if (!atual) return { ok: false, error: "Tratamento não encontrado nesta empresa." };
   if (atual.status !== "PENDENTE") {
@@ -479,6 +555,60 @@ export async function decidirTratamentoPonto(input: {
   if (input.decisao === "REJEITADO" && (input.motivoDecisao ?? "").trim().length < 5) {
     return { ok: false, error: "Escreva o motivo da rejeição (mínimo 5 caracteres)." };
   }
+
+  // Aprovar uma INCLUSAO_MANUAL é INCLUIR a marcação na jornada tratada — e
+  // não só mudar um status, como era até 04/09/2026 (28 pedidos aprovados em
+  // produção que não existiam para o monitor nem para o AEJ). A marcação vai
+  // para rh.MarcacaoTratada, NUNCA para RegistroPonto: RegistroPonto é o que o
+  // REP-P coletou e a única fonte do AFD (Portaria MTP 671/2021); o que o RH
+  // decide é jornada tratada — entra no AEJ, no painel e na apuração, não
+  // consome NSR.
+  //
+  // Pedido antigo aberto pelo RH sem marcação/hora (o formulário não os pedia)
+  // NÃO é aprovado em silêncio: aprovar sem ter o que incluir repetiria o
+  // defeito. Recusa com o caminho — rejeitar e reabrir dizendo marcação e hora.
+  let marcacao: { tipo: string; dataHora: Date; hash: string } | null = null;
+  if (input.decisao === "APROVADO" && atual.tipo === "INCLUSAO_MANUAL") {
+    const tipoMarcacao = atual.tipoMarcacao;
+    const horaSolicitada = atual.horaSolicitada;
+    if (!tipoMarcacao || !horaSolicitada || !TIPOS_MARCACAO_VALIDOS.has(tipoMarcacao)) {
+      return {
+        ok: false,
+        error:
+          "Este pedido de inclusão manual não diz qual marcação faltou nem o horário — foi aberto antes de o sistema exigir isso. " +
+          "Rejeite-o e abra outro informando a marcação (1ª entrada, 1ª saída, 2ª entrada ou 2ª saída) e o horário; " +
+          "só assim a aprovação entra na jornada como marcação.",
+      };
+    }
+    // instanteDaMarcacaoTratada LANÇA em hora fora de HH:mm ou data ausente
+    // (linha antiga gravada por fora da validação). Aqui isso vira recusa
+    // legível, não erro 500 na tela de quem aprova.
+    let dataHora: Date;
+    try {
+      dataHora = instanteDaMarcacaoTratada(atual.dataFato, horaSolicitada);
+    } catch {
+      return { ok: false, error: "Não foi possível montar a data e hora da marcação a partir deste pedido. Rejeite-o e abra outro." };
+    }
+    if (Number.isNaN(dataHora.getTime())) {
+      return { ok: false, error: "Não foi possível montar a data e hora da marcação a partir deste pedido. Rejeite-o e abra outro." };
+    }
+    marcacao = {
+      tipo: tipoMarcacao,
+      dataHora,
+      hash: gerarHashMarcacaoTratadaSHA256({
+        tratamentoId: atual.id,
+        colaboradorId: atual.colaboradorId,
+        empresaId: input.empresaId,
+        dataHoraISO: dataHora.toISOString(),
+        tipo: tipoMarcacao,
+        aprovadoPorId: usuario?.id ?? null,
+      }),
+    };
+  }
+
+  // Um só instante para `aprovadoEm` do tratamento e da marcação: são o mesmo
+  // ato, e datas diferentes de segundos fariam a auditoria parecer duas decisões.
+  const agora = new Date();
 
   // updateMany com `status: "PENDENTE"` no WHERE, não update por id: entre o
   // findFirst acima e a escrita existe uma janela em que OUTRA pessoa decide o
@@ -491,15 +621,43 @@ export async function decidirTratamentoPonto(input: {
   // julga não reescreve o pedido. A justificativa da decisão vai em
   // `motivoDecisao`, coluna própria desde 11/08/2026 — antes era concatenada
   // dentro de `motivo`, o que adulterava o registro original a cada rejeição.
-  const { count } = await prisma.tratamentoPonto.updateMany({
-    where: { id: atual.id, empresaId: input.empresaId, status: "PENDENTE" },
-    data: {
-      status: input.decisao,
-      motivoDecisao: input.decisao === "REJEITADO" ? input.motivoDecisao!.trim() : null,
-      aprovadoPorId: usuario?.id ?? null,
-      aprovadoPorNome: usuario?.name ?? null,
-      aprovadoEm: new Date(),
-    },
+  //
+  // Transação: o status e a marcação nascem juntos ou não nascem. Sem ela, uma
+  // queda entre as duas escritas deixaria um tratamento APROVADO sem marcação —
+  // exatamente o estado que este PR existe para acabar. Quem perde a corrida
+  // (count 0) não cria marcação; e o @unique em MarcacaoTratada.tratamentoId
+  // é a segunda trava contra o duplo clique.
+  const { count } = await prisma.$transaction(async (tx) => {
+    const resultado = await tx.tratamentoPonto.updateMany({
+      where: { id: atual.id, empresaId: input.empresaId, status: "PENDENTE" },
+      data: {
+        status: input.decisao,
+        motivoDecisao: input.decisao === "REJEITADO" ? input.motivoDecisao!.trim() : null,
+        aprovadoPorId: usuario?.id ?? null,
+        aprovadoPorNome: usuario?.name ?? null,
+        aprovadoEm: agora,
+      },
+    });
+    if (resultado.count === 0 || !marcacao) return resultado;
+
+    await tx.marcacaoTratada.create({
+      data: {
+        empresaId: input.empresaId,
+        colaboradorId: atual.colaboradorId,
+        tratamentoId: atual.id,
+        dataHora: marcacao.dataHora,
+        tipo: marcacao.tipo,
+        // Cópia do motivo NO INSTANTE da decisão: o tratamento pode ser lido
+        // depois, mas a marcação carrega a justificativa que a fez existir.
+        justificativa: atual.motivo,
+        aprovadoPorId: usuario?.id ?? null,
+        aprovadoPorNome: usuario?.name ?? null,
+        aprovadoEm: agora,
+        hashSHA256: marcacao.hash,
+        origemRegistro: "DECISAO",
+      },
+    });
+    return resultado;
   });
   if (count === 0) {
     return { ok: false, error: "Alguém decidiu este tratamento antes de você. Recarregue a tela." };
@@ -514,8 +672,13 @@ export async function decidirTratamentoPonto(input: {
     acao: input.decisao === "APROVADO" ? "APROVAR" : "REPROVAR",
     entidade: "TratamentoPonto",
     entidadeId: atual.id,
-    resumo: `Tratamento de ponto de ${atual.colaborador.nome} ${input.decisao === "APROVADO" ? "aprovado" : "rejeitado"} por ${usuario?.name ?? "RH"}.`,
-    detalhes: { decisao: input.decisao },
+    resumo:
+      `Tratamento de ponto de ${atual.colaborador.nome} ${input.decisao === "APROVADO" ? "aprovado" : "rejeitado"} por ${usuario?.name ?? "RH"}` +
+      (marcacao ? ` — ${tipoMarcacaoLabel(marcacao.tipo)} de ${formatarData(atual.dataFato)} às ${atual.horaSolicitada} incluída na jornada.` : "."),
+    detalhes: {
+      decisao: input.decisao,
+      ...(marcacao ? { marcacaoTratada: { tipo: marcacao.tipo, dataHora: marcacao.dataHora.toISOString(), hashSHA256: marcacao.hash } } : {}),
+    },
   });
 
   revalidatePath(`/rh/${input.empresaId}/ponto`);

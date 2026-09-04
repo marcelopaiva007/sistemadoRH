@@ -3,6 +3,7 @@ import { ipDaRequisicao } from "@/lib/login-tentativas";
 import { prisma } from "@/lib/prisma";
 import { limitesDeEstagio } from "@/lib/ponto-regras";
 import { janelaDoDiaBrasilia } from "@/lib/datas";
+import { marcacoesDaJornada } from "@/lib/ponto-jornada";
 import { PainelPresencaView } from "./painel-presenca";
 import { EscalasView } from "./escalas-view";
 import { TratamentoView } from "./tratamento-view";
@@ -47,7 +48,7 @@ export default async function PontoEletronicoPage({
   const hojeBrasilia = janelaDoDiaBrasilia();
 
   // Buscar empresa e jornadas
-  const [empresa, jornadas, colaboradores, pendentes, historico, paraSelecao, configPonto] = await Promise.all([
+  const [empresa, jornadas, colaboradores, pendentes, historico, paraSelecao, configPonto, marcacoesDoDia] = await Promise.all([
     prisma.empresa.findUnique({
       where: { id: empresaId },
       select: { id: true, nome: true },
@@ -74,20 +75,6 @@ export default async function PontoEletronicoPage({
         pontoLiberado: true,
         // Só o booleano "tem PIN?" atravessa para o cliente — o hash nunca.
         pontoPinHash: true,
-        registrosPonto: {
-          where: {
-            // Ver hojeBrasilia acima: a fronteira do dia é a de Brasília.
-            dataHora: {
-              gte: hojeBrasilia.inicio,
-              lt: hojeBrasilia.fim,
-            },
-          },
-          orderBy: { dataHora: "asc" },
-          // `select` explícito: a linha inteira tem IP, GPS e hash, que o
-          // monitor não usa — e `fotoUrl` só vira o booleano abaixo, a URL do
-          // Blob não atravessa para o cliente.
-          select: { id: true, tipo: true, dataHora: true, fotoUrl: true },
-        },
       },
     }),
     // Duas consultas, não uma com `take`: os PENDENTES vêm inteiros, porque
@@ -133,6 +120,18 @@ export default async function PontoEletronicoPage({
     // Configuração de ponto da empresa. Pode não existir: a linha nasce
     // quando alguém salva a aba Configurações pela primeira vez.
     prisma.configuracaoPontoEmpresa.findUnique({ where: { empresaId } }),
+    // As marcações de HOJE da empresa inteira, numa consulta só: batidas do
+    // REP-P (RegistroPonto) E marcações incluídas por tratamento aprovado
+    // (rh.MarcacaoTratada), já em ordem de hora — ver lib/ponto-jornada.ts.
+    // Era um `include registrosPonto` dentro do findMany de colaboradores
+    // acima, que só via as batidas: a marcação que o RH incluiu pelo PTRP não
+    // existia para o monitor. A janela é a MESMA hojeBrasilia dos demais
+    // filtros; o agrupamento por colaborador é feito em memória logo abaixo.
+    marcacoesDaJornada(prisma, {
+      empresaId,
+      de: hojeBrasilia.inicio,
+      ate: hojeBrasilia.fim,
+    }),
   ]);
 
   // Truncado no teto legal aqui também — a tela nunca mostra um número que
@@ -149,8 +148,24 @@ export default async function PontoEletronicoPage({
     fotoConferidaPeloRh: boolean;
     pontoLiberado: boolean;
     pontoPinHash: string | null;
-    registrosPonto: Array<{ id: string; tipo: string; dataHora: Date; fotoUrl: string | null }>;
   };
+
+  // Agrupamento das marcações do dia por colaborador. marcacoesDaJornada já
+  // devolve em ordem de dataHora, então cada grupo nasce ordenado — a
+  // "última marcação" que decide o status continua sendo a última da lista.
+  type MarcacaoDoDia = {
+    id: string;
+    tipo: string;
+    dataHora: Date;
+    fotoUrl: string | null;
+    origem: "BATIDA" | "TRATAMENTO";
+  };
+  const marcacoesPorColaborador = new Map<string, MarcacaoDoDia[]>();
+  for (const m of marcacoesDoDia) {
+    const lista = marcacoesPorColaborador.get(m.colaboradorId) ?? [];
+    lista.push({ id: m.id, tipo: m.tipo, dataHora: m.dataHora, fotoUrl: m.fotoUrl, origem: m.origem });
+    marcacoesPorColaborador.set(m.colaboradorId, lista);
+  }
 
   // Fuso explícito, sempre: sem ele o toLocaleTimeString responde no fuso do
   // PROCESSO — UTC na Vercel — e o monitor mostrava toda batida com 3 horas a
@@ -189,7 +204,7 @@ export default async function PontoEletronicoPage({
   };
 
   const presentesLista = (colaboradores as ColaboradorComPonto[]).map((c) => {
-    const batidas = c.registrosPonto;
+    const batidas = marcacoesPorColaborador.get(c.id) ?? [];
     let status: "PRESENTE" | "EM_INTERVALO" | "SAIU" | "AUSENTE" = "AUSENTE";
     let primeiraEntrada: string | null = null;
     let ultimaSaida: string | null = null;
@@ -221,7 +236,10 @@ export default async function PontoEletronicoPage({
       batidas: batidas.map((b) => ({
         id: b.id,
         hora: horaBrasilia(b.dataHora),
+        // Marcação tratada nunca tem foto (fotoUrl null no leitor) — o painel
+        // a distingue pela origem, não pelo "sem foto".
         temFoto: b.fotoUrl !== null,
+        origem: b.origem,
       })),
     };
   });

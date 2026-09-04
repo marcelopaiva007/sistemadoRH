@@ -18,6 +18,7 @@ import {
 } from "@/lib/ponto-foto";
 import { enviarParaBlob } from "@/lib/blob";
 import { janelaDoDiaBrasilia } from "@/lib/datas";
+import { marcacoesDaJornada } from "@/lib/ponto-jornada";
 import { revalidatePath } from "next/cache";
 
 import { headers } from "next/headers";
@@ -243,13 +244,23 @@ export async function registrarPontoPortal(input: RegistrarPontoInput) {
   // A janela é de 8 dias, e não de 48h, porque o teto do estagiário é semanal:
   // a semana começa na segunda, e uma marcação de segunda-feira precisa estar
   // aqui quando a de domingo chega. Para a trava de repetição, sobra histórico.
-  const batidasRecentes = (await prisma.registroPonto.findMany({
-    where: {
+  //
+  // Desde 04/09/2026 a lista é a UNIÃO de batidas (RegistroPonto) e marcações
+  // incluídas por tratamento aprovado (rh.MarcacaoTratada) — lib/ponto-jornada.ts.
+  // Sem isso, quem teve a ENTRADA_1 incluída pelo RH batia ENTRADA_1 de novo e
+  // duplicava a jornada; e o teto do estagiário não via as horas tratadas.
+  // O fim da janela é o fim do dia de Brasília de hoje, não "agora": uma
+  // marcação incluída para mais tarde hoje já trava o botão daquele tipo.
+  // `tipo` é String no leitor; o cast fecha o tipo para as regras de
+  // lib/ponto-regras.ts, que só conhecem as quatro marcações.
+  const batidasRecentes: BatidaPonto[] = (
+    await marcacoesDaJornada(prisma, {
+      empresaId: colaborador.empresaId,
       colaboradorId: colaborador.id,
-      dataHora: { gte: new Date(dataHoraAtual.getTime() - 8 * 24 * 60 * 60 * 1000) },
-    },
-    select: { tipo: true, dataHora: true },
-  })) as BatidaPonto[];
+      de: new Date(dataHoraAtual.getTime() - 8 * 24 * 60 * 60 * 1000),
+      ate: janelaDoDiaBrasilia(dataHoraAtual).fim,
+    })
+  ).map((m) => ({ tipo: m.tipo as BatidaPonto["tipo"], dataHora: m.dataHora }));
 
   if (jaBateuHoje(batidasRecentes, input.tipo, dataHoraAtual)) {
     return { erro: `Você já registrou "${rotuloDaMarcacao(input.tipo)}" hoje.` };
@@ -425,24 +436,32 @@ export async function buscarRegistrosPontoHojePortal() {
   // hoje, e os botões nasciam travados em "Registrado".
   const { inicio: hojeInicio, fim: amanhaInicio } = janelaDoDiaBrasilia();
 
-  const registros = await prisma.registroPonto.findMany({
-    where: {
-      colaboradorId: identidade.colaboradorId,
-      // `lt` no fim, não `lte`: a janela é [00:00 de hoje, 00:00 de amanhã).
-      dataHora: { gte: hojeInicio, lt: amanhaInicio },
-    },
-    orderBy: { dataHora: "asc" },
-    select: {
-      id: true,
-      tipo: true,
-      dataHora: true,
-      nsr: true,
-      hashSHA256: true,
-    },
+  // marcacoesDaJornada filtra por empresa; a identidade só traz o colaborador.
+  const colaborador = await prisma.colaborador.findUnique({
+    where: { id: identidade.colaboradorId },
+    select: { empresaId: true },
+  });
+  if (!colaborador) return [];
+
+  // União de batidas e marcações incluídas por tratamento aprovado (ver
+  // lib/ponto-jornada.ts). A lista do dia é o que trava os botões do card —
+  // a ENTRADA_1 incluída pelo RH precisa estar aqui, senão o botão fica livre
+  // e a pessoa registra a mesma marcação de novo. O shape do retorno não
+  // muda; para a marcação tratada, nsr = 0 (ela não consome NSR) e o hash é o
+  // dela. `ate` é exclusivo: a janela é [00:00 de hoje, 00:00 de amanhã).
+  const marcacoes = await marcacoesDaJornada(prisma, {
+    empresaId: colaborador.empresaId,
+    colaboradorId: identidade.colaboradorId,
+    de: hojeInicio,
+    ate: amanhaInicio,
   });
 
-  return registros.map((r: { id: string; tipo: string; dataHora: Date; nsr: bigint; hashSHA256: string }) => ({
-    ...r,
-    nsr: Number(r.nsr),
+  return marcacoes.map((m) => ({
+    id: m.id,
+    tipo: m.tipo,
+    dataHora: m.dataHora,
+    nsr: m.nsr === null ? 0 : Number(m.nsr),
+    hashSHA256: m.hashSHA256,
+    origem: m.origem,
   }));
 }

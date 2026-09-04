@@ -7,11 +7,20 @@
  */
 
 export type RegistroPontoAFD = {
-  nsr: bigint | number;
+  // null só para marcação de origem TRATAMENTO: ela não consome NSR.
+  nsr: bigint | number | null;
   tipo: string;
   dataHora: Date;
   cpfColaborador: string;
   hashSHA256: string;
+  // De onde veio a marcação. BATIDA = coletada pelo REP-P (RegistroPonto), a
+  // única que entra no AFD. TRATAMENTO = incluída por decisão do RH sobre um
+  // pedido de inclusão manual (rh.MarcacaoTratada): jornada tratada, entra no
+  // AEJ e nunca no AFD. Ausente vale BATIDA — chamadores antigos e o teste em
+  // scripts/test-ponto.ts não preenchem.
+  origem?: "BATIDA" | "TRATAMENTO";
+  // Motivo copiado do tratamento no instante da decisão; só TRATAMENTO tem.
+  justificativa?: string | null;
 };
 
 export type DadosEmpresaAFD = {
@@ -77,6 +86,20 @@ function formatarCNPJ(cnpj: string): string {
   return cnpj.replace(/\D/g, "").padStart(14, "0");
 }
 
+/** Origem efetiva de um registro: ausente vale BATIDA (ver RegistroPontoAFD). */
+function origemDe(reg: RegistroPontoAFD): "BATIDA" | "TRATAMENTO" {
+  return reg.origem ?? "BATIDA";
+}
+
+/**
+ * A justificativa vai numa linha separada por "|": o separador e a quebra de
+ * linha dentro do texto deslocariam as colunas de quem lê o arquivo. Viram um
+ * espaço; espaços repetidos colapsam.
+ */
+function sanitizarJustificativa(texto: string | null | undefined): string {
+  return (texto ?? "").replace(/[|\r\n]+/g, " ").replace(/\s+/g, " ").trim();
+}
+
 /**
  * Gera conteúdo texto do arquivo AFD (Arquivo Fonte de Dados) conforme Portaria MTP 671/2021.
  *
@@ -89,6 +112,12 @@ export function gerarConteudoAFD(
   empresa: DadosEmpresaAFD,
   registros: RegistroPontoAFD[]
 ): string {
+  // Defensivo: o AFD é o arquivo do que o REP-P COLETOU (Portaria MTP
+  // 671/2021). Marcação incluída por tratamento não foi coletada e não tem
+  // NSR — não pode aparecer aqui mesmo que um chamador a passe. O chamador de
+  // produção (exportarArquivoAFDRH) já lê só RegistroPonto; isto é a segunda
+  // trava. O trailer conta sobre a lista filtrada.
+  const somenteBatidas = registros.filter((reg) => origemDe(reg) !== "TRATAMENTO");
   const linhas: string[] = [];
 
   // Cabeçalho - Tipo 1
@@ -109,8 +138,9 @@ export function gerarConteudoAFD(
 
   // Registros de Marcação - Tipo 3
   // Formato: [NSR (9)] [TIPO (1)] [DATA (8: DDMMYYYY)] [HORA (4: HHMM)] [CPF (11)]
-  registros.forEach((reg) => {
-    const nsrStr = String(reg.nsr).padStart(9, "0");
+  somenteBatidas.forEach((reg) => {
+    // `?? 0` só para o tipo: depois do filtro acima toda linha é BATIDA e tem NSR.
+    const nsrStr = String(reg.nsr ?? 0).padStart(9, "0");
     const { ano, mes, dia, hora, minuto } = emBrasilia(new Date(reg.dataHora));
     const cpfFormatted = formatarCPF(reg.cpfColaborador);
 
@@ -124,7 +154,7 @@ export function gerarConteudoAFD(
   });
 
   // Trailer - Tipo 9
-  const qtdRegistrosStr = String(registros.length + 2).padStart(9, "0");
+  const qtdRegistrosStr = String(somenteBatidas.length + 2).padStart(9, "0");
   linhas.push(`${qtdRegistrosStr}9`);
 
   return linhas.join("\r\n");
@@ -155,7 +185,15 @@ export function gerarConteudoAEJ(
     const horaStr = `${hora}:${minuto}`;
     const cpfFormatted = formatarCPF(reg.cpfColaborador);
 
-    linhas.push(`2|${reg.nsr}|${cpfFormatted}|${dataStr}|${horaStr}|${reg.tipo}|${reg.hashSHA256}`);
+    // Marcação tratada sai DISTINGUÍVEL: NSR vazio (não consumiu número do
+    // REP-P), origem TRATAMENTO e a justificativa da decisão. O formato é
+    // próprio da casa, separado por "|": os dois campos entram no FIM para
+    // não deslocar quem já lê as sete primeiras colunas. Batida sai com
+    // origem BATIDA e justificativa vazia.
+    const nsrStr = reg.nsr === null || reg.nsr === undefined ? "" : String(reg.nsr);
+    linhas.push(
+      `2|${nsrStr}|${cpfFormatted}|${dataStr}|${horaStr}|${reg.tipo}|${reg.hashSHA256}|${origemDe(reg)}|${sanitizarJustificativa(reg.justificativa)}`,
+    );
   });
 
   // Trailer AEJ (Tipo 9)

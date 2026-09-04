@@ -84,3 +84,41 @@ export function validarGeofencingGps(
     distanciaMetros,
   };
 }
+
+/**
+ * Hash SHA-256 de uma MARCAÇÃO TRATADA — a marcação que nasce de uma decisão
+ * do RH sobre um tratamento de ponto (INCLUSAO_MANUAL aprovada), não de uma
+ * batida no REP-P.
+ *
+ * É uma função PRÓPRIA, e não gerarHashPontoSHA256, por duas razões:
+ * 1. A cadeia da batida começa pelo NSR e carrega IP e GPS. A marcação tratada
+ *    NÃO consome NSR (não entra no AFD — Portaria MTP 671/2021) e não tem
+ *    origem física: os campos que dão identidade a ela são o tratamento que a
+ *    gerou e quem aprovou.
+ * 2. O prefixo "TRATADA" garante que nenhuma marcação tratada produz o mesmo
+ *    hash de uma batida com os mesmos colaborador/empresa/instante/tipo — o
+ *    AEJ e a auditoria conseguem distinguir as duas só pela cadeia.
+ *
+ * Formato da cadeia:
+ *   TRATADA|tratamentoId|colaboradorId|empresaId|dataHoraISO|tipo|aprovadoPorId-ou-SEM_APROVADOR
+ */
+export function gerarHashMarcacaoTratadaSHA256(dados: {
+  tratamentoId: string;
+  colaboradorId: string;
+  empresaId: string;
+  dataHoraISO: string;
+  tipo: string;
+  aprovadoPorId?: string | null;
+}): string {
+  const cadeia = [
+    "TRATADA",
+    dados.tratamentoId,
+    dados.colaboradorId,
+    dados.empresaId,
+    dados.dataHoraISO,
+    dados.tipo,
+    dados.aprovadoPorId || "SEM_APROVADOR",
+  ].join("|");
+
+  return crypto.createHash("sha256").update(cadeia, "utf8").digest("hex");
+}

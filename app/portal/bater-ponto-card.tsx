@@ -111,7 +111,9 @@ export function BaterPontoCard() {
     comFoto?: boolean;
   } | null>(null);
 
-  const [registrosHoje, setRegistrosHoje] = useState<Array<{ id: string; tipo: string; dataHora: Date | string }>>([]);
+  const [registrosHoje, setRegistrosHoje] = useState<
+    Array<{ id: string; tipo: string; dataHora: Date | string; origem?: "BATIDA" | "TRATAMENTO" }>
+  >([]);
   const [posicao, setPosicao] = useState<{ lat: number; lng: number; precisao: number } | null>(null);
   // GPS que falhou é estado de tela, não console.warn: com a cerca de
   // localização ligada, sem GPS o servidor RECUSA a batida — a pessoa precisa
@@ -480,7 +482,11 @@ export function BaterPontoCard() {
       {/* Botões de Ação Dinâmicos */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {(["ENTRADA_1", "SAIDA_1", "ENTRADA_2", "SAIDA_2"] as const).map((tipo) => {
-          const jaBatido = registrosHoje.some((r) => r.tipo === tipo);
+          const registroDoTipo = registrosHoje.find((r) => r.tipo === tipo);
+          const jaBatido = registroDoTipo !== undefined;
+          // Marcação incluída pelo RH (tratamento aprovado) trava o botão do
+          // mesmo jeito — e diz por quê, senão a pessoa acha que bateu e não lembra.
+          const incluidaPeloRh = registroDoTipo?.origem === "TRATAMENTO";
           const eSugerido = sugerirProximoTipo() === tipo;
 
           return (
@@ -499,7 +505,7 @@ export function BaterPontoCard() {
               <span>{formatarTipoLabel(tipo)}</span>
               {jaBatido ? (
                 <span className="text-[10px] text-success flex items-center gap-1 font-semibold">
-                  <CheckCircle2 className="w-3 h-3" /> Registrado
+                  <CheckCircle2 className="w-3 h-3" /> {incluidaPeloRh ? "Incluída pelo RH" : "Registrado"}
                 </span>
               ) : (
                 <span className="text-[10px] opacity-80 flex items-center gap-1">

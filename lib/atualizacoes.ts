@@ -26,6 +26,21 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.166.0",
+    data: "04/09/2026",
+    horario: "01:00",
+    titulo: "Ponto: marcação aprovada pelo RH passa a existir de verdade — no monitor e no AEJ, nunca no AFD",
+    itens: [
+      "Aprovar um pedido de inclusão de marcação agora cria a marcação. Até aqui a aprovação só mudava o status do pedido: a pessoa via \"aprovado\", mas a entrada ou saída continuava não existindo para o Monitor de Presença nem para o arquivo de jornada. Havia 28 pedidos assim em produção.",
+      "A marcação incluída fica numa tabela própria, separada das batidas do relógio. Ela aparece no Monitor de Presença com a indicação \"incluída pelo RH\" e entra no AEJ (arquivo de jornada) identificada como tratamento, com a justificativa ao lado. Ela nunca entra no AFD: o AFD é o que o relógio coletou, e a Portaria MTP 671/2021 não permite acrescentar nada ali.",
+      "O portal do colaborador passa a enxergar a marcação incluída na lista do dia. Quem teve a entrada incluída pelo RH não consegue mais bater a mesma entrada de novo e duplicar a jornada.",
+      "No formulário de tratamento do RH, ao escolher \"Inclusão manual\" passam a ser obrigatórios \"Qual marcação\" (entrada, saída para o intervalo, volta ou saída) e \"Horário\". Pedidos de inclusão antigos abertos pelo RH sem esses dois dados não podem ser aprovados: a tela pede para reabrir o pedido com marcação e hora, em vez de aprovar sem criar nada.",
+      "Abonos, justificativas e correções seguem como antes: a aprovação não cria marcação.",
+      "O dia e a hora da marcação incluída são os que o pedido diz, no horário de Brasília — inclusive para pedidos das 21h em diante, que no relógio do servidor já são o dia seguinte.",
+      "Os pedidos já aprovados antes desta versão serão convertidos em marcação por uma rotina separada, rodada pela equipe técnica, com registro na auditoria de cada conversão.",
+    ],
+  },
+  {
     versao: "1.165.0",
     data: "03/09/2026",
     horario: "23:50",
