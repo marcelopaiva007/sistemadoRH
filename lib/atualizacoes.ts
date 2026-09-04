@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.168.0",
+    data: "04/09/2026",
+    horario: "00:30",
+    titulo: "Tela inicial e Pendências mais rápidas: uma consulta ao banco no lugar de cinquenta",
+    itens: [
+      "A tela inicial do grupo e a tela de Pendências da empresa passam a buscar as 27 pendências numa única consulta ao banco, em vez de 28 consultas disparadas em paralelo — que na prática entravam em fila, porque cada função do sistema tem 5 conexões com o banco. A conferência de \"módulo sem registro\" (outras 21 consultas) virou uma só também. Medido em produção antes da mudança: a tela inicial levava de 2 a 5 segundos para aparecer, e Pendências, 4 segundos.",
+      "Os números não mudam. Cada uma das 27 regras foi traduzida uma a uma e conferida contra a tela em produção, marca por marca (LM Telecom, Centrysol, Mobility Tech e VAPT): mesmas contagens e mesma lista de \"situações sem base para avaliar\".",
+      "Trocar de sistema pela barra de topo estando numa tela sem CNPJ (Início, Usuários, Atualizações, Conta) vai direto ao destino: Pessoas (RH) abre a tela inicial e Processos & Ativos abre o primeiro CNPJ visível. Antes passava por /rh e /processos, que só redirecionam — e cada redirecionamento custava de 0,9 a 1,5 segundo antes de a tela de destino sequer começar.",
+    ],
+  },
+  {
     versao: "1.167.0",
     data: "04/09/2026",
     horario: "00:20",

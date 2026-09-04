@@ -38,9 +38,10 @@ function createPrismaClient() {
   // desperdício que só aparece quando várias instâncias sobem juntas e o banco
   // recusa a conexão (P2037).
   //
-  // Não é 1: várias telas abrem consultas em paralelo de propósito
-  // (pendenciasPorEmpresa dispara ~14 groupBy num Promise.all, a página de
-  // Ponto dispara 6). Com pool de 1 elas viram fila e a tela fica lenta. 5
+  // Não é 1: várias telas abrem consultas em paralelo de propósito (a tela
+  // inicial dispara 5 num Promise.all, a página de Ponto 6). Com pool de 1
+  // elas viram fila e a tela fica lenta — foi o que aconteceu com as 28 de
+  // pendenciasPorEmpresa até 04/09/2026, hoje uma consulta só. 5
   // mantém o paralelismo dentro de uma requisição e corta o pico pela metade.
   const adapter = url.startsWith("postgres")
     ? new PrismaPg({
