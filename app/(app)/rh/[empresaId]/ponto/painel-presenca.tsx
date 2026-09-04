@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Clock, UserCheck, LogOut, UserX, Search, ShieldCheck, Camera, CameraOff, UserRound } from "lucide-react";
+import { Clock, UserCheck, LogOut, UserX, Search, ShieldCheck, Camera, CameraOff, UserRound, FileEdit } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +16,9 @@ export type PresenteItem = {
   ultimaSaida?: string | null;
   // Cada batida do dia, com hora e se tem foto. A foto é o que responde "foi
   // ele mesmo que bateu?" — clicar abre pela rota autenticada, que audita.
-  batidas: Array<{ id: string; hora: string; temFoto: boolean }>;
+  // `origem` TRATAMENTO = marcação incluída pelo RH por tratamento aprovado
+  // (rh.MarcacaoTratada), não batida do REP-P: sem foto por natureza e fora do AFD.
+  batidas: Array<{ id: string; hora: string; temFoto: boolean; origem: "BATIDA" | "TRATAMENTO" }>;
   /** Tem foto de referência na ficha — sem ela não há com o que comparar. */
   temReferencia: boolean;
   /** A referência já passou por um par de olhos do RH (ver Colaborador.fotoConferidaPeloRh). */
@@ -176,7 +178,21 @@ export function PainelPresencaView({
                         )}
                         <span className="text-muted-foreground">·</span>
                         {item.batidas.map((b) =>
-                          b.temFoto ? (
+                          b.origem === "TRATAMENTO" ? (
+                            // Incluída pelo RH (PTRP aprovado): não é batida, não
+                            // tem foto para abrir e não entra no AFD. Tracejado
+                            // como o "sem foto", mas com rótulo próprio — sem ele
+                            // o RH leria a própria decisão como batida sem selfie.
+                            <span
+                              key={b.id}
+                              title="Marcação incluída pelo RH por tratamento aprovado (PTRP) — não é batida do REP-P e não entra no AFD"
+                              className="inline-flex items-center gap-1 rounded border border-dashed border-primary/40 px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground"
+                            >
+                              <FileEdit className="w-3 h-3 text-primary" />
+                              {b.hora}
+                              <span className="font-sans">incluída pelo RH</span>
+                            </span>
+                          ) : b.temFoto ? (
                             <a
                               key={b.id}
                               href={`/api/rh/${empresaId}/ponto/${b.id}/foto`}

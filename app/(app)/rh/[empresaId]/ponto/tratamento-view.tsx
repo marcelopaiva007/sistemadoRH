@@ -13,7 +13,7 @@ import { registrarTratamentoPonto, decidirTratamentoPonto } from "@/app/actions/
 import { dataDoFormulario, formatarData } from "@/lib/datas";
 // Rótulos consolidados em lib/constants-ponto.ts (21/08/2026): a mesma lista
 // vale aqui, na Central de Aprovações e na validação do servidor.
-import { tipoTratamentoLabel as tipoLabel, tipoMarcacaoLabel } from "@/lib/constants-ponto";
+import { tipoTratamentoLabel as tipoLabel, tipoMarcacaoLabel, TIPOS_MARCACAO_PONTO } from "@/lib/constants-ponto";
 
 export type TratamentoItem = {
   id: string;
@@ -60,6 +60,11 @@ export function TratamentoView({
   const [dataFato, setDataFato] = useState("");
   const [tipo, setTipo] = useState<"INCLUSAO_MANUAL" | "ABONO_ATESTADO" | "JUSTIFICATIVA" | "CORRECAO">("INCLUSAO_MANUAL");
   const [motivo, setMotivo] = useState("");
+  // Só para INCLUSAO_MANUAL: qual marcação faltou e a que horas. É o que a
+  // aprovação transforma em marcação na jornada (desde 04/09/2026) — o mesmo
+  // par que o colaborador informa no pedido pelo app.
+  const [tipoMarcacao, setTipoMarcacao] = useState("");
+  const [horaSolicitada, setHoraSolicitada] = useState("");
 
   const handleSalvarTratamento = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,6 +84,9 @@ export function TratamentoView({
         dataFato: dataDoFormulario(dataFato)!,
         tipo,
         motivo,
+        // Só viajam quando fazem sentido; o servidor ignora nos outros tipos.
+        tipoMarcacao: tipo === "INCLUSAO_MANUAL" ? tipoMarcacao : undefined,
+        horaSolicitada: tipo === "INCLUSAO_MANUAL" ? horaSolicitada : undefined,
       });
 
       if (res.erro) {
@@ -88,6 +96,8 @@ export function TratamentoView({
         setMotivo("");
         setColaboradorId("");
         setDataFato("");
+        setTipoMarcacao("");
+        setHoraSolicitada("");
         // Sem isto a lista abaixo continua mostrando o estado antigo: o
         // revalidatePath da action limpa o cache do servidor, mas este
         // componente é cliente e segue com as props que já tinha (mesma causa
@@ -137,7 +147,8 @@ export function TratamentoView({
                 trilha do AuditLog — ver registrarTratamentoPonto.) */}
             <CardDescription className="text-xs">
               O ajuste entra como pendente e precisa de decisão. Ficam registrados quem decidiu,
-              quando e a justificativa — as batidas originais nunca são alteradas.
+              quando e a justificativa — as batidas originais nunca são alteradas. Inclusão manual
+              aprovada entra na jornada como marcação incluída pelo RH (fora do AFD).
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -196,6 +207,48 @@ export function TratamentoView({
                   </select>
                 </div>
               </div>
+
+              {/* Só a inclusão manual descreve UMA marcação: qual faltou e a que
+                  horas. A aprovação grava exatamente isto na jornada tratada —
+                  por isso os dois são obrigatórios aqui e conferidos de novo no
+                  servidor (registrarTratamentoPonto). Os outros tipos (abono,
+                  justificativa, correção) não geram marcação e não pedem nada. */}
+              {tipo === "INCLUSAO_MANUAL" && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs" required>
+                      Qual marcação
+                    </Label>
+                    <select
+                      value={tipoMarcacao}
+                      onChange={(e) => setTipoMarcacao(e.target.value)}
+                      className="mt-1 h-8 w-full rounded-md border bg-background px-2 text-xs"
+                      required
+                    >
+                      <option value="">Selecione…</option>
+                      {TIPOS_MARCACAO_PONTO.map((m) => (
+                        <option key={m.value} value={m.value}>
+                          {m.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <Label className="text-xs" required>
+                      Horário (HH:mm)
+                    </Label>
+                    {/* type="time" entrega "HH:mm" — o formato que o servidor
+                        exige e que o pedido do colaborador já usa. */}
+                    <Input
+                      type="time"
+                      value={horaSolicitada}
+                      onChange={(e) => setHoraSolicitada(e.target.value)}
+                      className="h-8 text-xs mt-1"
+                      required
+                    />
+                  </div>
+                </div>
+              )}
 
               <div>
                 <Label className="text-xs">Motivo / Justificativa do RH (Auditado)</Label>
