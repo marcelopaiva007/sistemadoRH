@@ -17,9 +17,11 @@ import {
   fotoDeBatidaValida,
 } from "@/lib/ponto-foto";
 import { enviarParaBlob } from "@/lib/blob";
+import { janelaDoDiaBrasilia } from "@/lib/datas";
 import { revalidatePath } from "next/cache";
 
 import { headers } from "next/headers";
+import { ipDaRequisicao } from "@/lib/login-tentativas";
 
 // A validação da foto obrigatória (fotoDeBatidaValida) mudou-se para
 // lib/ponto-foto.ts em 20/08/2026: módulo "use server" só exporta função
@@ -103,7 +105,16 @@ export type RegistrarPontoInput = {
 
 export async function registrarPontoPortal(input: RegistrarPontoInput) {
   const headersList = await headers();
-  const ipCliente = headersList.get("x-forwarded-for")?.split(",")[0] || headersList.get("x-real-ip") || "127.0.0.1";
+  // O IP de quem está batendo sai de ipDaRequisicao (lib/login-tentativas.ts),
+  // a MESMA leitura do login. Pegar o PRIMEIRO valor do x-forwarded-for era
+  // pegar o que o CLIENTE mandou: com a trava de IP ligada, um POST direto
+  // com "X-Forwarded-For: <ip-da-empresa>" passava de qualquer rede, e o
+  // ipOrigem forjado ainda entrava na cadeia do SHA-256 do registro imutável.
+  // Agora a fonte primária é o x-real-ip (preenchido pela Vercel, o cliente
+  // não sobrescreve); sem ele, o ÚLTIMO valor do x-forwarded-for — o hop
+  // anexado pela infra, não a ponta forjável; sem nada, "desconhecido", que
+  // nenhuma lista de IPs autorizados contém: falha fechado, não aberto.
+  const ipCliente = ipDaRequisicao(headersList);
 
   // Aceita as DUAS portas de bater ponto — portal via Telegram e app /ponto
   // via PIN. A regra de quem entra vive só em lib/ponto-identidade.ts.
@@ -165,6 +176,16 @@ export async function registrarPontoPortal(input: RegistrarPontoInput) {
   // raio usa `??` e não `||`: são semânticas diferentes para raio 0 gravado
   // por fora — com `||` ele virava 200 em silêncio.
   const raioPermitido = config?.raioPermitidoMtrs ?? 200;
+  // "Tem cerca" é ter as DUAS coordenadas — é o mesmo critério de
+  // validarGeofencingGps, que devolve `valido: true` quando falta qualquer
+  // metade. Sem cerca não existe raio de onde estar fora, e exigir GPS aqui só
+  // impediria de bater ponto quem negou a localização no celular, sem validar
+  // lugar nenhum. Trava de exigência anda com a cerca, não sozinha.
+  const temCercaCadastrada =
+    config?.latitudeEmpresa !== null &&
+    config?.latitudeEmpresa !== undefined &&
+    config?.longitudeEmpresa !== null &&
+    config?.longitudeEmpresa !== undefined;
   const temCoordenada =
     typeof input.latitude === "number" &&
     Number.isFinite(input.latitude) &&
@@ -182,7 +203,7 @@ export async function registrarPontoPortal(input: RegistrarPontoInput) {
     );
     gpsValido = resGps.valido;
     distanciaMetros = resGps.distanciaMetros;
-  } else if (config?.exigirGps) {
+  } else if (config?.exigirGps && temCercaCadastrada) {
     return {
       erro: "Sua localização (GPS) é obrigatória para registrar o ponto. Ative a localização do aparelho, permita o acesso para este site e tente de novo.",
     };
@@ -393,16 +414,22 @@ export async function buscarRegistrosPontoHojePortal() {
   const identidade = await resolverIdentidadeDePonto();
   if (!identidade) return [];
 
-  const hojeInicio = new Date();
-  hojeInicio.setHours(0, 0, 0, 0);
-
-  const hojeFim = new Date();
-  hojeFim.setHours(23, 59, 59, 999);
+  // O dia é o de BRASÍLIA, não o do processo — ver janelaDoDiaBrasilia.
+  //
+  // Com `setHours(0, 0, 0, 0)` (UTC na Vercel) a janela ia das 21:00 de ontem
+  // às 20:59 de hoje, em BRT. Quem batia às 21:30 recebia lista VAZIA: os
+  // quatro botões voltavam a ficar livres e ENTRADA_1 aparecia destacada como
+  // sugerida — aí o servidor recusava com "Você já registrou Entrada hoje",
+  // porque jaBateuHoje compara por diaBrasilia e estava certo. Entre 00:00 e
+  // 02:59 o efeito era o inverso: as marcações de ONTEM apareciam como as de
+  // hoje, e os botões nasciam travados em "Registrado".
+  const { inicio: hojeInicio, fim: amanhaInicio } = janelaDoDiaBrasilia();
 
   const registros = await prisma.registroPonto.findMany({
     where: {
       colaboradorId: identidade.colaboradorId,
-      dataHora: { gte: hojeInicio, lte: hojeFim },
+      // `lt` no fim, não `lte`: a janela é [00:00 de hoje, 00:00 de amanhã).
+      dataHora: { gte: hojeInicio, lt: amanhaInicio },
     },
     orderBy: { dataHora: "asc" },
     select: {

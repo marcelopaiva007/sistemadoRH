@@ -108,6 +108,32 @@ export function formatarDataHoraBrasilia(d: Date): string {
 }
 
 /**
+ * A janela de INSTANTES do dia de Brasília de `d`: [inicio, fim), pronta para
+ * um filtro `gte`/`lt` sobre coluna de instante (RegistroPonto.dataHora, que
+ * guarda o instante UTC).
+ *
+ * POR QUE NÃO `new Date().setHours(0, 0, 0, 0)`. Aquilo zera a hora no fuso do
+ * PROCESSO — UTC na Vercel — e produz a janela das 21:00 de ONTEM às 20:59 de
+ * hoje em Brasília. Toda lista "de hoje" erra nas duas pontas do dia: some
+ * depois das 21:00 (o segundo turno, justamente) e, entre 00:00 e 02:59,
+ * mostra as marcações de ontem como se fossem de hoje. É o mesmo defeito que
+ * `diaBrasilia` acima existe para evitar nas comparações de dia.
+ *
+ * O DIA vem de diaBrasilia(); o OFFSET é fixo em -03:00 porque o Brasil não
+ * tem horário de verão desde 2019 (Decreto 9.772/2019) — a mesma premissa de
+ * dataHoraDoFormularioBrasilia. Se o horário de verão voltar, estes são os
+ * dois únicos lugares a corrigir, e o erro seria de uma hora: durante o verão
+ * a janela começaria às 23:00 do dia anterior. As formas que não dependem da
+ * premissa: ler o offset real do instante com Intl (`timeZoneName:
+ * "longOffset"`), ou buscar uma janela folgada e filtrar em JS comparando
+ * chaves de diaBrasilia — o caminho que jaBateuHoje já usa.
+ */
+export function janelaDoDiaBrasilia(d: Date = new Date()): { inicio: Date; fim: Date } {
+  const inicio = new Date(`${diaBrasilia(d)}T00:00:00-03:00`);
+  return { inicio, fim: new Date(inicio.getTime() + MS_POR_DIA) };
+}
+
+/**
  * Instante digitado num `<input type="datetime-local">`, interpretado como
  * horário de BRASÍLIA — não do servidor.
  *

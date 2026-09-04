@@ -2347,7 +2347,16 @@ model ConfiguracaoPontoEmpresa {
   latitudeEmpresa   Float? // Latitude da sede/unidade
   longitudeEmpresa  Float? // Longitude da sede/unidade
   raioPermitidoMtrs Int      @default(200) // Raio do cerco em metros
-  exigirGps         Boolean  @default(true)
+  // A cerca de GPS é OPT-IN: nasce DESLIGADA. Nasceu `true`, e com isso ligava
+  // sozinha por efeito colateral — salvarLimiteEstagio e salvarTravaIpPonto
+  // criam esta linha, e a empresa passava a exigir GPS com latitude e
+  // longitude NULAS. registrarPontoPortal então recusava a batida de quem
+  // tivesse negado a localização no celular ("Sua localização (GPS) é
+  // obrigatória"), sem que ninguém tivesse cadastrado cerca nenhuma: uma trava
+  // que não cerca lugar algum, só bloqueia gente.
+  // Ligar a trava é caminho único: salvarGeofencingPonto, que já recusa
+  // exigirGps=true sem coordenada.
+  exigirGps         Boolean  @default(false)
   exigirFoto        Boolean  @default(false)
   // Teto de jornada do estagiário, em minutos. Configurável pelo RH na tela de
   // Ponto, mas NUNCA acima do teto legal (Lei 11.788/2008, art. 10: 6h/dia e

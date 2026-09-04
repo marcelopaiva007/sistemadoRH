@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, Download, FileSpreadsheet, ShieldCheck, Printer } from "lucide-react";
+import { AlertTriangle, Download, ShieldCheck } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
@@ -65,11 +65,11 @@ export function RelatoriosPontoView({ empresaId }: { empresaId: string }) {
       <div>
         <h2 className="text-base font-semibold">Relatórios & Exportações Fiscais de Ponto</h2>
         <p className="text-xs text-muted-foreground">
-          Emissão de arquivos regulatórios regulamentados pela Portaria MTP 671/2021 e integração com a Folha de Pagamento.
+          Emissão dos arquivos fiscais AFD e AEJ exigidos pela Portaria MTP 671/2021.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4">
         {/* Card AFD / AEJ MTP 671 */}
         <Card className="border shadow-xs">
           <CardHeader>
@@ -87,7 +87,10 @@ export function RelatoriosPontoView({ empresaId }: { empresaId: string }) {
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-xs text-muted-foreground">
-              Gera a cadeia de registros originais do REP-P com Hash SHA-256 e assinado no padrão ICP-Brasil.
+              Gera os registros originais do REP-P. Cada marcação tem um hash SHA-256 gravado no sistema,
+              calculado sobre NSR, colaborador, empresa, data/hora, tipo, IP e GPS; ele sai impresso no AEJ — o
+              AFD leva NSR, tipo, data, hora e CPF. O arquivo NÃO é assinado digitalmente: o sistema não tem
+              certificado ICP-Brasil.
             </p>
             <div className="grid grid-cols-2 gap-2">
               <Button size="sm" onClick={handleDownloadAFD} disabled={downloadingAFD} className="gap-2 text-xs">
@@ -102,55 +105,18 @@ export function RelatoriosPontoView({ empresaId }: { empresaId: string }) {
           </CardContent>
         </Card>
 
-        {/* Card Exportação Folha de Pagamento */}
-        <Card className="border shadow-xs">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <div className="p-2 bg-card text-success rounded-lg">
-                <FileSpreadsheet className="w-5 h-5" />
-              </div>
-              <div>
-                <CardTitle className="text-sm">Exportação para Folha de Pagamento</CardTitle>
-                <CardDescription className="text-xs">
-                  Horas extras (50%/100%), adicionais noturnos, atrasos e DSR.
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-xs text-muted-foreground">
-              Layout unificado de fechamento de ponto compatível com os principais sistemas de folha do mercado.
-            </p>
-            <Button size="sm" variant="outline" className="w-full gap-2 text-xs">
-              <FileSpreadsheet className="w-4 h-4" /> Exportar Espelho da Folha (.CSV / Excel)
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* Card Espelho de Ponto Individual / Em Lote */}
-        <Card className="border shadow-xs sm:col-span-2">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <div className="p-2 bg-card text-foreground rounded-lg">
-                <Printer className="w-5 h-5" />
-              </div>
-              <div>
-                <CardTitle className="text-sm">Espelho de Ponto Mensal (Impressão / PDF)</CardTitle>
-                <CardDescription className="text-xs">
-                  Relatório detalhado da jornada mensal do colaborador pronto para assinatura digital.
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="flex items-center justify-between">
-            <p className="text-xs text-muted-foreground max-w-lg">
-              Emita os espelhos de ponto de todos os funcionários da empresa com resumo de horas trabalhadas, crédito/débito em banco e atestados abonados.
-            </p>
-            <Button size="sm" variant="secondary" className="gap-2 text-xs">
-              <Printer className="w-4 h-4" /> Imprimir Espelhos em Lote (PDF)
-            </Button>
-          </CardContent>
-        </Card>
+        {/* Até 03/09/2026 havia aqui dois cartões com botão — "Exportar Espelho
+            da Folha (.CSV / Excel)" e "Imprimir Espelhos em Lote (PDF)". Nenhum
+            dos dois tinha onClick: clicar não fazia nada, e nenhuma das duas
+            rotinas existe no sistema. O aviso entra NO LUGAR dos botões, nunca
+            ao lado deles. Quando a exportação existir, o botão volta ligado. */}
+        <div className="rounded-lg border border-dashed border-border p-4">
+          <p className="text-sm font-medium">Espelho de ponto e exportação para a folha: em implantação</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            O sistema ainda não gera o espelho mensal em PDF nem o arquivo de fechamento para a folha de pagamento.
+            Até lá, o fechamento sai pelos arquivos AFD e AEJ acima.
+          </p>
+        </div>
       </div>
     </div>
   );

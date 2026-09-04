@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Clock, UserCheck, AlertTriangle, UserX, Search, ShieldCheck, Camera, CameraOff, UserRound } from "lucide-react";
+import { Clock, UserCheck, LogOut, UserX, Search, ShieldCheck, Camera, CameraOff, UserRound } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +11,7 @@ export type PresenteItem = {
   nome: string;
   setor: string;
   cargo: string;
-  status: "PRESENTE" | "EM_INTERVALO" | "ATRASADO" | "AUSENTE";
+  status: "PRESENTE" | "EM_INTERVALO" | "SAIU" | "AUSENTE";
   primeiraEntrada?: string | null;
   ultimaSaida?: string | null;
   // Cada batida do dia, com hora e se tem foto. A foto é o que responde "foi
@@ -41,7 +41,12 @@ export function PainelPresencaView({
 
   const totalPresentes = colaboradores.filter((c) => c.status === "PRESENTE").length;
   const totalIntervalo = colaboradores.filter((c) => c.status === "EM_INTERVALO").length;
-  const totalAtrasados = colaboradores.filter((c) => c.status === "ATRASADO").length;
+  // "Atrasados" saiu daqui e nao volta enquanto nao existir vinculo entre
+  // Colaborador e JornadaTrabalho no schema: sem horario contratual de
+  // ninguem, nao ha com o que comparar a hora da entrada, e o contador vivia
+  // marcando 0 como se fosse boa noticia. No lugar entra um numero que existe
+  // de fato — quem ja bateu a saida final e encerrou a jornada.
+  const totalSaiu = colaboradores.filter((c) => c.status === "SAIU").length;
   const totalAusentes = colaboradores.filter((c) => c.status === "AUSENTE").length;
 
   const badgeStatus = (status: string) => {
@@ -50,8 +55,8 @@ export function PainelPresencaView({
         return <Badge variant="default" className="bg-success hover:bg-success">Presente</Badge>;
       case "EM_INTERVALO":
         return <Badge variant="secondary" className="bg-card text-muted-foreground">Em Almoço/Intervalo</Badge>;
-      case "ATRASADO":
-        return <Badge variant="destructive">Atrasado</Badge>;
+      case "SAIU":
+        return <Badge variant="outline" className="text-foreground">Saiu</Badge>;
       default:
         return <Badge variant="outline" className="text-muted-foreground">Ausente / Sem Batida</Badge>;
     }
@@ -81,13 +86,13 @@ export function PainelPresencaView({
           </span>
         </Card>
 
-        <Card className="p-3 bg-accent border-primary">
+        <Card className="p-3 bg-card border-border">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground font-medium">Atrasados</span>
-            <AlertTriangle className="w-4 h-4 text-destructive" />
+            <span className="text-xs text-muted-foreground font-medium">Saíram</span>
+            <LogOut className="w-4 h-4 text-muted-foreground" />
           </div>
-          <span className="text-2xl font-extrabold text-destructive font-mono mt-1 block">
-            {totalAtrasados}
+          <span className="text-2xl font-extrabold text-foreground font-mono mt-1 block">
+            {totalSaiu}
           </span>
         </Card>
 

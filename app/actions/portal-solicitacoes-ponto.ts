@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { resolverIdentidadeDePonto } from "@/lib/ponto-identidade";
 import { registrarAuditoria } from "@/lib/audit";
-import { dataDoFormulario, formatarData, hojeUTC } from "@/lib/datas";
+import { dataDoFormulario, dataUTC, diaBrasilia, formatarData } from "@/lib/datas";
 import {
   TIPOS_MARCACAO_VALIDOS,
   tipoMarcacaoLabel,
@@ -55,11 +55,28 @@ async function solicitanteDaSessao(): Promise<
   return { ok: true, colaborador };
 }
 
+// "Hoje" pelo relógio de BRASÍLIA, devolvido como data de calendário
+// (meia-noite UTC) — o mesmo formato que dataDoFormulario() devolve para a data
+// digitada, para as comparações abaixo serem dia contra dia.
+//
+// POR QUE NÃO hojeUTC(): na Vercel o processo roda em UTC, e das 21h às 23h59 de
+// Brasília o dia UTC já é o SEGUINTE. Nessa janela hojeUTC() deixava o
+// colaborador pedir ajuste para AMANHÃ, e o limite de 60 dias para trás andava
+// um dia junto. hojeUTC() continua correta nos demais usos do repo (data de
+// calendário do banco contra data de calendário); o defeito é aqui, onde o
+// "hoje" nasce do relógio do servidor.
+//
+// O parâmetro `agora` existe só para o teste conseguir fixar o instante.
+function hojeEmBrasilia(agora: Date = new Date()): Date {
+  const [ano, mes, dia] = diaBrasilia(agora).split("-").map(Number);
+  return dataUTC(ano, mes, dia);
+}
+
 // Data do pedido: nem no futuro (a ocorrência já aconteceu), nem velha demais.
 function validarDataDoPedido(dataTexto: string): { ok: true; data: Date } | { ok: false; error: string } {
   const data = dataDoFormulario(dataTexto);
   if (!data) return { ok: false, error: "Informe a data da ocorrência." };
-  const hoje = hojeUTC();
+  const hoje = hojeEmBrasilia();
   if (data.getTime() > hoje.getTime()) {
     return { ok: false, error: "A data não pode estar no futuro." };
   }

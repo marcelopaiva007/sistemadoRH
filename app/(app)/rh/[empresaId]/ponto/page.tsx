@@ -1,15 +1,16 @@
 import { headers } from "next/headers";
+import { ipDaRequisicao } from "@/lib/login-tentativas";
 import { prisma } from "@/lib/prisma";
 import { limitesDeEstagio } from "@/lib/ponto-regras";
+import { janelaDoDiaBrasilia } from "@/lib/datas";
 import { PainelPresencaView } from "./painel-presenca";
 import { EscalasView } from "./escalas-view";
 import { TratamentoView } from "./tratamento-view";
 import { RelatoriosPontoView } from "./relatorios-view";
-import { DashboardDiretoriaPontoView } from "./dashboard-diretoria";
 import { ConfiguracoesPontoView } from "./configuracoes-view";
 import { ColaboradoresPontoView } from "./colaboradores-ponto-view";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Clock, ShieldCheck, FileEdit, FileSpreadsheet, BarChart3, Settings, Users } from "lucide-react";
+import { Clock, ShieldCheck, FileEdit, FileSpreadsheet, Settings, Users } from "lucide-react";
 import { AjudaDaTela } from "@/components/ajuda-da-tela";
 
 export default async function PontoEletronicoPage({
@@ -24,10 +25,26 @@ export default async function PontoEletronicoPage({
   // empresa, então este é exatamente o IP fixo que ele quer autorizar, sem
   // precisar descobrir em site de "qual é meu IP".
   const headersList = await headers();
-  const ipAtual =
-    headersList.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    headersList.get("x-real-ip") ||
-    null;
+  // "desconhecido" vira null de propósito: o botão "adicionar meu IP" da aba
+  // Configurações grava o texto cru na lista de autorizados, e a palavra
+  // "desconhecido" lá dentro autorizaria justamente as requisições cujo IP o
+  // servidor não conseguiu determinar. Sem IP legível, a tela não oferece o
+  // atalho — o RH digita o IP fixo à mão.
+  const ipBruto = ipDaRequisicao(headersList);
+  const ipAtual = ipBruto === "desconhecido" ? null : ipBruto;
+
+  // A janela do monitor de presença: o dia de BRASÍLIA, não o do processo.
+  //
+  // Era `new Date(new Date().setHours(0, 0, 0, 0))`, que zera a hora em UTC na
+  // Vercel — a janela começava às 21:00 do dia ANTERIOR em BRT. Consequência
+  // dupla: depois das 21:00 o monitor mostrava a jornada inteira do dia como
+  // se não tivesse acontecido (todo mundo AUSENTE), e entre 00:00 e 02:59 as
+  // batidas do fim da tarde de ontem apareciam como as de hoje.
+  //
+  // Uma leitura só, fora do Promise.all, para as 170 linhas do findMany abaixo
+  // usarem a MESMA fronteira — `new Date()` dentro do filtro poderia cair nos
+  // dois lados da virada do dia.
+  const hojeBrasilia = janelaDoDiaBrasilia();
 
   // Buscar empresa e jornadas
   const [empresa, jornadas, colaboradores, pendentes, historico, paraSelecao, configPonto] = await Promise.all([
@@ -59,8 +76,10 @@ export default async function PontoEletronicoPage({
         pontoPinHash: true,
         registrosPonto: {
           where: {
+            // Ver hojeBrasilia acima: a fronteira do dia é a de Brasília.
             dataHora: {
-              gte: new Date(new Date().setHours(0, 0, 0, 0)),
+              gte: hojeBrasilia.inicio,
+              lt: hojeBrasilia.fim,
             },
           },
           orderBy: { dataHora: "asc" },
@@ -144,22 +163,49 @@ export default async function PontoEletronicoPage({
       timeZone: "America/Sao_Paulo",
     });
 
+  // Quem manda no status e o TIPO da ultima marcacao, nunca a paridade.
+  // Contar batidas dava "Em Almoco/Intervalo" para quem cumpriu as quatro
+  // marcacoes e foi embora as 18h (4 e par), e nunca produzia ATRASADO —
+  // por isso aquele contador vivia zerado no painel. Como o portal deixa a
+  // pessoa escolher o tipo do botao (ver app/portal/bater-ponto-card.tsx), o
+  // tipo gravado e a unica fonte confiavel de onde ela esta agora.
+  const statusPelaUltimaMarcacao = (
+    tipo: string,
+  ): "PRESENTE" | "EM_INTERVALO" | "SAIU" => {
+    switch (tipo) {
+      case "ENTRADA_1":
+      case "ENTRADA_2":
+        return "PRESENTE";
+      case "SAIDA_1":
+        return "EM_INTERVALO";
+      case "SAIDA_2":
+        return "SAIU";
+      // `RegistroPonto.tipo` e String no schema, nao enum: um valor fora dos
+      // quatro e possivel. Ele nao pode virar AUSENTE — ha batida hoje —,
+      // entao PRESENTE e o menos errado.
+      default:
+        return "PRESENTE";
+    }
+  };
+
   const presentesLista = (colaboradores as ColaboradorComPonto[]).map((c) => {
     const batidas = c.registrosPonto;
-    let status: "PRESENTE" | "EM_INTERVALO" | "ATRASADO" | "AUSENTE" = "AUSENTE";
+    let status: "PRESENTE" | "EM_INTERVALO" | "SAIU" | "AUSENTE" = "AUSENTE";
     let primeiraEntrada: string | null = null;
     let ultimaSaida: string | null = null;
 
     if (batidas.length > 0) {
       primeiraEntrada = horaBrasilia(batidas[0].dataHora);
-      const ultimaBatida = batidas[batidas.length - 1];
-      ultimaSaida = horaBrasilia(ultimaBatida.dataHora);
 
-      if (batidas.length % 2 !== 0) {
-        status = "PRESENTE";
-      } else {
-        status = "EM_INTERVALO";
-      }
+      // "Ult Sai" precisa ser uma SAIDA de verdade. Pegar a ultima batida de
+      // qualquer tipo fazia a volta do intervalo (ENTRADA_2) aparecer no campo
+      // de saida de quem esta presente.
+      const ultimaBatidaDeSaida = [...batidas]
+        .reverse()
+        .find((b) => b.tipo === "SAIDA_1" || b.tipo === "SAIDA_2");
+      ultimaSaida = ultimaBatidaDeSaida ? horaBrasilia(ultimaBatidaDeSaida.dataHora) : null;
+
+      status = statusPelaUltimaMarcacao(batidas[batidas.length - 1].tipo);
     }
 
     return {
@@ -221,9 +267,6 @@ export default async function PontoEletronicoPage({
           <TabsTrigger value="relatorios" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background">
             <FileSpreadsheet className="w-3.5 h-3.5 mr-1" /> Relatórios & Fiscal (AFD)
           </TabsTrigger>
-          <TabsTrigger value="diretoria" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background">
-            <BarChart3 className="w-3.5 h-3.5 mr-1" /> Dashboard Diretoria
-          </TabsTrigger>
           <TabsTrigger value="config" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background">
             <Settings className="w-3.5 h-3.5 mr-1" /> Configurações
           </TabsTrigger>
@@ -254,21 +297,6 @@ export default async function PontoEletronicoPage({
           <RelatoriosPontoView empresaId={empresaId} />
         </TabsContent>
 
-        <TabsContent value="diretoria" className="pt-4">
-          <DashboardDiretoriaPontoView
-            dados={{
-              custoEstimadoHE: 1450.0,
-              totalHorasExtras50Min: 320,
-              totalHorasExtras100Min: 120,
-              passivoBancoHorasMin: 840,
-              valorPassivoBancoHorasR$: 3800.0,
-              violacoesLimite2h: 2,
-              supressoesIntervalo: 1,
-              taxaAbsenteismoPct: 1.8,
-            }}
-          />
-        </TabsContent>
-
         <TabsContent value="config" className="pt-4">
           <ConfiguracoesPontoView
             empresaId={empresaId}
@@ -278,10 +306,19 @@ export default async function PontoEletronicoPage({
               latitude: configPonto?.latitudeEmpresa ?? null,
               longitude: configPonto?.longitudeEmpresa ?? null,
               raioMetros: configPonto?.raioPermitidoMtrs ?? 200,
-              // Sem linha de configuração ainda, a tela mostra a trava DESLIGADA
-              // — que é o que vale de fato: registrarPontoPortal só bloqueia com
-              // `config.exigirGps` gravado como true.
-              exigirGps: configPonto?.exigirGps ?? false,
+              // A tela mostra o que REALMENTE bloqueia, não o que a coluna diz.
+              // registrarPontoPortal exige GPS quando `exigirGps` é true E há
+              // cerca cadastrada — então nos dois casos em que não há cerca
+              // (sem linha de configuração, ou linha com `exigirGps` true e
+              // coordenada nula, herdada do default antigo) a caixa aparece
+              // DESMARCADA, porque nada está sendo bloqueado. Mostrá-la marcada
+              // com os campos de coordenada vazios faria a tela mentir: o RH
+              // leria "estou bloqueando" e não estaria. Salvar a partir daí
+              // grava exigirGps=false e limpa a herança.
+              exigirGps:
+                (configPonto?.exigirGps ?? false) &&
+                configPonto?.latitudeEmpresa != null &&
+                configPonto?.longitudeEmpresa != null,
             }}
             travaIp={{
               ipsAutorizados: configPonto?.ipsAutorizados ?? "",

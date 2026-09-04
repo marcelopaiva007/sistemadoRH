@@ -8,7 +8,6 @@ import { BaterPontoCard } from "./bater-ponto-card";
 import { SolicitacoesPontoCard } from "./solicitacoes-ponto-card";
 import { ConfirmarEntregasCard, type EntregaAConfirmar } from "./confirmar-entregas-card";
 import { MinhasDemandasCard } from "./minhas-demandas-card";
-import { MeuBancoHorasCard } from "./meu-banco-horas-card";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
@@ -91,7 +90,6 @@ export function PortalInicio({
   avaliacoes,
   equipe,
   meuTime,
-  bancoHoras,
 }: {
   /** Entregas que o RH registrou e a pessoa ainda não confirmou. */
   entregasAConfirmar: EntregaAConfirmar[];
@@ -102,14 +100,6 @@ export function PortalInicio({
   avaliacoes: MinhaAvaliacao[];
   equipe: EquipeDoGerente | null;
   meuTime: MeuTimePortal | null;
-  bancoHoras?: {
-    competencia: string;
-    saldoAnterior: number;
-    creditosMes: number;
-    debitosMes: number;
-    saldoAtual: number;
-    expiraEm: Date | null;
-  } | null;
 }) {
   const avaliacoesPendentes = avaliacoes.filter((a) => a.status !== "CONCLUIDA").length;
   // Gerente vê a aba mesmo sem nada na lista — é onde ele monta a lista.
@@ -153,11 +143,6 @@ export function PortalInicio({
     });
   }
   const docsEmConferencia = documentos.filter((d) => d.origem === "COLABORADOR" && d.conferidoEm === null).length;
-  const saldoBanco = bancoHoras?.saldoAtual ?? null;
-  const horasBanco =
-    saldoBanco === null
-      ? "—"
-      : `${saldoBanco < 0 ? "−" : "+"}${Math.floor(Math.abs(saldoBanco) / 60)}h ${String(Math.abs(saldoBanco) % 60).padStart(2, "0")}`;
 
   return (
     // `pb-24`: o conteúdo termina antes da barra fixa de 64px lá embaixo.
@@ -229,7 +214,11 @@ export function PortalInicio({
         )}
 
         <FaixaDeIndicadores colunas={2}>
-          <Indicador rotulo="Banco de horas" valor={horasBanco} complemento={bancoHoras?.competencia ? `competência ${bancoHoras.competencia}` : undefined} />
+          {/* Banco de horas ainda não é apurado por ninguém: a tabela BancoHoras
+              nunca recebeu escrita (não existe create/update/upsert em app/ nem
+              em lib/). O aviso fica NO LUGAR do valor — o "—" que estava aqui
+              se lê como "ainda sem movimento neste mês", que é outra coisa. */}
+          <Indicador rotulo="Banco de horas" valor="—" complemento="em implantação — o sistema ainda não apura" />
           <Indicador
             rotulo="Tempo de casa"
             valor={colaborador.dataAdmissao ? tempoDeCasa(colaborador.dataAdmissao) : "—"}
@@ -255,17 +244,6 @@ export function PortalInicio({
               recusa. Aparece mesmo sem pontoLiberado: quem ainda não bate
               ponto pelo app pode justamente precisar pedir um ajuste. */}
           <SolicitacoesPontoCard />
-          <MeuBancoHorasCard
-            dados={{
-              competencia: bancoHoras?.competencia || new Date().toLocaleDateString("pt-BR", { month: "2-digit", year: "numeric" }),
-              saldoAnteriorMin: bancoHoras?.saldoAnterior || 0,
-              creditosMesMin: bancoHoras?.creditosMes || 0,
-              debitosMesMin: bancoHoras?.debitosMes || 0,
-              saldoAtualMin: bancoHoras?.saldoAtual || 0,
-              historicoMensal: [],
-            }}
-          />
-        
       </TabsContent>
 
       {/* Avaliação e equipe não têm lugar na barra de cinco: chegam pelo

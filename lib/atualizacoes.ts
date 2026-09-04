@@ -26,6 +26,22 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.165.0",
+    data: "03/09/2026",
+    horario: "23:50",
+    titulo: "Ponto: cerca de GPS só quando cadastrada, dia certo depois das 21h, e telas que mentiam saem do ar",
+    itens: [
+      "A cerca de localização não liga mais sozinha. Salvar o limite de estágio ou a trava de rede numa empresa sem cerca cadastrada ligava a exigência de GPS por efeito colateral, e quem tinha negado a localização no celular era recusado. Agora a exigência só vale quando a empresa tem coordenada cadastrada, e a configuração nasce desligada.",
+      "O endereço de rede gravado em cada marcação passa a vir da mesma leitura segura do login, não de um cabeçalho que o próprio aparelho pode preencher. A trava de rede autorizada deixa de ser contornável por chamada direta.",
+      "A lista de marcações \"de hoje\" no portal, no app de ponto e no Monitor de Presença passa a seguir o dia de Brasília. Antes seguia o relógio do servidor, três horas à frente: depois das 21h a tela zerava e sugeria \"Entrada\" para quem estava saindo.",
+      "No Monitor de Presença, o status vem da última marcação: quem bateu a saída aparece como \"Saiu\", não mais como \"Em intervalo\". O contador \"Atrasados\", que nunca saía de zero porque não existe jornada vinculada à pessoa, foi removido.",
+      "O pedido de ajuste de ponto pelo colaborador compara a data com o dia de Brasília; depois das 21h era possível pedir ajuste para amanhã.",
+      "A aba \"Dashboard Diretoria\" do Ponto foi removida: os números de hora extra, passivo de banco de horas e violações da CLT eram valores de exemplo escritos no código, iguais para toda empresa e todo mês, e não vinham de apuração nenhuma.",
+      "O cartão \"Meu Banco de Horas\" do portal foi removido: mostrava saldo zero para todo mundo porque a apuração ainda não existe. Volta quando existir.",
+      "Na aba Relatórios do Ponto saíram os botões \"Exportar Espelho da Folha\" e \"Imprimir Espelhos em Lote\", que não faziam nada, e a frase que prometia assinatura ICP-Brasil: o arquivo não é assinado digitalmente.",
+    ],
+  },
+  {
     versao: "1.164.0",
     data: "03/09/2026",
     horario: "22:15",

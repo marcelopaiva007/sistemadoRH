@@ -81,7 +81,7 @@ export default async function PortalPage() {
     return <ConfirmarCpf primeiroNome={colaborador.nome.split(" ")[0]} />;
   }
 
-  const [documentos, ausencias, mensagens, avaliacoes, bancoHoras] = await Promise.all([
+  const [documentos, ausencias, mensagens, avaliacoes] = await Promise.all([
     prisma.documentoColaborador.findMany({
       where: { colaboradorId: colaborador.id, arquivoId: { not: null } },
       orderBy: { createdAt: "desc" },
@@ -130,19 +130,6 @@ export default async function PortalPage() {
         colaborador: { select: { nome: true } },
         ciclo: { select: { nome: true, dataFim: true } },
         notas: { select: { competencia: true, nota: true } },
-      },
-    }),
-    prisma.bancoHoras.findMany({
-      where: { colaboradorId: colaborador.id },
-      orderBy: { competencia: "desc" },
-      take: 6,
-      select: {
-        competencia: true,
-        saldoAnterior: true,
-        creditosMes: true,
-        debitosMes: true,
-        saldoAtual: true,
-        expiraEm: true,
       },
     }),
   ]);
@@ -322,7 +309,6 @@ export default async function PortalPage() {
         notas: a.notas,
         competenciasDisponiveis: competenciasPorEmpresa.get(a.empresaId) ?? [],
       }))}
-      bancoHoras={bancoHoras.length > 0 ? bancoHoras[0] : null}
     />
   );
 }
