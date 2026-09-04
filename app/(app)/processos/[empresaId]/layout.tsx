@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireProcessosEmpresa } from "@/lib/processos-auth-guard";
 import { ProcessosNav } from "./processos-nav";
@@ -37,7 +37,14 @@ export default async function ProcessosEmpresaLayout({
     where: { id: empresaId },
     select: { id: true, ativo: true },
   });
-  if (!empresa || !empresa.ativo) notFound();
+  if (!empresa) notFound();
+  // Inativa: volta para a porta do módulo, que escolhe o primeiro CNPJ ATIVO
+  // de novo — e não 404. Existe porque a barra de topo (v1.168.0) entra em
+  // `/processos/<primeiro CNPJ>` com a lista que o layout montou na ÚLTIMA
+  // renderização: se outra pessoa desativou esse CNPJ nesse meio-tempo, o
+  // clique chegaria aqui com um id que era válido e deixou de ser. Id
+  // inexistente continua 404: isso é URL errada, não lista velha.
+  if (!empresa.ativo) redirect("/processos");
 
   // Cor por marca e logo na lateral saíram (v1.154.0 / v1.155.0) — ver o
   // layout do RH: a marca vive no seletor da barra de topo.
