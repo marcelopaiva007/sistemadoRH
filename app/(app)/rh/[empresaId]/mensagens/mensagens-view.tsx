@@ -38,7 +38,7 @@ export function MensagensView({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight">
+        <h1 className="flex items-center gap-2">
           <MessageCircle className="size-5" />
           Mensagens do portal
         </h1>

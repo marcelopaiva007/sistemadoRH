@@ -66,7 +66,7 @@ function BadgeStatus({ status }: { status: StatusVencimento }) {
   if (status === "VENCIDO") return <Badge variant="destructive">{rotuloTexto}</Badge>;
   if (status === "PROXIMO")
     return (
-      <Badge className="border-transparent bg-neutral-500 text-white hover:bg-neutral-500">
+      <Badge className="border-transparent bg-muted-foreground text-background hover:bg-muted-foreground">
         {rotuloTexto}
       </Badge>
     );

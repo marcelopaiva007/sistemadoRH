@@ -16,7 +16,7 @@ export default async function AtualizacoesPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight">Atualizações do sistema</h1>
+        <h1>Atualizações do sistema</h1>
         <p className="text-sm text-muted-foreground">
           O que vem a seguir e o histórico do que já foi publicado. A versão no ar é a mesma da
           etiqueta no topo da tela.

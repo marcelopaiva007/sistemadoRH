@@ -57,7 +57,7 @@ function BadgeStatus({ status }: { status: StatusLicenciamento }) {
     return <Badge variant="destructive">{rotulo}</Badge>;
   if (status === "VENCE_EM_BREVE")
     return (
-      <Badge className="border-transparent bg-neutral-500 text-white hover:bg-neutral-500">
+      <Badge className="border-transparent bg-muted-foreground text-background hover:bg-muted-foreground">
         {rotulo}
       </Badge>
     );

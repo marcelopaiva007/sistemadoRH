@@ -125,7 +125,7 @@ export default async function AlugueisPage({
         <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
           {empresa.marca.nome} · {empresa.nome}
         </p>
-        <h1 className="mt-1 text-xl font-semibold tracking-tight">Aluguéis a receber</h1>
+        <h1 className="mt-1">Aluguéis a receber</h1>
         <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
           Imóveis do grupo alugados a terceiros — o contrato de aluguel se cadastra AQUI, separado
           dos demais contratos. Cada um gera as parcelas mensais; marque o que foi recebido. O que

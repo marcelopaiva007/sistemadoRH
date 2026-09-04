@@ -16,7 +16,7 @@ export function ConfirmarCpf({ primeiroNome }: { primeiroNome: string }) {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight">Oi, {primeiroNome}!</h1>
+        <h1>Oi, {primeiroNome}!</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Só nesta primeira vez: confirme seu CPF para o portal ter certeza de que é você. Depois
           disso, o link do Telegram já basta.

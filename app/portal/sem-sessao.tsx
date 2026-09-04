@@ -6,7 +6,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 export function PortalSemSessao({ titulo = "Seu acesso expirou" }: { titulo?: string }) {
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-semibold tracking-tight">{titulo}</h1>
+      <h1>{titulo}</h1>
       <Alert>
         <AlertDescription>
           <p>

@@ -26,6 +26,21 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.167.0",
+    data: "04/09/2026",
+    horario: "00:20",
+    titulo: "Correções da auditoria do redesenho: avaliação do gestor de volta no portal, títulos no mesmo tamanho e versão sempre à vista",
+    itens: [
+      "Portal: o gestor que já tinha respondido a própria avaliação ficava sem nenhum caminho para avaliar a equipe — a aba existia, mas nada levava até ela. Avaliar a equipe virou tarefa própria em \"Para você fazer\", e quem já respondeu tudo ganhou o botão \"Ver a minha avaliação\" para consultar o que respondeu.",
+      "Título de tela no mesmo tamanho em todo o sistema. As 14 telas de Processos & Ativos, a home, Meu Setor, Atualizações e mais 11 telas mostravam o título menor que o resto — 28 telas acertadas.",
+      "Seis telas que não tinham título nenhum passaram a ter: Colaboradores, Pesquisas, Dashboard NR-01, Relatórios, Auditoria e Central de Sinais.",
+      "A versão do sistema voltou para a barra de topo, ao lado do papel, embaixo do nome. Estava só dentro do menu do avatar desde a v1.155.0.",
+      "Endereço que não existe agora mostra uma tela em português, com a cara do sistema, em vez da página de erro em inglês do framework.",
+      "No gráfico de admissões × desligamentos, a linha de desligamentos passou a ser tracejada: as duas cores da paleta nova quase não se separam, e quem tem daltonismo para vermelho via uma linha só.",
+      "Segurança: a contagem de pendências do RH exigia acesso ao CNPJ, mas não ao módulo Pessoas (RH). Um perfil restrito a Processos & Ativos conseguia obtê-la; agora recebe 403, como já acontecia na busca.",
+    ],
+  },
+  {
     versao: "1.166.0",
     data: "04/09/2026",
     horario: "01:00",

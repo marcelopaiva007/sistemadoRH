@@ -53,7 +53,7 @@ export default async function AvisosGestorPage({
     <div className="space-y-6">
       <div>
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-xl font-semibold tracking-tight">Avisos automáticos ao gestor</h1>
+          <h1>Avisos automáticos ao gestor</h1>
           <AjudaDaTela modulo="avisos-gestor" />
         </div>
         <p className="text-sm text-muted-foreground">

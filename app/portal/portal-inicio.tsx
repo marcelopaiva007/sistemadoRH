@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Clock, FileText, Home, LogOut, MessageCircle, Stethoscope, User, UsersRound } from "lucide-react";
+import { ClipboardCheck, Clock, FileText, Home, LogOut, MessageCircle, Stethoscope, User, UsersRound } from "lucide-react";
 import { FaixaDeIndicadores } from "@/components/padroes/faixa-de-indicadores";
 import { Indicador } from "@/components/indicador";
 import { BaterPontoCard } from "./bater-ponto-card";
@@ -130,7 +130,12 @@ export function PortalInicio({
       contagem: avaliacoesPendentes,
       aba: "avaliacao",
     });
-  } else if (equipe !== null && avaliacoes.length === 0) {
+  }
+  // Avaliar a equipe é tarefa PRÓPRIA do gestor, não alternativa à avaliação
+  // dele. Até a v1.165.0 isto era `else if (… && avaliacoes.length === 0)`: o
+  // gestor que já tinha respondido a sua caía fora das duas condições e ficava
+  // sem NENHUMA porta para a aba — que não está na barra de cinco.
+  if (equipe !== null) {
     paraFazer.push({ chave: "equipe", titulo: "Avaliar a sua equipe", detalhe: "O ciclo está aberto.", aba: "avaliacao" });
   }
   if (camposFaltando > 0) {
@@ -225,6 +230,17 @@ export function PortalInicio({
             complemento={colaborador.dataAdmissao ? `desde ${formatarData(colaborador.dataAdmissao)}` : undefined}
           />
         </FaixaDeIndicadores>
+
+        {/* Avaliação já respondida não é tarefa e não entra em "Para você
+            fazer" — mas continua sendo consultável. Sem este botão a aba
+            existia sem porta para quem não tinha nada pendente. */}
+        {temAvaliacao && !paraFazer.some((i) => i.aba === "avaliacao") && (
+          <Button variant="outline" size="lg" className="w-full" onClick={() => setAba("avaliacao")}>
+            <ClipboardCheck />
+            Ver a minha avaliação
+            <span data-icon="inline-end" aria-hidden>›</span>
+          </Button>
+        )}
 
         {meuTime !== null && (
           <Button variant="outline" size="lg" className="w-full" onClick={() => setAba("time")}>

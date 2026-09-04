@@ -110,7 +110,7 @@ export default async function CondutoresPage({
         <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
           {empresa.marca.nome} · {empresa.nome}
         </p>
-        <h1 className="mt-1 text-xl font-semibold tracking-tight">Condutores</h1>
+        <h1 className="mt-1">Condutores</h1>
         <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
           Habilitação, exame e pontuação de quem dirige a serviço. Os pontos entram na conta quando
           o condutor é indicado numa multa — antes disso a infração é do veículo, não de ninguém.

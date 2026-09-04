@@ -98,11 +98,19 @@ export type AbsenteismoNaTela = {
 
 type Vista = "graficos" | "tabelas";
 
-// Cores validadas contra daltonismo e contraste (validador do guia de
-// dataviz, todos os pares PASS):
-//   série única/azul  var(--chart-1)   (= --chart-1 do tema)
-//   admissões         #0d9488   × desligamentos var(--chart-2)  (ΔE deutan 13.1)
-//   folha             var(--chart-1)   × benefícios    var(--chart-3)  (ΔE protan 32.3)
+// A paleta do Modernist é monocromática com um vermelho: --chart-1 #201e1d,
+// --chart-3 #7d7979, --chart-4 #bab6b6, --destructive #ae1800. Os pares em uso:
+//   série única       var(--chart-1)   #201e1d
+//   folha × benefícios var(--chart-1) × var(--chart-4)   —  6,1:1 de luminância
+//   admissões × desligamentos var(--chart-3) × var(--destructive)  —  1,5:1
+//
+// Esse último par NÃO se separa por cor: 1,5:1 de luminância, e um protanope vê
+// o vermelho escurecer para perto do cinza. Por isso desligamentos é TRACEJADA
+// — a diferença é de forma, que nenhum tipo de daltonismo apaga. Não troque o
+// tracejado por outra cor achando que resolve: nesta paleta não tem cor livre.
+//
+// (Até a v1.165.0 este comentário citava #0d9488 e pares --chart-2/--chart-3
+// que o código não usa desde a v1.159.0 — os ΔE ali não valiam para nada.)
 // Texto de rótulo/tooltip fica nos tokens de texto do tema, nunca na cor da
 // série — a cor mora só na marca do gráfico.
 const COR = {
@@ -473,6 +481,7 @@ export function PainelView({
                             name="Desligamentos"
                             stroke={COR.desligamentos}
                             strokeWidth={2}
+                            strokeDasharray="5 3"
                             dot={false}
                             activeDot={{ r: 4 }}
                           />

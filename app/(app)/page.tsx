@@ -194,7 +194,7 @@ export default async function HomePage() {
           Visão do grupo" — uma legenda: verdadeira, e inútil para decidir o
           que fazer no primeiro minuto depois do login. */}
       <div>
-        <h1 className="text-xl font-semibold tracking-tight">
+        <h1>
           {saudacao()}
           {primeiroNome(user.name) ? `, ${primeiroNome(user.name)}` : ""}
         </h1>
