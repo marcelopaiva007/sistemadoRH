@@ -54,11 +54,12 @@ export default async function HomePage() {
     select: { id: true, nome: true, marca: { select: { id: true, nome: true } } },
   });
 
-  // Tudo agregado de uma vez, não uma rodada de queries por empresa: são 52
-  // idas ao banco no total (3 aqui + 28 em pendenciasPorEmpresa + 21 em
-  // empresasComRegistro), quantas empresas forem. O laço anterior fazia 11 POR
-  // empresa — com os 11 CNPJs do grupo passava de 120, e esta é a primeira
-  // tela depois do login.
+  // Tudo agregado de uma vez, não uma rodada de queries por empresa: são 5
+  // idas ao banco no total (3 aqui + 1 em pendenciasPorEmpresa + 1 em
+  // empresasComRegistro), quantas empresas forem. Eram 52 até 04/09/2026 —
+  // 28 + 21 `groupBy` em paralelo, que entravam em fila no pool de 5 conexões
+  // e seguravam esta tela por 2 a 5 s —, e antes disso 11 POR empresa: com os
+  // 11 CNPJs do grupo passava de 120, e esta é a primeira tela depois do login.
   const ids = empresas.map((e) => e.id);
   const [ativosPorEmpresa, vagasPorEmpresa, integracoesPorEmpresa, pendenciasPorId, comRegistro] =
     await Promise.all([

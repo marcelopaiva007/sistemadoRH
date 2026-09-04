@@ -86,12 +86,27 @@ export function SeletorModulo({
   const empresaIdAtual =
     moduloAtual?.escopadoPorEmpresa && empresaIds.includes(partes[2]) ? partes[2] : null;
 
+  // A porta de um módulo quando NÃO há CNPJ no caminho (Início, Usuários,
+  // Atualizações, Conta). `/rh` e `/processos` são rotas que só redirecionam
+  // — `/rh` para a tela inicial, `/processos` para o primeiro CNPJ visível —
+  // e cada redirecionamento paga autenticação, layout e consultas duas vezes:
+  // 0,9 s e 1,5 s medidos em produção em 04/09/2026, antes de a tela de
+  // destino sequer começar. A barra já sabe os dois destinos, então vai
+  // direto. A regra do primeiro CNPJ é a MESMA de app/(app)/processos/page.tsx:
+  // `empresaIds` chega do layout já filtrado pelo que a pessoa enxerga, ativo
+  // e em ordem de nome. As duas rotas continuam existindo para quem digita a
+  // URL — e a guarda da tela de destino continua decidindo o acesso.
+  function portaSemEmpresa(destino: Modulo): string {
+    if (destino.slug === "rh") return "/";
+    if (destino.escopadoPorEmpresa && empresaIds[0]) return `/${destino.slug}/${empresaIds[0]}`;
+    return `/${destino.slug}`;
+  }
+
   function irPara(destino: Modulo) {
     if (destino.slug === moduloAtual?.slug) return;
     // Leva o CNPJ e o filtro de marca junto quando os dois lados são escopados
     // por empresa. Sem empresa na URL (Início, Usuários), ou indo para um
-    // módulo que não é escopado, entra pela raiz — que resolve sozinha para
-    // onde mandar.
+    // módulo que não é escopado, entra por `portaSemEmpresa`.
     const podeLevarEmpresa = empresaIdAtual && destino.escopadoPorEmpresa;
     // SÓ o `?empresas=`, e não a querystring inteira. O resto dela são filtros
     // da TELA de onde a pessoa está saindo (`lacuna=telegram` em Colaboradores,
@@ -99,7 +114,7 @@ export function SeletorModulo({
     // em que quiserem dizer OUTRA coisa com o mesmo nome o valor antigo
     // chegaria lá aplicado, sem ninguém ter pedido.
     const marcas = podeLevarEmpresa ? searchParams.get(PARAM) : null;
-    const base = podeLevarEmpresa ? `/${destino.slug}/${empresaIdAtual}` : `/${destino.slug}`;
+    const base = podeLevarEmpresa ? `/${destino.slug}/${empresaIdAtual}` : portaSemEmpresa(destino);
     router.push(marcas ? `${base}?${PARAM}=${marcas}` : base);
   }
 

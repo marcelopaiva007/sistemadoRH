@@ -1,6 +1,6 @@
 import { prisma, type Cliente } from "@/lib/prisma";
 import { PENDENCIAS_DECIDIR, PENDENCIAS_PRAZO, PENDENCIAS_CADASTRO } from "./pendencias-natureza";
-import type { Prisma } from "@/app/generated/prisma/client";
+import { Prisma } from "@/app/generated/prisma/client";
 import {
   DIAS_ALERTA_VENCIMENTO,
   CONTRATOS_POR_PRAZO,
@@ -382,37 +382,250 @@ export const zeradas = (): Pendencias => ({
   sinaisAbertos: 0,
 });
 
-type LinhaAgrupada = { empresaId: string; _count?: { _all?: number } };
+/**
+ * As contagens, em UMA ida ao banco.
+ *
+ * Até 04/09/2026 eram 28 `groupBy` do Prisma num `Promise.all`. Paralelo no
+ * código, fila no banco: o pool de uma função da Vercel tem 5 conexões
+ * (lib/prisma.ts), então as 28 rodavam em seis ondas, cada onda pagando a
+ * viagem até o Neon — e a tela inicial do grupo, que soma a isto as 21 de
+ * `empresasComRegistro`, levava de 2 a 5 segundos para aparecer (medido em
+ * produção, com sessão de verdade). Cada consulta é barata — tabelas de
+ * centenas de linhas; o que custava era a QUANTIDADE de viagens.
+ *
+ * Agora é um `UNION ALL` de subconsultas, uma por pendência, devolvendo
+ * (chave, empresaId, n). O nome de cada pendência entra na SQL a partir da
+ * CHAVE do objeto: `Record<keyof Pendencias, …>` obriga a lista a ter as 27
+ * e recusa chave escrita errado — que é o defeito que uma string solta na
+ * SQL permitiria: cartão zerado sem erro nenhum, o pior tipo de erro desta
+ * tela.
+ *
+ * As regras são as dos `where` antigos, traduzidas uma a uma. Duas delas
+ * continuam existindo TAMBÉM em Prisma, porque a lista e o alerta filtram
+ * com elas:
+ *   - `cadastrosIncompletos` espelha CADASTRO_INCOMPLETO_WHERE (a lista
+ *     ?lacuna=cadastro);
+ *   - `planosAcaoVencidos` espelha planoAcaoVencidoWhere (o alerta AL09).
+ * Quem mudar uma muda a outra; scripts/smoke-pendencias.ts exercita as duas.
+ *
+ * Convenções da SQL:
+ *   - `alvo` é a CTE com os CNPJs pedidos (montada em `contarPorEmpresa`), e
+ *     toda subconsulta filtra por ela; a tabela principal é sempre `x`;
+ *   - `rh.` na frente de toda tabela — SQL crua não herda o schema do Prisma;
+ *   - data viaja como texto ISO com `::timestamp`: as colunas são `timestamp`
+ *     sem fuso, gravadas em UTC pelo Prisma, e nessa conversão o `Z` do ISO
+ *     é ignorado — sobra a mesma meia-noite UTC de `hojeUTC()`.
+ */
+const ESCOPO = Prisma.sql`x."empresaId" IN (SELECT id FROM alvo)`;
+const COLABORADOR_ATIVO = Prisma.sql`EXISTS (SELECT 1 FROM rh."Colaborador" c WHERE c.id = x."colaboradorId" AND c.ativo)`;
+const ts = (d: Date) => Prisma.sql`${d.toISOString()}::timestamp`;
+
+function subconsultasDePendencias(hoje: Date): Record<keyof Pendencias, readonly Prisma.Sql[]> {
+  const hojeSql = ts(hoje);
+  const limite = ts(somarDiasUTC(hoje, DIAS_ALERTA_VENCIMENTO));
+  const umAnoAtras = ts(somarDiasUTC(hoje, -365));
+  const seisMesesAtras = ts(somarDiasUTC(hoje, -180));
+  const corte = ts(PRIMEIRO_DESLIGAMENTO_COBRADO);
+  const contratosPorPrazo = Prisma.join([...CONTRATOS_POR_PRAZO]);
+
+  return {
+    // Férias e ausências somam no mesmo número — por isso são duas subconsultas
+    // com a mesma chave, e a leitura faz `+=` (ver pendenciasPorEmpresa).
+    aprovacoes: [
+      Prisma.sql`FROM rh."SolicitacaoFerias" x WHERE ${ESCOPO} AND x.status = 'PENDENTE'`,
+      Prisma.sql`FROM rh."Ausencia" x WHERE ${ESCOPO} AND x.status = 'PENDENTE'`,
+    ],
+    // Enviado pelo colaborador no portal e ainda não conferido pelo RH.
+    documentosAConferir: [
+      Prisma.sql`FROM rh."DocumentoColaborador" x WHERE ${ESCOPO} AND x.origem = 'COLABORADOR' AND x."conferidoEm" IS NULL`,
+    ],
+    asoVencendo: [
+      Prisma.sql`FROM rh."ExameOcupacional" x WHERE ${ESCOPO} AND x."validoAte" IS NOT NULL AND x."validoAte" <= ${limite} AND ${COLABORADOR_ATIVO}`,
+    ],
+    certificadosVencendo: [
+      Prisma.sql`FROM rh."CertificadoNR" x WHERE ${ESCOPO} AND x."validoAte" IS NOT NULL AND x."validoAte" <= ${limite} AND ${COLABORADOR_ATIVO}`,
+    ],
+    catPendente: [Prisma.sql`FROM rh."AcidenteTrabalho" x WHERE ${ESCOPO} AND NOT x."catEmitida"`],
+    integracoesAtrasadas: [
+      Prisma.sql`FROM rh."ChecklistIntegracao" x WHERE ${ESCOPO} AND NOT x.concluido AND x.prazo IS NOT NULL AND x.prazo < ${hojeSql} AND ${COLABORADOR_ATIVO}`,
+    ],
+    epiVencido: [
+      Prisma.sql`FROM rh."EntregaEPI" x WHERE ${ESCOPO} AND x."validoAte" IS NOT NULL AND x."validoAte" < ${hojeSql} AND ${COLABORADOR_ATIVO}`,
+    ],
+    // Férias vencidas: 12+ meses de casa sem NENHUMA férias aprovada que
+    // tenha começado no último ano. Sem dataAdmissao a pessoa fica de fora —
+    // preenchê-la é lacuna da tela inicial, não pendência daqui.
+    feriasVencidas: [
+      Prisma.sql`FROM rh."Colaborador" x WHERE ${ESCOPO} AND x.ativo AND x."dataAdmissao" IS NOT NULL AND x."dataAdmissao" < ${umAnoAtras} AND NOT EXISTS (SELECT 1 FROM rh."SolicitacaoFerias" f WHERE f."colaboradorId" = x.id AND f.status = 'APROVADA' AND f."dataInicio" >= ${umAnoAtras})`,
+    ],
+    // Aviso prévio: desligamento registrado para os próximos 7 dias e a
+    // pessoa ainda ativa — a saída está marcada, o processo tem que andar.
+    avisoPrevio: [
+      Prisma.sql`FROM rh."Colaborador" x WHERE ${ESCOPO} AND x.ativo AND x."dataDesligamento" >= ${hojeSql} AND x."dataDesligamento" <= ${ts(somarDiasUTC(hoje, 7))}`,
+    ],
+    // Desligado com item de offboarding em aberto (crachá, notebook, acesso…).
+    // Só saída a partir do corte (PRIMEIRO_DESLIGAMENTO_COBRADO): item criado
+    // para um desligamento histórico continua visível na tela e na ficha,
+    // mas não cobra — mesma decisão das duas pendências irmãs de desligamento.
+    desligamentosIncompletos: [
+      Prisma.sql`FROM rh."ChecklistDesligamento" x WHERE ${ESCOPO} AND NOT x.concluido AND EXISTS (SELECT 1 FROM rh."Colaborador" c WHERE c.id = x."colaboradorId" AND NOT c.ativo AND c."dataDesligamento" >= ${corte})`,
+    ],
+    // Ciclo de avaliação com a janela fechada e ainda aberto — falta cobrar
+    // quem não avaliou e encerrar. Conta o CICLO, não as avaliações pendentes
+    // dentro dele (ver o comentário do tipo).
+    ciclosAvaliacaoAEncerrar: [
+      Prisma.sql`FROM rh."CicloAvaliacao" x WHERE ${ESCOPO} AND NOT x.encerrado AND x."dataFim" < ${hojeSql}`,
+    ],
+    // Pesquisa ainda ACTIVE — aberta para os colaboradores responderem e
+    // esperando o RH encerrar. Só ACTIVE: DRAFT não chegou a ninguém e
+    // FINISHED/ARCHIVED já foi fechada.
+    //
+    // Agrupa pelo `empresaId` da Pesquisa, que é o CNPJ onde ela nasceu (o
+    // vínculo real é com a MARCA, ver o model). Como quem chama passa os
+    // CNPJs da marca inteira, a pesquisa entra uma vez só no total — não
+    // multiplica por CNPJ irmão.
+    pesquisasAbertas: [Prisma.sql`FROM rh."Pesquisa" x WHERE ${ESCOPO} AND x.status = 'ACTIVE'`],
+    // Ficha sem NENHUMA gravação há 6+ meses. updatedAt é proxy — qualquer
+    // edição conta — mas é o campo que existe.
+    fichasDesatualizadas: [
+      Prisma.sql`FROM rh."Colaborador" x WHERE ${ESCOPO} AND x.ativo AND x."updatedAt" < ${seisMesesAtras}`,
+    ],
+    // Contrato por prazo determinado chegando ao fim. Inclui o que JÁ venceu
+    // (sem piso na data): passar do termo é justamente o que transforma o
+    // contrato em indeterminado, então um vencimento esquecido tem que
+    // continuar cobrando, não sumir da tela por ter passado.
+    contratosVencendo: [
+      Prisma.sql`FROM rh."Colaborador" x WHERE ${ESCOPO} AND x.ativo AND x."tipoContrato" IN (${contratosPorPrazo}) AND x."dataFimContrato" IS NOT NULL AND x."dataFimContrato" <= ${limite}`,
+    ],
+    // Horas extras da competência ABERTA, somadas por pessoa. O teto do art.
+    // 59 é individual: agregar por empresa antes de comparar diluiria quem
+    // estourou sozinho no meio de um time que não fez hora nenhuma. Soma
+    // nula (lançamento em valor, não em horas) nunca passa do teto — em SQL,
+    // `NULL > 44` é falso, o mesmo `?? 0` de antes.
+    horasExtrasExcedidas: [
+      Prisma.sql`FROM (SELECT ef."empresaId", ef."colaboradorId", sum(ef.quantidade) AS horas FROM rh."EventoFolha" ef WHERE ef."empresaId" IN (SELECT id FROM alvo) AND ef.tipo IN (${Prisma.join([...RUBRICAS_HORA_EXTRA])}) AND EXISTS (SELECT 1 FROM rh."CompetenciaFolha" cf WHERE cf.id = ef."competenciaId" AND cf.status = 'ABERTA') GROUP BY 1, 2) x WHERE x.horas > ${LIMITE_HORAS_EXTRAS_MES}::float8`,
+    ],
+    // Dependente declarado para IRRF sem CPF. A Receita exige CPF de todo
+    // dependente, de qualquer idade (IN RFB 1.760/2017): sem ele a dedução
+    // cai na malha e o desconto vira diferença a pagar pelo colaborador.
+    // Conta PESSOAS, não dependentes — é o colaborador que o RH vai chamar.
+    dependentesSemCpf: [
+      Prisma.sql`FROM rh."Colaborador" x WHERE ${ESCOPO} AND x.ativo AND EXISTS (SELECT 1 FROM rh."Dependente" d WHERE d."colaboradorId" = x.id AND d.irrf AND d.cpf IS NULL)`,
+    ],
+    // Atestado JÁ APROVADO e abonado sem o papel anexado: a falta foi
+    // perdoada e não há documento que sustente o abono numa fiscalização.
+    //
+    // O filtro por APROVADA não é detalhe — é o que impede contar duas vezes.
+    // Atestado ainda PENDENTE já entra em `aprovacoes`; sem este recorte, o
+    // mesmo item somaria nos dois contadores e inflaria o total da tela.
+    atestadosSemDocumento: [
+      Prisma.sql`FROM rh."Ausencia" x WHERE ${ESCOPO} AND x.tipo = 'ATESTADO' AND x.status = 'APROVADA' AND x.abonada AND x."arquivoId" IS NULL`,
+    ],
+    // Ativo sem Telegram vinculado — null OU "": mesma condição da lacuna
+    // (lib/dashboard.ts) e da lista (?lacuna=telegram), para os três números
+    // baterem sempre.
+    semTelegram: [
+      Prisma.sql`FROM rh."Colaborador" x WHERE ${ESCOPO} AND x.ativo AND (x."telegramChatId" IS NULL OR x."telegramChatId" = '')`,
+    ],
+    // Ficha com campo essencial em branco — a tradução de
+    // CADASTRO_INCOMPLETO_WHERE, campo a campo (ver o cabeçalho).
+    cadastrosIncompletos: [
+      Prisma.sql`FROM rh."Colaborador" x WHERE ${ESCOPO} AND x.ativo AND (x.cpf IS NULL OR x."dataAdmissao" IS NULL OR (x.email IS NULL AND x.telefone IS NULL))`,
+    ],
+    // Nome, não FK: "sem setor" no sistema é estar no setor "Não definido"
+    // (setorId é obrigatório no schema). Mesma condição da lacuna da home.
+    // "Demitidos" entrou em 27/08/2026: é o arquivo oculto dos desligados —
+    // um ATIVO ali é tão sem-setor quanto no "Não definido". Sem diferenciar
+    // caixa, como o `mode: "insensitive"` de antes.
+    semSetor: [
+      Prisma.sql`FROM rh."Colaborador" x WHERE ${ESCOPO} AND x.ativo AND EXISTS (SELECT 1 FROM rh."Setor" s WHERE s.id = x."setorId" AND lower(s.nome) IN ('não definido', 'demitidos'))`,
+    ],
+    // ---- as oito de 19/08/2026 (ver os comentários no tipo Pendencias) ----
+    // Ajuste de ponto esperando decisão. Mesma consulta que a tela de
+    // Aprovações faz desde 11/08/2026 — se as duas divergirem, o cartão diz
+    // um número e a fila mostra outro.
+    ajustesPontoPendentes: [Prisma.sql`FROM rh."TratamentoPonto" x WHERE ${ESCOPO} AND x.status = 'PENDENTE'`],
+    // "Fale com o RH" sem resposta. Sem filtro de `ativo`: a pergunta de
+    // quem já saiu continua sendo uma pergunta sem resposta, e a tela
+    // /mensagens também a mostra.
+    mensagensSemResposta: [Prisma.sql`FROM rh."MensagemPortal" x WHERE ${ESCOPO} AND x."respondidaEm" IS NULL`],
+    // Entrega sem confirmação de quem recebeu. Devolvida sai da conta —
+    // não há mais o que confirmar.
+    entregasNaoConfirmadas: [
+      Prisma.sql`FROM rh."EntregaAoColaborador" x WHERE ${ESCOPO} AND x."confirmadoEm" IS NULL AND x."devolvidoEm" IS NULL AND ${COLABORADOR_ATIVO}`,
+    ],
+    // Advertência/suspensão sem assinatura colhida.
+    disciplinarSemAssinatura: [
+      Prisma.sql`FROM rh."OcorrenciaDisciplinar" x WHERE ${ESCOPO} AND x."statusAssinatura" = 'PENDENTE' AND ${COLABORADOR_ATIVO}`,
+    ],
+    // Plano de ação vencido — a tradução de planoAcaoVencidoWhere, a mesma
+    // régua do alerta AL09 (ver o cabeçalho e o comentário do helper).
+    planosAcaoVencidos: [
+      Prisma.sql`FROM rh."PlanoAcao" x WHERE ${ESCOPO} AND x.status NOT IN ('CONCLUIDO', 'CANCELADO') AND x.prazo < ${hojeSql}`,
+    ],
+    // Desligado sem nenhum item de offboarding criado. Mesma regra do resumo
+    // da tela /desligamentos (campo `semChecklist`), dispensa inclusive.
+    // `>=` corte: desligamento até 15/08/2026 é anterior ao uso do sistema
+    // e não cobra (decisão do CEO de 20/08 — ver a constante). O corte por
+    // DATA substitui as dispensas em massa por migration (20260807200000 e
+    // 20260820120000), que dependiam de adivinhar o histórico pelo motivo em
+    // branco ou pelo createdAt — e ainda deixavam 80 casos passar.
+    desligamentosSemChecklist: [
+      Prisma.sql`FROM rh."Colaborador" x WHERE ${ESCOPO} AND x."dataDesligamento" >= ${corte} AND NOT x."checklistDispensado" AND NOT EXISTS (SELECT 1 FROM rh."ChecklistDesligamento" cd WHERE cd."colaboradorId" = x.id)`,
+    ],
+    // Desligado sem entrevista de saída. Par da anterior, mesma dispensa e
+    // mesmo corte — mas SÓ saída que já aconteceu (`<= hoje`): quem está em
+    // aviso prévio ainda trabalha, e a entrevista de saída dele não tem como
+    // existir. O checklist é diferente de propósito (precisa existir ANTES da
+    // saída); a mesma régua vale no resumo da tela /desligamentos.
+    desligamentosSemEntrevista: [
+      Prisma.sql`FROM rh."Colaborador" x WHERE ${ESCOPO} AND x."dataDesligamento" >= ${corte} AND x."dataDesligamento" <= ${hojeSql} AND NOT x."checklistDispensado" AND NOT EXISTS (SELECT 1 FROM rh."EntrevistaDesligamento" e WHERE e."colaboradorId" = x.id)`,
+    ],
+    // Sinal ainda sem triagem. `tipo` exclui PLANO_VENCIDO para o mesmo plano
+    // não contar duas vezes (ver o comentário no tipo). Sinal de GRUPO/MARCA
+    // tem `empresaId` nulo e fica fora por construção — a tela de Pendências
+    // é por empresa, e um sinal de grupo não tem a quem ser cobrado aqui. Ele
+    // continua visível na Central de Sinais, que já o mostra para todo mundo.
+    sinaisAbertos: [
+      Prisma.sql`FROM rh."Sinal" x WHERE ${ESCOPO} AND x.status = 'ABERTO' AND x.gravidade IN ('CRITICA', 'ALTA') AND x.tipo <> 'PLANO_VENCIDO'`,
+    ],
+  };
+}
 
 /**
- * `Promise.all` CHAVEADO: espera um objeto de promises preservando o tipo de
- * cada uma. Existe por causa das listas posicionais que este arquivo tinha —
- * 28 consultas de tipos quase todos idênticos, destruturadas de um array
- * pareado só pela ordem: uma transposição (num merge, num rebase) compilava
- * limpa e o número de um cartão saía no do vizinho. Com chave, é o TypeScript
- * que faz o pareamento; as consultas continuam disparando juntas (a promise
- * nasce na construção do objeto).
+ * Executa as subconsultas de uma vez: `WITH alvo(id) AS (VALUES …)` com os
+ * CNPJs pedidos, e um `UNION ALL` de `SELECT chave, empresaId, count(*)` por
+ * subconsulta. Chave e CNPJ que não têm linha nenhuma não voltam — quem lê
+ * parte de um mapa já zerado.
  */
-async function todas<T extends Record<string, Promise<unknown>>>(
-  consultas: T,
-): Promise<{ [K in keyof T]: Awaited<T[K]> }> {
-  const pares = await Promise.all(
-    Object.entries(consultas).map(async ([chave, promessa]) => [chave, await promessa] as const),
+async function contarPorEmpresa<K extends string>(
+  cliente: Cliente,
+  empresaIds: string[],
+  subconsultas: Record<K, readonly Prisma.Sql[]>,
+): Promise<{ chave: K; empresaId: string; n: number }[]> {
+  const alvo = Prisma.join(empresaIds.map((id) => Prisma.sql`(${id}::text)`));
+  const partes = (Object.entries(subconsultas) as [K, readonly Prisma.Sql[]][]).flatMap(
+    ([chave, fragmentos]) =>
+      fragmentos.map(
+        (fragmento) =>
+          Prisma.sql`SELECT ${chave}::text AS chave, x."empresaId" AS "empresaId", count(*)::int AS n ${fragmento} GROUP BY x."empresaId"`,
+      ),
   );
-  return Object.fromEntries(pares) as { [K in keyof T]: Awaited<T[K]> };
+  return cliente.$queryRaw<{ chave: K; empresaId: string; n: number }[]>(
+    Prisma.sql`WITH alvo(id) AS (VALUES ${alvo}) ${Prisma.join(partes, " UNION ALL ")}`,
+  );
 }
 
 /**
  * As pendências de várias empresas de uma vez, já separadas por empresa.
  *
- * São 28 queries agregadas, independente de quantas empresas entrarem: o
- * `groupBy` devolve a contagem por `empresaId` numa tacada. A tela inicial do
- * grupo antes chamava `pendenciasDaEmpresa([id])` dentro de um laço, o que dava
- * 8 queries POR empresa — com os 11 CNPJs do grupo, quase 90 idas ao banco só
- * para montar os cartões.
+ * Uma ida ao banco, independente de quantas empresas entrarem (ver
+ * `subconsultasDePendencias`). A tela inicial do grupo já chamou
+ * `pendenciasDaEmpresa([id])` dentro de um laço — 8 queries POR empresa —,
+ * depois 28 `groupBy` em paralelo; agora é uma consulta.
  *
- * Empresa sem nenhuma pendência não volta no `groupBy`; por isso o mapa já
- * nasce com todas as chaves zeradas.
+ * Empresa sem nenhuma pendência não volta do banco; por isso o mapa já nasce
+ * com todas as chaves zeradas.
  */
 // `cliente` existe para o smoke poder rodar dentro de uma transação com
 // rollback, como em lib/regua-cobranca.ts. Produção nunca passa nada e usa o
@@ -425,327 +638,13 @@ export async function pendenciasPorEmpresa(
   const mapa = new Map<string, Pendencias>(empresaIds.map((id) => [id, zeradas()]));
   if (empresaIds.length === 0) return mapa;
 
-  const empresaId = { in: empresaIds };
-  const hoje = hojeUTC();
-  const limite = somarDiasUTC(hoje, DIAS_ALERTA_VENCIMENTO);
-  const por = ["empresaId"] as const;
-  const contar = { _all: true } as const;
+  const linhas = await contarPorEmpresa(cliente, empresaIds, subconsultasDePendencias(hojeUTC()));
 
-  const umAnoAtras = somarDiasUTC(hoje, -365);
-  const seisMesesAtras = somarDiasUTC(hoje, -180);
-
-  const {
-    feriasPendentes, ausenciasPendentes, documentosAConferir, asoVencendo,
-    certificadosVencendo, catPendente, integracoesAtrasadas, epiVencido,
-    feriasVencidas, avisoPrevio, desligamentosIncompletos, ciclosAvaliacaoAEncerrar,
-    pesquisasAbertas, fichasDesatualizadas,
-    contratosVencendo, dependentesSemCpf, atestadosSemDocumento, horasExtras,
-    semTelegram, cadastrosIncompletos, semSetor,
-    ajustesPontoPendentes, mensagensSemResposta, entregasNaoConfirmadas,
-    disciplinarSemAssinatura, planosAcaoVencidos, desligamentosSemChecklist,
-    desligamentosSemEntrevista, sinaisAbertosPorEmpresa,
-    // Chave em cada consulta, não duas listas posicionais — ver `todas`.
-  } = await todas({
-      feriasPendentes: cliente.solicitacaoFerias.groupBy({ by: [...por], _count: contar, where: { empresaId, status: "PENDENTE" } }),
-      ausenciasPendentes: cliente.ausencia.groupBy({ by: [...por], _count: contar, where: { empresaId, status: "PENDENTE" } }),
-      // Enviado pelo colaborador no portal e ainda não conferido pelo RH.
-      documentosAConferir: cliente.documentoColaborador.groupBy({
-        by: [...por],
-        _count: contar,
-        where: { empresaId, origem: "COLABORADOR", conferidoEm: null },
-      }),
-      asoVencendo: cliente.exameOcupacional.groupBy({
-        by: [...por],
-        _count: contar,
-        where: { empresaId, validoAte: { not: null, lte: limite }, colaborador: { ativo: true } },
-      }),
-      certificadosVencendo: cliente.certificadoNR.groupBy({
-        by: [...por],
-        _count: contar,
-        where: { empresaId, validoAte: { not: null, lte: limite }, colaborador: { ativo: true } },
-      }),
-      catPendente: cliente.acidenteTrabalho.groupBy({ by: [...por], _count: contar, where: { empresaId, catEmitida: false } }),
-      integracoesAtrasadas: cliente.checklistIntegracao.groupBy({
-        by: [...por],
-        _count: contar,
-        where: { empresaId, concluido: false, prazo: { not: null, lt: hoje }, colaborador: { ativo: true } },
-      }),
-      epiVencido: cliente.entregaEPI.groupBy({
-        by: [...por],
-        _count: contar,
-        where: { empresaId, validoAte: { not: null, lt: hoje }, colaborador: { ativo: true } },
-      }),
-      // Férias vencidas: 12+ meses de casa sem NENHUMA férias aprovada que
-      // tenha começado no último ano. Sem dataAdmissao a pessoa fica de fora —
-      // preenchê-la é lacuna da tela inicial, não pendência daqui.
-      feriasVencidas: cliente.colaborador.groupBy({
-        by: [...por],
-        _count: contar,
-        where: {
-          empresaId,
-          ativo: true,
-          dataAdmissao: { not: null, lt: umAnoAtras },
-          ferias: { none: { status: "APROVADA", dataInicio: { gte: umAnoAtras } } },
-        },
-      }),
-      // Aviso prévio: desligamento registrado para os próximos 7 dias e a
-      // pessoa ainda ativa — a saída está marcada, o processo tem que andar.
-      avisoPrevio: cliente.colaborador.groupBy({
-        by: [...por],
-        _count: contar,
-        where: { empresaId, ativo: true, dataDesligamento: { gte: hoje, lte: somarDiasUTC(hoje, 7) } },
-      }),
-      // Desligado com item de offboarding em aberto (crachá, notebook, acesso…).
-      // Só saída a partir do corte (PRIMEIRO_DESLIGAMENTO_COBRADO): item criado
-      // para um desligamento histórico continua visível na tela e na ficha,
-      // mas não cobra — mesma decisão das duas pendências irmãs abaixo.
-      desligamentosIncompletos: cliente.checklistDesligamento.groupBy({
-        by: [...por],
-        _count: contar,
-        where: {
-          empresaId,
-          concluido: false,
-          colaborador: { ativo: false, dataDesligamento: { gte: PRIMEIRO_DESLIGAMENTO_COBRADO } },
-        },
-      }),
-      // Ciclo de avaliação com a janela fechada e ainda aberto — falta cobrar
-      // quem não avaliou e encerrar. Conta o CICLO, não as avaliações pendentes
-      // dentro dele (ver o comentário do tipo).
-      ciclosAvaliacaoAEncerrar: cliente.cicloAvaliacao.groupBy({
-        by: [...por],
-        _count: contar,
-        where: { empresaId, encerrado: false, dataFim: { lt: hoje } },
-      }),
-      // Pesquisa ainda ACTIVE — aberta para os colaboradores responderem e
-      // esperando o RH encerrar. Só ACTIVE: DRAFT não chegou a ninguém e
-      // FINISHED/ARCHIVED já foi fechada.
-      //
-      // Agrupa pelo `empresaId` da Pesquisa, que é o CNPJ onde ela nasceu (o
-      // vínculo real é com a MARCA, ver o model). Como quem chama passa os
-      // CNPJs da marca inteira, a pesquisa entra uma vez só no total — não
-      // multiplica por CNPJ irmão.
-      pesquisasAbertas: cliente.pesquisa.groupBy({ by: [...por], _count: contar, where: { empresaId, status: "ACTIVE" } }),
-      // Ficha sem NENHUMA gravação há 6+ meses. updatedAt é proxy — qualquer
-      // edição conta — mas é o campo que existe.
-      fichasDesatualizadas: cliente.colaborador.groupBy({
-        by: [...por],
-        _count: contar,
-        where: { empresaId, ativo: true, updatedAt: { lt: seisMesesAtras } },
-      }),
-      // Contrato por prazo determinado chegando ao fim. Inclui o que JÁ venceu
-      // (sem piso na data): passar do termo é justamente o que transforma o
-      // contrato em indeterminado, então um vencimento esquecido tem que
-      // continuar cobrando, não sumir da tela por ter passado.
-      contratosVencendo: cliente.colaborador.groupBy({
-        by: [...por],
-        _count: contar,
-        where: {
-          empresaId,
-          ativo: true,
-          tipoContrato: { in: [...CONTRATOS_POR_PRAZO] },
-          dataFimContrato: { not: null, lte: limite },
-        },
-      }),
-      // Dependente declarado para IRRF sem CPF. A Receita exige CPF de todo
-      // dependente, de qualquer idade (IN RFB 1.760/2017): sem ele a dedução
-      // cai na malha e o desconto vira diferença a pagar pelo colaborador.
-      // Conta PESSOAS, não dependentes — é o colaborador que o RH vai chamar.
-      dependentesSemCpf: cliente.colaborador.groupBy({
-        by: [...por],
-        _count: contar,
-        where: { empresaId, ativo: true, dependentes: { some: { irrf: true, cpf: null } } },
-      }),
-      // Atestado JÁ APROVADO e abonado sem o papel anexado: a falta foi
-      // perdoada e não há documento que sustente o abono numa fiscalização.
-      //
-      // O filtro por APROVADA não é detalhe — é o que impede contar duas vezes.
-      // Atestado ainda PENDENTE já entra em `aprovacoes`; sem este recorte, o
-      // mesmo item somaria nos dois contadores e inflaria o total da tela.
-      atestadosSemDocumento: cliente.ausencia.groupBy({
-        by: [...por],
-        _count: contar,
-        where: { empresaId, tipo: "ATESTADO", status: "APROVADA", abonada: true, arquivoId: null },
-      }),
-      // Horas extras da competência ABERTA, somadas por pessoa. Aqui o groupBy
-      // é por colaborador (não por empresa): o teto do art. 59 é individual, e
-      // agregar por empresa antes de comparar diluiria quem estourou sozinho no
-      // meio de um time que não fez hora nenhuma. A contagem por empresa sai no
-      // pós-processamento, logo abaixo.
-      horasExtras: cliente.eventoFolha.groupBy({
-        by: ["empresaId", "colaboradorId"],
-        _sum: { quantidade: true },
-        where: {
-          empresaId,
-          tipo: { in: [...RUBRICAS_HORA_EXTRA] },
-          competencia: { status: "ABERTA" },
-        },
-      }),
-      // Ativo sem Telegram vinculado — null OU "": mesma condição da lacuna
-      // (lib/dashboard.ts) e da lista (?lacuna=telegram), para os três números
-      // baterem sempre.
-      semTelegram: cliente.colaborador.groupBy({
-        by: [...por],
-        _count: contar,
-        where: { empresaId, ativo: true, OR: [{ telegramChatId: null }, { telegramChatId: "" }] },
-      }),
-      // Ficha com campo essencial em branco. A regra vive em
-      // CADASTRO_INCOMPLETO_WHERE, ao lado do predicado que a lista usa.
-      cadastrosIncompletos: cliente.colaborador.groupBy({
-        by: [...por],
-        _count: contar,
-        where: { empresaId, ativo: true, ...CADASTRO_INCOMPLETO_WHERE },
-      }),
-      // Nome, não FK: "sem setor" no sistema é estar no setor "Não definido"
-      // (setorId é obrigatório no schema). Mesma condição da lacuna da home.
-      semSetor: cliente.colaborador.groupBy({
-        by: [...por],
-        _count: contar,
-        // "Demitidos" entrou em 27/08/2026: é o arquivo oculto dos desligados —
-        // um ATIVO ali é tão sem-setor quanto no "Não definido".
-        where: { empresaId, ativo: true, setor: { nome: { in: ["Não definido", "Demitidos"], mode: "insensitive" } } },
-      }),
-      // ---- as oito de 19/08/2026 (ver os comentários no tipo Pendencias) ----
-      // Ajuste de ponto esperando decisão. Mesma consulta que a tela de
-      // Aprovações faz desde 11/08/2026 — se as duas divergirem, o cartão diz
-      // um número e a fila mostra outro.
-      ajustesPontoPendentes: cliente.tratamentoPonto.groupBy({
-        by: [...por],
-        _count: contar,
-        where: { empresaId, status: "PENDENTE" },
-      }),
-      // "Fale com o RH" sem resposta. Sem filtro de `ativo`: a pergunta de
-      // quem já saiu continua sendo uma pergunta sem resposta, e a tela
-      // /mensagens também a mostra.
-      mensagensSemResposta: cliente.mensagemPortal.groupBy({
-        by: [...por],
-        _count: contar,
-        where: { empresaId, respondidaEm: null },
-      }),
-      // Entrega sem confirmação de quem recebeu. Devolvida sai da conta —
-      // não há mais o que confirmar.
-      entregasNaoConfirmadas: cliente.entregaAoColaborador.groupBy({
-        by: [...por],
-        _count: contar,
-        where: { empresaId, confirmadoEm: null, devolvidoEm: null, colaborador: { ativo: true } },
-      }),
-      // Advertência/suspensão sem assinatura colhida.
-      disciplinarSemAssinatura: cliente.ocorrenciaDisciplinar.groupBy({
-        by: [...por],
-        _count: contar,
-        where: { empresaId, statusAssinatura: "PENDENTE", colaborador: { ativo: true } },
-      }),
-      // Plano de ação vencido — a regra vive em planoAcaoVencidoWhere, a
-      // mesma que o alerta AL09 usa: o e-mail da diretoria, o sinal da
-      // Central e este cartão têm que estar falando do mesmo conjunto de
-      // planos, e cópia "igual de propósito" já divergiu uma vez (ver o
-      // comentário do helper).
-      planosAcaoVencidos: cliente.planoAcao.groupBy({
-        by: [...por],
-        _count: contar,
-        where: { empresaId, ...planoAcaoVencidoWhere(hoje) },
-      }),
-      // Desligado sem nenhum item de offboarding criado. Mesma regra do resumo
-      // da tela /desligamentos (campo `semChecklist`), dispensa inclusive.
-      // `gte` corte: desligamento até 15/08/2026 é anterior ao uso do sistema
-      // e não cobra (decisão do CEO de 20/08 — ver a constante). O corte por
-      // DATA substitui as dispensas em massa por migration (20260807200000 e
-      // 20260820120000), que dependiam de adivinhar o histórico pelo motivo em
-      // branco ou pelo createdAt — e ainda deixavam 80 casos passar.
-      desligamentosSemChecklist: cliente.colaborador.groupBy({
-        by: [...por],
-        _count: contar,
-        where: {
-          empresaId,
-          dataDesligamento: { not: null, gte: PRIMEIRO_DESLIGAMENTO_COBRADO },
-          checklistDispensado: false,
-          checklistDesligamento: { none: {} },
-        },
-      }),
-      // Desligado sem entrevista de saída. Par da anterior, mesma dispensa e
-      // mesmo corte — mas SÓ saída que já aconteceu (`lte: hoje`): quem está
-      // em aviso prévio ainda trabalha, e a entrevista de saída dele não tem
-      // como existir. O checklist é diferente de propósito (precisa existir
-      // ANTES da saída); a mesma régua vale no resumo da tela /desligamentos.
-      desligamentosSemEntrevista: cliente.colaborador.groupBy({
-        by: [...por],
-        _count: contar,
-        where: {
-          empresaId,
-          dataDesligamento: { not: null, gte: PRIMEIRO_DESLIGAMENTO_COBRADO, lte: hoje },
-          checklistDispensado: false,
-          entrevistaDesligamento: { is: null },
-        },
-      }),
-      // Sinal ainda sem triagem. `tipo` exclui PLANO_VENCIDO para o mesmo plano
-      // não contar duas vezes (ver o comentário no tipo). O resultado deste
-      // groupBy traz `empresaId: string | null` — Sinal de GRUPO/MARCA não tem
-      // CNPJ —, por isso ele é somado num laço próprio lá embaixo em vez de
-      // passar pelo helper `somar`, que exige a chave não-nula.
-      sinaisAbertosPorEmpresa: cliente.sinal.groupBy({
-        by: [...por],
-        _count: contar,
-        where: {
-          empresaId,
-          status: "ABERTO",
-          gravidade: { in: ["CRITICA", "ALTA"] },
-          tipo: { not: "PLANO_VENCIDO" },
-        },
-      }),
-    });
-
-  const somar = (linhas: LinhaAgrupada[], aplicar: (p: Pendencias, n: number) => void) => {
-    for (const linha of linhas) {
-      const p = mapa.get(linha.empresaId);
-      if (p) aplicar(p, linha._count?._all ?? 0);
-    }
-  };
-
-  // `aprovacoes` junta férias e ausências — as duas somam no mesmo número.
-  somar(feriasPendentes, (p, n) => (p.aprovacoes += n));
-  somar(ausenciasPendentes, (p, n) => (p.aprovacoes += n));
-  somar(documentosAConferir, (p, n) => (p.documentosAConferir = n));
-  somar(asoVencendo, (p, n) => (p.asoVencendo = n));
-  somar(certificadosVencendo, (p, n) => (p.certificadosVencendo = n));
-  somar(catPendente, (p, n) => (p.catPendente = n));
-  somar(integracoesAtrasadas, (p, n) => (p.integracoesAtrasadas = n));
-  somar(epiVencido, (p, n) => (p.epiVencido = n));
-  somar(feriasVencidas, (p, n) => (p.feriasVencidas = n));
-  somar(avisoPrevio, (p, n) => (p.avisoPrevio = n));
-  somar(desligamentosIncompletos, (p, n) => (p.desligamentosIncompletos = n));
-  somar(ciclosAvaliacaoAEncerrar, (p, n) => (p.ciclosAvaliacaoAEncerrar = n));
-  somar(pesquisasAbertas, (p, n) => (p.pesquisasAbertas = n));
-  somar(fichasDesatualizadas, (p, n) => (p.fichasDesatualizadas = n));
-  somar(contratosVencendo, (p, n) => (p.contratosVencendo = n));
-  somar(dependentesSemCpf, (p, n) => (p.dependentesSemCpf = n));
-  somar(atestadosSemDocumento, (p, n) => (p.atestadosSemDocumento = n));
-  somar(semTelegram, (p, n) => (p.semTelegram = n));
-  somar(cadastrosIncompletos, (p, n) => (p.cadastrosIncompletos = n));
-  somar(semSetor, (p, n) => (p.semSetor = n));
-  somar(ajustesPontoPendentes, (p, n) => (p.ajustesPontoPendentes = n));
-  somar(mensagensSemResposta, (p, n) => (p.mensagensSemResposta = n));
-  somar(entregasNaoConfirmadas, (p, n) => (p.entregasNaoConfirmadas = n));
-  somar(disciplinarSemAssinatura, (p, n) => (p.disciplinarSemAssinatura = n));
-  somar(planosAcaoVencidos, (p, n) => (p.planosAcaoVencidos = n));
-  somar(desligamentosSemChecklist, (p, n) => (p.desligamentosSemChecklist = n));
-  somar(desligamentosSemEntrevista, (p, n) => (p.desligamentosSemEntrevista = n));
-
-  // Sinal à parte: `empresaId` é opcional no model (sinal de GRUPO/MARCA não
-  // pertence a CNPJ nenhum), então a linha não encaixa em LinhaAgrupada. Os
-  // nulos são descartados de propósito — a tela de Pendências é por empresa, e
-  // um sinal de grupo não tem a quem ser cobrado aqui. Ele continua visível na
-  // Central de Sinais, que já o mostra para todo mundo.
-  for (const linha of sinaisAbertosPorEmpresa) {
-    if (!linha.empresaId) continue;
+  // `+=`, não `=`: `aprovacoes` chega em duas linhas por CNPJ (férias e
+  // ausências somam no mesmo número). As demais chegam uma vez.
+  for (const linha of linhas) {
     const p = mapa.get(linha.empresaId);
-    if (p) p.sinaisAbertos = linha._count._all;
-  }
-
-  // Uma linha por colaborador que lançou hora extra no mês aberto; conta quem
-  // passou do teto. `_sum` volta null quando todas as quantidades da pessoa são
-  // nulas — lançamento em valor, não em horas —, e null nunca estoura o teto.
-  for (const linha of horasExtras) {
-    const p = mapa.get(linha.empresaId);
-    if (p && (linha._sum.quantidade ?? 0) > LIMITE_HORAS_EXTRAS_MES) p.horasExtrasExcedidas += 1;
+    if (p) p[linha.chave] += linha.n;
   }
 
   return mapa;
@@ -846,6 +745,80 @@ export async function ciclosAEncerrarDaEmpresa(
 }
 
 /**
+ * Onde ver se o módulo de cada pendência já foi usado — qualquer linha na
+ * tabela que a pendência lê, sem os filtros da pendência.
+ *
+ * As situações que dependem só de Colaborador (aprovações, férias vencidas,
+ * aviso prévio, ficha desatualizada, sem Telegram, sem setor) ficam de fora:
+ * sempre há base para calcular. `Partial<Record<keyof Pendencias, …>>` é a
+ * prova de tipo — chave que não é pendência não compila.
+ *
+ * `desligamentosSemChecklist` e `desligamentosSemEntrevista` compartilham a
+ * base: quem nunca desligou ninguém não está com o offboarding "em dia", está
+ * sem o módulo.
+ */
+function subconsultasDeRegistro() {
+  const colaboradorDesligado = Prisma.sql`FROM rh."Colaborador" x WHERE ${ESCOPO} AND x."dataDesligamento" IS NOT NULL`;
+  return {
+    asoVencendo: [Prisma.sql`FROM rh."ExameOcupacional" x WHERE ${ESCOPO}`],
+    certificadosVencendo: [Prisma.sql`FROM rh."CertificadoNR" x WHERE ${ESCOPO}`],
+    epiVencido: [Prisma.sql`FROM rh."EntregaEPI" x WHERE ${ESCOPO}`],
+    catPendente: [Prisma.sql`FROM rh."AcidenteTrabalho" x WHERE ${ESCOPO}`],
+    integracoesAtrasadas: [Prisma.sql`FROM rh."ChecklistIntegracao" x WHERE ${ESCOPO}`],
+    desligamentosIncompletos: [Prisma.sql`FROM rh."ChecklistDesligamento" x WHERE ${ESCOPO}`],
+    documentosAConferir: [Prisma.sql`FROM rh."DocumentoColaborador" x WHERE ${ESCOPO}`],
+    // Ciclo, não avaliação: é o que a pendência conta desde 10/08/2026, e uma
+    // empresa que criou ciclo mas ainda não gerou avaliação já usa o módulo.
+    ciclosAvaliacaoAEncerrar: [Prisma.sql`FROM rh."CicloAvaliacao" x WHERE ${ESCOPO}`],
+    atestadosSemDocumento: [Prisma.sql`FROM rh."Ausencia" x WHERE ${ESCOPO}`],
+    horasExtrasExcedidas: [Prisma.sql`FROM rh."EventoFolha" x WHERE ${ESCOPO}`],
+    // Dependente não tem empresaId — só colaboradorId. A pergunta vira "quais
+    // empresas têm alguém com dependente".
+    dependentesSemCpf: [
+      Prisma.sql`FROM rh."Colaborador" x WHERE ${ESCOPO} AND EXISTS (SELECT 1 FROM rh."Dependente" d WHERE d."colaboradorId" = x.id)`,
+    ],
+    // Contrato é diferente dos outros: a tabela é Colaborador, que nunca está
+    // vazia. O que falta é a classificação — ninguém com contrato por prazo
+    // marcado significa que o RH ainda não preencheu `tipoContrato`, e a
+    // pendência não tem como existir.
+    contratosVencendo: [
+      Prisma.sql`FROM rh."Colaborador" x WHERE ${ESCOPO} AND x.ativo AND x."tipoContrato" IN (${Prisma.join([...CONTRATOS_POR_PRAZO])})`,
+    ],
+    // Qualquer pesquisa, em qualquer status: quem nunca criou uma não está com
+    // as pesquisas "em dia", está sem o módulo. Sem isto, marca que nunca abriu
+    // pesquisa apareceria no verde junto de quem encerra tudo em prazo.
+    pesquisasAbertas: [Prisma.sql`FROM rh."Pesquisa" x WHERE ${ESCOPO}`],
+    // Qualquer colaborador ativo: se não tem ninguém, o módulo de cadastros
+    // nunca foi aberto. Com isto a verificação de "tem registro" e "precisa de
+    // ação" ficam alinhadas para cadastrosIncompletos.
+    cadastrosIncompletos: [Prisma.sql`FROM rh."Colaborador" x WHERE ${ESCOPO} AND x.ativo`],
+    // ---- as sete de 19/08/2026 ----
+    // Ponto: a pergunta é se o módulo é USADO, não se há tratamento pendente —
+    // empresa que bate ponto e não tem nenhum ajuste em aberto está em dia de
+    // verdade; empresa que nunca bateu não tem o que avaliar.
+    //
+    // A prova é `pontoLiberado` no Colaborador, não a tabela RegistroPonto:
+    // esta consulta roda na primeira tela depois do login, para todas as
+    // empresas de uma vez, e RegistroPonto cresce por batida (quatro por
+    // pessoa por dia) — varrê-la aqui custaria mais que todas as outras
+    // somadas. Colaborador tem centenas de linhas e responde a mesma
+    // pergunta: sem ninguém com ponto liberado não existe ajuste possível.
+    ajustesPontoPendentes: [Prisma.sql`FROM rh."Colaborador" x WHERE ${ESCOPO} AND x."pontoLiberado"`],
+    mensagensSemResposta: [Prisma.sql`FROM rh."MensagemPortal" x WHERE ${ESCOPO}`],
+    entregasNaoConfirmadas: [Prisma.sql`FROM rh."EntregaAoColaborador" x WHERE ${ESCOPO}`],
+    disciplinarSemAssinatura: [Prisma.sql`FROM rh."OcorrenciaDisciplinar" x WHERE ${ESCOPO}`],
+    planosAcaoVencidos: [Prisma.sql`FROM rh."PlanoAcao" x WHERE ${ESCOPO}`],
+    desligamentosSemChecklist: [colaboradorDesligado],
+    desligamentosSemEntrevista: [colaboradorDesligado],
+    // Qualquer sinal já detectado nesta empresa, em qualquer status ou
+    // gravidade: quem nunca teve sinal nenhum não está "sem sinais críticos",
+    // está sem histórico para o zero significar alguma coisa. Sinal de
+    // GRUPO/MARCA (empresaId nulo) fica fora por construção.
+    sinaisAbertos: [Prisma.sql`FROM rh."Sinal" x WHERE ${ESCOPO}`],
+  } satisfies Partial<Record<keyof Pendencias, readonly Prisma.Sql[]>>;
+}
+
+/**
  * Os módulos que não têm NENHUM registro nestas empresas.
  *
  * Existe porque zero é ambíguo na tela de pendências e os dois significados são
@@ -857,6 +830,12 @@ export async function ciclosAEncerrarDaEmpresa(
  *
  * Devolve por EMPRESA porque as duas telas fazem a mesma pergunta em escopos
  * diferentes: a da empresa quer a marca inteira, a do grupo quer marca a marca.
+ *
+ * Uma ida ao banco, quantas marcas forem (eram 21 `groupBy`; ver o cabeçalho
+ * de `subconsultasDePendencias`). O mapa nasce com TODAS as chaves da lista,
+ * cada uma com conjunto vazio: chave presente e vazia é o que
+ * `semRegistroNoEscopo` lê como "módulo nunca aberto" — chave ausente seria
+ * "sempre há base", e as duas leituras não podem se confundir.
  */
 export async function empresasComRegistro(
   empresaIds: string[],
@@ -865,129 +844,11 @@ export async function empresasComRegistro(
   const mapa = new Map<keyof Pendencias, Set<string>>();
   if (empresaIds.length === 0) return mapa;
 
-  const empresaId = { in: empresaIds };
-  const por = ["empresaId"] as const;
-  const contar = { _all: true } as const;
+  const registros = subconsultasDeRegistro();
+  for (const chave of Object.keys(registros) as (keyof typeof registros)[]) mapa.set(chave, new Set());
 
-  // As situações e onde ver se o módulo de cada uma já foi usado. As que
-  // dependem só de Colaborador (férias vencidas, aviso prévio, ficha
-  // desatualizada) ficam de fora — sempre há base para calcular.
-  //
-  // `groupBy` e não `findFirst`: a tela do grupo precisa saber isso por MARCA,
-  // e uma consulta por marca multiplicaria as idas ao banco na primeira tela
-  // depois do login. Assim são 21, quantas marcas forem.
-  //
-  // Consultas CHAVEADAS pela pendência (helper `todas`) — as duas listas
-  // paralelas pareadas por posição saíram em 20/08/2026: com 21 resultados do
-  // mesmo tipo, inserir uma chave no meio e a consulta no fim compilava limpo
-  // e todas as chaves seguintes liam o conjunto da vizinha. O `satisfies`
-  // garante que cada chave é uma pendência de verdade. `sinaisAbertos`
-  // continua fora: o groupBy dele devolve `empresaId: string | null` (sinal de
-  // GRUPO/MARCA não tem CNPJ) e é resolvido logo abaixo.
-  const desligadosPorEmpresa = cliente.colaborador.groupBy({
-    by: [...por],
-    _count: contar,
-    where: { empresaId, dataDesligamento: { not: null } },
-  });
-
-  const [registros, sinaisDaEmpresa] = await Promise.all([
-    todas({
-      asoVencendo: cliente.exameOcupacional.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
-      certificadosVencendo: cliente.certificadoNR.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
-      epiVencido: cliente.entregaEPI.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
-      catPendente: cliente.acidenteTrabalho.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
-      integracoesAtrasadas: cliente.checklistIntegracao.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
-      desligamentosIncompletos: cliente.checklistDesligamento.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
-      documentosAConferir: cliente.documentoColaborador.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
-      // Ciclo, não avaliação: é o que a pendência conta desde 10/08/2026, e uma
-      // empresa que criou ciclo mas ainda não gerou avaliação já usa o módulo.
-      ciclosAvaliacaoAEncerrar: cliente.cicloAvaliacao.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
-      atestadosSemDocumento: cliente.ausencia.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
-      horasExtrasExcedidas: cliente.eventoFolha.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
-      // Dependente não tem empresaId — só colaboradorId. A pergunta vira "quais
-      // empresas têm alguém com dependente".
-      dependentesSemCpf: cliente.colaborador.groupBy({
-        by: [...por],
-        _count: contar,
-        where: { empresaId, dependentes: { some: {} } },
-      }),
-      // Contrato é diferente dos outros: a tabela é Colaborador, que nunca está
-      // vazia. O que falta é a classificação — ninguém com contrato por prazo
-      // marcado significa que o RH ainda não preencheu `tipoContrato`, e a
-      // pendência não tem como existir.
-      contratosVencendo: cliente.colaborador.groupBy({
-        by: [...por],
-        _count: contar,
-        where: { empresaId, ativo: true, tipoContrato: { in: [...CONTRATOS_POR_PRAZO] } },
-      }),
-      // Qualquer pesquisa, em qualquer status: quem nunca criou uma não está com
-      // as pesquisas "em dia", está sem o módulo. Sem isto, marca que nunca abriu
-      // pesquisa apareceria no verde junto de quem encerra tudo em prazo.
-      pesquisasAbertas: cliente.pesquisa.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
-      // Qualquer colaborador ativo: se não tem ninguém, o módulo de cadastros
-      // nunca foi aberto. Com isto a verificação de "tem registro" e "precisa de
-      // ação" ficam alinhadas para cadastrosIncompletos.
-      cadastrosIncompletos: cliente.colaborador.groupBy({
-        by: [...por],
-        _count: contar,
-        where: { empresaId, ativo: true },
-      }),
-      // ---- as sete de 19/08/2026 ----
-      // Ponto: a pergunta é se o módulo é USADO, não se há tratamento pendente —
-      // empresa que bate ponto e não tem nenhum ajuste em aberto está em dia de
-      // verdade; empresa que nunca bateu não tem o que avaliar.
-      //
-      // A prova é `pontoLiberado` no Colaborador, não a tabela RegistroPonto:
-      // esta consulta roda na primeira tela depois do login, para todas as
-      // empresas de uma vez, e RegistroPonto cresce por batida (quatro por
-      // pessoa por dia) — varrê-la aqui custaria mais que todas as outras 21
-      // somadas. Colaborador tem centenas de linhas e responde a mesma
-      // pergunta: sem ninguém com ponto liberado não existe ajuste possível.
-      ajustesPontoPendentes: cliente.colaborador.groupBy({
-        by: [...por],
-        _count: contar,
-        where: { empresaId, pontoLiberado: true },
-      }),
-      mensagensSemResposta: cliente.mensagemPortal.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
-      entregasNaoConfirmadas: cliente.entregaAoColaborador.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
-      disciplinarSemAssinatura: cliente.ocorrenciaDisciplinar.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
-      planosAcaoVencidos: cliente.planoAcao.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
-      // As duas de desligamento compartilham a base: quem nunca desligou ninguém
-      // não está com o offboarding "em dia", está sem o módulo. A MESMA promise
-      // entra nas duas chaves — o banco responde uma vez só.
-      desligamentosSemChecklist: desligadosPorEmpresa,
-      desligamentosSemEntrevista: desligadosPorEmpresa,
-    }),
-    // Qualquer sinal já detectado nesta empresa, em qualquer status ou
-    // gravidade: quem nunca teve sinal nenhum não está "sem sinais críticos",
-    // está sem histórico para o zero significar alguma coisa.
-    cliente.sinal.groupBy({ by: [...por], _count: contar, where: { empresaId } }),
-  ]);
-
-  // Prova de tipo no padrão de CoberturaCompleta, e não `satisfies` no objeto:
-  // o `satisfies` vira tipo contextual do argumento e vaza para a inferência
-  // do `groupBy` do Prisma, que passa a exigir que o ARGUMENTO seja um
-  // LinhaAgrupada[] (era exatamente o erro que mantinha as listas posicionais).
-  // Checar DEPOIS da inferência valida a mesma coisa sem contaminá-la.
-  type ChaveForaDePendencias = Exclude<keyof typeof registros, keyof Pendencias>;
-  const _sohChavesDePendencia: [ChaveForaDePendencias] extends [never] ? true : never = true;
-  void _sohChavesDePendencia;
-  const _resultadosAgrupados: (typeof registros)[keyof typeof registros] extends LinhaAgrupada[]
-    ? true
-    : never = true;
-  void _resultadosAgrupados;
-
-  for (const [chave, linhas] of Object.entries(registros) as [keyof Pendencias, LinhaAgrupada[]][]) {
-    mapa.set(chave, new Set(linhas.map((l) => l.empresaId)));
-  }
-
-  // Fora do laço porque o tipo não bate (ver o comentário na lista de chaves):
-  // sinal de GRUPO/MARCA tem `empresaId` nulo e é descartado aqui — não
-  // pertence a CNPJ nenhum para efeito desta tela.
-  mapa.set(
-    "sinaisAbertos",
-    new Set(sinaisDaEmpresa.map((l) => l.empresaId).filter((id): id is string => id !== null)),
-  );
+  const linhas = await contarPorEmpresa(cliente, empresaIds, registros);
+  for (const linha of linhas) mapa.get(linha.chave)?.add(linha.empresaId);
   return mapa;
 }
 
