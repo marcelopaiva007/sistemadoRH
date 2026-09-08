@@ -13,6 +13,10 @@ function Tabs({
   return (
     <TabsPrimitive.Root
       data-slot="tabs"
+      // Repassado de verdade ao Base UI: sem isto ele segue "horizontal" por
+      // dentro e a seta do teclado anda para os lados numa lista que está em
+      // coluna (a sub-navegação da ficha).
+      orientation={orientation}
       data-orientation={orientation}
       className={cn(
         "group/tabs flex gap-2 data-horizontal:flex-col",
@@ -23,13 +27,20 @@ function Tabs({
   )
 }
 
+// O que a variante `line` acrescenta mora AQUI, como classe simples, e não como
+// `data-[variant=line]:...` na base. Motivo: o seletor de atributo pesa mais que
+// uma classe solta, então `data-[variant=line]:w-full` VENCIA o `w-[200px]` que
+// a tela passava — e o tailwind-merge não tem como reconciliar prefixos
+// diferentes. Foi assim que a sub-navegação da ficha do colaborador esticou para
+// a largura toda e empurrou o conteúdo para fora da tela (v1.168.1). Como classe
+// simples, quem usa o componente sobrescreve normalmente.
 const tabsListVariants = cva(
-  "group/tabs-list inline-flex w-fit items-center justify-center text-muted-foreground group-data-vertical/tabs:h-fit group-data-vertical/tabs:flex-col group-data-horizontal/tabs:h-9 data-[variant=line]:w-full data-[variant=line]:justify-start data-[variant=line]:border-b-2 data-[variant=line]:border-border",
+  "group/tabs-list inline-flex w-fit items-center justify-center text-muted-foreground group-data-vertical/tabs:h-fit group-data-vertical/tabs:flex-col group-data-horizontal/tabs:h-9",
   {
     variants: {
       variant: {
         default: "gap-4 bg-transparent",
-        line: "gap-4 bg-transparent",
+        line: "w-full justify-start border-b-2 border-border gap-4 bg-transparent",
       },
     },
     defaultVariants: {
