@@ -26,6 +26,21 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.169.0",
+    data: "09/09/2026",
+    horario: "12:20",
+    titulo: "Ponto: histórico das batidas com foto, localização, endereço e tudo que aconteceu com cada marcação",
+    itens: [
+      "Nova aba \"Histórico de Marcações\" na tela de Ponto. Até aqui só existia o monitor do dia: quem precisasse conferir a batida de ontem — a foto de quem bateu, onde a pessoa estava, quem ajustou e por quê — não tinha para onde ir. Os dados sempre estiveram gravados; faltava a tela.",
+      "A aba abre com os últimos 7 dias já carregados. Dá para escolher outro período (até 92 dias por consulta), filtrar por colaborador — a lista inclui desligados, porque é durante a rescisão que a conferência costuma acontecer — e por tipo de marcação.",
+      "Cada linha abre um detalhe com tudo o que ficou gravado naquela marcação: colaborador, setor e cargo; a data e a hora da batida E a hora em que o registro entrou no sistema (são diferentes); o tipo; a foto tirada no momento, ampliada; a localização GPS com a precisão em metros e link para o mapa; o endereço correspondente à coordenada; se a batida caiu dentro da cerca da empresa; o IP e o aparelho usados, com marca quando a rede não era a autorizada; o NSR e o hash de integridade.",
+      "Situação de cada marcação, na lista: \"Válida\" (nenhum ajuste pedido), \"Em tratamento\" (há pedido aguardando decisão), \"Ajustada\" (houve tratamento aprovado sobre ela) e \"Incluída pelo RH\" (não é batida — nasceu de uma inclusão manual aprovada, por isso não tem foto, GPS nem NSR e não entra no AFD).",
+      "Histórico de alterações em cada marcação: todos os pedidos de ajuste feitos sobre ela — pendentes, aprovados E rejeitados —, com o motivo de quem pediu separado do motivo de quem decidiu, mais o nome de quem decidiu e quando. Embaixo, a trilha de auditoria: quem abriu a foto e quando, quem decidiu o ajuste.",
+      "Nada aqui apaga nem reescreve marcação, e a tela não tem botão de editar nem de excluir — é como a Portaria MTP 671/2021 exige. Corrigir continua sendo abrir um tratamento em cima da batida: a marcação original permanece visível, com a correção ao lado. Por isso também não existe situação \"cancelada\".",
+      "O endereço é aproximado: vem de uma consulta pública de mapa feita com a coordenada arredondada (nenhum dado da pessoa é enviado) e pode não aparecer se o serviço estiver indisponível. O que vale como prova do lugar é a coordenada gravada na batida, sempre visível ao lado do endereço.",
+    ],
+  },
+  {
     versao: "1.168.0",
     data: "04/09/2026",
     horario: "00:30",

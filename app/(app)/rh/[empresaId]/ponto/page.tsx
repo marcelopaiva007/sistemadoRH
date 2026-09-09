@@ -2,16 +2,17 @@ import { headers } from "next/headers";
 import { ipDaRequisicao } from "@/lib/login-tentativas";
 import { prisma } from "@/lib/prisma";
 import { limitesDeEstagio } from "@/lib/ponto-regras";
-import { janelaDoDiaBrasilia } from "@/lib/datas";
+import { diaBrasilia, janelaDoDiaBrasilia } from "@/lib/datas";
 import { marcacoesDaJornada } from "@/lib/ponto-jornada";
 import { PainelPresencaView } from "./painel-presenca";
 import { EscalasView } from "./escalas-view";
 import { TratamentoView } from "./tratamento-view";
 import { RelatoriosPontoView } from "./relatorios-view";
+import { HistoricoPontoView } from "./historico-view";
 import { ConfiguracoesPontoView } from "./configuracoes-view";
 import { ColaboradoresPontoView } from "./colaboradores-ponto-view";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Clock, ShieldCheck, FileEdit, FileSpreadsheet, Settings, Users } from "lucide-react";
+import { Clock, ShieldCheck, FileEdit, FileSpreadsheet, Settings, Users, History } from "lucide-react";
 import { AjudaDaTela } from "@/components/ajuda-da-tela";
 
 export default async function PontoEletronicoPage({
@@ -46,6 +47,19 @@ export default async function PontoEletronicoPage({
   // usarem a MESMA fronteira — `new Date()` dentro do filtro poderia cair nos
   // dois lados da virada do dia.
   const hojeBrasilia = janelaDoDiaBrasilia();
+
+  // O período que a aba Histórico abre preenchido: os últimos 7 dias, em dias
+  // de BRASÍLIA. Calculado aqui, no servidor, e não no cliente: o navegador de
+  // quem consulta pode estar em outro fuso, e "hoje" precisa ser o mesmo dia
+  // que o resto do módulo usa.
+  // Deriva de `hojeBrasilia.inicio` (a meia-noite de Brasília já calculada
+  // acima), e não de um `Date.now()` próprio: uma leitura só do relógio por
+  // render mantém as duas pontas do período no mesmo dia mesmo se a página for
+  // montada exatamente na virada.
+  const periodoInicialHistorico = {
+    de: diaBrasilia(new Date(hojeBrasilia.inicio.getTime() - 6 * 24 * 60 * 60 * 1000)),
+    ate: diaBrasilia(hojeBrasilia.inicio),
+  };
 
   // Buscar empresa e jornadas
   const [empresa, jornadas, colaboradores, pendentes, historico, paraSelecao, configPonto, marcacoesDoDia] = await Promise.all([
@@ -276,6 +290,9 @@ export default async function PontoEletronicoPage({
           <TabsTrigger value="colaboradores" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background">
             <Users className="w-3.5 h-3.5 mr-1" /> Colaboradores
           </TabsTrigger>
+          <TabsTrigger value="historico" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background">
+            <History className="w-3.5 h-3.5 mr-1" /> Histórico de Marcações
+          </TabsTrigger>
           <TabsTrigger value="tratamento" className="text-xs py-1.5 px-3 rounded-md data-active:bg-background">
             <FileEdit className="w-3.5 h-3.5 mr-1" /> Tratamento (PTRP)
           </TabsTrigger>
@@ -296,6 +313,17 @@ export default async function PontoEletronicoPage({
 
         <TabsContent value="colaboradores" className="pt-4">
           <ColaboradoresPontoView empresaId={empresaId} colaboradores={colaboradoresPontoLista} />
+        </TabsContent>
+
+        <TabsContent value="historico" className="pt-4">
+          {/* A mesma lista do formulário de tratamento — com DESLIGADOS: a
+              consulta ao histórico de quem saiu é justamente o que se faz na
+              conferência da rescisão. */}
+          <HistoricoPontoView
+            empresaId={empresaId}
+            colaboradores={paraSelecao}
+            periodoInicial={periodoInicialHistorico}
+          />
         </TabsContent>
 
         <TabsContent value="tratamento" className="pt-4">
