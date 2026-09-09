@@ -48,6 +48,15 @@ export const AJUDA_DAS_TELAS = {
         ],
       },
       {
+        acao: "Consultar o histórico de uma batida (foto, local, quem alterou)",
+        passos: [
+          "Abra a aba \"Histórico de Marcações\".",
+          "Ela abre com os últimos 7 dias. Mude o período, escolha o colaborador (a lista inclui desligados) ou o tipo de marcação e clique em Buscar.",
+          "Cada linha traz data e hora, tipo, situação, se tem foto, a localização e a hora em que o registro entrou no sistema.",
+          "Clique em \"Abrir\" para ver tudo o que ficou gravado naquela batida: a foto ampliada, a coordenada com o endereço aproximado, o IP e o aparelho, o NSR, o hash de integridade, os pedidos de ajuste feitos sobre ela e a trilha de auditoria.",
+        ],
+      },
+      {
         acao: "Corrigir ou abonar a batida de alguém",
         passos: [
           "Abra a aba \"Tratamento (PTRP)\".",
@@ -82,6 +91,9 @@ export const AJUDA_DAS_TELAS = {
       "Desde 20/08/2026 a foto é OBRIGATÓRIA ao bater o ponto (pedido do RH): sem ela a batida não registra, nem pelo portal nem pelo app de ponto. De 12 a 20/08/2026 a foto era pedida mas dava para registrar sem — batidas \"sem foto\" desse período são esperadas. A foto é dado pessoal: cada visualização fica registrada na auditoria, como RG e atestado.",
       "Batidas anteriores a 12/08/2026 não têm foto, e isso é esperado — a câmera não existia no fluxo.",
       "Se a câmera do aparelho estiver quebrada ou sem permissão, a pessoa não consegue registrar — o caminho é avisar o RH, que registra a marcação por inclusão manual no Tratamento (PTRP), com o motivo.",
+      "Batida registrada NÃO é apagada nem reescrita — é assim que a Portaria 671 exige. Corrigir é abrir um tratamento em cima dela: a marcação original continua no histórico, com o pedido, a decisão e o nome de quem decidiu ao lado. Por isso o Histórico não tem botão de editar nem de excluir, e a situação \"cancelada\" não existe.",
+      "No Histórico, a situação de cada linha é lida do que existe ao redor dela: \"Válida\" (nenhum ajuste pedido), \"Em tratamento\" (há pedido aguardando decisão), \"Ajustada\" (houve tratamento aprovado) e \"Incluída pelo RH\" (não é batida — nasceu de uma inclusão manual aprovada, por isso não tem foto, GPS nem NSR e não entra no AFD).",
+      "O endereço mostrado é APROXIMADO: vem de uma consulta pública de mapa feita com a coordenada arredondada (nenhum dado da pessoa é enviado), e pode não aparecer se o serviço estiver indisponível. O que vale como prova do lugar é a coordenada gravada na batida, sempre visível ao lado do endereço.",
     ],
   },
 

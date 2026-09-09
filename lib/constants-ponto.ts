@@ -45,3 +45,37 @@ export const TIPOS_MARCACAO_VALIDOS: ReadonlySet<string> = new Set(
 export function tipoMarcacaoLabel(tipo: string): string {
   return TIPOS_MARCACAO_PONTO.find((t) => t.value === tipo)?.label ?? tipo;
 }
+
+/**
+ * Situação de uma marcação no histórico. DERIVADA — não existe coluna `status`
+ * em RegistroPonto, e não deve existir: a situação é consequência do que
+ * existe ao redor da batida (ver lib/ponto-historico.ts, que a calcula).
+ *
+ * - VALIDA .............. batida do REP-P, sem tratamento vinculado.
+ * - EM_TRATAMENTO ....... há pedido de ajuste PENDENTE apontando para ela.
+ * - AJUSTADA ............ há tratamento APROVADO apontando para ela.
+ * - INCLUIDA_PELO_RH .... não é batida: nasceu de uma inclusão manual aprovada
+ *                        (rh.MarcacaoTratada). Sem foto, sem GPS, sem NSR, e
+ *                        fora do AFD.
+ *
+ * NÃO existe "CANCELADA", e a ausência é deliberada: o REP-P não cancela
+ * marcação coletada (Portaria MTP 671/2021). O que se faz com uma batida
+ * errada é registrar um tratamento em cima dela — a original continua visível,
+ * com a correção ao lado.
+ *
+ * Mora aqui, e não no leitor, porque a TELA precisa do rótulo e o leitor
+ * importa `prisma`: manter os dois no mesmo módulo arrastaria o cliente do
+ * banco para dentro do pacote do navegador.
+ */
+export const STATUS_MARCACAO_PONTO = [
+  { value: "VALIDA", label: "Válida" },
+  { value: "EM_TRATAMENTO", label: "Em tratamento" },
+  { value: "AJUSTADA", label: "Ajustada" },
+  { value: "INCLUIDA_PELO_RH", label: "Incluída pelo RH" },
+] as const;
+
+export type StatusDaMarcacao = (typeof STATUS_MARCACAO_PONTO)[number]["value"];
+
+export function statusMarcacaoLabel(status: string): string {
+  return STATUS_MARCACAO_PONTO.find((s) => s.value === status)?.label ?? status;
+}
