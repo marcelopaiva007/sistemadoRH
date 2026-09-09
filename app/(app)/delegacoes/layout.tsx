@@ -17,9 +17,9 @@ import { DelegacoesNav } from "./delegacoes-nav";
  */
 export default async function DelegacoesLayout({ children }: { children: React.ReactNode }) {
   const usuario = await requireDelegacoesAccess();
-  // O item "Painel" (Direção) só aparece para quem `ehDirecao` — a mesma
-  // pergunta que já recorta o `where` das consultas (§10 da ordem: "direcao
-  // vê tudo"). Esconder do menu não é a guarda — a página tem a dela própria.
+  // Sobrou UM item recortado por `ehDirecao`: "Relatório". O "Painel" saiu do
+  // recorte em 09/09/2026, por decisão do CEO — é aberto a todo usuário do
+  // módulo. Esconder do menu nunca foi a guarda: cada página tem a dela.
   const souDirecao = ehDirecao(usuario);
 
   return (

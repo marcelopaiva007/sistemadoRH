@@ -26,6 +26,20 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.171.0",
+    data: "09/09/2026",
+    horario: "15:00",
+    titulo: "Delegações aberto a todos os usuários, e o Painel deixa de ser só da Direção",
+    itens: [
+      "O módulo Delegações passa a aparecer no seletor da barra de topo para TODO usuário do sistema, independentemente do perfil de acesso. Decisão do CEO. O motivo: delegação atravessa o grupo, e todo usuário é dono ou destinatário de alguma — fechar a porta por perfil deixava de fora justamente quem recebe a cobrança.",
+      "Até aqui, quem enxergava o módulo eram só Administrador e Diretoria. Não era defeito: o acesso vem dos grants do perfil, e o perfil \"Gestor de RH\" foi criado em 24/08/2026 com os dois módulos que existiam então — Delegações nasceu depois, em 01/09, e não foi concedida a ninguém.",
+      "O perfil \"Gestor de RH\" também recebeu Delegações formalmente, na mesma entrega. Isso é rede de segurança: se um dia o módulo voltar a ser fechado por perfil, o RH continua entrando, em vez de todo mundo perder o acesso de uma vez.",
+      "A tela \"Painel\" deixou de ser exclusiva da Direção e aparece para todos. ATENÇÃO ao que isso significa: o Painel é a única tela do módulo que NÃO recorta por dono — ela lista todas as demandas do grupo. Quem abrir vê o que foi cobrado de qualquer pessoa, com prazo e status.",
+      "A tela \"Relatório\" continua só da Direção.",
+      "Nada mudou nas demais telas do módulo: \"Recebidas\", \"Delegadas por mim\" e \"Reuniões\" seguem mostrando a cada pessoa o que é dela.",
+    ],
+  },
+  {
     versao: "1.170.0",
     data: "09/09/2026",
     horario: "13:00",

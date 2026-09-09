@@ -138,11 +138,20 @@ console.log("\nEnforcement de módulo — quem alcança o quê pelos grants\n");
   );
 
   const rh = PERFIS_SEMENTE.find((p) => p.papelDeOrigem === "RH_MANAGER")!.grants;
-  ok(alcanca(rh, "rh") && alcanca(rh, "processos"), "Gestor de RH alcança RH e Processos (como hoje)");
-  // Módulo novo NÃO chega de graça a quem tem grant explícito: Delegações só
-  // entra no Gestor de RH quando alguém conceder na tela de Perfis. É o que
-  // impede uma entrega de código de alargar acesso sem decisão de gestão.
-  ok(!alcanca(rh, "delegacoes"), "Gestor de RH NÃO ganha Delegações sem alguém conceder");
+  ok(
+    alcanca(rh, "rh") && alcanca(rh, "processos") && alcanca(rh, "delegacoes"),
+    "Gestor de RH alcança os TRÊS sistemas (Delegações concedida em 09/09/2026)",
+  );
+  // A propriedade que este bloco protege NÃO é sobre o perfil do RH — é sobre
+  // o curinga: módulo novo não chega de graça a quem tem grant explícito. Até
+  // 09/09/2026 ela era verificada no próprio perfil-semente do RH, que não
+  // tinha Delegações; quando o CEO concedeu, a asserção passou a testar a
+  // decisão de gestão em vez da regra. Aqui ela volta a ser sobre a regra,
+  // com um perfil sintético que não depende de decisão nenhuma.
+  ok(
+    alcanca(["rh:*", "processos:*"], "rh") && !alcanca(["rh:*", "processos:*"], "delegacoes"),
+    "grant explícito por sistema NÃO absorve módulo novo — só o curinga '*' faz isso",
+  );
 
   // Um perfil "só RH" (o que o CEO quer poder criar) NÃO alcança processos.
   ok(alcanca(["rh:*"], "rh") && !alcanca(["rh:*"], "processos"), "perfil só-RH não alcança Processos");

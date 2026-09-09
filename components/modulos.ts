@@ -41,6 +41,18 @@ export type Modulo = {
    * CNPJ atual junto, e se o seletor de marca/CNPJ funciona lá dentro.
    */
   escopadoPorEmpresa: boolean;
+  /**
+   * Módulo ABERTO a todo usuário logado — o perfil não é consultado para
+   * entrar. `sistemasPermitidos` (lib/permissoes/efetivas.ts) soma estes
+   * slugs ao que os grants concedem, e é por isso que a abertura vale de uma
+   * vez para o seletor da barra, a busca global e as guardas de rota: todos
+   * fazem a mesma pergunta no mesmo lugar.
+   *
+   * Não confundir com "sem controle nenhum": continua valendo quem enxerga
+   * QUAL registro dentro do módulo (no caso de Delegações, o `where` de
+   * `demandasVisiveisPara`). Isto abre a PORTA, não o conteúdo.
+   */
+  abertoATodos?: boolean;
 };
 
 const PAPEIS_DE_ESCRITORIO = ["ADMIN", "DIRETORIA", "RH_MANAGER"];
@@ -67,15 +79,28 @@ export const MODULOS: Modulo[] = [
     nome: "Delegações",
     descricao: "Demandas com dono, prazo, evidência e cobrança automática.",
     icone: ClipboardCheck,
-    // ADMIN e DIRETORIA, NÃO `PAPEIS_DE_ESCRITORIO`. Este campo é o FALLBACK
-    // de quem ainda não tem perfil, e `scripts/test-permissoes.ts` exige que
-    // ele case exatamente com o alcance do perfil-semente do papel. O semente
-    // do Gestor de RH concede `rh:*` e `processos:*` — incluir RH_MANAGER aqui
-    // faria o papel enxergar três sistemas e o perfil dois, e o teste de
-    // equivalência ("ninguém perde nem ganha sistema na virada") quebraria.
-    // Quem quiser dar Delegações ao RH concede na tela de Perfis, que é onde
-    // essa decisão deve ser tomada — não no fallback.
-    papeis: ["ADMIN", "DIRETORIA"],
+    // RH_MANAGER entrou em 09/09/2026, junto com `delegacoes:*` no
+    // perfil-semente Gestor de RH: a decisão que o comentário antigo dizia
+    // caber à tela de Perfis foi tomada pelo CEO — o RH trabalha com
+    // delegações e não enxergava o módulo.
+    //
+    // Este campo é o FALLBACK de quem ainda não tem perfil, e
+    // `scripts/test-permissoes.ts` exige que ele case EXATAMENTE com o alcance
+    // do perfil-semente do papel. Por isso os dois mudaram no mesmo commit:
+    // mexer só aqui (ou só lá) quebra o teste de equivalência — que é
+    // justamente o alarme de "papel e perfil discordam sobre quem entra onde".
+    papeis: PAPEIS_DE_ESCRITORIO,
+    // ABERTO A TODOS desde 09/09/2026, por decisão do CEO ("libere para todos
+    // os usuários, independente das permissões"), horas depois da concessão
+    // acima — que fica de pé como rede: se um dia esta linha sair, o Gestor de
+    // RH continua entrando pelo perfil, em vez de todo mundo perder o acesso
+    // de uma vez.
+    //
+    // Delegação atravessa o grupo e todo usuário do sistema é dono ou
+    // destinatário de alguma — fechar a porta por perfil deixava de fora
+    // justamente quem recebe a cobrança. O que continua recortado por pessoa é
+    // QUAL demanda cada um enxerga (`demandasVisiveisPara`).
+    abertoATodos: true,
     // O PRIMEIRO módulo não escopado por CNPJ. A demanda atravessa o grupo:
     // ela tem dono (um `User`) e, no máximo, uma MARCA como etiqueta de filtro
     // — não um empregador. Por isso a rota é `/delegacoes` inteira, sem
@@ -83,6 +108,9 @@ export const MODULOS: Modulo[] = [
     escopadoPorEmpresa: false,
   },
 ];
+
+/** Slugs abertos a todo usuário logado, sem passar pelo perfil. */
+export const SLUGS_ABERTOS_A_TODOS = MODULOS.filter((m) => m.abertoATodos).map((m) => m.slug);
 
 /** Slugs que vivem em `/<slug>/<empresaId>` — o que conta como "dentro de uma empresa". */
 export const SLUGS_COM_EMPRESA = MODULOS.filter((m) => m.escopadoPorEmpresa).map((m) => m.slug);

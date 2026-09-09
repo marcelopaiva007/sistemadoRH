@@ -1,16 +1,20 @@
-import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireDelegacoesAccess } from "@/lib/delegacoes-auth-guard";
-import { ehDirecao, paraLinhaPainelDirecao, SELECT_PAINEL_DIRECAO } from "@/lib/delegacoes/consultas";
+import { paraLinhaPainelDirecao, SELECT_PAINEL_DIRECAO } from "@/lib/delegacoes/consultas";
 import { PainelDirecaoView } from "./painel-direcao-view";
 
 /**
- * PAINEL DA DIREÇÃO (spec §9.2/§9.3) — "como está TUDO", não só o que eu
- * pedi ou recebi. Só quem `ehDirecao` entra: a guarda do módulo
- * (`requireDelegacoesAccess`) responde "você usa Delegações?"; esta segunda
- * pergunta é "você vê o painel de TODO MUNDO?" — a mesma distinção que
- * `lib/delegacoes/consultas.ts` documenta entre guarda de módulo e
- * visibilidade por linha.
+ * PAINEL (spec §9.2/§9.3) — "como está TUDO", não só o que eu pedi ou recebi.
+ *
+ * ABERTO A TODO USUÁRIO DO MÓDULO desde 09/09/2026, por decisão do CEO. Até
+ * aqui havia uma segunda guarda, `ehDirecao`: a do módulo respondia "você usa
+ * Delegações?" e esta respondia "você vê o painel de TODO MUNDO?". A segunda
+ * saiu — com ela, sai também o recorte por pessoa nesta tela, e qualquer um
+ * que entre no módulo lê a lista inteira do grupo. É a única tela do módulo
+ * que não passa por `demandasVisiveisPara` (lib/delegacoes/consultas.ts), e a
+ * decisão foi tomada com isso à vista. Para voltar a fechar, é reintroduzir o
+ * `ehDirecao` aqui E o `soDirecao` do item em delegacoes-nav.tsx — esconder do
+ * menu nunca foi a guarda.
  *
  * RASCUNHO fica de fora: é anotação privada de quem ainda nem delegou —
  * mostrar rascunho alheio no painel geral seria expor intenção não
@@ -19,8 +23,7 @@ import { PainelDirecaoView } from "./painel-direcao-view";
  * "mostrar histórico".
  */
 export default async function PainelDirecaoPage() {
-  const usuario = await requireDelegacoesAccess();
-  if (!ehDirecao(usuario)) redirect("/delegacoes");
+  await requireDelegacoesAccess();
 
   const [linhas, marcas] = await Promise.all([
     prisma.demanda.findMany({

@@ -298,9 +298,19 @@ export const PERFIS_SEMENTE: PerfilSemente[] = [
   {
     id: "perfil-semente-rh",
     nome: "Gestor de RH",
-    descricao: "Os dois sistemas, como hoje. Ajuste para 'só RH' editando este perfil na Onda 2.",
+    descricao: "Pessoas, Processos & Ativos e Delegações.",
     papelDeOrigem: "RH_MANAGER",
-    grants: ["rh:*", "processos:*"],
+    // `delegacoes:*` entrou em 09/09/2026, por decisão do CEO: o RH não
+    // enxergava o módulo de Delegações e precisa dele para trabalhar. O
+    // perfil-semente nasceu em 24/08 com os dois sistemas de então, e o
+    // terceiro módulo (Delegações, 01/09) não foi acrescentado a ninguém —
+    // só ADMIN e DIRETORIA o alcançavam, pelo curinga `*`.
+    //
+    // A linha que já existe no BANCO é atualizada pela migration
+    // 20260909150000_delegacoes_para_gestor_de_rh: mudar só esta constante
+    // não muda acesso nenhum, porque o enforcement lê `Perfil.grants` do
+    // banco. As duas andam juntas ou a tela e o código discordam.
+    grants: ["rh:*", "processos:*", "delegacoes:*"],
   },
   {
     id: "perfil-semente-gestor-setor",

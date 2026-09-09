@@ -16,7 +16,12 @@ const ITENS = [
   { slug: "", label: "Recebidas" },
   { slug: "delegadas", label: "Delegadas por mim" },
   { slug: "reunioes", label: "Reuniões" },
-  { slug: "painel", label: "Painel", soDirecao: true },
+  // "Painel" saiu de `soDirecao` em 09/09/2026, por decisão do CEO: ele é
+  // aberto a todo usuário do módulo. Consequência que a decisão assume: o
+  // painel lista TODA demanda do grupo, sem recorte por dono — é a única tela
+  // do módulo que não passa por `demandasVisiveisPara`.
+  { slug: "painel", label: "Painel" },
+  // "Relatório" continua só da Direção — não foi o que se pediu para abrir.
   { slug: "relatorio", label: "Relatório", soDirecao: true },
 ] as const;
 

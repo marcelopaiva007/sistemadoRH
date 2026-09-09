@@ -1,7 +1,7 @@
 import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import { algumGrantCobre, sistemasDosGrants } from "@/lib/permissoes/catalogo";
-import { modulosDoPapel } from "@/components/modulos";
+import { modulosDoPapel, SLUGS_ABERTOS_A_TODOS } from "@/components/modulos";
 
 // O conjunto EFETIVO de permissões de um usuário, e a pergunta "ele pode?".
 //
@@ -75,11 +75,18 @@ export async function usuarioAlcancaSistema(userId: string, slug: string): Promi
  * o ramo de fallback nunca mais roda.
  */
 export async function sistemasPermitidos(user: { id?: string; role: string }): Promise<string[]> {
+  // Módulo aberto a todos entra SEMPRE, nos três ramos abaixo — com perfil,
+  // sem perfil e sem id. É o ponto único que a barra, a busca global e as
+  // guardas de rota consultam; somar aqui é o que faz "aberto a todos" valer
+  // igual nos três, em vez de cada tela lembrar (ou esquecer) da exceção.
+  // Ver `abertoATodos` em components/modulos.ts.
+  const comAbertos = (slugs: string[]) => [...new Set([...slugs, ...SLUGS_ABERTOS_A_TODOS])];
+
   const porPapel = () => modulosDoPapel(user.role).map((m) => m.slug);
-  if (!user.id) return porPapel();
+  if (!user.id) return comAbertos(porPapel());
   const grants = await grantsDoUsuario(user.id);
-  if (grants.length === 0) return porPapel();
-  return sistemasDosGrants(grants);
+  if (grants.length === 0) return comAbertos(porPapel());
+  return comAbertos(sistemasDosGrants(grants));
 }
 
 /**
@@ -102,6 +109,14 @@ export async function quemAlcancaSistema(
 ): Promise<Set<string>> {
   const alcancam = new Set<string>();
   if (usuarios.length === 0) return alcancam;
+
+  // Módulo aberto a todos: todo mundo alcança, e nem chega a consultar perfil.
+  // A resposta precisa ser a MESMA de `sistemasPermitidos` — senão a tela de
+  // delegar lista uma coisa e a guarda aplica outra.
+  if (SLUGS_ABERTOS_A_TODOS.includes(slug)) {
+    for (const u of usuarios) alcancam.add(u.id);
+    return alcancam;
+  }
 
   const vinculos = await prisma.userPerfil.findMany({
     where: { userId: { in: usuarios.map((u) => u.id) }, perfil: { ativo: true } },
