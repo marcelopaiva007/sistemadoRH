@@ -549,7 +549,7 @@ export async function enviarFotoReferencia(
   });
 
   revalidatePath(`/rh/${empresaId}/colaboradores/${colaboradorId}`);
-  revalidatePath(`/rh/${empresaId}/ponto`);
+  revalidatePath(`/rh/${empresaId}/ponto`, "layout");
   return { ok: true };
 }
 
@@ -589,7 +589,7 @@ export async function confirmarFotoReferencia(
   });
 
   revalidatePath(`/rh/${empresaId}/colaboradores/${colaboradorId}`);
-  revalidatePath(`/rh/${empresaId}/ponto`);
+  revalidatePath(`/rh/${empresaId}/ponto`, "layout");
   return { ok: true };
 }
 

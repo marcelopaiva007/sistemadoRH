@@ -55,9 +55,17 @@ export const AREAS_RH: GrupoDeAreas[] = [
     ],
   },
   {
+    // O Ponto virou grupo no menu em v1.170.0, quando suas sete abas viraram
+    // telas com endereço próprio. Aqui ele continua sendo UMA área, e não
+    // sete: a permissão é sobre o módulo — quem trata ajuste de ponto também
+    // confere presença e emite o AFD. Fatiar em sete permissões que nada
+    // enforça inflaria a matriz sem proteger nada a mais.
+    titulo: "Ponto eletrônico",
+    areas: [{ slug: "ponto", label: "Ponto Eletrônico" }],
+  },
+  {
     titulo: "Departamento pessoal",
     areas: [
-      { slug: "ponto", label: "Ponto Eletrônico" },
       { slug: "aprovacoes", label: "Aprovações" },
       { slug: "mensagens", label: "Mensagens" },
       { slug: "avisos-gestor", label: "Avisos ao gestor" },

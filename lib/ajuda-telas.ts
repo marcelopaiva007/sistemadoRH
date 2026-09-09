@@ -36,12 +36,12 @@ export type AjudaDaTelaConteudo = {
 export const AJUDA_DAS_TELAS = {
   ponto: {
     oQueFaz:
-      "Acompanha as batidas do dia — cada uma com a foto de quem bateu —, trata ajustes de ponto (PTRP), organiza jornadas e escalas e gera os arquivos fiscais AFD e AEJ exigidos pela Portaria MTP nº 671/2021.",
+      "O módulo de ponto eletrônico, com uma tela para cada coisa na lateral: quem está presente agora, quem está liberado a bater e com que PIN, o histórico completo de cada marcação, os ajustes de ponto (PTRP), as jornadas e escalas, os arquivos fiscais AFD e AEJ da Portaria MTP nº 671/2021 e as configurações de cerca de GPS e trava de IP.",
     comoFazer: [
       {
         acao: "Conferir a foto de quem bateu o ponto",
         passos: [
-          "Abra a aba \"Monitor de Presença\".",
+          "Na lateral, em \"Ponto eletrônico\", abra \"Presença em tempo real\".",
           "Embaixo do nome de cada pessoa aparecem as batidas do dia, com o horário.",
           "Batida com ícone de câmera tem foto: clique no horário para abrir a foto tirada naquele momento.",
           "Batida com câmera cortada foi registrada SEM foto. Desde 20/08/2026 isso não acontece mais em batida nova (a foto é obrigatória); em batida antiga, ou nas raras em que o serviço de arquivos falhou na hora, a marca fica para o RH saber que não há foto a conferir.",
@@ -50,7 +50,7 @@ export const AJUDA_DAS_TELAS = {
       {
         acao: "Consultar o histórico de uma batida (foto, local, quem alterou)",
         passos: [
-          "Abra a aba \"Histórico de Marcações\".",
+          "Na lateral, em \"Ponto eletrônico\", abra \"Histórico de marcações\".",
           "Ela abre com os últimos 7 dias. Mude o período, escolha o colaborador (a lista inclui desligados) ou o tipo de marcação e clique em Buscar.",
           "Cada linha traz data e hora, tipo, situação, se tem foto, a localização e a hora em que o registro entrou no sistema.",
           "Clique em \"Abrir\" para ver tudo o que ficou gravado naquela batida: a foto ampliada, a coordenada com o endereço aproximado, o IP e o aparelho, o NSR, o hash de integridade, os pedidos de ajuste feitos sobre ela e a trilha de auditoria.",
@@ -59,7 +59,7 @@ export const AJUDA_DAS_TELAS = {
       {
         acao: "Corrigir ou abonar a batida de alguém",
         passos: [
-          "Abra a aba \"Tratamento (PTRP)\".",
+          "Na lateral, em \"Ponto eletrônico\", abra \"Tratamento (PTRP)\".",
           "Em \"Novo tratamento\", escolha o colaborador na lista, o tipo (inclusão manual, abono por atestado, justificativa ou correção), a data da ocorrência e escreva o motivo.",
           "O ajuste entra como PENDENTE. Ele ainda não vale.",
           "Outra pessoa — não quem pediu — aprova ou rejeita, nesta mesma aba ou pela Central de Aprovações.",
@@ -68,7 +68,7 @@ export const AJUDA_DAS_TELAS = {
       {
         acao: "Aprovar ou rejeitar um ajuste",
         passos: [
-          "Na lista de pendentes, clique em \"Aprovar\" ou \"Rejeitar\".",
+          "Na tela de Tratamento (PTRP), na lista de pendentes, clique em \"Aprovar\" ou \"Rejeitar\".",
           "Rejeitar abre um campo para o motivo, com no mínimo 5 caracteres. Ele é obrigatório.",
           "Seu nome fica gravado na decisão e na trilha de auditoria.",
         ],
@@ -76,13 +76,14 @@ export const AJUDA_DAS_TELAS = {
       {
         acao: "Gerar o arquivo para a fiscalização",
         passos: [
-          "Abra \"Relatórios & Fiscal (AFD)\".",
+          "Na lateral, em \"Ponto eletrônico\", abra \"Relatórios & fiscal (AFD)\".",
           "Escolha AFD (registros de ponto) ou AEJ (jornada apurada).",
           "O arquivo sai no layout da Portaria 671, com o CNPJ da empresa.",
         ],
       },
     ],
     cuidados: [
+      "Desde 09/09/2026 o Ponto deixou de ser uma tela com abas: cada parte virou uma tela própria, listada na lateral sob \"Ponto eletrônico\". Se você tinha o costume de abrir Ponto e clicar na aba, o caminho agora é escolher direto na lateral — e cada tela tem endereço próprio, que dá para guardar nos favoritos e mandar por link.",
       "Desde 11/08/2026 o ajuste NASCE PENDENTE. Antes ele já nascia aprovado no mesmo clique de quem o registrava — se você usava o sistema antes disso, o passo de aprovação é novo e sem ele o ajuste não tem efeito.",
       "Quem pede não deve ser quem aprova. O sistema registra os dois nomes separadamente, e é isso que a fiscalização olha.",
       "O motivo da rejeição fica em campo próprio, separado do texto de quem pediu. Ninguém reescreve o pedido do outro.",

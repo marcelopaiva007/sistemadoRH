@@ -166,7 +166,7 @@ export async function solicitarAjustePonto(input: SolicitarAjustePontoInput): Pr
 
   revalidatePath("/portal");
   revalidatePath("/ponto");
-  revalidatePath(`/rh/${colaborador.empresaId}/ponto`);
+  revalidatePath(`/rh/${colaborador.empresaId}/ponto`, "layout");
   revalidatePath(`/rh/${colaborador.empresaId}/aprovacoes`);
   return { ok: true };
 }
@@ -226,7 +226,7 @@ export async function solicitarAbonoFolga(input: SolicitarAbonoFolgaInput): Prom
 
   revalidatePath("/portal");
   revalidatePath("/ponto");
-  revalidatePath(`/rh/${colaborador.empresaId}/ponto`);
+  revalidatePath(`/rh/${colaborador.empresaId}/ponto`, "layout");
   revalidatePath(`/rh/${colaborador.empresaId}/aprovacoes`);
   return { ok: true };
 }

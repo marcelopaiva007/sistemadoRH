@@ -294,7 +294,13 @@ export async function criarJornadaTrabalho(input: CriarJornadaInput) {
     resumo: `Jornada de trabalho "${v.dados.nome}" criada (${v.dados.entrada1}–${v.dados.saida1}${v.dados.entrada2 ? ` / ${v.dados.entrada2}–${v.dados.saida2}` : ""}).`,
   });
 
-  revalidatePath(`/rh/${input.empresaId}/ponto`);
+  // "layout" e não o caminho seco: desde v1.170.0 o Ponto não é uma tela com
+  // abas, são sete telas sob `/ponto` (presença, liberação, histórico,
+  // tratamento, jornadas, relatórios, configurações). `revalidatePath` com um
+  // caminho só invalida AQUELE caminho — e a escrita feita numa delas não
+  // apareceria nas outras até um F5. Com "layout", a subárvore inteira cai.
+  // Vale para todas as chamadas deste arquivo, pelo mesmo motivo.
+  revalidatePath(`/rh/${input.empresaId}/ponto`, "layout");
   return { sucesso: true, jornada };
 }
 
@@ -346,7 +352,7 @@ export async function editarJornadaTrabalho(input: EditarJornadaInput): Promise<
     detalhes: { antes: atual, depois: v.dados },
   });
 
-  revalidatePath(`/rh/${input.empresaId}/ponto`);
+  revalidatePath(`/rh/${input.empresaId}/ponto`, "layout");
   return { ok: true };
 }
 
@@ -386,7 +392,7 @@ export async function alternarJornadaAtiva(
     resumo: `Jornada "${atual.nome}" ${ativa ? "reativada" : "desativada"}.`,
   });
 
-  revalidatePath(`/rh/${empresaId}/ponto`);
+  revalidatePath(`/rh/${empresaId}/ponto`, "layout");
   return { ok: true };
 }
 
@@ -509,7 +515,7 @@ export async function registrarTratamentoPonto(input: CriarTratamentoInput) {
     detalhes: { tipo: input.tipo, status: "PENDENTE", tipoMarcacao, horaSolicitada },
   });
 
-  revalidatePath(`/rh/${input.empresaId}/ponto`);
+  revalidatePath(`/rh/${input.empresaId}/ponto`, "layout");
   return { sucesso: true, tratamento };
 }
 
@@ -681,7 +687,7 @@ export async function decidirTratamentoPonto(input: {
     },
   });
 
-  revalidatePath(`/rh/${input.empresaId}/ponto`);
+  revalidatePath(`/rh/${input.empresaId}/ponto`, "layout");
   return { ok: true };
 }
 
@@ -727,7 +733,7 @@ export async function gerarPinPonto(
     resumo: `PIN do ponto eletrônico gerado/redefinido para ${colaborador.nome}.`,
   });
 
-  revalidatePath(`/rh/${empresaId}/ponto`);
+  revalidatePath(`/rh/${empresaId}/ponto`, "layout");
   return { ok: true, pin };
 }
 
@@ -767,7 +773,7 @@ export async function alterarPontoLiberado(
     resumo: `Ponto eletrônico ${liberado ? "liberado" : "bloqueado"} para ${colaborador.nome}.`,
   });
 
-  revalidatePath(`/rh/${empresaId}/ponto`);
+  revalidatePath(`/rh/${empresaId}/ponto`, "layout");
   revalidatePath(`/rh/${empresaId}/colaboradores/${colaboradorId}`);
   return { ok: true };
 }
@@ -852,7 +858,7 @@ export async function salvarLimiteEstagio(input: {
     detalhes: { estagioMinDia: dia, estagioMinSemana: semana },
   });
 
-  revalidatePath(`/rh/${input.empresaId}/ponto`);
+  revalidatePath(`/rh/${input.empresaId}/ponto`, "layout");
   return { ok: true };
 }
 
@@ -941,7 +947,7 @@ export async function salvarTravaIpPonto(input: SalvarTravaIpInput): Promise<Act
     detalhes: dados,
   });
 
-  revalidatePath(`/rh/${input.empresaId}/ponto`);
+  revalidatePath(`/rh/${input.empresaId}/ponto`, "layout");
   return { ok: true };
 }
 
@@ -1037,6 +1043,6 @@ export async function salvarGeofencingPonto(input: SalvarGeofencingInput): Promi
     detalhes: dados,
   });
 
-  revalidatePath(`/rh/${input.empresaId}/ponto`);
+  revalidatePath(`/rh/${input.empresaId}/ponto`, "layout");
   return { ok: true };
 }

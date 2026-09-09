@@ -8,7 +8,20 @@ import { NavLateral } from "@/components/padroes/nav-lateral";
 // diretoria — a tela reflete o plano, em vez de uma lista plana que só cresce
 // a cada módulo novo. "Configuração" fica por último, separado: é o que se
 // ajusta de vez em quando, não o que se usa todo dia.
-const GRUPOS = [
+type ItemDoMenu = {
+  /** Caminho depois de `/rh/<empresaId>/`. Pode ter mais de um pedaço
+   *  ("ponto/historico") — as telas do Ponto são sub-rotas desde v1.170.0. */
+  slug: string;
+  label: string;
+  /** Só acende com o caminho EXATO. Necessário na raiz de um módulo que tem
+   *  sub-rotas: sem isto, "Presença em tempo real" (`ponto`) ficaria aceso
+   *  junto com qualquer tela de dentro do Ponto, porque é prefixo de todas. */
+  exato?: boolean;
+};
+
+type GrupoDoMenu = { titulo: string; itens: ItemDoMenu[] };
+
+const GRUPOS: GrupoDoMenu[] = [
   {
     titulo: "Ciclo de vida",
     itens: [
@@ -21,9 +34,35 @@ const GRUPOS = [
     ],
   },
   {
+    // O Ponto saiu de dentro de "Departamento pessoal" em v1.170.0 e virou
+    // grupo. Motivo: ele deixou de ser UMA tela. Eram sete abas dentro de uma
+    // página só — e aba não tem endereço, não entra na busca global, não vira
+    // favorito e não se manda por link. Quem precisava do histórico de uma
+    // batida tinha que saber que existia uma aba chamada assim; a lateral
+    // dizia apenas "Ponto Eletrônico". Cada aba virou tela com caminho
+    // próprio, e o menu passou a listá-las.
+    titulo: "Ponto eletrônico",
+    itens: [
+      // A raiz do módulo é prefixo de todas as outras — daí o `exato`.
+      { slug: "ponto", label: "Presença em tempo real", exato: true },
+      // "Liberação & PIN" e não "Colaboradores": o menu já tem uma entrada com
+      // esse nome (a ficha de todo mundo, em Ciclo de vida), e duas iguais
+      // obrigariam a clicar para descobrir qual é qual. O rótulo diz o que a
+      // tela faz — liberar quem bate ponto e gerar o PIN do app.
+      { slug: "ponto/colaboradores", label: "Liberação & PIN" },
+      { slug: "ponto/historico", label: "Histórico de marcações" },
+      { slug: "ponto/tratamento", label: "Tratamento (PTRP)" },
+      // "Jornadas & escalas" com o nome inteiro: "Escalas" sozinho colidiria
+      // com a tela de Escalas do Departamento pessoal, logo abaixo, que é
+      // outra coisa (a escala publicada do mês).
+      { slug: "ponto/jornadas", label: "Jornadas & escalas" },
+      { slug: "ponto/relatorios", label: "Relatórios & fiscal (AFD)" },
+      { slug: "ponto/configuracoes", label: "Configurações do ponto" },
+    ],
+  },
+  {
     titulo: "Departamento pessoal",
     itens: [
-      { slug: "ponto", label: "Ponto Eletrônico" },
       { slug: "aprovacoes", label: "Aprovações" },
       { slug: "mensagens", label: "Mensagens" },
       { slug: "avisos-gestor", label: "Avisos ao gestor" },
@@ -121,7 +160,7 @@ const GRUPOS = [
       // /cadastros). A rota antiga redireciona para /cadastros/perfis.
     ],
   },
-] as const;
+];
 
 /**
  * slug → rótulo do módulo, derivado dos MESMOS GRUPOS que desenham o menu.
@@ -134,9 +173,14 @@ const GRUPOS = [
 /** As telas do módulo, para a busca global (components/busca-global.tsx). */
 export const TELAS_RH = GRUPOS.flatMap((g) => g.itens.map((i) => ({ slug: i.slug, label: i.label, grupo: g.titulo })));
 
-export const ROTULO_DO_MODULO: Record<string, string> = Object.fromEntries(
-  GRUPOS.flatMap(g => g.itens.map(i => [i.slug, i.label]))
-);
+export const ROTULO_DO_MODULO: Record<string, string> = {
+  ...Object.fromEntries(GRUPOS.flatMap(g => g.itens.map(i => [i.slug, i.label]))),
+  // A trilha (components/trilha.tsx) resolve o módulo pelo PRIMEIRO pedaço do
+  // caminho, e o módulo em `/ponto/...` é o Ponto inteiro — não a primeira
+  // tela dele. Sem este ajuste, a trilha de qualquer tela de ponto diria
+  // "Presença em tempo real", que é o rótulo do item de slug `ponto`.
+  ponto: "Ponto Eletrônico",
+};
 
 export function RHEmpresaNav({ empresaId }: { empresaId: string }) {
   const pathname = usePathname();
@@ -192,6 +236,7 @@ export function RHEmpresaNav({ empresaId }: { empresaId: string }) {
     itens: grupo.itens.map((item) => ({
       href: `${base}/${item.slug}`,
       label: item.label,
+      exato: item.exato,
       badge:
         item.slug === "mensagens" && mensagensAbertas > 0 ? (
           // Contador, não pontinho: o RH decide se abre agora pela quantidade.

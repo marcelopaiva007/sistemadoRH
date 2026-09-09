@@ -26,6 +26,20 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.170.0",
+    data: "09/09/2026",
+    horario: "13:00",
+    titulo: "Ponto Eletrônico vira um módulo próprio na lateral, com uma tela para cada parte",
+    itens: [
+      "O Ponto saiu de dentro de \"Departamento pessoal\" e ganhou grupo próprio na barra lateral, chamado \"Ponto eletrônico\".",
+      "As sete abas que existiam dentro da tela viraram sete telas, cada uma listada na lateral: \"Presença em tempo real\", \"Liberação & PIN\", \"Histórico de marcações\", \"Tratamento (PTRP)\", \"Jornadas & escalas\", \"Relatórios & fiscal (AFD)\" e \"Configurações do ponto\".",
+      "O ganho prático: aba não tem endereço. Para chegar ao histórico de uma batida era preciso saber que ele existia atrás de uma aba — a lateral dizia apenas \"Ponto Eletrônico\". Agora cada tela tem endereço próprio, aparece na busca do topo, pode ser guardada nos favoritos e mandada por link para outra pessoa.",
+      "\"Liberação & PIN\" é o novo nome da antiga aba \"Colaboradores\" do ponto. O nome mudou porque o menu já tem uma entrada chamada Colaboradores — a ficha de todo mundo — e duas iguais obrigariam a clicar para descobrir qual é qual.",
+      "As telas ficaram mais rápidas de abrir. Antes, entrar no Ponto disparava as consultas de todas as sete abas de uma vez, mesmo para quem só ia olhar quem está presente; agora cada tela busca apenas o que ela mostra.",
+      "Nada mudou no que as telas fazem, nem nas regras de ponto. É reorganização de navegação.",
+    ],
+  },
+  {
     versao: "1.169.0",
     data: "09/09/2026",
     horario: "12:20",
