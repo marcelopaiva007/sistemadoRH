@@ -3,18 +3,20 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { FolderLock, KeyRound, Mail, Send } from "lucide-react";
+import { AlertTriangle, CheckCircle2, FolderLock, KeyRound, Mail, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  registrarWebhookTelegram,
   removerSmtp,
   removerTelegramToken,
   salvarSmtp,
   salvarTelegramToken,
 } from "@/lib/actions/rh-segredos";
 import type { OrigemSegredo, StatusSmtp } from "@/lib/segredos";
+import type { InfoWebhookTelegram } from "@/lib/telegram";
 
 type StatusTelegram = {
   ligado: boolean;
@@ -26,12 +28,18 @@ type StatusTelegram = {
 export function CanaisView({
   empresaId,
   telegram,
+  webhook,
+  urlBase,
   smtp,
   arquivosLigado,
   podeConfigurar,
 }: {
   empresaId: string;
   telegram: StatusTelegram;
+  /** O que o Telegram tem registrado para o bot; `null` sem token ou sem resposta. */
+  webhook: InfoWebhookTelegram | null;
+  /** NEXT_PUBLIC_APP_URL — o endereço que o botão "Registrar webhook" usa. */
+  urlBase: string | null;
   smtp: StatusSmtp;
   arquivosLigado: boolean;
   podeConfigurar: boolean;
@@ -58,6 +66,9 @@ export function CanaisView({
       {podeConfigurar && (
         <>
           <CartaoTelegram empresaId={empresaId} status={telegram} />
+          {telegram.ligado && (
+            <CartaoWebhook empresaId={empresaId} webhook={webhook} urlBase={urlBase} />
+          )}
           <CartaoSmtp empresaId={empresaId} status={smtp} />
         </>
       )}
@@ -202,11 +213,9 @@ function CartaoTelegram({ empresaId, status }: { empresaId: string; status: Stat
         </CardTitle>
         <CardDescription>
           Crie um bot com o @BotFather e cole o token aqui. Ele é gravado cifrado e não volta a
-          aparecer na tela — para trocar, cole um novo por cima. Depois de salvar, rode{" "}
-          <code className="rounded bg-muted px-1 py-0.5 text-xs">
-            npx tsx scripts/configurar-telegram-webhook.ts
-          </code>{" "}
-          para registrar o webhook.
+          aparecer na tela — para trocar, cole um novo por cima. Depois de salvar, toque em{" "}
+          <strong>Registrar webhook</strong> no cartão que aparece logo abaixo: é ele que faz o
+          Telegram entregar as mensagens e os toques em botão a este sistema.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -248,6 +257,128 @@ function CartaoTelegram({ empresaId, status }: { empresaId: string; status: Stat
           O token é testado no Telegram antes de ser gravado — se estiver errado ou revogado, você
           descobre agora e não no primeiro convite.
         </p>
+      </CardContent>
+    </Card>
+  );
+}
+
+// O que o Telegram ENTREGA a este app — e o botão que corrige quando entrega
+// menos do que o código trata.
+//
+// Existe por causa de 11/09/2026: o "✅ Aceito" das Delegações não fazia nada
+// para ninguém, e ninguém tinha como ver por quê. O código do webhook tratava
+// o toque em botão desde 29/08; o Telegram é que não mandava — o registro
+// pedia só mensagens de texto. Sete demandas paradas em "enviada", e o
+// diagnóstico exigiu abrir o banco. Aqui a diferença aparece em vermelho.
+function CartaoWebhook({
+  empresaId,
+  webhook,
+  urlBase,
+}: {
+  empresaId: string;
+  webhook: InfoWebhookTelegram | null;
+  urlBase: string | null;
+}) {
+  const router = useRouter();
+  const [registrando, setRegistrando] = useState(false);
+
+  const destino = urlBase ? `${urlBase.replace(/\/$/, "")}/api/telegram/webhook` : null;
+  const registrado = !!webhook?.url;
+  const noEnderecoCerto = registrado && destino !== null && webhook!.url === destino;
+  const tudoCerto = registrado && webhook!.recebeBotoes && (destino === null || noEnderecoCerto);
+
+  async function registrar() {
+    if (registrando) return;
+    setRegistrando(true);
+    try {
+      const r = await registrarWebhookTelegram(empresaId);
+      if (r.ok) {
+        toast.success("Webhook registrado. Mensagens e botões do Telegram chegam ao sistema.");
+        router.refresh();
+      } else {
+        toast.error(r.error);
+      }
+    } catch {
+      toast.error("Não foi possível registrar — verifique a conexão e tente de novo.");
+    } finally {
+      setRegistrando(false);
+    }
+  }
+
+  let diagnostico: string;
+  if (!webhook) {
+    diagnostico = "Não consegui consultar o Telegram agora. Registrar de novo não faz mal: o registro é o mesmo, só reafirmado.";
+  } else if (!registrado) {
+    diagnostico = "Nenhum webhook registrado: o bot manda mensagens, mas nada do que as pessoas respondem ou tocam chega ao sistema.";
+  } else if (!webhook.recebeBotoes) {
+    diagnostico =
+      "O Telegram está entregando só mensagens de texto. Os toques em botão (✅ Aceito, 📅 Repactuar, 📎 Entregar…) das Delegações estão sendo descartados antes de chegar aqui — a pessoa toca e nada acontece.";
+  } else if (destino !== null && !noEnderecoCerto) {
+    diagnostico = `O webhook aponta para ${webhook.url}, e o endereço público do sistema é ${destino}. Se o primeiro deixar de responder, o bot fica surdo.`;
+  } else {
+    diagnostico = "Mensagens e toques em botão chegam ao sistema.";
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          {tudoCerto ? (
+            <CheckCircle2 className="size-4 text-success" />
+          ) : (
+            <AlertTriangle className="size-4 text-destructive" />
+          )}
+          Webhook do Telegram
+          <span
+            className={
+              tudoCerto
+                ? "rounded-full bg-card px-2 py-0.5 text-xs font-medium text-success"
+                : "rounded-full bg-destructive/15 px-2 py-0.5 text-xs font-medium text-destructive"
+            }
+          >
+            {tudoCerto ? "Completo" : registrado ? "Incompleto" : "Não registrado"}
+          </span>
+        </CardTitle>
+        <CardDescription>
+          É o registro, no Telegram, de para onde o bot entrega o que as pessoas fazem no chat.
+          Sem ele o bot só fala; com ele incompleto, ouve só parte.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3 text-sm">
+        <p className={tudoCerto ? "" : "font-medium text-destructive"}>{diagnostico}</p>
+        {webhook && registrado && (
+          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs text-muted-foreground">
+            <dt>Endereço</dt>
+            <dd className="break-all">{webhook.url}</dd>
+            <dt>Recebe</dt>
+            <dd>{webhook.allowedUpdates ? webhook.allowedUpdates.join(", ") : "tudo (padrão do Telegram)"}</dd>
+            {webhook.pendentes > 0 && (
+              <>
+                <dt>Na fila</dt>
+                <dd>{webhook.pendentes} update(s) ainda não entregues</dd>
+              </>
+            )}
+            {webhook.ultimoErro && (
+              <>
+                <dt>Último erro</dt>
+                <dd className="break-all">
+                  {webhook.ultimoErro}
+                  {webhook.ultimoErroEm ? ` (${webhook.ultimoErroEm.toLocaleString("pt-BR")})` : ""}
+                </dd>
+              </>
+            )}
+          </dl>
+        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" disabled={registrando || !destino} onClick={registrar}>
+            {registrando ? "Registrando..." : tudoCerto ? "Registrar de novo" : "Registrar webhook"}
+          </Button>
+          <span className="text-xs text-muted-foreground">
+            {destino
+              ? `Registra em ${destino}, recebendo mensagens e toques em botão.`
+              : "NEXT_PUBLIC_APP_URL não está definida no ambiente — sem ela não há endereço para registrar."}
+          </span>
+        </div>
       </CardContent>
     </Card>
   );

@@ -1,6 +1,7 @@
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { CHAVE_TELEGRAM, PAPEIS_QUE_CONFIGURAM, statusDoSegredo, statusDoSmtp } from "@/lib/segredos";
 import { blobConfigurado } from "@/lib/blob";
+import { infoWebhookTelegram } from "@/lib/telegram";
 import { CanaisView } from "./canais-view";
 
 // Canais de envio: token do bot do Telegram e SMTP, hoje só configuráveis
@@ -16,12 +17,20 @@ export default async function CanaisPage({
   const { empresaId } = await params;
   const user = await requireEmpresaAccess(empresaId);
 
-  const [telegram, smtp] = await Promise.all([statusDoSegredo(CHAVE_TELEGRAM), statusDoSmtp()]);
+  const [telegram, smtp, webhook] = await Promise.all([
+    statusDoSegredo(CHAVE_TELEGRAM),
+    statusDoSmtp(),
+    // O que o Telegram de fato entrega a este app — ver lib/telegram.ts sobre
+    // o dia em que o código tratava botão e o Telegram não mandava nenhum.
+    infoWebhookTelegram(),
+  ]);
 
   return (
     <CanaisView
       empresaId={empresaId}
       telegram={telegram}
+      webhook={webhook}
+      urlBase={process.env.NEXT_PUBLIC_APP_URL ?? null}
       smtp={smtp}
       arquivosLigado={blobConfigurado()}
       podeConfigurar={PAPEIS_QUE_CONFIGURAM.includes(user.role as string)}

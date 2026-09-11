@@ -26,6 +26,20 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.171.1",
+    data: "11/09/2026",
+    horario: "11:00",
+    titulo: "Delegações: o \"✅ Aceito\" do Telegram volta a funcionar — o toque no botão não chegava ao sistema",
+    itens: [
+      "O defeito: quem recebia uma demanda pelo Telegram tocava em \"✅ Aceito\" (ou em \"📅 Repactuar prazo\", \"❓ Preciso de contexto\", \"📎 Entregar\"…) e nada acontecia. A demanda seguia \"enviada\" no painel de quem pediu, a cobrança de aceite continuava chegando, e a pessoa não tinha como avançar. Sete demandas estavam paradas nessa situação em 11/09/2026.",
+      "A causa não estava no sistema, e sim no que o Telegram entregava a ele: o registro do bot (o \"webhook\") pedia ao Telegram apenas mensagens de texto. Toque em botão é outro tipo de evento, e o Telegram o descartava na origem — sem erro em lugar nenhum. O código que trata o toque existe desde 29/08; o registro nunca foi atualizado para pedi-lo.",
+      "A correção definitiva ficou na tela: em Canais de envio apareceu o cartão \"Webhook do Telegram\", que mostra o que o Telegram tem registrado (endereço, que tipos de evento entrega, fila, último erro) e tem o botão \"Registrar webhook\", que refaz o registro pedindo mensagens E toques em botão. Antes esse registro só se fazia por um script na máquina de um desenvolvedor.",
+      "PARA O AJUSTE VALER, alguém da administração ou da diretoria precisa abrir Canais de envio e tocar em \"Registrar webhook\" uma vez. A tela mostra em vermelho enquanto isso não for feito.",
+      "Depois disso, as demandas que já estavam paradas voltam a andar: a mensagem com o botão continua no Telegram de cada pessoa, e o toque passa a registrar o aceite normalmente. Não é preciso reenviar nada.",
+      "O script de linha de comando que registrava o webhook também foi corrigido, para quem ainda o usar ao trocar de ambiente.",
+    ],
+  },
+  {
     versao: "1.171.0",
     data: "09/09/2026",
     horario: "15:00",

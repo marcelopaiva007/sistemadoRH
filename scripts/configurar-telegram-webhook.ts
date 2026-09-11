@@ -10,7 +10,7 @@
 //      npx tsx scripts/configurar-telegram-webhook.ts --info   (só consulta)
 //      npx tsx scripts/configurar-telegram-webhook.ts --off    (remove o webhook)
 import "dotenv/config";
-import { telegramWebhookSecret } from "@/lib/telegram";
+import { registrarWebhookTelegram } from "@/lib/telegram";
 import { CHAVE_TELEGRAM, segredo } from "@/lib/segredos";
 
 const URL_PADRAO = "https://sistemado-rh-two.vercel.app";
@@ -40,17 +40,15 @@ async function main() {
 
   if (arg !== "--info") {
     const base = (arg || URL_PADRAO).replace(/\/$/, "");
-    const url = `${base}/api/telegram/webhook`;
-    const secret = await telegramWebhookSecret();
-    if (!secret) throw new Error("Token do Telegram não configurado (nem no .env, nem pela tela de Canais de envio)");
-    console.log(`Registrando webhook: ${url}`);
-    const resultado = await api("setWebhook", {
-      url,
-      secret_token: secret,
-      allowed_updates: ["message"],
-      drop_pending_updates: true,
-    });
-    console.log(JSON.stringify(resultado, null, 2));
+    console.log(`Registrando webhook: ${base}/api/telegram/webhook`);
+    // A lista de tipos de update vem de lib/telegram.ts (UPDATES_DO_WEBHOOK),
+    // não daqui: até 11/09/2026 este script pedia só ["message"], e os botões
+    // inline das Delegações nunca chegaram ao app. A tela de Canais de envio
+    // faz o mesmo registro por um botão — este script segue útil para trocar
+    // de ambiente (previews, máquina local com túnel).
+    const resultado = await registrarWebhookTelegram(base, { descartarPendentes: true });
+    if (!resultado.ok) throw new Error(resultado.error);
+    console.log(`OK: ${resultado.url}`);
   }
 
   console.log("getWebhookInfo:");
