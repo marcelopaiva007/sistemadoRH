@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-guard";
 import { registrarAuditoria } from "@/lib/audit";
 import { cifrar, dicaDe } from "@/lib/cripto";
+import { registrarWebhookTelegram as registrarWebhook, UPDATES_DO_WEBHOOK } from "@/lib/telegram";
 import {
   CHAVE_ANTHROPIC,
   CHAVE_EMAIL_FROM,
@@ -285,5 +286,43 @@ export async function removerChaveAnthropic(empresaId: string): Promise<ActionRe
   });
 
   revalidatePath(`/rh/${empresaId}/assistente`);
+  return { ok: true };
+}
+
+/**
+ * Registra o webhook do bot pela tela — o que antes exigia rodar um script
+ * na máquina de alguém com o token à mão.
+ *
+ * Nasceu do defeito de 11/09/2026: o webhook estava registrado só para
+ * `message`, os botões do módulo Delegações (✅ Aceito etc.) nunca chegavam
+ * ao app, e não havia tela onde isso aparecesse (ver lib/telegram.ts). A
+ * lista de tipos de update é a do próprio app (`UPDATES_DO_WEBHOOK`), não
+ * um parâmetro: a tela não tem como registrar "menos" do que o código trata.
+ *
+ * A URL é a pública do sistema (NEXT_PUBLIC_APP_URL) — a mesma que vai nos
+ * links do portal. Sem ela, recusa em vez de adivinhar: registrar o webhook
+ * num endereço errado desliga o bot inteiro, em silêncio.
+ */
+export async function registrarWebhookTelegram(empresaId: string): Promise<ActionResult> {
+  const permissao = await exigirPapel();
+  if (!permissao.ok) return permissao;
+
+  const base = process.env.NEXT_PUBLIC_APP_URL;
+  if (!base) {
+    return { ok: false, error: "NEXT_PUBLIC_APP_URL não está definida no ambiente — sem ela não sei qual endereço registrar." };
+  }
+
+  const r = await registrarWebhook(base);
+  if (!r.ok) return r;
+
+  await registrarAuditoria({
+    empresaId,
+    acao: "ATUALIZAR",
+    entidade: "SegredoApp",
+    entidadeId: CHAVE_TELEGRAM,
+    resumo: `Webhook do bot do Telegram registrado em ${r.url}, recebendo ${UPDATES_DO_WEBHOOK.join(" e ")}. Botões do Telegram (aceite de demanda etc.) passaram a chegar ao sistema.`,
+  });
+
+  revalidatePath(`/rh/${empresaId}/canais`);
   return { ok: true };
 }

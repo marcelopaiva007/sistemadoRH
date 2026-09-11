@@ -107,3 +107,115 @@ export async function removerBotoes(chatId: string, messageId: number): Promise<
     /* mensagem antiga ou apagada: não há o que consertar */
   }
 }
+
+// ---------------------------------------------------------------------------
+// Registro do webhook — o que o Telegram ENTREGA a este app.
+//
+// Em 11/09/2026 o "✅ Aceito" das Delegações não fazia nada para ninguém: a
+// demanda da Angela (enviada em 31/08) seguia ENVIADA, sem um único evento de
+// aceite, com o vínculo do Telegram dela correto e o código do webhook
+// tratando `callback_query` desde 29/08. O toque simplesmente NUNCA CHEGAVA:
+// o script que registrou o webhook pedia ao Telegram `allowed_updates:
+// ["message"]`, e o Telegram obedece à risca — botão inline é outro tipo de
+// update (`callback_query`) e era descartado na origem, sem erro em lugar
+// nenhum. Sete demandas paradas em ENVIADA pela mesma razão.
+//
+// Duas lições que viraram código: (1) a lista de tipos vive AQUI, num lugar
+// só, e quem registra o webhook (tela ou script) usa esta constante; (2) a
+// tela de Canais de envio mostra o que o Telegram tem registrado, para a
+// próxima diferença entre "o código trata" e "o Telegram entrega" aparecer
+// numa tela, e não num print de celular dias depois.
+// ---------------------------------------------------------------------------
+
+/** Tipos de update que o webhook (app/api/telegram/webhook) sabe tratar. */
+export const UPDATES_DO_WEBHOOK = ["message", "callback_query"] as const;
+
+export type InfoWebhookTelegram = {
+  /** URL registrada no Telegram — vazia quando não há webhook. */
+  url: string;
+  /** Lista pedida no registro. `null` = o Telegram usa o conjunto padrão dele, que inclui botões. */
+  allowedUpdates: string[] | null;
+  /** Se os toques em botão inline (`callback_query`) chegam a este app. */
+  recebeBotoes: boolean;
+  pendentes: number;
+  ultimoErro: string | null;
+  ultimoErroEm: Date | null;
+};
+
+function lerInfo(result: {
+  url?: string;
+  allowed_updates?: string[];
+  pending_update_count?: number;
+  last_error_message?: string;
+  last_error_date?: number;
+}): InfoWebhookTelegram {
+  const allowed = result.allowed_updates ?? null;
+  return {
+    url: result.url ?? "",
+    allowedUpdates: allowed,
+    // Sem lista explícita o Telegram manda o conjunto padrão, que inclui
+    // callback_query. Com lista, só o que está nela.
+    recebeBotoes: allowed === null || allowed.includes("callback_query"),
+    pendentes: result.pending_update_count ?? 0,
+    ultimoErro: result.last_error_message ?? null,
+    ultimoErroEm: result.last_error_date ? new Date(result.last_error_date * 1000) : null,
+  };
+}
+
+/** O que o Telegram tem registrado para este bot. `null` sem token ou sem rede. */
+export async function infoWebhookTelegram(): Promise<InfoWebhookTelegram | null> {
+  const token = await segredo(CHAVE_TELEGRAM);
+  if (!token) return null;
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`, { cache: "no-store" });
+    const body = (await res.json()) as { ok: boolean; result?: Parameters<typeof lerInfo>[0] };
+    if (!body.ok || !body.result) return null;
+    return lerInfo(body.result);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Registra (ou re-registra) o webhook apontando para `urlBase`, com o secret
+ * derivado do token e TODOS os tipos de update que o app trata. Idempotente:
+ * chamar de novo com os mesmos dados não muda nada e não perde update.
+ *
+ * `descartarPendentes` só no script de linha de comando, que é usado ao
+ * trocar de ambiente; pela tela nunca se joga fora o que está na fila.
+ */
+export async function registrarWebhookTelegram(
+  urlBase: string,
+  opcoes: { descartarPendentes?: boolean } = {},
+): Promise<{ ok: true; url: string; info: InfoWebhookTelegram | null } | { ok: false; error: string }> {
+  const token = await segredo(CHAVE_TELEGRAM);
+  const secret = await telegramWebhookSecret();
+  if (!token || !secret) return { ok: false, error: "Bot do Telegram não configurado." };
+
+  const base = urlBase.trim().replace(/\/$/, "");
+  if (!/^https:\/\//.test(base)) {
+    return { ok: false, error: "A URL do sistema precisa começar com https:// — o Telegram recusa outra coisa." };
+  }
+  const url = `${base}/api/telegram/webhook`;
+
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        url,
+        secret_token: secret,
+        allowed_updates: [...UPDATES_DO_WEBHOOK],
+        drop_pending_updates: opcoes.descartarPendentes === true,
+      }),
+    });
+    const body = (await res.json()) as { ok: boolean; description?: string };
+    if (!res.ok || !body.ok) {
+      return { ok: false, error: `O Telegram recusou o registro: ${body.description ?? `HTTP ${res.status}`}.` };
+    }
+  } catch {
+    return { ok: false, error: "Falha de rede ao registrar o webhook no Telegram." };
+  }
+
+  return { ok: true, url, info: await infoWebhookTelegram() };
+}
