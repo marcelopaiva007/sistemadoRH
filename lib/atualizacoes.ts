@@ -26,6 +26,19 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.172.1",
+    data: "21/09/2026",
+    horario: "14:45",
+    titulo: "Contratos: o que vence primeiro volta a aparecer primeiro",
+    itens: [
+      "O defeito: na lista de Contratos, um contrato VENCENDO nos próximos 90 dias era desenhado mais apagado que um que vence daqui a três anos. A cor de \"atenção\" era mais clara que a cor normal da tabela, então quanto mais perto do prazo, menos a linha chamava. O mesmo valia para a coluna \"Decidir renovação\" nos últimos 30 dias.",
+      "Agora o que tem prazo curto pesa MAIS na tela, não menos, e ganha ao lado da data quantos dias faltam por escrito — \"vence em 12 dias\", \"vence hoje\", \"vencido há 3 dias\" — com o mesmo triângulo de aviso que a linha já usava. Quem enxerga pouco, ou nada, deixa de depender da cor para saber o que é urgente.",
+      "A borda dos campos dos formulários de Contratos e Contrapartes ficou mais escura. A anterior tinha contraste de 2,4 para 1 contra o mínimo de 3 para 1 exigido para contorno de campo — na prática, em tela clara ou de brilho baixo, era difícil ver onde cada campo começava e terminava.",
+      "As mensagens de erro dos dois formulários passaram a ser anunciadas por leitor de tela. Antes elas apareciam só visualmente: quem usa leitor clicava em Salvar e não recebia retorno nenhum.",
+      "Nada mudou no que é gravado, em quem vê o quê, nem nos cálculos de prazo — é ajuste de tela.",
+    ],
+  },
+  {
     versao: "1.172.0",
     data: "21/09/2026",
     horario: "14:00",
