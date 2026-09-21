@@ -79,7 +79,24 @@ export type ContratoNaTela = {
 /** O valor do <option> que ABRE o cadastro rápido em vez de escolher alguém. */
 const NOVA_CONTRAPARTE = "__nova__";
 
-const CAMPO = "w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm";
+// D7/D8 (21/09/2026). Duas correções numa linha só:
+//
+// `border-border` → `border-input`. O globals.css escreve a regra ao lado dos
+// tokens: --border é tinta a 40%, "divisória e régua de 2px, decorativas, sem
+// exigência"; --input é tinta a 55% porque "a borda do campo é a única pista
+// de onde o formulário começa e precisa dos 3:1". Medido, o 40% dava 2,41:1
+// sobre o fundo e 2,37:1 sobre o cartão — abaixo do mínimo da WCAG 1.4.11
+// para limite de componente de interface. O 55% entrega 3,66 e 3,38.
+//
+// `rounded-md` saiu: --radius é 0rem desde o Modernist, então todo `rounded-*`
+// derivado já valia zero. Não desenhava nada e declarava uma intenção que o
+// sistema abandonou — quem copiasse a linha levaria junto.
+//
+// O `bg-background` FICA. Dentro do <Card> (--card, mais escuro) ele deixa o
+// campo mais claro que a superfície, o que soma separação em vez de tirar;
+// trocar por `bg-card`, como faz o Input do sistema, apagaria essa diferença
+// justamente aqui, onde o formulário inteiro mora dentro de um cartão.
+const CAMPO = "w-full border border-input bg-background px-2.5 py-1.5 text-sm";
 const SECAO = "sm:col-span-2 lg:col-span-4 pt-2 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase";
 
 const MESES = [
@@ -89,6 +106,43 @@ const MESES = [
 
 function textoOuTraco(v: string | null) {
   return v && v.length > 0 ? v : "";
+}
+
+/**
+ * Quantos dias faltam — em TEXTO, ao lado da data que já está na célula.
+ *
+ * Existe porque a urgência estava dita só por cor, e para o lado errado. Duas
+ * regras do sistema se cruzam aqui:
+ *
+ * 1. Cor sozinha não comunica estado (WCAG 1.4.1) — a mesma razão pela qual o
+ *    `Indicador` põe triângulo e texto de leitor de tela fora do estado
+ *    "padrão", em vez de só pintar o número.
+ * 2. O que exige decisão tem que pesar MAIS na página, não menos.
+ *
+ * Componente de NÍVEL SUPERIOR, e não uma função dentro do `ContratosView`:
+ * definido dentro, o React o trataria como componente novo a cada render e
+ * remontaria a célula. É a mesma lição escrita em `pendencias-view.tsx`.
+ */
+function PrazoRestante({ dias, limite }: { dias: number | null; limite: number }) {
+  if (dias === null) return null;
+  if (dias > limite) return null;
+  const vencido = dias < 0;
+  const falta = Math.abs(dias);
+  return (
+    <span
+      className={cn(
+        "mt-0.5 flex items-center gap-1 text-[11px]",
+        vencido ? "font-semibold text-destructive" : "font-medium",
+      )}
+    >
+      <TriangleAlert aria-hidden className="size-3" />
+      {vencido
+        ? `vencido há ${falta} ${falta === 1 ? "dia" : "dias"}`
+        : dias === 0
+          ? "vence hoje"
+          : `vence em ${dias} ${dias === 1 ? "dia" : "dias"}`}
+    </span>
+  );
 }
 
 export function ContratosView({
@@ -401,7 +455,10 @@ export function ContratosView({
   return (
     <div className="space-y-4">
       {erro && (
-        <p className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+        <p
+          role="alert"
+          className="border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+        >
           {erro}
         </p>
       )}
@@ -962,11 +1019,18 @@ export function ContratosView({
                     className={cn(
                       "tabular-nums",
                       c.diasParaFim !== null && c.diasParaFim < 0 && "font-semibold text-destructive",
+                      // Vencendo é MAIS pesado que o normal, não menos. Até aqui
+                      // esta linha era `text-muted-foreground`: o contrato que
+                      // exige decisão neste trimestre saía mais apagado que o que
+                      // vence daqui a três anos, porque a célula sem classe herda
+                      // `foreground` e o muted é mais claro. A tela existe para
+                      // mostrar o que tem prazo correndo; ela estava escondendo.
                       c.diasParaFim !== null && c.diasParaFim >= 0 && c.diasParaFim <= 90 &&
-                        "text-muted-foreground",
+                        "font-medium",
                     )}
                   >
                     {c.dataFimTexto}
+                    <PrazoRestante dias={c.diasParaFim} limite={90} />
                     {c.janelaRenovatoriaFimTexto && (
                       <span className="block text-[11px] text-muted-foreground">
                         renovatória até {c.janelaRenovatoriaFimTexto}
@@ -975,16 +1039,20 @@ export function ContratosView({
                   </TableCell>
                   <TableCell className="tabular-nums">
                     {c.dataLimiteDenunciaTexto ? (
-                      <span
-                        className={cn(
-                          c.diasParaDenuncia !== null && c.diasParaDenuncia < 0 &&
-                            "font-semibold text-destructive",
-                          c.diasParaDenuncia !== null && c.diasParaDenuncia >= 0 &&
-                            c.diasParaDenuncia <= 30 && "text-muted-foreground",
-                        )}
-                      >
-                        {c.dataLimiteDenunciaTexto}
-                      </span>
+                      <>
+                        <span
+                          className={cn(
+                            c.diasParaDenuncia !== null && c.diasParaDenuncia < 0 &&
+                              "font-semibold text-destructive",
+                            // Mesma inversão da coluna ao lado, mesmo conserto.
+                            c.diasParaDenuncia !== null && c.diasParaDenuncia >= 0 &&
+                              c.diasParaDenuncia <= 30 && "font-medium",
+                          )}
+                        >
+                          {c.dataLimiteDenunciaTexto}
+                        </span>
+                        <PrazoRestante dias={c.diasParaDenuncia} limite={30} />
+                      </>
                     ) : (
                       <span className="text-muted-foreground">—</span>
                     )}
