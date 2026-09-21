@@ -464,6 +464,20 @@ async function revisoesProgramadas(empresaIds: string[]): Promise<Candidata[]> {
 export const STATUS_COM_PRAZO_CORRENDO = ["VIGENTE", "EM_RENOVACAO", "SUSPENSO"];
 
 /**
+ * Os papéis que podem ASSUMIR uma pendência deste módulo.
+ *
+ * Uma constante só porque a lista estava escrita à mão na Central e o
+ * formulário de contrato usava outra fonte inteira (fichas de colaborador) —
+ * e foi essa divergência que pôs centenas de nomes sem login num campo cujo
+ * valor vira `Pendencia.responsavelId`, que em todo o resto do sistema é id de
+ * USUÁRIO (ver `definirResponsavel`).
+ *
+ * GESTOR_SETOR fica de fora: não alcança o módulo, e nomeá-lo criaria
+ * pendência que ele não vê.
+ */
+export const PAPEIS_QUE_ASSUMEM_PENDENCIA = ["ADMIN", "DIRETORIA", "RH_MANAGER"];
+
+/**
  * A janela para dizer que o contrato NÃO será renovado.
  *
  * Só existe quando o contrato tem aviso prévio escrito — sem cláusula, não há

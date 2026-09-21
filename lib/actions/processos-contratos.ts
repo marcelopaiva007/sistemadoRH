@@ -19,6 +19,7 @@ import {
   janelaRenovatoria,
   proximoReajuste,
 } from "@/lib/processos/contratos";
+import { PAPEIS_QUE_ASSUMEM_PENDENCIA } from "@/lib/processos/pendencias";
 import type { ActionResult } from "@/lib/constants";
 
 // Contratos e contrapartes do módulo Processos & Ativos.
@@ -398,16 +399,31 @@ export async function salvarContrato(input: {
     observacoes: limpo(input.observacoes),
   };
 
-  // O nome do gestor entra CONGELADO na linha, como o resto do sistema faz:
-  // quem responde pelo contrato hoje é uma pergunta de hoje, e o histórico não
-  // pode mudar quando a pessoa muda de cargo ou sai.
+  // O gestor é USUÁRIO DO SISTEMA, não ficha de colaborador.
+  //
+  // Buscava em `colaborador` até a v1.173.0, e o tipo estava errado: este id
+  // vai para `Pendencia.responsavelId`, que é id de USUÁRIO em todo o resto do
+  // sistema (`definirResponsavel` valida contra `prisma.user`). Uma ficha ali
+  // produzia pendência que mostra um nome e não tem dono capaz de entrar e
+  // resolver — pior que pendência sem dono, porque parece ter.
+  //
+  // O nome entra CONGELADO na linha, como o resto do sistema faz: quem
+  // responde pelo contrato hoje é uma pergunta de hoje, e o histórico não pode
+  // mudar quando a pessoa troca de cargo ou sai.
   const gestor = dados.gestorId
-    ? await prisma.colaborador.findFirst({
-        where: { id: dados.gestorId, empresaId: { in: visiveis } },
+    ? await prisma.user.findFirst({
+        where: { id: dados.gestorId, ativo: true, role: { in: PAPEIS_QUE_ASSUMEM_PENDENCIA } },
         select: { nome: true },
       })
     : null;
-  if (dados.gestorId && !gestor) return { ok: false, error: "Gestor não encontrado no seu acesso." };
+  if (dados.gestorId && !gestor) {
+    return {
+      ok: false,
+      error:
+        "Gestor responsável tem que ser um usuário ativo do sistema. " +
+        "Se o contrato tinha uma ficha de colaborador aí, escolha o usuário correspondente ou deixe sem gestor.",
+    };
+  }
 
   // O par (empresa, número) é único. Checar antes dá a mensagem que resolve;
   // deixar estourar o unique do Postgres dá um erro que ninguém entende.

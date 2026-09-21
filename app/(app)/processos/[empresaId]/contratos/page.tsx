@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireProcessosEmpresa } from "@/lib/processos-auth-guard";
 import { escopoDeEmpresas } from "@/lib/rh-auth-guard";
 import { diferencaEmDiasUTC, formatarData, hojeUTC, paraInputDate } from "@/lib/datas";
-import { STATUS_COM_PRAZO_CORRENDO } from "@/lib/processos/pendencias";
+import { PAPEIS_QUE_ASSUMEM_PENDENCIA, STATUS_COM_PRAZO_CORRENDO } from "@/lib/processos/pendencias";
 import { ContratosView, type ContratoNaTela } from "./contratos-view";
 
 // Os contratos do grupo — o segundo domínio da onda 1.
@@ -88,8 +88,22 @@ export default async function ContratosPage({
       orderBy: { razaoSocial: "asc" },
       select: { id: true, razaoSocial: true, cnpjCpf: true },
     }),
-    prisma.colaborador.findMany({
-      where: { empresaId: { in: escopo }, ativo: true },
+    // O gestor é USUÁRIO DO SISTEMA, não ficha de colaborador.
+    //
+    // Até a v1.173.0 esta consulta era `colaborador.findMany` e despejava a
+    // folha inteira no <select> — centenas de nomes, a maioria sem login. Pior
+    // que o tamanho era o tipo: `Contrato.gestorId` alimenta
+    // `Pendencia.responsavelId`, e esse campo é id de USUÁRIO em todo o resto
+    // do sistema (`definirResponsavel` valida contra `prisma.user`). Um id de
+    // ficha ali produzia pendência que MOSTRA um nome e não tem dono que possa
+    // entrar e resolver. O próprio schema já dizia qual era a intenção: o
+    // comentário de `gestorId` manda seguir `Sinal.donoUserId`, que é
+    // "escolha MANUAL entre os usuários do sistema".
+    //
+    // Mesma consulta da Central (app/(app)/processos/[empresaId]/page.tsx) —
+    // as duas listas precisam concordar sobre quem pode ser dono.
+    prisma.user.findMany({
+      where: { ativo: true, role: { in: PAPEIS_QUE_ASSUMEM_PENDENCIA } },
       orderBy: { nome: "asc" },
       select: { id: true, nome: true },
     }),
