@@ -52,6 +52,8 @@ export type ContratoDeAluguel = {
 };
 
 type Opcao = { id: string; nome?: string; razaoSocial?: string };
+/** `temCnpj`: quem é dona do imóvel assina o contrato, e para isso precisa de CNPJ. */
+type OpcaoEmpresa = Opcao & { temCnpj: boolean };
 
 const CAMPO = "w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm";
 
@@ -63,7 +65,7 @@ export function AlugueisView({
 }: {
   empresaId: string;
   contratos: ContratoDeAluguel[];
-  empresas: Opcao[];
+  empresas: OpcaoEmpresa[];
   contrapartes: Opcao[];
 }) {
   const router = useRouter();
@@ -78,8 +80,21 @@ export function AlugueisView({
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [f, setF] = useState<Record<string, string>>({});
 
+  // Só empresa com CNPJ assina. A do contrato EM EDIÇÃO entra mesmo sem ele —
+  // contrato legado precisa continuar abrindo, e a action recusa movê-lo para
+  // outra empresa sem CNPJ.
+  const empresaEmEdicao = editandoId ? contratos.find((c) => c.id === editandoId)?.empresaId : undefined;
+  const opcoesEmpresa = useMemo(
+    () => empresas.filter((e) => e.temCnpj || e.id === empresaEmEdicao),
+    [empresas, empresaEmEdicao],
+  );
+  const semCnpj = useMemo(() => empresas.filter((e) => !e.temCnpj), [empresas]);
+
   function abrirNovo() {
-    setF({ empresa: empresas[0]?.id ?? "", status: "VIGENTE", indeterminado: "sim" });
+    // A primeira que PODE assinar, não a primeira da lista: empresa provisória
+    // sem CNPJ (a "A DEFINIR" da importação de frota) vinha pré-escolhida e o
+    // aluguel nasceria no CNPJ de ninguém.
+    setF({ empresa: opcoesEmpresa[0]?.id ?? "", status: "VIGENTE", indeterminado: "sim" });
     setEditandoId(null);
     setFormAberto(true);
     setErro(null);
@@ -241,10 +256,17 @@ export function AlugueisView({
               <label className="text-xs text-muted-foreground">
                 Empresa dona do imóvel (CNPJ)
                 <select value={f.empresa ?? ""} onChange={(e) => setF({ ...f, empresa: e.target.value })} className={CAMPO}>
-                  {empresas.map((e) => (
+                  <option value="">Escolha…</option>
+                  {opcoesEmpresa.map((e) => (
                     <option key={e.id} value={e.id}>{e.nome}</option>
                   ))}
                 </select>
+                {semCnpj.length > 0 && (
+                  <span className="mt-0.5 block text-[11px] text-muted-foreground/80">
+                    Fora da lista por não ter CNPJ cadastrado: {semCnpj.map((e) => e.nome).join(", ")}.
+                    Complete em Cadastros › Empresas (é preciso ser administrador).
+                  </span>
+                )}
               </label>
               <label className="text-xs text-muted-foreground">
                 Inquilino (contraparte)

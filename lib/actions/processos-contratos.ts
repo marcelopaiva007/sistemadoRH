@@ -15,6 +15,7 @@ import {
   TIPOS_PESSOA,
   daLista,
   dataLimiteDenuncia,
+  empresaPodeAssinar,
   janelaRenovatoria,
   proximoReajuste,
 } from "@/lib/processos/contratos";
@@ -253,6 +254,36 @@ export async function salvarContrato(input: {
       },
     });
     if (!anterior) return { ok: false, error: "Contrato não encontrado no seu acesso." };
+  }
+
+  /**
+   * Quem assina um contrato precisa ter CNPJ cadastrado.
+   *
+   * Não é formalidade: o campo da tela pergunta literalmente "Empresa (CNPJ que
+   * assina)", e o grupo mantém empresas PROVISÓRIAS sem CNPJ — a "A DEFINIR —
+   * frota importada" é o estacionamento dos veículos que entraram em lote sem
+   * dono definido. Ela é uma Empresa ativa como qualquer outra, então aparecia
+   * no seletor do topo e no formulário, e um contrato cadastrado ali nasceria
+   * no CNPJ de ninguém: escopo errado em silêncio, que é a classe de erro que
+   * não dá erro na tela — mostra um número plausível e errado.
+   *
+   * A regra tem uma folga deliberada: contrato que JÁ ESTÁ numa empresa sem
+   * CNPJ continua editável enquanto não muda de empresa. Sem isso, um contrato
+   * legado ficaria preso — não daria nem para movê-lo para o CNPJ certo, que é
+   * exatamente o conserto que ele precisa.
+   */
+  const alvo = await prisma.empresa.findUnique({
+    where: { id: empresaDoContrato },
+    select: { nome: true, cnpj: true },
+  });
+  if (!alvo) return { ok: false, error: "Empresa não encontrada." };
+  if (!empresaPodeAssinar(alvo.cnpj, anterior?.empresaId ?? null, empresaDoContrato)) {
+    return {
+      ok: false,
+      error:
+        `"${alvo.nome}" não tem CNPJ cadastrado e por isso não pode assinar contrato. ` +
+        `Complete o CNPJ em Cadastros › Empresas, ou escolha outra empresa.`,
+    };
   }
 
   const numeroContrato = limpo(input.numero);
