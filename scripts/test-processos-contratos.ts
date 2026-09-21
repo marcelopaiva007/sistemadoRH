@@ -14,6 +14,7 @@ import {
   TIPOS_CONTRATO_DESPESA,
   daLista,
   dataLimiteDenuncia,
+  empresaPodeAssinar,
   janelaRenovatoria,
   papelSugeridoPorTipo,
   proximoReajuste,
@@ -229,6 +230,38 @@ console.log("\nPapel sugerido pelo tipo do contrato — o atalho do cadastro rá
       `a sugestão de ${t.value} é um papel que existe de verdade`,
     );
   }
+}
+
+console.log("\nQuem pode assinar — a empresa provisória sem CNPJ fica de fora\n");
+{
+  const REAL = "empresa-com-cnpj";
+  const PROVISORIA = "a-definir-frota-importada";
+
+  ok(empresaPodeAssinar("12345678000190", null, REAL), "cadastro novo numa empresa com CNPJ passa");
+  ok(
+    !empresaPodeAssinar(null, null, PROVISORIA),
+    "cadastro novo na empresa provisória sem CNPJ é recusado — era aqui que o contrato nascia no CNPJ de ninguém",
+  );
+
+  // A folga: contrato legado continua salvável onde já está, senão ficaria
+  // preso — sem poder nem ser movido para o CNPJ certo.
+  ok(
+    empresaPodeAssinar(null, PROVISORIA, PROVISORIA),
+    "contrato que já está na empresa sem CNPJ continua salvável enquanto não muda de empresa",
+  );
+  ok(
+    empresaPodeAssinar("12345678000190", PROVISORIA, REAL),
+    "mover um contrato legado PARA uma empresa com CNPJ é o conserto, e passa",
+  );
+  ok(
+    !empresaPodeAssinar(null, REAL, PROVISORIA),
+    "o caminho contrário — trazer um contrato para a empresa sem CNPJ — continua fechado",
+  );
+  // Empresa sem CNPJ não vira porta de entrada só porque outro contrato já mora nela.
+  ok(
+    !empresaPodeAssinar(null, "outra-empresa-sem-cnpj", PROVISORIA),
+    "vir de OUTRA empresa sem CNPJ não autoriza entrar nesta",
+  );
 }
 
 console.log(`\n${falhas === 0 ? "✅ tudo certo" : `❌ ${falhas} falha(s)`}\n`);

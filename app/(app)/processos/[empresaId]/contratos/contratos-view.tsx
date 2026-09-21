@@ -157,7 +157,8 @@ export function ContratosView({
   contratos: ContratoNaTela[];
   contrapartes: { id: string; razaoSocial: string; cnpjCpf: string }[];
   gestores: { id: string; nome: string }[];
-  empresas: { id: string; nome: string }[];
+  /** `temCnpj` decide quem pode ASSINAR — ver `opcoesEmpresa` abaixo. */
+  empresas: { id: string; nome: string; temCnpj: boolean }[];
   /** Vem da URL — a Central manda "TODOS" para o contrato do alerta aparecer. */
   statusInicial: string;
 }) {
@@ -309,7 +310,17 @@ export function ContratosView({
 
   function novo() {
     setErro(null);
-    setForm({ status: "VIGENTE", categoria: "DESPESA", criticidade: "NORMAL", empresaAlvo: empresaId });
+    // A empresa da URL só entra pré-escolhida se puder assinar. Estando dentro
+    // da "A DEFINIR", o padrão `empresaAlvo: empresaId` apontaria para um id
+    // fora das opções: o campo apareceria em branco e o salvar mandaria a
+    // empresa provisória assim mesmo, porque o estado guardava o id.
+    const daUrl = empresas.find((e) => e.id === empresaId);
+    setForm({
+      status: "VIGENTE",
+      categoria: "DESPESA",
+      criticidade: "NORMAL",
+      empresaAlvo: daUrl?.temCnpj ? empresaId : "",
+    });
     // Grupo sem nenhuma contraparte: o primeiro contrato precisa das duas
     // coisas, e fazer a pessoa adivinhar a ordem era o que travava a tela.
     if (contrapartes.length === 0 && recemCriadas.length === 0) {
@@ -422,6 +433,28 @@ export function ContratosView({
   // contradiz a si mesmo. Continua visível só se o contrato EM EDIÇÃO já for
   // desse tipo — tirar a opção do <select> de quem edita um caso legado
   // apagaria o tipo dele em silêncio no próximo salvar.
+  /**
+   * Quem pode assinar: só empresa com CNPJ cadastrado.
+   *
+   * O grupo mantém empresa PROVISÓRIA sem CNPJ — a "A DEFINIR — frota
+   * importada", onde a importação em lote estaciona veículo sem dono. Ela é
+   * uma Empresa ativa como outra qualquer, então entrava neste <select> e um
+   * contrato cadastrado ali nasceria no CNPJ de ninguém.
+   *
+   * A empresa do contrato EM EDIÇÃO entra mesmo sem CNPJ: contrato legado
+   * precisa continuar abrindo, e sumir a opção de baixo de quem edita deixaria
+   * o campo em branco — exatamente o caminho para gravá-lo em outro CNPJ sem
+   * querer. Mover para um CNPJ real continua sendo o conserto, e a action
+   * recusa o caminho contrário.
+   */
+  const empresaEmEdicao = form?.id ? form.empresaAlvo : undefined;
+  const opcoesEmpresa = useMemo(
+    () => empresas.filter((e) => e.temCnpj || e.id === empresaEmEdicao),
+    [empresas, empresaEmEdicao],
+  );
+  // Nomeadas na tela: nada some em silêncio, e o aviso diz o que fazer.
+  const semCnpj = useMemo(() => empresas.filter((e) => !e.temCnpj), [empresas]);
+
   const tipoAtual = form?.tipo ?? "";
   const opcoesTipo =
     tipoAtual && !TIPOS_CONTRATO_DESPESA.some((t) => t.value === tipoAtual)
@@ -572,13 +605,21 @@ export function ContratosView({
             <label className="text-xs text-muted-foreground">
               Empresa (CNPJ que assina)
               <select {...campo("empresaAlvo")} className={CAMPO}>
-                {empresas.map((e) => (
+                <option value="">Escolha…</option>
+                {opcoesEmpresa.map((e) => (
                   <option key={e.id} value={e.id}>{e.nome}</option>
                 ))}
               </select>
               {form.id && (
                 <span className="mt-0.5 block text-[11px] text-muted-foreground/80">
                   Dá para corrigir: contrato não se apaga, então o CNPJ errado precisa ter conserto.
+                </span>
+              )}
+              {semCnpj.length > 0 && (
+                <span className="mt-0.5 block text-[11px] text-muted-foreground/80">
+                  Fora da lista por não ter CNPJ cadastrado:{" "}
+                  {semCnpj.map((e) => e.nome).join(", ")}. Quem assina contrato precisa de CNPJ —
+                  complete em Cadastros › Empresas (é preciso ser administrador).
                 </span>
               )}
             </label>

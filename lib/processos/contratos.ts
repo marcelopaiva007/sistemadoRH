@@ -131,6 +131,33 @@ export function proximoReajuste(
   return candidato;
 }
 
+/**
+ * A empresa pode ASSINAR este contrato?
+ *
+ * Quem assina precisa ter CNPJ cadastrado. Não é formalidade: o campo da tela
+ * pergunta literalmente "Empresa (CNPJ que assina)", e o grupo mantém empresas
+ * PROVISÓRIAS sem CNPJ — a "A DEFINIR — frota importada" é o estacionamento
+ * dos veículos que entraram em lote sem dono definido. Ela é uma `Empresa`
+ * ativa como qualquer outra (o escopo só filtra por `ativo`), então entrava no
+ * seletor e um contrato cadastrado ali nasceria no CNPJ de ninguém — escopo
+ * errado em silêncio, a classe de erro que não dá erro na tela.
+ *
+ * A folga é deliberada: contrato que JÁ ESTÁ numa empresa sem CNPJ continua
+ * salvável enquanto não muda de empresa. Sem ela um contrato legado ficaria
+ * preso — não daria nem para movê-lo ao CNPJ certo, que é o conserto de que
+ * ele precisa. O caminho contrário (trazer um contrato PARA uma empresa sem
+ * CNPJ) continua fechado.
+ */
+export function empresaPodeAssinar(
+  cnpjDaEmpresa: string | null,
+  /** Onde o contrato já estava. `null` em cadastro novo. */
+  empresaAnteriorId: string | null,
+  empresaAlvoId: string,
+): boolean {
+  if (empresaAnteriorId !== null && empresaAnteriorId === empresaAlvoId) return true;
+  return cnpjDaEmpresa !== null;
+}
+
 export const TIPOS_CONTRATO = [
   // "Locação de imóvel" é o tipo do ALUGUEL A RECEBER (imóvel do grupo
   // alugado a terceiro) — cadastrado na tela de Aluguéis, não na de Contratos.

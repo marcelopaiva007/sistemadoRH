@@ -94,6 +94,18 @@ jobs:
         run: npx tsx scripts/test-ponto-foto.ts
       - name: Marcação incluída por tratamento (dia certo, hash próprio, fora do AFD)
         run: npx tsx scripts/test-ponto-tratada.ts
+      # Os três do Processos & Ativos nunca estiveram aqui — as 127 asserções
+      # que guardam prazo decadencial (Lei 8.245/1991, art. 51, §5º), cláusula
+      # nula de reajuste (Lei 10.192/2001, art. 2º, §1º) e prazo de CTB rodavam
+      # só na máquina de quem lembrasse. Descoberto em 21/09/2026, ao escrever
+      # o teste de quem pode assinar contrato: os três passavam, e continuavam
+      # invisíveis para a CI.
+      - name: Contratos (denúncia, renovatória, reajuste, quem assina)
+        run: npx tsx scripts/test-processos-contratos.ts
+      - name: Prazos do CTB (indicação de condutor, defesa, JARI)
+        run: npx tsx scripts/test-processos-ctb.ts
+      - name: Licenciamento e IPVA
+        run: npx tsx scripts/test-processos-licenciamento.ts
 
   # Os 29 smokes contra Postgres de verdade. O banco nasce vazio a cada
   # execução: schema gerado do prisma/schema.prisma via `migrate diff` (o

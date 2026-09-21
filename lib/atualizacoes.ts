@@ -26,6 +26,21 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.173.0",
+    data: "21/09/2026",
+    horario: "15:30",
+    titulo: "Contratos e Aluguéis: só empresa com CNPJ pode assinar",
+    itens: [
+      "O problema: o campo \"Empresa (CNPJ que assina)\" listava a empresa provisória \"A DEFINIR — frota importada\" junto com as empresas de verdade. Ela existe para estacionar os veículos que entraram na importação em lote sem dono definido, e é uma empresa ativa como outra qualquer — então aparecia no seletor. Um contrato cadastrado nela nasceria no CNPJ de ninguém, e esse é o tipo de erro que não dá mensagem na tela: aparece meses depois como contrato que sumiu do relatório da empresa certa.",
+      "Agora o campo lista apenas empresas COM CNPJ cadastrado, porque é isso que a pergunta significa — quem assina um contrato é uma pessoa jurídica. Vale igual na tela de Aluguéis a receber, no campo \"Empresa dona do imóvel\".",
+      "Nada some em silêncio: logo abaixo do campo, a tela NOMEIA as empresas que ficaram de fora por estarem sem CNPJ e diz onde completar (Cadastros › Empresas, com acesso de administrador). Se alguma empresa de verdade estiver sem o CNPJ preenchido, ela reaparece no campo assim que o dado entrar.",
+      "Estando dentro da empresa provisória, o campo abre em \"Escolha…\" em vez de vir preenchido com ela. Antes o formulário herdava a empresa da tela em que você estava.",
+      "Contrato que JÁ está numa empresa sem CNPJ continua abrindo e salvando normalmente — inclusive para ser movido ao CNPJ certo, que é o conserto. O que não dá mais é trazer um contrato PARA uma empresa sem CNPJ.",
+      "A regra vale também no servidor, não só na tela: mesmo um formulário aberto antes desta versão é recusado com a mensagem explicando o motivo.",
+      "Por dentro: os três testes do módulo Processos & Ativos (contratos, prazos do CTB, licenciamento) passaram a rodar na verificação automática a cada entrega. São 127 conferências de prazo legal que até aqui só rodavam na máquina de quem lembrasse de executá-las.",
+    ],
+  },
+  {
     versao: "1.172.1",
     data: "21/09/2026",
     horario: "14:45",
