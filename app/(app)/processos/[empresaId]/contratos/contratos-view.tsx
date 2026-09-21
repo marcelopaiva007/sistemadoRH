@@ -345,7 +345,13 @@ export function ContratosView({
       categoria: c.categoria,
       status: c.status,
       criticidade: c.criticidade,
-      gestorId: textoOuTraco(c.gestorId),
+      // Contrato antigo pode trazer id de FICHA de colaborador aqui (o campo
+      // mudou de fonte na v1.174.0). Deixá-lo no estado faria o <select>
+      // renderizar em branco com o id inválido ainda dentro — e o salvar seria
+      // recusado sem a pessoa entender por quê. Some do campo e vira aviso.
+      gestorId: gestores.some((g) => g.id === c.gestorId) ? textoOuTraco(c.gestorId) : "",
+      gestorLegadoNome:
+        c.gestorId && !gestores.some((g) => g.id === c.gestorId) ? (c.gestorNome ?? "") : "",
       dataAssinatura: c.dataAssinaturaInput,
       dataInicio: c.dataInicioInput,
       dataFim: c.dataFimInput,
@@ -795,8 +801,17 @@ export function ContratosView({
                 ))}
               </select>
               <span className="mt-0.5 block text-[11px] text-muted-foreground/80">
-                Vira o dono das pendências deste contrato na Central.
+                Vira o dono das pendências deste contrato na Central — por isso a lista é de
+                usuários do sistema, não da folha: quem recebe o prazo precisa conseguir entrar e
+                resolver.
               </span>
+              {form.gestorLegadoNome && (
+                <span className="mt-0.5 block text-[11px] text-destructive">
+                  O gestor anterior deste contrato ({form.gestorLegadoNome}) era uma ficha de
+                  colaborador, não um usuário do sistema — as pendências dele nunca tiveram dono
+                  que pudesse resolvê-las. Escolha um usuário acima.
+                </span>
+              )}
             </label>
             <label className="text-xs text-muted-foreground sm:col-span-2 lg:col-span-4">
               Objeto

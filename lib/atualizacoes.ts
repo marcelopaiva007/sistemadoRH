@@ -26,6 +26,19 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.174.0",
+    data: "21/09/2026",
+    horario: "17:30",
+    titulo: "Contratos: o gestor responsável agora é usuário do sistema, não a folha inteira",
+    itens: [
+      "O campo \"Gestor responsável\" listava TODOS os colaboradores ativos do grupo — centenas de nomes, a maioria sem login no sistema. Rolar aquela lista para achar alguém já era ruim; o problema de verdade era outro.",
+      "O que esse campo faz: quem é escolhido aqui vira o DONO das pendências deste contrato na Central — aviso de não-renovação, ação renovatória, reajuste. Mas a Central só reconhece usuário do sistema como dono. Escolhendo uma ficha de colaborador, a pendência nascia mostrando um nome e sem dono capaz de entrar e resolver. É pior que pendência sem dono, porque a lista parece atribuída.",
+      "Agora o campo lista os mesmos usuários que a Central oferece quando você atribui uma pendência à mão: Administrativo/Financeiro, Diretoria/Gestão e Gestor(a) de RH, ativos. Gestor(a) de Setor fica de fora porque não alcança o módulo — nomeá-lo criaria pendência que ele não vê.",
+      "Se algum contrato já tiver uma ficha de colaborador gravada nesse campo, ao abri-lo para edição a tela avisa em vermelho de quem era e pede para escolher um usuário. Nada é apagado sem você ver.",
+      "A regra vale também no servidor: um formulário aberto antes desta versão é recusado com a explicação, em vez de gravar um dono que não funciona.",
+    ],
+  },
+  {
     versao: "1.173.0",
     data: "21/09/2026",
     horario: "15:30",
