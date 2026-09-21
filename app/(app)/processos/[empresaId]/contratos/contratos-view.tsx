@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Pencil, Plus, TrendingUp, TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -8,13 +9,19 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Indicador } from "@/components/indicador";
+import { FaixaDeIndicadores } from "@/components/padroes/faixa-de-indicadores";
 import { formatarReais } from "@/lib/constants-beneficios";
-import { registrarReajusteAplicado, salvarContrato } from "@/lib/actions/processos-contratos";
+import { registrarReajusteAplicado, salvarContraparte, salvarContrato } from "@/lib/actions/processos-contratos";
 import {
   CATEGORIAS_CONTRATO,
   INDICES_REAJUSTE,
+  PAPEIS_CONTRAPARTE,
   STATUS_CONTRATO,
   TIPOS_CONTRATO,
+  TIPOS_CONTRATO_DESPESA,
+  TIPOS_PESSOA,
+  papelSugeridoPorTipo,
   rotulo,
 } from "@/lib/processos/contratos";
 
@@ -28,6 +35,8 @@ export type ContratoNaTela = {
   tipo: string;
   categoria: string;
   status: string;
+  /** VIGENTE, EM_RENOVACAO ou SUSPENSO — quem ainda tem relógio correndo. */
+  prazoCorrendo: boolean;
   criticidade: string;
   gestorId: string | null;
   gestorNome: string | null;
@@ -67,6 +76,9 @@ export type ContratoNaTela = {
   observacoes: string | null;
 };
 
+/** O valor do <option> que ABRE o cadastro rápido em vez de escolher alguém. */
+const NOVA_CONTRAPARTE = "__nova__";
+
 const CAMPO = "w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm";
 const SECAO = "sm:col-span-2 lg:col-span-4 pt-2 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase";
 
@@ -101,6 +113,25 @@ export function ContratosView({
   const [form, setForm] = useState<Record<string, string> | null>(null);
   const [filtroStatus, setFiltroStatus] = useState(statusInicial);
   const [reajuste, setReajuste] = useState<{ id: string; numero: string; data: string; valor: string } | null>(null);
+  // A contraparte cadastrada SEM SAIR do formulário de contrato. Antes, quem
+  // abria a tela pela primeira vez encontrava o botão "Cadastrar contrato"
+  // desabilitado e uma frase mandando cadastrar a contraparte — sem link e sem
+  // caminho: a tela não fazia nada na primeira visita, que é exatamente a
+  // visita em que ela precisa funcionar.
+  const [contraparteNova, setContraparteNova] = useState<Record<string, string> | null>(null);
+  const [papeisNovos, setPapeisNovos] = useState<string[]>([]);
+  // As que acabaram de nascer aqui. O `router.refresh()` traz a lista do
+  // servidor, mas não instantaneamente — sem esta cópia local o <select>
+  // ficava um instante apontando para um id que não está nas opções, e o campo
+  // aparecia EM BRANCO logo depois de a pessoa cadastrar.
+  const [recemCriadas, setRecemCriadas] = useState<{ id: string; razaoSocial: string; cnpjCpf: string }[]>([]);
+
+  const opcoesContraparte = useMemo(() => {
+    const jaVeio = new Set(contrapartes.map((c) => c.id));
+    return [...contrapartes, ...recemCriadas.filter((c) => !jaVeio.has(c.id))].sort((a, b) =>
+      a.razaoSocial.localeCompare(b.razaoSocial, "pt-BR"),
+    );
+  }, [contrapartes, recemCriadas]);
 
   function aplicarReajuste() {
     if (!reajuste) return;
@@ -121,6 +152,55 @@ export function ContratosView({
     });
   }
 
+  // Abre o cadastro rápido da contraparte dentro do formulário do contrato, já
+  // com o papel que o tipo do contrato sugere marcado.
+  function abrirContraparteNova() {
+    setErro(null);
+    const sugerido = papelSugeridoPorTipo(form?.tipo);
+    setPapeisNovos(sugerido ? [sugerido] : []);
+    setContraparteNova({ tipoPessoa: "JURIDICA" });
+  }
+
+  function alternarPapelNovo(valor: string) {
+    setPapeisNovos((p) => (p.includes(valor) ? p.filter((x) => x !== valor) : [...p, valor]));
+  }
+
+  function salvarContraparteNova() {
+    if (!contraparteNova) return;
+    if (papeisNovos.length === 0) {
+      setErro("Marque ao menos um papel — é ele que diz o que esta contraparte é para o grupo.");
+      return;
+    }
+    setErro(null);
+    iniciar(async () => {
+      const r = await salvarContraparte({
+        empresaId,
+        tipoPessoa: contraparteNova.tipoPessoa || "JURIDICA",
+        razaoSocial: contraparteNova.razaoSocial ?? "",
+        cnpjCpf: contraparteNova.cnpjCpf ?? "",
+        papeis: papeisNovos,
+        emailNotificacaoFormal: contraparteNova.emailNotificacaoFormal ?? null,
+        telefone: contraparteNova.telefone ?? null,
+      });
+      if (!r.ok) {
+        setErro(r.error);
+        return;
+      }
+      const id = r.id!;
+      setRecemCriadas((l) => [
+        ...l,
+        { id, razaoSocial: (contraparteNova.razaoSocial ?? "").trim(), cnpjCpf: contraparteNova.cnpjCpf ?? "" },
+      ]);
+      // O contrato que a pessoa já estava preenchendo continua na tela, agora
+      // com a contraparte escolhida: o cadastro rápido não pode custar o que
+      // ela digitou antes dele.
+      setForm((f) => ({ ...(f ?? {}), contraparteId: id }));
+      setContraparteNova(null);
+      setPapeisNovos([]);
+      router.refresh();
+    });
+  }
+
   // "Encerrado" e "cancelado" ficam fora por padrão: contrato morto não some
   // (é prova do que foi combinado, e o prazo de guarda corre do fim), mas
   // também não pode competir por atenção com o que ainda tem prazo correndo.
@@ -128,6 +208,38 @@ export function ContratosView({
     () => (filtroStatus === "TODOS" ? contratos : contratos.filter((c) => c.status === filtroStatus)),
     [contratos, filtroStatus],
   );
+
+  /**
+   * Os cinco números do topo — sempre sobre o PRAZO CORRENDO, nunca sobre o
+   * filtro de status da tela.
+   *
+   * A distinção é o ponto: quem abre em "Vigente" e lê "R$ 42.000/mês" precisa
+   * poder confiar que é o custo do grupo, e não o custo do recorte que estava
+   * aberto. Rascunho, encerrado e cancelado ficam fora pela mesma régua da
+   * Central (`STATUS_COM_PRAZO_CORRENDO`), aplicada no servidor.
+   */
+  const resumo = useMemo(() => {
+    let custoMensal = 0;
+    let comValor = 0;
+    let vencendo90 = 0;
+    let denunciaVencida = 0;
+    let reajusteAplicar = 0;
+    let semGestor = 0;
+    let ativos = 0;
+    for (const c of contratos) {
+      if (!c.prazoCorrendo) continue;
+      ativos++;
+      if (c.valorMensal !== null) {
+        custoMensal += c.valorMensal;
+        comValor++;
+      }
+      if (c.diasParaFim !== null && c.diasParaFim >= 0 && c.diasParaFim <= 90) vencendo90++;
+      if (c.diasParaDenuncia !== null && c.diasParaDenuncia < 0) denunciaVencida++;
+      if (c.reajusteDevido) reajusteAplicar++;
+      if (!c.gestorNome) semGestor++;
+    }
+    return { custoMensal, comValor, vencendo90, denunciaVencida, reajusteAplicar, semGestor, ativos };
+  }, [contratos]);
 
   function campo(nome: string) {
     return {
@@ -144,6 +256,12 @@ export function ContratosView({
   function novo() {
     setErro(null);
     setForm({ status: "VIGENTE", categoria: "DESPESA", criticidade: "NORMAL", empresaAlvo: empresaId });
+    // Grupo sem nenhuma contraparte: o primeiro contrato precisa das duas
+    // coisas, e fazer a pessoa adivinhar a ordem era o que travava a tela.
+    if (contrapartes.length === 0 && recemCriadas.length === 0) {
+      setPapeisNovos([]);
+      setContraparteNova({ tipoPessoa: "JURIDICA" });
+    }
   }
 
   // TODOS os campos entram no prefill. Campo fora do formulário na edição é
@@ -205,7 +323,10 @@ export function ContratosView({
         titulo: form.titulo ?? "",
         objeto: form.objeto ?? null,
         contraparteId: form.contraparteId ?? "",
-        tipo: form.tipo || "OUTRO",
+        // Sem `|| "OUTRO"`: quem esquecia de escolher o tipo recebia um contrato
+        // classificado como "Outro" sem nenhum aviso. A action recusa o vazio e
+        // devolve a frase que diz o que fazer.
+        tipo: form.tipo ?? "",
         categoria: form.categoria || "DESPESA",
         status: form.status || "VIGENTE",
         criticidade: form.criticidade || "NORMAL",
@@ -242,7 +363,16 @@ export function ContratosView({
     });
   }
 
-  const semContraparte = contrapartes.length === 0;
+  // "Locação de imóvel (receita)" sai da lista: esta tela grava DESPESA ou
+  // SEM_VALOR, e o par tipo-receita + natureza-despesa é um contrato que
+  // contradiz a si mesmo. Continua visível só se o contrato EM EDIÇÃO já for
+  // desse tipo — tirar a opção do <select> de quem edita um caso legado
+  // apagaria o tipo dele em silêncio no próximo salvar.
+  const tipoAtual = form?.tipo ?? "";
+  const opcoesTipo =
+    tipoAtual && !TIPOS_CONTRATO_DESPESA.some((t) => t.value === tipoAtual)
+      ? TIPOS_CONTRATO.filter((t) => t.value === tipoAtual || t.value !== "LOCACAO_IMOVEL")
+      : TIPOS_CONTRATO_DESPESA;
   const eLocacao = marcado("locacaoNaoResidencial");
   const ePoste = form?.tipo === "COMPARTILHAMENTO_POSTE";
 
@@ -287,17 +417,50 @@ export function ContratosView({
             <option key={s.value} value={s.value}>{s.label}</option>
           ))}
         </select>
-        <Button size="sm" className="gap-2" disabled={semContraparte} onClick={novo}>
+        <Button size="sm" className="gap-2" onClick={novo}>
           <Plus className="size-4" />
           Cadastrar contrato
         </Button>
       </div>
 
-      {semContraparte && (
-        <p className="rounded-md border border-border bg-card px-3 py-2 text-sm text-muted-foreground">
-          Cadastre primeiro a contraparte — quem assina do outro lado. Ela é do grupo inteiro:
-          o mesmo locador ou fornecedor serve a todos os CNPJs, sem recadastrar.
-        </p>
+      {/* Na tela vazia a faixa seria cinco zeros explicando nada: quem chega
+          aqui pela primeira vez precisa do caminho, não do painel. */}
+      {contratos.length > 0 && (
+        <FaixaDeIndicadores colunas={5}>
+          <Indicador
+            rotulo="Custo mensal"
+            valor={formatarReais(resumo.custoMensal)}
+            complemento={
+              resumo.ativos === 0
+                ? "nenhum contrato com prazo correndo"
+                : `${resumo.comValor} de ${resumo.ativos} contrato(s) com valor informado`
+            }
+          />
+          <Indicador
+            rotulo="Vencem em 90 dias"
+            valor={resumo.vencendo90}
+            complemento="fim da vigência se aproximando"
+            estado={resumo.vencendo90 > 0 ? "atencao" : "padrao"}
+          />
+          <Indicador
+            rotulo="Decisão vencida"
+            valor={resumo.denunciaVencida}
+            complemento="passou a data de avisar que não renova"
+            estado={resumo.denunciaVencida > 0 ? "alerta" : "padrao"}
+          />
+          <Indicador
+            rotulo="Reajuste a aplicar"
+            valor={resumo.reajusteAplicar}
+            complemento="mês-base já chegou"
+            estado={resumo.reajusteAplicar > 0 ? "atencao" : "padrao"}
+          />
+          <Indicador
+            rotulo="Sem gestor"
+            valor={resumo.semGestor}
+            complemento="pendência que nasce sem dono"
+            estado={resumo.semGestor > 0 ? "atencao" : "padrao"}
+          />
+        </FaixaDeIndicadores>
       )}
 
       {reajuste && (
@@ -371,14 +534,122 @@ export function ContratosView({
               <input {...campo("titulo")} className={CAMPO} placeholder="Locação da torre — Sítio Boa Vista" />
             </label>
             <label className="text-xs text-muted-foreground sm:col-span-2">
-              Contraparte
-              <select {...campo("contraparteId")} className={CAMPO}>
+              Contraparte (quem assina do outro lado)
+              <select
+                value={form.contraparteId ?? ""}
+                onChange={(e) =>
+                  e.target.value === NOVA_CONTRAPARTE
+                    ? abrirContraparteNova()
+                    : setForm((f) => ({ ...(f ?? {}), contraparteId: e.target.value }))
+                }
+                className={CAMPO}
+                disabled={contraparteNova !== null}
+              >
                 <option value="">Escolha…</option>
-                {contrapartes.map((c) => (
+                {opcoesContraparte.map((c) => (
                   <option key={c.id} value={c.id}>{c.razaoSocial}</option>
                 ))}
+                <option value={NOVA_CONTRAPARTE}>+ Cadastrar nova contraparte…</option>
               </select>
+              <span className="mt-0.5 block text-[11px] text-muted-foreground/80">
+                É do grupo inteiro: o mesmo fornecedor ou locador serve a todos os CNPJs, sem
+                recadastrar. Para completar endereço e observações,{" "}
+                <Link
+                  href={`/processos/${empresaId}/contratos/contrapartes`}
+                  className="underline underline-offset-2"
+                >
+                  abra o cadastro de contrapartes
+                </Link>
+                .
+              </span>
             </label>
+            {contraparteNova && (
+              <div className="grid gap-3 rounded-md border border-border bg-muted/30 p-3 sm:col-span-2 sm:grid-cols-2 lg:col-span-4 lg:grid-cols-4">
+                <p className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase sm:col-span-2 lg:col-span-4">
+                  Nova contraparte
+                </p>
+                <label className="text-xs text-muted-foreground">
+                  Tipo
+                  <select
+                    value={contraparteNova.tipoPessoa ?? "JURIDICA"}
+                    onChange={(e) => setContraparteNova({ ...contraparteNova, tipoPessoa: e.target.value })}
+                    className={CAMPO}
+                  >
+                    {TIPOS_PESSOA.map((t) => (
+                      <option key={t.value} value={t.value}>{t.label}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-xs text-muted-foreground">
+                  CNPJ / CPF
+                  <input
+                    value={contraparteNova.cnpjCpf ?? ""}
+                    onChange={(e) => setContraparteNova({ ...contraparteNova, cnpjCpf: e.target.value })}
+                    className={CAMPO}
+                    placeholder="Só os números"
+                  />
+                </label>
+                <label className="text-xs text-muted-foreground sm:col-span-2">
+                  Razão social / nome
+                  <input
+                    value={contraparteNova.razaoSocial ?? ""}
+                    onChange={(e) => setContraparteNova({ ...contraparteNova, razaoSocial: e.target.value })}
+                    className={CAMPO}
+                  />
+                </label>
+                <div className="text-xs text-muted-foreground sm:col-span-2 lg:col-span-4">
+                  Papéis
+                  <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1.5">
+                    {PAPEIS_CONTRAPARTE.map((pp) => (
+                      <label key={pp.value} className="flex items-center gap-1.5">
+                        <input
+                          type="checkbox"
+                          checked={papeisNovos.includes(pp.value)}
+                          onChange={() => alternarPapelNovo(pp.value)}
+                          className="size-4"
+                        />
+                        {pp.label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <label className="text-xs text-muted-foreground sm:col-span-2">
+                  E-mail para notificação formal
+                  <input
+                    type="email"
+                    value={contraparteNova.emailNotificacaoFormal ?? ""}
+                    onChange={(e) =>
+                      setContraparteNova({ ...contraparteNova, emailNotificacaoFormal: e.target.value })
+                    }
+                    className={CAMPO}
+                  />
+                  <span className="mt-0.5 block text-[11px] text-muted-foreground/80">
+                    É para cá que vai o aviso de não-renovação. Endereço errado aqui é prazo
+                    cumprido que não vale.
+                  </span>
+                </label>
+                <label className="text-xs text-muted-foreground">
+                  Telefone
+                  <input
+                    value={contraparteNova.telefone ?? ""}
+                    onChange={(e) => setContraparteNova({ ...contraparteNova, telefone: e.target.value })}
+                    className={CAMPO}
+                  />
+                </label>
+                <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-4">
+                  <Button size="sm" variant="outline" disabled={pendente} onClick={salvarContraparteNova}>
+                    Salvar contraparte
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => { setContraparteNova(null); setPapeisNovos([]); setErro(null); }}
+                  >
+                    Cancelar
+                  </Button>
+                </div>
+              </div>
+            )}
             <label className="text-xs text-muted-foreground">
               Tipo
               <select
@@ -387,7 +658,7 @@ export function ContratosView({
                 className={CAMPO}
               >
                 <option value="">Escolha…</option>
-                {TIPOS_CONTRATO.map((t) => (
+                {opcoesTipo.map((t) => (
                   <option key={t.value} value={t.value}>{t.label}</option>
                 ))}
               </select>
@@ -591,11 +862,20 @@ export function ContratosView({
               <textarea {...campo("observacoes")} rows={2} className={CAMPO} />
             </label>
 
-            <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-4">
-              <Button size="sm" disabled={pendente} onClick={salvar}>Salvar</Button>
-              <Button size="sm" variant="ghost" onClick={() => { setForm(null); setErro(null); }}>
+            <div className="flex flex-wrap items-end gap-2 sm:col-span-2 lg:col-span-4">
+              <Button size="sm" disabled={pendente || contraparteNova !== null} onClick={salvar}>Salvar</Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => { setForm(null); setContraparteNova(null); setPapeisNovos([]); setErro(null); }}
+              >
                 Cancelar
               </Button>
+              {contraparteNova !== null && (
+                <span className="text-[11px] text-muted-foreground">
+                  Salve ou cancele a nova contraparte antes de salvar o contrato.
+                </span>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -620,9 +900,43 @@ export function ContratosView({
               {visiveis.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={8} className="py-8 text-center text-sm text-muted-foreground">
-                    {contratos.length === 0
-                      ? "Nenhum contrato cadastrado. Sem contrato cadastrado, nenhum prazo de renovação é cobrado."
-                      : "Nenhum contrato com este status."}
+                    {contratos.length === 0 ? (
+                      <>
+                        <span className="block">
+                          Nenhum contrato cadastrado. Sem contrato cadastrado, nenhum prazo de
+                          renovação é cobrado.
+                        </span>
+                        <span className="mt-1 block text-[11px]">
+                          Aqui entra o que o grupo CONTRATA — torre, terreno, poste, prefeitura,
+                          fornecedor, prestador. Imóvel do grupo alugado a terceiro vive em{" "}
+                          <Link
+                            href={`/processos/${empresaId}/alugueis`}
+                            className="underline underline-offset-2"
+                          >
+                            Aluguéis a receber
+                          </Link>
+                          .
+                        </span>
+                        <Button size="sm" className="mt-3 gap-2" onClick={novo}>
+                          <Plus className="size-4" />
+                          Cadastrar o primeiro contrato
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <span className="block">Nenhum contrato com este status.</span>
+                        {filtroStatus !== "TODOS" && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="mt-2"
+                            onClick={() => setFiltroStatus("TODOS")}
+                          >
+                            Ver todos os {contratos.length} contrato(s)
+                          </Button>
+                        )}
+                      </>
+                    )}
                   </TableCell>
                 </TableRow>
               )}

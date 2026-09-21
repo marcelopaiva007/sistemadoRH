@@ -6,7 +6,18 @@ import { requireProcessosEmpresa } from "@/lib/processos-auth-guard";
 import { empresasVisiveis } from "@/lib/rh-auth-guard";
 import { registrarAuditoria } from "@/lib/audit";
 import { dataDoFormulario } from "@/lib/datas";
-import { dataLimiteDenuncia, janelaRenovatoria, proximoReajuste } from "@/lib/processos/contratos";
+import {
+  CATEGORIAS_CONTRATO,
+  INDICES_REAJUSTE,
+  PAPEIS_CONTRAPARTE,
+  STATUS_CONTRATO,
+  TIPOS_CONTRATO,
+  TIPOS_PESSOA,
+  daLista,
+  dataLimiteDenuncia,
+  janelaRenovatoria,
+  proximoReajuste,
+} from "@/lib/processos/contratos";
 import type { ActionResult } from "@/lib/constants";
 
 // Contratos e contrapartes do módulo Processos & Ativos.
@@ -84,6 +95,16 @@ export async function salvarContraparte(input: {
     return { ok: false, error: "CNPJ deve ter 14 dígitos e CPF, 11." };
   }
 
+  const tipoPessoa = input.tipoPessoa || "JURIDICA";
+  if (!daLista(TIPOS_PESSOA, tipoPessoa)) return { ok: false, error: "Tipo de pessoa inválido." };
+  // O papel é o que a contraparte É para o grupo — a tela já exige ao menos um,
+  // mas a action é a fronteira: sem papel, a contraparte some dos filtros por
+  // papel e ninguém descobre por quê.
+  const papeis = (input.papeis ?? []).filter((p) => daLista(PAPEIS_CONTRAPARTE, p));
+  if (papeis.length === 0) {
+    return { ok: false, error: "Marque ao menos um papel — é ele que diz o que esta contraparte é para o grupo." };
+  }
+
   // O documento é único no grupo inteiro. Sem esta checagem, o erro chegaria
   // como violação de unique do Postgres — sem dizer QUEM já usa o número, que é
   // exatamente o que a pessoa precisa saber para não recadastrar.
@@ -101,11 +122,11 @@ export async function salvarContraparte(input: {
   }
 
   const dados = {
-    tipoPessoa: input.tipoPessoa || "JURIDICA",
+    tipoPessoa,
     razaoSocial,
     nomeFantasia: limpo(input.nomeFantasia),
     cnpjCpf: documento,
-    papeis: (input.papeis ?? []).join(","),
+    papeis: papeis.join(","),
     criticidade: input.criticidade || "NORMAL",
     emailNotificacaoFormal: limpo(input.emailNotificacaoFormal),
     telefone: limpo(input.telefone),
@@ -239,6 +260,26 @@ export async function salvarContrato(input: {
   const titulo = limpo(input.titulo);
   if (!titulo) return { ok: false, error: "Informe um título que identifique o contrato." };
 
+  // As colunas de classificação são texto no banco, não enum — quem valida é
+  // aqui. Sem isto o tipo em branco chegava como "OUTRO" (a tela convertia) e
+  // o contrato nascia classificado errado, calado, para quem só esqueceu de
+  // escolher no <select>.
+  if (!daLista(TIPOS_CONTRATO, input.tipo)) return { ok: false, error: "Escolha o tipo do contrato." };
+  const categoria = input.categoria || "DESPESA";
+  if (!daLista(CATEGORIAS_CONTRATO, categoria)) {
+    return { ok: false, error: "Natureza do contrato inválida — use despesa, receita ou sem valor." };
+  }
+  const status = input.status || "VIGENTE";
+  if (!daLista(STATUS_CONTRATO, status)) return { ok: false, error: "Status do contrato inválido." };
+  const criticidade = input.criticidade || "NORMAL";
+  if (criticidade !== "NORMAL" && criticidade !== "ALTA") {
+    return { ok: false, error: "Criticidade tem que ser normal ou alta." };
+  }
+  const indice = limpo(input.indiceReajuste);
+  if (indice && !daLista(INDICES_REAJUSTE, indice)) {
+    return { ok: false, error: "Índice de reajuste inválido." };
+  }
+
   const dataInicio = dataDoFormulario(input.dataInicio);
   if (!dataInicio) return { ok: false, error: "Informe a data de início da vigência." };
 
@@ -288,11 +329,11 @@ export async function salvarContrato(input: {
     numero: numeroContrato,
     contraparteId: contraparte.id,
     tipo: input.tipo,
-    categoria: input.categoria || "DESPESA",
+    categoria,
     titulo,
     objeto: limpo(input.objeto),
-    status: input.status || "VIGENTE",
-    criticidade: input.criticidade || "NORMAL",
+    status,
+    criticidade,
     gestorId: limpo(input.gestorId),
     setorId: limpo(input.setorId),
     dataAssinatura: dataDoFormulario(input.dataAssinatura),
@@ -309,7 +350,7 @@ export async function salvarContrato(input: {
     renunciaRevisionalPactuada: input.renunciaRevisionalPactuada ?? false,
     valorMensal: numero(input.valorMensal),
     valorTotal: numero(input.valorTotal),
-    indiceReajuste: limpo(input.indiceReajuste),
+    indiceReajuste: indice,
     periodicidadeReajusteMeses: periodicidade,
     mesBaseReajuste: mesBase,
     ultimoReajusteEm: anterior?.ultimoReajusteEm ?? null,

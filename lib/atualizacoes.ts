@@ -26,6 +26,22 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.172.0",
+    data: "21/09/2026",
+    horario: "14:00",
+    titulo: "Contratos: a tela destravou — dá para cadastrar o fornecedor sem sair do formulário",
+    itens: [
+      "O defeito: quem abria Contratos pela primeira vez encontrava o botão \"Cadastrar contrato\" APAGADO, sem explicação do que fazer, e um aviso pedindo para cadastrar antes a contraparte — sem link e sem caminho. Para quem estava na tela, ela simplesmente não funcionava, e era justamente a primeira visita, quando não há nada cadastrado ainda.",
+      "Agora o botão está sempre disponível. Dentro do formulário do contrato, o campo \"Contraparte\" ganhou a opção \"+ Cadastrar nova contraparte…\": abre ali mesmo um bloco curto (CNPJ/CPF, razão social, papéis, e-mail para notificação formal e telefone), salva, e o contrato que você já estava preenchendo continua na tela com a contraparte escolhida — nada do que foi digitado se perde.",
+      "Num grupo que ainda não tem nenhuma contraparte, esse bloco já abre junto com o formulário: o primeiro contrato precisa das duas coisas, e não faz sentido a pessoa ter de adivinhar a ordem.",
+      "Os papéis vêm pré-marcados pelo tipo do contrato — torre e terreno sugerem \"Locador\", uso do solo sugere \"Prefeitura\", poste sugere \"Concessionária\". Continua tudo editável.",
+      "Cinco números novos no topo da tela, e eles contam sempre o que tem PRAZO CORRENDO (vigente, em renovação ou suspenso), nunca o filtro de status que estiver aberto: custo mensal do grupo, contratos que vencem em 90 dias, decisões de renovação já vencidas, reajustes a aplicar e contratos sem gestor.",
+      "A lista de tipos deixou de oferecer \"Locação de imóvel (receita)\" nesta tela. Ele é o tipo do imóvel do grupo alugado a terceiro e vive em Aluguéis a receber; aqui ele produzia um contrato que se contradizia — tipo de receita com natureza de despesa.",
+      "Esqueceu de escolher o tipo do contrato? Antes o sistema gravava \"Outro\" em silêncio, e ninguém descobria. Agora ele avisa e pede para escolher.",
+      "A tela vazia passou a dizer para onde ir: explica que aqui entra o que o grupo CONTRATA (torre, terreno, poste, prefeitura, fornecedor, prestador), aponta Aluguéis a receber para o caminho inverso, e traz o botão de cadastrar o primeiro contrato. Quando o filtro de status esconde tudo, o atalho \"Ver todos\" aparece.",
+    ],
+  },
+  {
     versao: "1.171.1",
     data: "11/09/2026",
     horario: "11:00",
