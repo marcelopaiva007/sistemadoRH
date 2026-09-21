@@ -47,6 +47,7 @@ import {
   desativarVinculoMarca,
   reativarVinculoMarca,
   criarConviteUsuario,
+  toggleUsuarioAtivo,
 } from "@/lib/actions/usuarios";
 import { ROLES, ROLE_LABEL, type ActionResult } from "@/lib/constants";
 import { PERFIS_SEMENTE } from "@/lib/permissoes/catalogo";
@@ -255,9 +256,7 @@ export function UsuariosTable({
                   </div>
                 </TableCell>
                 <TableCell>
-                  <Badge variant={u.ativo ? "outline" : "destructive"}>
-                    {u.ativo ? "Ativo" : "Inativo"}
-                  </Badge>
+                  <StatusDoUsuario usuario={u} ehVoce={u.id === currentUserId} />
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-1">
@@ -1288,6 +1287,73 @@ function ConviteForm({
         </Button>
       </DialogFooter>
     </form>
+  );
+}
+
+/**
+ * O badge de status que também LIGA E DESLIGA o acesso.
+ *
+ * Antes era um badge estático e a única porta para desativar alguém estava
+ * dentro do formulário de edição, num checkbox no fim — ninguém achava. A tela
+ * de Empresas já fazia o badge clicável; esta era a exceção.
+ *
+ * Duas diferenças em relação ao de Empresas, porque aqui o que muda é QUEM
+ * ENTRA no sistema:
+ *
+ * 1. Desativar pede confirmação (mesmo padrão do `DeleteUsuarioButton` ao
+ *    lado). Reativar não pede: devolver acesso por engano se desfaz com outro
+ *    clique, tirar acesso de quem está trabalhando, não.
+ * 2. O erro do servidor aparece. O botão de Empresas ignora `result.error` em
+ *    silêncio; aqui as recusas — último ADMIN, você mesmo — precisam DIZER o
+ *    motivo, senão o clique parece não ter funcionado.
+ *
+ * A própria linha não ganha o botão: desativar a si mesmo é recusado no
+ * servidor, e oferecer o clique para depois negá-lo é pior que não oferecer.
+ */
+function StatusDoUsuario({ usuario, ehVoce }: { usuario: Usuario; ehVoce: boolean }) {
+  const [confirmando, setConfirmando] = useState(false);
+  const [pendente, setPendente] = useState(false);
+
+  async function alternar(ativo: boolean) {
+    setPendente(true);
+    const r = await toggleUsuarioAtivo(usuario.id, ativo);
+    setPendente(false);
+    setConfirmando(false);
+    if (r.ok) toast.success(ativo ? "Acesso reativado." : "Acesso desativado — o login passa a ser recusado.");
+    else toast.error(r.error);
+  }
+
+  const etiqueta = (
+    <Badge variant={usuario.ativo ? "outline" : "destructive"}>
+      {usuario.ativo ? "Ativo" : "Inativo"}
+    </Badge>
+  );
+
+  if (ehVoce) return etiqueta;
+
+  if (confirmando) {
+    return (
+      <div className="flex flex-wrap items-center gap-1">
+        <Button variant="destructive" size="sm" disabled={pendente} onClick={() => alternar(false)}>
+          Desativar
+        </Button>
+        <Button variant="ghost" size="sm" disabled={pendente} onClick={() => setConfirmando(false)}>
+          Cancelar
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      disabled={pendente}
+      onClick={() => (usuario.ativo ? setConfirmando(true) : alternar(true))}
+      title={usuario.ativo ? "Desativar acesso (bloqueia o login)" : "Reativar acesso"}
+      className="cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      {etiqueta}
+    </button>
   );
 }
 

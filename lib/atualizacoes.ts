@@ -26,6 +26,21 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.175.0",
+    data: "21/09/2026",
+    horario: "18:00",
+    titulo: "Usuários: desativar acesso virou um clique na própria linha",
+    itens: [
+      "Desativar um usuário já era possível, mas ninguém achava: a única porta ficava dentro de \"Editar\", num checkbox no fim do formulário. Na lista, a coluna STATUS era só uma etiqueta parada, e nenhum dos cinco ícones de ação dizia \"desativar\".",
+      "Agora a etiqueta \"Ativo\" é clicável. Um clique pede confirmação e desliga o acesso; a etiqueta vira \"Inativo\" em vermelho e o login daquela pessoa passa a ser recusado. Clicar em \"Inativo\" devolve o acesso na hora, sem confirmação — devolver acesso por engano se desfaz com outro clique, tirar acesso de quem está trabalhando não.",
+      "É a mesma mecânica que a tela de Empresas já usava. Usuários era a exceção.",
+      "ATENÇÃO ao que desativar faz e ao que não faz: bloqueia o PRÓXIMO login, mas não derruba uma sessão que já esteja aberta. Em caso de desligamento com urgência, use também \"Redefinir senha\" (ícone da chave), que corta o acesso de imediato.",
+      "Duas recusas continuam valendo, agora com o motivo escrito na tela: ninguém desativa o próprio usuário (sua linha nem mostra o botão), e não dá para desativar o único Administrativo/Financeiro ativo — seria trancar o sistema sem ter como voltar por tela nenhuma.",
+      "Toda ativação e desativação entra na auditoria, com quem fez e quando.",
+      "O checkbox dentro de \"Editar\" continua existindo e funcionando igual, para quem já se acostumou com ele.",
+    ],
+  },
+  {
     versao: "1.174.0",
     data: "21/09/2026",
     horario: "17:30",

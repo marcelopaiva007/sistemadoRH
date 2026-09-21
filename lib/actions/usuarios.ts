@@ -341,6 +341,73 @@ export async function resetSenhaUsuario(id: string, _prev: ActionResult, formDat
   return { ok: true };
 }
 
+/**
+ * Liga e desliga o acesso de um usuário direto da lista.
+ *
+ * A capacidade já existia — dentro do formulário de edição, no checkbox
+ * "Usuário ativo". Ninguém achava: a coluna STATUS era um badge estático e
+ * nenhum dos cinco ícones de ação dizia "desativar". A tela de Empresas já
+ * resolve isso com o badge clicável (`toggleEmpresaAtiva`); Usuários era a
+ * exceção.
+ *
+ * As travas são as MESMAS de `updateUsuario` e `deleteUsuario`, repetidas aqui
+ * porque esta é uma porta nova para o mesmo lugar — e foi exatamente esse o
+ * defeito corrigido em 14/08/2026, quando só a exclusão era protegida e editar
+ * o papel do último ADMIN trancava o sistema pela porta de trás.
+ *
+ * Diferente de `toggleEmpresaAtiva`, que só faz `requireAdmin` e grava: aqui o
+ * que está em jogo é quem entra no sistema, então cada recusa tem motivo
+ * escrito e a mudança vai para a auditoria.
+ */
+export async function toggleUsuarioAtivo(id: string, ativo: boolean): Promise<ActionResult> {
+  const admin = await requireGestaoUsuarios();
+
+  // Desativar a si mesmo derruba o próprio acesso no próximo login, e quem faz
+  // isso quase sempre queria desativar outra pessoa — a lista tem uma linha por
+  // usuário e o engano é de um clique. Mesma frase de `updateUsuario`.
+  if (admin.id === id && !ativo) {
+    return { ok: false, error: "Você não pode desativar seu próprio usuário." };
+  }
+
+  const alvo = await prisma.user.findUnique({
+    where: { id },
+    select: { role: true, ativo: true, username: true, nome: true },
+  });
+  if (!alvo) return { ok: false, error: "Usuário não encontrado." };
+
+  // Já está no estado pedido? A lista pode estar velha (outra aba, outra
+  // pessoa). Devolver ok sem gravar evita uma linha de auditoria que não
+  // corresponde a mudança nenhuma.
+  if (alvo.ativo === ativo) return { ok: true };
+
+  // A QUARTA PORTA para o mesmo buraco. `lib/usuarios-regras.ts` lista três —
+  // excluir o último ADMIN, desativá-lo, trocar o papel dele — e diz por que a
+  // regra é UMA SÓ. Este botão abriu mais uma; reusar o julgamento em vez de
+  // recontar aqui é o que impede a quarta de divergir das outras três.
+  //
+  // Reativar nunca tira um ADMIN do ar, então a consulta só roda ao desativar.
+  if (!ativo) {
+    const outrosAdmins = await prisma.user.count({
+      where: { role: "ADMIN", ativo: true, NOT: { id } },
+    });
+    if (deixariaSistemaSemAdmin(alvo, { role: alvo.role, ativo }, outrosAdmins)) {
+      return { ok: false, error: "Não é possível desativar o único ADMIN ativo do sistema." };
+    }
+  }
+
+  await prisma.user.update({ where: { id }, data: { ativo } });
+
+  await registrarAuditoria({
+    acao: ativo ? "REATIVAR" : "DESATIVAR",
+    entidade: "User",
+    entidadeId: id,
+    resumo: `${ativo ? "Reativou" : "Desativou"} o acesso de ${alvo.nome ?? alvo.username}`,
+  });
+
+  revalidatePath("/cadastros/usuarios");
+  return { ok: true };
+}
+
 export async function deleteUsuario(id: string): Promise<ActionResult> {
   const admin = await requireGestaoUsuarios();
   if (admin.id === id) {
