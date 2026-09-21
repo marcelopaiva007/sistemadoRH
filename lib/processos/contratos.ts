@@ -146,6 +146,17 @@ export const TIPOS_CONTRATO = [
   { value: "OUTRO", label: "Outro" },
 ] as const;
 
+/**
+ * Os tipos que a tela de CONTRATOS oferece — tudo menos o aluguel a receber.
+ *
+ * `LOCACAO_IMOVEL` é o tipo do imóvel do grupo alugado a terceiro, e essa tela
+ * força categoria DESPESA ou SEM_VALOR (receita vive inteira em Aluguéis,
+ * decisão do dono de 27/08/2026). Oferecer o tipo mesmo assim produzia um
+ * contrato que contradiz a si mesmo: tipo "locação de imóvel (receita)" com
+ * natureza "despesa", que some da tela de Aluguéis e engana na de Contratos.
+ */
+export const TIPOS_CONTRATO_DESPESA = TIPOS_CONTRATO.filter((t) => t.value !== "LOCACAO_IMOVEL");
+
 export const CATEGORIAS_CONTRATO = [
   { value: "DESPESA", label: "Despesa" },
   { value: "RECEITA", label: "Receita" },
@@ -191,6 +202,54 @@ export const PAPEIS_CONTRAPARTE = [
 export function rotulo(lista: readonly { value: string; label: string }[], valor: string | null | undefined): string {
   if (!valor) return "—";
   return lista.find((i) => i.value === valor)?.label ?? valor;
+}
+
+/**
+ * O valor pertence à lista? — a guarda que faltava na entrada das actions.
+ *
+ * Estas colunas são `String` no Postgres, não enum: o banco aceita qualquer
+ * coisa. Sem checar, um `tipo` fora da lista era gravado em silêncio e depois
+ * aparecia CRU na tabela (o `rotulo` devolve o próprio valor quando não acha
+ * rótulo) — e os filtros por tipo simplesmente não o encontravam. Pior era o
+ * caso vazio: o formulário mandava `tipo` em branco e a tela o convertia para
+ * "OUTRO" antes de enviar, então quem esquecia de escolher o tipo não recebia
+ * erro nenhum — recebia um contrato classificado como "Outro" sem saber.
+ */
+export function daLista(lista: readonly { value: string; label: string }[], valor: string | null | undefined): boolean {
+  return !!valor && lista.some((i) => i.value === valor);
+}
+
+/**
+ * O papel que a contraparte provavelmente tem, a partir do tipo do contrato.
+ *
+ * É só uma SUGESTÃO para o cadastro rápido dentro do formulário de contrato —
+ * quem cadastra continua podendo marcar e desmarcar. O papel existe para os
+ * filtros e para a leitura de risco, e a pessoa que está no meio de cadastrar
+ * um contrato de torre já respondeu "quem é o outro lado?" ao escolher o tipo:
+ * pedir de novo é a pergunta que faz o cadastro rápido deixar de ser rápido.
+ */
+export function papelSugeridoPorTipo(tipo: string | null | undefined): string | null {
+  switch (tipo) {
+    case "LOCACAO_TORRE":
+    case "LOCACAO_TERRENO":
+      return "LOCADOR";
+    case "COMPARTILHAMENTO_POSTE":
+      return "CONCESSIONARIA";
+    case "PREFEITURA_USO_SOLO":
+      return "PREFEITURA";
+    case "CONDOMINIO":
+      return "CONDOMINIO";
+    case "FORNECEDOR":
+      return "FORNECEDOR";
+    case "PRESTADOR_PJ":
+      return "PRESTADOR_PJ";
+    case "CLIENTE_B2B":
+      return "CLIENTE";
+    case "LOCACAO_IMOVEL":
+      return "LOCATARIO";
+    default:
+      return null;
+  }
 }
 
 /** "FORNECEDOR,PRESTADOR_PJ" → ["FORNECEDOR", "PRESTADOR_PJ"]. */

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireProcessosEmpresa } from "@/lib/processos-auth-guard";
 import { escopoDeEmpresas } from "@/lib/rh-auth-guard";
 import { diferencaEmDiasUTC, formatarData, hojeUTC, paraInputDate } from "@/lib/datas";
+import { STATUS_COM_PRAZO_CORRENDO } from "@/lib/processos/pendencias";
 import { ContratosView, type ContratoNaTela } from "./contratos-view";
 
 // Os contratos do grupo — o segundo domínio da onda 1.
@@ -109,6 +110,9 @@ export default async function ContratosPage({
     tipo: c.tipo,
     categoria: c.categoria,
     status: c.status,
+    // A mesma régua da Central: os números do topo da tela contam o que ainda
+    // tem relógio correndo, e não o recorte de status que estiver aberto.
+    prazoCorrendo: (STATUS_COM_PRAZO_CORRENDO as readonly string[]).includes(c.status),
     criticidade: c.criticidade,
     gestorId: c.gestorId,
     gestorNome: c.gestorNome,

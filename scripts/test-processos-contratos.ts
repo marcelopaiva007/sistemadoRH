@@ -9,8 +9,13 @@
 
 import {
   MESES_MINIMOS_ENTRE_REAJUSTES,
+  PAPEIS_CONTRAPARTE,
+  TIPOS_CONTRATO,
+  TIPOS_CONTRATO_DESPESA,
+  daLista,
   dataLimiteDenuncia,
   janelaRenovatoria,
+  papelSugeridoPorTipo,
   proximoReajuste,
   papeisDaContraparte,
 } from "../lib/processos/contratos";
@@ -183,6 +188,47 @@ console.log("\nPapéis da contraparte — CSV, mesma convenção de RegraAlerta\
   igual(papeis.length, 3, "três papéis, mesmo com espaço irregular no CSV");
   igual(papeis[0], "FORNECEDOR", "primeiro papel sem espaço sobrando");
   igual(papeisDaContraparte("").length, 0, "CSV vazio não vira array com string vazia dentro");
+}
+
+console.log("\nClassificação — as colunas que são texto no banco e precisam de guarda na action\n");
+{
+  ok(daLista(TIPOS_CONTRATO, "FORNECEDOR"), "tipo conhecido passa");
+  ok(!daLista(TIPOS_CONTRATO, "INVENTADO"), "tipo fora da lista não passa — a coluna é String, o banco aceitaria");
+  ok(!daLista(TIPOS_CONTRATO, ""), "tipo em branco não passa: era ele que virava 'OUTRO' em silêncio");
+  ok(!daLista(TIPOS_CONTRATO, null), "null não passa");
+  ok(daLista(PAPEIS_CONTRAPARTE, "LOCADOR"), "papel conhecido passa");
+  ok(!daLista(PAPEIS_CONTRAPARTE, "SOCIO"), "papel fora da lista não passa");
+}
+
+console.log("\nTipos da tela de Contratos — receita mora em Aluguéis\n");
+{
+  ok(
+    !TIPOS_CONTRATO_DESPESA.some((t) => t.value === "LOCACAO_IMOVEL"),
+    "a tela de Contratos não oferece o tipo do aluguel a receber (tipo receita + natureza despesa se contradiz)",
+  );
+  igual(
+    TIPOS_CONTRATO_DESPESA.length,
+    TIPOS_CONTRATO.length - 1,
+    "só esse tipo sai — o resto continua disponível",
+  );
+}
+
+console.log("\nPapel sugerido pelo tipo do contrato — o atalho do cadastro rápido\n");
+{
+  igual(papelSugeridoPorTipo("LOCACAO_TORRE"), "LOCADOR", "torre alugada de alguém: o outro lado é locador");
+  igual(papelSugeridoPorTipo("PREFEITURA_USO_SOLO"), "PREFEITURA", "uso do solo: prefeitura");
+  igual(papelSugeridoPorTipo("COMPARTILHAMENTO_POSTE"), "CONCESSIONARIA", "poste: concessionária");
+  igual(papelSugeridoPorTipo("OUTRO"), null, "tipo genérico não sugere papel — chutar aqui é pior que perguntar");
+  igual(papelSugeridoPorTipo(null), null, "sem tipo escolhido, sem sugestão");
+  // Sugestão que não existe na lista de papéis seria um checkbox fantasma:
+  // marcado no estado, invisível na tela, e recusado pela action no salvar.
+  for (const t of TIPOS_CONTRATO) {
+    const sugerido = papelSugeridoPorTipo(t.value);
+    ok(
+      sugerido === null || daLista(PAPEIS_CONTRAPARTE, sugerido),
+      `a sugestão de ${t.value} é um papel que existe de verdade`,
+    );
+  }
 }
 
 console.log(`\n${falhas === 0 ? "✅ tudo certo" : `❌ ${falhas} falha(s)`}\n`);
