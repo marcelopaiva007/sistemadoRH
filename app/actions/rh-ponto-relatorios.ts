@@ -4,17 +4,21 @@ import { prisma } from "@/lib/prisma";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { marcacoesDaJornada } from "@/lib/ponto-jornada";
 import { eachDayOfInterval, startOfMonth, endOfMonth, startOfDay, endOfDay } from "date-fns";
-import { zonedTimeToUtc, utcToZonedTime } from "date-fns-tz";
 
 const TIMEZONE = "America/Sao_Paulo";
 
-/** Retorna o primeiro e último dia do mês em UTC com fuso Brasília */
+/** Retorna o primeiro e último dia do mês com um ajuste simples para o fuso (UTC-3) */
 function periodoDoMesEmUTC(mes: Date) {
   const inicio = startOfMonth(mes);
   const fim = endOfMonth(mes);
 
-  const inicioUTC = zonedTimeToUtc(startOfDay(inicio), TIMEZONE);
-  const fimUTC = zonedTimeToUtc(endOfDay(fim), TIMEZONE);
+  // Simples: data local - 3 horas (UTC-3 é fuso do Brasil)
+  const inicioLocal = startOfDay(inicio);
+  const fimLocal = endOfDay(fim);
+
+  const OFFSET_BRASILIA_MS = 3 * 60 * 60 * 1000; // 3 horas em ms
+  const inicioUTC = new Date(inicioLocal.getTime() - OFFSET_BRASILIA_MS);
+  const fimUTC = new Date(fimLocal.getTime() - OFFSET_BRASILIA_MS);
 
   return { inicio: inicioUTC, fim: fimUTC };
 }
@@ -73,7 +77,8 @@ export async function obterIndicadoresRH(
 
     const marcacoesPorColaboradorDia = new Map<string, string[]>();
     for (const m of marcacoes) {
-      const chave = `${m.colaboradorId}-${m.dataHora.toDateString()}`;
+      const dataBrasilia = new Date(m.dataHora.getTime() + 3 * 60 * 60 * 1000);
+      const chave = `${m.colaboradorId}-${dataBrasilia.toDateString()}`;
       const tipos = marcacoesPorColaboradorDia.get(chave) ?? [];
       tipos.push(m.tipo);
       marcacoesPorColaboradorDia.set(chave, tipos);
@@ -82,17 +87,18 @@ export async function obterIndicadoresRH(
     // Simples heurística: se tem ENTRADA_1 muito depois do esperado (~08:00) = atraso
     // Se tem SAIDA_2 muito antes do esperado (~18:00) = saída antecipada
     for (const m of marcacoes) {
+      const dataBrasilia = new Date(m.dataHora.getTime() + 3 * 60 * 60 * 1000);
       if (m.tipo === "ENTRADA_1") {
-        const hora = utcToZonedTime(m.dataHora, TIMEZONE).getHours();
-        const minutos = utcToZonedTime(m.dataHora, TIMEZONE).getMinutes();
+        const hora = dataBrasilia.getHours();
+        const minutos = dataBrasilia.getMinutes();
         if (hora > 8 || (hora === 8 && minutos > 10)) {
           atrasos++;
         }
       }
 
       if (m.tipo === "SAIDA_2") {
-        const hora = utcToZonedTime(m.dataHora, TIMEZONE).getHours();
-        const minutos = utcToZonedTime(m.dataHora, TIMEZONE).getMinutes();
+        const hora = dataBrasilia.getHours();
+        const minutos = dataBrasilia.getMinutes();
         if (hora < 18 || (hora === 18 && minutos < -10)) {
           saidasAntecipadas++;
         }
@@ -110,7 +116,7 @@ export async function obterIndicadoresRH(
         const marcacoesDoDiaColaborador = marcacoes.filter(
           (m) =>
             m.colaboradorId === colaborador.colaboradorId &&
-            utcToZonedTime(m.dataHora, TIMEZONE).toDateString() === dia.toDateString(),
+            new Date(m.dataHora.getTime() + 3 * 60 * 60 * 1000).toDateString() === dia.toDateString(),
         );
 
         if (marcacoesDoDiaColaborador.length >= 2) {
@@ -149,7 +155,7 @@ export async function obterIndicadoresRH(
         const marcacoesDoDiaColaborador = marcacoes.filter(
           (m) =>
             m.colaboradorId === colaborador.colaboradorId &&
-            utcToZonedTime(m.dataHora, TIMEZONE).toDateString() === dia.toDateString(),
+            new Date(m.dataHora.getTime() + 3 * 60 * 60 * 1000).toDateString() === dia.toDateString(),
         );
 
         if (marcacoesDoDiaColaborador.length >= 2) {
@@ -233,7 +239,7 @@ export async function obterHorasTrabalhadas(
 
       const marcacoesPorDia = new Map<string, typeof marcacoesColab>();
       for (const m of marcacoesColab) {
-        const dia = utcToZonedTime(m.dataHora, TIMEZONE).toDateString();
+        const dia = new Date(m.dataHora.getTime() + 3 * 60 * 60 * 1000).toDateString();
         const list = marcacoesPorDia.get(dia) ?? [];
         list.push(m);
         marcacoesPorDia.set(dia, list);
