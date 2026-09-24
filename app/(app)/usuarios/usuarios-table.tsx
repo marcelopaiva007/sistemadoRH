@@ -58,6 +58,7 @@ type Usuario = {
   role: string;
   empresaId: string | null;
   setorId: string | null;
+  ativo: boolean;
 };
 
 const initialState: ActionResult = { ok: true };
