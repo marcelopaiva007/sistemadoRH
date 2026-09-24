@@ -1,4 +1,4 @@
-import { RelatoriosPontoView } from "../../relatorios-view";
+import { RelatoriosPontoView } from "../relatorios-view";
 
 /**
  * Relatórios e arquivos fiscais do ponto (AFD e AEJ, Portaria MTP 671/2021).
