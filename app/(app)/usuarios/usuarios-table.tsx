@@ -2,7 +2,7 @@
 
 import { useActionState, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, KeyRound } from "lucide-react";
+import { Plus, Pencil, Trash2, KeyRound, Power, PowerOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,6 +36,7 @@ import {
   updateUsuario,
   deleteUsuario,
   resetSenhaUsuario,
+  toggleStatusUsuario,
 } from "@/lib/actions/usuarios";
 import type { ActionResult } from "@/lib/constants";
 
@@ -57,6 +58,7 @@ type Usuario = {
   role: string;
   empresaId: string | null;
   setorId: string | null;
+  ativo: boolean;
 };
 
 const initialState: ActionResult = { ok: true };
@@ -147,6 +149,18 @@ export function UsuariosTable({
                 <TableCell>{(u.setorId && setorNome.get(u.setorId)) ?? "—"}</TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={async () => {
+                        const result = await toggleStatusUsuario(u.id);
+                        if (result.ok) toast.success("Status atualizado.");
+                        else toast.error(result.error);
+                      }}
+                      title={u.ativo ? "Desativar" : "Ativar"}
+                    >
+                      {u.ativo ? <PowerOff className="size-4" /> : <Power className="size-4" />}
+                    </Button>
                     <Button variant="ghost" size="icon" onClick={() => setSenhaUsuario(u)} title="Redefinir senha">
                       <KeyRound className="size-4" />
                     </Button>
