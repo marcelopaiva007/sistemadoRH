@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.172.0",
+    data: "24/09/2026",
+    titulo: "Ponto: com as duas travas ligadas, UMA prova de presença basta (IP ou GPS)",
+    itens: [
+      "Definição do CEO: quando a empresa tem a trava de IP E a cerca de GPS ligadas, a batida passa se provar presença por QUALQUER uma das duas — Wi-Fi da empresa OU localização dentro do raio. Antes era preciso passar nas duas ao mesmo tempo, e a batida de quem estava na empresa ficava refém do elo mais fraco do dia: Wi-Fi que caiu ou GPS que errou dentro do galpão.",
+      "Recusa só quem falha nas duas provas — e a mensagem passou a listar os dois caminhos de volta (\"conecte ao Wi-Fi OU ative o GPS e aproxime-se\"), deixando claro que basta resolver um.",
+      "Empresa com só uma trava ligada continua como sempre foi: aquela trava decide sozinha.",
+      "Os textos da tela de Configurações explicam a regra nova, e o registro de cada batida continua marcando individualmente se ela veio de dentro da rede e de dentro do raio.",
+    ],
+  },
+  {
     versao: "1.171.1",
     data: "11/09/2026",
     horario: "11:00",
