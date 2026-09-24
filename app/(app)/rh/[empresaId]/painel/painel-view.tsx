@@ -1,24 +1,13 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState, type ReactNode, Suspense } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import {
-  Area,
-  AreaChart,
-  Bar,
-  BarChart,
-  Legend,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import dynamic from "next/dynamic";
 import { ChartColumn, FileDown, Info, Table2, TriangleAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { CardSkeleton } from "@/components/skeletons/card-skeleton";
 import {
   Select,
   SelectContent,
@@ -50,6 +39,57 @@ import { useControleFiltro } from "../filtro-empresas";
 import { RadarDesvio, type RadarDeDesvio } from "./radar-desvio";
 import { NarrativaAbertura } from "./narrativa-abertura";
 import type { Narrativa } from "@/lib/narrativa";
+
+// Lazy-loaded chart components — renderizam apenas no browser (ssr:false)
+const TOP_SETORES = 8;
+
+const GraficoEvolucaoQuadroLazy = dynamic(
+  () => import("./charts-sections").then(m => ({ default: m.GraficoEvolucaoQuadro })),
+  {
+    loading: () => <CardSkeleton />,
+    ssr: false,
+  }
+);
+
+const GraficoMovimentoLazy = dynamic(
+  () => import("./charts-sections").then(m => ({ default: m.GraficoMovimento })),
+  {
+    loading: () => <CardSkeleton />,
+    ssr: false,
+  }
+);
+
+const GraficoHeadcountLazy = dynamic(
+  () => import("./charts-sections").then(m => ({ default: m.GraficoHeadcount })),
+  {
+    loading: () => <CardSkeleton />,
+    ssr: false,
+  }
+);
+
+const GraficoFaixaEtariaLazy = dynamic(
+  () => import("./charts-sections").then(m => ({ default: m.GraficoFaixaEtaria })),
+  {
+    loading: () => <CardSkeleton />,
+    ssr: false,
+  }
+);
+
+const GraficoTempoDeCasaLazy = dynamic(
+  () => import("./charts-sections").then(m => ({ default: m.GraficoTempoDeCasa })),
+  {
+    loading: () => <CardSkeleton />,
+    ssr: false,
+  }
+);
+
+const GraficoCustoLazy = dynamic(
+  () => import("./charts-sections").then(m => ({ default: m.GraficoCusto })),
+  {
+    loading: () => <CardSkeleton />,
+    ssr: false,
+  }
+);
 
 /**
  * Painel — a tela única de BI de RH.
@@ -98,41 +138,6 @@ export type AbsenteismoNaTela = {
 
 type Vista = "graficos" | "tabelas";
 
-// A paleta do Modernist é monocromática com um vermelho: --chart-1 #201e1d,
-// --chart-3 #7d7979, --chart-4 #bab6b6, --destructive #ae1800. Os pares em uso:
-//   série única       var(--chart-1)   #201e1d
-//   folha × benefícios var(--chart-1) × var(--chart-4)   —  6,1:1 de luminância
-//   admissões × desligamentos var(--chart-3) × var(--destructive)  —  1,5:1
-//
-// Esse último par NÃO se separa por cor: 1,5:1 de luminância, e um protanope vê
-// o vermelho escurecer para perto do cinza. Por isso desligamentos é TRACEJADA
-// — a diferença é de forma, que nenhum tipo de daltonismo apaga. Não troque o
-// tracejado por outra cor achando que resolve: nesta paleta não tem cor livre.
-//
-// (Até a v1.165.0 este comentário citava #0d9488 e pares --chart-2/--chart-3
-// que o código não usa desde a v1.159.0 — os ΔE ali não valiam para nada.)
-// Texto de rótulo/tooltip fica nos tokens de texto do tema, nunca na cor da
-// série — a cor mora só na marca do gráfico.
-const COR = {
-  primaria: "var(--chart-1)",
-  admissoes: "var(--chart-3)",
-  desligamentos: "var(--destructive)",
-  folha: "var(--chart-1)",
-  beneficios: "var(--chart-4)",
-} as const;
-
-const estiloTooltip = {
-  backgroundColor: "var(--card)",
-  borderColor: "var(--border)",
-  color: "var(--card-foreground)",
-  borderRadius: 0,
-  boxShadow: "none",
-} as const;
-
-const eixoTick = { fontSize: 11, fill: "var(--muted-foreground)" } as const;
-
-/** Top 8 no gráfico e o resto em "Outros" — 20 categorias numa barra é ilegível. */
-const TOP_SETORES = 8;
 
 export function PainelView({
   empresaId,
@@ -411,36 +416,9 @@ export function PainelView({
                   descricao="Colaboradores ativos no fim de cada mês, reconstruído a partir do quadro de hoje."
                 >
                   {vista === "graficos" ? (
-                    <div className="h-64">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={evolucao} margin={{ left: -16, right: 8 }}>
-                          <defs>
-                            <linearGradient id="grad-headcount" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="0%" stopColor={COR.primaria} stopOpacity={0.25} />
-                              <stop offset="100%" stopColor={COR.primaria} stopOpacity={0.02} />
-                            </linearGradient>
-                          </defs>
-                          <XAxis dataKey="mes" tick={eixoTick} tickLine={false} axisLine={false} />
-                          <YAxis
-                            allowDecimals={false}
-                            tick={eixoTick}
-                            tickLine={false}
-                            axisLine={false}
-                            domain={["dataMin - 2", "dataMax + 2"]}
-                          />
-                          <Tooltip contentStyle={estiloTooltip} formatter={v => [`${v}`, "Ativos"]} />
-                          <Area
-                            type="monotone"
-                            dataKey="total"
-                            stroke={COR.primaria}
-                            strokeWidth={2}
-                            fill="url(#grad-headcount)"
-                            dot={false}
-                            activeDot={{ r: 4 }}
-                          />
-                        </AreaChart>
-                      </ResponsiveContainer>
-                    </div>
+                    <Suspense fallback={<CardSkeleton />}>
+                      <GraficoEvolucaoQuadroLazy evolucao={evolucao} />
+                    </Suspense>
                   ) : (
                     <TabelaDeSerie
                       colunas={[{ rotulo: "Mês" }, { rotulo: "Ativos no fim do mês", numerica: true }]}
@@ -454,40 +432,9 @@ export function PainelView({
                   descricao={`Movimentação mês a mês nos últimos ${janela} meses.`}
                 >
                   {vista === "graficos" ? (
-                    <div className="h-64">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={movimento} margin={{ left: -16, right: 8 }}>
-                          <XAxis dataKey="mes" tick={eixoTick} tickLine={false} axisLine={false} />
-                          <YAxis
-                            allowDecimals={false}
-                            tick={eixoTick}
-                            tickLine={false}
-                            axisLine={false}
-                          />
-                          <Tooltip contentStyle={estiloTooltip} />
-                          <Legend wrapperStyle={{ fontSize: 12 }} />
-                          <Line
-                            type="monotone"
-                            dataKey="admissoes"
-                            name="Admissões"
-                            stroke={COR.admissoes}
-                            strokeWidth={2}
-                            dot={false}
-                            activeDot={{ r: 4 }}
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey="desligamentos"
-                            name="Desligamentos"
-                            stroke={COR.desligamentos}
-                            strokeWidth={2}
-                            strokeDasharray="5 3"
-                            dot={false}
-                            activeDot={{ r: 4 }}
-                          />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </div>
+                    <Suspense fallback={<CardSkeleton />}>
+                      <GraficoMovimentoLazy movimento={movimento} />
+                    </Suspense>
                   ) : (
                     <TabelaDeSerie
                       colunas={[
@@ -535,38 +482,9 @@ export function PainelView({
                   {headcount.length === 0 ? (
                     <Vazio texto="Nenhum colaborador ativo no recorte." />
                   ) : vista === "graficos" ? (
-                    <div className="h-64">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart
-                          data={agruparOutros(headcount)}
-                          layout="vertical"
-                          margin={{ left: 16, right: 24 }}
-                        >
-                          <XAxis
-                            type="number"
-                            allowDecimals={false}
-                            tick={eixoTick}
-                            tickLine={false}
-                            axisLine={false}
-                          />
-                          <YAxis
-                            type="category"
-                            dataKey="setor"
-                            width={110}
-                            tick={eixoTick}
-                            tickLine={false}
-                            axisLine={false}
-                          />
-                          <Tooltip contentStyle={estiloTooltip} formatter={v => [`${v}`, "Colaboradores"]} />
-                          <Bar
-                            dataKey="total"
-                            fill={COR.primaria}
-                            radius={[0, 4, 4, 0]}
-                            maxBarSize={18}
-                          />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
+                    <Suspense fallback={<CardSkeleton />}>
+                      <GraficoHeadcountLazy headcount={headcount} />
+                    </Suspense>
                   ) : (
                     <TabelaDeSerie
                       colunas={[
@@ -588,25 +506,9 @@ export function PainelView({
 
                 <Bloco titulo="Faixa etária" descricao="Distribuição de idade dos ativos.">
                   {vista === "graficos" ? (
-                    <div className="h-64">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={faixaEtaria} margin={{ left: -16, right: 8 }}>
-                          <XAxis dataKey="faixa" tick={eixoTick} tickLine={false} axisLine={false} />
-                          <YAxis
-                            allowDecimals={false}
-                            tick={eixoTick}
-                            tickLine={false}
-                            axisLine={false}
-                          />
-                          <Tooltip contentStyle={estiloTooltip} formatter={v => [`${v}`, "Colaboradores"]} />
-                          <Bar
-                            dataKey="total"
-                            fill={COR.primaria}
-                            maxBarSize={40}
-                          />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
+                    <Suspense fallback={<CardSkeleton />}>
+                      <GraficoFaixaEtariaLazy faixaEtaria={faixaEtaria} />
+                    </Suspense>
                   ) : (
                     <TabelaDeSerie
                       colunas={[{ rotulo: "Faixa" }, { rotulo: "Colaboradores", numerica: true }]}
@@ -703,34 +605,9 @@ function BlocoTempoDeCasa({
 
           <div>
             {vista === "graficos" ? (
-              <div className="h-56">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={tempo.faixas} margin={{ left: -16, right: 8, bottom: 8 }}>
-                    <XAxis
-                      dataKey="faixa"
-                      tick={{ ...eixoTick, fontSize: 10 }}
-                      tickLine={false}
-                      axisLine={false}
-                      interval={0}
-                      angle={-20}
-                      textAnchor="end"
-                      height={50}
-                    />
-                    <YAxis
-                      allowDecimals={false}
-                      tick={eixoTick}
-                      tickLine={false}
-                      axisLine={false}
-                    />
-                    <Tooltip formatter={v => [`${v}`, "Colaboradores"]} />
-                    <Bar
-                      dataKey="total"
-                      fill={COR.primaria}
-                      maxBarSize={44}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+              <Suspense fallback={<CardSkeleton />}>
+                <GraficoTempoDeCasaLazy tempo={tempo} totalAtivos={totalAtivos} />
+              </Suspense>
             ) : (
               <TabelaDeSerie
                 colunas={[
@@ -911,35 +788,9 @@ function BlocoCusto({ custo, vista }: { custo: LinhaCustoNaTela[]; vista: Vista 
         confiaveis.length === 0 ? (
           <Vazio texto="Nenhum setor do recorte tem salário cadastrado em metade do quadro — não há soma que descreva o custo." />
         ) : (
-          <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={agruparOutrosCusto(confiaveis)} margin={{ left: 8, right: 8 }}>
-                <XAxis dataKey="setor" tick={eixoTick} tickLine={false} axisLine={false} />
-                <YAxis
-                  tick={eixoTick}
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={v => `${Math.round(Number(v) / 1000)}k`}
-                />
-                <Tooltip formatter={(v, nome) => [formatarReais(Number(v)), nome]} />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Bar
-                  dataKey="folha"
-                  name="Folha"
-                  stackId="custo"
-                  fill={COR.folha}
-                  maxBarSize={40}
-                />
-                <Bar
-                  dataKey="beneficios"
-                  name="Benefícios"
-                  stackId="custo"
-                  fill={COR.beneficios}
-                  maxBarSize={40}
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          <Suspense fallback={<CardSkeleton />}>
+            <GraficoCustoLazy custo={confiaveis} />
+          </Suspense>
         )
       ) : (
         <div className="overflow-x-auto rounded-md border">
