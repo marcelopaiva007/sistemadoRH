@@ -416,7 +416,7 @@ export async function toggleStatusUsuario(id: string): Promise<ActionResult> {
     });
 
     await registrarAuditoria({
-      acao: novoStatus ? "ATIVAR" : "DESATIVAR",
+      acao: novoStatus ? "REATIVAR" : "DESATIVAR",
       entidade: "User",
       entidadeId: id,
       resumo: `${novoStatus ? "Ativou" : "Desativou"} usuário ${usuario.username}`,
