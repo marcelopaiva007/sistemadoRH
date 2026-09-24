@@ -386,6 +386,49 @@ export async function deleteUsuario(id: string): Promise<ActionResult> {
   return { ok: true };
 }
 
+export async function toggleStatusUsuario(id: string): Promise<ActionResult> {
+  const admin = await requireGestaoUsuarios();
+  if (admin.id === id) {
+    return { ok: false, error: "Você não pode desativar seu próprio usuário." };
+  }
+
+  const usuario = await prisma.user.findUnique({
+    where: { id },
+    select: { role: true, ativo: true, username: true },
+  });
+  if (!usuario) return { ok: false, error: "Usuário não encontrado." };
+
+  // Bloqueia desativação do último ADMIN ativo
+  if (usuario.role === "ADMIN" && usuario.ativo) {
+    const outrosAdmins = await prisma.user.count({
+      where: { role: "ADMIN", ativo: true, NOT: { id } },
+    });
+    if (outrosAdmins === 0) {
+      return { ok: false, error: "Não é possível desativar o único ADMIN ativo do sistema." };
+    }
+  }
+
+  try {
+    const novoStatus = !usuario.ativo;
+    await prisma.user.update({
+      where: { id },
+      data: { ativo: novoStatus },
+    });
+
+    await registrarAuditoria({
+      acao: novoStatus ? "ATIVAR" : "DESATIVAR",
+      entidade: "User",
+      entidadeId: id,
+      resumo: `${novoStatus ? "Ativou" : "Desativou"} usuário ${usuario.username}`,
+    });
+
+    revalidatePath("/cadastros/usuarios");
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: "Erro ao atualizar status do usuário." };
+  }
+}
+
 export async function vincularEmpresaUsuario(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   await requireGestaoUsuarios();
 
