@@ -372,38 +372,6 @@ function RedefinirSenhaForm({ usuario, onSuccess }: { usuario: Usuario; onSucces
   );
 }
 
-function ToggleStatusButton({ usuario }: { usuario: Usuario }) {
-  const [isLoading, setIsLoading] = useState(false);
-
-  async function handleToggle() {
-    setIsLoading(true);
-    try {
-      const result = await toggleStatusUsuario(usuario.id);
-      if (result.ok) {
-        toast.success(`Usuário ${usuario.ativo ? "desativado" : "ativado"}.`);
-      } else {
-        toast.error(result.error);
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  const Icon = usuario.ativo ? PowerOff : Power;
-
-  return (
-    <Button
-      variant="ghost"
-      size="icon"
-      onClick={handleToggle}
-      disabled={isLoading}
-      title={usuario.ativo ? "Desativar usuário" : "Ativar usuário"}
-    >
-      <Icon className="size-4" />
-    </Button>
-  );
-}
-
 function DeleteUsuarioButton({ usuario }: { usuario: Usuario }) {
   const [confirming, setConfirming] = useState(false);
 
