@@ -237,15 +237,15 @@ async function HistoricoContent({ colaboradorId }: { colaboradorId: string }) {
     }),
     prisma.avaliacaoDesempenho.findMany({
       where: { colaboradorId },
-      orderBy: { criadoEm: "desc" },
+      orderBy: { createdAt: "desc" },
     }),
     prisma.meta.findMany({
       where: { colaboradorId },
-      orderBy: { criadoEm: "desc" },
+      orderBy: { createdAt: "desc" },
     }),
     prisma.planoDesenvolvimento.findMany({
       where: { colaboradorId },
-      orderBy: { criadoEm: "desc" },
+      orderBy: { createdAt: "desc" },
     }),
   ]);
 
