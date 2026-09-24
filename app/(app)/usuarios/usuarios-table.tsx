@@ -2,7 +2,7 @@
 
 import { useActionState, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, KeyRound } from "lucide-react";
+import { Plus, Pencil, Trash2, KeyRound, Power, PowerOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,6 +36,7 @@ import {
   updateUsuario,
   deleteUsuario,
   resetSenhaUsuario,
+  toggleStatusUsuario,
 } from "@/lib/actions/usuarios";
 import type { ActionResult } from "@/lib/constants";
 
@@ -147,6 +148,7 @@ export function UsuariosTable({
                 <TableCell>{(u.setorId && setorNome.get(u.setorId)) ?? "—"}</TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-1">
+                    <ToggleStatusButton usuario={u} />
                     <Button variant="ghost" size="icon" onClick={() => setSenhaUsuario(u)} title="Redefinir senha">
                       <KeyRound className="size-4" />
                     </Button>
@@ -355,6 +357,38 @@ function RedefinirSenhaForm({ usuario, onSuccess }: { usuario: Usuario; onSucces
         </Button>
       </DialogFooter>
     </form>
+  );
+}
+
+function ToggleStatusButton({ usuario }: { usuario: Usuario }) {
+  const [isLoading, setIsLoading] = useState(false);
+
+  async function handleToggle() {
+    setIsLoading(true);
+    try {
+      const result = await toggleStatusUsuario(usuario.id);
+      if (result.ok) {
+        toast.success(`Usuário ${usuario.ativo ? "desativado" : "ativado"}.`);
+      } else {
+        toast.error(result.error);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  const Icon = usuario.ativo ? PowerOff : Power;
+
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      onClick={handleToggle}
+      disabled={isLoading}
+      title={usuario.ativo ? "Desativar usuário" : "Ativar usuário"}
+    >
+      <Icon className="size-4" />
+    </Button>
   );
 }
 
