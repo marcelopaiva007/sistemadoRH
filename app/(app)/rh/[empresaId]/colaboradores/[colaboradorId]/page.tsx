@@ -58,11 +58,12 @@ export default async function ColaboradorPage({
   return (
     <div className="space-y-6">
       <Trilha
-        items={[
-          { label: "RH", href: `/rh/${empresaId}` },
-          { label: "Colaboradores", href: `/rh/${empresaId}/colaboradores` },
-          { label: colaborador.nome, current: true },
+        empresaId={empresaId}
+        intermediarios={[
+          { rotulo: "RH", href: `/rh/${empresaId}` },
+          { rotulo: "Colaboradores", href: `/rh/${empresaId}/colaboradores` },
         ]}
+        atual={colaborador.nome}
       />
 
       {/* Header — dados rápidos (já temos) */}

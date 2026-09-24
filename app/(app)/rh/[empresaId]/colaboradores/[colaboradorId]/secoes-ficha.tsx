@@ -20,9 +20,8 @@ export async function SecaoCadastral({ colaboradorId }: { colaboradorId: string 
       dataNascimento: true,
       cpf: true,
       rg: true,
-      endereco: true,
+      rgUf: true,
       cidade: true,
-      estado: true,
       cep: true,
     },
   });
@@ -231,20 +230,20 @@ export function SecaoBeneficiosEpi({ colaboradorId }: { colaboradorId: string })
 // SEÇÃO 6: HISTÓRICO (Movimentações, Avaliações, Metas, PDI)
 // ============================================================================
 async function HistoricoContent({ colaboradorId }: { colaboradorId: string }) {
-  const [movimentacoes, avaliacoes, metas, pdi] = await Promise.all([
+  const [movimentacoes, avaliacoes, metas, planosDesenvolvimento] = await Promise.all([
     prisma.movimentacao.findMany({
       where: { colaboradorId },
       orderBy: { dataEfetiva: "desc" },
     }),
-    prisma.avaliacao.findMany({
+    prisma.avaliacaoDesempenho.findMany({
       where: { colaboradorId },
-      orderBy: { periodo: "desc" },
+      orderBy: { criadoEm: "desc" },
     }),
     prisma.meta.findMany({
       where: { colaboradorId },
-      orderBy: { periodo: "desc" },
+      orderBy: { criadoEm: "desc" },
     }),
-    prisma.pdi.findMany({
+    prisma.planoDesenvolvimento.findMany({
       where: { colaboradorId },
       orderBy: { criadoEm: "desc" },
     }),
@@ -264,7 +263,7 @@ async function HistoricoContent({ colaboradorId }: { colaboradorId: string }) {
           <h4 className="font-medium mb-2">Metas ({metas.length})</h4>
         </div>
         <div>
-          <h4 className="font-medium mb-2">PDI ({pdi.length})</h4>
+          <h4 className="font-medium mb-2">Planos de Desenvolvimento ({planosDesenvolvimento.length})</h4>
         </div>
       </div>
     </div>

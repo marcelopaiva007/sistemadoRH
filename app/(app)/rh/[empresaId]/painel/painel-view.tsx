@@ -41,6 +41,8 @@ import { NarrativaAbertura } from "./narrativa-abertura";
 import type { Narrativa } from "@/lib/narrativa";
 
 // Lazy-loaded chart components — renderizam apenas no browser (ssr:false)
+const TOP_SETORES = 8;
+
 const GraficoEvolucaoQuadroLazy = dynamic(
   () => import("./charts-sections").then(m => ({ default: m.GraficoEvolucaoQuadro })),
   {
