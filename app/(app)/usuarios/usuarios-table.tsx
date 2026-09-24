@@ -148,7 +148,18 @@ export function UsuariosTable({
                 <TableCell>{(u.setorId && setorNome.get(u.setorId)) ?? "—"}</TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-1">
-                    <ToggleStatusButton usuario={u} />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={async () => {
+                        const result = await toggleStatusUsuario(u.id);
+                        if (result.ok) toast.success("Status atualizado.");
+                        else toast.error(result.error);
+                      }}
+                      title={u.ativo ? "Desativar" : "Ativar"}
+                    >
+                      {u.ativo ? <PowerOff className="size-4" /> : <Power className="size-4" />}
+                    </Button>
                     <Button variant="ghost" size="icon" onClick={() => setSenhaUsuario(u)} title="Redefinir senha">
                       <KeyRound className="size-4" />
                     </Button>
