@@ -26,6 +26,18 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.176.0",
+    data: "26/09/2026",
+    horario: "12:00",
+    titulo: "Pendências: vencido e a vencer aparecem separados",
+    itens: [
+      "Os cartões \"ASO vencendo\", \"NR vencendo\" e \"Contrato vencendo\" somavam num número só o que JÁ venceu e o que ainda vai vencer nos próximos 60 dias — \"106 ASO vencendo\" não dizia por onde começar. Agora, logo abaixo do título, cada um mostra os dois números: \"40 vencidos · 66 a vencer em até 60 dias\". O vencido vem em vermelho, porque é ele que tem urgência.",
+      "Na coluna \"Prazo legal ou vencido\", o que só está PARA vencer (aviso prévio, ou ASO/NR/contrato sem nenhum item vencido) desce para o fim da lista. Quem abre a tela começa pelo que já estourou.",
+      "O total de cada cartão não mudou — o número de cima continua sendo vencidos + a vencer.",
+      "\"Desligado sem entrevista\": o texto agora deixa claro que quem preenche a entrevista de desligamento é o RH, na ficha do desligado — não é o funcionário que responde.",
+    ],
+  },
+  {
     versao: "1.174.0",
     data: "21/09/2026",
     horario: "17:30",
