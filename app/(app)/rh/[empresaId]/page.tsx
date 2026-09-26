@@ -5,6 +5,7 @@ import {
   modulosSemRegistro,
   pesquisasAbertasDaEmpresa,
   ciclosAEncerrarDaEmpresa,
+  vencidosDaEmpresa,
 } from "@/lib/pendencias";
 import { resumoDaEmpresa, lacunasDaBase, lacunasDosDesligados } from "@/lib/dashboard";
 import { DashboardEmpresa } from "./dashboard-empresa";
@@ -39,7 +40,7 @@ export default async function InicioDaEmpresaPage({
   // URL não vira acesso).
   const empresas = await escopoDeEmpresas(usuario, empresasParam);
 
-  const [resumo, pendencias, base, semRegistro, baseDesligados, pesquisasAbertas, ciclosAEncerrar] =
+  const [resumo, pendencias, base, semRegistro, baseDesligados, pesquisasAbertas, ciclosAEncerrar, vencidos] =
     await Promise.all([
       resumoDaEmpresa(empresas),
       pendenciasDaEmpresa(empresas),
@@ -51,6 +52,8 @@ export default async function InicioDaEmpresaPage({
       lacunasDosDesligados(empresas),
       pesquisasAbertasDaEmpresa(empresas),
       ciclosAEncerrarDaEmpresa(empresas),
+      // O que já venceu dentro de ASO/NR/Contrato "vencendo" — o RH começa por ali.
+      vencidosDaEmpresa(empresas),
     ]);
 
   return (
@@ -65,6 +68,7 @@ export default async function InicioDaEmpresaPage({
         diasAlerta={DIAS_ALERTA_VENCIMENTO}
         pesquisasAbertas={pesquisasAbertas}
         ciclosAEncerrar={ciclosAEncerrar}
+        vencidos={vencidos}
       />
       {/* Por último: pendência é o que exige ação HOJE; preenchimento da base
           é o trabalho de fundo que faz os módulos valerem. */}

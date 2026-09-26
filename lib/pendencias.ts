@@ -650,6 +650,50 @@ export async function pendenciasPorEmpresa(
   return mapa;
 }
 
+/**
+ * As pendências de prazo que misturam o que JÁ venceu com o que ainda vai
+ * vencer na janela de DIAS_ALERTA_VENCIMENTO. As demais do grupo PRAZO ou são
+ * todas vencidas (EPI, férias, plano de ação…) ou todas futuras (aviso
+ * prévio) — só estas três precisam do número partido.
+ */
+export const PENDENCIAS_COM_VENCIDOS = ["asoVencendo", "certificadosVencendo", "contratosVencendo"] as const;
+export type VencidosNaPendencia = Record<(typeof PENDENCIAS_COM_VENCIDOS)[number], number>;
+
+/**
+ * Quantos itens de cada pendência em PENDENCIAS_COM_VENCIDOS JÁ passaram da
+ * data. Pedido do RH em 26/09/2026: "106 ASO vencendo" não dizia por onde
+ * começar — o vencido é o que tem urgência, o que vence em 40 dias pode
+ * esperar. O total do cartão continua o mesmo; isto só parte o número.
+ *
+ * Mesmas regras de subconsultasDePendencias, com a data de corte trocada de
+ * `<= hoje + DIAS_ALERTA` para `< hoje` — por isso o vencido é sempre um
+ * pedaço do total, nunca maior que ele.
+ */
+export async function vencidosDaEmpresa(
+  empresaIds: string[],
+  cliente: Cliente = prisma,
+): Promise<VencidosNaPendencia> {
+  const total: VencidosNaPendencia = { asoVencendo: 0, certificadosVencendo: 0, contratosVencendo: 0 };
+  if (empresaIds.length === 0) return total;
+  const hojeSql = ts(hojeUTC());
+  const contratosPorPrazo = Prisma.join([...CONTRATOS_POR_PRAZO]);
+
+  const linhas = await contarPorEmpresa(cliente, empresaIds, {
+    asoVencendo: [
+      Prisma.sql`FROM rh."ExameOcupacional" x WHERE ${ESCOPO} AND x."validoAte" IS NOT NULL AND x."validoAte" < ${hojeSql} AND ${COLABORADOR_ATIVO}`,
+    ],
+    certificadosVencendo: [
+      Prisma.sql`FROM rh."CertificadoNR" x WHERE ${ESCOPO} AND x."validoAte" IS NOT NULL AND x."validoAte" < ${hojeSql} AND ${COLABORADOR_ATIVO}`,
+    ],
+    contratosVencendo: [
+      Prisma.sql`FROM rh."Colaborador" x WHERE ${ESCOPO} AND x.ativo AND x."tipoContrato" IN (${contratosPorPrazo}) AND x."dataFimContrato" IS NOT NULL AND x."dataFimContrato" < ${hojeSql}`,
+    ],
+  } satisfies Record<keyof VencidosNaPendencia, readonly Prisma.Sql[]>);
+
+  for (const linha of linhas) total[linha.chave] += linha.n;
+  return total;
+}
+
 export type PesquisaAberta = {
   id: string;
   titulo: string;
