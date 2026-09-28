@@ -26,13 +26,25 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
-    versao: "1.178.1",
+    versao: "1.178.2",
     data: "28/09/2026",
     horario: "18:00",
     titulo: "Banco preparado para a Caixa de documentos",
     itens: [
       "Nada muda na tela nesta versão. Ela só cria no banco as tabelas da Caixa de documentos (a próxima versão), onde ficam os arquivos que chegam do contador e o que foi lido de cada página.",
       "O Dossiê ganha dois campos que ainda não aparecem: o mês de competência do documento e a marca que impede o mesmo contracheque de entrar duas vezes na ficha.",
+    ],
+  },
+  {
+    versao: "1.178.1",
+    data: "28/09/2026",
+    horario: "17:00",
+    titulo: "\"Sem setor definido\" e \"sem cargo definido\": o clique agora mostra quem é",
+    itens: [
+      "O problema: a tela inicial e as Pendências mostravam \"1 sem setor definido\" (e \"1 sem cargo definido\"), mas ao clicar a lista de colaboradores abria vazia.",
+      "A causa: a contagem considera sem setor quem está no setor \"Não definido\" OU no arquivo \"Demitidos\" (o setor oculto dos desligados históricos). A lista filtrada só procurava \"Não definido\" — então um colaborador ATIVO que ficou em \"Demitidos\" entrava no número e sumia da lista.",
+      "Agora a contagem e a lista usam a mesma regra: o clique mostra a pessoa, com o setor/cargo \"Demitidos\" na coluna. Abra a ficha e aponte o setor e o cargo reais para a pendência sumir.",
+      "O indicador \"Setor pendente\" no topo da lista de Colaboradores e as lacunas \"sem setor\"/\"sem cargo\" do Meu time passam a seguir a mesma regra.",
     ],
   },
   {
