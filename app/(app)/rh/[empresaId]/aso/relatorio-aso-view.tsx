@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Download, Printer } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Download, Paperclip, Printer } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,6 +13,7 @@ import { CabecalhoDePagina } from "@/components/padroes/cabecalho-de-pagina";
 import { FaixaDeIndicadores } from "@/components/padroes/faixa-de-indicadores";
 import { BarraDeFiltros } from "@/components/padroes/barra-de-filtros";
 import { gerarCsv } from "@/lib/csv";
+import { RegistrarExameDialog } from "../colaboradores/[colaboradorId]/registrar-exame-dialog";
 import { cn } from "@/lib/utils";
 
 export type LinhaRelatorioAso = {
@@ -123,6 +125,12 @@ export function RelatorioAsoView({ linhas, geradoEm }: { linhas: LinhaRelatorioA
   const [setor, setSetor] = useState(TODOS);
   const [empresa, setEmpresa] = useState(TODOS);
   const [busca, setBusca] = useState("");
+  // Pessoa cujo ASO está sendo anexado. Pedido do RH em 28/09/2026: a lista
+  // mostrava o atraso mas não dizia onde entregar o documento do médico — o
+  // formulário ficava na ficha, aba Segurança → SST. Agora abre aqui mesmo, e
+  // a lista se atualiza ao salvar sem perder os filtros.
+  const [anexando, setAnexando] = useState<LinhaRelatorioAso | null>(null);
+  const router = useRouter();
 
   const porFaixa = useMemo(() => {
     const contagem = Object.fromEntries(FAIXAS.map((f) => [f.chave, 0])) as Record<Faixa, number>;
@@ -306,7 +314,8 @@ export function RelatorioAsoView({ linhas, geradoEm }: { linhas: LinhaRelatorioA
           <CardTitle>Colaboradores</CardTitle>
           <CardDescription>
             Do ASO vencido há mais tempo para o mais recente; depois quem não tem ASO e, por último, o que
-            ainda vai vencer.
+            ainda vai vencer. Chegou o ASO do médico? Clique em <b>Anexar ASO</b> na linha da pessoa: o
+            documento fica na ficha dela e a situação se atualiza aqui.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -369,6 +378,7 @@ export function RelatorioAsoView({ linhas, geradoEm }: { linhas: LinhaRelatorioA
                     <TableHead>Último ASO</TableHead>
                     <TableHead>Validade</TableHead>
                     <TableHead>Situação</TableHead>
+                    <TableHead className="text-right print:hidden">Documento do médico</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -381,8 +391,9 @@ export function RelatorioAsoView({ linhas, geradoEm }: { linhas: LinhaRelatorioA
                       <TableRow key={l.colaboradorId} className={cn(critico && "bg-destructive/5")}>
                         <TableCell className="text-right text-muted-foreground tabular-nums">{i + 1}</TableCell>
                         <TableCell>
+                          {/* Abre a ficha já na aba de ASO (histórico de exames). */}
                           <Link
-                            href={`/rh/${l.empresaId}/colaboradores/${l.colaboradorId}`}
+                            href={`/rh/${l.empresaId}/colaboradores/${l.colaboradorId}?tab=seguranca`}
                             className={cn("hover:underline", critico ? "font-bold" : "font-medium")}
                           >
                             {l.nome}
@@ -404,6 +415,15 @@ export function RelatorioAsoView({ linhas, geradoEm }: { linhas: LinhaRelatorioA
                             {situacaoTexto(l)}
                           </Badge>
                         </TableCell>
+                        <TableCell className="text-right print:hidden">
+                          <Button
+                            size="sm"
+                            variant={l.dias === null || l.dias < 0 ? "default" : "outline"}
+                            onClick={() => setAnexando(l)}
+                          >
+                            <Paperclip className="size-4" aria-hidden /> Anexar ASO
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     );
                   })}
@@ -413,6 +433,23 @@ export function RelatorioAsoView({ linhas, geradoEm }: { linhas: LinhaRelatorioA
           )}
         </CardContent>
       </Card>
+
+      {anexando && (
+        <RegistrarExameDialog
+          // O CNPJ DO COLABORADOR, não o do caminho: o relatório mistura
+          // empresas, e a action só aceita o colaborador na empresa dele.
+          empresaId={anexando.empresaId}
+          colaboradorId={anexando.colaboradorId}
+          colaboradorNome={`${anexando.nome} · ${anexando.empresaNome}`}
+          // Quem já teve ASO está renovando: o periódico é o caso comum.
+          tipoPadrao={anexando.temExame ? "PERIODICO" : undefined}
+          aberto
+          aoMudarAberto={(aberto) => {
+            if (!aberto) setAnexando(null);
+          }}
+          aoRegistrar={() => router.refresh()}
+        />
+      )}
     </div>
   );
 }

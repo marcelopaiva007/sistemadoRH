@@ -37,6 +37,8 @@ export const ATUALIZACOES: Atualizacao[] = [
       "Resumo por CNPJ e por setor, com quantos estão vencidos, sem ASO e o maior atraso de cada um. Clique numa linha para filtrar a lista.",
       "A lista começa pelo ASO vencido HÁ MAIS TEMPO; quem está vencido há mais de 6 meses vem em destaque. Depois vêm os que não têm ASO cadastrado e, por último, os que ainda vão vencer.",
       "Botões \"Exportar CSV\" (abre no Excel, já com o filtro aplicado) e \"Imprimir\".",
+      "Chegou o ASO do médico? Cada linha do relatório tem o botão \"Anexar ASO\": abre ali mesmo o formulário do exame (tipo, data, resultado e o arquivo em PDF ou foto). Ao salvar, o documento fica guardado na ficha da pessoa e a situação dela já muda na lista, sem perder os filtros. Antes, esse formulário só existia dentro da ficha, na aba Segurança → SST (ASO, NR), e não havia caminho até ele a partir da lista.",
+      "Clicar no nome da pessoa abre a ficha já na aba de ASO, com o histórico de exames e os documentos anexados.",
     ],
   },
   {

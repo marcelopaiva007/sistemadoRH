@@ -312,6 +312,7 @@ export async function registrarExame(
   revalidatePath(`/rh/${empresaId}/colaboradores/${colaboradorId}`);
   revalidatePath(`/rh/${empresaId}/conformidade`);
   revalidatePath(`/rh/${empresaId}/vencimentos`);
+  revalidatePath(`/rh/${empresaId}/aso`);
   return { ok: true };
 }
 
@@ -344,5 +345,6 @@ export async function excluirExame(
   revalidatePath(`/rh/${empresaId}/colaboradores/${colaboradorId}`);
   revalidatePath(`/rh/${empresaId}/conformidade`);
   revalidatePath(`/rh/${empresaId}/vencimentos`);
+  revalidatePath(`/rh/${empresaId}/aso`);
   return { ok: true };
 }
