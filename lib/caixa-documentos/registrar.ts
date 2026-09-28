@@ -54,15 +54,17 @@ export async function registrarConteudo(params: {
   const hash = createHash("sha256").update(bytes).digest("hex");
   // Mesmo arquivo já enviado neste CNPJ e ainda valendo: não lê (nem paga) de
   // novo. Descartado ou com erro não conta — aí reenviar é o jeito de repetir.
-  // Só conta o arquivo que quem envia agora também enxerga (escopo dele
-  // dentro do escopo deste envio): o de um escopo maior não pode nem ser
-  // citado aqui — nome e data dele já diriam algo que esta pessoa não vê.
+  // Só é "o mesmo envio" o do MESMO escopo: o de escopo maior não pode nem
+  // ser citado aqui (nome e data diriam algo que esta pessoa não vê), e o de
+  // escopo menor não encaminhou tudo que este pode encaminhar — quem cuida
+  // de mais empresas precisa poder mandar a folha que outro já mandou. O
+  // documento repetido é barrado item a item (chave de duplicata).
   const escopo = (await prisma.documentoRecebido.findUnique({ where: { id: recebidoId }, select: { empresasEscopo: true } }))?.empresasEscopo ?? [];
   const [anterior] = await prisma.$queryRaw<{ id: string; nome: string; createdAt: Date }[]>`
     SELECT id, nome, "createdAt" FROM rh."DocumentoRecebido"
     WHERE "empresaId" = ${empresaId} AND hash = ${hash} AND id <> ${recebidoId}
       AND status NOT IN ('DESCARTADO', 'ERRO', 'AGUARDANDO_UPLOAD')
-      AND "empresasEscopo" <@ ${escopo}::text[]
+      AND "empresasEscopo" <@ ${escopo}::text[] AND "empresasEscopo" @> ${escopo}::text[]
     ORDER BY "createdAt" DESC LIMIT 1`;
   if (anterior) {
     return recusar(`Este arquivo já foi enviado em ${formatarData(anterior.createdAt)} ("${anterior.nome}").`, {

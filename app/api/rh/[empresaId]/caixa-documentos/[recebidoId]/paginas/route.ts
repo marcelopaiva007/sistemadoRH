@@ -9,9 +9,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { registrarAuditoria } from "@/lib/audit";
 import { recebidoDaRota } from "@/lib/caixa-documentos/acesso";
-import { bytesDoArquivo } from "@/lib/caixa-documentos/processar";
+import { bytesDoArquivo, paginasLidas } from "@/lib/caixa-documentos/processar";
+import { janelaDoItem } from "@/lib/caixa-documentos/decidir";
 import { recortarPdf } from "@/lib/caixa-documentos/pdf";
-import { JANELA_PAGINAS } from "@/lib/caixa-documentos/tipos";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,7 +29,7 @@ export async function GET(
   const itemId = req.nextUrl.searchParams.get("item") ?? "";
   const item = await prisma.itemDocumentoRecebido.findFirst({
     where: { id: itemId, recebidoId, status: "CONFERIR" },
-    select: { id: true, paginaInicio: true, paginaFim: true, nomeLido: true },
+    select: { id: true, paginaInicio: true, paginaFim: true, nomeLido: true, dados: true },
   });
   if (!item) return NextResponse.json({ error: "Documento não encontrado." }, { status: 404 });
 
@@ -45,11 +45,11 @@ export async function GET(
   }
 
   const total = recebido.paginas ?? 1;
-  const menor = Math.max(1, item.paginaInicio - JANELA_PAGINAS);
-  const maior = Math.min(total, item.paginaFim + JANELA_PAGINAS);
+  // Janela presa ao que a LEITURA apontou (não ao intervalo atual, que muda).
+  const janela = janelaDoItem(paginasLidas(item), total);
   const num = (v: string | null, padrao: number) => {
     const n = Number(v);
-    return Number.isInteger(n) && n >= menor && n <= maior ? n : padrao;
+    return Number.isInteger(n) && n >= janela.de && n <= janela.ate ? n : padrao;
   };
   const de = num(req.nextUrl.searchParams.get("de"), item.paginaInicio);
   const ate = Math.max(de, num(req.nextUrl.searchParams.get("ate"), item.paginaFim));

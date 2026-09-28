@@ -126,13 +126,11 @@ export function identificar(
   // Empresa do documento, quando impressa.
   let empresaDoDocumento: string | null = null;
   let avisoCnpj: string | null = null;
+  let foraDoEscopo = false;
   if (item.cnpj) {
     const empresa = empresas.get(item.cnpj);
-    if (empresa && !empresa.noEscopo) {
-      // Não diz de quem nem de que empresa: o usuário não enxerga aquele CNPJ.
-      return { tipo: "NENHUM", motivo: "O documento é de uma empresa que você não acessa.", opcoes: [], foraDoEscopo: true };
-    }
-    if (empresa) empresaDoDocumento = empresa.id;
+    if (empresa && !empresa.noEscopo) foraDoEscopo = true;
+    else if (empresa) empresaDoDocumento = empresa.id;
     else avisoCnpj = "O CNPJ impresso no documento não é de nenhuma empresa cadastrada.";
   } else if (doEmpregador) {
     avisoCnpj = "O documento não traz o CNPJ da empresa — confirme em qual ficha ele entra.";
@@ -156,6 +154,18 @@ export function identificar(
       : null;
   const docDa = (c: Candidato) =>
     chave?.campo === "CPF" ? (c.cpf ? apenasDigitosCpf(c.cpf) : "") : (c.pis ?? "").replace(/\D/g, "");
+
+  // CNPJ impresso de empresa cadastrada que quem enviou NÃO acessa. Se o
+  // CPF/PIS é de alguém daqui (o informe de rendimentos costuma trazer o CNPJ
+  // da matriz como fonte pagadora), o RH confere — nunca grava sozinho. Se
+  // não é de ninguém daqui, sai sem dizer de quem nem de que empresa.
+  if (foraDoEscopo) {
+    const daqui = chave ? fichasNoEscopo.filter((c) => docDa(c) === chave.valor) : [];
+    const motivo = `O CNPJ impresso é de uma empresa que você não acessa, mas o ${chave?.campo ?? "CPF"} é de alguém daqui — confira se é esta a ficha.`;
+    if (daqui.length === 1) return { tipo: "SUGESTAO", colaboradorId: daqui[0].id, empresaId: daqui[0].empresaId, motivo };
+    if (daqui.length > 1) return { tipo: "NENHUM", motivo, opcoes: daqui.map((c) => c.id) };
+    return { tipo: "NENHUM", motivo: "O documento é de uma empresa que você não acessa.", opcoes: [], foraDoEscopo: true };
+  }
 
   if (chave) {
     const rotulo = chave.campo;

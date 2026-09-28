@@ -63,9 +63,15 @@ export function ConferirDialog({
   const intervalo = Array.from({ length: Math.max(0, ate - de + 1) }, (_, i) => de + i);
   // Página com duas pessoas não vai ao portal de nenhuma — o servidor recusa
   // de todo jeito; aqui só avisa antes.
-  const variasPessoas = vaiAoPortal && intervalo.some((p) => (item.pessoasPorPagina[p] ?? 0) >= 2);
+  const mesmaEscolha = !paginasMudaram && colaboradorId === item.sugestaoId;
+  // Mais de uma pessoa na página, ou (para a pessoa sugerida) só o CPF/PIS de
+  // outra: não vai ao portal de ninguém — o servidor recusa de todo jeito;
+  // aqui só avisa antes, em vez de deixar marcar "olhei" à toa.
+  const variasPessoas =
+    vaiAoPortal &&
+    (intervalo.some((p) => (item.pessoasPorPagina[p] ?? 0) >= 2) || (mesmaEscolha && item.paginasDaSugestao === "OUTRA_PESSOA"));
   // A leitura já garantiu estas páginas para esta pessoa: não precisa do "olhei".
-  const garantidas = item.paginasDaSugestao === "OK" && !paginasMudaram && colaboradorId === item.sugestaoId;
+  const garantidas = item.paginasDaSugestao === "OK" && mesmaEscolha;
 
   const [gravando, iniciar] = useTransition();
   const [erro, setErro] = useState<string | null>(null);
@@ -249,8 +255,8 @@ export function ConferirDialog({
           {variasPessoas ? (
             <Alert variant="destructive">
               <AlertDescription>
-                A leitura viu mais de uma pessoa nestas páginas. Este tipo aparece no portal da pessoa, e ela veria os dados
-                da outra — não dá para gravar assim. Ajuste as páginas, ou anexe o documento pela ficha.
+                A leitura viu outra pessoa nestas páginas. Este tipo aparece no portal da pessoa, e ela veria os dados da
+                outra — não dá para gravar assim. Ajuste as páginas ou a pessoa, ou anexe o documento pela ficha.
               </AlertDescription>
             </Alert>
           ) : (

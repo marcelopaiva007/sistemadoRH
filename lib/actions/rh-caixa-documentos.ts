@@ -12,9 +12,18 @@ import { apenasDigitosCnpj } from "@/lib/cnpj";
 import type { ActionResult } from "@/lib/constants";
 import { alcancaEscopo, type UsuarioCaixa } from "@/lib/caixa-documentos/acesso";
 import { normalizarCampos, type CamposLidos, type InventarioPaginas } from "@/lib/caixa-documentos/extracao";
-import { conferenciaDasPaginas, faltasParaGravar, ocupaAsPaginas } from "@/lib/caixa-documentos/decidir";
+import { conferenciaDasPaginas, faltasParaGravar, janelaDoItem, ocupaAsPaginas } from "@/lib/caixa-documentos/decidir";
 import { gravarItem, type Ficha } from "@/lib/caixa-documentos/gravar";
-import { apagarOriginal, bytesDoArquivo, fatiaDoItem, lerDados, tocarRecebido, travarRecebido } from "@/lib/caixa-documentos/processar";
+import {
+  apagarOriginal,
+  bytesDoArquivo,
+  fatiaDoItem,
+  lerDados,
+  marcasDoItem,
+  paginasLidas,
+  tocarRecebido,
+  travarRecebido,
+} from "@/lib/caixa-documentos/processar";
 import { marcasDe } from "@/lib/caixa-documentos/sigilo";
 import {
   JANELA_PAGINAS,
@@ -79,17 +88,20 @@ export async function confirmarItem(empresaId: string, itemId: string, _prev: Ac
   });
   if (!colaborador) return { ok: false, error: "Escolha a pessoa." };
 
-  // CNPJ impresso de empresa cadastrada FORA do escopo do arquivo: não grava
-  // de jeito nenhum — seria o documento de uma empresa indo parar na ficha de
-  // um homônimo de outra (a classe do 22/08). A leitura já descarta esses
-  // sozinha; isto cobre o item que chegou à conferência por outro caminho.
-  if (item.cnpjLido) {
+  const marcasDaPessoa = marcasDe(colaborador.cpf, colaborador.pis);
+
+  // CNPJ impresso de empresa cadastrada FORA do escopo do arquivo: só grava
+  // se o CPF/PIS lido é o desta ficha (o informe traz o CNPJ da matriz como
+  // fonte pagadora). Sem isso, seria o documento de uma empresa indo parar na
+  // ficha de um homônimo de outra (a classe do 22/08).
+  const oLidoEDaFicha = marcasDoItem(item).some((m) => marcasDaPessoa.includes(m));
+  if (item.cnpjLido && !oLidoEDaFicha) {
     const empresas = await prisma.empresa.findMany({
       where: { cnpj: { not: null } },
       select: { id: true, cnpj: true, ativo: true },
     });
     const doDocumento = empresas.find((e) => apenasDigitosCnpj(e.cnpj!) === item.cnpjLido);
-    if (doDocumento && (!doDocumento.ativo || !recebido.empresasEscopo.includes(doDocumento.id))) {
+    if (doDocumento && !recebido.empresasEscopo.includes(doDocumento.id)) {
       return {
         ok: false,
         error: "O documento é de uma empresa fora do alcance deste arquivo — não pode ser gravado daqui.",
@@ -117,8 +129,10 @@ export async function confirmarItem(empresaId: string, itemId: string, _prev: Ac
   if (!Number.isInteger(de) || !Number.isInteger(ate) || de < 1 || ate < de || ate > total) {
     return { ok: false, error: `Páginas inválidas (o arquivo tem ${total}).` };
   }
-  // Só o que o RH pôde ver (a rota de páginas mostra a mesma janela).
-  if (de < item.paginaInicio - JANELA_PAGINAS || ate > item.paginaFim + JANELA_PAGINAS) {
+  // Só o que o RH pôde ver (a rota de páginas mostra a mesma janela, presa
+  // ao que a leitura apontou — não ao intervalo atual, que muda).
+  const janela = janelaDoItem(paginasLidas(item), total);
+  if (de < janela.de || ate > janela.ate) {
     return {
       ok: false,
       error: `Dá para ajustar até ${JANELA_PAGINAS} páginas antes ou depois das que a leitura apontou.`,
@@ -151,14 +165,21 @@ export async function confirmarItem(empresaId: string, itemId: string, _prev: Ac
       colaboradorId: true,
       nomeLido: true,
       motivo: true,
+      cpfLido: true,
+      pisLido: true,
+      dados: true,
     },
   });
-  const sobrepoe = outros.some((o) => ocupaAsPaginas(o, colaborador.id) && o.paginaInicio <= ate && o.paginaFim >= de);
+  const pessoa = { id: colaborador.id, marcas: marcasDaPessoa };
+  const sobrepoe = outros.some(
+    (o) => o.paginaInicio <= ate && o.paginaFim >= de && ocupaAsPaginas({ ...o, marcas: marcasDoItem(o) }, pessoa),
+  );
   const paginas = conferenciaDasPaginas(
     de,
     ate,
     (recebido.inventarioPaginas as InventarioPaginas | null) ?? null,
-    marcasDe(colaborador.cpf, colaborador.pis),
+    marcasDaPessoa,
+    !!colaborador.cpf && !!colaborador.pis,
   );
   if (vaiAoPortal && (sobrepoe || paginas === "OUTRA_PESSOA")) {
     return {
@@ -202,8 +223,11 @@ export async function confirmarItem(empresaId: string, itemId: string, _prev: Ac
     };
   }
 
+  // O arquivo tem de continuar vivo (não descartado, original guardado) no
+  // instante em que o item é pego: senão o descarte do arquivo apagaria o
+  // original entre a checagem e a gravação, e não haveria "Desfazer".
   const pego = await prisma.itemDocumentoRecebido.updateMany({
-    where: { id: item.id, status: "CONFERIR" },
+    where: { id: item.id, status: "CONFERIR", recebido: { status: { not: "DESCARTADO" }, arquivoId: { not: null } } },
     data: { status: "GRAVANDO", paginaInicio: de, paginaFim: ate, tipo },
   });
   if (pego.count !== 1)
@@ -270,7 +294,9 @@ export async function descartarItem(empresaId: string, itemId: string): Promise<
       status: "DESCARTADO",
       cpfLido: null,
       pisLido: null,
-      dados: {},
+      // Só as marcas do CPF/PIS (não voltam a ser número): a página continua
+      // "desta pessoa" para ocupaAsPaginas, mesmo descartada.
+      dados: { marcas: marcasDoItem(item) },
       resolvidoPorNome: carregado.user.name ?? null,
       resolvidoEm: new Date(),
     },
@@ -363,7 +389,9 @@ export async function descartarRecebido(empresaId: string, recebidoId: string): 
     where: { recebidoId, status: "GRAVADO" },
   });
   // Sem nada gravado, o original não serve para mais nada (nem para desfazer).
-  if (gravados === 0) await apagarOriginal(recebidoId);
+  // Conferido de novo com a trava: um item pego para gravar no meio do
+  // caminho segura o original.
+  if (gravados === 0) await apagarOriginal(recebidoId, { itens: { none: { status: { in: ["GRAVANDO", "GRAVADO"] } } } });
   await registrarAuditoria({
     empresaId,
     acao: "EXCLUIR",
@@ -418,9 +446,10 @@ export async function desfazerItem(empresaId: string, itemId: string): Promise<A
   }
   const id = item.destinoId;
   const entidade = item.destinoEntidade;
-  // O registro mudou na ficha depois de gravado (outro arquivo, datas
-  // corrigidas): apagar daqui jogaria fora o trabalho de alguém.
-  const editadoDepois = (atualizadoEm: Date) => !!item.resolvidoEm && atualizadoEm.getTime() - item.resolvidoEm.getTime() > 5_000;
+  // O registro mudou na ficha depois de criado (outro arquivo, datas
+  // corrigidas): apagar daqui jogaria fora o trabalho de alguém. Compara com
+  // a criação DO PRÓPRIO registro — a hora do item vem de antes da transação.
+  const editadoDepois = (r: { createdAt: Date; updatedAt: Date }) => r.updatedAt.getTime() - r.createdAt.getTime() > 1_000;
 
   class Recusa extends Error {}
   let empresaDoDestino: string;
@@ -432,36 +461,36 @@ export async function desfazerItem(empresaId: string, itemId: string): Promise<A
 
       const sumiu = "O registro já não existe (foi excluído pela ficha).";
       const editado = "O registro foi alterado na ficha depois de gravado — ajuste ou exclua pela ficha da pessoa.";
-      let destino: { arquivoId: string | null; empresaId: string; updatedAt: Date };
+      let destino: { arquivoId: string | null; empresaId: string };
       let apagados: { count: number };
       switch (entidade) {
         case "ExameOcupacional": {
-          const r = await tx.exameOcupacional.findUnique({ where: { id }, select: { arquivoId: true, empresaId: true, updatedAt: true } });
+          const r = await tx.exameOcupacional.findUnique({ where: { id }, select: { arquivoId: true, empresaId: true, createdAt: true, updatedAt: true } });
           if (!r) throw new Recusa(sumiu);
-          if (editadoDepois(r.updatedAt)) throw new Recusa(editado);
+          if (editadoDepois(r)) throw new Recusa(editado);
           [destino, apagados] = [r, await tx.exameOcupacional.deleteMany({ where: { id } })];
           break;
         }
         case "CertificadoNR": {
-          const r = await tx.certificadoNR.findUnique({ where: { id }, select: { arquivoId: true, empresaId: true, updatedAt: true } });
+          const r = await tx.certificadoNR.findUnique({ where: { id }, select: { arquivoId: true, empresaId: true, createdAt: true, updatedAt: true } });
           if (!r) throw new Recusa(sumiu);
-          if (editadoDepois(r.updatedAt)) throw new Recusa(editado);
+          if (editadoDepois(r)) throw new Recusa(editado);
           [destino, apagados] = [r, await tx.certificadoNR.deleteMany({ where: { id } })];
           break;
         }
         case "Ausencia": {
-          const r = await tx.ausencia.findUnique({ where: { id }, select: { arquivoId: true, empresaId: true, status: true, updatedAt: true } });
+          const r = await tx.ausencia.findUnique({ where: { id }, select: { arquivoId: true, empresaId: true, status: true, createdAt: true, updatedAt: true } });
           if (!r) throw new Recusa(sumiu);
           // Aprovada já mexeu em folha/ponto: desfazer aqui esconderia isso.
           if (r.status !== "PENDENTE") throw new Recusa("A ausência já foi decidida em Aprovações — ajuste pela ficha da pessoa.");
-          if (editadoDepois(r.updatedAt)) throw new Recusa(editado);
+          if (editadoDepois(r)) throw new Recusa(editado);
           [destino, apagados] = [r, await tx.ausencia.deleteMany({ where: { id, status: "PENDENTE" } })];
           break;
         }
         case "DocumentoColaborador": {
-          const r = await tx.documentoColaborador.findUnique({ where: { id }, select: { arquivoId: true, empresaId: true, updatedAt: true } });
+          const r = await tx.documentoColaborador.findUnique({ where: { id }, select: { arquivoId: true, empresaId: true, createdAt: true, updatedAt: true } });
           if (!r) throw new Recusa(sumiu);
-          if (editadoDepois(r.updatedAt)) throw new Recusa(editado);
+          if (editadoDepois(r)) throw new Recusa(editado);
           [destino, apagados] = [r, await tx.documentoColaborador.deleteMany({ where: { id } })];
           break;
         }

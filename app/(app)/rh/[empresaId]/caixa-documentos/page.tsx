@@ -5,14 +5,13 @@ import { mascararCpf } from "@/lib/cpf";
 import { formatarData, formatarDataHoraBrasilia } from "@/lib/datas";
 import { PAPEIS_QUE_CONFIGURAM } from "@/lib/segredos";
 import { iaLigada } from "@/lib/caixa-documentos/ia";
-import { lerDados, limparCaixa, DIAS_GUARDA_ORIGINAL } from "@/lib/caixa-documentos/processar";
-import { conferenciaDasPaginas } from "@/lib/caixa-documentos/decidir";
+import { lerDados, limparCaixa, paginasLidas, DIAS_GUARDA_ORIGINAL } from "@/lib/caixa-documentos/processar";
+import { conferenciaDasPaginas, janelaDoItem } from "@/lib/caixa-documentos/decidir";
 import type { InventarioPaginas } from "@/lib/caixa-documentos/extracao";
 import { marcasDe } from "@/lib/caixa-documentos/sigilo";
 import {
   ABA_DO_DESTINO,
   DESTINO_LABEL,
-  JANELA_PAGINAS,
   MOTIVO_FORA_DO_ESCOPO,
   destinoDoTipo,
   type TipoCaixa,
@@ -151,7 +150,7 @@ export default async function CaixaDocumentosPage({
     const tipo = i.tipo as TipoCaixa;
     const total = r.paginas ?? 1;
     const inventario = (r.inventarioPaginas as InventarioPaginas | null) ?? null;
-    const janela = { de: Math.max(1, i.paginaInicio - JANELA_PAGINAS), ate: Math.min(total, i.paginaFim + JANELA_PAGINAS) };
+    const janela = janelaDoItem(paginasLidas(i), total);
     // Só a contagem de pessoas vai à tela — as marcas de CPF/PIS ficam aqui.
     const pessoasPorPagina: Record<number, number | null> = {};
     for (let p = janela.de; p <= janela.ate; p++) pessoasPorPagina[p] = inventario?.[String(p)]?.pessoas ?? null;
@@ -179,7 +178,7 @@ export default async function CaixaDocumentosPage({
       // Para a pessoa sugerida e as páginas lidas: "OK" dispensa o "olhei as
       // páginas" do RH. Qualquer outra escolha, o servidor confere ao gravar.
       paginasDaSugestao: sugerida
-        ? conferenciaDasPaginas(i.paginaInicio, i.paginaFim, inventario, marcasDe(sugerida.cpf, sugerida.pis))
+        ? conferenciaDasPaginas(i.paginaInicio, i.paginaFim, inventario, marcasDe(sugerida.cpf, sugerida.pis), !!sugerida.cpf && !!sugerida.pis)
         : null,
       originalGuardado: !!r.arquivoId,
     };

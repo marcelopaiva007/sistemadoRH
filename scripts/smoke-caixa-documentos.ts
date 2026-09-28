@@ -31,6 +31,7 @@ const CPF_ANA = "52998224725";
 const CPF_BRUNO = "11144477735";
 const CPF_CARLA = "39053344705";
 const PIS_ANA = "12056412545";
+const CPF_DE_FORA = "15350946056"; // ninguém do escopo do teste
 
 /** O PDF de teste: N páginas em branco e a "leitura" no Assunto. */
 async function pdfDeTeste(paginas: number, leitura: unknown): Promise<Uint8Array<ArrayBuffer>> {
@@ -193,12 +194,13 @@ async function main() {
 
     console.log("\n4. Pendências contam a fila:");
     const { pendenciasDaEmpresa } = await import("../lib/pendencias");
-    const p = await pendenciasDaEmpresa([empA.id, empB.id]);
-    ok(p.caixaAConferir >= 3, `quem vê as duas empresas do arquivo: caixaAConferir = ${p.caixaAConferir}`);
-    // O arquivo foi enviado com escopo {A, B}: quem só vê A não consegue
-    // abri-lo, então não pode contá-lo (número plausível e inútil).
-    const soA = await pendenciasDaEmpresa([empA.id]);
-    ok(soA.caixaAConferir === 0, `quem só vê a empresa A não conta a fila de um arquivo de A+B (${soA.caixaAConferir})`);
+    // O arquivo foi enviado de A com escopo {A, B}.
+    const doisCnpjs = await pendenciasDaEmpresa([empA.id], prisma, [empA.id, empB.id]);
+    ok(doisCnpjs.caixaAConferir >= 3, `quem vê A e B, olhando só o CNPJ A (contador da lateral): ${doisCnpjs.caixaAConferir}`);
+    const soA = await pendenciasDaEmpresa([empA.id], prisma, [empA.id]);
+    ok(soA.caixaAConferir === 0, `quem só vê a empresa A não conta a fila de um arquivo de A+B que não consegue abrir (${soA.caixaAConferir})`);
+    const semUsuario = await pendenciasDaEmpresa([empA.id]);
+    ok(semUsuario.caixaAConferir === doisCnpjs.caixaAConferir, "sem saber quem pergunta, conta tudo do CNPJ");
 
     console.log("\n5. Documento que atravessa blocos, com outros encaminhados no meio (20 páginas, 3 blocos):");
     {
@@ -206,8 +208,8 @@ async function main() {
       const paginas = [
         ...Array.from({ length: 9 }, (_, i) => inv(i + 1, 1, [CPF_BRUNO])),
         inv(10, 1, [CPF_ANA]),
-        inv(11, 1, [CPF_CARLA]),
-        inv(12, 0, []),
+        inv(11, 1, [CPF_DE_FORA]),
+        inv(12, 1, [CPF_ANA]),
         inv(13, 1, []), // alguém que a leitura não apontou em documento nenhum
         inv(14, 0, []),
         inv(15, 0, []),
@@ -221,7 +223,9 @@ async function main() {
         doc({ tipo: "CONTRATO", paginaInicio: 1, paginaFim: 8, continuaDepois: true, nome: "Bruno Lima Smoke", cpf: CPF_BRUNO, cnpjEmpregador: "" }),
         doc({ tipo: "CONTRATO", paginaInicio: 9, paginaFim: 9, continuaAntes: true, nome: "Bruno Lima Smoke", cpf: CPF_BRUNO, cnpjEmpregador: "" }),
         doc({ tipo: "CONTRACHEQUE", paginaInicio: 10, paginaFim: 10, nome: "Ana Souza Smoke", cpf: CPF_ANA, cnpjEmpregador: cnpjA ? CNPJ_A : "", campos: { competencia: "2026-07", tipoFolha: "MENSAL" } }),
-        doc({ tipo: "CONTRACHEQUE", paginaInicio: 11, paginaFim: 11, nome: "Carla Dias Smoke", cpf: CPF_CARLA, cnpjEmpregador: cnpjC ? CNPJ_B : "", campos: { competencia: "2026-07", tipoFolha: "MENSAL" } }),
+        doc({ tipo: "CONTRACHEQUE", paginaInicio: 11, paginaFim: 11, nome: "Pessoa De Fora", cpf: CPF_DE_FORA, cnpjEmpregador: cnpjC ? CNPJ_B : "", campos: { competencia: "2026-07", tipoFolha: "MENSAL" } }),
+        // O informe traz o CNPJ da matriz (fora do escopo) como fonte pagadora, mas o CPF é da Ana.
+        doc({ tipo: "INFORME_RENDIMENTOS", paginaInicio: 12, paginaFim: 12, nome: "Ana Souza Smoke", cpf: CPF_ANA, cnpjEmpregador: cnpjC ? CNPJ_B : "", campos: { anoCalendario: 2025 } }),
         doc({ tipo: "CONTRACHEQUE", paginaInicio: 17, paginaFim: 17, nome: "Ana Souza Smoke", cpf: CPF_ANA, pis: PIS_ANA, cnpjEmpregador: "", campos: { competencia: "2026-06", tipoFolha: "MENSAL" } }),
       ];
       const bytes5 = await pdfDeTeste(20, { paginas, documentos });
@@ -249,16 +253,21 @@ async function main() {
       const contrato = itens5.filter((i) => i.tipo === "CONTRATO");
       ok(contrato.length === 1 && contrato[0].paginaInicio === 1 && contrato[0].paginaFim === 9, "o contrato das páginas 1–8 + 9 virou um só documento (1–9)");
       ok(itens5.every((i) => i.status !== "PENDENTE" && i.status !== "GRAVANDO"), "nenhum item ficou para trás na fila");
-      const daCarla = itens5.find((i) => i.paginaInicio === 11);
+      const deFora = itens5.find((i) => i.paginaInicio === 11);
+      const informe = itens5.find((i) => i.paginaInicio === 12);
       if (cnpjC) {
         ok(
-          daCarla?.status === "DESCARTADO" && !daCarla.nomeLido && !daCarla.cpfLido && (daCarla.motivo ?? "").startsWith(MOTIVO_FORA_DO_ESCOPO),
-          "documento de CNPJ fora do escopo → descartado sem nome nem CPF guardados",
+          deFora?.status === "DESCARTADO" && !deFora.nomeLido && !deFora.cpfLido && (deFora.motivo ?? "").startsWith(MOTIVO_FORA_DO_ESCOPO),
+          "documento de CNPJ fora do escopo, de ninguém daqui → descartado sem nome nem CPF guardados",
+        );
+        ok(
+          informe?.status === "CONFERIR" && informe.colaboradorId === ana.id && (informe.motivo ?? "").includes("alguém daqui"),
+          "informe com o CNPJ da matriz (fora do escopo) mas o CPF da Ana → conferência com a Ana sugerida",
         );
       }
       const solta = itens5.find((i) => i.paginaInicio === 13);
       ok(solta?.status === "CONFERIR" && (solta.motivo ?? "").includes("não apontou"), "página que a leitura pulou virou item para conferir");
-      ok(itens5.filter((i) => i.paginaInicio === 12 || i.paginaInicio === 14).length === 0, "página sem pessoa (0 no inventário) não vira item");
+      ok(itens5.filter((i) => i.paginaInicio === 14 || i.paginaInicio === 15).length === 0, "página sem pessoa (0 no inventário) não vira item");
       const ultimo = itens5.find((i) => i.paginaInicio === 17);
       ok(ultimo?.status === "CONFERIR" && ultimo.pisLido === PIS_ANA, "o PIS lido sobrevive à junção do último bloco");
       const r5b = await prisma.documentoRecebido.findUniqueOrThrow({ where: { id: r5.id } });

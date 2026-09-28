@@ -15,6 +15,7 @@ import {
   conferenciaDasPaginas,
   decidir,
   faltasParaGravar,
+  janelaDoItem,
   ocupaAsPaginas,
   paginasSemDocumento,
   paginasSoDele,
@@ -176,8 +177,8 @@ console.log("\n5. De quem é o documento:");
   const r3 = identificar(doc({ tipo: "CONTRACHEQUE", cpf: CPF_ANA, cnpj: CNPJ_A }), duas, empresas, hoje);
   ok(r3.tipo === "CPF" && r3.colaboradorId === "ana-A", "o CNPJ do documento desempata");
 
-  const r4 = identificar(doc({ cnpj: CNPJ_FORA, cpf: CPF_ANA }), [cand({ id: "ana", cpf: CPF_ANA })], empresas, hoje);
-  ok(r4.tipo === "NENHUM" && r4.opcoes.length === 0 && !r4.motivo.includes("Z"), "CNPJ fora do acesso → não grava e não revela nada");
+  const r4 = identificar(doc({ cnpj: CNPJ_FORA, cpf: CPF_BRUNO }), [cand({ id: "ana", cpf: CPF_ANA })], empresas, hoje);
+  ok(r4.tipo === "NENHUM" && r4.opcoes.length === 0 && !r4.motivo.includes("Z"), "CNPJ fora do acesso, CPF de ninguém daqui → não grava e não revela nada");
 
   const r5 = identificar(doc({ tipo: "CONTRACHEQUE" }), [cand({ id: "ana" })], empresas, hoje);
   ok(r5.tipo === "SUGESTAO", "só pelo nome, sem CNPJ → sugestão");
@@ -276,25 +277,35 @@ console.log("\n10. Conferência à mão: página de duas pessoas não vai ao por
     "3": { pessoas: 1, ids: [CPF_BRUNO] },
     "4": { pessoas: 1, ids: [] },
     "5": { pessoas: 0, ids: [] },
+    "6": { pessoas: 1, ids: [PIS_ANA] },
   };
-  ok(conferenciaDasPaginas(1, 1, inv, [CPF_ANA]) === "OK", "página só da Ana, para a Ana → ok");
-  ok(conferenciaDasPaginas(1, 2, inv, [CPF_ANA]) === "OUTRA_PESSOA", "duas pessoas na página 2 → bloqueia, sem confirmação possível");
-  ok(conferenciaDasPaginas(3, 3, inv, [CPF_ANA]) === "OUTRA_PESSOA", "página só com o CPF do Bruno, escolhida para a Ana → bloqueia");
-  ok(conferenciaDasPaginas(4, 4, inv, [CPF_ANA]) === "DUVIDA", "página com uma pessoa e sem CPF lido → o RH confirma olhando");
-  ok(conferenciaDasPaginas(9, 9, inv, [CPF_ANA]) === "DUVIDA", "página sem leitura → o RH confirma olhando");
-  ok(conferenciaDasPaginas(1, 1, inv, [CPF_ANA]) === "OK" && conferenciaDasPaginas(5, 5, inv, [CPF_ANA]) === "OK", "página sem pessoa nenhuma (verso) não atrapalha");
-  ok(conferenciaDasPaginas(1, 1, inv, []) === "DUVIDA", "ficha sem CPF nem PIS → dúvida, nunca ok");
+  ok(conferenciaDasPaginas(1, 1, inv, [CPF_ANA], false) === "OK", "página só da Ana, para a Ana → ok");
+  ok(conferenciaDasPaginas(1, 2, inv, [CPF_ANA], false) === "OUTRA_PESSOA", "duas pessoas na página 2 → bloqueia, sem confirmação possível");
+  ok(conferenciaDasPaginas(3, 3, inv, [CPF_ANA, PIS_ANA], true) === "OUTRA_PESSOA", "ficha com CPF e PIS, página só com o CPF do Bruno → bloqueia");
+  ok(
+    conferenciaDasPaginas(6, 6, inv, [CPF_ANA], false) === "DUVIDA",
+    "contracheque que só traz o PIS, ficha da Ana sem PIS cadastrado → dúvida (o RH confirma), nunca bloqueio eterno",
+  );
+  ok(conferenciaDasPaginas(6, 6, inv, [CPF_ANA, PIS_ANA], true) === "OK", "com o PIS na ficha, o mesmo contracheque passa direto");
+  ok(conferenciaDasPaginas(4, 4, inv, [CPF_ANA], false) === "DUVIDA", "página com uma pessoa e sem CPF lido → o RH confirma olhando");
+  ok(conferenciaDasPaginas(9, 9, inv, [CPF_ANA], false) === "DUVIDA", "página sem leitura → o RH confirma olhando");
+  ok(conferenciaDasPaginas(5, 5, inv, [CPF_ANA], false) === "OK", "página sem pessoa nenhuma (verso) não atrapalha");
+  ok(conferenciaDasPaginas(1, 1, inv, [], false) === "DUVIDA", "ficha sem CPF nem PIS → dúvida, nunca ok");
 }
 
 console.log("\n11. Descartar o item do outro não libera a página dele:");
 {
-  const base = { tipo: "CONTRACHEQUE", status: "DESCARTADO", colaboradorId: null, nomeLido: "BRUNO LIMA", motivo: null };
-  ok(ocupaAsPaginas({ ...base, status: "CONFERIR" }, "ana"), "item ativo de outro ocupa");
-  ok(ocupaAsPaginas(base, "ana"), "contracheque do Bruno descartado continua ocupando a página");
-  ok(!ocupaAsPaginas({ ...base, colaboradorId: "ana" }, "ana"), "descartado que era da própria Ana (leitura repetida) libera");
-  ok(!ocupaAsPaginas({ ...base, nomeLido: null }, "ana"), "descartado sem pessoa lida (página solta) libera");
-  ok(!ocupaAsPaginas({ ...base, tipo: "NAO_E_DE_COLABORADOR", status: "CONFERIR" }, "ana"), "página sem pessoa (capa, boleto) não ocupa");
-  ok(ocupaAsPaginas({ ...base, nomeLido: null, motivo: `${MOTIVO_FORA_DO_ESCOPO} — ignorado.` }, "ana"), "de empresa fora do alcance: ocupa, mesmo sem nome guardado");
+  const base = { tipo: "CONTRACHEQUE", status: "DESCARTADO", colaboradorId: null, nomeLido: "BRUNO LIMA", motivo: null, marcas: [CPF_BRUNO] };
+  const ana = { id: "ana", marcas: [CPF_ANA] };
+  ok(ocupaAsPaginas({ ...base, status: "CONFERIR" }, ana), "item ativo de outro ocupa");
+  ok(ocupaAsPaginas(base, ana), "contracheque do Bruno descartado continua ocupando a página");
+  ok(!ocupaAsPaginas({ ...base, colaboradorId: "ana" }, ana), "item que era da própria Ana libera");
+  ok(!ocupaAsPaginas({ ...base, nomeLido: "ANA SOUZA", marcas: [CPF_ANA] }, ana), "leitura repetida da Ana (mesmo CPF), sem pessoa marcada → libera");
+  ok(!ocupaAsPaginas({ ...base, status: "CONFERIR", nomeLido: "ANA SOUZA", marcas: [CPF_ANA] }, ana), "dois documentos da Ana na mesma folha → um não trava o outro");
+  ok(!ocupaAsPaginas({ ...base, nomeLido: null, marcas: [] }, ana), "item sem pessoa lida (página solta) libera — o inventário ainda confere");
+  ok(!ocupaAsPaginas({ ...base, tipo: "NAO_E_DE_COLABORADOR", status: "CONFERIR" }, ana), "página sem pessoa (capa, boleto) não ocupa");
+  ok(ocupaAsPaginas({ ...base, nomeLido: null, marcas: [], motivo: `${MOTIVO_FORA_DO_ESCOPO} — ignorado.` }, ana), "de empresa fora do alcance: ocupa, mesmo sem nada guardado");
+  ok(JSON.stringify(janelaDoItem({ de: 3, ate: 3 }, 20)) === JSON.stringify({ de: 1, ate: 8 }), "janela de 5 páginas, presa às páginas lidas e ao arquivo");
 }
 
 console.log("\n12. Página que a leitura pulou não some:");
@@ -331,8 +342,13 @@ console.log("\n14. Empresa fora do alcance e informe de quem saiu:");
     [CNPJ_FORA, { id: "Z", noEscopo: false }],
   ]);
   const ana: Candidato = { id: "ana", empresaId: "A", nome: "Ana Souza", cpf: CPF_ANA, ativo: true, dataAdmissao: null, dataDesligamento: null };
-  const fora = identificar({ tipo: "CONTRACHEQUE", nome: "Ana Souza", cpf: CPF_ANA, cnpj: CNPJ_FORA, asoTipo: null }, [ana], empresas, hoje);
-  ok(fora.tipo === "NENHUM" && fora.foraDoEscopo === true, "CNPJ de empresa que quem enviou não acessa → marcado para sair sem mostrar");
+  const fora = identificar({ tipo: "CONTRACHEQUE", nome: "Bruno Lima", cpf: CPF_BRUNO, cnpj: CNPJ_FORA, asoTipo: null }, [ana], empresas, hoje);
+  ok(fora.tipo === "NENHUM" && fora.foraDoEscopo === true, "CNPJ que quem enviou não acessa, CPF de ninguém daqui → sai sem mostrar");
+  const matriz = identificar({ tipo: "INFORME_RENDIMENTOS", nome: "Ana Souza", cpf: CPF_ANA, cnpj: CNPJ_FORA, asoTipo: null }, [ana], empresas, hoje);
+  ok(
+    matriz.tipo === "SUGESTAO" && matriz.colaboradorId === "ana",
+    "CNPJ que quem enviou não acessa (a matriz no informe), mas CPF de alguém daqui → conferência, nunca sozinho",
+  );
   const saiu: Candidato = {
     id: "bruno",
     empresaId: "A",

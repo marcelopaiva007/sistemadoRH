@@ -429,7 +429,15 @@ const ESCOPO = Prisma.sql`x."empresaId" IN (SELECT id FROM alvo)`;
 const COLABORADOR_ATIVO = Prisma.sql`EXISTS (SELECT 1 FROM rh."Colaborador" c WHERE c.id = x."colaboradorId" AND c.ativo)`;
 const ts = (d: Date) => Prisma.sql`${d.toISOString()}::timestamp`;
 
-function subconsultasDePendencias(hoje: Date): Record<keyof Pendencias, readonly Prisma.Sql[]> {
+function subconsultasDePendencias(
+  hoje: Date,
+  visiveis: readonly string[] | null,
+): Record<keyof Pendencias, readonly Prisma.Sql[]> {
+  // Caixa de documentos: só o arquivo cujo escopo INTEIRO a pessoa enxerga —
+  // a regra de quem pode abri-lo (lib/caixa-documentos/acesso.ts). Sem saber
+  // quem pergunta (lembrete por marca), conta todos do CNPJ.
+  const caixaVisivel = (coluna: Prisma.Sql) =>
+    visiveis ? Prisma.sql` AND ${coluna} <@ ${[...visiveis]}::text[]` : Prisma.empty;
   const hojeSql = ts(hoje);
   const limite = ts(somarDiasUTC(hoje, DIAS_ALERTA_VENCIMENTO));
   const umAnoAtras = ts(somarDiasUTC(hoje, -365));
@@ -559,14 +567,13 @@ function subconsultasDePendencias(hoje: Date): Record<keyof Pendencias, readonly
     // /mensagens também a mostra.
     mensagensSemResposta: [Prisma.sql`FROM rh."MensagemPortal" x WHERE ${ESCOPO} AND x."respondidaEm" IS NULL`],
     // O item não tem empresaId: o CNPJ é o do arquivo (de onde foi enviado).
-    // Duas subconsultas somando na mesma chave, como `aprovacoes`. Só conta o
-    // arquivo cujo escopo INTEIRO está entre os CNPJs pedidos — a mesma regra
-    // de quem pode abri-lo (acesso.ts, alcancaEscopo). Sem isto, o RH de um
-    // CNPJ contava a fila de um arquivo que o administrador enviou para o
-    // grupo todo e que ele não consegue abrir: número plausível e inútil.
+    // Duas subconsultas somando na mesma chave, como `aprovacoes`. Com quem
+    // pergunta conhecido, só conta o arquivo que ele consegue abrir (ver
+    // caixaVisivel) — senão o RH de um CNPJ contaria a fila de um arquivo que
+    // o administrador enviou para o grupo todo: número plausível e inútil.
     caixaAConferir: [
-      Prisma.sql`FROM (SELECT r."empresaId" FROM rh."ItemDocumentoRecebido" i JOIN rh."DocumentoRecebido" r ON r.id = i."recebidoId" WHERE i.status = 'CONFERIR' AND r."empresasEscopo" <@ ARRAY(SELECT id FROM alvo)) x WHERE ${ESCOPO}`,
-      Prisma.sql`FROM rh."DocumentoRecebido" x WHERE ${ESCOPO} AND x.status = 'ERRO' AND x."empresasEscopo" <@ ARRAY(SELECT id FROM alvo)`,
+      Prisma.sql`FROM (SELECT r."empresaId" FROM rh."ItemDocumentoRecebido" i JOIN rh."DocumentoRecebido" r ON r.id = i."recebidoId" WHERE i.status = 'CONFERIR'${caixaVisivel(Prisma.sql`r."empresasEscopo"`)}) x WHERE ${ESCOPO}`,
+      Prisma.sql`FROM rh."DocumentoRecebido" x WHERE ${ESCOPO} AND x.status = 'ERRO'${caixaVisivel(Prisma.sql`x."empresasEscopo"`)}`,
     ],
     // Entrega sem confirmação de quem recebeu. Devolvida sai da conta —
     // não há mais o que confirmar.
@@ -653,11 +660,13 @@ async function contarPorEmpresa<K extends string>(
 export async function pendenciasPorEmpresa(
   empresaIds: string[],
   cliente: Cliente = prisma,
+  /** As empresas que QUEM PERGUNTA enxerga (empresasVisiveis) — hoje só a Caixa de documentos usa. */
+  visiveis: readonly string[] | null = null,
 ): Promise<Map<string, Pendencias>> {
   const mapa = new Map<string, Pendencias>(empresaIds.map((id) => [id, zeradas()]));
   if (empresaIds.length === 0) return mapa;
 
-  const linhas = await contarPorEmpresa(cliente, empresaIds, subconsultasDePendencias(hojeUTC()));
+  const linhas = await contarPorEmpresa(cliente, empresaIds, subconsultasDePendencias(hojeUTC(), visiveis));
 
   // `+=`, não `=`: `aprovacoes` chega em duas linhas por CNPJ (férias e
   // ausências somam no mesmo número). As demais chegam uma vez.
@@ -945,8 +954,9 @@ export async function modulosSemRegistro(
 export async function pendenciasDaEmpresa(
   empresaIds: string[],
   cliente: Cliente = prisma,
+  visiveis: readonly string[] | null = null,
 ): Promise<Pendencias> {
-  const porEmpresa = await pendenciasPorEmpresa(empresaIds, cliente);
+  const porEmpresa = await pendenciasPorEmpresa(empresaIds, cliente, visiveis);
 
   const total = zeradas();
   // Soma genérica: com 27 contadores, esquecer um campo aqui viraria um número

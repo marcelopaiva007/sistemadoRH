@@ -4,7 +4,7 @@
 // ausência, página compartilhada) chegam prontos. A regra é uma lista de
 // motivos: se sobrar QUALQUER motivo, o item vai para a conferência com todos
 // eles escritos — o RH vê de uma vez por que a IA não gravou.
-import { CONFIANCA_MINIMA, DESTINO, MOTIVO_FORA_DO_ESCOPO, type TipoCaixa } from "./tipos";
+import { CONFIANCA_MINIMA, DESTINO, JANELA_PAGINAS, MOTIVO_FORA_DO_ESCOPO, type TipoCaixa } from "./tipos";
 import type { CamposLidos, InventarioPaginas } from "./extracao";
 import type { Identificacao } from "./identificar";
 
@@ -89,21 +89,25 @@ export function paginasSoDele(
 
 /**
  * Este outro item do arquivo "ocupa" as páginas dele — ou seja, elas mostram
- * alguém que não é `pessoaId`? Descartar um item NÃO libera as páginas: o
+ * alguém que não é `pessoa`? Descartar um item NÃO libera as páginas: o
  * contracheque do Bruno descartado continua impresso na folha que a Ana
- * receberia. Só liberam a página sem pessoa (capa, guia, boleto), o item
- * descartado sem nenhuma pessoa lida (página que a leitura não apontou) e o
- * descartado que era da MESMA pessoa (a IA leu o mesmo documento duas vezes).
+ * receberia. Não ocupam: a página sem pessoa (capa, guia, boleto), o item sem
+ * nenhuma pessoa lida (página que a leitura não apontou — o inventário ainda
+ * confere quem está nela) e o item da MESMA pessoa (a IA leu o mesmo documento
+ * duas vezes, ou são dois documentos dela na mesma folha).
+ *
+ * `marcas`: CPF/PIS lidos do item, já marcados (sigilo.ts). O item descartado
+ * perde o CPF lido mas guarda as marcas, justamente para esta pergunta.
  */
 export function ocupaAsPaginas(
-  o: { tipo: string; status: string; colaboradorId: string | null; nomeLido: string | null; motivo: string | null },
-  pessoaId: string | null,
+  o: { tipo: string; status: string; colaboradorId: string | null; nomeLido: string | null; motivo: string | null; marcas: string[] },
+  pessoa: { id: string | null; marcas: string[] },
 ): boolean {
   if (o.tipo === "NAO_E_DE_COLABORADOR") return false;
-  if (o.status !== "DESCARTADO") return true;
   if (o.motivo?.startsWith(MOTIVO_FORA_DO_ESCOPO)) return true;
-  if (pessoaId && o.colaboradorId === pessoaId) return false;
-  return !!o.nomeLido || !!o.colaboradorId;
+  if (pessoa.id && o.colaboradorId === pessoa.id) return false;
+  if (o.marcas.some((m) => pessoa.marcas.includes(m))) return false;
+  return !!o.nomeLido || !!o.colaboradorId || o.marcas.length > 0;
 }
 
 /**
@@ -120,6 +124,12 @@ export function conferenciaDasPaginas(
   ate: number,
   inventario: InventarioPaginas | null,
   idsDaPessoa: string[],
+  /**
+   * A ficha tem CPF E PIS: aí qualquer identificador de titular impresso na
+   * página, se não é um dos dois, é de outra pessoa. Com só um deles, um PIS
+   * na página (contracheque que só traz o PIS) pode ser o dela — dúvida.
+   */
+  conheceTodosOsIds: boolean,
 ): "OK" | "DUVIDA" | "OUTRA_PESSOA" {
   const meus = idsDaPessoa.filter(Boolean);
   let duvida = false;
@@ -131,8 +141,10 @@ export function conferenciaDasPaginas(
     }
     if (pagina.pessoas >= 2) return "OUTRA_PESSOA";
     if (pagina.pessoas === 0) continue;
-    if (pagina.ids.length > 0 && meus.length > 0 && !pagina.ids.some((id) => meus.includes(id))) return "OUTRA_PESSOA";
-    if (!pagina.ids.some((id) => meus.includes(id))) duvida = true;
+    if (!pagina.ids.some((id) => meus.includes(id))) {
+      if (pagina.ids.length > 0 && conheceTodosOsIds) return "OUTRA_PESSOA";
+      duvida = true;
+    }
   }
   return duvida ? "DUVIDA" : "OK";
 }
@@ -155,6 +167,15 @@ export function paginasSemDocumento(
     soltas.push(p);
   }
   return soltas;
+}
+
+/**
+ * Até onde o RH pode ver e mover as páginas de um item: JANELA_PAGINAS antes e
+ * depois do que a LEITURA apontou — não do intervalo atual, que muda a cada
+ * gravação/desfazer (ancorado nele, a janela "andaria" 5 páginas por volta).
+ */
+export function janelaDoItem(lidas: { de: number; ate: number }, totalDePaginas: number): { de: number; ate: number } {
+  return { de: Math.max(1, lidas.de - JANELA_PAGINAS), ate: Math.min(totalDePaginas, lidas.ate + JANELA_PAGINAS) };
 }
 
 export type FatosDoBanco = {

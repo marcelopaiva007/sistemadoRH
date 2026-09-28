@@ -106,9 +106,11 @@ export async function apagarOriginal(recebidoId: string, condicao: Prisma.Docume
     await travarRecebido(tx, recebidoId);
     const ainda = await tx.documentoRecebido.findFirst({ where: { ...condicao, id: recebidoId, arquivoId }, select: { id: true } });
     if (!ainda) return false;
+    // Itens ANTES do arquivo: a mesma ordem da gravação (gravarItem mexe no
+    // item e depois no arquivo). Na ordem inversa, as duas se travavam.
+    await tx.itemDocumentoRecebido.updateMany({ where: { recebidoId }, data: { dados: {}, cpfLido: null, pisLido: null } });
     await tx.documentoRecebido.update({ where: { id: recebidoId }, data: { arquivoId: null, inventarioPaginas: Prisma.DbNull } });
     await tx.arquivo.deleteMany({ where: { id: arquivoId } });
-    await tx.itemDocumentoRecebido.updateMany({ where: { recebidoId }, data: { dados: {}, cpfLido: null, pisLido: null } });
     return true;
   });
   if (feito && r.arquivo?.blobUrl) await removerDoBlob(r.arquivo.blobUrl);
@@ -152,7 +154,10 @@ export async function limparCaixa(empresaIds: string[]): Promise<void> {
   });
   for (const r of vencidos) await apagarOriginal(r.id, resolvido);
 
-  await recuperarGravando({ recebido: { empresaId: { in: empresaIds }, status: { notIn: [...STATUS_ATIVOS] } } });
+  // Também de arquivo ainda em leitura: com a leitura pausada (IA desligada,
+  // conta recusada) ninguém passa pela rodada que recupera. A folga de
+  // TRAVA_MS já protege a gravação que está de fato em andamento.
+  await recuperarGravando({ recebido: { empresaId: { in: empresaIds } } });
 
   const interrompidos = await prisma.documentoRecebido.findMany({
     where: { empresaId: { in: empresaIds }, status: "AGUARDANDO_UPLOAD", createdAt: { lt: new Date(Date.now() - 3600_000) } },
@@ -184,6 +189,10 @@ type DadosItem = {
   continuaDepois?: boolean;
   avisos?: string[];
   opcoes?: string[];
+  /** As páginas que a LEITURA apontou — a âncora da janela da conferência (janelaDoItem). */
+  lidas?: { de: number; ate: number };
+  /** CPF/PIS lidos, marcados: ficam no item descartado para ocupaAsPaginas. */
+  marcas?: string[];
 };
 
 export function lerDados(dados: unknown): DadosItem {
@@ -194,11 +203,34 @@ export function lerDados(dados: unknown): DadosItem {
     continuaDepois: d.continuaDepois === true,
     avisos: Array.isArray(d.avisos) ? d.avisos.filter((a): a is string => typeof a === "string") : [],
     opcoes: Array.isArray(d.opcoes) ? d.opcoes.filter((a): a is string => typeof a === "string") : [],
+    lidas: lidasValidas(d.lidas),
+    marcas: Array.isArray(d.marcas) ? d.marcas.filter((a): a is string => typeof a === "string") : [],
   };
 }
 
+function lidasValidas(v: unknown): { de: number; ate: number } | undefined {
+  const l = v as { de?: unknown; ate?: unknown } | null | undefined;
+  return l && Number.isInteger(l.de) && Number.isInteger(l.ate) ? { de: l.de as number, ate: l.ate as number } : undefined;
+}
+
+/** As páginas que a leitura apontou para o item (ou as atuais, em item antigo). */
+export function paginasLidas(item: { paginaInicio: number; paginaFim: number; dados: unknown }): { de: number; ate: number } {
+  return lerDados(item.dados).lidas ?? { de: item.paginaInicio, ate: item.paginaFim };
+}
+
+/** As marcas do CPF/PIS lidos de um item — do próprio item, ou as guardadas no descarte. */
+export function marcasDoItem(item: { cpfLido: string | null; pisLido: string | null; dados: unknown }): string[] {
+  return item.cpfLido || item.pisLido ? marcasDe(item.cpfLido, item.pisLido) : (lerDados(item.dados).marcas ?? []);
+}
+
 function dadosDe(item: ItemLido): DadosItem {
-  return { campos: item.campos, continuaAntes: item.continuaAntes, continuaDepois: item.continuaDepois, avisos: item.avisos };
+  return {
+    campos: item.campos,
+    continuaAntes: item.continuaAntes,
+    continuaDepois: item.continuaDepois,
+    avisos: item.avisos,
+    lidas: { de: item.paginaInicio, ate: item.paginaFim },
+  };
 }
 
 /** Nome da fatia: "<tipo>-<pessoa>-p3-4.pdf", sem acento nem espaço. */
@@ -438,7 +470,7 @@ async function gravarBloco(
           tipo: "OUTRO_DO_COLABORADOR",
           paginaInicio: pagina,
           paginaFim: pagina,
-          dados: { campos: normalizarCampos({}) },
+          dados: { campos: normalizarCampos({}), lidas: { de: pagina, ate: pagina } },
           confianca: 0,
           status: "CONFERIR",
           motivo: "A leitura não apontou documento nesta página — veja se é de alguém ou descarte.",
@@ -453,7 +485,7 @@ async function gravarBloco(
           tipo: "OUTRO_DO_COLABORADOR",
           paginaInicio: inicio + i,
           paginaFim: inicio + i,
-          dados: { campos: normalizarCampos({}) },
+          dados: { campos: normalizarCampos({}), lidas: { de: inicio + i, ate: inicio + i } },
           confianca: 0,
           status: "CONFERIR",
           motivo: r.naoLidas!.motivo,
@@ -603,11 +635,25 @@ async function encaminharItens(
     prisma.empresa.findMany({ where: { cnpj: { not: null } }, select: { id: true, cnpj: true, ativo: true } }),
     prisma.itemDocumentoRecebido.findMany({
       where: { recebidoId: recebido.id },
-      select: { id: true, paginaInicio: true, paginaFim: true, tipo: true, status: true, colaboradorId: true, nomeLido: true, motivo: true },
+      select: {
+        id: true,
+        paginaInicio: true,
+        paginaFim: true,
+        tipo: true,
+        status: true,
+        colaboradorId: true,
+        nomeLido: true,
+        motivo: true,
+        cpfLido: true,
+        pisLido: true,
+        dados: true,
+      },
     }),
   ]);
   const empresas: EmpresaPorCnpj = new Map(
-    empresasComCnpj.map((e) => [e.cnpj!.replace(/\D/g, ""), { id: e.id, noEscopo: e.ativo && escopo.includes(e.id) }]),
+    // Empresa desativada DENTRO do escopo não é "de fora": a ficha dela só
+    // não é candidata (ver fichas acima), e o item vai para a conferência.
+    empresasComCnpj.map((e) => [e.cnpj!.replace(/\D/g, ""), { id: e.id, noEscopo: escopo.includes(e.id) }]),
   );
   const candidatos: Candidato[] = fichas;
   const inventario = (recebido.inventarioPaginas as InventarioPaginas | null) ?? null;
@@ -663,9 +709,12 @@ async function encaminharItens(
       ficha && DESTINO[tipo]
         ? [...(await impedimentosNoBanco(tipo, dados.campos, ficha)), ...(await avisosNoBanco(tipo, dados.campos, ficha))]
         : [];
-    const outros = todosItens.filter((o) => o.id !== item.id && ocupaAsPaginas(o, colaboradorId));
+    const minhas = marcasDe(item.cpfLido, item.pisLido);
+    const outros = todosItens.filter(
+      (o) => o.id !== item.id && ocupaAsPaginas({ ...o, marcas: marcasDoItem(o) }, { id: colaboradorId, marcas: minhas }),
+    );
     const exclusivas = paginasSoDele(
-      { paginaInicio: item.paginaInicio, paginaFim: item.paginaFim, ids: marcasDe(item.cpfLido, item.pisLido) },
+      { paginaInicio: item.paginaInicio, paginaFim: item.paginaFim, ids: minhas },
       outros,
       inventario,
       visivelNoPortal(tipo),
