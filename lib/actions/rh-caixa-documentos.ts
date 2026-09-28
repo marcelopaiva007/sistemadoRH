@@ -12,10 +12,18 @@ import { apenasDigitosCnpj } from "@/lib/cnpj";
 import type { ActionResult } from "@/lib/constants";
 import { alcancaEscopo, type UsuarioCaixa } from "@/lib/caixa-documentos/acesso";
 import { normalizarCampos, type CamposLidos, type InventarioPaginas } from "@/lib/caixa-documentos/extracao";
-import { faltasParaGravar, paginasSoDele } from "@/lib/caixa-documentos/decidir";
+import { conferenciaDasPaginas, faltasParaGravar, ocupaAsPaginas } from "@/lib/caixa-documentos/decidir";
 import { gravarItem, type Ficha } from "@/lib/caixa-documentos/gravar";
-import { apagarOriginal, bytesDoArquivo, fatiaDoItem, lerDados } from "@/lib/caixa-documentos/processar";
-import { VALORES_TIPO_CAIXA, destinoDoTipo, tipoCaixaLabel, visivelNoPortal, type TipoCaixa } from "@/lib/caixa-documentos/tipos";
+import { apagarOriginal, bytesDoArquivo, fatiaDoItem, lerDados, tocarRecebido, travarRecebido } from "@/lib/caixa-documentos/processar";
+import { marcasDe } from "@/lib/caixa-documentos/sigilo";
+import {
+  JANELA_PAGINAS,
+  VALORES_TIPO_CAIXA,
+  destinoDoTipo,
+  tipoCaixaLabel,
+  visivelNoPortal,
+  type TipoCaixa,
+} from "@/lib/caixa-documentos/tipos";
 
 async function carregar(empresaId: string, itemId: string) {
   const user = (await requireEmpresaAccess(empresaId)) as unknown as UsuarioCaixa;
@@ -51,7 +59,11 @@ export async function confirmarItem(empresaId: string, itemId: string, _prev: Ac
 
   const colaboradorId = String(formData.get("colaboradorId") ?? "");
   const colaborador = await prisma.colaborador.findFirst({
-    where: { id: colaboradorId, empresaId: { in: recebido.empresasEscopo }, empresa: { ativo: true } },
+    where: {
+      id: colaboradorId,
+      empresaId: { in: recebido.empresasEscopo },
+      empresa: { ativo: true },
+    },
     select: {
       id: true,
       empresaId: true,
@@ -60,10 +72,30 @@ export async function confirmarItem(empresaId: string, itemId: string, _prev: Ac
       posicaoId: true,
       dataAdmissao: true,
       dataDesligamento: true,
+      cpf: true,
+      pis: true,
       empresa: { select: { cnpj: true } },
     },
   });
   if (!colaborador) return { ok: false, error: "Escolha a pessoa." };
+
+  // CNPJ impresso de empresa cadastrada FORA do escopo do arquivo: não grava
+  // de jeito nenhum — seria o documento de uma empresa indo parar na ficha de
+  // um homônimo de outra (a classe do 22/08). A leitura já descarta esses
+  // sozinha; isto cobre o item que chegou à conferência por outro caminho.
+  if (item.cnpjLido) {
+    const empresas = await prisma.empresa.findMany({
+      where: { cnpj: { not: null } },
+      select: { id: true, cnpj: true, ativo: true },
+    });
+    const doDocumento = empresas.find((e) => apenasDigitosCnpj(e.cnpj!) === item.cnpjLido);
+    if (doDocumento && (!doDocumento.ativo || !recebido.empresasEscopo.includes(doDocumento.id))) {
+      return {
+        ok: false,
+        error: "O documento é de uma empresa fora do alcance deste arquivo — não pode ser gravado daqui.",
+      };
+    }
+  }
 
   // Campos: o que veio do formulário por cima do que a IA leu, passando pela
   // MESMA limpeza (datas que não existem viram vazio, enum fora da lista some).
@@ -85,80 +117,142 @@ export async function confirmarItem(empresaId: string, itemId: string, _prev: Ac
   if (!Number.isInteger(de) || !Number.isInteger(ate) || de < 1 || ate < de || ate > total) {
     return { ok: false, error: `Páginas inválidas (o arquivo tem ${total}).` };
   }
+  // Só o que o RH pôde ver (a rota de páginas mostra a mesma janela).
+  if (de < item.paginaInicio - JANELA_PAGINAS || ate > item.paginaFim + JANELA_PAGINAS) {
+    return {
+      ok: false,
+      error: `Dá para ajustar até ${JANELA_PAGINAS} páginas antes ou depois das que a leitura apontou.`,
+    };
+  }
 
   // CNPJ impresso no documento ≠ empresa da ficha escolhida: só com
   // confirmação explícita (vai para a auditoria).
   const cnpjDaFicha = colaborador.empresa.cnpj ? apenasDigitosCnpj(colaborador.empresa.cnpj) : null;
   const empresaDiferente = !!item.cnpjLido && item.cnpjLido !== cnpjDaFicha;
   if (empresaDiferente && formData.get("confirmoEmpresa") !== "on") {
-    return { ok: false, error: "O CNPJ impresso no documento é de outra empresa. Marque a confirmação se esta é mesmo a ficha certa." };
+    return {
+      ok: false,
+      error: "O CNPJ impresso no documento é de outra empresa. Marque a confirmação se esta é mesmo a ficha certa.",
+    };
   }
 
   // Páginas: com documento de outra pessoa nelas, nada vai ao portal — sem
-  // exceção. Se só o inventário da IA ficou em dúvida, o RH, que está vendo as
-  // páginas, pode confirmar.
+  // exceção, nem com confirmação. Descartar o item da outra pessoa não libera
+  // a página (ocupaAsPaginas): o contracheque dela continua impresso ali. Se
+  // só o inventário ficou em dúvida, o RH, que está vendo as páginas, confirma.
   const vaiAoPortal = visivelNoPortal(tipo) || tipo === "OUTRO_DO_COLABORADOR";
   const outros = await prisma.itemDocumentoRecebido.findMany({
-    where: { recebidoId: recebido.id, id: { not: item.id }, status: { not: "DESCARTADO" }, tipo: { not: "NAO_E_DE_COLABORADOR" } },
-    select: { paginaInicio: true, paginaFim: true },
+    where: { recebidoId: recebido.id, id: { not: item.id } },
+    select: {
+      paginaInicio: true,
+      paginaFim: true,
+      tipo: true,
+      status: true,
+      colaboradorId: true,
+      nomeLido: true,
+      motivo: true,
+    },
   });
-  const sobrepoe = outros.some((o) => o.paginaInicio <= ate && o.paginaFim >= de);
-  if (vaiAoPortal && sobrepoe) {
+  const sobrepoe = outros.some((o) => ocupaAsPaginas(o, colaborador.id) && o.paginaInicio <= ate && o.paginaFim >= de);
+  const paginas = conferenciaDasPaginas(
+    de,
+    ate,
+    (recebido.inventarioPaginas as InventarioPaginas | null) ?? null,
+    marcasDe(colaborador.cpf, colaborador.pis),
+  );
+  if (vaiAoPortal && (sobrepoe || paginas === "OUTRA_PESSOA")) {
     return {
       ok: false,
       error:
-        "Estas páginas têm documento de outra pessoa — o arquivo iria para o portal dela com dados de outro. Peça ao contador o arquivo com um documento por página, ou descarte.",
+        "Estas páginas têm documento de outra pessoa — o arquivo iria para o portal desta com dados de outra. Peça ao contador o arquivo com um documento por página, ou anexe pela ficha.",
     };
   }
-  const inventarioOk = paginasSoDele(
-    { paginaInicio: de, paginaFim: ate, cpf: item.cpfLido, pis: item.pisLido },
-    [],
-    (recebido.inventarioPaginas as InventarioPaginas | null) ?? null,
-    true,
-  );
-  if (vaiAoPortal && !inventarioOk && formData.get("confirmoPaginas") !== "on") {
+  if (vaiAoPortal && paginas === "DUVIDA" && formData.get("confirmoPaginas") !== "on") {
     return {
       ok: false,
       error: "A leitura não confirmou que estas páginas são só desta pessoa. Olhe as páginas e marque a confirmação.",
     };
   }
 
-  if (!recebido.arquivoId) return { ok: false, error: "O arquivo original não está mais guardado — anexe pela ficha." };
-  const arquivo = await prisma.arquivo.findUnique({ where: { id: recebido.arquivoId }, select: { blobUrl: true, conteudo: true } });
+  if (!recebido.arquivoId)
+    return {
+      ok: false,
+      error: "O arquivo original não está mais guardado — anexe pela ficha.",
+    };
+  const arquivo = await prisma.arquivo.findUnique({
+    where: { id: recebido.arquivoId },
+    select: { blobUrl: true, conteudo: true },
+  });
   const original = arquivo ? await bytesDoArquivo(arquivo) : null;
-  if (!original) return { ok: false, error: "Não consegui abrir o arquivo original — tente de novo." };
+  if (!original)
+    return {
+      ok: false,
+      error: "Não consegui abrir o arquivo original — tente de novo.",
+    };
+  // A fatia sai ANTES de pegar o item: se separar as páginas falhar, o item
+  // continua na conferência em vez de ficar preso em "gravando".
+  const ficha: Ficha = colaborador;
+  let fatia: Awaited<ReturnType<typeof fatiaDoItem>>;
+  try {
+    fatia = await fatiaDoItem(recebido, original, de, ate, tipo, ficha.nome);
+  } catch {
+    return {
+      ok: false,
+      error: "Não consegui separar estas páginas do arquivo.",
+    };
+  }
 
   const pego = await prisma.itemDocumentoRecebido.updateMany({
     where: { id: item.id, status: "CONFERIR" },
     data: { status: "GRAVANDO", paginaInicio: de, paginaFim: ate, tipo },
   });
-  if (pego.count !== 1) return { ok: false, error: "Este documento acabou de ser resolvido em outra tela." };
+  if (pego.count !== 1)
+    return {
+      ok: false,
+      error: "Este documento acabou de ser resolvido em outra tela.",
+    };
 
-  const ficha: Ficha = colaborador;
-  const gravado = await gravarItem({
-    tipo,
-    campos,
-    ficha,
-    fatia: await fatiaDoItem(recebido, original, de, ate, tipo, ficha.nome),
-    paginasExclusivas: !sobrepoe,
-    usuario: { id: user.id, nome: user.name ?? null },
-    origem: {
-      recebidoId: recebido.id,
-      itemId: item.id,
-      arquivo: recebido.nome,
-      paginaInicio: de,
-      paginaFim: ate,
-      enviadoPor: recebido.criadoPorNome,
-    },
-    automatico: false,
-    chaveMatch: empresaDiferente ? "MANUAL_OUTRA_EMPRESA" : "MANUAL",
-    confianca: item.confianca,
-  });
-  if (!gravado.ok) {
-    await prisma.itemDocumentoRecebido.updateMany({
+  const devolver = () =>
+    prisma.itemDocumentoRecebido.updateMany({
       where: { id: item.id, status: "GRAVANDO" },
-      data: { status: "CONFERIR", paginaInicio: item.paginaInicio, paginaFim: item.paginaFim, tipo: item.tipo },
+      data: {
+        status: "CONFERIR",
+        paginaInicio: item.paginaInicio,
+        paginaFim: item.paginaFim,
+        tipo: item.tipo,
+      },
     });
+  let gravado: Awaited<ReturnType<typeof gravarItem>>;
+  try {
+    gravado = await gravarItem({
+      tipo,
+      campos,
+      ficha,
+      fatia,
+      paginasExclusivas: true,
+      usuario: { id: user.id, nome: user.name ?? null },
+      origem: {
+        recebidoId: recebido.id,
+        itemId: item.id,
+        arquivo: recebido.nome,
+        paginaInicio: de,
+        paginaFim: ate,
+        enviadoPor: recebido.criadoPorNome,
+      },
+      automatico: false,
+      chaveMatch: empresaDiferente ? "MANUAL_OUTRA_EMPRESA" : "MANUAL",
+      confianca: item.confianca,
+    });
+  } catch (e) {
+    console.error("[caixa-documentos] confirmar", e);
+    await devolver();
+    return {
+      ok: false,
+      error: "Falha ao gravar — o documento continua na conferência. Tente de novo.",
+    };
+  }
+  if (!gravado.ok) {
+    await devolver();
     return { ok: false, error: gravado.error };
   }
 
@@ -172,9 +266,17 @@ export async function descartarItem(empresaId: string, itemId: string): Promise<
   const { item } = carregado;
   const r = await prisma.itemDocumentoRecebido.updateMany({
     where: { id: item.id, status: { in: ["CONFERIR", "PENDENTE"] } },
-    data: { status: "DESCARTADO", cpfLido: null, pisLido: null, dados: {}, resolvidoPorNome: carregado.user.name ?? null, resolvidoEm: new Date() },
+    data: {
+      status: "DESCARTADO",
+      cpfLido: null,
+      pisLido: null,
+      dados: {},
+      resolvidoPorNome: carregado.user.name ?? null,
+      resolvidoEm: new Date(),
+    },
   });
   if (r.count !== 1) return { ok: false, error: "Este documento já foi resolvido." };
+  await tocarRecebido(item.recebidoId);
   await registrarAuditoria({
     empresaId,
     acao: "EXCLUIR",
@@ -189,13 +291,24 @@ export async function descartarItem(empresaId: string, itemId: string): Promise<
 /** Descarta de uma vez as páginas que a IA disse não serem de ninguém (capa, resumo, guia). */
 export async function descartarNaoColaborador(empresaId: string, recebidoId: string): Promise<ActionResult> {
   const user = (await requireEmpresaAccess(empresaId)) as unknown as UsuarioCaixa;
-  const recebido = await prisma.documentoRecebido.findFirst({ where: { id: recebidoId, empresaId } });
+  const recebido = await prisma.documentoRecebido.findFirst({
+    where: { id: recebidoId, empresaId },
+  });
   if (!recebido || !(await alcancaEscopo(user, recebido.empresasEscopo))) return { ok: false, error: "Arquivo não encontrado." };
   const r = await prisma.itemDocumentoRecebido.updateMany({
     where: { recebidoId, tipo: "NAO_E_DE_COLABORADOR", status: "CONFERIR" },
-    data: { status: "DESCARTADO", dados: {}, resolvidoPorNome: user.name ?? null, resolvidoEm: new Date() },
+    data: {
+      status: "DESCARTADO",
+      nomeLido: null,
+      cpfLido: null,
+      pisLido: null,
+      dados: {},
+      resolvidoPorNome: user.name ?? null,
+      resolvidoEm: new Date(),
+    },
   });
   if (r.count > 0) {
+    await tocarRecebido(recebidoId);
     await registrarAuditoria({
       empresaId,
       acao: "EXCLUIR",
@@ -214,19 +327,41 @@ export async function descartarNaoColaborador(empresaId: string, recebidoId: str
  */
 export async function descartarRecebido(empresaId: string, recebidoId: string): Promise<ActionResult> {
   const user = (await requireEmpresaAccess(empresaId)) as unknown as UsuarioCaixa;
-  const recebido = await prisma.documentoRecebido.findFirst({ where: { id: recebidoId, empresaId } });
+  const recebido = await prisma.documentoRecebido.findFirst({
+    where: { id: recebidoId, empresaId },
+  });
   if (!recebido || !(await alcancaEscopo(user, recebido.empresasEscopo))) return { ok: false, error: "Arquivo não encontrado." };
   if (recebido.processandoDesde && recebido.processandoDesde > new Date(Date.now() - 330_000)) {
-    return { ok: false, error: "O arquivo está sendo lido agora — espere a rodada terminar." };
+    return {
+      ok: false,
+      error: "O arquivo está sendo lido agora — espere a rodada terminar.",
+    };
+  }
+  // Um item sendo gravado agora terminaria GRAVADO num arquivo já sem
+  // original — sem "Desfazer". Espera ele terminar.
+  if (await prisma.itemDocumentoRecebido.count({ where: { recebidoId, status: "GRAVANDO" } })) {
+    return { ok: false, error: "Um documento deste arquivo está sendo gravado agora — tente de novo em instantes." };
   }
   await prisma.$transaction([
     prisma.itemDocumentoRecebido.updateMany({
       where: { recebidoId, status: { in: ["CONFERIR", "PENDENTE"] } },
-      data: { status: "DESCARTADO", cpfLido: null, pisLido: null, dados: {}, resolvidoPorNome: user.name ?? null, resolvidoEm: new Date() },
+      data: {
+        status: "DESCARTADO",
+        cpfLido: null,
+        pisLido: null,
+        dados: {},
+        resolvidoPorNome: user.name ?? null,
+        resolvidoEm: new Date(),
+      },
     }),
-    prisma.documentoRecebido.update({ where: { id: recebidoId }, data: { status: "DESCARTADO", processandoDesde: null } }),
+    prisma.documentoRecebido.update({
+      where: { id: recebidoId },
+      data: { status: "DESCARTADO", processandoDesde: null },
+    }),
   ]);
-  const gravados = await prisma.itemDocumentoRecebido.count({ where: { recebidoId, status: "GRAVADO" } });
+  const gravados = await prisma.itemDocumentoRecebido.count({
+    where: { recebidoId, status: "GRAVADO" },
+  });
   // Sem nada gravado, o original não serve para mais nada (nem para desfazer).
   if (gravados === 0) await apagarOriginal(recebidoId);
   await registrarAuditoria({
@@ -243,9 +378,15 @@ export async function descartarRecebido(empresaId: string, recebidoId: string): 
 /** Arquivo em ERRO volta para a fila de leitura, do ponto onde parou. */
 export async function tentarDeNovo(empresaId: string, recebidoId: string): Promise<ActionResult> {
   const user = (await requireEmpresaAccess(empresaId)) as unknown as UsuarioCaixa;
-  const recebido = await prisma.documentoRecebido.findFirst({ where: { id: recebidoId, empresaId } });
+  const recebido = await prisma.documentoRecebido.findFirst({
+    where: { id: recebidoId, empresaId },
+  });
   if (!recebido || !(await alcancaEscopo(user, recebido.empresasEscopo))) return { ok: false, error: "Arquivo não encontrado." };
-  if (!recebido.arquivoId) return { ok: false, error: "O arquivo original não está mais guardado — envie de novo." };
+  if (!recebido.arquivoId)
+    return {
+      ok: false,
+      error: "O arquivo original não está mais guardado — envie de novo.",
+    };
   const r = await prisma.documentoRecebido.updateMany({
     where: { id: recebidoId, status: "ERRO" },
     data: {
@@ -264,6 +405,9 @@ export async function tentarDeNovo(empresaId: string, recebidoId: string): Promi
  * Desfaz uma gravação (automática ou manual): apaga o registro criado e o
  * arquivo da pessoa, e o documento volta para a conferência. Existe porque o
  * que vai ao Dossiê aparece no portal na hora — um engano precisa sair rápido.
+ *
+ * Tudo numa transação com a trava do arquivo (a mesma da faxina que apaga o
+ * original): ou desfaz com o original ainda guardado, ou não desfaz.
  */
 export async function desfazerItem(empresaId: string, itemId: string): Promise<ActionResult> {
   const carregado = await carregar(empresaId, itemId);
@@ -272,80 +416,97 @@ export async function desfazerItem(empresaId: string, itemId: string): Promise<A
   if (item.status !== "GRAVADO" || !item.destinoEntidade || !item.destinoId) {
     return { ok: false, error: "Este documento não está gravado." };
   }
-  if (!item.recebido.arquivoId) {
-    return { ok: false, error: "O arquivo original já não está guardado — exclua o registro pela ficha da pessoa." };
-  }
   const id = item.destinoId;
+  const entidade = item.destinoEntidade;
+  // O registro mudou na ficha depois de gravado (outro arquivo, datas
+  // corrigidas): apagar daqui jogaria fora o trabalho de alguém.
+  const editadoDepois = (atualizadoEm: Date) => !!item.resolvidoEm && atualizadoEm.getTime() - item.resolvidoEm.getTime() > 5_000;
 
-  const resultado = await prisma.$transaction(async (tx) => {
-    let arquivoId: string | null = null;
-    let empresaDoDestino: string | null = null;
-    switch (item.destinoEntidade) {
-      case "ExameOcupacional": {
-        const r = await tx.exameOcupacional.findUnique({ where: { id }, select: { arquivoId: true, empresaId: true } });
-        if (!r) return "sumiu";
-        await tx.exameOcupacional.delete({ where: { id } });
-        [arquivoId, empresaDoDestino] = [r.arquivoId, r.empresaId];
-        break;
+  class Recusa extends Error {}
+  let empresaDoDestino: string;
+  try {
+    empresaDoDestino = await prisma.$transaction(async (tx) => {
+      await travarRecebido(tx, item.recebidoId);
+      const recebido = await tx.documentoRecebido.findUnique({ where: { id: item.recebidoId }, select: { arquivoId: true, status: true } });
+      if (!recebido?.arquivoId) throw new Recusa("O arquivo original já não está guardado — exclua o registro pela ficha da pessoa.");
+
+      const sumiu = "O registro já não existe (foi excluído pela ficha).";
+      const editado = "O registro foi alterado na ficha depois de gravado — ajuste ou exclua pela ficha da pessoa.";
+      let destino: { arquivoId: string | null; empresaId: string; updatedAt: Date };
+      let apagados: { count: number };
+      switch (entidade) {
+        case "ExameOcupacional": {
+          const r = await tx.exameOcupacional.findUnique({ where: { id }, select: { arquivoId: true, empresaId: true, updatedAt: true } });
+          if (!r) throw new Recusa(sumiu);
+          if (editadoDepois(r.updatedAt)) throw new Recusa(editado);
+          [destino, apagados] = [r, await tx.exameOcupacional.deleteMany({ where: { id } })];
+          break;
+        }
+        case "CertificadoNR": {
+          const r = await tx.certificadoNR.findUnique({ where: { id }, select: { arquivoId: true, empresaId: true, updatedAt: true } });
+          if (!r) throw new Recusa(sumiu);
+          if (editadoDepois(r.updatedAt)) throw new Recusa(editado);
+          [destino, apagados] = [r, await tx.certificadoNR.deleteMany({ where: { id } })];
+          break;
+        }
+        case "Ausencia": {
+          const r = await tx.ausencia.findUnique({ where: { id }, select: { arquivoId: true, empresaId: true, status: true, updatedAt: true } });
+          if (!r) throw new Recusa(sumiu);
+          // Aprovada já mexeu em folha/ponto: desfazer aqui esconderia isso.
+          if (r.status !== "PENDENTE") throw new Recusa("A ausência já foi decidida em Aprovações — ajuste pela ficha da pessoa.");
+          if (editadoDepois(r.updatedAt)) throw new Recusa(editado);
+          [destino, apagados] = [r, await tx.ausencia.deleteMany({ where: { id, status: "PENDENTE" } })];
+          break;
+        }
+        case "DocumentoColaborador": {
+          const r = await tx.documentoColaborador.findUnique({ where: { id }, select: { arquivoId: true, empresaId: true, updatedAt: true } });
+          if (!r) throw new Recusa(sumiu);
+          if (editadoDepois(r.updatedAt)) throw new Recusa(editado);
+          [destino, apagados] = [r, await tx.documentoColaborador.deleteMany({ where: { id } })];
+          break;
+        }
+        default:
+          throw new Recusa(sumiu);
       }
-      case "CertificadoNR": {
-        const r = await tx.certificadoNR.findUnique({ where: { id }, select: { arquivoId: true, empresaId: true } });
-        if (!r) return "sumiu";
-        await tx.certificadoNR.delete({ where: { id } });
-        [arquivoId, empresaDoDestino] = [r.arquivoId, r.empresaId];
-        break;
-      }
-      case "Ausencia": {
-        const r = await tx.ausencia.findUnique({ where: { id }, select: { arquivoId: true, empresaId: true, status: true } });
-        if (!r) return "sumiu";
-        // Aprovada já mexeu em folha/ponto: desfazer aqui esconderia isso.
-        if (r.status !== "PENDENTE") return "decidida";
-        await tx.ausencia.delete({ where: { id } });
-        [arquivoId, empresaDoDestino] = [r.arquivoId, r.empresaId];
-        break;
-      }
-      case "DocumentoColaborador": {
-        const r = await tx.documentoColaborador.findUnique({ where: { id }, select: { arquivoId: true, empresaId: true } });
-        if (!r) return "sumiu";
-        await tx.documentoColaborador.delete({ where: { id } });
-        [arquivoId, empresaDoDestino] = [r.arquivoId, r.empresaId];
-        break;
-      }
-      default:
-        return "sumiu";
-    }
-    if (arquivoId) await tx.arquivo.delete({ where: { id: arquivoId } });
-    await tx.itemDocumentoRecebido.update({
-      where: { id: item.id },
-      data: {
-        status: "CONFERIR",
-        destinoEntidade: null,
-        destinoId: null,
-        resolvidoPorNome: null,
-        resolvidoEm: null,
-        motivo: `Gravação desfeita por ${user.name ?? "RH"} — confira e grave de novo, ou descarte.`,
-      },
+      if (apagados.count !== 1) throw new Recusa(sumiu);
+      if (destino.arquivoId) await tx.arquivo.deleteMany({ where: { id: destino.arquivoId } });
+
+      // Cercado: só volta se ainda é ESTA gravação (dois cliques em "Desfazer").
+      const voltou = await tx.itemDocumentoRecebido.updateMany({
+        where: { id: item.id, status: "GRAVADO", destinoId: id },
+        data: {
+          status: "CONFERIR",
+          // Sem pessoa marcada: quem desfaz quase sempre desfaz porque a
+          // pessoa estava errada — ela não pode vir escolhida de novo.
+          colaboradorId: null,
+          destinoEntidade: null,
+          destinoId: null,
+          resolvidoPorNome: null,
+          resolvidoEm: null,
+          motivo: `Gravação desfeita por ${user.name ?? "RH"} — confira e grave de novo, ou descarte.`,
+        },
+      });
+      if (voltou.count !== 1) throw new Recusa("Este documento acabou de ser desfeito em outra tela.");
+      await tx.documentoRecebido.update({
+        where: { id: item.recebidoId },
+        data: { updatedAt: new Date(), ...(recebido.status === "DESCARTADO" ? { status: "CONCLUIDO" } : {}) },
+      });
+      return destino.empresaId;
     });
-    if (item.recebido.status === "CONCLUIDO" || item.recebido.status === "DESCARTADO") {
-      await tx.documentoRecebido.update({ where: { id: item.recebidoId }, data: { status: "CONCLUIDO" } });
-    }
-    return { empresaDoDestino };
-  });
-
-  if (resultado === "sumiu") return { ok: false, error: "O registro já não existe (foi excluído pela ficha)." };
-  if (resultado === "decidida") return { ok: false, error: "A ausência já foi decidida em Aprovações — ajuste pela ficha da pessoa." };
+  } catch (e) {
+    if (e instanceof Recusa) return { ok: false, error: e.message };
+    throw e;
+  }
 
   await registrarAuditoria({
-    empresaId: resultado.empresaDoDestino,
+    empresaId: empresaDoDestino,
     acao: "EXCLUIR",
-    entidade: item.destinoEntidade,
+    entidade,
     entidadeId: id,
     resumo: `${tipoCaixaLabel(item.tipo)} gravado pela Caixa de documentos foi desfeito (volta para a conferência).`,
     detalhes: { caixa: item.recebidoId, item: item.id },
   });
-  if (item.colaboradorId && resultado.empresaDoDestino) {
-    revalidatePath(`/rh/${resultado.empresaDoDestino}/colaboradores/${item.colaboradorId}`);
-  }
+  if (item.colaboradorId) revalidatePath(`/rh/${empresaDoDestino}/colaboradores/${item.colaboradorId}`);
   revalidar(empresaId);
   return { ok: true };
 }

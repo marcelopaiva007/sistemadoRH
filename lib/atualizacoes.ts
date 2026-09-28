@@ -37,6 +37,8 @@ export const ATUALIZACOES: Atualizacao[] = [
       "O que a leitura não tem certeza vai para \"Para conferir\", com o motivo escrito: veja as páginas, confirme a pessoa e grave com um clique. A fila também conta em Pendências. ASO inapto ou com restrição sempre passa por você.",
       "Gravou errado? Na aba \"Gravados\" há \"Desfazer\": o registro sai da ficha e o documento volta para a conferência.",
       "O mesmo contracheque (mesmo mês e mesma folha) nunca entra duas vezes para a mesma pessoa, mesmo que o contador reenvie o arquivo.",
+      "Documento de uma empresa que você não acessa (o arquivo do contador costuma trazer o grupo todo) é ignorado sem mostrar de quem é — quem cuida daquela empresa envia o mesmo arquivo pela tela dela.",
+      "Página que a leitura não conseguiu ligar a nenhum documento não some: aparece em \"Para conferir\".",
       "O arquivo original é apagado 30 dias depois de tudo resolvido; ficam só as páginas de cada pessoa, no seu destino.",
       "Novos tipos no Dossiê: Contracheque, Recibo de férias, Termo de rescisão (TRCT) e Informe de rendimentos. Eles não aparecem na lista \"Qual documento?\" do portal — quem manda é o RH.",
       "Relatório de ASO: atalho para a Caixa de documentos, para quem recebe os ASOs da clínica em lote.",

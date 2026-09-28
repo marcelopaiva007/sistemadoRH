@@ -1,8 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition, type FormEvent } from "react";
 import { ExternalLink } from "lucide-react";
+import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -10,14 +12,7 @@ import { confirmarItem } from "@/lib/actions/rh-caixa-documentos";
 import { NORMAS_REGULAMENTADORAS, RESULTADOS_EXAME, TIPOS_EXAME } from "@/lib/constants-sst";
 import { TIPOS_FOLHA } from "@/lib/caixa-documentos/extracao";
 import { TIPOS_CAIXA, destinoDoTipo, visivelNoPortal, type TipoCaixa } from "@/lib/caixa-documentos/tipos";
-import {
-  Campo,
-  CampoData,
-  CampoSelect,
-  CampoTexto,
-  FormularioAction,
-  classeSelect,
-} from "../colaboradores/[colaboradorId]/campos";
+import { Campo, CampoData, CampoSelect, CampoTexto, classeSelect } from "../colaboradores/[colaboradorId]/campos";
 import type { FichaOpcao, ItemConferir } from "./caixa-view";
 
 const ROTULO_FOLHA: Record<string, string> = {
@@ -33,13 +28,11 @@ const ROTULO_FOLHA: Record<string, string> = {
 const data = (v: string | null) => (v ? new Date(`${v}T00:00:00Z`) : null);
 
 export function ConferirDialog({
-  empresaId,
   item,
   fichas,
   aoFechar,
   aoGravar,
 }: {
-  empresaId: string;
   item: ItemConferir;
   fichas: FichaOpcao[];
   aoFechar: () => void;
@@ -65,7 +58,32 @@ export function ConferirDialog({
   const empresaDiferente = !!item.cnpjLido && !!escolhida && escolhida.cnpj !== item.cnpjLido;
   const vaiAoPortal = visivelNoPortal(tipo) || tipo === "OUTRO_DO_COLABORADOR";
   const paginasMudaram = de !== item.paginaInicio || ate !== item.paginaFim;
-  const verPaginas = `/api/rh/${empresaId}/caixa-documentos/${item.recebidoId}/paginas?item=${item.id}&de=${de}&ate=${ate}`;
+  // O CNPJ é o do ARQUIVO: a lista junta arquivos de todos os CNPJs que a pessoa vê.
+  const verPaginas = `/api/rh/${item.empresaId}/caixa-documentos/${item.recebidoId}/paginas?item=${item.id}&de=${de}&ate=${ate}`;
+  const intervalo = Array.from({ length: Math.max(0, ate - de + 1) }, (_, i) => de + i);
+  // Página com duas pessoas não vai ao portal de nenhuma — o servidor recusa
+  // de todo jeito; aqui só avisa antes.
+  const variasPessoas = vaiAoPortal && intervalo.some((p) => (item.pessoasPorPagina[p] ?? 0) >= 2);
+  // A leitura já garantiu estas páginas para esta pessoa: não precisa do "olhei".
+  const garantidas = item.paginasDaSugestao === "OK" && !paginasMudaram && colaboradorId === item.sugestaoId;
+
+  const [gravando, iniciar] = useTransition();
+  const [erro, setErro] = useState<string | null>(null);
+  // Envio sem `<form action>`: aquele reseta os campos para o que a IA leu
+  // quando a gravação volta com erro — e o clique seguinte gravaria o valor
+  // errado sem ninguém ver (a competência corrigida voltava a ser a lida).
+  const enviar = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const dados = new FormData(e.currentTarget);
+    setErro(null);
+    iniciar(async () => {
+      const r = await confirmarItem(item.empresaId, item.id, { ok: true }, dados);
+      if (r.ok) {
+        toast.success("Gravado.");
+        aoGravar();
+      } else setErro(r.error ?? "Não foi possível gravar.");
+    });
+  };
 
   const Pessoa = ({ f }: { f: FichaOpcao }) => (
     <label
@@ -119,12 +137,7 @@ export function ConferirDialog({
           {ate !== de ? `–${ate}` : ""} (abre em outra aba)
         </a>
 
-        <FormularioAction
-          action={confirmarItem.bind(null, empresaId, item.id)}
-          textoBotao="Gravar"
-          mensagemSucesso="Gravado."
-          onSuccess={aoGravar}
-        >
+        <form onSubmit={enviar} className="space-y-4">
           <input type="hidden" name="colaboradorId" value={colaboradorId} />
           <div className="grid gap-4 sm:grid-cols-3">
             <Campo label="Tipo de documento" className="sm:col-span-3" required>
@@ -138,12 +151,14 @@ export function ConferirDialog({
               </select>
             </Campo>
             <Campo label="Da página">
-              <Input type="number" name="paginaInicio" min={1} max={item.paginasDoArquivo} value={de} onChange={(e) => setDe(Number(e.target.value))} />
+              <Input type="number" name="paginaInicio" min={item.janela.de} max={item.janela.ate} value={de} onChange={(e) => setDe(Number(e.target.value))} />
             </Campo>
             <Campo label="Até a página">
-              <Input type="number" name="paginaFim" min={1} max={item.paginasDoArquivo} value={ate} onChange={(e) => setAte(Number(e.target.value))} />
+              <Input type="number" name="paginaFim" min={item.janela.de} max={item.janela.ate} value={ate} onChange={(e) => setAte(Number(e.target.value))} />
             </Campo>
-            <p className="self-end pb-2 text-xs text-muted-foreground">de {item.paginasDoArquivo} no arquivo</p>
+            <p className="self-end pb-2 text-xs text-muted-foreground">
+              de {item.paginasDoArquivo} no arquivo (dá para ir da {item.janela.de} à {item.janela.ate})
+            </p>
           </div>
 
           <Campo label="Pessoa" required>
@@ -231,16 +246,36 @@ export function ConferirDialog({
               </span>
             </label>
           )}
-          {vaiAoPortal && (item.inventarioDuvidoso || paginasMudaram) && (
-            <label className="flex items-start gap-2 rounded-md border p-2 text-sm">
-              <input type="checkbox" name="confirmoPaginas" className="mt-1" />
-              <span>
-                Olhei as páginas {de}
-                {ate !== de ? `–${ate}` : ""}: são só desta pessoa. (Elas vão aparecer no portal dela.)
-              </span>
-            </label>
+          {variasPessoas ? (
+            <Alert variant="destructive">
+              <AlertDescription>
+                A leitura viu mais de uma pessoa nestas páginas. Este tipo aparece no portal da pessoa, e ela veria os dados
+                da outra — não dá para gravar assim. Ajuste as páginas, ou anexe o documento pela ficha.
+              </AlertDescription>
+            </Alert>
+          ) : (
+            vaiAoPortal &&
+            !garantidas && (
+              <label className="flex items-start gap-2 rounded-md border p-2 text-sm">
+                <input type="checkbox" name="confirmoPaginas" className="mt-1" />
+                <span>
+                  Olhei as páginas {de}
+                  {ate !== de ? `–${ate}` : ""}: são só desta pessoa. (Elas vão aparecer no portal dela.)
+                </span>
+              </label>
+            )
           )}
-        </FormularioAction>
+          {erro && (
+            <Alert variant="destructive">
+              <AlertDescription>{erro}</AlertDescription>
+            </Alert>
+          )}
+          <div className="flex justify-end">
+            <Button type="submit" disabled={gravando || variasPessoas}>
+              {gravando ? "Gravando..." : "Gravar"}
+            </Button>
+          </div>
+        </form>
       </DialogContent>
     </Dialog>
   );

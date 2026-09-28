@@ -8,7 +8,10 @@
 import "dotenv/config";
 import { PDFDocument } from "pdf-lib";
 import { prisma } from "../lib/prisma";
-import { avancarRecebido, progressoDe } from "../lib/caixa-documentos/processar";
+import { apagarOriginal, avancarRecebido, progressoDe } from "../lib/caixa-documentos/processar";
+import { marcaDoId } from "../lib/caixa-documentos/sigilo";
+import { MOTIVO_FORA_DO_ESCOPO } from "../lib/caixa-documentos/tipos";
+import type { InventarioPaginas } from "../lib/caixa-documentos/extracao";
 import { registrarConteudo } from "../lib/caixa-documentos/registrar";
 import type { Extrator } from "../lib/caixa-documentos/ia";
 
@@ -27,6 +30,7 @@ const CNPJ_B = "11444777000161";
 const CPF_ANA = "52998224725";
 const CPF_BRUNO = "11144477735";
 const CPF_CARLA = "39053344705";
+const PIS_ANA = "12056412545";
 
 /** O PDF de teste: N páginas em branco e a "leitura" no Assunto. */
 async function pdfDeTeste(paginas: number, leitura: unknown): Promise<Uint8Array<ArrayBuffer>> {
@@ -69,6 +73,11 @@ async function main() {
     prisma.empresa.create({ data: { nome: `Caixa A ${SUFIXO}`, marcaId: marca.id, ativo: true } }),
   );
   const empB = await prisma.empresa.create({ data: { nome: `Caixa B ${SUFIXO}`, marcaId: marca.id, ativo: true } });
+  // Empresa com CNPJ cadastrado, mas FORA do escopo dos arquivos do teste.
+  const empC = await prisma.empresa
+    .create({ data: { nome: `Caixa C ${SUFIXO}`, cnpj: CNPJ_B, marcaId: marca.id, ativo: true } })
+    .catch(async () => prisma.empresa.create({ data: { nome: `Caixa C ${SUFIXO}`, marcaId: marca.id, ativo: true } }));
+  const cnpjC = (await prisma.empresa.findUnique({ where: { id: empC.id }, select: { cnpj: true } }))!.cnpj;
   // CNPJ único no banco: se o de teste já existir (outro smoke), usa o que der.
   const cnpjA = (await prisma.empresa.findUnique({ where: { id: empA.id }, select: { cnpj: true } }))!.cnpj;
   if (!cnpjA) {
@@ -91,8 +100,8 @@ async function main() {
     });
   };
   const ana = await criar(empA.id, "Ana Souza Smoke", CPF_ANA);
-  const bruno = await criar(empA.id, "Bruno Lima Smoke", CPF_BRUNO);
-  const carla = await criar(empA.id, "Carla Dias Smoke", CPF_CARLA);
+  await criar(empA.id, "Bruno Lima Smoke", CPF_BRUNO);
+  await criar(empA.id, "Carla Dias Smoke", CPF_CARLA);
   await criar(empB.id, "Carla Dias Smoke", CPF_CARLA); // mesma pessoa em outro CNPJ
 
   const usuario = { id: "smoke", nome: "Smoke" };
@@ -107,9 +116,9 @@ async function main() {
         { pagina: 5, pessoas: 0, identificadores: [] },
       ],
       documentos: [
-        doc({ tipo: "CONTRACHEQUE", paginaInicio: 1, paginaFim: 1, nome: "ANA SOUZA SMOKE", cpf: CPF_ANA, cnpjEmpregador: CNPJ_A, campos: { competencia: "2026-08" } }),
-        doc({ tipo: "CONTRACHEQUE", paginaInicio: 2, paginaFim: 2, nome: "BRUNO LIMA SMOKE", cpf: CPF_BRUNO, cnpjEmpregador: "", campos: { competencia: "2026-08" } }),
-        doc({ tipo: "CONTRACHEQUE", paginaInicio: 3, paginaFim: 3, nome: "CARLA DIAS SMOKE", cpf: CPF_CARLA, cnpjEmpregador: CNPJ_A, campos: { competencia: "2026-08" } }),
+        doc({ tipo: "CONTRACHEQUE", paginaInicio: 1, paginaFim: 1, nome: "ANA SOUZA SMOKE", cpf: CPF_ANA, cnpjEmpregador: CNPJ_A, campos: { competencia: "2026-08", tipoFolha: "MENSAL" } }),
+        doc({ tipo: "CONTRACHEQUE", paginaInicio: 2, paginaFim: 2, nome: "BRUNO LIMA SMOKE", cpf: CPF_BRUNO, cnpjEmpregador: "", campos: { competencia: "2026-08", tipoFolha: "MENSAL" } }),
+        doc({ tipo: "CONTRACHEQUE", paginaInicio: 3, paginaFim: 3, nome: "CARLA DIAS SMOKE", cpf: CPF_CARLA, cnpjEmpregador: CNPJ_A, campos: { competencia: "2026-08", tipoFolha: "MENSAL" } }),
         doc({ tipo: "ASO", paginaInicio: 4, paginaFim: 4, nome: "Ana Souza Smoke", cpf: CPF_ANA, cnpjEmpregador: CNPJ_A, campos: { asoTipo: "PERIODICO", asoResultado: "APTO", dataDocumento: "2026-09-10" } }),
         doc({ tipo: "NAO_E_DE_COLABORADOR", paginaInicio: 5, paginaFim: 5, nome: "", cpf: "", cnpjEmpregador: "" }),
       ],
@@ -184,13 +193,89 @@ async function main() {
 
     console.log("\n4. Pendências contam a fila:");
     const { pendenciasDaEmpresa } = await import("../lib/pendencias");
-    const p = await pendenciasDaEmpresa([empA.id]);
-    ok(p.caixaAConferir >= 3, `caixaAConferir = ${p.caixaAConferir}`);
+    const p = await pendenciasDaEmpresa([empA.id, empB.id]);
+    ok(p.caixaAConferir >= 3, `quem vê as duas empresas do arquivo: caixaAConferir = ${p.caixaAConferir}`);
+    // O arquivo foi enviado com escopo {A, B}: quem só vê A não consegue
+    // abri-lo, então não pode contá-lo (número plausível e inútil).
+    const soA = await pendenciasDaEmpresa([empA.id]);
+    ok(soA.caixaAConferir === 0, `quem só vê a empresa A não conta a fila de um arquivo de A+B (${soA.caixaAConferir})`);
+
+    console.log("\n5. Documento que atravessa blocos, com outros encaminhados no meio (20 páginas, 3 blocos):");
+    {
+      const inv = (pagina: number, pessoas: number, ids: string[]) => ({ pagina, pessoas, identificadores: ids });
+      const paginas = [
+        ...Array.from({ length: 9 }, (_, i) => inv(i + 1, 1, [CPF_BRUNO])),
+        inv(10, 1, [CPF_ANA]),
+        inv(11, 1, [CPF_CARLA]),
+        inv(12, 0, []),
+        inv(13, 1, []), // alguém que a leitura não apontou em documento nenhum
+        inv(14, 0, []),
+        inv(15, 0, []),
+        inv(16, 0, []),
+        inv(17, 1, [CPF_ANA]),
+        inv(18, 0, []),
+        inv(19, 0, []),
+        inv(20, 0, []),
+      ];
+      const documentos = [
+        doc({ tipo: "CONTRATO", paginaInicio: 1, paginaFim: 8, continuaDepois: true, nome: "Bruno Lima Smoke", cpf: CPF_BRUNO, cnpjEmpregador: "" }),
+        doc({ tipo: "CONTRATO", paginaInicio: 9, paginaFim: 9, continuaAntes: true, nome: "Bruno Lima Smoke", cpf: CPF_BRUNO, cnpjEmpregador: "" }),
+        doc({ tipo: "CONTRACHEQUE", paginaInicio: 10, paginaFim: 10, nome: "Ana Souza Smoke", cpf: CPF_ANA, cnpjEmpregador: cnpjA ? CNPJ_A : "", campos: { competencia: "2026-07", tipoFolha: "MENSAL" } }),
+        doc({ tipo: "CONTRACHEQUE", paginaInicio: 11, paginaFim: 11, nome: "Carla Dias Smoke", cpf: CPF_CARLA, cnpjEmpregador: cnpjC ? CNPJ_B : "", campos: { competencia: "2026-07", tipoFolha: "MENSAL" } }),
+        doc({ tipo: "CONTRACHEQUE", paginaInicio: 17, paginaFim: 17, nome: "Ana Souza Smoke", cpf: CPF_ANA, pis: PIS_ANA, cnpjEmpregador: "", campos: { competencia: "2026-06", tipoFolha: "MENSAL" } }),
+      ];
+      const bytes5 = await pdfDeTeste(20, { paginas, documentos });
+      const r5 = await prisma.documentoRecebido.create({
+        data: {
+          empresaId: empA.id,
+          empresasEscopo: [empA.id, empB.id],
+          nome: "blocos-smoke.pdf",
+          mimeType: "application/pdf",
+          tamanhoBytes: bytes5.byteLength,
+          hash: "",
+          status: "AGUARDANDO_UPLOAD",
+          criadoPorId: "smoke",
+          criadoPorNome: "Smoke",
+        },
+      });
+      await registrarConteudo({ recebidoId: r5.id, empresaId: empA.id, bytes: bytes5, mimeType: "application/pdf", blobUrl: null, usuario });
+      for (let i = 0; i < 30; i++) {
+        const p = await avancarRecebido(r5.id, usuario, extrator);
+        if (!p || !["PENDENTE", "LENDO", "ROTEANDO"].includes(p.status)) break;
+      }
+      const fim5 = await progressoDe(r5.id);
+      ok(fim5?.status === "CONCLUIDO", `arquivo concluído, sem travar na junção do último bloco (${fim5?.status}${fim5?.erro ? `: ${fim5.erro}` : ""})`);
+      const itens5 = await prisma.itemDocumentoRecebido.findMany({ where: { recebidoId: r5.id }, orderBy: { paginaInicio: "asc" } });
+      const contrato = itens5.filter((i) => i.tipo === "CONTRATO");
+      ok(contrato.length === 1 && contrato[0].paginaInicio === 1 && contrato[0].paginaFim === 9, "o contrato das páginas 1–8 + 9 virou um só documento (1–9)");
+      ok(itens5.every((i) => i.status !== "PENDENTE" && i.status !== "GRAVANDO"), "nenhum item ficou para trás na fila");
+      const daCarla = itens5.find((i) => i.paginaInicio === 11);
+      if (cnpjC) {
+        ok(
+          daCarla?.status === "DESCARTADO" && !daCarla.nomeLido && !daCarla.cpfLido && (daCarla.motivo ?? "").startsWith(MOTIVO_FORA_DO_ESCOPO),
+          "documento de CNPJ fora do escopo → descartado sem nome nem CPF guardados",
+        );
+      }
+      const solta = itens5.find((i) => i.paginaInicio === 13);
+      ok(solta?.status === "CONFERIR" && (solta.motivo ?? "").includes("não apontou"), "página que a leitura pulou virou item para conferir");
+      ok(itens5.filter((i) => i.paginaInicio === 12 || i.paginaInicio === 14).length === 0, "página sem pessoa (0 no inventário) não vira item");
+      const ultimo = itens5.find((i) => i.paginaInicio === 17);
+      ok(ultimo?.status === "CONFERIR" && ultimo.pisLido === PIS_ANA, "o PIS lido sobrevive à junção do último bloco");
+      const r5b = await prisma.documentoRecebido.findUniqueOrThrow({ where: { id: r5.id } });
+      const inventario = r5b.inventarioPaginas as InventarioPaginas;
+      ok(inventario["10"]?.ids[0] === marcaDoId(CPF_ANA) && !JSON.stringify(inventario).includes(CPF_ANA), "inventário guarda marcas, nunca o CPF");
+
+      const apagou = await apagarOriginal(r5.id);
+      const r5c = await prisma.documentoRecebido.findUniqueOrThrow({ where: { id: r5.id } });
+      const restoCpf = await prisma.itemDocumentoRecebido.count({ where: { recebidoId: r5.id, NOT: { cpfLido: null } } });
+      ok(apagou && !r5c.arquivoId && r5c.inventarioPaginas === null && restoCpf === 0, "apagar o original leva junto o inventário e os CPFs lidos");
+      ok(!(await apagarOriginal(r5.id)), "apagar de novo não quebra (já não há original)");
+    }
   } finally {
     // Limpa tudo o que o teste criou (itens caem em cascata).
     const recebidos = await prisma.documentoRecebido.findMany({ where: { empresaId: empA.id }, select: { id: true, arquivoId: true } });
     await prisma.documentoRecebido.deleteMany({ where: { empresaId: empA.id } });
-    const ids = [empA.id, empB.id];
+    const ids = [empA.id, empB.id, empC.id];
     await prisma.exameOcupacional.deleteMany({ where: { empresaId: { in: ids } } });
     await prisma.documentoColaborador.deleteMany({ where: { empresaId: { in: ids } } });
     await prisma.ausencia.deleteMany({ where: { empresaId: { in: ids } } });

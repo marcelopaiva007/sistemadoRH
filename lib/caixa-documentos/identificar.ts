@@ -36,7 +36,17 @@ export type EmpresaPorCnpj = Map<string, { id: string; noEscopo: boolean }>;
 export type Identificacao =
   | { tipo: "CPF" | "PIS" | "NOME_CNPJ"; colaboradorId: string; empresaId: string }
   | { tipo: "SUGESTAO"; colaboradorId: string; empresaId: string; motivo: string }
-  | { tipo: "NENHUM"; motivo: string; opcoes: string[] };
+  | {
+      tipo: "NENHUM";
+      motivo: string;
+      opcoes: string[];
+      /**
+       * O CNPJ impresso é de empresa cadastrada que quem enviou NÃO acessa.
+       * O item é descartado sem mostrar nome, CPF nem páginas (o 22/08 foi
+       * justamente documento de um CNPJ indo parar em outro).
+       */
+      foraDoEscopo?: true;
+    };
 
 /** Documento emitido pelo empregador: a empresa certa é parte do documento. */
 export const TIPOS_DO_EMPREGADOR: readonly TipoCaixa[] = [
@@ -81,6 +91,11 @@ export function identificar(
     asoTipo: string | null;
     /** A data a que o documento se refere (competência, emissão) — decide se ficha desligada ainda vale. */
     dataReferencia?: Date | null;
+    /**
+     * O período que o documento cobre, quando é um ano inteiro (informe de
+     * rendimentos): ficha desligada vale se trabalhou em QUALQUER parte dele.
+     */
+    periodoReferencia?: { inicio: Date; fim: Date } | null;
   },
   fichasNoEscopo: Candidato[],
   empresas: EmpresaPorCnpj,
@@ -94,6 +109,15 @@ export function identificar(
   const elegivel = (c: Candidato) => {
     if (c.ativo) return true;
     if (!aceitaDesligado || !c.dataDesligamento) return false;
+    const periodo = item.periodoReferencia ?? null;
+    if (periodo) {
+      // Começo do período até um mês depois da saída, e admissão até um mês
+      // depois do fim do período.
+      return (
+        diferencaEmDiasUTC(periodo.inicio, c.dataDesligamento) <= 31 &&
+        (!c.dataAdmissao || diferencaEmDiasUTC(c.dataAdmissao, periodo.fim) <= 31)
+      );
+    }
     const ref = item.dataReferencia ?? null;
     if (ref) return diferencaEmDiasUTC(ref, c.dataDesligamento) <= 31 && (!c.dataAdmissao || diferencaEmDiasUTC(c.dataAdmissao, ref) <= 31);
     return diferencaEmDiasUTC(hoje, c.dataDesligamento) <= DIAS_APOS_DESLIGAMENTO;
@@ -106,7 +130,7 @@ export function identificar(
     const empresa = empresas.get(item.cnpj);
     if (empresa && !empresa.noEscopo) {
       // Não diz de quem nem de que empresa: o usuário não enxerga aquele CNPJ.
-      return { tipo: "NENHUM", motivo: "O documento é de uma empresa que você não acessa.", opcoes: [] };
+      return { tipo: "NENHUM", motivo: "O documento é de uma empresa que você não acessa.", opcoes: [], foraDoEscopo: true };
     }
     if (empresa) empresaDoDocumento = empresa.id;
     else avisoCnpj = "O CNPJ impresso no documento não é de nenhuma empresa cadastrada.";

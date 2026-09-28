@@ -11,8 +11,16 @@ import {
   type ItemLido,
 } from "../lib/caixa-documentos/extracao";
 import { identificar, nomeComparavel, type Candidato, type EmpresaPorCnpj } from "../lib/caixa-documentos/identificar";
-import { decidir, faltasParaGravar, paginasSoDele } from "../lib/caixa-documentos/decidir";
-import { DESTINO, TIPOS_CAIXA, VALORES_TIPO_CAIXA } from "../lib/caixa-documentos/tipos";
+import {
+  conferenciaDasPaginas,
+  decidir,
+  faltasParaGravar,
+  ocupaAsPaginas,
+  paginasSemDocumento,
+  paginasSoDele,
+} from "../lib/caixa-documentos/decidir";
+import { marcaDoId, marcasDe } from "../lib/caixa-documentos/sigilo";
+import { DESTINO, MOTIVO_FORA_DO_ESCOPO, TIPOS_CAIXA, VALORES_TIPO_CAIXA } from "../lib/caixa-documentos/tipos";
 import { TIPOS_DOCUMENTO } from "../lib/constants-dp";
 
 let falhas = 0;
@@ -227,7 +235,7 @@ console.log("\n6. Grava sozinho só quando está tudo certo:");
 
 console.log("\n7. Páginas só da pessoa (senão, separar o arquivo exporia outra):");
 {
-  const item = { paginaInicio: 3, paginaFim: 4, cpf: CPF_ANA };
+  const item = { paginaInicio: 3, paginaFim: 4, ids: [CPF_ANA] };
   const soAna = { "3": { pessoas: 1, ids: [CPF_ANA] }, "4": { pessoas: 1, ids: [CPF_ANA] } };
   ok(paginasSoDele(item, [{ paginaInicio: 5, paginaFim: 5 }], soAna, true), "páginas exclusivas, só a Ana em cada uma → ok");
   ok(!paginasSoDele(item, [{ paginaInicio: 4, paginaFim: 4 }], soAna, true), "outro item na página 4 → não");
@@ -235,7 +243,7 @@ console.log("\n7. Páginas só da pessoa (senão, separar o arquivo exporia outr
   ok(!paginasSoDele(item, [], { "3": soAna["3"] }, true), "página sem inventário → não (portal)");
   ok(!paginasSoDele(item, [], { ...soAna, "4": { pessoas: 1, ids: [CPF_BRUNO] } }, true), "CPF de outra pessoa na página 4 (página trocada) → não");
   ok(paginasSoDele(item, [], { "3": soAna["3"] }, false), "fora do portal (exame), o inventário não bloqueia");
-  ok(paginasSoDele({ paginaInicio: 3, paginaFim: 3, cpf: null, pis: PIS_ANA }, [], { "3": { pessoas: 1, ids: [PIS_ANA] } }, true), "contracheque só com PIS: o PIS na página basta");
+  ok(paginasSoDele({ paginaInicio: 3, paginaFim: 3, ids: [PIS_ANA] }, [], { "3": { pessoas: 1, ids: [PIS_ANA] } }, true), "contracheque só com PIS: o PIS na página basta");
 }
 
 console.log("\n9. PIS no lugar do CPF:");
@@ -258,6 +266,106 @@ console.log("\n8. CPF certo, nome errado:");
   ok(r.tipo === "SUGESTAO", "contracheque com CPF da Ana e nome do Bruno → não grava sozinho");
   const r2 = identificar({ tipo: "CONTRACHEQUE", nome: "ANA M. SOUZA", cpf: CPF_ANA, cnpj: CNPJ_A, asoTipo: null }, [ficha], empresas, hoje);
   ok(r2.tipo === "CPF", "nome do meio abreviado ainda confere");
+}
+
+console.log("\n10. Conferência à mão: página de duas pessoas não vai ao portal de nenhuma:");
+{
+  const inv = {
+    "1": { pessoas: 1, ids: [CPF_ANA] },
+    "2": { pessoas: 2, ids: [CPF_ANA, CPF_BRUNO] },
+    "3": { pessoas: 1, ids: [CPF_BRUNO] },
+    "4": { pessoas: 1, ids: [] },
+    "5": { pessoas: 0, ids: [] },
+  };
+  ok(conferenciaDasPaginas(1, 1, inv, [CPF_ANA]) === "OK", "página só da Ana, para a Ana → ok");
+  ok(conferenciaDasPaginas(1, 2, inv, [CPF_ANA]) === "OUTRA_PESSOA", "duas pessoas na página 2 → bloqueia, sem confirmação possível");
+  ok(conferenciaDasPaginas(3, 3, inv, [CPF_ANA]) === "OUTRA_PESSOA", "página só com o CPF do Bruno, escolhida para a Ana → bloqueia");
+  ok(conferenciaDasPaginas(4, 4, inv, [CPF_ANA]) === "DUVIDA", "página com uma pessoa e sem CPF lido → o RH confirma olhando");
+  ok(conferenciaDasPaginas(9, 9, inv, [CPF_ANA]) === "DUVIDA", "página sem leitura → o RH confirma olhando");
+  ok(conferenciaDasPaginas(1, 1, inv, [CPF_ANA]) === "OK" && conferenciaDasPaginas(5, 5, inv, [CPF_ANA]) === "OK", "página sem pessoa nenhuma (verso) não atrapalha");
+  ok(conferenciaDasPaginas(1, 1, inv, []) === "DUVIDA", "ficha sem CPF nem PIS → dúvida, nunca ok");
+}
+
+console.log("\n11. Descartar o item do outro não libera a página dele:");
+{
+  const base = { tipo: "CONTRACHEQUE", status: "DESCARTADO", colaboradorId: null, nomeLido: "BRUNO LIMA", motivo: null };
+  ok(ocupaAsPaginas({ ...base, status: "CONFERIR" }, "ana"), "item ativo de outro ocupa");
+  ok(ocupaAsPaginas(base, "ana"), "contracheque do Bruno descartado continua ocupando a página");
+  ok(!ocupaAsPaginas({ ...base, colaboradorId: "ana" }, "ana"), "descartado que era da própria Ana (leitura repetida) libera");
+  ok(!ocupaAsPaginas({ ...base, nomeLido: null }, "ana"), "descartado sem pessoa lida (página solta) libera");
+  ok(!ocupaAsPaginas({ ...base, tipo: "NAO_E_DE_COLABORADOR", status: "CONFERIR" }, "ana"), "página sem pessoa (capa, boleto) não ocupa");
+  ok(ocupaAsPaginas({ ...base, nomeLido: null, motivo: `${MOTIVO_FORA_DO_ESCOPO} — ignorado.` }, "ana"), "de empresa fora do alcance: ocupa, mesmo sem nome guardado");
+}
+
+console.log("\n12. Página que a leitura pulou não some:");
+{
+  const itens = [{ paginaInicio: 1, paginaFim: 2 }, { paginaInicio: 4, paginaFim: 4 }];
+  ok(JSON.stringify(paginasSemDocumento(1, 5, itens, {})) === "[3,5]", "páginas 3 e 5 fora de qualquer documento → viram itens");
+  ok(JSON.stringify(paginasSemDocumento(1, 5, itens, { "3": { pessoas: 0, ids: [] } })) === "[5]", "página que a leitura disse não ter pessoa (capa) fica de fora");
+}
+
+console.log("\n13. Atestado e contracheque que não gravam sozinhos:");
+{
+  ok(
+    faltasParaGravar("ATESTADO", { ...vazio, dataInicio: "2026-09-10", dataFim: "2026-09-13", dias: 3 }).length === 1,
+    "fim 13/09 e 3 dias a partir de 10/09 não batem (seriam 4) → falta",
+  );
+  ok(faltasParaGravar("ATESTADO", { ...vazio, dataInicio: "2026-09-10", dataFim: "2026-09-12", dias: 3 }).length === 0, "fim 12/09 e 3 dias batem");
+  const porCpf = { tipo: "CPF" as const, colaboradorId: "x", empresaId: "A" };
+  const semFatos = { impedimentos: [], paginasCompartilhadas: false };
+  ok(
+    decidir({ tipo: "CONTRACHEQUE", confianca: 0.99, campos: { ...vazio, competencia: "2026-12" }, avisos: [] }, porCpf, semFatos).acao === "CONFERIR",
+    "contracheque sem o tipo da folha lido → conferir (podia ser o 13º)",
+  );
+  ok(
+    decidir({ tipo: "CONTRACHEQUE", confianca: 0.99, campos: { ...vazio, competencia: "2026-12", tipoFolha: "MENSAL" }, avisos: [] }, porCpf, semFatos).acao === "GRAVAR",
+    "contracheque mensal lido → grava",
+  );
+}
+
+console.log("\n14. Empresa fora do alcance e informe de quem saiu:");
+{
+  const hoje = new Date(Date.UTC(2026, 8, 28));
+  const empresas: EmpresaPorCnpj = new Map([
+    [CNPJ_A, { id: "A", noEscopo: true }],
+    [CNPJ_FORA, { id: "Z", noEscopo: false }],
+  ]);
+  const ana: Candidato = { id: "ana", empresaId: "A", nome: "Ana Souza", cpf: CPF_ANA, ativo: true, dataAdmissao: null, dataDesligamento: null };
+  const fora = identificar({ tipo: "CONTRACHEQUE", nome: "Ana Souza", cpf: CPF_ANA, cnpj: CNPJ_FORA, asoTipo: null }, [ana], empresas, hoje);
+  ok(fora.tipo === "NENHUM" && fora.foraDoEscopo === true, "CNPJ de empresa que quem enviou não acessa → marcado para sair sem mostrar");
+  const saiu: Candidato = {
+    id: "bruno",
+    empresaId: "A",
+    nome: "Bruno Lima",
+    cpf: CPF_BRUNO,
+    ativo: false,
+    dataAdmissao: new Date(Date.UTC(2020, 0, 1)),
+    dataDesligamento: new Date(Date.UTC(2025, 5, 15)),
+  };
+  const informe = (ano: number) =>
+    identificar(
+      {
+        tipo: "INFORME_RENDIMENTOS",
+        nome: "Bruno Lima",
+        cpf: CPF_BRUNO,
+        cnpj: CNPJ_A,
+        asoTipo: null,
+        dataReferencia: new Date(Date.UTC(ano + 1, 1, 20)),
+        periodoReferencia: { inicio: new Date(Date.UTC(ano, 0, 1)), fim: new Date(Date.UTC(ano, 11, 31)) },
+      },
+      [saiu],
+      empresas,
+      hoje,
+    );
+  ok(informe(2025).tipo === "CPF", "informe de 2025 de quem saiu em junho/2025 → acha a ficha");
+  ok(informe(2026).tipo !== "CPF", "informe de 2026 de quem saiu em 2025 → não é daquela ficha");
+}
+
+console.log("\n15. Inventário sem CPF guardado:");
+{
+  ok(marcaDoId(CPF_ANA) === marcaDoId(CPF_ANA), "mesma entrada, mesma marca");
+  ok(!marcaDoId(CPF_ANA).includes(CPF_ANA.slice(0, 6)) && marcaDoId(CPF_ANA) !== marcaDoId(CPF_BRUNO), "a marca não carrega o CPF e separa pessoas");
+  ok(marcasDe("529.982.247-25", null)[0] === marcaDoId(CPF_ANA), "CPF formatado da ficha dá a mesma marca do lido");
 }
 
 console.log(falhas === 0 ? "\nTodos os testes passaram." : `\n${falhas} teste(s) falharam.`);

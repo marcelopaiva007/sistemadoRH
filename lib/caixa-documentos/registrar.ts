@@ -54,10 +54,16 @@ export async function registrarConteudo(params: {
   const hash = createHash("sha256").update(bytes).digest("hex");
   // Mesmo arquivo já enviado neste CNPJ e ainda valendo: não lê (nem paga) de
   // novo. Descartado ou com erro não conta — aí reenviar é o jeito de repetir.
-  const anterior = await prisma.documentoRecebido.findFirst({
-    where: { empresaId, hash, id: { not: recebidoId }, status: { notIn: ["DESCARTADO", "ERRO", "AGUARDANDO_UPLOAD"] } },
-    select: { id: true, nome: true, createdAt: true },
-  });
+  // Só conta o arquivo que quem envia agora também enxerga (escopo dele
+  // dentro do escopo deste envio): o de um escopo maior não pode nem ser
+  // citado aqui — nome e data dele já diriam algo que esta pessoa não vê.
+  const escopo = (await prisma.documentoRecebido.findUnique({ where: { id: recebidoId }, select: { empresasEscopo: true } }))?.empresasEscopo ?? [];
+  const [anterior] = await prisma.$queryRaw<{ id: string; nome: string; createdAt: Date }[]>`
+    SELECT id, nome, "createdAt" FROM rh."DocumentoRecebido"
+    WHERE "empresaId" = ${empresaId} AND hash = ${hash} AND id <> ${recebidoId}
+      AND status NOT IN ('DESCARTADO', 'ERRO', 'AGUARDANDO_UPLOAD')
+      AND "empresasEscopo" <@ ${escopo}::text[]
+    ORDER BY "createdAt" DESC LIMIT 1`;
   if (anterior) {
     return recusar(`Este arquivo já foi enviado em ${formatarData(anterior.createdAt)} ("${anterior.nome}").`, {
       duplicadoDe: { id: anterior.id, nome: anterior.nome, enviadoEm: formatarData(anterior.createdAt) },

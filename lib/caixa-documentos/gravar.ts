@@ -61,6 +61,14 @@ export function dataDeReferencia(c: CamposLidos): Date | null {
   );
 }
 
+/** O ano inteiro que um informe de rendimentos cobre (ver identificar: quem saiu no meio do ano). */
+export function periodoDeReferencia(tipo: TipoCaixa, c: CamposLidos): { inicio: Date; fim: Date } | null {
+  if (tipo === "INFORME_RENDIMENTOS" && c.anoCalendario) {
+    return { inicio: dataUTC(c.anoCalendario, 1, 1), fim: dataUTC(c.anoCalendario, 12, 31) };
+  }
+  return null;
+}
+
 /** Período do atestado: fim lido, ou início + dias − 1. */
 export function periodoDoAtestado(c: CamposLidos): { inicio: Date; fim: Date } | null {
   const inicio = dataDe(c.dataInicio);
@@ -186,6 +194,18 @@ export async function impedimentosNoBanco(
       break;
   }
   return motivos;
+}
+
+/**
+ * Só para a gravação AUTOMÁTICA: o que não impede o RH de gravar, mas pede o
+ * olho dele. Documento pessoal sem data e sem chave (RG, CPF, CTPS...) não tem
+ * como ser reconhecido como "o mesmo" — se a ficha já tem um do mesmo tipo, o
+ * contador pode só ter reenviado.
+ */
+export async function avisosNoBanco(tipo: TipoCaixa, c: CamposLidos, ficha: Ficha, db: Cliente = prisma): Promise<string[]> {
+  if (DESTINO[tipo] !== "DOSSIE" || chaveDedupe(tipo, c) || dataDe(c.dataDocumento)) return [];
+  const existente = await db.documentoColaborador.findFirst({ where: { colaboradorId: ficha.id, tipo }, select: { id: true } });
+  return existente ? [`Já há ${tipoCaixaLabel(tipo)} no Dossiê desta pessoa — confira se é outro documento ou o mesmo reenviado.`] : [];
 }
 
 export type Gravacao = { ok: true; entidade: string; id: string } | { ok: false; error: string };
@@ -406,6 +426,8 @@ export async function gravarItem(params: {
         },
       });
       if (marcado.count !== 1) throw new ErroDeGravacao("Este documento acabou de ser resolvido em outra tela.");
+      // Mexer num item renova o prazo de guarda do original (limparCaixa).
+      await tx.documentoRecebido.updateMany({ where: { id: params.origem.recebidoId }, data: { updatedAt: agora } });
       return registro;
     });
 

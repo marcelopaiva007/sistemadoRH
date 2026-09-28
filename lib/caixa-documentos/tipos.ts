@@ -132,3 +132,17 @@ export type StatusRecebido = (typeof STATUS_RECEBIDO)[number];
 
 export const STATUS_ITEM = ["PENDENTE", "GRAVADO", "CONFERIR", "DESCARTADO"] as const;
 export type StatusItem = (typeof STATUS_ITEM)[number];
+
+/**
+ * Início do motivo do item descartado sozinho por ser de empresa que quem
+ * enviou não acessa. O nome, CPF e campos lidos são apagados na hora; as
+ * páginas dele continuam contando como "de outra pessoa" (decidir.ts).
+ */
+export const MOTIVO_FORA_DO_ESCOPO = "Documento de empresa que quem enviou não acessa";
+
+/**
+ * Quantas páginas antes e depois do item o RH pode ver e incluir na
+ * conferência (acertar onde o documento começa ou termina). Mais que isso é
+ * ver a folha dos outros.
+ */
+export const JANELA_PAGINAS = 5;

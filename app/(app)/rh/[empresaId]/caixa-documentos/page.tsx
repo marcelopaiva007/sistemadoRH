@@ -6,9 +6,17 @@ import { formatarData, formatarDataHoraBrasilia } from "@/lib/datas";
 import { PAPEIS_QUE_CONFIGURAM } from "@/lib/segredos";
 import { iaLigada } from "@/lib/caixa-documentos/ia";
 import { lerDados, limparCaixa, DIAS_GUARDA_ORIGINAL } from "@/lib/caixa-documentos/processar";
-import { paginasSoDele } from "@/lib/caixa-documentos/decidir";
+import { conferenciaDasPaginas } from "@/lib/caixa-documentos/decidir";
 import type { InventarioPaginas } from "@/lib/caixa-documentos/extracao";
-import { ABA_DO_DESTINO, destinoDoTipo, DESTINO_LABEL, visivelNoPortal, type TipoCaixa } from "@/lib/caixa-documentos/tipos";
+import { marcasDe } from "@/lib/caixa-documentos/sigilo";
+import {
+  ABA_DO_DESTINO,
+  DESTINO_LABEL,
+  JANELA_PAGINAS,
+  MOTIVO_FORA_DO_ESCOPO,
+  destinoDoTipo,
+  type TipoCaixa,
+} from "@/lib/caixa-documentos/tipos";
 import { CaixaView, type ArquivoNaCaixa, type FichaOpcao, type ItemConferir, type ItemGravado } from "./caixa-view";
 
 // Caixa de documentos (v1.179.0). O RH solta os PDFs que chegam do contador —
@@ -35,12 +43,22 @@ export default async function CaixaDocumentosPage({
   // congelado no envio (todas as empresas que quem enviou acessa).
   const escopo = await escopoDeEmpresas(usuario, empresasParam);
   const visiveis = new Set(await empresasVisiveis(usuario));
-  await limparCaixa(escopo);
+  // Faxina é de melhor esforço: se falhar (duas telas abrindo juntas), a
+  // lista abre do mesmo jeito e a próxima visita termina o serviço.
+  await limparCaixa(escopo).catch((e) => console.error("[caixa-documentos] faxina", e));
 
-  const recebidosTodos = await prisma.documentoRecebido.findMany({
-    where: { empresaId: { in: escopo }, NOT: { status: "AGUARDANDO_UPLOAD" } },
+  // Só aparece o arquivo de quem alcança TODO o escopo dele — senão veria
+  // pessoas de um CNPJ que não acessa. Filtrado no banco, ANTES do limite:
+  // filtrado depois, os 60 mais novos podiam ser todos de quem vê mais, e os
+  // desta pessoa sumiam da lista.
+  const idsVisiveis = await prisma.$queryRaw<{ id: string }[]>`
+    SELECT id FROM rh."DocumentoRecebido"
+    WHERE "empresaId" = ANY(${escopo}::text[]) AND status <> 'AGUARDANDO_UPLOAD'
+      AND "empresasEscopo" <@ ${[...visiveis]}::text[]
+    ORDER BY "createdAt" DESC LIMIT 60`;
+  const recebidos = await prisma.documentoRecebido.findMany({
+    where: { id: { in: idsVisiveis.map((r) => r.id) } },
     orderBy: { createdAt: "desc" },
-    take: 60,
     select: {
       id: true,
       empresaId: true,
@@ -59,17 +77,20 @@ export default async function CaixaDocumentosPage({
       mimeType: true,
     },
   });
-  // Só aparece o arquivo de quem alcança TODO o escopo dele — senão veria
-  // pessoas de um CNPJ que não acessa.
-  const recebidos = recebidosTodos.filter((r) => r.empresasEscopo.every((id) => visiveis.has(id)));
   const ids = recebidos.map((r) => r.id);
 
-  const [contagens, itensConferir, itensGravados, fichas, empresasSemCnpj, ligada] = await Promise.all([
+  const [contagens, itensConferir, foraDoEscopo, itensGravados, fichas, empresasSemCnpj, ligada] = await Promise.all([
     prisma.itemDocumentoRecebido.groupBy({ by: ["recebidoId", "status"], where: { recebidoId: { in: ids } }, _count: { _all: true } }),
     prisma.itemDocumentoRecebido.findMany({
       where: { recebidoId: { in: ids }, status: "CONFERIR" },
       orderBy: [{ recebidoId: "asc" }, { ordem: "asc" }],
       take: 300,
+    }),
+    // Os descartados sozinhos por serem de empresa que quem enviou não acessa.
+    prisma.itemDocumentoRecebido.groupBy({
+      by: ["recebidoId"],
+      where: { recebidoId: { in: ids }, status: "DESCARTADO", motivo: { startsWith: MOTIVO_FORA_DO_ESCOPO } },
+      _count: { _all: true },
     }),
     prisma.itemDocumentoRecebido.findMany({
       where: { recebidoId: { in: ids }, status: "GRAVADO" },
@@ -95,6 +116,7 @@ export default async function CaixaDocumentosPage({
         id: true,
         nome: true,
         cpf: true,
+        pis: true,
         ativo: true,
         empresaId: true,
         dataAdmissao: true,
@@ -122,14 +144,22 @@ export default async function CaixaDocumentosPage({
     cpfFinal: mascararCpf(f.cpf),
   }));
 
+  const fichaPorId = new Map(fichas.map((f) => [f.id, f]));
   const conferir: ItemConferir[] = itensConferir.map((i) => {
     const r = nomeArquivo.get(i.recebidoId)!;
     const d = lerDados(i.dados);
     const tipo = i.tipo as TipoCaixa;
-    const vaiAoPortal = visivelNoPortal(tipo) || tipo === "OUTRO_DO_COLABORADOR";
+    const total = r.paginas ?? 1;
+    const inventario = (r.inventarioPaginas as InventarioPaginas | null) ?? null;
+    const janela = { de: Math.max(1, i.paginaInicio - JANELA_PAGINAS), ate: Math.min(total, i.paginaFim + JANELA_PAGINAS) };
+    // Só a contagem de pessoas vai à tela — as marcas de CPF/PIS ficam aqui.
+    const pessoasPorPagina: Record<number, number | null> = {};
+    for (let p = janela.de; p <= janela.ate; p++) pessoasPorPagina[p] = inventario?.[String(p)]?.pessoas ?? null;
+    const sugerida = i.colaboradorId ? fichaPorId.get(i.colaboradorId) : undefined;
     return {
       id: i.id,
       recebidoId: i.recebidoId,
+      empresaId: r.empresaId,
       arquivo: r.nome,
       paginasDoArquivo: r.paginas ?? 1,
       tipo,
@@ -144,16 +174,13 @@ export default async function CaixaDocumentosPage({
       sugestaoId: i.colaboradorId,
       opcoes: d.opcoes ?? [],
       campos: d.campos,
-      // O RH é quem confirma quando a leitura não garantiu que as páginas
-      // são só desta pessoa (o servidor confere de novo ao gravar).
-      inventarioDuvidoso:
-        vaiAoPortal &&
-        !paginasSoDele(
-          { paginaInicio: i.paginaInicio, paginaFim: i.paginaFim, cpf: i.cpfLido, pis: i.pisLido },
-          [],
-          (r.inventarioPaginas as InventarioPaginas | null) ?? null,
-          true,
-        ),
+      janela,
+      pessoasPorPagina,
+      // Para a pessoa sugerida e as páginas lidas: "OK" dispensa o "olhei as
+      // páginas" do RH. Qualquer outra escolha, o servidor confere ao gravar.
+      paginasDaSugestao: sugerida
+        ? conferenciaDasPaginas(i.paginaInicio, i.paginaFim, inventario, marcasDe(sugerida.cpf, sugerida.pis))
+        : null,
       originalGuardado: !!r.arquivoId,
     };
   });
@@ -162,6 +189,7 @@ export default async function CaixaDocumentosPage({
     const destino = destinoDoTipo(i.tipo as TipoCaixa, false);
     return {
       id: i.id,
+      empresaId: nomeArquivo.get(i.recebidoId)?.empresaId ?? empresaId,
       arquivo: nomeArquivo.get(i.recebidoId)?.nome ?? "",
       tipo: i.tipo as TipoCaixa,
       pessoa: i.colaborador?.nome ?? i.nomeLido ?? "—",
@@ -177,6 +205,7 @@ export default async function CaixaDocumentosPage({
     const n = (s: string) => contagens.find((c) => c.recebidoId === r.id && c.status === s)?._count._all ?? 0;
     return {
       id: r.id,
+      empresaId: r.empresaId,
       nome: r.nome,
       status: r.status,
       paginas: r.paginas,
@@ -185,6 +214,7 @@ export default async function CaixaDocumentosPage({
       conferir: n("CONFERIR"),
       descartados: n("DESCARTADO"),
       naoColaborador: itensConferir.filter((i) => i.recebidoId === r.id && i.tipo === "NAO_E_DE_COLABORADOR").length,
+      foraDoEscopo: foraDoEscopo.find((f) => f.recebidoId === r.id)?._count._all ?? 0,
       erro: r.erro,
       resumo: r.resumoIa,
       enviadoPor: r.criadoPorNome ?? "—",

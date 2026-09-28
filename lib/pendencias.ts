@@ -559,10 +559,14 @@ function subconsultasDePendencias(hoje: Date): Record<keyof Pendencias, readonly
     // /mensagens também a mostra.
     mensagensSemResposta: [Prisma.sql`FROM rh."MensagemPortal" x WHERE ${ESCOPO} AND x."respondidaEm" IS NULL`],
     // O item não tem empresaId: o CNPJ é o do arquivo (de onde foi enviado).
-    // Duas subconsultas somando na mesma chave, como `aprovacoes`.
+    // Duas subconsultas somando na mesma chave, como `aprovacoes`. Só conta o
+    // arquivo cujo escopo INTEIRO está entre os CNPJs pedidos — a mesma regra
+    // de quem pode abri-lo (acesso.ts, alcancaEscopo). Sem isto, o RH de um
+    // CNPJ contava a fila de um arquivo que o administrador enviou para o
+    // grupo todo e que ele não consegue abrir: número plausível e inútil.
     caixaAConferir: [
-      Prisma.sql`FROM (SELECT r."empresaId" FROM rh."ItemDocumentoRecebido" i JOIN rh."DocumentoRecebido" r ON r.id = i."recebidoId" WHERE i.status = 'CONFERIR') x WHERE ${ESCOPO}`,
-      Prisma.sql`FROM rh."DocumentoRecebido" x WHERE ${ESCOPO} AND x.status = 'ERRO'`,
+      Prisma.sql`FROM (SELECT r."empresaId" FROM rh."ItemDocumentoRecebido" i JOIN rh."DocumentoRecebido" r ON r.id = i."recebidoId" WHERE i.status = 'CONFERIR' AND r."empresasEscopo" <@ ARRAY(SELECT id FROM alvo)) x WHERE ${ESCOPO}`,
+      Prisma.sql`FROM rh."DocumentoRecebido" x WHERE ${ESCOPO} AND x.status = 'ERRO' AND x."empresasEscopo" <@ ARRAY(SELECT id FROM alvo)`,
     ],
     // Entrega sem confirmação de quem recebeu. Devolvida sai da conta —
     // não há mais o que confirmar.

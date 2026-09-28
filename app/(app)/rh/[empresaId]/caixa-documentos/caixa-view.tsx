@@ -29,6 +29,8 @@ import { ConferirDialog } from "./conferir-dialog";
 
 export type ArquivoNaCaixa = {
   id: string;
+  /** CNPJ do arquivo (de onde foi enviado): as rotas e ações conferem por ele, não pelo da tela. */
+  empresaId: string;
   nome: string;
   status: string;
   paginas: number | null;
@@ -37,6 +39,8 @@ export type ArquivoNaCaixa = {
   conferir: number;
   descartados: number;
   naoColaborador: number;
+  /** Documentos de empresa que quem enviou não acessa: descartados sem mostrar de quem. */
+  foraDoEscopo: number;
   erro: string | null;
   resumo: string | null;
   enviadoPor: string;
@@ -47,6 +51,7 @@ export type ArquivoNaCaixa = {
 export type ItemConferir = {
   id: string;
   recebidoId: string;
+  empresaId: string;
   arquivo: string;
   paginasDoArquivo: number;
   tipo: TipoCaixa;
@@ -61,12 +66,18 @@ export type ItemConferir = {
   sugestaoId: string | null;
   opcoes: string[];
   campos: CamposLidos;
-  inventarioDuvidoso: boolean;
+  /** Até onde dá para ver e mudar as páginas (JANELA_PAGINAS antes e depois). */
+  janela: { de: number; ate: number };
+  /** Quantas pessoas a leitura viu em cada página da janela (null: sem leitura da página). */
+  pessoasPorPagina: Record<number, number | null>;
+  /** As páginas lidas, para a pessoa sugerida: OK dispensa a confirmação do RH. */
+  paginasDaSugestao: "OK" | "DUVIDA" | "OUTRA_PESSOA" | null;
   originalGuardado: boolean;
 };
 
 export type ItemGravado = {
   id: string;
+  empresaId: string;
   arquivo: string;
   tipo: TipoCaixa;
   pessoa: string;
@@ -143,7 +154,11 @@ export function CaixaView(props: {
   const [arrastando, setArrastando] = useState(false);
   const [aberto, setAberto] = useState<ItemConferir | null>(null);
   const [aba, setAba] = useState(conferir.length > 0 ? "conferir" : "arquivos");
-  const fila = useRef<Set<string>>(new Set());
+  // Arquivo → CNPJ dele. A lista junta arquivos de todos os CNPJs que a
+  // pessoa vê; as rotas conferem pelo CNPJ do ARQUIVO, não pelo da tela.
+  const fila = useRef<Map<string, string>>(new Map());
+  // A conta da IA recusou: nada volta para a fila até alguém mandar tentar.
+  const pausado = useRef(false);
   const emAndamento = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -153,20 +168,25 @@ export function CaixaView(props: {
     emAndamento.current = true;
     setRodando(true);
     const trabalhador = async () => {
-      while (fila.current.size > 0) {
-        const id = fila.current.values().next().value as string;
+      while (fila.current.size > 0 && !pausado.current) {
+        const [id, empresaDoArquivo] = fila.current.entries().next().value as [string, string];
         fila.current.delete(id);
         let p: Progresso | null = null;
+        let semAcesso = false;
         try {
-          const r = await fetch(`/api/rh/${empresaId}/caixa-documentos/${id}/avancar`, { method: "POST" });
+          const r = await fetch(`/api/rh/${empresaDoArquivo}/caixa-documentos/${id}/avancar`, { method: "POST" });
+          semAcesso = r.status === 401 || r.status === 403 || r.status === 404;
           p = r.ok ? ((await r.json()) as Progresso) : null;
         } catch {
           p = null;
         }
+        // Arquivo que sumiu ou que esta pessoa não pode ler: tentar de novo
+        // não muda nada — sai da fila.
+        if (semAcesso) continue;
         if (!p) {
           // Rede caiu ou a rodada estourou o tempo: espera e tenta de novo.
           await new Promise((ok) => setTimeout(ok, 8000));
-          fila.current.add(id);
+          fila.current.set(id, empresaDoArquivo);
           continue;
         }
         setProgresso((atual) => ({ ...atual, [id]: p! }));
@@ -176,15 +196,16 @@ export function CaixaView(props: {
               ? "A leitura automática está desligada. Os arquivos ficam guardados e são lidos quando ela for ligada."
               : (p.erro ?? "A leitura automática parou."),
           );
+          pausado.current = true;
           fila.current.clear();
           break;
         }
         if (p.ocupado) {
           await new Promise((ok) => setTimeout(ok, 6000));
-          fila.current.add(id);
+          fila.current.set(id, empresaDoArquivo);
           continue;
         }
-        if (ATIVOS.includes(p.status)) fila.current.add(id);
+        if (ATIVOS.includes(p.status)) fila.current.set(id, empresaDoArquivo);
         else router.refresh();
       }
     };
@@ -193,13 +214,24 @@ export function CaixaView(props: {
     emAndamento.current = false;
     setRodando(false);
     router.refresh();
-  }, [empresaId, router]);
+  }, [router]);
+
+  const enfileirarAtivos = useCallback(() => {
+    for (const a of arquivos) if (ATIVOS.includes(a.status)) fila.current.set(a.id, a.empresaId);
+  }, [arquivos]);
 
   useEffect(() => {
-    if (!props.iaLigada) return;
-    for (const a of arquivos) if (ATIVOS.includes(a.status)) fila.current.add(a.id);
+    if (!props.iaLigada || pausado.current) return;
+    enfileirarAtivos();
     if (fila.current.size > 0) void dirigir();
-  }, [arquivos, dirigir, props.iaLigada]);
+  }, [enfileirarAtivos, dirigir, props.iaLigada]);
+
+  const retomar = () => {
+    pausado.current = false;
+    setPausa(null);
+    enfileirarAtivos();
+    void dirigir();
+  };
 
   // Atualiza as listas de tempos em tempos enquanto lê (gravados e conferir).
   useEffect(() => {
@@ -256,7 +288,7 @@ export function CaixaView(props: {
       const regJson = (await registro.json()) as { ok?: boolean; error?: string };
       if (!registro.ok || !regJson.ok) throw new Error(regJson.error ?? "Não foi possível registrar o arquivo.");
       atualizarEnvio(chave, { etapa: "pronto" });
-      fila.current.add(iniJson.id);
+      fila.current.set(iniJson.id, empresaId);
     } catch (e) {
       atualizarEnvio(chave, { etapa: "erro", erro: e instanceof Error ? e.message : "Falha no envio." });
     }
@@ -277,7 +309,7 @@ export function CaixaView(props: {
     };
     await Promise.all([trabalhador(), trabalhador(), trabalhador()]);
     router.refresh();
-    if (props.iaLigada) void dirigir();
+    if (props.iaLigada && !pausado.current) void dirigir();
   }
 
   // --- Ações da fila ---------------------------------------------------------
@@ -350,7 +382,14 @@ export function CaixaView(props: {
 
       {pausa && (
         <Alert variant="destructive">
-          <AlertDescription>{pausa}</AlertDescription>
+          <AlertDescription className="flex flex-wrap items-center gap-3">
+            <span>{pausa}</span>
+            {props.iaLigada && (
+              <Button size="sm" variant="outline" onClick={retomar}>
+                <RotateCcw className="size-4" aria-hidden /> Tentar de novo
+              </Button>
+            )}
+          </AlertDescription>
         </Alert>
       )}
 
@@ -498,7 +537,7 @@ export function CaixaView(props: {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => executar(() => descartarItem(empresaId, c.id), "Descartado.")}
+                            onClick={() => executar(() => descartarItem(c.empresaId, c.id), "Descartado.")}
                           >
                             Descartar
                           </Button>
@@ -556,7 +595,7 @@ export function CaixaView(props: {
                             variant="ghost"
                             onClick={() => {
                               if (confirm(`Desfazer: apagar este ${tipoCaixaLabel(g.tipo).toLowerCase()} da ficha de ${g.pessoa} e voltar para a conferência?`)) {
-                                void executar(() => desfazerItem(empresaId, g.id), "Desfeito — voltou para a conferência.");
+                                void executar(() => desfazerItem(g.empresaId, g.id), "Desfeito — voltou para a conferência.");
                               }
                             }}
                           >
@@ -613,7 +652,12 @@ export function CaixaView(props: {
                         </TableCell>
                         <TableCell className="text-xs">
                           {p?.itens.gravados ?? a.gravados} gravado(s) · {p?.itens.conferir ?? a.conferir} para conferir
-                          {a.descartados > 0 && ` · ${a.descartados} descartado(s)`}
+                          {a.descartados - a.foraDoEscopo > 0 && ` · ${a.descartados - a.foraDoEscopo} descartado(s)`}
+                          {a.foraDoEscopo > 0 && (
+                            <span className="block text-muted-foreground">
+                              {a.foraDoEscopo} de empresa que quem enviou não acessa — ignorado(s); quem cuida dela envia pela tela dela.
+                            </span>
+                          )}
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
                           {a.enviadoEm}
@@ -625,13 +669,13 @@ export function CaixaView(props: {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => executar(() => descartarNaoColaborador(empresaId, a.id), "Páginas descartadas.")}
+                                onClick={() => executar(() => descartarNaoColaborador(a.empresaId, a.id), "Páginas descartadas.")}
                               >
                                 Descartar {a.naoColaborador} sem pessoa
                               </Button>
                             )}
                             {status === "ERRO" && (
-                              <Button size="sm" variant="outline" onClick={() => executar(() => tentarDeNovo(empresaId, a.id), "De volta à fila.")}>
+                              <Button size="sm" variant="outline" onClick={() => executar(() => tentarDeNovo(a.empresaId, a.id), "De volta à fila.")}>
                                 <RotateCcw className="size-4" aria-hidden /> Tentar de novo
                               </Button>
                             )}
@@ -646,7 +690,7 @@ export function CaixaView(props: {
                                       `Descartar "${a.nome}"? O que falta conferir sai da fila. ${a.gravados ? `Os ${a.gravados} já gravados continuam nas fichas (use Desfazer para tirá-los).` : ""}`,
                                     )
                                   ) {
-                                    void executar(() => descartarRecebido(empresaId, a.id), "Arquivo descartado.");
+                                    void executar(() => descartarRecebido(a.empresaId, a.id), "Arquivo descartado.");
                                   }
                                 }}
                               >
@@ -668,7 +712,6 @@ export function CaixaView(props: {
       {aberto && (
         <ConferirDialog
           key={aberto.id}
-          empresaId={empresaId}
           item={aberto}
           fichas={props.fichas}
           aoFechar={() => setAberto(null)}

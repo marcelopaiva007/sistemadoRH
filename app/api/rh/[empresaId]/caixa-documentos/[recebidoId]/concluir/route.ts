@@ -4,9 +4,10 @@
 // ao Blob o tamanho e o tipo, baixa, confere a assinatura e calcula o hash.
 import { NextResponse, type NextRequest } from "next/server";
 import { head } from "@vercel/blob";
-import { baixarDoBlob, removerDoBlob } from "@/lib/blob";
+import { baixarDoBlob, removerDoBlob, removerPrefixoDoBlob } from "@/lib/blob";
 import { recebidoDaRota } from "@/lib/caixa-documentos/acesso";
 import { registrarConteudo } from "@/lib/caixa-documentos/registrar";
+import { prefixoDoEnvio } from "@/lib/caixa-documentos/processar";
 import { MIMES_CAIXA, TAMANHO_MAXIMO_CAIXA } from "@/lib/caixa-documentos/tipos";
 
 export const runtime = "nodejs";
@@ -27,7 +28,7 @@ export async function POST(
 
   const corpo = (await req.json().catch(() => ({}))) as { pathname?: unknown };
   const pathname = typeof corpo.pathname === "string" ? corpo.pathname : "";
-  if (!pathname.startsWith(`caixa/${empresaId}/${recebidoId}/`)) {
+  if (!pathname.startsWith(prefixoDoEnvio(empresaId, recebidoId))) {
     return NextResponse.json({ error: "Caminho de envio inválido." }, { status: 400 });
   }
 
@@ -53,5 +54,8 @@ export async function POST(
     blobUrl: info.url,
     usuario: { id: user.id, nome: user.name ?? null },
   });
+  // Outro upload para o mesmo envio (a tela tentou de novo) fica no Blob sem
+  // ninguém apontar para ele — a folha inteira guardada à toa. Sai agora.
+  if (registro.ok) await removerPrefixoDoBlob(prefixoDoEnvio(empresaId, recebidoId), [info.url]);
   return NextResponse.json(registro, { status: registro.ok ? 200 : 400 });
 }

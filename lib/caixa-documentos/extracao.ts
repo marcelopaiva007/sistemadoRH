@@ -60,7 +60,11 @@ export const ESQUEMA_RESPOSTA = {
   additionalProperties: false,
   required: ["resumo", "paginas", "documentos"],
   properties: {
-    resumo: { type: "string", description: "Uma frase sobre o que estas páginas contêm." },
+    resumo: {
+      type: "string",
+      description:
+        "Uma frase sobre o que estas páginas contêm: tipos e quantidades, SEM nomes, CPF ou valores (ex.: \"Contracheques de agosto/2026 de 8 pessoas e um ASO\").",
+    },
     paginas: {
       type: "array",
       description: "Uma entrada por página recebida.",

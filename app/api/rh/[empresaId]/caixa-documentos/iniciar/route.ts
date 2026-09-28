@@ -7,6 +7,7 @@ import { blobConfigurado } from "@/lib/blob";
 import { TAMANHO_MAXIMO_ANEXO } from "@/lib/constants-dp";
 import { escopoParaCongelar, usuarioDaCaixa } from "@/lib/caixa-documentos/acesso";
 import { MIMES_CAIXA, TAMANHO_MAXIMO_CAIXA } from "@/lib/caixa-documentos/tipos";
+import { prefixoDoEnvio } from "@/lib/caixa-documentos/processar";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -65,6 +66,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ emp
   return NextResponse.json({
     id: recebido.id,
     modo: comBlob ? "blob" : "direto",
-    pathname: `caixa/${empresaId}/${recebido.id}/${nomeSeguro(nome)}`,
+    pathname: `${prefixoDoEnvio(empresaId, recebido.id)}${nomeSeguro(nome)}`,
   });
 }

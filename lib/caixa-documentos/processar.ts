@@ -7,16 +7,18 @@
 // Só servidor. Quem chama (a rota) já conferiu que o usuário opera o CNPJ do
 // arquivo e alcança TODO o escopo congelado nele.
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/app/generated/prisma/client";
 import { registrarAuditoria } from "@/lib/audit";
-import { baixarDoBlob, removerDoBlob } from "@/lib/blob";
+import { baixarDoBlob, removerDoBlob, removerPrefixoDoBlob } from "@/lib/blob";
 import { hojeUTC } from "@/lib/datas";
 import { juntarFronteiras, normalizarBloco, normalizarCampos, type CamposLidos, type InventarioPaginas, type ItemLido } from "./extracao";
 import { identificar, type Candidato, type EmpresaPorCnpj } from "./identificar";
-import { decidir, paginasSoDele } from "./decidir";
-import { dataDeReferencia, gravarItem, impedimentosNoBanco } from "./gravar";
+import { decidir, ocupaAsPaginas, paginasSemDocumento, paginasSoDele } from "./decidir";
+import { avisosNoBanco, dataDeReferencia, gravarItem, impedimentosNoBanco, periodoDeReferencia } from "./gravar";
+import { marcaDoId, marcasDe } from "./sigilo";
 import { imagemParaLeitura, recortarPdf } from "./pdf";
 import type { EntradaLeitura, Extrator } from "./ia";
-import { DESTINO, ITENS_POR_RODADA, tipoCaixaLabel, visivelNoPortal, type TipoCaixa } from "./tipos";
+import { DESTINO, ITENS_POR_RODADA, MOTIVO_FORA_DO_ESCOPO, tipoCaixaLabel, visivelNoPortal, type TipoCaixa } from "./tipos";
 
 /** Estados em que ainda há trabalho. */
 export const STATUS_ATIVOS = ["PENDENTE", "LENDO", "ROTEANDO"] as const;
@@ -77,48 +79,103 @@ export async function bytesDoArquivo(arquivo: { blobUrl: string | null; conteudo
 /** Dias que o original fica guardado depois de tudo resolvido — é o prazo do "Desfazer". */
 export const DIAS_GUARDA_ORIGINAL = 30;
 
-/** Apaga o arquivo ORIGINAL (a folha inteira): ficam só as fatias, cada uma no seu destino. */
-export async function apagarOriginal(recebidoId: string): Promise<void> {
+/**
+ * Trava do arquivo inteiro (não da linha): quem apaga o original e quem desfaz
+ * uma gravação passam por ela, e cada um confere de novo, já com a trava, se
+ * ainda pode. Sem isto, um "Desfazer" no mesmo instante da faxina apagava a
+ * gravação E o original — o documento sumia sem volta.
+ */
+export async function travarRecebido(tx: Prisma.TransactionClient, recebidoId: string): Promise<void> {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`caixa-recebido:${recebidoId}`}))`;
+}
+
+/**
+ * Apaga o arquivo ORIGINAL (a folha inteira): ficam só as fatias, cada uma no
+ * seu destino. Junto saem o inventário de páginas e os campos lidos dos itens
+ * — sem o original não há mais conferência nem "Desfazer". `condicao` é
+ * conferida de novo com a trava (a faxina passa o "30 dias sem mexer").
+ */
+export async function apagarOriginal(recebidoId: string, condicao: Prisma.DocumentoRecebidoWhereInput = {}): Promise<boolean> {
   const r = await prisma.documentoRecebido.findUnique({
     where: { id: recebidoId },
     select: { arquivoId: true, arquivo: { select: { blobUrl: true } } },
   });
-  if (!r?.arquivoId) return;
-  await prisma.$transaction([
-    prisma.documentoRecebido.update({ where: { id: recebidoId }, data: { arquivoId: null } }),
-    prisma.arquivo.delete({ where: { id: r.arquivoId } }),
-  ]);
-  if (r.arquivo?.blobUrl) await removerDoBlob(r.arquivo.blobUrl);
+  if (!r?.arquivoId) return false;
+  const arquivoId = r.arquivoId;
+  const feito = await prisma.$transaction(async (tx) => {
+    await travarRecebido(tx, recebidoId);
+    const ainda = await tx.documentoRecebido.findFirst({ where: { ...condicao, id: recebidoId, arquivoId }, select: { id: true } });
+    if (!ainda) return false;
+    await tx.documentoRecebido.update({ where: { id: recebidoId }, data: { arquivoId: null, inventarioPaginas: Prisma.DbNull } });
+    await tx.arquivo.deleteMany({ where: { id: arquivoId } });
+    await tx.itemDocumentoRecebido.updateMany({ where: { recebidoId }, data: { dados: {}, cpfLido: null, pisLido: null } });
+    return true;
+  });
+  if (feito && r.arquivo?.blobUrl) await removerDoBlob(r.arquivo.blobUrl);
+  return feito;
+}
+
+/**
+ * GRAVANDO velho = a gravação morreu no meio (a transação desfez tudo). Volta
+ * para a CONFERÊNCIA, nunca para a fila automática: pode ter sido o RH
+ * gravando à mão (com tipo e páginas que ele escolheu), e a leitura
+ * automática não pode terminar sozinha o que uma pessoa começou.
+ */
+async function recuperarGravando(where: Prisma.ItemDocumentoRecebidoWhereInput): Promise<void> {
+  await prisma.itemDocumentoRecebido.updateMany({
+    where: { ...where, status: "GRAVANDO", updatedAt: { lt: new Date(Date.now() - TRAVA_MS) } },
+    data: { status: "CONFERIR", motivo: "A gravação foi interrompida no meio — confira e grave de novo." },
+  });
 }
 
 /**
  * Faxina ao abrir a tela (sem cron): original de arquivo resolvido há mais de
  * DIAS_GUARDA_ORIGINAL dias é apagado (LGPD: a folha inteira não fica guardada
- * à toa), junto com os campos lidos dos itens; envio que nunca terminou de
- * subir vira "interrompido".
+ * à toa), gravação interrompida volta para a conferência, e envio que nunca
+ * terminou de subir some — com o blob que tenha ficado para trás.
+ *
+ * O relógio é o updatedAt do arquivo, que toda ação num item dele renova
+ * (tocarRecebido): gravar o último item 40 dias depois não apaga o original
+ * no mesmo instante — o prazo do "Desfazer" começa ali.
  */
 export async function limparCaixa(empresaIds: string[]): Promise<void> {
   const limite = new Date(Date.now() - DIAS_GUARDA_ORIGINAL * 24 * 3600_000);
+  const resolvido: Prisma.DocumentoRecebidoWhereInput = {
+    status: { in: ["CONCLUIDO", "DESCARTADO"] },
+    updatedAt: { lt: limite },
+    itens: { none: { status: { in: ["PENDENTE", "GRAVANDO", "CONFERIR"] } } },
+  };
   const vencidos = await prisma.documentoRecebido.findMany({
-    where: {
-      empresaId: { in: empresaIds },
-      arquivoId: { not: null },
-      status: { in: ["CONCLUIDO", "DESCARTADO"] },
-      updatedAt: { lt: limite },
-      itens: { none: { status: { in: ["PENDENTE", "GRAVANDO", "CONFERIR"] } } },
-    },
+    where: { ...resolvido, empresaId: { in: empresaIds }, arquivoId: { not: null } },
     select: { id: true },
     take: 20,
   });
-  for (const r of vencidos) {
-    await apagarOriginal(r.id);
-    await prisma.itemDocumentoRecebido.updateMany({ where: { recebidoId: r.id }, data: { dados: {}, cpfLido: null, pisLido: null } });
-  }
-  // Envio que parou no meio (aba fechada durante o upload): nunca teve
-  // conteúdo, então só se apaga o registro vazio.
-  await prisma.documentoRecebido.deleteMany({
+  for (const r of vencidos) await apagarOriginal(r.id, resolvido);
+
+  await recuperarGravando({ recebido: { empresaId: { in: empresaIds }, status: { notIn: [...STATUS_ATIVOS] } } });
+
+  const interrompidos = await prisma.documentoRecebido.findMany({
     where: { empresaId: { in: empresaIds }, status: "AGUARDANDO_UPLOAD", createdAt: { lt: new Date(Date.now() - 3600_000) } },
+    select: { id: true, empresaId: true },
+    take: 20,
   });
+  for (const r of interrompidos) {
+    await removerPrefixoDoBlob(prefixoDoEnvio(r.empresaId, r.id));
+    await prisma.documentoRecebido.deleteMany({ where: { id: r.id, status: "AGUARDANDO_UPLOAD" } });
+  }
+}
+
+/** Onde o navegador sobe o arquivo no Blob (ver a rota iniciar). */
+export function prefixoDoEnvio(empresaId: string, recebidoId: string): string {
+  return `caixa/${empresaId}/${recebidoId}/`;
+}
+
+/**
+ * Renova o relógio do arquivo: toda ação num item (gravar, descartar,
+ * desfazer) conta como "mexeram aqui" para o prazo de guarda do original.
+ */
+export async function tocarRecebido(recebidoId: string, db: Prisma.TransactionClient | typeof prisma = prisma): Promise<void> {
+  await db.documentoRecebido.updateMany({ where: { id: recebidoId }, data: { updatedAt: new Date() } });
 }
 
 type DadosItem = {
@@ -223,7 +280,8 @@ export async function avancarRecebido(
         }
       }
     } else {
-      await encaminharItens(recebido, recebido.arquivo, usuario, soltar, null);
+      const { esperando } = await encaminharItens(recebido, recebido.arquivo, usuario, soltar, null);
+      if (esperando) return progressoDe(recebidoId, true);
     }
   } catch (e) {
     console.error("[caixa-documentos] rodada", e);
@@ -353,7 +411,7 @@ async function gravarBloco(
         proximaPagina: proxima,
         status: ultimo ? "ROTEANDO" : "LENDO",
         resumoIa: recebido.resumoIa ?? r.resumo,
-        inventarioPaginas: { ...((recebido.inventarioPaginas as InventarioPaginas | null) ?? {}), ...r.inventario },
+        inventarioPaginas: { ...((recebido.inventarioPaginas as InventarioPaginas | null) ?? {}), ...marcado(r.inventario) },
         ...(r.modelo ? { modeloIa: r.modelo } : {}),
         tokensEntrada: { increment: r.tokensEntrada },
         tokensSaida: { increment: r.tokensSaida },
@@ -364,7 +422,29 @@ async function gravarBloco(
     });
     if (avancou.count !== 1) return;
 
-    const jaLidos = await tx.itemDocumentoRecebido.count({ where: { recebidoId: recebido.id } });
+    // A próxima ordem é o MAIOR + 1, não a contagem: itens já encaminhados
+    // deixam buracos no meio (ver a junção do último bloco, abaixo).
+    const proximaOrdem = async () =>
+      ((await tx.itemDocumentoRecebido.aggregate({ where: { recebidoId: recebido.id }, _max: { ordem: true } }))._max.ordem ?? -1) + 1;
+    const jaLidos = await proximaOrdem();
+    // Página que a leitura não apontou em documento nenhum não some: vira um
+    // item "para conferir" (menos a que ela disse não ter pessoa — capa, resumo).
+    const soltas = r.naoLidas ? [] : paginasSemDocumento(inicio, fim, r.itens, r.inventario);
+    if (soltas.length > 0) {
+      await tx.itemDocumentoRecebido.createMany({
+        data: soltas.map((pagina, i) => ({
+          recebidoId: recebido.id,
+          ordem: jaLidos + r.itens.length + i,
+          tipo: "OUTRO_DO_COLABORADOR",
+          paginaInicio: pagina,
+          paginaFim: pagina,
+          dados: { campos: normalizarCampos({}) },
+          confianca: 0,
+          status: "CONFERIR",
+          motivo: "A leitura não apontou documento nesta página — veja se é de alguém ou descarte.",
+        })),
+      });
+    }
     if (r.naoLidas) {
       await tx.itemDocumentoRecebido.createMany({
         data: Array.from({ length: fim - inicio + 1 }, (_, i) => ({
@@ -423,7 +503,7 @@ async function gravarBloco(
       });
       const juntos = juntarFronteiras(comoLido);
       await tx.itemDocumentoRecebido.deleteMany({ where: { recebidoId: recebido.id, status: "PENDENTE" } });
-      const base = await tx.itemDocumentoRecebido.count({ where: { recebidoId: recebido.id } });
+      const base = await proximaOrdem();
       if (juntos.length > 0) {
         await tx.itemDocumentoRecebido.createMany({
           data: juntos.map((it, i) => ({
@@ -434,6 +514,7 @@ async function gravarBloco(
             paginaFim: it.paginaFim,
             nomeLido: it.nome,
             cpfLido: it.cpf,
+            pisLido: it.pis,
             cnpjLido: it.cnpj,
             dados: dadosDe(it),
             confianca: it.confianca,
@@ -443,6 +524,12 @@ async function gravarBloco(
     }
   });
 }
+
+/** O inventário como é guardado: CPF/PIS viram marcas (sigilo.ts). */
+function marcado(inventario: InventarioPaginas): InventarioPaginas {
+  return Object.fromEntries(Object.entries(inventario).map(([pg, v]) => [pg, { pessoas: v.pessoas, ids: v.ids.map(marcaDoId) }]));
+}
+
 
 /**
  * Itens lidos que já podem ser encaminhados enquanto a leitura continua: os
@@ -470,14 +557,8 @@ async function encaminharItens(
   soltar: Soltar,
   /** Durante a leitura: só estes. null = leitura acabou, encaminha o que sobrou e conclui. */
   somente: Awaited<ReturnType<typeof itensProntos>> | null,
-) {
-  // GRAVANDO velho = uma rodada morreu no meio da gravação (a transação
-  // desfez tudo): o item volta para a fila.
-  const vencido = new Date(Date.now() - TRAVA_MS);
-  await prisma.itemDocumentoRecebido.updateMany({
-    where: { recebidoId: recebido.id, status: "GRAVANDO", updatedAt: { lt: vencido } },
-    data: { status: "PENDENTE" },
-  });
+): Promise<{ esperando: boolean }> {
+  await recuperarGravando({ recebidoId: recebido.id });
   const lote =
     somente ??
     (await prisma.itemDocumentoRecebido.findMany({
@@ -489,8 +570,10 @@ async function encaminharItens(
   if (lote.length === 0 && somente === null) {
     const emGravacao = await prisma.itemDocumentoRecebido.count({ where: { recebidoId: recebido.id, status: "GRAVANDO" } });
     if (emGravacao > 0) {
-      await soltar({});
-      return;
+      // Alguém (o RH, ou uma rodada presa) está gravando um item: esperar não
+      // é falha — devolve a tentativa e pede para a tela voltar depois.
+      await soltar({ tentativas: { decrement: 1 } });
+      return { esperando: true };
     }
     await soltar({ status: "CONCLUIDO", tentativas: 0, erro: null });
     const contagem = await progressoDe(recebido.id);
@@ -508,7 +591,7 @@ async function encaminharItens(
         enviadoPor: recebido.criadoPorNome,
       },
     });
-    return;
+    return { esperando: false };
   }
 
   const escopo = recebido.empresasEscopo;
@@ -519,8 +602,8 @@ async function encaminharItens(
     }),
     prisma.empresa.findMany({ where: { cnpj: { not: null } }, select: { id: true, cnpj: true, ativo: true } }),
     prisma.itemDocumentoRecebido.findMany({
-      where: { recebidoId: recebido.id, status: { not: "DESCARTADO" }, tipo: { not: "NAO_E_DE_COLABORADOR" } },
-      select: { id: true, paginaInicio: true, paginaFim: true },
+      where: { recebidoId: recebido.id },
+      select: { id: true, paginaInicio: true, paginaFim: true, tipo: true, status: true, colaboradorId: true, nomeLido: true, motivo: true },
     }),
   ]);
   const empresas: EmpresaPorCnpj = new Map(
@@ -547,17 +630,42 @@ async function encaminharItens(
         cnpj: item.cnpjLido,
         asoTipo: dados.campos.asoTipo,
         dataReferencia: dataDeReferencia(dados.campos),
+        periodoReferencia: periodoDeReferencia(tipo, dados.campos),
       },
       candidatos,
       empresas,
       hoje,
     );
+
+    // Documento de CNPJ que quem enviou não acessa: sai da Caixa sem deixar
+    // nome, CPF nem páginas à vista de ninguém daqui. Quem cuida daquela
+    // empresa envia o arquivo pela tela dela.
+    if (ident.tipo === "NENHUM" && ident.foraDoEscopo) {
+      await prisma.itemDocumentoRecebido.updateMany({
+        where: { id: item.id, status: "PENDENTE" },
+        data: {
+          status: "DESCARTADO",
+          nomeLido: null,
+          cpfLido: null,
+          pisLido: null,
+          dados: {},
+          motivo: `${MOTIVO_FORA_DO_ESCOPO} — ignorado. Quem cuida daquela empresa pode enviar o arquivo pela tela dela.`,
+          resolvidoPorNome: "Leitura automática",
+          resolvidoEm: new Date(),
+        },
+      });
+      continue;
+    }
+
     const colaboradorId = ident.tipo === "NENHUM" ? null : ident.colaboradorId;
     const ficha = colaboradorId ? (fichas.find((f) => f.id === colaboradorId) ?? null) : null;
-    const impedimentos = ficha && DESTINO[tipo] ? await impedimentosNoBanco(tipo, dados.campos, ficha) : [];
-    const outros = todosItens.filter((o) => o.id !== item.id);
+    const impedimentos =
+      ficha && DESTINO[tipo]
+        ? [...(await impedimentosNoBanco(tipo, dados.campos, ficha)), ...(await avisosNoBanco(tipo, dados.campos, ficha))]
+        : [];
+    const outros = todosItens.filter((o) => o.id !== item.id && ocupaAsPaginas(o, colaboradorId));
     const exclusivas = paginasSoDele(
-      { paginaInicio: item.paginaInicio, paginaFim: item.paginaFim, cpf: item.cpfLido, pis: item.pisLido },
+      { paginaInicio: item.paginaInicio, paginaFim: item.paginaFim, ids: marcasDe(item.cpfLido, item.pisLido) },
       outros,
       inventario,
       visivelNoPortal(tipo),
@@ -600,7 +708,13 @@ async function encaminharItens(
       await paraConferir(["Não consegui abrir o arquivo guardado para separar as páginas desta pessoa."]);
       continue;
     }
-    const fatia = await fatiaDoItem(recebido, original, item.paginaInicio, item.paginaFim, tipo, ficha.nome);
+    let fatia: Awaited<ReturnType<typeof fatiaDoItem>>;
+    try {
+      fatia = await fatiaDoItem(recebido, original, item.paginaInicio, item.paginaFim, tipo, ficha.nome);
+    } catch {
+      await paraConferir(["Não consegui separar as páginas desta pessoa do arquivo."]);
+      continue;
+    }
 
     const gravado = await gravarItem({
       tipo,
@@ -625,6 +739,7 @@ async function encaminharItens(
   }
 
   await soltar({ tentativas: 0, erro: null });
+  return { esperando: false };
 }
 
 /** O arquivo só com as páginas do item (PDF) ou a própria imagem. */
