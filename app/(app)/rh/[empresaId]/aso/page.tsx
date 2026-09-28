@@ -67,5 +67,5 @@ export default async function RelatorioAsoPage({
     };
   });
 
-  return <RelatorioAsoView linhas={linhas} geradoEm={formatarData(hoje)} />;
+  return <RelatorioAsoView linhas={linhas} geradoEm={formatarData(hoje)} empresaId={empresaId} />;
 }

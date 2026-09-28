@@ -26,6 +26,25 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.179.0",
+    data: "28/09/2026",
+    horario: "18:00",
+    titulo: "Caixa de documentos: solte os PDFs do contador e a IA põe cada um na ficha certa",
+    itens: [
+      "Nova tela em Departamento pessoal → \"Caixa de documentos\". Arraste de uma vez os arquivos que chegam do contador — contracheques, ASOs, atestados, certificados de NR, RG, CNH, CTPS, contrato, recibo de férias, TRCT, informe de rendimentos. Pode ser a folha inteira num PDF só.",
+      "A leitura automática (IA) identifica o documento e a pessoa (pelo CPF ou PIS e pelo CNPJ impresso) e encaminha: ASO vira exame ocupacional (e sai do Relatório de ASO), atestado vira ausência em Aprovações, certificado de NR vai para Conformidade, contracheque e demais documentos vão para o Dossiê.",
+      "Cada pessoa recebe só as páginas dela — nunca a folha inteira. Contracheque, recibo, informe e atestado aparecem no portal da pessoa assim que gravados; por isso só gravam sozinhos com CPF (ou PIS), nome e CNPJ batendo com a ficha, e com a página contendo apenas aquela pessoa.",
+      "O que a leitura não tem certeza vai para \"Para conferir\", com o motivo escrito: veja as páginas, confirme a pessoa e grave com um clique. A fila também conta em Pendências. ASO inapto ou com restrição sempre passa por você.",
+      "Gravou errado? Na aba \"Gravados\" há \"Desfazer\": o registro sai da ficha e o documento volta para a conferência.",
+      "O mesmo contracheque (mesmo mês e mesma folha) nunca entra duas vezes para a mesma pessoa, mesmo que o contador reenvie o arquivo.",
+      "Documento de uma empresa que você não acessa (o arquivo do contador costuma trazer o grupo todo) é ignorado sem mostrar de quem é — quem cuida daquela empresa envia o mesmo arquivo pela tela dela.",
+      "Página que a leitura não conseguiu ligar a nenhum documento não some: aparece em \"Para conferir\".",
+      "O arquivo original é apagado 30 dias depois de tudo resolvido; ficam só as páginas de cada pessoa, no seu destino.",
+      "Novos tipos no Dossiê: Contracheque, Recibo de férias, Termo de rescisão (TRCT) e Informe de rendimentos. Eles não aparecem na lista \"Qual documento?\" do portal — quem manda é o RH.",
+      "Relatório de ASO: atalho para a Caixa de documentos, para quem recebe os ASOs da clínica em lote.",
+    ],
+  },
+  {
     versao: "1.178.2",
     data: "28/09/2026",
     horario: "18:00",

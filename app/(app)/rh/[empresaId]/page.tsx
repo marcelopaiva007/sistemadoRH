@@ -1,4 +1,5 @@
-import { escopoDeEmpresas, requireEmpresaAccess } from "@/lib/rh-auth-guard";
+import { empresasVisiveis, escopoDeEmpresas, requireEmpresaAccess } from "@/lib/rh-auth-guard";
+import { prisma } from "@/lib/prisma";
 import { DIAS_ALERTA_VENCIMENTO } from "@/lib/constants-dp";
 import {
   pendenciasDaEmpresa,
@@ -39,11 +40,12 @@ export default async function InicioDaEmpresaPage({
   // é a mesma interseção usada pelo resto do sistema (id digitado à mão na
   // URL não vira acesso).
   const empresas = await escopoDeEmpresas(usuario, empresasParam);
+  const visiveis = await empresasVisiveis(usuario);
 
   const [resumo, pendencias, base, semRegistro, baseDesligados, pesquisasAbertas, ciclosAEncerrar, vencidos] =
     await Promise.all([
       resumoDaEmpresa(empresas),
-      pendenciasDaEmpresa(empresas),
+      pendenciasDaEmpresa(empresas, prisma, visiveis),
       lacunasDaBase(empresas),
       // Zero de pendência e zero de registro são a mesma tela e significados
       // opostos — a view precisa dos dois para não chamar de "em dia" um módulo
