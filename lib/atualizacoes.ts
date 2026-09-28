@@ -26,6 +26,20 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.180.0",
+    data: "28/09/2026",
+    horario: "20:00",
+    titulo: "Contracheques: envie o do mês e saiba quem confirmou — com foto",
+    itens: [
+      "Nova tela em Departamento pessoal → \"Contracheques\". Escolha a competência e veja o contracheque de cada pessoa (os que chegaram pela Caixa de documentos).",
+      "\"Enviar\" manda o aviso: pelo Telegram, com o botão \"Ver e confirmar\" que abre o portal na hora; quem não tem Telegram recebe por e-mail o caminho para acessar.",
+      "No portal, a pessoa abre o contracheque e confirma o recebimento com uma selfie, como na batida de ponto. Só dá para confirmar depois de abrir.",
+      "Fica registrado quando ela abriu, quando confirmou, de qual IP e aparelho, qual arquivo (impressão digital do PDF) e a foto — o \"recebi\" assinado. Na tela, a coluna Confirmação tem o link \"Ver a foto\".",
+      "Filtros por situação: não enviados, sem como avisar, não abriram, falta confirmar e confirmados. Para quem falta, \"Reenviar\".",
+      "Contracheque já confirmado com foto não pode mais ser excluído da ficha nem desfeito na Caixa: a confirmação é a prova de recebimento.",
+    ],
+  },
+  {
     versao: "1.179.1",
     data: "28/09/2026",
     horario: "18:30",

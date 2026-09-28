@@ -5,6 +5,7 @@ import { opcoesDoCatalogo } from "@/lib/catalogos";
 import { PortalSemSessao } from "./sem-sessao";
 import { ConfirmarCpf } from "./confirmar-cpf";
 import { PortalInicio } from "./portal-inicio";
+import { rotuloDoContracheque } from "@/lib/contracheques/situacao";
 import type { MeuTimePortal } from "./meu-time";
 
 // Portal do colaborador. Três estados possíveis, nessa ordem:
@@ -76,6 +77,18 @@ export default async function PortalPage() {
     select: { id: true, tipo: true, descricao: true, dataEntrega: true },
     orderBy: { dataEntrega: "desc" },
   });
+
+  // Contracheques que o RH enviou e a pessoa ainda não confirmou com foto.
+  const recibosPendentes = await prisma.reciboContracheque.findMany({
+    where: { colaboradorId: colaborador.id, enviadoEm: { not: null }, confirmadoEm: null },
+    select: { id: true, competencia: true, tipoFolha: true, vistoEm: true },
+    orderBy: { competencia: "desc" },
+  });
+  const contrachequesAConfirmar = recibosPendentes.map((r) => ({
+    id: r.id,
+    rotulo: rotuloDoContracheque(r.competencia, r.tipoFolha),
+    aberto: !!r.vistoEm,
+  }));
 
   if (!sessao.verificado) {
     return <ConfirmarCpf primeiroNome={colaborador.nome.split(" ")[0]} />;
@@ -273,6 +286,7 @@ export default async function PortalPage() {
   return (
     <PortalInicio
       entregasAConfirmar={entregasAConfirmar}
+      contrachequesAConfirmar={contrachequesAConfirmar}
       colaborador={colaborador}
       documentos={documentos}
       ausencias={ausencias}

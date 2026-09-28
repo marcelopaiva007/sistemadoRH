@@ -25,6 +25,7 @@ import {
   travarRecebido,
 } from "@/lib/caixa-documentos/processar";
 import { marcasDe } from "@/lib/caixa-documentos/sigilo";
+import { MSG_PROVA_DE_RECEBIMENTO, recibosConfirmadosTravando } from "@/lib/contracheques/protecao";
 import {
   JANELA_PAGINAS,
   VALORES_TIPO_CAIXA,
@@ -488,8 +489,13 @@ export async function desfazerItem(empresaId: string, itemId: string): Promise<A
           break;
         }
         case "DocumentoColaborador": {
-          const r = await tx.documentoColaborador.findUnique({ where: { id }, select: { arquivoId: true, empresaId: true, createdAt: true, updatedAt: true } });
+          const r = await tx.documentoColaborador.findUnique({
+            where: { id },
+            select: { arquivoId: true, empresaId: true, createdAt: true, updatedAt: true },
+          });
           if (!r) throw new Recusa(sumiu);
+          // O contracheque confirmado com foto é a prova de recebimento (recibo travado).
+          if ((await recibosConfirmadosTravando(tx, { documentoId: id })) > 0) throw new Recusa(MSG_PROVA_DE_RECEBIMENTO);
           if (editadoDepois(r)) throw new Recusa(editado);
           [destino, apagados] = [r, await tx.documentoColaborador.deleteMany({ where: { id } })];
           break;
