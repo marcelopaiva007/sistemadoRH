@@ -77,7 +77,7 @@ export function CampoData({
   );
 }
 
-const classeSelect =
+export const classeSelect =
   "h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
 
 export function CampoSelect({

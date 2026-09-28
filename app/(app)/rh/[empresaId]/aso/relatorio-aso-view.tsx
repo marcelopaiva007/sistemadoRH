@@ -419,6 +419,7 @@ export function RelatorioAsoView({ linhas, geradoEm }: { linhas: LinhaRelatorioA
                           <Button
                             size="sm"
                             variant={l.dias === null || l.dias < 0 ? "default" : "outline"}
+                            aria-haspopup="dialog"
                             onClick={() => setAnexando(l)}
                           >
                             <Paperclip className="size-4" aria-hidden /> Anexar ASO
@@ -445,7 +446,10 @@ export function RelatorioAsoView({ linhas, geradoEm }: { linhas: LinhaRelatorioA
           tipoPadrao={anexando.temExame ? "PERIODICO" : undefined}
           aberto
           aoMudarAberto={(aberto) => {
-            if (!aberto) setAnexando(null);
+            // Só fecha se o diálogo aberto ainda é o desta pessoa: um envio
+            // lento de quem já foi fechado não pode derrubar o de outra linha.
+            const id = anexando.colaboradorId;
+            if (!aberto) setAnexando((atual) => (atual?.colaboradorId === id ? null : atual));
           }}
           aoRegistrar={() => router.refresh()}
         />

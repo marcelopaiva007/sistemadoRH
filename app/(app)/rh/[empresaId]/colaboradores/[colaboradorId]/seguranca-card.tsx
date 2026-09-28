@@ -257,7 +257,7 @@ export function SegurancaCard({
             )}
           </CardDescription>
           <CardAction>
-            <Button size="sm" onClick={() => setNovoExame(true)}>
+            <Button size="sm" aria-haspopup="dialog" onClick={() => setNovoExame(true)}>
               <Plus className="size-4" />
               Registrar exame
             </Button>

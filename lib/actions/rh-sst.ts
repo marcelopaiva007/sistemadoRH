@@ -225,6 +225,9 @@ export async function excluirCertificado(
 // Exames ocupacionais (ASO / PCMSO)
 // ---------------------------------------------------------------
 
+/** Sinal interno: o documento do Dossiê sumiu entre a leitura e a transação. */
+class DocumentoJaConvertido extends Error {}
+
 export async function registrarExame(
   empresaId: string,
   colaboradorId: string,
@@ -263,7 +266,37 @@ export async function registrarExame(
   if (!anexoLido.ok) return { ok: false, error: anexoLido.error };
   const anexo = anexoLido.anexo;
 
+  // ASO que entrou pelo Dossiê como documento genérico (tipo "ASO"). Pedido do
+  // RH em 28/09/2026: o Dossiê convidava a anexar o ASO ali, mas o Relatório
+  // de ASO, Vencimentos e Conformidade só leem ExameOcupacional — o documento
+  // ficava guardado e a pessoa continuava "vencida". Registrar como exame
+  // MOVE o documento: o arquivo passa para o exame e a linha do Dossiê sai,
+  // para não sobrar a cópia que parece resolvida e não conta.
+  const documentoOrigemId = String(formData.get("documentoOrigemId") ?? "").trim() || null;
+  const documentoOrigem = documentoOrigemId
+    ? await prisma.documentoColaborador.findFirst({
+        where: { id: documentoOrigemId, empresaId, colaboradorId, tipo: "ASO" },
+        select: { id: true, arquivoId: true, origem: true },
+      })
+    : null;
+  if (documentoOrigemId && !documentoOrigem) {
+    return { ok: false, error: "O ASO do Dossiê não foi encontrado — talvez já tenha sido registrado como exame." };
+  }
+  if (documentoOrigem?.arquivoId && anexo) {
+    return { ok: false, error: "Este ASO já traz o arquivo do Dossiê. Não é preciso anexar outro." };
+  }
+
   const exame = await prisma.$transaction(async (tx) => {
+    if (documentoOrigem) {
+      // deleteMany com o mesmo filtro da leitura: se outra aba converteu o
+      // mesmo documento no meio do caminho, nada é apagado e a transação
+      // desfaz o exame — em vez de dois exames apontando para um arquivo só.
+      const apagados = await tx.documentoColaborador.deleteMany({
+        where: { id: documentoOrigem.id, empresaId, colaboradorId, tipo: "ASO" },
+      });
+      if (apagados.count !== 1) throw new DocumentoJaConvertido();
+    }
+
     const arquivo = anexo
       ? await tx.arquivo.create({
           data: {
@@ -292,12 +325,18 @@ export async function registrarExame(
         crm: String(formData.get("crm") ?? "").trim() || null,
         clinica: String(formData.get("clinica") ?? "").trim() || null,
         observacoes: String(formData.get("observacoes") ?? "").trim() || null,
-        arquivoId: arquivo?.id ?? null,
+        arquivoId: arquivo?.id ?? documentoOrigem?.arquivoId ?? null,
         criadoPorId: usuario?.id ?? null,
         criadoPorNome: usuario?.name ?? null,
       },
     });
+  }).catch((erro: unknown) => {
+    if (erro instanceof DocumentoJaConvertido) return null;
+    throw erro;
   });
+  if (!exame) {
+    return { ok: false, error: "Este ASO do Dossiê acabou de ser registrado como exame em outra tela. Recarregue a ficha." };
+  }
 
   await registrarAuditoria({
     empresaId,
@@ -306,8 +345,22 @@ export async function registrarExame(
     entidadeId: exame.id,
     // O resultado entra na trilha porque é o que define aptidão; a restrição
     // em si é dado de saúde e fica só no registro.
-    resumo: `ASO ${tipoExameLabel(tipo).toLowerCase()} de ${colaborador.nome} em ${formatarData(realizadoEm)} — ${resultado.toLowerCase().replace(/_/g, " ")}.`,
+    resumo: `ASO ${tipoExameLabel(tipo).toLowerCase()} de ${colaborador.nome} em ${formatarData(realizadoEm)} — ${resultado.toLowerCase().replace(/_/g, " ")}${documentoOrigem ? " (a partir do ASO que estava no Dossiê)" : ""}.`,
+    detalhes: documentoOrigem ? { documentoOrigemId: documentoOrigem.id } : undefined,
   });
+  if (documentoOrigem) {
+    await registrarAuditoria({
+      empresaId,
+      acao: "EXCLUIR",
+      entidade: "DocumentoColaborador",
+      entidadeId: documentoOrigem.id,
+      resumo: `ASO de ${colaborador.nome} saiu do Dossiê e virou exame ocupacional${documentoOrigem.arquivoId ? " (arquivo mantido, agora no exame)" : ""}.`,
+      detalhes: { exameId: exame.id },
+    });
+    // Documento enviado pelo portal e ainda não conferido saía da fila de
+    // "Documentos a conferir" junto.
+    revalidatePath(`/rh/${empresaId}/aprovacoes`);
+  }
 
   revalidatePath(`/rh/${empresaId}/colaboradores/${colaboradorId}`);
   revalidatePath(`/rh/${empresaId}/conformidade`);

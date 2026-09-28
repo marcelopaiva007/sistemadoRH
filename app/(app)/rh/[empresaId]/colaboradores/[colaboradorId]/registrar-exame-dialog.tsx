@@ -1,5 +1,6 @@
 "use client";
 
+import { FileText } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -22,7 +23,18 @@ import { Campo, CampoData, CampoSelect, CampoTexto, FormularioAction } from "./c
  * `empresaId` é SEMPRE o CNPJ do colaborador, nunca o do caminho da tela que
  * abriu o diálogo: o relatório lista várias empresas ao mesmo tempo, e a
  * action recusa (ou pior, grava no lugar errado) se os dois divergirem.
+ *
+ * `documentoOrigem`: o ASO que já está no Dossiê como documento genérico. O
+ * formulário vem com as datas dele e, se tiver arquivo, não pede outro — a
+ * action move o arquivo para o exame e tira a linha do Dossiê.
  */
+export type DocumentoAsoNoDossie = {
+  id: string;
+  arquivoNome: string | null;
+  emitidoEm: Date | null;
+  validoAte: Date | null;
+};
+
 export function RegistrarExameDialog({
   empresaId,
   colaboradorId,
@@ -30,6 +42,7 @@ export function RegistrarExameDialog({
   aberto,
   aoMudarAberto,
   tipoPadrao,
+  documentoOrigem,
   aoRegistrar,
 }: {
   empresaId: string;
@@ -40,6 +53,7 @@ export function RegistrarExameDialog({
   aoMudarAberto: (aberto: boolean) => void;
   /** Tipo já escolhido ao abrir (o relatório sugere "Periódico" para quem já teve ASO). */
   tipoPadrao?: string;
+  documentoOrigem?: DocumentoAsoNoDossie;
   aoRegistrar?: () => void;
 }) {
   return (
@@ -50,7 +64,7 @@ export function RegistrarExameDialog({
           {colaboradorNome && <DialogDescription>{colaboradorNome}</DialogDescription>}
         </DialogHeader>
         <FormularioAction
-          key={colaboradorId}
+          key={`${colaboradorId}:${documentoOrigem?.id ?? ""}`}
           action={registrarExame.bind(null, empresaId, colaboradorId)}
           textoBotao="Registrar"
           mensagemSucesso="Exame registrado."
@@ -59,6 +73,7 @@ export function RegistrarExameDialog({
             aoRegistrar?.();
           }}
         >
+          {documentoOrigem && <input type="hidden" name="documentoOrigemId" value={documentoOrigem.id} />}
           <div className="grid gap-4 sm:grid-cols-2">
             <CampoSelect
               name="tipo"
@@ -70,8 +85,8 @@ export function RegistrarExameDialog({
             <CampoSelect name="resultado" label="Resultado" opcoes={RESULTADOS_EXAME} required />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
-            <CampoData name="realizadoEm" label="Realizado em" />
-            <CampoData name="validoAte" label="Válido até (opcional)" />
+            <CampoData name="realizadoEm" label="Realizado em" defaultValue={documentoOrigem?.emitidoEm} />
+            <CampoData name="validoAte" label="Válido até (opcional)" defaultValue={documentoOrigem?.validoAte} />
           </div>
           <Campo label="Restrições (obrigatório se apto com restrição)">
             <Textarea name="restricoes" rows={2} placeholder="Ex: não pode trabalhar em altura" />
@@ -81,9 +96,19 @@ export function RegistrarExameDialog({
             <CampoTexto name="crm" label="CRM" />
           </div>
           <CampoTexto name="clinica" label="Clínica" />
-          <Campo label="ASO (PDF ou foto, até 4 MB)">
-            <Input type="file" name="arquivo" accept={MIMES_ANEXO_ACEITOS.join(",")} />
-          </Campo>
+          {documentoOrigem?.arquivoNome ? (
+            <Campo label="ASO (arquivo)">
+              <p className="flex items-center gap-1.5 text-sm">
+                <FileText className="size-4 shrink-0" aria-hidden />
+                <span className="truncate">{documentoOrigem.arquivoNome}</span>
+                <span className="shrink-0 text-xs text-muted-foreground">— vem do Dossiê</span>
+              </p>
+            </Campo>
+          ) : (
+            <Campo label="ASO (PDF ou foto, até 4 MB)">
+              <Input type="file" name="arquivo" accept={MIMES_ANEXO_ACEITOS.join(",")} />
+            </Campo>
+          )}
           <Campo label="Observações">
             <Textarea name="observacoes" rows={2} />
           </Campo>

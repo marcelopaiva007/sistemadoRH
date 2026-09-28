@@ -122,7 +122,7 @@ export function AsoView({ linhas }: { linhas: LinhaAso[] }) {
                   <TableRow key={l.colaboradorId}>
                     <TableCell>
                       <Link
-                        href={`/rh/${l.empresaId}/colaboradores/${l.colaboradorId}`}
+                        href={`/rh/${l.empresaId}/colaboradores/${l.colaboradorId}?tab=seguranca`}
                         className="font-medium hover:underline"
                       >
                         {l.nome}

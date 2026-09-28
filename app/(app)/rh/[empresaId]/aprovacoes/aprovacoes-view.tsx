@@ -170,11 +170,16 @@ export function AprovacoesView({
       etiqueta: tipoDocumentoLabel(d.tipo),
       desde: d.createdAt,
       quem: d.colaborador.nome,
-      quemHref: `/rh/${d.empresaId}/colaboradores/${d.colaboradorId}`,
+      // ASO vai direto ao Dossiê da ficha: é lá que está o "Registrar como
+      // exame", sem o qual o documento não conta no Relatório de ASO.
+      quemHref: `/rh/${d.empresaId}/colaboradores/${d.colaboradorId}${d.tipo === "ASO" ? "?tab=dossie" : ""}`,
       contexto: contexto(d.colaborador.setor.nome, d.colaborador.empresa.nome),
       // O número que a pessoa digitou, para bater com a foto.
       oQue: numeroDeclarado(d) ?? "Sem número digitado para este documento.",
       detalhes: [
+        d.tipo === "ASO"
+          ? "ASO: conferir não basta. Abra a ficha (Dossiê) e use \"Registrar como exame\" — só assim ele conta no Relatório de ASO."
+          : null,
         d.descricao,
         d.validoAte ? `Válido até ${formatarData(d.validoAte)}` : null,
         d.observacoes,
