@@ -502,6 +502,7 @@ model Colaborador {
   dependentes              Dependente[]
   documentos               DocumentoColaborador[]
   itensCaixaDocumentos     ItemDocumentoRecebido[]
+  recibosContracheque      ReciboContracheque[]
   ferias                   SolicitacaoFerias[]
   ausencias                Ausencia[]
   acessosPortal            PortalAcesso[]
@@ -617,6 +618,8 @@ model Arquivo {
   // Arquivo ORIGINAL que chegou pela Caixa de documentos (28/09/2026). As
   // fatias por pessoa viram Arquivos próprios, ligados ao destino de cada uma.
   documentoRecebido       DocumentoRecebido?
+  // Selfie com que o colaborador confirmou o recebimento de um contracheque.
+  reciboContracheque      ReciboContracheque? @relation("FotoReciboContracheque")
 
   @@index([empresaId])
   @@schema("rh")
@@ -653,11 +656,58 @@ model DocumentoColaborador {
   // (índice parcial na migration 20260928160000): "CONTRACHEQUE:2026-09:MENSAL",
   // "INFORME:2025", "TRCT"... Reenviar a mesma folha não duplica nada.
   chaveDedupe      String?
+  // Contracheque enviado ao colaborador para confirmar recebimento com foto.
+  recibo           ReciboContracheque?
 
   @@index([colaboradorId])
   @@index([empresaId, validoAte])
   @@index([empresaId, origem, conferidoEm])
   @@index([colaboradorId, tipo, competencia])
+  @@schema("rh")
+}
+
+// Envio de contracheque ao colaborador, com confirmação de recebimento
+// (v1.180.0). O RH manda os contracheques de uma competência (os que já estão
+// no Dossiê — pela Caixa de documentos ou à mão); a pessoa recebe o aviso no
+// Telegram (ou por e-mail), abre o contracheque no portal e confirma com uma
+// selfie, como na batida de ponto. É a prova de que ela de fato recebeu:
+// quando abriu, quando confirmou, de onde, com que aparelho, qual arquivo
+// (hash) e a foto.
+//
+// Um por contracheque (documentoId único). Sai junto com o documento: um
+// contracheque excluído da ficha não tem mais o que provar.
+model ReciboContracheque {
+  id                    String               @id @default(cuid())
+  // Sempre o CNPJ da ficha — nunca o da tela de onde o RH enviou.
+  empresaId             String
+  colaboradorId         String
+  colaborador           Colaborador          @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  documentoId           String               @unique
+  documento             DocumentoColaborador @relation(fields: [documentoId], references: [id], onDelete: Cascade)
+  // Primeiro dia do mês de competência (UTC), copiado do documento.
+  competencia           DateTime
+  // MENSAL, ADIANTAMENTO, DECIMO_TERCEIRO, FERIAS, COMPLEMENTAR, PLR.
+  tipoFolha             String               @default("MENSAL")
+  // Envio do aviso. `canal` nulo com `envioErro` = não havia como avisar.
+  enviadoEm             DateTime?
+  enviadoPorNome        String?
+  canal                 String?
+  envioErro             String?
+  envios                Int                  @default(0)
+  // A pessoa abriu o contracheque pelo portal (só depois disso confirma).
+  vistoEm               DateTime?
+  confirmadoEm          DateTime?
+  confirmadoIp          String?
+  confirmadoDispositivo String?
+  // SHA-256 do arquivo que a pessoa abriu e confirmou.
+  hashDocumento         String?
+  fotoArquivoId         String?              @unique
+  fotoArquivo           Arquivo?             @relation("FotoReciboContracheque", fields: [fotoArquivoId], references: [id], onDelete: SetNull)
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+
+  @@index([empresaId, competencia])
+  @@index([colaboradorId, confirmadoEm])
   @@schema("rh")
 }
 
