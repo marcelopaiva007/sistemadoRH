@@ -20,7 +20,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { segredoConfere } from "@/lib/cron-horario";
 import { prisma } from "@/lib/prisma";
 import { conferirNascimento, extrairCpfEData } from "@/lib/telegram-identidade";
-import { sendTelegramMessage, telegramWebhookSecret } from "@/lib/telegram";
+import { answerCallbackQuery, sendTelegramMessage, telegramWebhookSecret } from "@/lib/telegram";
+import { CALLBACK_ABRIR_PORTAL } from "@/lib/contracheques/situacao";
 import { criarLinkDeAcesso, MINUTOS_VALIDADE_LINK } from "@/lib/portal-auth";
 import { sufixoTelefone } from "@/lib/telefone";
 import {
@@ -313,6 +314,18 @@ export async function POST(req: NextRequest) {
   const callback = update.callback_query;
   if (callback?.id && callback.data) {
     const chatDoBotao = callback.message?.chat?.id;
+    // Botão "Ver e confirmar" do aviso de contracheque: o link do portal é
+    // gerado AGORA, no toque — o aviso pode ter sido lido horas depois, e o
+    // link vale 15 minutos. Mesmo caminho do /portal (só para o chat vinculado).
+    if (chatDoBotao !== undefined && callback.data === CALLBACK_ABRIR_PORTAL) {
+      try {
+        await answerCallbackQuery(callback.id, "Gerando seu link de acesso…");
+        await enviarLinkDoPortal(String(chatDoBotao));
+      } catch (e) {
+        console.error("telegram-webhook (callback portal):", e);
+      }
+      return NextResponse.json({ ok: true });
+    }
     if (chatDoBotao !== undefined) {
       try {
         await tratarCallbackDelegacoes({
