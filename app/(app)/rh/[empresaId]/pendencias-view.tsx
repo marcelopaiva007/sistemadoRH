@@ -281,7 +281,7 @@ export function PendenciasView({
       // home não chegava ao e-mail diário. Mesma condição e mesmo destino da
       // lacuna (?lacuna=setor).
       descricao:
-        "Está no setor \"Não definido\" — fora do Painel do setor e das contas por setor. Abra a ficha e aponte o setor real.",
+        "Está no setor \"Não definido\" ou no arquivo \"Demitidos\" — fora do Painel do setor e das contas por setor. Abra a ficha e aponte o setor real.",
       href: comFiltro(`/rh/${empresaId}/colaboradores`, "lacuna=setor"),
       icon: UsersRound,
     },

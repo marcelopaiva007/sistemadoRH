@@ -8,6 +8,7 @@ import {
 } from "@/lib/constants-dp";
 import { RUBRICAS_HORA_EXTRA, LIMITE_HORAS_EXTRAS_MES } from "@/lib/constants-folha";
 import { hojeUTC, somarDiasUTC, diferencaEmDiasUTC } from "@/lib/datas";
+import { BALDES_SEM_ESTRUTURA } from "@/lib/estrutura-pendente";
 
 export type Pendencias = {
   aprovacoes: number;
@@ -541,13 +542,12 @@ function subconsultasDePendencias(hoje: Date): Record<keyof Pendencias, readonly
     cadastrosIncompletos: [
       Prisma.sql`FROM rh."Colaborador" x WHERE ${ESCOPO} AND x.ativo AND (x.cpf IS NULL OR x."dataAdmissao" IS NULL OR (x.email IS NULL AND x.telefone IS NULL))`,
     ],
-    // Nome, não FK: "sem setor" no sistema é estar no setor "Não definido"
-    // (setorId é obrigatório no schema). Mesma condição da lacuna da home.
-    // "Demitidos" entrou em 27/08/2026: é o arquivo oculto dos desligados —
-    // um ATIVO ali é tão sem-setor quanto no "Não definido". Sem diferenciar
-    // caixa, como o `mode: "insensitive"` de antes.
+    // Nome, não FK: "sem setor" no sistema é estar num dos baldes de
+    // lib/estrutura-pendente.ts ("Não definido" ou o arquivo "Demitidos") —
+    // a mesma lista da lacuna da home e do filtro ?lacuna=setor, para o
+    // cartão e a lista baterem. Sem diferenciar caixa.
     semSetor: [
-      Prisma.sql`FROM rh."Colaborador" x WHERE ${ESCOPO} AND x.ativo AND EXISTS (SELECT 1 FROM rh."Setor" s WHERE s.id = x."setorId" AND lower(s.nome) IN ('não definido', 'demitidos'))`,
+      Prisma.sql`FROM rh."Colaborador" x WHERE ${ESCOPO} AND x.ativo AND EXISTS (SELECT 1 FROM rh."Setor" s WHERE s.id = x."setorId" AND lower(s.nome) IN (${Prisma.join(BALDES_SEM_ESTRUTURA.map((n) => n.toLowerCase()))}))`,
     ],
     // ---- as oito de 19/08/2026 (ver os comentários no tipo Pendencias) ----
     // Ajuste de ponto esperando decisão. Mesma consulta que a tela de
