@@ -78,7 +78,8 @@ export default async function HomePage() {
         _count: { _all: true },
         where: { empresaId: { in: ids }, concluido: false, colaborador: { ativo: true } },
       }),
-      pendenciasPorEmpresa(ids),
+      // `ids` já é o que a pessoa enxerga: a Caixa só conta arquivo que ela abre.
+      pendenciasPorEmpresa(ids, prisma, ids),
       // Para a etiqueta da marca não dizer "em dia" sobre módulo que ninguém
       // abriu — mesmo engano que a tela da empresa tinha, só que aqui é a
       // primeira coisa que se vê depois do login.

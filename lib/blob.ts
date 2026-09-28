@@ -8,7 +8,7 @@
 // Sem BLOB_READ_WRITE_TOKEN a função devolve erro claro em vez de explodir,
 // mesmo contrato de lib/telegram.ts e lib/email.ts: o recurso fica inerte até
 // alguém configurar, e o resto do sistema não quebra por falta dele.
-import { put, del, get } from "@vercel/blob";
+import { put, del, get, list } from "@vercel/blob";
 
 export function blobConfigurado(): boolean {
   return !!process.env.BLOB_READ_WRITE_TOKEN;
@@ -163,5 +163,21 @@ export async function removerDoBlob(url: string): Promise<void> {
     await del(url);
   } catch {
     // silêncio proposital — ver comentário acima
+  }
+}
+
+/**
+ * Best-effort: apaga tudo sob um prefixo, EXCETO as URLs em `manter`. Serve
+ * para envio que parou no meio (a aba fechou depois do upload e antes de
+ * registrar) — o blob existe e nenhuma linha do banco aponta para ele.
+ */
+export async function removerPrefixoDoBlob(prefixo: string, manter: string[] = []): Promise<void> {
+  if (!blobConfigurado()) return;
+  try {
+    const { blobs } = await list({ prefix: prefixo, limit: 100 });
+    const apagar = blobs.map((b) => b.url).filter((u) => !manter.includes(u));
+    if (apagar.length > 0) await del(apagar);
+  } catch {
+    // silêncio proposital — ver removerDoBlob
   }
 }

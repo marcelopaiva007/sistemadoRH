@@ -63,6 +63,21 @@ export async function usuarioAlcancaEmpresa(
   return porMarca.includes(empresaId);
 }
 
+/**
+ * A mesma pergunta de `requireEmpresaAccess`, sem redirecionar — para rota de
+ * API, que responde 403 em vez de trocar de página. `usuarioAlcancaEmpresa`
+ * sozinho deixa passar o GESTOR_SETOR (que tem vínculo com o CNPJ) e não olha
+ * o módulo no perfil; as telas de /rh/<empresa> barram os dois.
+ */
+export async function podeOperarEmpresaRH(
+  user: { id?: string; role: string; empresas: { empresaId: string; ativo: boolean }[] },
+  empresaId: string,
+): Promise<boolean> {
+  if (user.role === "GESTOR_SETOR") return false;
+  if (!(await sistemasPermitidos(user)).includes("rh")) return false;
+  return usuarioAlcancaEmpresa(user, empresaId);
+}
+
 export async function requireEmpresaAccess(empresaId: string) {
   const user = await requireRHAccess();
   // GESTOR_SETOR não navega em /rh/[empresaId] nem opera as actions escopadas

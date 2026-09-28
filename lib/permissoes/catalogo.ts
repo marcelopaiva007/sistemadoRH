@@ -67,6 +67,7 @@ export const AREAS_RH: GrupoDeAreas[] = [
     titulo: "Departamento pessoal",
     areas: [
       { slug: "aprovacoes", label: "Aprovações" },
+      { slug: "caixa-documentos", label: "Caixa de documentos" },
       { slug: "mensagens", label: "Mensagens" },
       { slug: "avisos-gestor", label: "Avisos ao gestor" },
       { slug: "vencimentos", label: "Vencimentos" },
@@ -91,6 +92,7 @@ export const AREAS_RH: GrupoDeAreas[] = [
     titulo: "Saúde & segurança",
     areas: [
       { slug: "conformidade", label: "Conformidade" },
+      { slug: "aso", label: "Relatório de ASO" },
       { slug: "acidentes", label: "Acidentes / CAT" },
     ],
   },

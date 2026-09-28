@@ -120,7 +120,16 @@ type Situacao = "atrasados" | "todos" | Faixa;
 
 const TODOS = "";
 
-export function RelatorioAsoView({ linhas, geradoEm }: { linhas: LinhaRelatorioAso[]; geradoEm: string }) {
+export function RelatorioAsoView({
+  linhas,
+  geradoEm,
+  empresaId,
+}: {
+  linhas: LinhaRelatorioAso[];
+  geradoEm: string;
+  /** CNPJ do caminho — só para o link da Caixa de documentos. */
+  empresaId: string;
+}) {
   const [situacao, setSituacao] = useState<Situacao>("atrasados");
   const [setor, setSetor] = useState(TODOS);
   const [empresa, setEmpresa] = useState(TODOS);
@@ -208,7 +217,11 @@ export function RelatorioAsoView({ linhas, geradoEm }: { linhas: LinhaRelatorioA
                 {maisAntigo.nome})
               </>
             )}
-            . Posição de {geradoEm}.
+            . Posição de {geradoEm}. Chegou um lote de ASOs em PDF?{" "}
+            <Link href={`/rh/${empresaId}/caixa-documentos`} className="font-semibold text-foreground underline">
+              Solte na Caixa de documentos
+            </Link>{" "}
+            — a leitura automática grava cada um na ficha certa.
           </>
         }
         acoes={

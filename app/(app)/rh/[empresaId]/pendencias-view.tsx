@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import {
+  Inbox,
   AlertOctagon,
   UsersRound,
   FileCheck,
@@ -326,6 +327,13 @@ export function PendenciasView({
       descricao: "Colaborador escreveu pelo Fale com o RH no portal e ainda não teve retorno.",
       href: comFiltro(`/rh/${empresaId}/mensagens`),
       icon: MessageCircle,
+    },
+    {
+      chave: "caixaAConferir",
+      titulo: "Documento da Caixa a conferir",
+      descricao: "A leitura automática da Caixa de documentos não teve certeza e deixou para você decidir — um clique cada.",
+      href: comFiltro(`/rh/${empresaId}/caixa-documentos`),
+      icon: Inbox,
     },
     {
       chave: "entregasNaoConfirmadas",
