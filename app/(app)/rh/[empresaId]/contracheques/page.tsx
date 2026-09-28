@@ -38,7 +38,10 @@ export default async function ContrachequesPage({
     tipo: "CONTRACHEQUE",
     empresaId: { in: escopo },
     arquivoId: { not: null },
-    colaborador: { empresa: { ativo: true } },
+    // Só ficha ativa: desligado não entra no portal (lerSessaoPortal), e o
+    // aviso ficaria "não abriu" para sempre. A prova de quem saiu é a da
+    // rescisão, fora daqui.
+    colaborador: { ativo: true, empresa: { ativo: true } },
   } as const;
 
   // Competências com contracheque no Dossiê, da mais nova para a mais antiga.

@@ -134,12 +134,21 @@ export async function confirmarRecebimento(params: {
     });
     if (r.count !== 1) throw new Error("ja-confirmado");
     return true;
-  }).catch(() => false);
+  }).catch((e) => {
+    console.error("[contracheques] confirmar", e);
+    return false;
+  });
 
   if (!confirmou) {
     if (blobUrl) await removerDoBlob(blobUrl);
-    // Duas abas confirmando juntas: a outra já registrou.
-    return { ok: true };
+    // Só é sucesso se a confirmação ESTÁ gravada (duas abas confirmando
+    // juntas). Qualquer outra falha — banco fora, recibo apagado no meio —
+    // não pode dizer "obrigado" para a pessoa sem nada registrado.
+    const agoraGravado = await prisma.reciboContracheque.findFirst({
+      where: { id: recibo.id, confirmadoEm: { not: null } },
+      select: { id: true },
+    });
+    return agoraGravado ? { ok: true } : { ok: false, error: "Não consegui registrar a confirmação. Tente de novo em instantes." };
   }
 
   await registrarAuditoria({

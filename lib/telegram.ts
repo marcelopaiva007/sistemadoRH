@@ -18,6 +18,9 @@ export async function sendTelegramMessage(
   try {
     const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: "POST",
+      // Um envio preso não pode segurar um lote inteiro (avisos em série de
+      // contracheque e de entregas, com teto de 300 s por chamada).
+      signal: AbortSignal.timeout(10_000),
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         chat_id: chatId,

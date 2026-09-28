@@ -9,6 +9,7 @@ import sharp from "sharp";
 import { prisma } from "../lib/prisma";
 import { enviarContracheques } from "../lib/contracheques/envio";
 import { abrirContracheque, confirmarRecebimento } from "../lib/contracheques/confirmar";
+import { recibosConfirmadosTravando } from "../lib/contracheques/protecao";
 
 let falhas = 0;
 function ok(cond: boolean, msg: string) {
@@ -93,6 +94,15 @@ async function main() {
     ok(deNovo.ok && aposDeNovo.confirmadoIp === "1.2.3.4", "confirmar de novo não sobrescreve a prova");
     const r2 = await enviarContracheques([docAna.id], usuario);
     ok(r2.jaConfirmados === 1 && r2.avisados + r2.semCanal === 0, "quem já confirmou não recebe aviso de novo");
+
+    console.log("\n4. A prova não se apaga por tabela:");
+    const [pelaFicha, peloDoc, doBruno] = await prisma.$transaction(async (tx) => [
+      await recibosConfirmadosTravando(tx, { colaboradorId: ana.id }),
+      await recibosConfirmadosTravando(tx, { documentoId: docAna.id }),
+      await recibosConfirmadosTravando(tx, { documentoId: docBruno.id }),
+    ]);
+    ok(pelaFicha === 1 && peloDoc === 1, "excluir a ficha ou o contracheque da Ana é barrado (confirmado com foto)");
+    ok(doBruno === 0, "o do Bruno, sem confirmação, pode sair");
   } finally {
     const recibos = await prisma.reciboContracheque.findMany({ where: { empresaId: empresa.id }, select: { fotoArquivoId: true } });
     await prisma.reciboContracheque.deleteMany({ where: { empresaId: empresa.id } });

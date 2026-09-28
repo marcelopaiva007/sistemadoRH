@@ -13,7 +13,6 @@ import { sendEmail } from "@/lib/email";
 import { BOT_DO_RH } from "@/lib/bot-do-rh";
 import { CALLBACK_ABRIR_PORTAL, rotuloDoContracheque, tipoFolhaDaChave } from "./situacao";
 
-
 type Avisado = {
   id: string;
   competencia: Date;
@@ -36,7 +35,7 @@ export async function avisarColaborador(r: Avisado): Promise<{ canal: "TELEGRAM"
       r.colaborador.telegramChatId,
       `Oi, ${nome}! Seu contracheque de ${ref} chegou. 📄\n\n` +
         "Toque no botão abaixo para ver e confirmar o recebimento. A confirmação é com uma foto sua, " +
-        "como na batida de ponto — é o seu \"recebi\" assinado.\n\n" +
+        'como na batida de ponto — é o seu "recebi" assinado.\n\n' +
         `RH — ${marca}`,
       { inline_keyboard: [[{ text: "Ver e confirmar", callback_data: CALLBACK_ABRIR_PORTAL }]] },
     );
@@ -83,7 +82,13 @@ export async function avisarColaborador(r: Avisado): Promise<{ canal: "TELEGRAM"
 export async function enviarContracheques(
   documentoIds: string[],
   usuario: { nome: string | null },
-): Promise<{ avisados: number; semCanal: number; jaConfirmados: number }> {
+): Promise<{
+  avisados: number;
+  semCanal: number;
+  jaConfirmados: number;
+  falhas: number;
+  porEmpresa: Record<string, { avisados: number; semCanal: number }>;
+}> {
   const docs = await prisma.documentoColaborador.findMany({
     where: { id: { in: documentoIds }, tipo: "CONTRACHEQUE", competencia: { not: null }, arquivoId: { not: null } },
     select: { id: true, empresaId: true, colaboradorId: true, competencia: true, chaveDedupe: true },
@@ -91,44 +96,59 @@ export async function enviarContracheques(
   let avisados = 0;
   let semCanal = 0;
   let jaConfirmados = 0;
+  let falhas = 0;
+  const porEmpresa: Record<string, { avisados: number; semCanal: number }> = {};
+  // Um por vez e cada um no seu try: uma falha (banco, duas pessoas enviando
+  // juntas) não pode parar o lote nem deixar sem registro quem já foi avisado.
   for (const d of docs) {
-    const recibo = await prisma.reciboContracheque.upsert({
-      where: { documentoId: d.id },
-      update: {},
-      create: {
-        documentoId: d.id,
-        empresaId: d.empresaId,
-        colaboradorId: d.colaboradorId,
-        competencia: d.competencia!,
-        tipoFolha: tipoFolhaDaChave(d.chaveDedupe),
-      },
-      select: {
-        id: true,
-        competencia: true,
-        tipoFolha: true,
-        confirmadoEm: true,
-        colaborador: {
-          select: { nome: true, telegramChatId: true, email: true, empresa: { select: { marca: { select: { nome: true } } } } },
+    try {
+      const recibo = await prisma.reciboContracheque.upsert({
+        where: { documentoId: d.id },
+        update: {},
+        create: {
+          documentoId: d.id,
+          empresaId: d.empresaId,
+          colaboradorId: d.colaboradorId,
+          competencia: d.competencia!,
+          tipoFolha: tipoFolhaDaChave(d.chaveDedupe),
         },
-      },
-    });
-    if (recibo.confirmadoEm) {
-      jaConfirmados++;
-      continue;
+        select: {
+          id: true,
+          competencia: true,
+          tipoFolha: true,
+          confirmadoEm: true,
+          colaborador: {
+            select: { nome: true, telegramChatId: true, email: true, empresa: { select: { marca: { select: { nome: true } } } } },
+          },
+        },
+      });
+      if (recibo.confirmadoEm) {
+        jaConfirmados++;
+        continue;
+      }
+      const aviso = await avisarColaborador(recibo);
+      await prisma.reciboContracheque.update({
+        where: { id: recibo.id },
+        data: {
+          enviadoEm: new Date(),
+          enviadoPorNome: usuario.nome,
+          canal: aviso.canal,
+          envioErro: aviso.erro,
+          envios: { increment: 1 },
+        },
+      });
+      const conta = (porEmpresa[d.empresaId] ??= { avisados: 0, semCanal: 0 });
+      if (aviso.canal) {
+        avisados++;
+        conta.avisados++;
+      } else {
+        semCanal++;
+        conta.semCanal++;
+      }
+    } catch (e) {
+      console.error("[contracheques] envio", d.id, e);
+      falhas++;
     }
-    const aviso = await avisarColaborador(recibo);
-    await prisma.reciboContracheque.update({
-      where: { id: recibo.id },
-      data: {
-        enviadoEm: new Date(),
-        enviadoPorNome: usuario.nome,
-        canal: aviso.canal,
-        envioErro: aviso.erro,
-        envios: { increment: 1 },
-      },
-    });
-    if (aviso.canal) avisados++;
-    else semCanal++;
   }
-  return { avisados, semCanal, jaConfirmados };
+  return { avisados, semCanal, jaConfirmados, falhas, porEmpresa };
 }

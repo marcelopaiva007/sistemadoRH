@@ -14,7 +14,7 @@ import { competenciaDoTexto, rotuloDoContracheque } from "@/lib/contracheques/si
 const MAXIMO_POR_ENVIO = 400;
 
 export type ResultadoEnvio =
-  | { ok: true; avisados: number; semCanal: number; jaConfirmados: number }
+  | { ok: true; avisados: number; semCanal: number; jaConfirmados: number; falhas: number }
   | { ok: false; error: string };
 
 /**
@@ -42,7 +42,9 @@ export async function enviarContrachequesAction(
       competencia,
       arquivoId: { not: null },
       empresaId: { in: visiveis },
-      colaborador: { empresa: { ativo: true } },
+      // Desligado não entra no portal (lerSessaoPortal só aceita ficha
+      // ativa): o aviso iria e a pessoa nunca conseguiria abrir nem confirmar.
+      colaborador: { ativo: true, empresa: { ativo: true } },
     },
     select: { id: true, empresaId: true },
   });
@@ -57,15 +59,17 @@ export async function enviarContrachequesAction(
     { nome: user.name ?? null },
   );
   for (const e of empresas) {
-    const daEmpresa = docs.filter((d) => d.empresaId === e).length;
+    const conta = r.porEmpresa[e];
+    if (!conta) continue;
     await registrarAuditoria({
       empresaId: e,
       acao: "ENVIAR_CONVITE",
       entidade: "ReciboContracheque",
       entidadeId: null,
-      resumo: `Aviso de contracheque de ${rotuloDoContracheque(competencia, "MENSAL")} enviado a ${daEmpresa} pessoa(s).`,
+      resumo: `Aviso de contracheque de ${rotuloDoContracheque(competencia, "MENSAL")}: ${conta.avisados} avisado(s), ${conta.semCanal} sem Telegram nem e-mail.`,
+      detalhes: { competencia: competenciaTexto, documentos: docs.filter((d) => d.empresaId === e).map((d) => d.id) },
     });
   }
   revalidatePath(`/rh/${empresaId}/contracheques`);
-  return { ok: true, ...r };
+  return { ok: true, avisados: r.avisados, semCanal: r.semCanal, jaConfirmados: r.jaConfirmados, falhas: r.falhas };
 }

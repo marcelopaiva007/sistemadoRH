@@ -8,6 +8,7 @@ import { dataDoFormulario } from "@/lib/datas";
 import { lerAnexo } from "@/lib/anexos";
 import { TIPOS_DOCUMENTO, tipoDocumentoLabel } from "@/lib/constants-dp";
 import type { ActionResult } from "@/lib/constants";
+import { MSG_PROVA_DE_RECEBIMENTO, recibosConfirmadosTravando } from "@/lib/contracheques/protecao";
 
 const TIPOS_VALIDOS = new Set<string>(TIPOS_DOCUMENTO.map((t) => t.value));
 
@@ -103,25 +104,22 @@ export async function excluirDocumento(
       tipo: true,
       arquivoId: true,
       colaborador: { select: { nome: true } },
-      recibo: { select: { confirmadoEm: true } },
     },
   });
   if (!documento) return { ok: false, error: "Documento não encontrado." };
-  // Contracheque que a pessoa já confirmou com foto é prova de recebimento:
-  // apagar o documento levaria a prova junto (o recibo sai em cascata).
-  if (documento.recibo?.confirmadoEm) {
-    return {
-      ok: false,
-      error: "Este contracheque já foi confirmado pelo colaborador (com foto) — a confirmação é a prova de recebimento e não pode ser apagada.",
-    };
-  }
 
   // O FK é ON DELETE SET NULL: apagar só o documento deixaria o blob órfão no
   // banco — some da tela mas continua guardado, o oposto do que a LGPD pede.
-  await prisma.$transaction(async (tx) => {
+  // Contracheque que a pessoa já confirmou com foto é prova de recebimento:
+  // apagar o documento levaria a prova junto (o recibo sai em cascata).
+  // Conferido DENTRO da transação, com o recibo travado.
+  const apagou = await prisma.$transaction(async (tx) => {
+    if ((await recibosConfirmadosTravando(tx, { documentoId: id })) > 0) return false;
     await tx.documentoColaborador.delete({ where: { id } });
     if (documento.arquivoId) await tx.arquivo.delete({ where: { id: documento.arquivoId } });
+    return true;
   });
+  if (!apagou) return { ok: false, error: MSG_PROVA_DE_RECEBIMENTO };
 
   await registrarAuditoria({
     empresaId,

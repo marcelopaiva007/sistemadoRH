@@ -99,7 +99,8 @@ export function ContrachequesView({
       const partes = [`${r.avisados} avisado(s)`];
       if (r.semCanal) partes.push(`${r.semCanal} sem Telegram nem e-mail`);
       if (r.jaConfirmados) partes.push(`${r.jaConfirmados} já tinham confirmado`);
-      (r.semCanal ? toast.warning : toast.success)(partes.join(" · "));
+      if (r.falhas) partes.push(`${r.falhas} com falha — tente de novo`);
+      (r.semCanal || r.falhas ? toast.warning : toast.success)(partes.join(" · "));
       router.refresh();
     });
   };
