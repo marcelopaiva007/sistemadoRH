@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, useTransition, type FormEvent, type ReactNode } from "react";
+import { requestFormReset } from "react-dom";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -147,6 +148,13 @@ export function CampoCheckbox({
  * toast de sucesso é verdadeiro, só que é do bloco errado. `dirty` rastreia
  * se ESTE formulário tem algo digitado que ainda não foi para o servidor, e
  * avisa antes que a pessoa recarregue ou feche a aba sem ver o aviso.
+ *
+ * Envio por `onSubmit`, e não `<form action>`: com uma função em `action`, o
+ * React 19 reseta os campos (todos com `defaultValue`) ao fim de TODO envio —
+ * inclusive quando a action volta com erro. A pessoa lia o erro com o que
+ * tinha digitado já de volta ao valor antigo, e o clique seguinte ("corrigindo"
+ * o outro campo) gravava o valor antigo sem ninguém ver. Aqui o reset só
+ * acontece no sucesso, quando os `defaultValue` já são o que foi gravado.
  */
 export function FormularioAction({
   action,
@@ -164,18 +172,31 @@ export function FormularioAction({
   className?: string;
 }) {
   const [dirty, setDirty] = useState(false);
-  const [state, formAction, isPending] = useActionState(
-    async (prev: ActionResult, formData: FormData) => {
-      const resultado = await action(prev, formData);
+  const [state, setState] = useState<ActionResult>(estadoInicial);
+  const [isPending, startTransition] = useTransition();
+
+  const enviar = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (isPending) return;
+    const form = e.currentTarget;
+    const formData = new FormData(form);
+    startTransition(async () => {
+      const resultado = await action(state, formData);
+      // Depois do `await` o React já não está dentro da transição: sem este
+      // startTransition, o requestFormReset não teria transição a que se
+      // prender. Na mesma transição, o reset só roda quando ela termina — a
+      // mesma hora em que o `<form action>` resetava, com os valores novos.
+      startTransition(() => {
+        setState(resultado);
+        if (resultado.ok) requestFormReset(form);
+      });
       if (resultado.ok) {
         toast.success(mensagemSucesso);
         setDirty(false);
         onSuccess?.();
       }
-      return resultado;
-    },
-    estadoInicial,
-  );
+    });
+  };
 
   // Fecha a aba/recarrega com este bloco editado e não salvo: o navegador
   // pergunta antes de descartar. Sem isso, o F5 do relato original apaga
@@ -192,7 +213,7 @@ export function FormularioAction({
 
   return (
     <form
-      action={formAction}
+      onSubmit={enviar}
       onChange={() => setDirty(true)}
       className={cn("space-y-4", className)}
     >

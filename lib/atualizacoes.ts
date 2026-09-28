@@ -26,6 +26,16 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.179.1",
+    data: "28/09/2026",
+    horario: "18:30",
+    titulo: "Ficha: quando salvar dá erro, o que você digitou continua na tela",
+    itens: [
+      "Antes, se um bloco da ficha ou um formulário de registro (ausência, férias, exame, EPI, correção de desligamento…) voltava com erro — por exemplo, desligamento anterior à admissão —, os campos voltavam sozinhos para o valor antigo junto com a mensagem. Quem corrigia só o campo apontado e salvava de novo gravava o valor antigo nos outros sem perceber.",
+      "Agora, com erro, tudo o que foi digitado continua lá: corrija o campo apontado e salve de novo. Depois de salvar com sucesso, os campos mostram o que ficou gravado, como antes.",
+    ],
+  },
+  {
     versao: "1.179.0",
     data: "28/09/2026",
     horario: "18:00",
