@@ -76,7 +76,7 @@ console.log("\n5. O número do cartão fecha com o da lista que ele abre:");
   // montada pelo TOTAL. O cartão dizia "6" e a lista embaixo dizia "169".
   // Aqui a soma por grupo, marca a marca, tem que bater com o total do grupo.
   const marcaA: Pendencias = { ...zeradas(), documentosAConferir: 4, cadastrosIncompletos: 100 };
-  const marcaB: Pendencias = { ...zeradas(), aprovacoes: 2, asoVencendo: 7, cadastrosIncompletos: 63 };
+  const marcaB: Pendencias = { ...zeradas(), aprovacoes: 2, certificadosVencendo: 7, cadastrosIncompletos: 63 };
   const porMarca = [marcaA, marcaB].map(porNatureza);
 
   const topo = porMarca.reduce(

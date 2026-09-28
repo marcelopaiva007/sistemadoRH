@@ -13,7 +13,6 @@ import {
   Download,
   HardHat,
   Rocket,
-  ShieldCheck,
   Plane,
   DoorOpen,
   ClipboardList,
@@ -72,7 +71,7 @@ export function PendenciasView({
   // quantas avaliações faltam — o que era o contador até 10/08/2026 (235
   // avaliações inflando o total) vira contexto do cartão.
   ciclosAEncerrar: CicloAEncerrar[];
-  // Quantos itens de ASO, NR e Contrato "vencendo" JÁ venceram. Pedido do RH
+  // Quantos itens de NR e Contrato "vencendo" JÁ venceram. Pedido do RH
   // em 26/09/2026: o total sozinho ("106 ASO vencendo") não dizia por onde
   // começar — o vencido é o urgente.
   vencidos: VencidosNaPendencia;
@@ -171,13 +170,6 @@ export function PendenciasView({
       descricao: "Cópias enviadas pelo colaborador no portal, esperando validação.",
       href: comFiltro(`/rh/${empresaId}/aprovacoes`),
       icon: FileCheck,
-    },
-    {
-      chave: "asoVencendo",
-      titulo: "ASO vencendo",
-      descricao: `Exames ocupacionais vencidos ou vencendo nos próximos ${diasAlerta} dias.`,
-      href: comFiltro(`/rh/${empresaId}/conformidade`),
-      icon: ShieldCheck,
     },
     {
       chave: "certificadosVencendo",
@@ -432,7 +424,7 @@ export function PendenciasView({
   ];
   const somar = (chaves: readonly (keyof Pendencias)[]) =>
     chaves.reduce((soma, chave) => soma + pendencias[chave], 0);
-  // Vencido × a vencer, só onde o cartão mistura os dois (ASO, NR, Contrato).
+  // Vencido × a vencer, só onde o cartão mistura os dois (NR, Contrato).
   const partido = (chave: keyof Pendencias) =>
     chave in vencidos
       ? {
@@ -440,7 +432,7 @@ export function PendenciasView({
           aVencer: pendencias[chave] - vencidos[chave as keyof VencidosNaPendencia],
         }
       : null;
-  // Na coluna de prazo, o que só está PARA vencer (aviso prévio, ou ASO/NR/
+  // Na coluna de prazo, o que só está PARA vencer (aviso prévio, ou NR/
   // contrato sem nenhum vencido) desce para o fim: quem abre a tela começa
   // pelo que já estourou. `sort` é estável — o resto mantém a ordem da lista.
   const soAVencer = (chave: keyof Pendencias) =>

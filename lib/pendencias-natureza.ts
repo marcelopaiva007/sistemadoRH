@@ -52,7 +52,6 @@ export const PENDENCIAS_DECIDIR = [
 ] as const;
 
 export const PENDENCIAS_PRAZO = [
-  "asoVencendo",
   "certificadosVencendo",
   "epiVencido",
   "feriasVencidas",

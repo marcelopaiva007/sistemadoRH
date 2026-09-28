@@ -26,6 +26,22 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.177.0",
+    data: "28/09/2026",
+    horario: "12:00",
+    titulo: "ASO sai das Pendências e ganha relatório próprio em Saúde & segurança",
+    itens: [
+      "O cartão \"ASO vencendo\" saiu das Pendências (tela, contador da lateral e e-mail diário). Regularizar ASO não é tarefa do dia: é uma fila que o RH puxa quando vai agendar exames com a clínica — e, contado ali, inflava o total de pendências com dezenas de itens de uma vez.",
+      "Nova tela em Saúde & segurança → \"Relatório de ASO\". No topo, os números: quantos ativos têm ASO vencido, quantos não têm ASO válido, quantos vencem nos próximos 30 dias e o percentual em dia.",
+      "O painel \"Tempo de atraso\" divide os vencidos por faixa — mais de 1 ano, 6 meses a 1 ano, 3 a 6 meses, 1 a 3 meses, até 30 dias. Clique numa faixa para ver só quem está nela.",
+      "Resumo por CNPJ e por setor, com quantos estão vencidos, sem ASO e o maior atraso de cada um. Clique numa linha para filtrar a lista.",
+      "A lista começa pelo ASO vencido HÁ MAIS TEMPO; quem está vencido há mais de 6 meses vem em destaque. Depois vêm os que não têm ASO cadastrado e, por último, os que ainda vão vencer.",
+      "Botões \"Exportar CSV\" (abre no Excel, já com o filtro aplicado) e \"Imprimir\".",
+      "Chegou o ASO do médico? Cada linha do relatório tem o botão \"Anexar ASO\": abre ali mesmo o formulário do exame (tipo, data, resultado e o arquivo em PDF ou foto). Ao salvar, o documento fica guardado na ficha da pessoa e a situação dela já muda na lista, sem perder os filtros. Antes, esse formulário só existia dentro da ficha, na aba Segurança → SST (ASO, NR), e não havia caminho até ele a partir da lista.",
+      "Clicar no nome da pessoa abre a ficha já na aba de ASO, com o histórico de exames e os documentos anexados.",
+    ],
+  },
+  {
     versao: "1.176.0",
     data: "26/09/2026",
     horario: "12:00",

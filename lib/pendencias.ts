@@ -12,7 +12,6 @@ import { hojeUTC, somarDiasUTC, diferencaEmDiasUTC } from "@/lib/datas";
 export type Pendencias = {
   aprovacoes: number;
   documentosAConferir: number;
-  asoVencendo: number;
   certificadosVencendo: number;
   catPendente: number;
   integracoesAtrasadas: number;
@@ -118,7 +117,7 @@ export type Pendencias = {
    * uniforme foram entregues, que é o ponto inteiro do módulo.
    *
    * Devolvido sai da conta: item devolvido não tem mais o que confirmar. Só
-   * colaborador ativo, mesma régua de asoVencendo/epiVencido — cobrar
+   * colaborador ativo, mesma régua de certificadosVencendo/epiVencido — cobrar
    * confirmação de quem já saiu é cobrar o impossível.
    */
   entregasNaoConfirmadas: number;
@@ -283,7 +282,6 @@ export const planoAcaoVencidoWhere = (hoje: Date): Prisma.PlanoAcaoWhereInput =>
 export const ROTULOS_PENDENCIA: Record<keyof Pendencias, string> = {
   aprovacoes: "Aguardando aprovação",
   documentosAConferir: "Documentos a conferir",
-  asoVencendo: "ASO vencendo",
   certificadosVencendo: "NR vencendo",
   catPendente: "CAT sem emitir",
   integracoesAtrasadas: "Integração atrasada",
@@ -354,7 +352,6 @@ export function porNatureza(p: Pendencias): PendenciasPorNatureza {
 export const zeradas = (): Pendencias => ({
   aprovacoes: 0,
   documentosAConferir: 0,
-  asoVencendo: 0,
   certificadosVencendo: 0,
   catPendente: 0,
   integracoesAtrasadas: 0,
@@ -439,9 +436,10 @@ function subconsultasDePendencias(hoje: Date): Record<keyof Pendencias, readonly
     documentosAConferir: [
       Prisma.sql`FROM rh."DocumentoColaborador" x WHERE ${ESCOPO} AND x.origem = 'COLABORADOR' AND x."conferidoEm" IS NULL`,
     ],
-    asoVencendo: [
-      Prisma.sql`FROM rh."ExameOcupacional" x WHERE ${ESCOPO} AND x."validoAte" IS NOT NULL AND x."validoAte" <= ${limite} AND ${COLABORADOR_ATIVO}`,
-    ],
+    // ASO saiu das pendências em 28/09/2026, pedido do RH: vencimento de ASO
+    // não é tarefa do dia, é uma fila de regularização que o RH puxa quando
+    // for agendar exames — mora no relatório de Saúde & segurança
+    // (/rh/<empresa>/aso), ordenado do mais atrasado para o menos.
     certificadosVencendo: [
       Prisma.sql`FROM rh."CertificadoNR" x WHERE ${ESCOPO} AND x."validoAte" IS NOT NULL AND x."validoAte" <= ${limite} AND ${COLABORADOR_ATIVO}`,
     ],
@@ -654,9 +652,9 @@ export async function pendenciasPorEmpresa(
  * As pendências de prazo que misturam o que JÁ venceu com o que ainda vai
  * vencer na janela de DIAS_ALERTA_VENCIMENTO. As demais do grupo PRAZO ou são
  * todas vencidas (EPI, férias, plano de ação…) ou todas futuras (aviso
- * prévio) — só estas três precisam do número partido.
+ * prévio) — só estas duas precisam do número partido.
  */
-export const PENDENCIAS_COM_VENCIDOS = ["asoVencendo", "certificadosVencendo", "contratosVencendo"] as const;
+export const PENDENCIAS_COM_VENCIDOS = ["certificadosVencendo", "contratosVencendo"] as const;
 export type VencidosNaPendencia = Record<(typeof PENDENCIAS_COM_VENCIDOS)[number], number>;
 
 /**
@@ -673,15 +671,12 @@ export async function vencidosDaEmpresa(
   empresaIds: string[],
   cliente: Cliente = prisma,
 ): Promise<VencidosNaPendencia> {
-  const total: VencidosNaPendencia = { asoVencendo: 0, certificadosVencendo: 0, contratosVencendo: 0 };
+  const total: VencidosNaPendencia = { certificadosVencendo: 0, contratosVencendo: 0 };
   if (empresaIds.length === 0) return total;
   const hojeSql = ts(hojeUTC());
   const contratosPorPrazo = Prisma.join([...CONTRATOS_POR_PRAZO]);
 
   const linhas = await contarPorEmpresa(cliente, empresaIds, {
-    asoVencendo: [
-      Prisma.sql`FROM rh."ExameOcupacional" x WHERE ${ESCOPO} AND x."validoAte" IS NOT NULL AND x."validoAte" < ${hojeSql} AND ${COLABORADOR_ATIVO}`,
-    ],
     certificadosVencendo: [
       Prisma.sql`FROM rh."CertificadoNR" x WHERE ${ESCOPO} AND x."validoAte" IS NOT NULL AND x."validoAte" < ${hojeSql} AND ${COLABORADOR_ATIVO}`,
     ],
@@ -804,7 +799,6 @@ export async function ciclosAEncerrarDaEmpresa(
 function subconsultasDeRegistro() {
   const colaboradorDesligado = Prisma.sql`FROM rh."Colaborador" x WHERE ${ESCOPO} AND x."dataDesligamento" IS NOT NULL`;
   return {
-    asoVencendo: [Prisma.sql`FROM rh."ExameOcupacional" x WHERE ${ESCOPO}`],
     certificadosVencendo: [Prisma.sql`FROM rh."CertificadoNR" x WHERE ${ESCOPO}`],
     epiVencido: [Prisma.sql`FROM rh."EntregaEPI" x WHERE ${ESCOPO}`],
     catPendente: [Prisma.sql`FROM rh."AcidenteTrabalho" x WHERE ${ESCOPO}`],
