@@ -95,6 +95,10 @@ const GRUPOS: GrupoDoMenu[] = [
     titulo: "Saúde & segurança",
     itens: [
       { slug: "conformidade", label: "Conformidade" },
+      // ASO vencido saiu das Pendências em 28/09/2026 e virou relatório: é
+      // fila de regularização que o RH puxa quando vai agendar exames, não
+      // tarefa do dia.
+      { slug: "aso", label: "Relatório de ASO" },
       { slug: "acidentes", label: "Acidentes / CAT" },
     ],
   },
