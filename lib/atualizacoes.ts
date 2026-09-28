@@ -26,6 +26,15 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.179.1",
+    data: "28/09/2026",
+    horario: "18:30",
+    titulo: "Banco preparado para o envio de contracheques com confirmação",
+    itens: [
+      "Nada muda na tela nesta versão. Ela só cria no banco a tabela do envio de contracheques (a próxima versão): quando cada pessoa recebeu o aviso, abriu o contracheque e confirmou o recebimento com foto.",
+    ],
+  },
+  {
     versao: "1.179.0",
     data: "28/09/2026",
     horario: "18:00",
