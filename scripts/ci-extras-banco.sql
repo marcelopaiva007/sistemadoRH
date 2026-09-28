@@ -90,3 +90,10 @@ CREATE TRIGGER pesquisa_anonimato_apaga_vinculos
   FOR EACH ROW
   WHEN (NEW."anonima" IS TRUE AND OLD."anonima" IS NOT TRUE)
   EXECUTE FUNCTION rh.pesquisa_anonimato_apaga_vinculos();
+
+-- De prisma/migrations/20260928160000_caixa_documentos/migration.sql:
+-- contracheque/informe/TRCT/recibo de férias únicos por pessoa (Caixa de
+-- documentos) — só onde há chave.
+CREATE UNIQUE INDEX IF NOT EXISTS "DocumentoColaborador_colaboradorId_chaveDedupe_key"
+  ON "rh"."DocumentoColaborador"("colaboradorId", "chaveDedupe")
+  WHERE "chaveDedupe" IS NOT NULL;

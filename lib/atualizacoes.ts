@@ -26,6 +26,16 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.178.2",
+    data: "28/09/2026",
+    horario: "18:00",
+    titulo: "Banco preparado para a Caixa de documentos",
+    itens: [
+      "Nada muda na tela nesta versão. Ela só cria no banco as tabelas da Caixa de documentos (a próxima versão), onde ficam os arquivos que chegam do contador e o que foi lido de cada página.",
+      "O Dossiê ganha dois campos que ainda não aparecem: o mês de competência do documento e a marca que impede o mesmo contracheque de entrar duas vezes na ficha.",
+    ],
+  },
+  {
     versao: "1.178.1",
     data: "28/09/2026",
     horario: "17:00",
