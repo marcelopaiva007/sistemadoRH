@@ -68,6 +68,7 @@ const GRUPOS: GrupoDoMenu[] = [
       // ASOs, atestados) entra por aqui, e a IA encaminha. A fila "Para
       // conferir" também conta em Pendências.
       { slug: "caixa-documentos", label: "Caixa de documentos" },
+      { slug: "contracheques", label: "Contracheques" },
       { slug: "mensagens", label: "Mensagens" },
       { slug: "avisos-gestor", label: "Avisos ao gestor" },
       { slug: "vencimentos", label: "Vencimentos" },

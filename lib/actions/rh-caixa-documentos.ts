@@ -488,8 +488,13 @@ export async function desfazerItem(empresaId: string, itemId: string): Promise<A
           break;
         }
         case "DocumentoColaborador": {
-          const r = await tx.documentoColaborador.findUnique({ where: { id }, select: { arquivoId: true, empresaId: true, createdAt: true, updatedAt: true } });
+          const r = await tx.documentoColaborador.findUnique({
+            where: { id },
+            select: { arquivoId: true, empresaId: true, createdAt: true, updatedAt: true, recibo: { select: { confirmadoEm: true } } },
+          });
           if (!r) throw new Recusa(sumiu);
+          // O contracheque confirmado com foto é a prova de recebimento.
+          if (r.recibo?.confirmadoEm) throw new Recusa("O colaborador já confirmou este contracheque com foto — a prova de recebimento não pode ser desfeita.");
           if (editadoDepois(r)) throw new Recusa(editado);
           [destino, apagados] = [r, await tx.documentoColaborador.deleteMany({ where: { id } })];
           break;
