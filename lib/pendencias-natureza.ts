@@ -48,6 +48,7 @@ export const PENDENCIAS_DECIDIR = [
   // número. Foi para PRAZO: a prova da entrega envelhece como um vencimento.
   "ajustesPontoPendentes",
   "mensagensSemResposta",
+  "caixaAConferir",
   "disciplinarSemAssinatura",
 ] as const;
 

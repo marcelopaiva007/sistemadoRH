@@ -7,7 +7,8 @@ import { registrarAuditoria } from "@/lib/audit";
 import { lerAnexo } from "@/lib/anexos";
 import { enviarParaBlob } from "@/lib/blob";
 import { dataDoFormulario } from "@/lib/datas";
-import { TIPOS_DOCUMENTO } from "@/lib/constants-dp";
+import { TIPOS_DOCUMENTO_ENVIAVEIS_PELO_PORTAL } from "@/lib/constants-dp";
+import { pisValido } from "@/lib/pis";
 import type { ActionResult } from "@/lib/constants";
 
 // Autoatendimento cadastral do colaborador.
@@ -36,14 +37,6 @@ const uf = (fd: FormData, campo: string) =>
   String(fd.get(campo) ?? "").trim().toUpperCase().slice(0, 2) || null;
 
 /** Módulo 11 sobre os 10 primeiros dígitos, como manda o layout do PIS/PASEP. */
-function pisValido(valor: string): boolean {
-  if (valor.length !== 11 || /^(\d)\1{10}$/.test(valor)) return false;
-  const pesos = [3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
-  const soma = pesos.reduce((acc, peso, i) => acc + Number(valor[i]) * peso, 0);
-  const resto = soma % 11;
-  const dv = resto < 2 ? 0 : 11 - resto;
-  return dv === Number(valor[10]);
-}
 
 /** Campos sem impacto em folha ou pagamento — gravam direto. */
 export async function atualizarMeusDados(
@@ -168,7 +161,7 @@ export async function enviarMeuDocumento(
   if (!colaborador) return { ok: false, error: "Cadastro não encontrado." };
 
   const tipo = String(formData.get("tipo") ?? "").trim();
-  if (!TIPOS_DOCUMENTO.some((t) => t.value === tipo)) {
+  if (!TIPOS_DOCUMENTO_ENVIAVEIS_PELO_PORTAL.some((t) => t.value === tipo)) {
     return { ok: false, error: "Selecione o tipo de documento." };
   }
 

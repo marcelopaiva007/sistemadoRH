@@ -109,6 +109,15 @@ export type Pendencias = {
   mensagensSemResposta: number;
 
   /**
+   * Caixa de documentos: documento que a leitura automática não gravou sozinha
+   * (item em CONFERIR) e arquivo que a leitura não conseguiu terminar (ERRO).
+   *
+   * DECIDIR porque só o RH resolve — é um clique na fila da Caixa. Sem este
+   * contador, a fila só existia para quem abrisse a tela da Caixa.
+   */
+  caixaAConferir: number;
+
+  /**
    * Entrega registrada e ainda não confirmada pelo colaborador.
    *
    * O cabeçalho de entregas/page.tsx diz que a pergunta que aquela tela existe
@@ -301,6 +310,7 @@ export const ROTULOS_PENDENCIA: Record<keyof Pendencias, string> = {
   semTelegram: "Sem Telegram vinculado",
   ajustesPontoPendentes: "Ajuste/abono de ponto a decidir",
   mensagensSemResposta: "Mensagem do portal sem resposta",
+  caixaAConferir: "Documento da Caixa a conferir",
   entregasNaoConfirmadas: "Entrega sem confirmação",
   disciplinarSemAssinatura: "Medida disciplinar sem assinatura",
   planosAcaoVencidos: "Plano de ação vencido",
@@ -371,6 +381,7 @@ export const zeradas = (): Pendencias => ({
   semSetor: 0,
   ajustesPontoPendentes: 0,
   mensagensSemResposta: 0,
+  caixaAConferir: 0,
   entregasNaoConfirmadas: 0,
   disciplinarSemAssinatura: 0,
   planosAcaoVencidos: 0,
@@ -547,6 +558,12 @@ function subconsultasDePendencias(hoje: Date): Record<keyof Pendencias, readonly
     // quem já saiu continua sendo uma pergunta sem resposta, e a tela
     // /mensagens também a mostra.
     mensagensSemResposta: [Prisma.sql`FROM rh."MensagemPortal" x WHERE ${ESCOPO} AND x."respondidaEm" IS NULL`],
+    // O item não tem empresaId: o CNPJ é o do arquivo (de onde foi enviado).
+    // Duas subconsultas somando na mesma chave, como `aprovacoes`.
+    caixaAConferir: [
+      Prisma.sql`FROM (SELECT r."empresaId" FROM rh."ItemDocumentoRecebido" i JOIN rh."DocumentoRecebido" r ON r.id = i."recebidoId" WHERE i.status = 'CONFERIR') x WHERE ${ESCOPO}`,
+      Prisma.sql`FROM rh."DocumentoRecebido" x WHERE ${ESCOPO} AND x.status = 'ERRO'`,
+    ],
     // Entrega sem confirmação de quem recebeu. Devolvida sai da conta —
     // não há mais o que confirmar.
     entregasNaoConfirmadas: [
@@ -843,6 +860,7 @@ function subconsultasDeRegistro() {
     // pergunta: sem ninguém com ponto liberado não existe ajuste possível.
     ajustesPontoPendentes: [Prisma.sql`FROM rh."Colaborador" x WHERE ${ESCOPO} AND x."pontoLiberado"`],
     mensagensSemResposta: [Prisma.sql`FROM rh."MensagemPortal" x WHERE ${ESCOPO}`],
+    caixaAConferir: [Prisma.sql`FROM rh."DocumentoRecebido" x WHERE ${ESCOPO}`],
     entregasNaoConfirmadas: [Prisma.sql`FROM rh."EntregaAoColaborador" x WHERE ${ESCOPO}`],
     disciplinarSemAssinatura: [Prisma.sql`FROM rh."OcorrenciaDisciplinar" x WHERE ${ESCOPO}`],
     planosAcaoVencidos: [Prisma.sql`FROM rh."PlanoAcao" x WHERE ${ESCOPO}`],

@@ -320,6 +320,32 @@ export const GUIAS: Guia[] = [
     ],
   },
   {
+    slug: "caixa-documentos",
+    titulo: "Caixa de documentos",
+    paraQue: "Solte de uma vez os PDFs que chegam do contador — a leitura automática põe cada documento na ficha certa.",
+    alimenta: "Exames (ASO), ausências (atestados), certificados de NR e o Dossiê de cada pessoa — contracheques inclusive, que aparecem no portal dela.",
+    passos: [
+      {
+        titulo: "Solte os arquivos",
+        fala: "Arraste os PDFs para a área tracejada, vários de uma vez. Pode ser a folha inteira num arquivo só: a leitura acha cada pessoa lá dentro e separa as páginas de cada uma.",
+        cena: "envio",
+        rotulos: ["folha-setembro.pdf", "Lendo 48 de 200 páginas", "Caixa de documentos"],
+      },
+      {
+        titulo: "O que é certo, grava sozinho",
+        fala: "Quando o CPF (ou PIS) e o CNPJ do documento batem com uma ficha, o documento vai direto para o lugar certo: ASO para Exames, atestado para Ausências, contracheque para o Dossiê. Dá para desfazer na aba Gravados.",
+        cena: "fluxo",
+        rotulos: ["ASO", "Exames ocupacionais", "Contracheque", "Dossiê e portal"],
+      },
+      {
+        titulo: "O resto espera você — um clique cada",
+        fala: "O que a leitura não teve certeza fica em Para conferir, com o motivo escrito. Abra, veja as páginas, confirme a pessoa e grave. Também conta em Pendências.",
+        cena: "tabela",
+        rotulos: ["Documento", "Pessoa lida", "Por que não gravou", "Conferir e gravar"],
+      },
+    ],
+  },
+  {
     slug: "mensagens",
     titulo: "Mensagens",
     paraQue: "É o Fale com o RH: o que o colaborador escreve pelo portal chega aqui.",

@@ -106,8 +106,10 @@ jobs:
         run: npx tsx scripts/test-processos-ctb.ts
       - name: Licenciamento e IPVA
         run: npx tsx scripts/test-processos-licenciamento.ts
+      - name: Caixa de documentos (leitura, de quem é, grava ou confere)
+        run: npx tsx scripts/test-caixa-documentos.ts
 
-  # Os 29 smokes contra Postgres de verdade. O banco nasce vazio a cada
+  # Os 30 smokes contra Postgres de verdade. O banco nasce vazio a cada
   # execução: schema gerado do prisma/schema.prisma via `migrate diff` (o
   # `migrate deploy` não serve — o histórico de migrations não é reproduzível
   # do zero, ver prisma/checar-migracoes.mjs), MAIS as regras de SQL manual que
@@ -176,6 +178,8 @@ jobs:
         run: npx tsx scripts/smoke-avaliacao.ts
       - name: Benefícios
         run: npx tsx scripts/smoke-beneficios.ts
+      - name: Caixa de documentos
+        run: npx tsx scripts/smoke-caixa-documentos.ts
       - name: Acidente de trabalho (CAT)
         run: npx tsx scripts/smoke-cat.ts
       - name: Ciclo de pesquisas

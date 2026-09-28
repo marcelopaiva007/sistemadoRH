@@ -41,16 +41,40 @@ export async function GET(
       blobUrl: true,
       documento: { select: { id: true, tipo: true, colaborador: { select: { nome: true } } } },
       ausencia: { select: { id: true, tipo: true, colaborador: { select: { nome: true } } } },
+      exame: { select: { id: true, colaborador: { select: { nome: true } } } },
+      certificado: { select: { id: true, colaborador: { select: { nome: true } } } },
+      documentoRecebido: { select: { id: true } },
     },
   });
-  if (!arquivo) return NextResponse.json({ error: "Arquivo não encontrado." }, { status: 404 });
+  // O ORIGINAL da Caixa de documentos (a folha inteira, o lote da clínica)
+  // não sai por aqui: só pela rota da Caixa, que confere o escopo do arquivo
+  // inteiro e entrega apenas as páginas de um documento.
+  if (!arquivo || arquivo.documentoRecebido) {
+    return NextResponse.json({ error: "Arquivo não encontrado." }, { status: 404 });
+  }
 
-  const dono = arquivo.documento?.colaborador.nome ?? arquivo.ausencia?.colaborador.nome ?? "—";
+  // Até 28/09/2026 todo arquivo que não fosse documento entrava na trilha como
+  // "Ausencia", de dono "—" — inclusive o PDF de um ASO ou de um certificado.
+  const dono =
+    arquivo.documento?.colaborador.nome ??
+    arquivo.ausencia?.colaborador.nome ??
+    arquivo.exame?.colaborador.nome ??
+    arquivo.certificado?.colaborador.nome ??
+    "—";
+  const [entidade, entidadeId] = arquivo.documento
+    ? ["DocumentoColaborador", arquivo.documento.id]
+    : arquivo.ausencia
+      ? ["Ausencia", arquivo.ausencia.id]
+      : arquivo.exame
+        ? ["ExameOcupacional", arquivo.exame.id]
+        : arquivo.certificado
+          ? ["CertificadoNR", arquivo.certificado.id]
+          : ["Arquivo", null];
   await registrarAuditoria({
     empresaId,
     acao: "BAIXAR_DOCUMENTO",
-    entidade: arquivo.documento ? "DocumentoColaborador" : "Ausencia",
-    entidadeId: arquivo.documento?.id ?? arquivo.ausencia?.id ?? null,
+    entidade,
+    entidadeId,
     resumo: `Anexo "${arquivo.nome}" de ${dono} baixado.`,
   });
 
