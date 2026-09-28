@@ -25,6 +25,7 @@ import { anosDeCasa } from "@/lib/tempo-de-casa";
 import { DIAS_DO_MARCO, itemOnboardingLabel } from "@/lib/constants-onboarding";
 import { CONTRATOS_POR_PRAZO } from "@/lib/constants-dp";
 import { normalizarTexto } from "@/lib/text";
+import { BALDES_SEM_ESTRUTURA } from "@/lib/estrutura-pendente";
 
 /**
  * Janela do bloco de recém-chegados. 120 e não 90: a conversa de 90 dias ainda
@@ -301,15 +302,17 @@ export type MeuTime = {
   avisos: string[];
 };
 
-const CHAVE_NAO_DEFINIDO = normalizarTexto("Não definido");
+// Os baldes de lib/estrutura-pendente.ts ("Não definido" e o arquivo
+// "Demitidos"), normalizados como o resto desta tela.
+const CHAVES_SEM_ESTRUTURA = new Set(BALDES_SEM_ESTRUTURA.map(normalizarTexto));
 
 /** As mesmas lacunas de lib/dashboard.ts::lacunasDaBase, lidas pessoa a pessoa. */
 function lacunasDaLinha(c: ColaboradorParaTime): string[] {
   const lacunas: string[] = [];
   if (c.semSalario) lacunas.push("sem salário");
   if (!c.dataAdmissao) lacunas.push("sem data de admissão");
-  if (normalizarTexto(c.setor) === CHAVE_NAO_DEFINIDO) lacunas.push("sem setor");
-  if (normalizarTexto(c.cargo) === CHAVE_NAO_DEFINIDO) lacunas.push("sem cargo");
+  if (CHAVES_SEM_ESTRUTURA.has(normalizarTexto(c.setor))) lacunas.push("sem setor");
+  if (CHAVES_SEM_ESTRUTURA.has(normalizarTexto(c.cargo))) lacunas.push("sem cargo");
   if (c.semCpf) lacunas.push("sem CPF");
   if (c.semTelegram) lacunas.push("sem Telegram");
   return lacunas;

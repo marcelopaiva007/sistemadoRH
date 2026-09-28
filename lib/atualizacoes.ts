@@ -26,6 +26,18 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.178.1",
+    data: "28/09/2026",
+    horario: "17:00",
+    titulo: "\"Sem setor definido\" e \"sem cargo definido\": o clique agora mostra quem é",
+    itens: [
+      "O problema: a tela inicial e as Pendências mostravam \"1 sem setor definido\" (e \"1 sem cargo definido\"), mas ao clicar a lista de colaboradores abria vazia.",
+      "A causa: a contagem considera sem setor quem está no setor \"Não definido\" OU no arquivo \"Demitidos\" (o setor oculto dos desligados históricos). A lista filtrada só procurava \"Não definido\" — então um colaborador ATIVO que ficou em \"Demitidos\" entrava no número e sumia da lista.",
+      "Agora a contagem e a lista usam a mesma regra: o clique mostra a pessoa, com o setor/cargo \"Demitidos\" na coluna. Abra a ficha e aponte o setor e o cargo reais para a pendência sumir.",
+      "O indicador \"Setor pendente\" no topo da lista de Colaboradores e as lacunas \"sem setor\"/\"sem cargo\" do Meu time passam a seguir a mesma regra.",
+    ],
+  },
+  {
     versao: "1.178.0",
     data: "28/09/2026",
     horario: "15:00",
