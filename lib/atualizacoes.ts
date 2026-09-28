@@ -26,6 +26,20 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.178.0",
+    data: "28/09/2026",
+    horario: "15:00",
+    titulo: "ASO no Dossiê agora leva ao formulário do exame",
+    itens: [
+      "O problema: o Dossiê da ficha oferecia o tipo \"ASO (exame ocupacional)\" e dizia que ali se guardavam \"RG, CTPS, contrato, ASO…\". Só que o Relatório de ASO, Vencimentos e Conformidade leem o EXAME ocupacional, não o Dossiê: o arquivo ficava salvo e a pessoa continuava como vencida, sem nada na tela explicando por quê.",
+      "Agora, ao escolher \"ASO\" em Dossiê → Novo documento, a tela avisa que o ASO é registrado como exame e mostra o botão \"Abrir formulário do exame\".",
+      "O ASO que já estava no Dossiê aparece marcado \"Não conta no Relatório de ASO\", com o link \"Registrar como exame\". O formulário abre com as datas do documento e usa o MESMO arquivo, sem precisar anexar de novo. Ao registrar, o documento sai do Dossiê e passa para Exames ocupacionais.",
+      "Serve também para o ASO que o colaborador mandou pelo portal: em Aprovações, o item de ASO avisa que conferir não basta e leva direto ao Dossiê da ficha.",
+      "Em Vencimentos, clicar no nome da pessoa no card de ASO abre a ficha já na aba de ASO.",
+      "Relatório de ASO: CNPJ desativado deixa de aparecer na lista.",
+    ],
+  },
+  {
     versao: "1.177.0",
     data: "28/09/2026",
     horario: "12:00",

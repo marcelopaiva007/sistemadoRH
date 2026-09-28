@@ -1,4 +1,4 @@
-import { empresasVisiveis, requireEmpresaAccess } from "@/lib/rh-auth-guard";
+import { escopoDeEmpresas, requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
 import { tipoExameLabel } from "@/lib/constants-sst";
 import { diferencaEmDiasUTC, formatarData, hojeUTC } from "@/lib/datas";
@@ -24,16 +24,17 @@ export default async function RelatorioAsoPage({
   const { empresas: empresasParam } = await searchParams;
   const usuario = await requireEmpresaAccess(empresaId);
 
-  const visiveis = await empresasVisiveis(usuario);
-  // Mesma regra de filtro-empresas.tsx::useFiltroEmpresas: sem filtro na URL,
-  // tudo que o usuário enxerga; com filtro, a INTERSEÇÃO — id digitado à mão não
-  // vira acesso.
-  const pedidas = (empresasParam ?? "").split(",").filter(Boolean);
-  const escopo = pedidas.length === 0 ? visiveis : pedidas.filter((id) => visiveis.includes(id));
+  // Sem filtro na URL, tudo que o usuário enxerga; com filtro, a INTERSEÇÃO —
+  // id digitado à mão não vira acesso (ver escopoDeEmpresas).
+  const escopo = await escopoDeEmpresas(usuario, empresasParam);
 
   const hoje = hojeUTC();
   const colaboradores = await prisma.colaborador.findMany({
-    where: { empresaId: { in: escopo }, ativo: true },
+    // `empresa.ativo`: o vínculo do usuário pode continuar ativo num CNPJ que
+    // foi desativado, e o layout de /rh/<empresa> dá 404 para ele. Sem este
+    // filtro, o relatório listaria (e o "Anexar ASO" gravaria) num CNPJ que
+    // nenhuma outra tela abre.
+    where: { empresaId: { in: escopo }, ativo: true, empresa: { ativo: true } },
     select: {
       id: true,
       nome: true,
