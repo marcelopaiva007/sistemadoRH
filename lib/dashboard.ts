@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { hojeUTC, somarDiasUTC, somarMesesUTC, somarAnosUTC } from "@/lib/datas";
+import { BALDES_SEM_ESTRUTURA } from "@/lib/estrutura-pendente";
 
 export type ResumoDashboard = {
   ativos: number;
@@ -130,11 +131,13 @@ export async function lacunasDaBase(empresaIds: string[]): Promise<{
       prisma.colaborador.count({
         where: { ...base, OR: [{ telegramChatId: null }, { telegramChatId: "" }] },
       }),
+      // Mesma lista do filtro ?lacuna=setor|cargo da tela de Colaboradores —
+      // ver lib/estrutura-pendente.ts.
       prisma.colaborador.count({
-        where: { ...base, setor: { nome: { in: ["Não definido", "Demitidos"], mode: "insensitive" } } },
+        where: { ...base, setor: { nome: { in: [...BALDES_SEM_ESTRUTURA], mode: "insensitive" } } },
       }),
       prisma.colaborador.count({
-        where: { ...base, posicao: { nome: { in: ["Não definido", "Demitidos"], mode: "insensitive" } } },
+        where: { ...base, posicao: { nome: { in: [...BALDES_SEM_ESTRUTURA], mode: "insensitive" } } },
       }),
       // Mesma regra de lib/ferias-passivo.ts::semHistoricoDeFerias, em contagem:
       // 1+ ano de casa (então já existe período aquisitivo fechado) e NENHUMA
