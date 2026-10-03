@@ -205,7 +205,9 @@ export function ConfiguracoesPontoView({
           <CardDescription className="text-xs">
             Com a cerca ativada, o colaborador só consegue registrar o ponto quando o celular
             estiver dentro do raio em torno da empresa. Fora do raio, a batida é{" "}
-            <strong>recusada na hora</strong>, com a distância na mensagem.
+            <strong>recusada na hora</strong>, com a distância na mensagem. Se a trava de IP
+            também estiver ligada, <strong>basta passar em uma das duas</strong> — quem prova
+            presença pelo Wi-Fi da empresa registra mesmo com o GPS falhando, e vice-versa.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -282,7 +284,8 @@ export function ConfiguracoesPontoView({
             <span>
               <span className="font-medium">Bloquear batida fora do raio</span>
               <span className="block text-xs text-muted-foreground">
-                Também torna o GPS obrigatório: sem localização ativa, o ponto não registra.
+                Sem localização ativa, o ponto não registra — a menos que a trava de IP também
+                esteja ligada e o celular esteja no Wi-Fi da empresa (uma prova basta).
                 Desmarcado, a batida fora do raio é aceita mas fica marcada como fora do
                 perímetro no registro.
               </span>
@@ -353,8 +356,9 @@ export function ConfiguracoesPontoView({
             <span>
               <span className="font-medium">Bloquear batida fora da rede autorizada</span>
               <span className="block text-xs text-muted-foreground">
-                Desmarcado, a batida de fora é aceita mas fica marcada como fora da rede no
-                registro.
+                Se a cerca de GPS também estiver ligada, basta passar em uma das duas: quem
+                está dentro do raio registra mesmo fora do Wi-Fi (e vice-versa). Desmarcado,
+                a batida de fora é aceita mas fica marcada como fora da rede no registro.
               </span>
             </span>
           </label>

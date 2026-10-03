@@ -86,6 +86,45 @@ export function validarGeofencingGps(
 }
 
 /**
+ * Decide se a batida passa pelas travas de presença — IP e GPS — sob a regra
+ * de que UMA prova basta (definição do CEO, 24/09/2026).
+ *
+ * POR QUE "OU" E NÃO "E": as duas travas provam a mesma coisa (a pessoa está
+ * na empresa) por caminhos que falham por razões diferentes — o Wi-Fi cai, o
+ * GPS erra dentro de galpão. Exigir as duas ao mesmo tempo fazia a batida de
+ * quem ESTÁ na empresa depender do elo mais fraco do dia. Fraude continua
+ * barrada: quem está fora não passa em nenhuma das duas.
+ *
+ * A regra completa:
+ * - nenhuma trava ativa  → passa;
+ * - só uma trava ativa   → ela decide sozinha (como sempre foi);
+ * - as duas ativas       → passa quem prova por QUALQUER uma; recusa só quem
+ *                          falha nas duas.
+ *
+ * Pura de propósito: é regra de aceitação de registro de jornada, e o teste
+ * de guarda (scripts/test-ponto.ts) fixa a tabela-verdade inteira.
+ */
+export function avaliarTravasDePresenca(params: {
+  travaIpAtiva: boolean;
+  ipOk: boolean;
+  travaGpsAtiva: boolean;
+  gpsOk: boolean;
+}): { permitido: boolean; falhouIp: boolean; falhouGps: boolean } {
+  const { travaIpAtiva, ipOk, travaGpsAtiva, gpsOk } = params;
+  const permitido =
+    (!travaIpAtiva && !travaGpsAtiva) ||
+    (travaIpAtiva && ipOk) ||
+    (travaGpsAtiva && gpsOk);
+  return {
+    permitido,
+    // "Falhou" aqui é sempre relativo à trava ATIVA — trava desligada não
+    // falha. É o que a mensagem de recusa usa para dizer o que corrigir.
+    falhouIp: travaIpAtiva && !ipOk,
+    falhouGps: travaGpsAtiva && !gpsOk,
+  };
+}
+
+/**
  * Hash SHA-256 de uma MARCAÇÃO TRATADA — a marcação que nasce de uma decisão
  * do RH sobre um tratamento de ponto (INCLUSAO_MANUAL aprovada), não de uma
  * batida no REP-P.
