@@ -1,10 +1,12 @@
-import { escopoDeEmpresas, requireEmpresaAccess } from "@/lib/rh-auth-guard";
+import { empresasVisiveis, escopoDeEmpresas, requireEmpresaAccess } from "@/lib/rh-auth-guard";
+import { prisma } from "@/lib/prisma";
 import { DIAS_ALERTA_VENCIMENTO } from "@/lib/constants-dp";
 import {
   pendenciasDaEmpresa,
   modulosSemRegistro,
   pesquisasAbertasDaEmpresa,
   ciclosAEncerrarDaEmpresa,
+  vencidosDaEmpresa,
 } from "@/lib/pendencias";
 import { resumoDaEmpresa, lacunasDaBase, lacunasDosDesligados } from "@/lib/dashboard";
 import { DashboardEmpresa } from "./dashboard-empresa";
@@ -38,11 +40,12 @@ export default async function InicioDaEmpresaPage({
   // é a mesma interseção usada pelo resto do sistema (id digitado à mão na
   // URL não vira acesso).
   const empresas = await escopoDeEmpresas(usuario, empresasParam);
+  const visiveis = await empresasVisiveis(usuario);
 
-  const [resumo, pendencias, base, semRegistro, baseDesligados, pesquisasAbertas, ciclosAEncerrar] =
+  const [resumo, pendencias, base, semRegistro, baseDesligados, pesquisasAbertas, ciclosAEncerrar, vencidos] =
     await Promise.all([
       resumoDaEmpresa(empresas),
-      pendenciasDaEmpresa(empresas),
+      pendenciasDaEmpresa(empresas, prisma, visiveis),
       lacunasDaBase(empresas),
       // Zero de pendência e zero de registro são a mesma tela e significados
       // opostos — a view precisa dos dois para não chamar de "em dia" um módulo
@@ -51,6 +54,8 @@ export default async function InicioDaEmpresaPage({
       lacunasDosDesligados(empresas),
       pesquisasAbertasDaEmpresa(empresas),
       ciclosAEncerrarDaEmpresa(empresas),
+      // O que já venceu dentro de ASO/NR/Contrato "vencendo" — o RH começa por ali.
+      vencidosDaEmpresa(empresas),
     ]);
 
   return (
@@ -65,6 +70,7 @@ export default async function InicioDaEmpresaPage({
         diasAlerta={DIAS_ALERTA_VENCIMENTO}
         pesquisasAbertas={pesquisasAbertas}
         ciclosAEncerrar={ciclosAEncerrar}
+        vencidos={vencidos}
       />
       {/* Por último: pendência é o que exige ação HOJE; preenchimento da base
           é o trabalho de fundo que faz os módulos valerem. */}

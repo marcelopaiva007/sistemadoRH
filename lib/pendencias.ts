@@ -8,11 +8,11 @@ import {
 } from "@/lib/constants-dp";
 import { RUBRICAS_HORA_EXTRA, LIMITE_HORAS_EXTRAS_MES } from "@/lib/constants-folha";
 import { hojeUTC, somarDiasUTC, diferencaEmDiasUTC } from "@/lib/datas";
+import { BALDES_SEM_ESTRUTURA } from "@/lib/estrutura-pendente";
 
 export type Pendencias = {
   aprovacoes: number;
   documentosAConferir: number;
-  asoVencendo: number;
   certificadosVencendo: number;
   catPendente: number;
   integracoesAtrasadas: number;
@@ -110,6 +110,15 @@ export type Pendencias = {
   mensagensSemResposta: number;
 
   /**
+   * Caixa de documentos: documento que a leitura automática não gravou sozinha
+   * (item em CONFERIR) e arquivo que a leitura não conseguiu terminar (ERRO).
+   *
+   * DECIDIR porque só o RH resolve — é um clique na fila da Caixa. Sem este
+   * contador, a fila só existia para quem abrisse a tela da Caixa.
+   */
+  caixaAConferir: number;
+
+  /**
    * Entrega registrada e ainda não confirmada pelo colaborador.
    *
    * O cabeçalho de entregas/page.tsx diz que a pergunta que aquela tela existe
@@ -118,7 +127,7 @@ export type Pendencias = {
    * uniforme foram entregues, que é o ponto inteiro do módulo.
    *
    * Devolvido sai da conta: item devolvido não tem mais o que confirmar. Só
-   * colaborador ativo, mesma régua de asoVencendo/epiVencido — cobrar
+   * colaborador ativo, mesma régua de certificadosVencendo/epiVencido — cobrar
    * confirmação de quem já saiu é cobrar o impossível.
    */
   entregasNaoConfirmadas: number;
@@ -283,7 +292,6 @@ export const planoAcaoVencidoWhere = (hoje: Date): Prisma.PlanoAcaoWhereInput =>
 export const ROTULOS_PENDENCIA: Record<keyof Pendencias, string> = {
   aprovacoes: "Aguardando aprovação",
   documentosAConferir: "Documentos a conferir",
-  asoVencendo: "ASO vencendo",
   certificadosVencendo: "NR vencendo",
   catPendente: "CAT sem emitir",
   integracoesAtrasadas: "Integração atrasada",
@@ -303,6 +311,7 @@ export const ROTULOS_PENDENCIA: Record<keyof Pendencias, string> = {
   semTelegram: "Sem Telegram vinculado",
   ajustesPontoPendentes: "Ajuste/abono de ponto a decidir",
   mensagensSemResposta: "Mensagem do portal sem resposta",
+  caixaAConferir: "Documento da Caixa a conferir",
   entregasNaoConfirmadas: "Entrega sem confirmação",
   disciplinarSemAssinatura: "Medida disciplinar sem assinatura",
   planosAcaoVencidos: "Plano de ação vencido",
@@ -354,7 +363,6 @@ export function porNatureza(p: Pendencias): PendenciasPorNatureza {
 export const zeradas = (): Pendencias => ({
   aprovacoes: 0,
   documentosAConferir: 0,
-  asoVencendo: 0,
   certificadosVencendo: 0,
   catPendente: 0,
   integracoesAtrasadas: 0,
@@ -374,6 +382,7 @@ export const zeradas = (): Pendencias => ({
   semSetor: 0,
   ajustesPontoPendentes: 0,
   mensagensSemResposta: 0,
+  caixaAConferir: 0,
   entregasNaoConfirmadas: 0,
   disciplinarSemAssinatura: 0,
   planosAcaoVencidos: 0,
@@ -420,7 +429,15 @@ const ESCOPO = Prisma.sql`x."empresaId" IN (SELECT id FROM alvo)`;
 const COLABORADOR_ATIVO = Prisma.sql`EXISTS (SELECT 1 FROM rh."Colaborador" c WHERE c.id = x."colaboradorId" AND c.ativo)`;
 const ts = (d: Date) => Prisma.sql`${d.toISOString()}::timestamp`;
 
-function subconsultasDePendencias(hoje: Date): Record<keyof Pendencias, readonly Prisma.Sql[]> {
+function subconsultasDePendencias(
+  hoje: Date,
+  visiveis: readonly string[] | null,
+): Record<keyof Pendencias, readonly Prisma.Sql[]> {
+  // Caixa de documentos: só o arquivo cujo escopo INTEIRO a pessoa enxerga —
+  // a regra de quem pode abri-lo (lib/caixa-documentos/acesso.ts). Sem saber
+  // quem pergunta (lembrete por marca), conta todos do CNPJ.
+  const caixaVisivel = (coluna: Prisma.Sql) =>
+    visiveis ? Prisma.sql` AND ${coluna} <@ ${[...visiveis]}::text[]` : Prisma.empty;
   const hojeSql = ts(hoje);
   const limite = ts(somarDiasUTC(hoje, DIAS_ALERTA_VENCIMENTO));
   const umAnoAtras = ts(somarDiasUTC(hoje, -365));
@@ -439,9 +456,10 @@ function subconsultasDePendencias(hoje: Date): Record<keyof Pendencias, readonly
     documentosAConferir: [
       Prisma.sql`FROM rh."DocumentoColaborador" x WHERE ${ESCOPO} AND x.origem = 'COLABORADOR' AND x."conferidoEm" IS NULL`,
     ],
-    asoVencendo: [
-      Prisma.sql`FROM rh."ExameOcupacional" x WHERE ${ESCOPO} AND x."validoAte" IS NOT NULL AND x."validoAte" <= ${limite} AND ${COLABORADOR_ATIVO}`,
-    ],
+    // ASO saiu das pendências em 28/09/2026, pedido do RH: vencimento de ASO
+    // não é tarefa do dia, é uma fila de regularização que o RH puxa quando
+    // for agendar exames — mora no relatório de Saúde & segurança
+    // (/rh/<empresa>/aso), ordenado do mais atrasado para o menos.
     certificadosVencendo: [
       Prisma.sql`FROM rh."CertificadoNR" x WHERE ${ESCOPO} AND x."validoAte" IS NOT NULL AND x."validoAte" <= ${limite} AND ${COLABORADOR_ATIVO}`,
     ],
@@ -532,13 +550,12 @@ function subconsultasDePendencias(hoje: Date): Record<keyof Pendencias, readonly
     cadastrosIncompletos: [
       Prisma.sql`FROM rh."Colaborador" x WHERE ${ESCOPO} AND x.ativo AND (x.cpf IS NULL OR x."dataAdmissao" IS NULL OR (x.email IS NULL AND x.telefone IS NULL))`,
     ],
-    // Nome, não FK: "sem setor" no sistema é estar no setor "Não definido"
-    // (setorId é obrigatório no schema). Mesma condição da lacuna da home.
-    // "Demitidos" entrou em 27/08/2026: é o arquivo oculto dos desligados —
-    // um ATIVO ali é tão sem-setor quanto no "Não definido". Sem diferenciar
-    // caixa, como o `mode: "insensitive"` de antes.
+    // Nome, não FK: "sem setor" no sistema é estar num dos baldes de
+    // lib/estrutura-pendente.ts ("Não definido" ou o arquivo "Demitidos") —
+    // a mesma lista da lacuna da home e do filtro ?lacuna=setor, para o
+    // cartão e a lista baterem. Sem diferenciar caixa.
     semSetor: [
-      Prisma.sql`FROM rh."Colaborador" x WHERE ${ESCOPO} AND x.ativo AND EXISTS (SELECT 1 FROM rh."Setor" s WHERE s.id = x."setorId" AND lower(s.nome) IN ('não definido', 'demitidos'))`,
+      Prisma.sql`FROM rh."Colaborador" x WHERE ${ESCOPO} AND x.ativo AND EXISTS (SELECT 1 FROM rh."Setor" s WHERE s.id = x."setorId" AND lower(s.nome) IN (${Prisma.join(BALDES_SEM_ESTRUTURA.map((n) => n.toLowerCase()))}))`,
     ],
     // ---- as oito de 19/08/2026 (ver os comentários no tipo Pendencias) ----
     // Ajuste de ponto esperando decisão. Mesma consulta que a tela de
@@ -549,6 +566,15 @@ function subconsultasDePendencias(hoje: Date): Record<keyof Pendencias, readonly
     // quem já saiu continua sendo uma pergunta sem resposta, e a tela
     // /mensagens também a mostra.
     mensagensSemResposta: [Prisma.sql`FROM rh."MensagemPortal" x WHERE ${ESCOPO} AND x."respondidaEm" IS NULL`],
+    // O item não tem empresaId: o CNPJ é o do arquivo (de onde foi enviado).
+    // Duas subconsultas somando na mesma chave, como `aprovacoes`. Com quem
+    // pergunta conhecido, só conta o arquivo que ele consegue abrir (ver
+    // caixaVisivel) — senão o RH de um CNPJ contaria a fila de um arquivo que
+    // o administrador enviou para o grupo todo: número plausível e inútil.
+    caixaAConferir: [
+      Prisma.sql`FROM (SELECT r."empresaId" FROM rh."ItemDocumentoRecebido" i JOIN rh."DocumentoRecebido" r ON r.id = i."recebidoId" WHERE i.status = 'CONFERIR'${caixaVisivel(Prisma.sql`r."empresasEscopo"`)}) x WHERE ${ESCOPO}`,
+      Prisma.sql`FROM rh."DocumentoRecebido" x WHERE ${ESCOPO} AND x.status = 'ERRO'${caixaVisivel(Prisma.sql`x."empresasEscopo"`)}`,
+    ],
     // Entrega sem confirmação de quem recebeu. Devolvida sai da conta —
     // não há mais o que confirmar.
     entregasNaoConfirmadas: [
@@ -634,11 +660,13 @@ async function contarPorEmpresa<K extends string>(
 export async function pendenciasPorEmpresa(
   empresaIds: string[],
   cliente: Cliente = prisma,
+  /** As empresas que QUEM PERGUNTA enxerga (empresasVisiveis) — hoje só a Caixa de documentos usa. */
+  visiveis: readonly string[] | null = null,
 ): Promise<Map<string, Pendencias>> {
   const mapa = new Map<string, Pendencias>(empresaIds.map((id) => [id, zeradas()]));
   if (empresaIds.length === 0) return mapa;
 
-  const linhas = await contarPorEmpresa(cliente, empresaIds, subconsultasDePendencias(hojeUTC()));
+  const linhas = await contarPorEmpresa(cliente, empresaIds, subconsultasDePendencias(hojeUTC(), visiveis));
 
   // `+=`, não `=`: `aprovacoes` chega em duas linhas por CNPJ (férias e
   // ausências somam no mesmo número). As demais chegam uma vez.
@@ -648,6 +676,47 @@ export async function pendenciasPorEmpresa(
   }
 
   return mapa;
+}
+
+/**
+ * As pendências de prazo que misturam o que JÁ venceu com o que ainda vai
+ * vencer na janela de DIAS_ALERTA_VENCIMENTO. As demais do grupo PRAZO ou são
+ * todas vencidas (EPI, férias, plano de ação…) ou todas futuras (aviso
+ * prévio) — só estas duas precisam do número partido.
+ */
+export const PENDENCIAS_COM_VENCIDOS = ["certificadosVencendo", "contratosVencendo"] as const;
+export type VencidosNaPendencia = Record<(typeof PENDENCIAS_COM_VENCIDOS)[number], number>;
+
+/**
+ * Quantos itens de cada pendência em PENDENCIAS_COM_VENCIDOS JÁ passaram da
+ * data. Pedido do RH em 26/09/2026: "106 ASO vencendo" não dizia por onde
+ * começar — o vencido é o que tem urgência, o que vence em 40 dias pode
+ * esperar. O total do cartão continua o mesmo; isto só parte o número.
+ *
+ * Mesmas regras de subconsultasDePendencias, com a data de corte trocada de
+ * `<= hoje + DIAS_ALERTA` para `< hoje` — por isso o vencido é sempre um
+ * pedaço do total, nunca maior que ele.
+ */
+export async function vencidosDaEmpresa(
+  empresaIds: string[],
+  cliente: Cliente = prisma,
+): Promise<VencidosNaPendencia> {
+  const total: VencidosNaPendencia = { certificadosVencendo: 0, contratosVencendo: 0 };
+  if (empresaIds.length === 0) return total;
+  const hojeSql = ts(hojeUTC());
+  const contratosPorPrazo = Prisma.join([...CONTRATOS_POR_PRAZO]);
+
+  const linhas = await contarPorEmpresa(cliente, empresaIds, {
+    certificadosVencendo: [
+      Prisma.sql`FROM rh."CertificadoNR" x WHERE ${ESCOPO} AND x."validoAte" IS NOT NULL AND x."validoAte" < ${hojeSql} AND ${COLABORADOR_ATIVO}`,
+    ],
+    contratosVencendo: [
+      Prisma.sql`FROM rh."Colaborador" x WHERE ${ESCOPO} AND x.ativo AND x."tipoContrato" IN (${contratosPorPrazo}) AND x."dataFimContrato" IS NOT NULL AND x."dataFimContrato" < ${hojeSql}`,
+    ],
+  } satisfies Record<keyof VencidosNaPendencia, readonly Prisma.Sql[]>);
+
+  for (const linha of linhas) total[linha.chave] += linha.n;
+  return total;
 }
 
 export type PesquisaAberta = {
@@ -760,7 +829,6 @@ export async function ciclosAEncerrarDaEmpresa(
 function subconsultasDeRegistro() {
   const colaboradorDesligado = Prisma.sql`FROM rh."Colaborador" x WHERE ${ESCOPO} AND x."dataDesligamento" IS NOT NULL`;
   return {
-    asoVencendo: [Prisma.sql`FROM rh."ExameOcupacional" x WHERE ${ESCOPO}`],
     certificadosVencendo: [Prisma.sql`FROM rh."CertificadoNR" x WHERE ${ESCOPO}`],
     epiVencido: [Prisma.sql`FROM rh."EntregaEPI" x WHERE ${ESCOPO}`],
     catPendente: [Prisma.sql`FROM rh."AcidenteTrabalho" x WHERE ${ESCOPO}`],
@@ -805,6 +873,7 @@ function subconsultasDeRegistro() {
     // pergunta: sem ninguém com ponto liberado não existe ajuste possível.
     ajustesPontoPendentes: [Prisma.sql`FROM rh."Colaborador" x WHERE ${ESCOPO} AND x."pontoLiberado"`],
     mensagensSemResposta: [Prisma.sql`FROM rh."MensagemPortal" x WHERE ${ESCOPO}`],
+    caixaAConferir: [Prisma.sql`FROM rh."DocumentoRecebido" x WHERE ${ESCOPO}`],
     entregasNaoConfirmadas: [Prisma.sql`FROM rh."EntregaAoColaborador" x WHERE ${ESCOPO}`],
     disciplinarSemAssinatura: [Prisma.sql`FROM rh."OcorrenciaDisciplinar" x WHERE ${ESCOPO}`],
     planosAcaoVencidos: [Prisma.sql`FROM rh."PlanoAcao" x WHERE ${ESCOPO}`],
@@ -885,8 +954,9 @@ export async function modulosSemRegistro(
 export async function pendenciasDaEmpresa(
   empresaIds: string[],
   cliente: Cliente = prisma,
+  visiveis: readonly string[] | null = null,
 ): Promise<Pendencias> {
-  const porEmpresa = await pendenciasPorEmpresa(empresaIds, cliente);
+  const porEmpresa = await pendenciasPorEmpresa(empresaIds, cliente, visiveis);
 
   const total = zeradas();
   // Soma genérica: com 27 contadores, esquecer um campo aqui viraria um número

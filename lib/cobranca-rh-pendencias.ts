@@ -84,7 +84,9 @@ export async function executarCobrancaPendenciasRH(
         daMarca.forEach((id) => escopo.add(id));
       }
 
-      const pendencias = await pendenciasDaEmpresa([...escopo], cliente);
+      // O escopo da pessoa é também o que ela enxerga: a Caixa só conta
+      // arquivo que ela consegue abrir.
+      const pendencias = await pendenciasDaEmpresa([...escopo], cliente, [...escopo]);
       const total = totalPendencias(pendencias);
       if (total === 0) continue;
 

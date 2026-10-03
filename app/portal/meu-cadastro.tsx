@@ -11,7 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { atualizarMeusDados, enviarMeuDocumento } from "@/lib/actions/portal-cadastro";
 import { formatarCpf } from "@/lib/cpf";
-import { TIPOS_DOCUMENTO } from "@/lib/constants-dp";
+import { TIPOS_DOCUMENTO_ENVIAVEIS_PELO_PORTAL } from "@/lib/constants-dp";
 import type { ActionResult } from "@/lib/constants";
 
 const inicial: ActionResult = { ok: true };
@@ -293,7 +293,7 @@ export function EnviarDocumento({ enviados }: { enviados: { tipo: string; confer
               className="mt-1.5 h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
             >
               <option value="">Selecione...</option>
-              {TIPOS_DOCUMENTO.map((t) => (
+              {TIPOS_DOCUMENTO_ENVIAVEIS_PELO_PORTAL.map((t) => (
                 <option key={t.value} value={t.value}>
                   {t.label}
                 </option>

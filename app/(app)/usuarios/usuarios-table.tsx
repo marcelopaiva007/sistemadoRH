@@ -2,7 +2,7 @@
 
 import { useActionState, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, KeyRound } from "lucide-react";
+import { Plus, Pencil, Trash2, KeyRound, Power, PowerOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,6 +36,7 @@ import {
   updateUsuario,
   deleteUsuario,
   resetSenhaUsuario,
+  toggleStatusUsuario,
 } from "@/lib/actions/usuarios";
 import type { ActionResult } from "@/lib/constants";
 
@@ -57,6 +58,7 @@ type Usuario = {
   role: string;
   empresaId: string | null;
   setorId: string | null;
+  ativo: boolean;
 };
 
 const initialState: ActionResult = { ok: true };
@@ -74,6 +76,7 @@ export function UsuariosTable({
   const [editUsuario, setEditUsuario] = useState<Usuario | null>(null);
   const [senhaUsuario, setSenhaUsuario] = useState<Usuario | null>(null);
   const [busca, setBusca] = useState("");
+  const [filtroStatus, setFiltroStatus] = useState<"todos" | "ativos" | "inativos">("todos");
 
   // Nome da empresa/setor resolvido por id (o User não tem mais a relação).
   const empresaNome = useMemo(() => new Map(empresas.map((e) => [e.id, e.nome])), [empresas]);
@@ -81,24 +84,53 @@ export function UsuariosTable({
 
   const filtrados = useMemo(() => {
     const termo = busca.trim().toLowerCase();
-    if (!termo) return usuarios;
-    return usuarios.filter(
-      (u) =>
-        u.nome.toLowerCase().includes(termo) ||
-        u.username.toLowerCase().includes(termo) ||
-        roleLabel(u.role).toLowerCase().includes(termo)
-    );
-  }, [usuarios, busca]);
+    let result = usuarios;
+
+    if (termo) {
+      result = result.filter(
+        (u) =>
+          u.nome.toLowerCase().includes(termo) ||
+          u.username.toLowerCase().includes(termo) ||
+          roleLabel(u.role).toLowerCase().includes(termo)
+      );
+    }
+
+    if (filtroStatus === "ativos") {
+      result = result.filter((u) => u.ativo);
+    } else if (filtroStatus === "inativos") {
+      result = result.filter((u) => !u.ativo);
+    }
+
+    return result.sort((a, b) => {
+      if (a.ativo === b.ativo) return a.nome.localeCompare(b.nome);
+      return a.ativo ? -1 : 1;
+    });
+  }, [usuarios, busca, filtroStatus]);
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4">
-        <Input
-          placeholder="Buscar por nome, login ou papel..."
-          value={busca}
-          onChange={(e) => setBusca(e.target.value)}
-          className="max-w-sm"
-        />
+        <div className="flex gap-2">
+          <Input
+            placeholder="Buscar por nome, login ou papel..."
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            className="max-w-sm"
+          />
+          <Select
+            value={filtroStatus}
+            onValueChange={(v) => setFiltroStatus(v as "todos" | "ativos" | "inativos")}
+          >
+            <SelectTrigger className="w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos</SelectItem>
+              <SelectItem value="ativos">Apenas Ativos</SelectItem>
+              <SelectItem value="inativos">Apenas Inativos</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <DialogTrigger render={<Button />}>
             <Plus className="size-4" />
@@ -125,19 +157,20 @@ export function UsuariosTable({
               <TableHead>Papel</TableHead>
               <TableHead>Empresa</TableHead>
               <TableHead>Setor</TableHead>
+              <TableHead>Status</TableHead>
               <TableHead className="w-32 text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filtrados.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+                <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
                   Nenhum usuário encontrado.
                 </TableCell>
               </TableRow>
             )}
             {filtrados.map((u) => (
-              <TableRow key={u.id}>
+              <TableRow key={u.id} className={!u.ativo ? "bg-muted/50 opacity-60" : ""}>
                 <TableCell className="font-medium">{u.nome}</TableCell>
                 <TableCell>{u.username}</TableCell>
                 <TableCell>
@@ -145,8 +178,27 @@ export function UsuariosTable({
                 </TableCell>
                 <TableCell>{(u.empresaId && empresaNome.get(u.empresaId)) ?? "—"}</TableCell>
                 <TableCell>{(u.setorId && setorNome.get(u.setorId)) ?? "—"}</TableCell>
+                <TableCell>
+                  {u.ativo ? (
+                    <Badge className="bg-green-100 text-green-800">Ativo</Badge>
+                  ) : (
+                    <Badge className="bg-red-100 text-red-800">Inativo</Badge>
+                  )}
+                </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={async () => {
+                        const result = await toggleStatusUsuario(u.id);
+                        if (result.ok) toast.success("Status atualizado.");
+                        else toast.error(result.error);
+                      }}
+                      title={u.ativo ? "Desativar" : "Ativar"}
+                    >
+                      {u.ativo ? <PowerOff className="size-4" /> : <Power className="size-4" />}
+                    </Button>
                     <Button variant="ghost" size="icon" onClick={() => setSenhaUsuario(u)} title="Redefinir senha">
                       <KeyRound className="size-4" />
                     </Button>

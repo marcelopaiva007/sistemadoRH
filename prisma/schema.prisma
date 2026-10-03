@@ -501,6 +501,8 @@ model Colaborador {
 
   dependentes              Dependente[]
   documentos               DocumentoColaborador[]
+  itensCaixaDocumentos     ItemDocumentoRecebido[]
+  recibosContracheque      ReciboContracheque[]
   ferias                   SolicitacaoFerias[]
   ausencias                Ausencia[]
   acessosPortal            PortalAcesso[]
@@ -613,6 +615,11 @@ model Arquivo {
   documentoVeiculo        DocumentoVeiculo?
   // Evidência de entrega do módulo Delegações (28/08/2026) — mesma esteira.
   demandaEntrega          DemandaEntrega?
+  // Arquivo ORIGINAL que chegou pela Caixa de documentos (28/09/2026). As
+  // fatias por pessoa viram Arquivos próprios, ligados ao destino de cada uma.
+  documentoRecebido       DocumentoRecebido?
+  // Selfie com que o colaborador confirmou o recebimento de um contracheque.
+  reciboContracheque      ReciboContracheque? @relation("FotoReciboContracheque")
 
   @@index([empresaId])
   @@schema("rh")
@@ -641,11 +648,176 @@ model DocumentoColaborador {
   createdAt        DateTime    @default(now())
   updatedAt        DateTime    @updatedAt
 
+  // Mês de referência (dia 1, UTC) — só para documento que é "do mês", como o
+  // contracheque. É o que impede o mesmo contracheque de entrar duas vezes
+  // quando o contador reenvia a folha (Caixa de documentos, 28/09/2026).
+  competencia      DateTime?
+  // Chave de "é o mesmo documento" para o que vem da folha, única por pessoa
+  // (índice parcial na migration 20260928160000): "CONTRACHEQUE:2026-09:MENSAL",
+  // "INFORME:2025", "TRCT"... Reenviar a mesma folha não duplica nada.
+  chaveDedupe      String?
+  // Contracheque enviado ao colaborador para confirmar recebimento com foto.
+  recibo           ReciboContracheque?
+
   @@index([colaboradorId])
   @@index([empresaId, validoAte])
   @@index([empresaId, origem, conferidoEm])
+  @@index([colaboradorId, tipo, competencia])
   @@schema("rh")
 }
+
+// Envio de contracheque ao colaborador, com confirmação de recebimento
+// (v1.180.0). O RH manda os contracheques de uma competência (os que já estão
+// no Dossiê — pela Caixa de documentos ou à mão); a pessoa recebe o aviso no
+// Telegram (ou por e-mail), abre o contracheque no portal e confirma com uma
+// selfie, como na batida de ponto. É a prova de que ela de fato recebeu:
+// quando abriu, quando confirmou, de onde, com que aparelho, qual arquivo
+// (hash) e a foto.
+//
+// Um por contracheque (documentoId único). Sai junto com o documento: um
+// contracheque excluído da ficha não tem mais o que provar.
+model ReciboContracheque {
+  id                    String               @id @default(cuid())
+  // Sempre o CNPJ da ficha — nunca o da tela de onde o RH enviou.
+  empresaId             String
+  colaboradorId         String
+  colaborador           Colaborador          @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  documentoId           String               @unique
+  documento             DocumentoColaborador @relation(fields: [documentoId], references: [id], onDelete: Cascade)
+  // Primeiro dia do mês de competência (UTC), copiado do documento.
+  competencia           DateTime
+  // MENSAL, ADIANTAMENTO, DECIMO_TERCEIRO, FERIAS, COMPLEMENTAR, PLR.
+  tipoFolha             String               @default("MENSAL")
+  // Envio do aviso. `canal` nulo com `envioErro` = não havia como avisar.
+  enviadoEm             DateTime?
+  enviadoPorNome        String?
+  canal                 String?
+  envioErro             String?
+  envios                Int                  @default(0)
+  // A pessoa abriu o contracheque pelo portal (só depois disso confirma).
+  vistoEm               DateTime?
+  confirmadoEm          DateTime?
+  confirmadoIp          String?
+  confirmadoDispositivo String?
+  // SHA-256 do arquivo que a pessoa abriu e confirmou.
+  hashDocumento         String?
+  fotoArquivoId         String?              @unique
+  fotoArquivo           Arquivo?             @relation("FotoReciboContracheque", fields: [fotoArquivoId], references: [id], onDelete: SetNull)
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+
+  @@index([empresaId, competencia])
+  @@index([colaboradorId, confirmadoEm])
+  @@schema("rh")
+}
+
+// Caixa de documentos (28/09/2026). O RH solta PDFs de uma vez (em geral o que
+// o contador manda: contracheques, ASOs, atestados, certificados); a IA lê cada
+// arquivo, acha cada documento de cada pessoa lá dentro e encaminha para o
+// lugar certo do sistema. Um DocumentoRecebido é UM arquivo enviado; cada
+// ItemDocumentoRecebido é um documento de UMA pessoa achado nele.
+model DocumentoRecebido {
+  id               String                  @id @default(cuid())
+  // CNPJ da tela de onde o arquivo foi enviado — é a âncora de ACESSO ao
+  // arquivo e à fila. O destino de cada item usa o CNPJ da ficha da pessoa.
+  empresaId        String
+  // O escopo de quem ENVIOU (CNPJs que ele enxergava, filtro da tela
+  // incluído), gravado uma vez. É o único conjunto de fichas candidatas, seja
+  // quem for que continue o processamento — e quem não alcança todos esses
+  // CNPJs não vê nem mexe no arquivo.
+  empresasEscopo   String[]
+  // Nulo enquanto o navegador ainda está subindo o arquivo (AGUARDANDO_UPLOAD)
+  // e depois que o original é apagado (tudo resolvido: só as fatias por
+  // pessoa ficam, cada uma no seu destino).
+  arquivoId        String?                 @unique
+  arquivo          Arquivo?                @relation(fields: [arquivoId], references: [id])
+  nome             String
+  mimeType         String
+  tamanhoBytes     Int
+  paginas          Int?
+  // sha256 do arquivo: o mesmo PDF reenviado não é lido (nem pago) de novo.
+  hash             String
+  // AGUARDANDO_UPLOAD → PENDENTE → LENDO → ROTEANDO → CONCLUIDO; ERRO; DESCARTADO
+  status           String                  @default("AGUARDANDO_UPLOAD")
+  // Leitura em blocos de páginas: a próxima página a ler (1 = começo).
+  proximaPagina    Int                     @default(1)
+  // Páginas por chamada à IA. Começa em 8 e cai pela metade (numa próxima
+  // rodada) quando a resposta não coube ou a chamada estourou o tempo.
+  tamanhoBloco     Int                     @default(8)
+  // Trava de processamento: quem pegou o arquivo e quando. Vencida depois de
+  // alguns minutos, para uma aba fechada no meio não travar o arquivo.
+  processandoDesde DateTime?
+  tentativas       Int                     @default(0)
+  erro             String?
+  resumoIa         String?
+  // Por página, segundo a IA: quantas pessoas aparecem e os CPFs impressos
+  // ({"3": {"pessoas": 1, "cpfs": ["..."]}}). Fatia com página de mais de uma
+  // pessoa, ou sem o CPF dela, nunca vai sozinha para o portal.
+  inventarioPaginas Json?
+  modeloIa         String?
+  tokensEntrada    Int                     @default(0)
+  tokensSaida      Int                     @default(0)
+  criadoPorId      String?
+  criadoPorNome    String?
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+  itens            ItemDocumentoRecebido[]
+
+  @@index([empresaId, status])
+  @@index([empresaId, hash])
+  @@schema("rh")
+}
+
+model ItemDocumentoRecebido {
+  id               String            @id @default(cuid())
+  recebidoId       String
+  recebido         DocumentoRecebido @relation(fields: [recebidoId], references: [id], onDelete: Cascade)
+  ordem            Int
+  // Tipo reconhecido pela IA (TIPOS_CAIXA em lib/caixa-documentos/tipos.ts).
+  tipo             String
+  paginaInicio     Int
+  paginaFim        Int
+  nomeLido         String?
+  // Só dígitos. Mostrado sempre mascarado na tela. Apagado (junto com `dados`)
+  // quando o item é gravado ou descartado: o destino guarda o que importa.
+  cpfLido          String?
+  // PIS/PASEP/NIT, só dígitos — muitos contracheques trazem o PIS e não o CPF.
+  pisLido          String?
+  cnpjLido         String?
+  // Campos lidos, já validados (datas, competência, resultado do ASO...).
+  // Nunca valor de salário nem CID: a IA não é instruída a extrair, e o
+  // normalizador descarta o que não conhece.
+  dados            Json
+  confianca        Float
+  // Pessoa sugerida (CONFERIR) ou gravada (GRAVADO).
+  colaboradorId    String?
+  colaborador      Colaborador?      @relation(fields: [colaboradorId], references: [id], onDelete: SetNull)
+  // Como a pessoa foi achada: CPF | NOME_CNPJ | MANUAL
+  chaveMatch       String?
+  // PENDENTE (lido, ainda não roteado) | GRAVANDO (trava de um clique) |
+  // GRAVADO | CONFERIR | DESCARTADO
+  status           String            @default("PENDENTE")
+  // Por que não foi gravado sozinho — o que o RH lê na fila de conferência.
+  motivo           String?
+  // Onde foi parar: entidade + id (ExameOcupacional, DocumentoColaborador...).
+  destinoEntidade  String?
+  destinoId        String?
+  resolvidoPorNome String?
+  resolvidoEm      DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@unique([recebidoId, ordem])
+  @@index([status])
+  @@index([colaboradorId])
+  @@schema("rh")
+}
+
+// Férias em regime CLT. Os períodos aquisitivos NÃO são materializados: são
+// derivados da data de admissão + solicitações aprovadas em lib/ferias.ts —
+// assim não existe tabela para manter em dia por cron. O que se guarda aqui é
+// o início do período aquisitivo a que a solicitação se refere, para o saldo
+// não mudar retroativamente se a data de admissão for corrigida depois.
 
 // Férias em regime CLT. Os períodos aquisitivos NÃO são materializados: são
 // derivados da data de admissão + solicitações aprovadas em lib/ferias.ts —

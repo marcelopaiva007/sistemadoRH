@@ -64,6 +64,10 @@ const GRUPOS: GrupoDoMenu[] = [
     titulo: "Departamento pessoal",
     itens: [
       { slug: "aprovacoes", label: "Aprovações" },
+      // Logo depois de Aprovações: o que chega do contador (contracheques,
+      // ASOs, atestados) entra por aqui, e a IA encaminha. A fila "Para
+      // conferir" também conta em Pendências.
+      { slug: "caixa-documentos", label: "Caixa de documentos" },
       { slug: "mensagens", label: "Mensagens" },
       { slug: "avisos-gestor", label: "Avisos ao gestor" },
       { slug: "vencimentos", label: "Vencimentos" },
@@ -95,6 +99,10 @@ const GRUPOS: GrupoDoMenu[] = [
     titulo: "Saúde & segurança",
     itens: [
       { slug: "conformidade", label: "Conformidade" },
+      // ASO vencido saiu das Pendências em 28/09/2026 e virou relatório: é
+      // fila de regularização que o RH puxa quando vai agendar exames, não
+      // tarefa do dia.
+      { slug: "aso", label: "Relatório de ASO" },
       { slug: "acidentes", label: "Acidentes / CAT" },
     ],
   },

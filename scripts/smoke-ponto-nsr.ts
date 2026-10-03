@@ -64,28 +64,42 @@ async function main() {
 
     console.log("\nDuas batidas simultâneas: uma só pode vencer\n");
 
-    // Reproduz a corrida de verdade: as duas leem o maior NSR ao mesmo tempo,
-    // calculam o mesmo número e tentam gravar. É o que acontece na virada de
-    // turno com o time inteiro batendo junto.
-    async function baterComNsrLido(tipo: string) {
-      const ultimo = await prisma.registroPonto.findFirst({
-        where: { empresaId: colaborador!.empresaId },
-        orderBy: { nsr: "desc" },
-        select: { nsr: true },
-      });
-      return prisma.registroPonto.create({
-        data: { ...base, dataHora: new Date(), tipo, nsr: (ultimo?.nsr ?? BigInt(0)) + BigInt(1) },
-      });
-    }
+    // O DESFECHO da corrida é o que se testa aqui, e ele tem que ser
+    // determinístico — senão o teste mede o escalonador, não o banco.
+    //
+    // A primeira versão disparava duas funções que faziam LER-depois-ESCREVER
+    // em paralelo e afirmava `gravaram <= 1`. Isso só vale se as duas leituras
+    // caírem antes de qualquer escrita. Quando o pool serializa (escrita da
+    // primeira antes da leitura da segunda), a segunda lê o NSR recém-gravado,
+    // calcula OUTRO número, e as duas gravam — vermelho sem defeito nenhum.
+    // Aconteceu em 21/09/2026, num PR que não encostava em ponto: `gravaram 2`
+    // com `duplicados: 0`, ou seja, o índice único intacto e a corrida apenas
+    // não tendo ocorrido. Teste que pisca ensina o time a ignorar CI vermelha.
+    //
+    // Agora a leitura acontece UMA vez e as duas escritas saem com o MESMO
+    // número — que é a situação real que o índice único existe para barrar:
+    // duas batidas na virada de turno que calcularam o mesmo NSR. Sem depender
+    // de quem chega primeiro, o resultado é sempre "uma grava, a outra é
+    // recusada", e a asserção pode ser `=== 1` em vez de `<= 1`.
+    const ultimo = await prisma.registroPonto.findFirst({
+      where: { empresaId: colaborador.empresaId },
+      orderBy: { nsr: "desc" },
+      select: { nsr: true },
+    });
+    const mesmoNsr = (ultimo?.nsr ?? BigInt(0)) + BigInt(1);
 
     const corrida = await Promise.allSettled([
-      baterComNsrLido("ENTRADA_1"),
-      baterComNsrLido("ENTRADA_2"),
+      prisma.registroPonto.create({
+        data: { ...base, dataHora: new Date(), tipo: "ENTRADA_1", nsr: mesmoNsr },
+      }),
+      prisma.registroPonto.create({
+        data: { ...base, dataHora: new Date(), tipo: "ENTRADA_2", nsr: mesmoNsr },
+      }),
     ]);
     corrida.forEach((r) => r.status === "fulfilled" && criados.push(r.value.id));
 
     const gravaram = corrida.filter((r) => r.status === "fulfilled").length;
-    ok(gravaram <= 1, `no máximo uma das duas simultâneas grava (gravaram ${gravaram})`);
+    ok(gravaram === 1, `exatamente uma das duas com o MESMO NSR grava (gravaram ${gravaram})`);
 
     // A prova final: nenhum NSR repetido na empresa, olhando a tabela inteira.
     const duplicados = await prisma.$queryRaw<{ nsr: bigint; quantas: bigint }[]>`

@@ -67,6 +67,7 @@ import { AlertaDuplicados } from "./alerta-duplicados";
 import { ConferirCpfs } from "./conferir-cpfs";
 import { formatarCpf, mascararCpf } from "@/lib/cpf";
 import { telefoneCasaBusca } from "@/lib/telefone";
+import { ehBaldeSemEstrutura } from "@/lib/estrutura-pendente";
 import type { ActionResult } from "@/lib/constants";
 import { TIPOS_CONTRATO, CONTRATOS_POR_PRAZO } from "@/lib/constants-dp";
 import { cn } from "@/lib/utils";
@@ -110,8 +111,12 @@ function temLacuna(
     case "ferias": return c.semFerias;
     case "cpf": return !c.cpf;
     case "telegram": return !c.telegramChatId;
-    case "setor": return c.setor.nome.trim().toLowerCase() === "não definido";
-    case "cargo": return c.posicao.nome.trim().toLowerCase() === "não definido";
+    // "Não definido" OU o arquivo "Demitidos" — a MESMA lista que conta a
+    // lacuna na tela inicial e o cartão das Pendências. Olhar só "Não
+    // definido" aqui fazia o cartão dizer "1 sem setor definido" e o clique
+    // abrir a lista vazia (ativo esquecido em "Demitidos", 28/09/2026).
+    case "setor": return ehBaldeSemEstrutura(c.setor.nome);
+    case "cargo": return ehBaldeSemEstrutura(c.posicao.nome);
     // Só fazem sentido dentro de `?status=inativos` — todo ativo "não tem"
     // data/motivo de desligamento por definição, e sem o filtro de status a
     // lista inteira apareceria como lacuna.
@@ -427,7 +432,7 @@ export function ColaboradoresTable({
     const ativos = colaboradoresFiltrados.filter((c) => c.ativo).length;
     const telegram = colaboradoresFiltrados.filter((c) => c.ativo && c.telegramChatId).length;
     const semSetor = colaboradoresFiltrados.filter(
-      (c) => c.ativo && c.setor.nome.trim().toLowerCase() === SETOR_AUSENTE,
+      (c) => c.ativo && ehBaldeSemEstrutura(c.setor.nome),
     ).length;
     return { total: colaboradoresFiltrados.length, ativos, telegram, semSetor };
   }, [colaboradoresFiltrados]);

@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Mail, KeyRound, Link2, Link2Off } from "lucide-react";
+import { Plus, Pencil, Trash2, Mail, KeyRound, Link2, Link2Off, Power, PowerOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -47,6 +47,7 @@ import {
   desativarVinculoMarca,
   reativarVinculoMarca,
   criarConviteUsuario,
+  toggleStatusUsuario,
 } from "@/lib/actions/usuarios";
 import { ROLES, ROLE_LABEL, type ActionResult } from "@/lib/constants";
 import { PERFIS_SEMENTE } from "@/lib/permissoes/catalogo";
@@ -261,6 +262,7 @@ export function UsuariosTable({
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-1">
+                    <ToggleStatusButton usuario={u} />
                     <Button
                       variant="ghost"
                       size="icon"
@@ -1288,6 +1290,37 @@ function ConviteForm({
         </Button>
       </DialogFooter>
     </form>
+  );
+}
+
+function ToggleStatusButton({ usuario }: { usuario: Usuario }) {
+  const [loading, setLoading] = useState(false);
+
+  async function handleToggle() {
+    setLoading(true);
+    const result = await toggleStatusUsuario(usuario.id);
+    setLoading(false);
+    if (result.ok) {
+      toast.success(usuario.ativo ? "Usuário desativado." : "Usuário ativado.");
+    } else {
+      toast.error(result.error);
+    }
+  }
+
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      onClick={handleToggle}
+      disabled={loading}
+      title={usuario.ativo ? "Desativar usuário" : "Ativar usuário"}
+    >
+      {usuario.ativo ? (
+        <Power className="size-4" />
+      ) : (
+        <PowerOff className="size-4 text-destructive" />
+      )}
+    </Button>
   );
 }
 

@@ -25,7 +25,12 @@ export type ContraparteNaTela = {
   contratosNoEscopo: number;
 };
 
-const CAMPO = "w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm";
+// `border-input` (tinta a 55%), não `border-border` (40%): a borda do campo
+// precisa dos 3:1 da WCAG 1.4.11 e o token decorativo entregava 2,4:1 — a
+// regra está escrita no globals.css, ao lado dos tokens. O `rounded-md` saiu
+// junto: --radius é 0rem, ele não desenhava nada. Mesma correção de
+// contratos-view.tsx, onde o motivo está por extenso.
+const CAMPO = "w-full border border-input bg-background px-2.5 py-1.5 text-sm";
 
 /** 14 dígitos vira CNPJ, 11 vira CPF, o resto sai como veio. */
 function formatarDocumento(d: string): string {
@@ -116,7 +121,10 @@ export function ContrapartesView({
   return (
     <div className="space-y-4">
       {erro && (
-        <p className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+        <p
+          role="alert"
+          className="border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+        >
           {erro}
         </p>
       )}

@@ -40,7 +40,7 @@ function contemAteByte(bytes: Uint8Array, assinatura: number[], ateByte: number)
 // (HTML/script) poderiam ser guardados sob um "image/png". É defesa em
 // profundidade sobre a allowlist de MIME e o `nosniff` global — fecha a
 // integridade do conteúdo (um "PDF" que não é PDF).
-function assinaturaConfere(bytes: Uint8Array, mimeType: string): boolean {
+export function assinaturaConfere(bytes: Uint8Array, mimeType: string): boolean {
   switch (mimeType) {
     case "application/pdf":
       return contemAteByte(bytes, [0x25, 0x50, 0x44, 0x46], 1024); // %PDF (tolera BOM/espaços iniciais)

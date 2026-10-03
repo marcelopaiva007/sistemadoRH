@@ -16,8 +16,27 @@ export const TIPOS_DOCUMENTO = [
   { value: "CNH_CATEGORIA", label: "CNH — categoria/validade" },
   { value: "DIPLOMA", label: "Diploma / certificado" },
   { value: "ATESTADO", label: "Atestado médico" },
+  // Documentos que o RH RECEBE do contador e entrega à pessoa (Caixa de
+  // documentos, 28/09/2026). Aparecem no portal dela, mas ela não os envia —
+  // ver TIPOS_DOCUMENTO_ENVIAVEIS_PELO_PORTAL.
+  { value: "CONTRACHEQUE", label: "Contracheque (holerite)" },
+  { value: "RECIBO_FERIAS", label: "Recibo de férias" },
+  { value: "TRCT", label: "Termo de rescisão (TRCT)" },
+  { value: "INFORME_RENDIMENTOS", label: "Informe de rendimentos" },
   { value: "OUTRO", label: "Outro" },
 ] as const;
+
+/** Tipos que só o RH lança: vêm da folha, não da pessoa. */
+export const TIPOS_DOCUMENTO_SO_RH = ["CONTRACHEQUE", "RECIBO_FERIAS", "TRCT", "INFORME_RENDIMENTOS"] as const;
+
+/**
+ * O que o colaborador pode escolher em "Qual documento?" no portal. Sem o
+ * filtro, "Contracheque" apareceria ali — e um contracheque enviado pela pessoa
+ * cairia na fila de conferência do RH como se fosse documento pessoal.
+ */
+export const TIPOS_DOCUMENTO_ENVIAVEIS_PELO_PORTAL = TIPOS_DOCUMENTO.filter(
+  (t) => !(TIPOS_DOCUMENTO_SO_RH as readonly string[]).includes(t.value),
+);
 
 // Documentos que fazem sentido ter validade — usados para sugerir o campo
 // "válido até" e alimentar o painel de vencimentos.

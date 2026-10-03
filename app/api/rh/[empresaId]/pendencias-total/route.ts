@@ -10,7 +10,8 @@
 // ESCOPO: só o CNPJ do caminho (sem `?empresas=`).
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { usuarioAlcancaEmpresa } from "@/lib/rh-auth-guard";
+import { empresasVisiveis, usuarioAlcancaEmpresa } from "@/lib/rh-auth-guard";
+import { prisma } from "@/lib/prisma";
 import { sistemasPermitidos } from "@/lib/permissoes/efetivas";
 import { pendenciasDaEmpresa, totalPendencias } from "@/lib/pendencias";
 
@@ -40,6 +41,6 @@ export async function GET(
     return NextResponse.json({ error: "Sem acesso ao módulo Pessoas (RH)." }, { status: 403 });
   }
 
-  const total = totalPendencias(await pendenciasDaEmpresa([empresaId]));
+  const total = totalPendencias(await pendenciasDaEmpresa([empresaId], prisma, await empresasVisiveis(user)));
   return NextResponse.json({ total });
 }

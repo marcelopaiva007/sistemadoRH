@@ -65,7 +65,14 @@ export default async function AlugueisPage({
         },
       },
     }),
-    prisma.empresa.findMany({ where: { id: { in: escopo } }, select: { id: true, nome: true } }),
+    // `cnpj` vem junto porque quem ASSINA precisa ter um. Empresa provisória
+    // (a "A DEFINIR" onde a importação de frota estaciona veículo sem dono) é
+    // uma Empresa ativa como outra qualquer; sem este dado a tela não tem como
+    // distinguir, e o contrato nasceria no CNPJ de ninguém.
+    prisma.empresa.findMany({
+      where: { id: { in: escopo } },
+      select: { id: true, nome: true, cnpj: true },
+    }),
     // Contrapartes são do grupo inteiro (sem empresaId) — a lista alimenta o
     // select "inquilino" do formulário.
     prisma.contraparte.findMany({
@@ -136,7 +143,7 @@ export default async function AlugueisPage({
       <AlugueisView
         empresaId={empresaId}
         contratos={naTela}
-        empresas={empresas}
+        empresas={empresas.map((e) => ({ id: e.id, nome: e.nome, temCnpj: e.cnpj !== null }))}
         contrapartes={contrapartes}
       />
     </div>

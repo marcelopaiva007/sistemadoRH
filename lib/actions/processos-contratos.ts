@@ -6,7 +6,20 @@ import { requireProcessosEmpresa } from "@/lib/processos-auth-guard";
 import { empresasVisiveis } from "@/lib/rh-auth-guard";
 import { registrarAuditoria } from "@/lib/audit";
 import { dataDoFormulario } from "@/lib/datas";
-import { dataLimiteDenuncia, janelaRenovatoria, proximoReajuste } from "@/lib/processos/contratos";
+import {
+  CATEGORIAS_CONTRATO,
+  INDICES_REAJUSTE,
+  PAPEIS_CONTRAPARTE,
+  STATUS_CONTRATO,
+  TIPOS_CONTRATO,
+  TIPOS_PESSOA,
+  daLista,
+  dataLimiteDenuncia,
+  empresaPodeAssinar,
+  janelaRenovatoria,
+  proximoReajuste,
+} from "@/lib/processos/contratos";
+import { PAPEIS_QUE_ASSUMEM_PENDENCIA } from "@/lib/processos/pendencias";
 import type { ActionResult } from "@/lib/constants";
 
 // Contratos e contrapartes do módulo Processos & Ativos.
@@ -84,6 +97,16 @@ export async function salvarContraparte(input: {
     return { ok: false, error: "CNPJ deve ter 14 dígitos e CPF, 11." };
   }
 
+  const tipoPessoa = input.tipoPessoa || "JURIDICA";
+  if (!daLista(TIPOS_PESSOA, tipoPessoa)) return { ok: false, error: "Tipo de pessoa inválido." };
+  // O papel é o que a contraparte É para o grupo — a tela já exige ao menos um,
+  // mas a action é a fronteira: sem papel, a contraparte some dos filtros por
+  // papel e ninguém descobre por quê.
+  const papeis = (input.papeis ?? []).filter((p) => daLista(PAPEIS_CONTRAPARTE, p));
+  if (papeis.length === 0) {
+    return { ok: false, error: "Marque ao menos um papel — é ele que diz o que esta contraparte é para o grupo." };
+  }
+
   // O documento é único no grupo inteiro. Sem esta checagem, o erro chegaria
   // como violação de unique do Postgres — sem dizer QUEM já usa o número, que é
   // exatamente o que a pessoa precisa saber para não recadastrar.
@@ -101,11 +124,11 @@ export async function salvarContraparte(input: {
   }
 
   const dados = {
-    tipoPessoa: input.tipoPessoa || "JURIDICA",
+    tipoPessoa,
     razaoSocial,
     nomeFantasia: limpo(input.nomeFantasia),
     cnpjCpf: documento,
-    papeis: (input.papeis ?? []).join(","),
+    papeis: papeis.join(","),
     criticidade: input.criticidade || "NORMAL",
     emailNotificacaoFormal: limpo(input.emailNotificacaoFormal),
     telefone: limpo(input.telefone),
@@ -234,10 +257,60 @@ export async function salvarContrato(input: {
     if (!anterior) return { ok: false, error: "Contrato não encontrado no seu acesso." };
   }
 
+  /**
+   * Quem assina um contrato precisa ter CNPJ cadastrado.
+   *
+   * Não é formalidade: o campo da tela pergunta literalmente "Empresa (CNPJ que
+   * assina)", e o grupo mantém empresas PROVISÓRIAS sem CNPJ — a "A DEFINIR —
+   * frota importada" é o estacionamento dos veículos que entraram em lote sem
+   * dono definido. Ela é uma Empresa ativa como qualquer outra, então aparecia
+   * no seletor do topo e no formulário, e um contrato cadastrado ali nasceria
+   * no CNPJ de ninguém: escopo errado em silêncio, que é a classe de erro que
+   * não dá erro na tela — mostra um número plausível e errado.
+   *
+   * A regra tem uma folga deliberada: contrato que JÁ ESTÁ numa empresa sem
+   * CNPJ continua editável enquanto não muda de empresa. Sem isso, um contrato
+   * legado ficaria preso — não daria nem para movê-lo para o CNPJ certo, que é
+   * exatamente o conserto que ele precisa.
+   */
+  const alvo = await prisma.empresa.findUnique({
+    where: { id: empresaDoContrato },
+    select: { nome: true, cnpj: true },
+  });
+  if (!alvo) return { ok: false, error: "Empresa não encontrada." };
+  if (!empresaPodeAssinar(alvo.cnpj, anterior?.empresaId ?? null, empresaDoContrato)) {
+    return {
+      ok: false,
+      error:
+        `"${alvo.nome}" não tem CNPJ cadastrado e por isso não pode assinar contrato. ` +
+        `Complete o CNPJ em Cadastros › Empresas, ou escolha outra empresa.`,
+    };
+  }
+
   const numeroContrato = limpo(input.numero);
   if (!numeroContrato) return { ok: false, error: "Informe o número do contrato." };
   const titulo = limpo(input.titulo);
   if (!titulo) return { ok: false, error: "Informe um título que identifique o contrato." };
+
+  // As colunas de classificação são texto no banco, não enum — quem valida é
+  // aqui. Sem isto o tipo em branco chegava como "OUTRO" (a tela convertia) e
+  // o contrato nascia classificado errado, calado, para quem só esqueceu de
+  // escolher no <select>.
+  if (!daLista(TIPOS_CONTRATO, input.tipo)) return { ok: false, error: "Escolha o tipo do contrato." };
+  const categoria = input.categoria || "DESPESA";
+  if (!daLista(CATEGORIAS_CONTRATO, categoria)) {
+    return { ok: false, error: "Natureza do contrato inválida — use despesa, receita ou sem valor." };
+  }
+  const status = input.status || "VIGENTE";
+  if (!daLista(STATUS_CONTRATO, status)) return { ok: false, error: "Status do contrato inválido." };
+  const criticidade = input.criticidade || "NORMAL";
+  if (criticidade !== "NORMAL" && criticidade !== "ALTA") {
+    return { ok: false, error: "Criticidade tem que ser normal ou alta." };
+  }
+  const indice = limpo(input.indiceReajuste);
+  if (indice && !daLista(INDICES_REAJUSTE, indice)) {
+    return { ok: false, error: "Índice de reajuste inválido." };
+  }
 
   const dataInicio = dataDoFormulario(input.dataInicio);
   if (!dataInicio) return { ok: false, error: "Informe a data de início da vigência." };
@@ -288,11 +361,11 @@ export async function salvarContrato(input: {
     numero: numeroContrato,
     contraparteId: contraparte.id,
     tipo: input.tipo,
-    categoria: input.categoria || "DESPESA",
+    categoria,
     titulo,
     objeto: limpo(input.objeto),
-    status: input.status || "VIGENTE",
-    criticidade: input.criticidade || "NORMAL",
+    status,
+    criticidade,
     gestorId: limpo(input.gestorId),
     setorId: limpo(input.setorId),
     dataAssinatura: dataDoFormulario(input.dataAssinatura),
@@ -309,7 +382,7 @@ export async function salvarContrato(input: {
     renunciaRevisionalPactuada: input.renunciaRevisionalPactuada ?? false,
     valorMensal: numero(input.valorMensal),
     valorTotal: numero(input.valorTotal),
-    indiceReajuste: limpo(input.indiceReajuste),
+    indiceReajuste: indice,
     periodicidadeReajusteMeses: periodicidade,
     mesBaseReajuste: mesBase,
     ultimoReajusteEm: anterior?.ultimoReajusteEm ?? null,
@@ -326,16 +399,31 @@ export async function salvarContrato(input: {
     observacoes: limpo(input.observacoes),
   };
 
-  // O nome do gestor entra CONGELADO na linha, como o resto do sistema faz:
-  // quem responde pelo contrato hoje é uma pergunta de hoje, e o histórico não
-  // pode mudar quando a pessoa muda de cargo ou sai.
+  // O gestor é USUÁRIO DO SISTEMA, não ficha de colaborador.
+  //
+  // Buscava em `colaborador` até a v1.173.0, e o tipo estava errado: este id
+  // vai para `Pendencia.responsavelId`, que é id de USUÁRIO em todo o resto do
+  // sistema (`definirResponsavel` valida contra `prisma.user`). Uma ficha ali
+  // produzia pendência que mostra um nome e não tem dono capaz de entrar e
+  // resolver — pior que pendência sem dono, porque parece ter.
+  //
+  // O nome entra CONGELADO na linha, como o resto do sistema faz: quem
+  // responde pelo contrato hoje é uma pergunta de hoje, e o histórico não pode
+  // mudar quando a pessoa troca de cargo ou sai.
   const gestor = dados.gestorId
-    ? await prisma.colaborador.findFirst({
-        where: { id: dados.gestorId, empresaId: { in: visiveis } },
+    ? await prisma.user.findFirst({
+        where: { id: dados.gestorId, ativo: true, role: { in: PAPEIS_QUE_ASSUMEM_PENDENCIA } },
         select: { nome: true },
       })
     : null;
-  if (dados.gestorId && !gestor) return { ok: false, error: "Gestor não encontrado no seu acesso." };
+  if (dados.gestorId && !gestor) {
+    return {
+      ok: false,
+      error:
+        "Gestor responsável tem que ser um usuário ativo do sistema. " +
+        "Se o contrato tinha uma ficha de colaborador aí, escolha o usuário correspondente ou deixe sem gestor.",
+    };
+  }
 
   // O par (empresa, número) é único. Checar antes dá a mensagem que resolve;
   // deixar estourar o unique do Postgres dá um erro que ninguém entende.

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireProcessosEmpresa } from "@/lib/processos-auth-guard";
 import { escopoDeEmpresas } from "@/lib/rh-auth-guard";
 import { diferencaEmDiasUTC, formatarData, hojeUTC, paraInputDate } from "@/lib/datas";
+import { PAPEIS_QUE_ASSUMEM_PENDENCIA, STATUS_COM_PRAZO_CORRENDO } from "@/lib/processos/pendencias";
 import { ContratosView, type ContratoNaTela } from "./contratos-view";
 
 // Os contratos do grupo — o segundo domínio da onda 1.
@@ -87,16 +88,40 @@ export default async function ContratosPage({
       orderBy: { razaoSocial: "asc" },
       select: { id: true, razaoSocial: true, cnpjCpf: true },
     }),
-    prisma.colaborador.findMany({
-      where: { empresaId: { in: escopo }, ativo: true },
+    // O gestor é USUÁRIO DO SISTEMA, não ficha de colaborador.
+    //
+    // Até a v1.173.0 esta consulta era `colaborador.findMany` e despejava a
+    // folha inteira no <select> — centenas de nomes, a maioria sem login. Pior
+    // que o tamanho era o tipo: `Contrato.gestorId` alimenta
+    // `Pendencia.responsavelId`, e esse campo é id de USUÁRIO em todo o resto
+    // do sistema (`definirResponsavel` valida contra `prisma.user`). Um id de
+    // ficha ali produzia pendência que MOSTRA um nome e não tem dono que possa
+    // entrar e resolver. O próprio schema já dizia qual era a intenção: o
+    // comentário de `gestorId` manda seguir `Sinal.donoUserId`, que é
+    // "escolha MANUAL entre os usuários do sistema".
+    //
+    // Mesma consulta da Central (app/(app)/processos/[empresaId]/page.tsx) —
+    // as duas listas precisam concordar sobre quem pode ser dono.
+    prisma.user.findMany({
+      where: { ativo: true, role: { in: PAPEIS_QUE_ASSUMEM_PENDENCIA } },
       orderBy: { nome: "asc" },
       select: { id: true, nome: true },
     }),
-    prisma.empresa.findMany({ where: { id: { in: escopo } }, select: { id: true, nome: true } }),
+    // `cnpj` vem junto porque quem ASSINA precisa ter um. Empresa provisória
+    // (a "A DEFINIR" onde a importação de frota estaciona veículo sem dono) é
+    // uma Empresa ativa como outra qualquer; sem este dado a tela não tem como
+    // distinguir, e o contrato nasceria no CNPJ de ninguém.
+    prisma.empresa.findMany({
+      where: { id: { in: escopo } },
+      select: { id: true, nome: true, cnpj: true },
+    }),
   ]);
   if (!empresa) notFound();
 
   const nomeDaEmpresa = new Map(empresas.map((e) => [e.id, e.nome]));
+  // O CNPJ não desce para o navegador — a tela só precisa saber SE existe, para
+  // decidir quem pode assinar e para nomear quem ficou de fora.
+  const empresasNaTela = empresas.map((e) => ({ id: e.id, nome: e.nome, temCnpj: e.cnpj !== null }));
   const hoje = hojeUTC();
 
   const naTela: ContratoNaTela[] = contratos.map((c) => ({
@@ -109,6 +134,9 @@ export default async function ContratosPage({
     tipo: c.tipo,
     categoria: c.categoria,
     status: c.status,
+    // A mesma régua da Central: os números do topo da tela contam o que ainda
+    // tem relógio correndo, e não o recorte de status que estiver aberto.
+    prazoCorrendo: (STATUS_COM_PRAZO_CORRENDO as readonly string[]).includes(c.status),
     criticidade: c.criticidade,
     gestorId: c.gestorId,
     gestorNome: c.gestorNome,
@@ -170,7 +198,7 @@ export default async function ContratosPage({
         statusInicial={statusParam ?? "VIGENTE"}
         contrapartes={contrapartes}
         gestores={gestores}
-        empresas={empresas}
+        empresas={empresasNaTela}
       />
     </div>
   );

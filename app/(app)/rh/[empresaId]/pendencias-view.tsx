@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import {
+  Inbox,
   AlertOctagon,
   UsersRound,
   FileCheck,
@@ -13,7 +14,6 @@ import {
   Download,
   HardHat,
   Rocket,
-  ShieldCheck,
   Plane,
   DoorOpen,
   ClipboardList,
@@ -44,7 +44,7 @@ import { Indicador } from "@/components/indicador";
 import { PENDENCIAS_CADASTRO, PENDENCIAS_DECIDIR, PENDENCIAS_PRAZO } from "@/lib/pendencias-natureza";
 // O tipo vem da lib, não de uma cópia local: a cópia divergiu quando as seis
 // situações novas entraram e o build caiu por isso.
-import type { CicloAEncerrar, Pendencias, PesquisaAberta } from "@/lib/pendencias";
+import type { CicloAEncerrar, Pendencias, PesquisaAberta, VencidosNaPendencia } from "@/lib/pendencias";
 import { cn } from "@/lib/utils";
 
 export function PendenciasView({
@@ -55,6 +55,7 @@ export function PendenciasView({
   diasAlerta,
   pesquisasAbertas,
   ciclosAEncerrar,
+  vencidos,
 }: {
   empresaId: string;
   /** CNPJs que os números desta tela somam (a marca, ou o filtro da URL). */
@@ -71,6 +72,10 @@ export function PendenciasView({
   // quantas avaliações faltam — o que era o contador até 10/08/2026 (235
   // avaliações inflando o total) vira contexto do cartão.
   ciclosAEncerrar: CicloAEncerrar[];
+  // Quantos itens de NR e Contrato "vencendo" JÁ venceram. Pedido do RH
+  // em 26/09/2026: o total sozinho ("106 ASO vencendo") não dizia por onde
+  // começar — o vencido é o urgente.
+  vencidos: VencidosNaPendencia;
 }) {
   const [exportando, setExportando] = useState(false);
 
@@ -168,16 +173,9 @@ export function PendenciasView({
       icon: FileCheck,
     },
     {
-      chave: "asoVencendo",
-      titulo: "ASO vencendo",
-      descricao: `Exames ocupacionais no limite dos ${diasAlerta} dias.`,
-      href: comFiltro(`/rh/${empresaId}/conformidade`),
-      icon: ShieldCheck,
-    },
-    {
       chave: "certificadosVencendo",
       titulo: "NR vencendo",
-      descricao: `Certificados de norma no limite dos ${diasAlerta} dias.`,
+      descricao: `Certificados de norma vencidos ou vencendo nos próximos ${diasAlerta} dias.`,
       href: comFiltro(`/rh/${empresaId}/conformidade`),
       icon: CalendarDays,
     },
@@ -248,7 +246,7 @@ export function PendenciasView({
     {
       chave: "contratosVencendo",
       titulo: "Contrato vencendo",
-      descricao: `Experiência, temporário ou estágio terminando em ${diasAlerta} dias — passar do prazo torna o contrato indeterminado.`,
+      descricao: `Experiência, temporário ou estágio vencido ou terminando em ${diasAlerta} dias — passar do prazo torna o contrato indeterminado.`,
       href: comFiltro(`/rh/${empresaId}/colaboradores`),
       icon: FileSignature,
       urgente: true,
@@ -283,7 +281,7 @@ export function PendenciasView({
       // home não chegava ao e-mail diário. Mesma condição e mesmo destino da
       // lacuna (?lacuna=setor).
       descricao:
-        "Está no setor \"Não definido\" — fora do Painel do setor e das contas por setor. Abra a ficha e aponte o setor real.",
+        "Está no setor \"Não definido\" ou no arquivo \"Demitidos\" — fora do Painel do setor e das contas por setor. Abra a ficha e aponte o setor real.",
       href: comFiltro(`/rh/${empresaId}/colaboradores`, "lacuna=setor"),
       icon: UsersRound,
     },
@@ -331,6 +329,13 @@ export function PendenciasView({
       icon: MessageCircle,
     },
     {
+      chave: "caixaAConferir",
+      titulo: "Documento da Caixa a conferir",
+      descricao: "A leitura automática da Caixa de documentos não teve certeza e deixou para você decidir — um clique cada.",
+      href: comFiltro(`/rh/${empresaId}/caixa-documentos`),
+      icon: Inbox,
+    },
+    {
       chave: "entregasNaoConfirmadas",
       titulo: "Entrega sem confirmação",
       descricao:
@@ -372,7 +377,11 @@ export function PendenciasView({
       chave: "desligamentosSemEntrevista",
       titulo: "Desligado sem entrevista",
       descricao:
-        "Saída sem entrevista de desligamento registrada — o motivo real não foi apurado. Saídas a partir de 16/08/2026, o início do uso do sistema.",
+        // Quem preenche é o RH, não o desligado (definição da empresa em
+        // 26/09/2026): o texto antigo ("o motivo real não foi apurado") soava
+        // como resposta pendente da pessoa que saiu. A ação é do RH — conduzir
+        // a conversa e registrar na ficha, card "Entrevista de desligamento".
+        "O RH ainda não registrou a entrevista de desligamento — conduza a conversa e preencha na ficha do desligado. Saídas a partir de 16/08/2026, o início do uso do sistema.",
       href: comFiltro(`/rh/${empresaId}/desligamentos`),
       icon: UserMinus,
     },
@@ -423,8 +432,23 @@ export function PendenciasView({
   ];
   const somar = (chaves: readonly (keyof Pendencias)[]) =>
     chaves.reduce((soma, chave) => soma + pendencias[chave], 0);
+  // Vencido × a vencer, só onde o cartão mistura os dois (NR, Contrato).
+  const partido = (chave: keyof Pendencias) =>
+    chave in vencidos
+      ? {
+          vencidos: vencidos[chave as keyof VencidosNaPendencia],
+          aVencer: pendencias[chave] - vencidos[chave as keyof VencidosNaPendencia],
+        }
+      : null;
+  // Na coluna de prazo, o que só está PARA vencer (aviso prévio, ou NR/
+  // contrato sem nenhum vencido) desce para o fim: quem abre a tela começa
+  // pelo que já estourou. `sort` é estável — o resto mantém a ordem da lista.
+  const soAVencer = (chave: keyof Pendencias) =>
+    chave === "avisoPrevio" || partido(chave)?.vencidos === 0;
   const itensDa = (chaves: readonly (keyof Pendencias)[]) =>
-    comPendencia.filter((c) => chaves.includes(c.chave));
+    comPendencia
+      .filter((c) => chaves.includes(c.chave))
+      .sort((a, b) => Number(soAVencer(a.chave)) - Number(soAVencer(b.chave)));
 
   return (
     // id-alvo do link "Pendências" na tela do grupo e dos cards de marca — sem
@@ -525,6 +549,26 @@ export function PendenciasView({
                             </span>
                             <span className="min-w-0">
                               <span className="block text-[13.5px] font-semibold">{c.titulo}</span>
+                              {(() => {
+                                const p = partido(c.chave);
+                                if (!p) return null;
+                                return (
+                                  <span className="block text-[12px] tabular-nums">
+                                    <span
+                                      className={cn(
+                                        "font-semibold",
+                                        p.vencidos > 0 ? "text-primary" : "text-muted-foreground",
+                                      )}
+                                    >
+                                      {p.vencidos} {p.vencidos === 1 ? "vencido" : "vencidos"}
+                                    </span>
+                                    <span className="text-muted-foreground">
+                                      {" · "}
+                                      {p.aVencer} a vencer em até {diasAlerta} dias
+                                    </span>
+                                  </span>
+                                );
+                              })()}
                               {/* Uma linha, com a frase inteira no `title`: a
                                   descrição de "Ciclo de avaliação a encerrar"
                                   chega a três linhas e empurrava os itens

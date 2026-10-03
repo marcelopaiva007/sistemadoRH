@@ -12,13 +12,14 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { registrarCertificado, excluirCertificado, registrarExame, excluirExame } from "@/lib/actions/rh-sst";
+import { registrarCertificado, excluirCertificado, excluirExame } from "@/lib/actions/rh-sst";
 import { MIMES_ANEXO_ACEITOS } from "@/lib/constants-dp";
-import { NORMAS_REGULAMENTADORAS, RESULTADOS_EXAME, TIPOS_EXAME, normaLabel, resultadoExameLabel, tipoExameLabel } from "@/lib/constants-sst";
+import { NORMAS_REGULAMENTADORAS, normaLabel, resultadoExameLabel, tipoExameLabel } from "@/lib/constants-sst";
 import { SITUACAO_BADGE, type ConformidadeColaborador, type SituacaoExame, type SituacaoItem } from "@/lib/conformidade";
 import { formatarData } from "@/lib/datas";
 import { Campo, CampoData, CampoSelect, CampoTexto, FormularioAction } from "./campos";
 import { BotaoExcluir } from "./dependentes-card";
+import { RegistrarExameDialog } from "./registrar-exame-dialog";
 
 type Certificado = {
   id: string;
@@ -256,56 +257,16 @@ export function SegurancaCard({
             )}
           </CardDescription>
           <CardAction>
-            <Dialog open={novoExame} onOpenChange={setNovoExame}>
-              <DialogTrigger render={<Button size="sm" />}>
-                <Plus className="size-4" />
-                Registrar exame
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Registrar exame ocupacional</DialogTitle>
-                </DialogHeader>
-                <FormularioAction
-                  action={registrarExame.bind(null, empresaId, colaboradorId)}
-                  textoBotao="Registrar"
-                  mensagemSucesso="Exame registrado."
-                  onSuccess={() => setNovoExame(false)}
-                >
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <CampoSelect
-                      name="tipo"
-                      label="Tipo"
-                      opcoes={TIPOS_EXAME.map((t) => ({ value: t.value, label: t.label }))}
-                      required
-                    />
-                    <CampoSelect
-                      name="resultado"
-                      label="Resultado"
-                      opcoes={RESULTADOS_EXAME}
-                      required
-                    />
-                  </div>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <CampoData name="realizadoEm" label="Realizado em" />
-                    <CampoData name="validoAte" label="Válido até (opcional)" />
-                  </div>
-                  <Campo label="Restrições (obrigatório se apto com restrição)">
-                    <Textarea name="restricoes" rows={2} placeholder="Ex: não pode trabalhar em altura" />
-                  </Campo>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <CampoTexto name="medico" label="Médico" />
-                    <CampoTexto name="crm" label="CRM" />
-                  </div>
-                  <CampoTexto name="clinica" label="Clínica" />
-                  <Campo label="ASO (PDF ou foto, até 4 MB)">
-                    <Input type="file" name="arquivo" accept={MIMES_ANEXO_ACEITOS.join(",")} />
-                  </Campo>
-                  <Campo label="Observações">
-                    <Textarea name="observacoes" rows={2} />
-                  </Campo>
-                </FormularioAction>
-              </DialogContent>
-            </Dialog>
+            <Button size="sm" aria-haspopup="dialog" onClick={() => setNovoExame(true)}>
+              <Plus className="size-4" />
+              Registrar exame
+            </Button>
+            <RegistrarExameDialog
+              empresaId={empresaId}
+              colaboradorId={colaboradorId}
+              aberto={novoExame}
+              aoMudarAberto={setNovoExame}
+            />
           </CardAction>
         </CardHeader>
         <CardContent>

@@ -7,7 +7,7 @@ import { escopoDeEmpresas } from "@/lib/rh-auth-guard";
 import { diferencaEmDiasUTC, formatarData, hojeUTC } from "@/lib/datas";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Indicador } from "@/components/indicador";
-import { STATUS_COM_PRAZO_CORRENDO } from "@/lib/processos/pendencias";
+import { PAPEIS_QUE_ASSUMEM_PENDENCIA, STATUS_COM_PRAZO_CORRENDO } from "@/lib/processos/pendencias";
 import { PendenciasView, type PendenciaNaTela } from "./pendencias-view";
 
 // A Central de Pendências — a tela de abertura do módulo, e não uma seção dentro
@@ -104,7 +104,7 @@ export default async function CentralPendenciasPage({
     // Quem pode virar dono: usuário ativo de escritório. GESTOR_SETOR fica de
     // fora — não alcança o módulo, e nomeá-lo criaria pendência que ele não vê.
     prisma.user.findMany({
-      where: { ativo: true, role: { in: ["ADMIN", "DIRETORIA", "RH_MANAGER"] } },
+      where: { ativo: true, role: { in: PAPEIS_QUE_ASSUMEM_PENDENCIA } },
       orderBy: { nome: "asc" },
       select: { id: true, nome: true },
     }),
