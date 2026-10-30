@@ -18,6 +18,36 @@ import {
 // existem (enumeração por timing). O custo 10 acompanha o dos hashes reais.
 const HASH_DESCARTAVEL = bcrypt.hashSync("::timing-guard::", 10);
 
+/**
+ * O usuário que a pessoa quis dizer com o que digitou no campo de login.
+ *
+ * Até v1.181.0 a busca era `findUnique({ username })` com o texto cru: "Marcelo"
+ * (maiúscula automática do teclado do celular), "marcelo " (espaço do
+ * autocompletar) ou o e-mail no lugar do usuário davam "usuário ou senha
+ * inválidos" com a senha CERTA — e trocar a senha pelo "Esqueci minha senha",
+ * que é por e-mail, não resolvia nada. Em 30/10/2026 o CEO trocou a senha duas
+ * vezes e continuou de fora.
+ *
+ * Aceita usuário ou e-mail, sem diferença de maiúsculas e sem espaços nas
+ * pontas — a mesma normalização do balde de tentativas (lib/login-tentativas.ts),
+ * que já tratava "Marcelo " e "marcelo" como a mesma pessoa. O índice único de
+ * `username` diferencia maiúsculas, então dois cadastros podem diferir só nelas:
+ * o texto exato vence, e sem exato só vale quando há UM candidato — na dúvida,
+ * ninguém entra, em vez de entrar na conta errada.
+ */
+async function usuarioDoLogin(digitado: string) {
+  const texto = digitado.trim();
+  if (!texto) return null;
+  const campo = texto.includes("@") ? "email" : "username";
+  const exato = await prisma.user.findFirst({ where: { [campo]: texto } });
+  if (exato) return exato;
+  const parecidos = await prisma.user.findMany({
+    where: { [campo]: { equals: texto, mode: "insensitive" } },
+    take: 2,
+  });
+  return parecidos.length === 1 ? parecidos[0] : null;
+}
+
 type EmpresaNaSessao = {
   empresaId: string;
   papel: "RH_MANAGER" | "GESTOR_SETOR";
@@ -61,7 +91,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const estado = await estadoDoLogin(username, ip).catch(() => null);
         if (estado?.bloqueado) return null;
 
-        const user = await prisma.user.findUnique({ where: { username } });
+        const user = await usuarioDoLogin(username);
         // Usuário inexistente e usuário desativado contam como falha. O
         // primeiro é justamente o caso de quem está adivinhando nome de
         // usuário, e é o que não teria onde ser contado se o contador

@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.181.1",
+    data: "30/10/2026",
+    horario: "15:00",
+    titulo: "Login aceita usuário ou e-mail, sem diferença de maiúsculas",
+    itens: [
+      "No login, o campo agora é \"Usuário ou e-mail\": dá para entrar com o e-mail de cadastro, sem precisar lembrar o nome de usuário.",
+      "Maiúsculas e espaços sobrando não atrapalham mais: \"Marcelo\", \"marcelo\" e \"marcelo \" entram na mesma conta. No celular, o campo não põe mais a primeira letra maiúscula sozinho.",
+      "O e-mail de \"Esqueci minha senha\" passa a dizer qual é o seu usuário de acesso.",
+    ],
+  },
+  {
     versao: "1.181.0",
     data: "30/10/2026",
     horario: "14:00",
