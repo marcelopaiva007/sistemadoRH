@@ -26,6 +26,19 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.181.0",
+    data: "30/10/2026",
+    horario: "14:00",
+    titulo: "Informativos: o RH manda comunicado para uma pessoa, um setor, um CNPJ ou a marca inteira",
+    itens: [
+      "Nova tela em Departamento pessoal → \"Informativos\". Escreva o título e a mensagem e escolha para quem: todos da marca, um ou mais CNPJs, um ou mais setores, ou pessoas escolhidas pelo nome.",
+      "Antes de enviar, a tela mostra quantas pessoas recebem e por onde: pelo Telegram, por e-mail ou só pelo portal (quem não tem nenhum dos dois).",
+      "No Telegram a mensagem chega inteira, com o botão \"Li e estou ciente\". Quem recebe por e-mail ou não tem canal encontra o informativo no topo do portal e confirma lá.",
+      "Na lista de Enviados, abra um informativo para ver, pessoa a pessoa, o canal usado e quando deu ciência. Vinculou o Telegram de alguém depois? \"Tentar de novo quem ficou sem canal\".",
+      "O informativo nunca sai da marca da tela: \"Todos\" na Vapt é a Vapt, não o grupo inteiro.",
+    ],
+  },
+  {
     versao: "1.180.1",
     data: "30/10/2026",
     horario: "12:00",

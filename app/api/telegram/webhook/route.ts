@@ -23,6 +23,7 @@ import { conferirNascimento, extrairCpfEData } from "@/lib/telegram-identidade";
 import { sendTelegramMessage, telegramWebhookSecret } from "@/lib/telegram";
 import { criarLinkDeAcesso, MINUTOS_VALIDADE_LINK } from "@/lib/portal-auth";
 import { sufixoTelefone } from "@/lib/telefone";
+import { tratarCallbackInformativo } from "@/lib/informativos";
 import {
   tratarCallbackDelegacoes,
   tratarTextoDelegacoes,
@@ -314,6 +315,19 @@ export async function POST(req: NextRequest) {
   if (callback?.id && callback.data) {
     const chatDoBotao = callback.message?.chat?.id;
     if (chatDoBotao !== undefined) {
+      try {
+        // "Li e estou ciente" dos Informativos do RH; o resto é Delegações.
+        const informativo = await tratarCallbackInformativo({
+          callbackQueryId: callback.id,
+          chatId: String(chatDoBotao),
+          messageId: callback.message?.message_id,
+          data: callback.data,
+        });
+        if (informativo.tratado) return NextResponse.json({ ok: true });
+      } catch (e) {
+        console.error("telegram-webhook (callback informativo):", e);
+        return NextResponse.json({ ok: true });
+      }
       try {
         await tratarCallbackDelegacoes({
           callbackQueryId: callback.id,

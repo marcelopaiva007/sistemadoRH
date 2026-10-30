@@ -81,7 +81,7 @@ export default async function PortalPage() {
     return <ConfirmarCpf primeiroNome={colaborador.nome.split(" ")[0]} />;
   }
 
-  const [documentos, ausencias, mensagens, avaliacoes] = await Promise.all([
+  const [documentos, ausencias, mensagens, avaliacoes, informativos] = await Promise.all([
     prisma.documentoColaborador.findMany({
       where: { colaboradorId: colaborador.id, arquivoId: { not: null } },
       orderBy: { createdAt: "desc" },
@@ -131,6 +131,14 @@ export default async function PortalPage() {
         ciclo: { select: { nome: true, dataFim: true } },
         notas: { select: { competencia: true, nota: true } },
       },
+    }),
+    // Informativos do RH ainda sem ciência. Os já lidos saem da tela: o
+    // portal é a caixa de entrada, não o arquivo.
+    prisma.informativoDestinatario.findMany({
+      where: { colaboradorId: colaborador.id, cienteEm: null },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+      select: { id: true, createdAt: true, informativo: { select: { titulo: true, mensagem: true } } },
     }),
   ]);
 
@@ -273,6 +281,12 @@ export default async function PortalPage() {
   return (
     <PortalInicio
       entregasAConfirmar={entregasAConfirmar}
+      informativos={informativos.map((i) => ({
+        id: i.id,
+        titulo: i.informativo.titulo,
+        mensagem: i.informativo.mensagem,
+        enviadoEm: i.createdAt,
+      }))}
       colaborador={colaborador}
       documentos={documentos}
       ausencias={ausencias}
