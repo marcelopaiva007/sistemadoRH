@@ -26,6 +26,15 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.180.1",
+    data: "30/10/2026",
+    horario: "12:00",
+    titulo: "Banco preparado para os Informativos do RH",
+    itens: [
+      "Nada muda na tela nesta versão. Ela só cria no banco as tabelas dos Informativos (a próxima versão): o comunicado que o RH manda para uma pessoa, um setor, um CNPJ ou a marca inteira, e quem recebeu, por qual canal e quem deu ciência.",
+    ],
+  },
+  {
     versao: "1.179.1",
     data: "28/09/2026",
     horario: "18:30",
