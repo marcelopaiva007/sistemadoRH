@@ -366,6 +366,32 @@ export const GUIAS: Guia[] = [
     ],
   },
   {
+    slug: "informativos",
+    titulo: "Informativos",
+    paraQue: "É o RH falando primeiro: um comunicado para uma pessoa, um setor, um CNPJ ou a marca inteira.",
+    alimenta: "O texto do informativo e a lista de quem recebeu — cada pessoa confirma que leu.",
+    passos: [
+      {
+        titulo: "Escreva e escolha para quem",
+        fala: "Título, mensagem e o público: todos da marca, um ou mais CNPJs, um ou mais setores, ou pessoas que você escolhe pelo nome. Antes de enviar, a tela mostra quantas pessoas recebem e por onde.",
+        cena: "formulario",
+        rotulos: ["Título", "Mensagem", "Para quem", "Enviar informativo"],
+      },
+      {
+        titulo: "Vai pelo Telegram, e-mail se não tiver",
+        fala: "Quem tem o Telegram do RH vinculado recebe a mensagem inteira com o botão Li e estou ciente. Quem não tem recebe por e-mail. Sem nenhum dos dois, o informativo espera no portal.",
+        cena: "envio",
+        rotulos: ["RH", "Feriado de 15 de novembro", "Colaborador"],
+      },
+      {
+        titulo: "Veja quem leu",
+        fala: "Abra o informativo na lista de Enviados: pessoa a pessoa, o canal usado e quando deu ciência. Vinculou o Telegram de alguém depois? Tente de novo quem ficou sem canal.",
+        cena: "tabela",
+        rotulos: ["Pessoa", "Canal", "Ciência"],
+      },
+    ],
+  },
+  {
     slug: "vencimentos",
     titulo: "Vencimentos",
     paraQue: "Mostra o que está vencendo ou já venceu: documento, NR, ASO e EPI.",
