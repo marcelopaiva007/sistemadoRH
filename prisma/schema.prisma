@@ -508,6 +508,7 @@ model Colaborador {
   acessosPortal            PortalAcesso[]
   sessoesPortal            PortalSessao[]
   mensagensPortal          MensagemPortal[]
+  informativosRecebidos    InformativoDestinatario[]
   certificados             CertificadoNR[]
   exames                   ExameOcupacional[]
   movimentacoes            Movimentacao[]            @relation("MovimentacaoDoColaborador")
@@ -708,6 +709,57 @@ model ReciboContracheque {
 
   @@index([empresaId, competencia])
   @@index([colaboradorId, confirmadoEm])
+  @@schema("rh")
+}
+
+// Informativos do RH (v1.181.0): o RH escreve um comunicado e manda para uma
+// pessoa, um setor, um CNPJ ou a marca inteira. Até aqui a única conversa
+// era o "Fale com o RH", em que o RH só responde — não havia como começar.
+//
+// Um Informativo é o texto; cada InformativoDestinatario é UMA pessoa que o
+// recebeu, com o canal usado e a ciência. A lista de destinatários é
+// congelada no envio: quem entrar no setor depois não "recebeu" nada, e o
+// relatório de ciência responde por quem de fato foi avisado.
+model Informativo {
+  id             String                    @id @default(cuid())
+  // CNPJ da tela de onde o RH enviou — é por ele que a lista de enviados é
+  // escopada. Cada destinatário guarda o CNPJ da PRÓPRIA ficha.
+  empresaId      String
+  titulo         String
+  mensagem       String
+  // Como o RH descreveu o público na hora ("Setor Financeiro", "Todos da
+  // marca"), para a lista não depender de setor que depois mudou de nome.
+  publico        String
+  enviadoPorId   String?
+  enviadoPorNome String?
+  createdAt      DateTime                  @default(now())
+  destinatarios  InformativoDestinatario[]
+
+  @@index([empresaId, createdAt])
+  @@schema("rh")
+}
+
+model InformativoDestinatario {
+  id            String      @id @default(cuid())
+  informativoId String
+  informativo   Informativo @relation(fields: [informativoId], references: [id], onDelete: Cascade)
+  colaboradorId String
+  colaborador   Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  // Sempre o CNPJ da ficha — nunca o da tela de onde o RH enviou.
+  empresaId     String
+  // TELEGRAM | EMAIL; nulo com `envioErro` = não havia como avisar (a pessoa
+  // ainda vê o informativo no portal).
+  canal         String?
+  envioErro     String?
+  enviadoEm     DateTime?
+  // "Li e estou ciente" — pelo botão do Telegram ou pelo portal.
+  cienteEm      DateTime?
+  cientePor     String?
+  createdAt     DateTime    @default(now())
+
+  @@unique([informativoId, colaboradorId])
+  @@index([colaboradorId, cienteEm])
+  @@index([empresaId])
   @@schema("rh")
 }
 
