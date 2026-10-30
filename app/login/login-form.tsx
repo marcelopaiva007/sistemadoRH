@@ -64,8 +64,20 @@ export function LoginForm() {
     <div>
       <form action={handleSubmit} className="space-y-5">
         <div className="space-y-1.5">
-          <Label htmlFor="username">Usuário</Label>
-          <Input id="username" name="username" autoComplete="username" required autoFocus className="h-[42px]" />
+          <Label htmlFor="username">Usuário ou e-mail</Label>
+          {/* Sem maiúscula e sem corretor automáticos: no celular o teclado
+              trocava "marcelo" por "Marcelo" sem a pessoa perceber. */}
+          <Input
+            id="username"
+            name="username"
+            autoComplete="username"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            required
+            autoFocus
+            className="h-[42px]"
+          />
         </div>
         <div className="space-y-1.5">
           <div className="flex items-baseline justify-between">
