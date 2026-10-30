@@ -40,6 +40,7 @@ import { readdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
+import { urlParaMigrar } from "./url-direta.mjs";
 
 // As migrations ficam ao lado deste arquivo. Resolver pelo caminho do próprio
 // módulo (e não por `process.cwd()`) faz funcionar chamado de qualquer pasta.
@@ -91,9 +92,9 @@ if (process.env.GITHUB_ACTIONS === "true") {
 // Defangado (ponto vira "[.]") de propósito: o log da Vercel redige qualquer
 // linha que contenha substring do valor de uma env sensível — o host cru some
 // como "Sensitive Environment Variable Redacted" e o diagnóstico morre.
-function ondeEstouOlhando() {
+function ondeEstouOlhando(url = process.env.DATABASE_URL) {
   try {
-    const u = new URL(process.env.DATABASE_URL);
+    const u = new URL(url);
     return `${u.hostname}${u.pathname}`.replaceAll(".", "[.]");
   } catch {
     return "(DATABASE_URL nao e uma URL valida)";
@@ -192,12 +193,20 @@ console.log(
     pendentes.map((m) => `    ${m}`).join("\n"),
 );
 
+// O migrate vai pela conexão DIRETA, não pelo pooler: foi o pooler que prendeu
+// o advisory lock em 28/09/2026 e parou a produção por um mês (ver
+// prisma/url-direta.mjs). Só o processo filho recebe a URL trocada; a leitura
+// de `_prisma_migrations` lá em cima não pega lock e segue no pooler.
+const paraMigrar = urlParaMigrar(process.env);
+console.log(`· checar-migracoes: migrate pela conexão ${paraMigrar.origem} -> ${ondeEstouOlhando(paraMigrar.url)}`);
+
 // shell:true porque no Windows `npx` é um .cmd — spawnSync sem shell falha com
 // ENOENT. Args são fixos (não vêm de input externo), sem risco de injeção.
 const { spawnSync } = await import("node:child_process");
 const resultado = spawnSync("npx", ["prisma", "migrate", "deploy"], {
   stdio: "inherit",
   shell: true,
+  env: { ...process.env, DATABASE_URL: paraMigrar.url },
 });
 
 if (resultado.error) {

@@ -74,6 +74,10 @@ jobs:
         run: npx tsx scripts/test-produtividade.ts
       - name: Bloqueio por tentativas de login
         run: npx tsx scripts/test-login-tentativas.ts
+      - name: Migrations pela conexão direta, fora do pooler do Neon
+        run: node scripts/test-url-direta.mjs
+      - name: Aviso de deploy de produção que falhou
+        run: node scripts/test-aviso-deploy.mjs
       - name: Resultado de pesquisa eNPS
         run: npx tsx scripts/test-pesquisa-enps-resultado.ts
       - name: Pendências por natureza e saudação
@@ -170,6 +174,8 @@ jobs:
 
       # Um passo por smoke, e não um laço — mesmo motivo do job acima: o nome
       # do passo vermelho já diz o que quebrou.
+      - name: Login e recuperação de senha (usuário ou e-mail, sem maiúsculas)
+        run: npx tsx scripts/smoke-identificador-login.ts
       - name: Alertas de RH
         run: npx tsx scripts/smoke-alertas-rh.ts
       - name: Recrutamento (ATS)
