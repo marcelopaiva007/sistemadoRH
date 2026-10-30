@@ -8,6 +8,7 @@ import { BaterPontoCard } from "./bater-ponto-card";
 import { SolicitacoesPontoCard } from "./solicitacoes-ponto-card";
 import { ConfirmarEntregasCard, type EntregaAConfirmar } from "./confirmar-entregas-card";
 import { ConfirmarContrachequesCard, type ContrachequeAConfirmar } from "./confirmar-contracheques-card";
+import { InformativosCard, type InformativoPendente } from "./informativos-card";
 import { MinhasDemandasCard } from "./minhas-demandas-card";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/status-badge";
@@ -85,6 +86,7 @@ type Ausencia = {
 export function PortalInicio({
   entregasAConfirmar,
   contrachequesAConfirmar,
+  informativos,
   colaborador,
   documentos,
   ausencias,
@@ -97,6 +99,8 @@ export function PortalInicio({
   entregasAConfirmar: EntregaAConfirmar[];
   /** Contracheques enviados pelo RH que a pessoa ainda não confirmou com foto. */
   contrachequesAConfirmar: ContrachequeAConfirmar[];
+  /** Informativos do RH ainda sem ciência. */
+  informativos: InformativoPendente[];
   colaborador: Colaborador;
   documentos: Documento[];
   ausencias: Ausencia[];
@@ -176,6 +180,7 @@ export function PortalInicio({
         {/* Confirmar entrega é a tarefa que mais vale no dia em que acontece;
             demandas com prazo aparecem só quando existem. */}
         <ConfirmarContrachequesCard contracheques={contrachequesAConfirmar} />
+        <InformativosCard informativos={informativos} />
         <ConfirmarEntregasCard entregas={entregasAConfirmar} />
         <MinhasDemandasCard />
 

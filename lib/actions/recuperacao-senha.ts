@@ -88,6 +88,7 @@ export async function solicitarRecuperacaoSenha(_prev: ActionResult, formData: F
     select: {
       id: true,
       nome: true,
+      username: true,
       ativo: true,
       recuperacaoSenhaTokenHash: true,
       recuperacaoSenhaExpiraEm: true,
@@ -114,6 +115,7 @@ export async function solicitarRecuperacaoSenha(_prev: ActionResult, formData: F
     const html = `
       <p>Olá, ${user.nome},</p>
       <p>Recebemos um pedido para redefinir sua senha no sistema de RH.</p>
+      <p>Seu usuário de acesso é <b>${user.username}</b> — no login, vale ele ou este e-mail.</p>
       <p>Para criar uma senha nova, clique abaixo. O link expira em ${RECUPERACAO_EXPIRA_EM_HORAS} hora.</p>
       <p style="margin:24px 0">
         <a href="${link}" style="background:#0f172a;color:white;padding:12px 20px;border-radius:6px;text-decoration:none;display:inline-block">Redefinir senha</a>
@@ -130,7 +132,7 @@ export async function solicitarRecuperacaoSenha(_prev: ActionResult, formData: F
       to: email,
       subject: "Redefinição de senha — Sistema de RH",
       html,
-      text: `Acesse ${link} para redefinir sua senha. O link expira em ${RECUPERACAO_EXPIRA_EM_HORAS} hora.`,
+      text: `Seu usuário de acesso é ${user.username} (no login, vale ele ou este e-mail). Acesse ${link} para redefinir sua senha. O link expira em ${RECUPERACAO_EXPIRA_EM_HORAS} hora.`,
       chave: `recuperacao-senha:${tokenHash}`,
     });
 
