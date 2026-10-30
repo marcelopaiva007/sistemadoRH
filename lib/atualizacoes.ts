@@ -26,14 +26,48 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
-    versao: "1.180.0",
-    data: "03/10/2026",
+    versao: "1.181.3",
+    data: "30/10/2026",
+    horario: "17:00",
     titulo: "Ponto: com as duas travas ligadas, UMA prova de presença basta (IP ou GPS)",
     itens: [
       "Definição do CEO: quando a empresa tem a trava de IP E a cerca de GPS ligadas, a batida passa se provar presença por QUALQUER uma das duas — Wi-Fi da empresa OU localização dentro do raio. Antes era preciso passar nas duas ao mesmo tempo, e a batida de quem estava na empresa ficava refém do elo mais fraco do dia: Wi-Fi que caiu ou GPS que errou dentro do galpão.",
       "Recusa só quem falha nas duas provas — e a mensagem passou a listar os dois caminhos de volta (\"conecte ao Wi-Fi OU ative o GPS e aproxime-se\"), deixando claro que basta resolver um.",
       "Empresa com só uma trava ligada continua como sempre foi: aquela trava decide sozinha.",
       "Os textos da tela de Configurações explicam a regra nova, e o registro de cada batida continua marcando individualmente se ela veio de dentro da rede e de dentro do raio.",
+    ],
+  },
+  {
+    versao: "1.181.1",
+    data: "30/10/2026",
+    horario: "15:00",
+    titulo: "Login aceita usuário ou e-mail, sem diferença de maiúsculas",
+    itens: [
+      "No login, o campo agora é \"Usuário ou e-mail\": dá para entrar com o e-mail de cadastro, sem precisar lembrar o nome de usuário.",
+      "Maiúsculas e espaços sobrando não atrapalham mais: \"Marcelo\", \"marcelo\" e \"marcelo \" entram na mesma conta. No celular, o campo não põe mais a primeira letra maiúscula sozinho.",
+      "O e-mail de \"Esqueci minha senha\" passa a dizer qual é o seu usuário de acesso.",
+    ],
+  },
+  {
+    versao: "1.181.0",
+    data: "30/10/2026",
+    horario: "14:00",
+    titulo: "Informativos: o RH manda comunicado para uma pessoa, um setor, um CNPJ ou a marca inteira",
+    itens: [
+      "Nova tela em Departamento pessoal → \"Informativos\". Escreva o título e a mensagem e escolha para quem: todos da marca, um ou mais CNPJs, um ou mais setores, ou pessoas escolhidas pelo nome.",
+      "Antes de enviar, a tela mostra quantas pessoas recebem e por onde: pelo Telegram, por e-mail ou só pelo portal (quem não tem nenhum dos dois).",
+      "No Telegram a mensagem chega inteira, com o botão \"Li e estou ciente\". Quem recebe por e-mail ou não tem canal encontra o informativo no topo do portal e confirma lá.",
+      "Na lista de Enviados, abra um informativo para ver, pessoa a pessoa, o canal usado e quando deu ciência. Vinculou o Telegram de alguém depois? \"Tentar de novo quem ficou sem canal\".",
+      "O informativo nunca sai da marca da tela: \"Todos\" na Vapt é a Vapt, não o grupo inteiro.",
+    ],
+  },
+  {
+    versao: "1.180.1",
+    data: "30/10/2026",
+    horario: "12:00",
+    titulo: "Banco preparado para os Informativos do RH",
+    itens: [
+      "Nada muda na tela nesta versão. Ela só cria no banco as tabelas dos Informativos (a próxima versão): o comunicado que o RH manda para uma pessoa, um setor, um CNPJ ou a marca inteira, e quem recebeu, por qual canal e quem deu ciência.",
     ],
   },
   {
