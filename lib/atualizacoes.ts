@@ -26,6 +26,20 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.182.1",
+    data: "31/10/2026",
+    horario: "09:00",
+    titulo: "Telas mais limpas: barra de topo inteira, sem banner e sem nada cobrindo as tabelas",
+    itens: [
+      "A barra de topo passa a usar a largura toda da tela. Os nomes dos sistemas, da marca e do CNPJ não aparecem mais cortados (\"Pessoa…\", \"LM T…\") em monitor grande.",
+      "Em notebook, a busca vira só a lupa (o Ctrl K continua funcionando), para sobrar espaço para os nomes. A caixa \"Buscar tela ou pessoa\" aparece inteira em telas de 1536px ou mais.",
+      "A tela de Pendências não abre mais com o banner \"Bem-vindo ao Sistema RH\": os números e a lista do dia sobem para o topo.",
+      "\"Como usar esta tela\" saiu do canto direito, onde cobria os botões de editar e desativar das tabelas, e foi para o rodapé do menu lateral. No celular continua no canto.",
+      "O menu lateral (Pessoas, Processos & Ativos e Delegações) agora fica parado enquanto a página rola. Antes ele rolava junto e o fim dele ficava fora da tela.",
+      "A lixeira saiu de cada linha de Colaboradores. Excluir a ficha agora fica na própria ficha, em \"Ações\" → \"Excluir ficha\", com confirmação. Para quem saiu da empresa, o caminho continua sendo Desativar.",
+    ],
+  },
+  {
     versao: "1.182.0",
     data: "30/10/2026",
     horario: "17:30",

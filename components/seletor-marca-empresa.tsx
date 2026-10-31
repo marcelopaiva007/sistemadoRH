@@ -213,8 +213,12 @@ export function SeletorMarcaEmpresa({
           transbordar PINTANDO por cima do vizinho da direita (foi o que
           atropelou "Usuários e perfis" na v1.120.1). */}
       <div className="flex h-8 min-w-0 items-stretch border border-border bg-transparent">
-        {/* Segmento 1: pula direto para a visão consolidada de uma marca. */}
-        <div className="relative flex min-w-0">
+        {/* Segmento 1: pula direto para a visão consolidada de uma marca.
+            `xl:shrink-0`: do notebook para cima, quem cede é a razão social do
+            CNPJ (longa, e com `title`), não o nome da marca (curto, e é o que
+            responde "onde estou"). Abaixo de 1280px os dois encolhem, senão a
+            linha transborda. */}
+        <div className="relative flex min-w-0 xl:shrink-0">
           <button
             type="button"
             aria-expanded={abertoMarca}
@@ -342,7 +346,10 @@ export function SeletorMarcaEmpresa({
           >
             <span
               className={cn(
-                "max-w-24 truncate sm:max-w-48",
+                // Mais folga a partir de 1536px: com a barra na largura toda
+                // (v1.182.1) sobra espaço, e razão social de CNPJ é longa —
+                // "BR SISTEMAS DE TELECOMUNICACOES LTDA" pede ~270px.
+                "max-w-24 truncate sm:max-w-48 2xl:max-w-72",
                 corMarcaAtiva
                   ? "text-[color-mix(in_oklab,var(--marca)_75%,var(--foreground))]"
                   : "text-muted-foreground"

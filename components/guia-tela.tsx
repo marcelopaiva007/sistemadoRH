@@ -71,18 +71,31 @@ function jaFoiVisto(slug: string): boolean {
 }
 
 /**
+ * Onde mora o botão que abre o guia.
+ *
+ * - `lateral`: uma linha no rodapé da navegação lateral (computador).
+ * - `flutuante`: a pílula fixa no canto inferior direito (celular, onde não há
+ *   lateral).
+ *
+ * Até a v1.182.0 só existia a pílula, e no computador ela ficava em cima da
+ * última coluna das tabelas — justamente a de ações (editar, desativar) — em
+ * toda tela do módulo. Na lateral ela não cobre nada.
+ */
+type LugarDoGuia = "lateral" | "flutuante";
+
+/**
  * Resolve o guia pela rota aberta. É o que entra no layout de /rh/<empresa>:
  * tela sem roteiro em lib/guias.ts não renderiza nada.
  */
-export function GuiaTela({ empresaId }: { empresaId: string }) {
+export function GuiaTela({ empresaId, lugar = "flutuante" }: { empresaId: string; lugar?: LugarDoGuia }) {
   const pathname = usePathname();
   const guia = useMemo(() => guiaDaRota(pathname ?? "", empresaId), [pathname, empresaId]);
   if (!guia) return null;
-  return <GuiaTelaPara guia={guia} />;
+  return <GuiaTelaPara guia={guia} lugar={lugar} />;
 }
 
 /** O player em si. Separado de `GuiaTela` para poder ser montado com um guia à mão. */
-export function GuiaTelaPara({ guia }: { guia: Guia }) {
+export function GuiaTelaPara({ guia, lugar = "flutuante" }: { guia: Guia; lugar?: LugarDoGuia }) {
   const [aberto, setAberto] = useState(false);
   const [indice, setIndice] = useState(0);
   const [tocando, setTocando] = useState(false);
@@ -157,29 +170,58 @@ export function GuiaTelaPara({ guia }: { guia: Guia }) {
 
   return (
     <>
-      {/* Fixo no canto: a tela do RH é cheia de tabela larga, e um botão no
-          corpo da página some no meio do conteúdo (ou empurra o layout de 40
-          telas). z-30 fica sob a topbar (z-40) e sob o próprio diálogo (z-50). */}
-      <button
-        type="button"
-        onClick={abrir}
-        className={cn(
-          "fixed right-4 bottom-4 z-30 flex items-center gap-2 rounded-full border bg-background/95 py-2 pr-3.5 pl-3 text-sm font-medium shadow-lg backdrop-blur transition-colors hover:bg-muted",
-          novo && "ring-2 ring-primary/40",
-        )}
-        aria-label={`Como usar a tela ${guia.titulo}`}
-      >
-        <span className="relative flex items-center">
-          <CirclePlay className="size-5 text-primary" />
-          {novo ? (
-            <span className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-primary ring-2 ring-background" />
-          ) : null}
-        </span>
-        <span className="hidden sm:inline">Como usar esta tela</span>
-        <span className="text-xs text-muted-foreground tabular-nums">
-          {rotuloDeDuracao(total)}
-        </span>
-      </button>
+      {lugar === "lateral" ? (
+        // Rodapé da lateral, que é coluna flex: `mt-auto` encosta embaixo
+        // quando o menu é curto, `sticky bottom-0` mantém à vista quando o
+        // menu rola. Mesma régua das linhas da lateral (components/padroes/
+        // nav-lateral.tsx): 13px, sem pílula. A duração vai na segunda linha
+        // porque as duas na mesma não cabem nos 200px da coluna.
+        <div className="sticky bottom-0 mt-auto border-t-2 border-border bg-background pt-2 pb-3">
+          <button
+            type="button"
+            onClick={abrir}
+            className="flex w-full items-center gap-2 py-2 pr-2 pl-3 text-left transition-colors hover:bg-card"
+            aria-label={`Como usar a tela ${guia.titulo}`}
+          >
+            <span className="relative flex shrink-0 items-center">
+              <CirclePlay className="size-4 text-primary" />
+              {novo ? (
+                <span className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-primary ring-2 ring-background" />
+              ) : null}
+            </span>
+            <span className="min-w-0">
+              <span className="block truncate text-[13px] font-semibold text-foreground">Como usar esta tela</span>
+              <span className="block text-[11px] text-muted-foreground tabular-nums">
+                guia de {rotuloDeDuracao(total)}
+              </span>
+            </span>
+          </button>
+        </div>
+      ) : (
+        // Fixo no canto: no celular não há lateral, e um botão no corpo da página
+        // some no meio do conteúdo (ou empurra o layout de 40 telas). z-30 fica
+        // sob a topbar (z-40) e sob o próprio diálogo (z-50).
+        <button
+          type="button"
+          onClick={abrir}
+          className={cn(
+            "fixed right-4 bottom-4 z-30 flex items-center gap-2 rounded-full border bg-background/95 py-2 pr-3.5 pl-3 text-sm font-medium shadow-lg backdrop-blur transition-colors hover:bg-muted",
+            novo && "ring-2 ring-primary/40",
+          )}
+          aria-label={`Como usar a tela ${guia.titulo}`}
+        >
+          <span className="relative flex items-center">
+            <CirclePlay className="size-5 text-primary" />
+            {novo ? (
+              <span className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-primary ring-2 ring-background" />
+            ) : null}
+          </span>
+          <span className="hidden sm:inline">Como usar esta tela</span>
+          <span className="text-xs text-muted-foreground tabular-nums">
+            {rotuloDeDuracao(total)}
+          </span>
+        </button>
+      )}
 
       <Dialog open={aberto} onOpenChange={trocarAbertura}>
         <DialogContent className="max-h-[92vh] gap-3 overflow-y-auto sm:max-w-2xl">

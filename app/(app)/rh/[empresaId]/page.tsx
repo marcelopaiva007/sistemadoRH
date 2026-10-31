@@ -13,7 +13,6 @@ import { DashboardEmpresa } from "./dashboard-empresa";
 import { PendenciasView } from "./pendencias-view";
 import { LacunasView } from "./lacunas-view";
 import { LacunasDosDesligadosView } from "./lacunas-desligados-view";
-import { HRWelcomeBanner } from "@/app/components/HRIllustrations";
 
 // Tela inicial da empresa: os números no topo (o retrato) e logo abaixo o que
 // exige ação hoje (a lista de tarefas). Nessa ordem de propósito — quem abre
@@ -60,7 +59,15 @@ export default async function InicioDaEmpresaPage({
 
   return (
     <div className="space-y-8">
-      <HRWelcomeBanner />
+      {/* Título no padrão das outras telas (h1 + uma linha). Até a v1.182.0
+          aqui morava um banner "Bem-vindo ao Sistema RH" de 160px, com
+          ilustração genérica — o espaço mais nobre da tela que abre a cada
+          login, e não dizia nada que a pessoa já não soubesse. O nome é o do
+          item da lateral que abre esta tela (rh-empresa-nav.tsx, `topo`). */}
+      <div>
+        <h1>Pendências</h1>
+        <p className="text-sm text-muted-foreground">Os números do recorte escolhido e o que pede ação hoje.</p>
+      </div>
       <DashboardEmpresa empresaId={empresaId} resumo={resumo} />
       <PendenciasView
         empresaId={empresaId}
