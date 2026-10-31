@@ -44,6 +44,7 @@ export async function GET(
       exame: { select: { id: true, colaborador: { select: { nome: true } } } },
       certificado: { select: { id: true, colaborador: { select: { nome: true } } } },
       documentoRecebido: { select: { id: true } },
+      reciboContracheque: { select: { id: true, colaborador: { select: { nome: true } } } },
     },
   });
   // O ORIGINAL da Caixa de documentos (a folha inteira, o lote da clínica)
@@ -60,6 +61,7 @@ export async function GET(
     arquivo.ausencia?.colaborador.nome ??
     arquivo.exame?.colaborador.nome ??
     arquivo.certificado?.colaborador.nome ??
+    arquivo.reciboContracheque?.colaborador.nome ??
     "—";
   const [entidade, entidadeId] = arquivo.documento
     ? ["DocumentoColaborador", arquivo.documento.id]
@@ -69,7 +71,9 @@ export async function GET(
         ? ["ExameOcupacional", arquivo.exame.id]
         : arquivo.certificado
           ? ["CertificadoNR", arquivo.certificado.id]
-          : ["Arquivo", null];
+          : arquivo.reciboContracheque
+            ? ["ReciboContracheque", arquivo.reciboContracheque.id]
+            : ["Arquivo", null];
   await registrarAuditoria({
     empresaId,
     acao: "BAIXAR_DOCUMENTO",

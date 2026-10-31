@@ -346,6 +346,32 @@ export const GUIAS: Guia[] = [
     ],
   },
   {
+    slug: "contracheques",
+    titulo: "Contracheques",
+    paraQue: "Mande o contracheque do mês a cada pessoa e saiba quem confirmou que recebeu — com foto.",
+    alimenta: "A prova de recebimento de cada contracheque: quando a pessoa abriu, quando confirmou, de onde e a selfie da confirmação.",
+    passos: [
+      {
+        titulo: "Os contracheques vêm da Caixa de documentos",
+        fala: "Solte o arquivo do contador na Caixa de documentos: cada contracheque vai para a ficha da pessoa. Aqui você escolhe a competência e vê todos eles.",
+        cena: "fluxo",
+        rotulos: ["Arquivo do contador", "Caixa de documentos", "Dossiê", "Contracheques"],
+      },
+      {
+        titulo: "Um clique avisa todo mundo",
+        fala: "O aviso vai pelo Telegram, com o botão Ver e confirmar; quem não tem Telegram recebe por e-mail. A pessoa abre o contracheque no portal e confirma com uma foto, como na batida de ponto.",
+        cena: "envio",
+        rotulos: ["RH", "Seu contracheque de 09/2026 chegou", "Colaborador"],
+      },
+      {
+        titulo: "Quem confirmou, quem falta",
+        fala: "A tabela mostra quem não abriu, quem abriu e não confirmou e quem confirmou — com data, IP e a foto. Para quem falta, é só reenviar.",
+        cena: "tabela",
+        rotulos: ["Pessoa", "Situação", "Confirmação", "Reenviar"],
+      },
+    ],
+  },
+  {
     slug: "mensagens",
     titulo: "Mensagens",
     paraQue: "É o Fale com o RH: o que o colaborador escreve pelo portal chega aqui.",

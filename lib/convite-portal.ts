@@ -13,7 +13,8 @@ import { sendEmail } from "@/lib/email";
 /** Depois disto o lembrete para de sair sozinho, sem precisar mexer no cron. */
 export const FIM_DA_CAMPANHA = new Date("2026-07-31T02:59:00Z"); // 30/07, 23h59 de Brasília
 
-export const BOT_DO_RH = "@ContatoLm_bot";
+import { BOT_DO_RH } from "@/lib/bot-do-rh";
+export { BOT_DO_RH };
 
 const PRAZO = "quinta, 30/07";
 
