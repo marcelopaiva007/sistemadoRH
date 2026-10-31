@@ -68,6 +68,7 @@ export const AREAS_RH: GrupoDeAreas[] = [
     areas: [
       { slug: "aprovacoes", label: "Aprovações" },
       { slug: "caixa-documentos", label: "Caixa de documentos" },
+      { slug: "contracheques", label: "Contracheques" },
       { slug: "mensagens", label: "Mensagens" },
       { slug: "informativos", label: "Informativos" },
       { slug: "avisos-gestor", label: "Avisos ao gestor" },

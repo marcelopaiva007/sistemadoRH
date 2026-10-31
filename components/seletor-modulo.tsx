@@ -126,7 +126,11 @@ export function SeletorModulo({
     // em 375px, e o ícone com `title` continua dizendo qual é qual.
     // `min-w-0`, não `shrink-0`: com a caixa travada, a linha apertada faz ela
     // transbordar por cima do vizinho (a classe de defeito da v1.120.1).
-    <div role="group" aria-label="Sistema" className="-mb-0.5 flex h-[54px] min-w-0 items-stretch gap-2 sm:gap-4">
+    // Do `lg` para cima, `shrink-0`: ali os nomes cabem, e o módulo é o rótulo
+    // que diz onde se está — quem encolhe é o seletor de marca/CNPJ, que tem
+    // `title` com o nome inteiro. Antes encolhiam todos por igual, e a aba
+    // ativa virava "Pessoa…".
+    <div role="group" aria-label="Sistema" className="-mb-0.5 flex h-[54px] min-w-0 items-stretch gap-2 sm:gap-4 lg:shrink-0">
       {modulos.map((modulo) => {
         const Icone = modulo.icone;
         const atual = modulo.slug === moduloAtual?.slug;

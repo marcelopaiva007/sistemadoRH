@@ -26,14 +26,42 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
-    versao: "1.181.2",
-    data: "30/10/2026",
-    horario: "16:30",
+    versao: "1.182.2",
+    data: "31/10/2026",
+    horario: "09:30",
     titulo: "Recuperação de senha para e-mail com maiúscula; deploy que falha agora avisa",
     itens: [
       "\"Esqueci minha senha\": quem tinha o e-mail cadastrado com letra maiúscula (\"Fulano@empresa.com\") nunca recebia o link, e a tela dizia que tinha enviado. Agora o e-mail é encontrado do mesmo jeito que no login, sem diferença de maiúsculas.",
       "As atualizações do banco no momento da publicação passam a usar a conexão direta do banco, e não a compartilhada. Foi a compartilhada que travou a publicação de 28/09 e deixou o sistema um mês na mesma versão.",
       "Se uma publicação do sistema falhar, o dono do sistema recebe um aviso por e-mail (pelo GitHub), e o aviso se fecha sozinho quando a próxima publicação der certo. Antes, a falha só aparecia no painel da Vercel.",
+    ],
+  },
+  {
+    versao: "1.182.1",
+    data: "31/10/2026",
+    horario: "09:00",
+    titulo: "Telas mais limpas: barra de topo inteira, sem banner e sem nada cobrindo as tabelas",
+    itens: [
+      "A barra de topo passa a usar a largura toda da tela. Os nomes dos sistemas, da marca e do CNPJ não aparecem mais cortados (\"Pessoa…\", \"LM T…\") em monitor grande.",
+      "Em notebook, a busca vira só a lupa (o Ctrl K continua funcionando), para sobrar espaço para os nomes. A caixa \"Buscar tela ou pessoa\" aparece inteira em telas de 1536px ou mais.",
+      "A tela de Pendências não abre mais com o banner \"Bem-vindo ao Sistema RH\": os números e a lista do dia sobem para o topo.",
+      "\"Como usar esta tela\" saiu do canto direito, onde cobria os botões de editar e desativar das tabelas, e foi para o rodapé do menu lateral. No celular continua no canto.",
+      "O menu lateral (Pessoas, Processos & Ativos e Delegações) agora fica parado enquanto a página rola. Antes ele rolava junto e o fim dele ficava fora da tela.",
+      "A lixeira saiu de cada linha de Colaboradores. Excluir a ficha agora fica na própria ficha, em \"Ações\" → \"Excluir ficha\", com confirmação. Para quem saiu da empresa, o caminho continua sendo Desativar.",
+    ],
+  },
+  {
+    versao: "1.182.0",
+    data: "30/10/2026",
+    horario: "17:30",
+    titulo: "Contracheques: envie o do mês e saiba quem confirmou — com foto",
+    itens: [
+      "Nova tela em Departamento pessoal → \"Contracheques\". Escolha a competência e veja o contracheque de cada pessoa (os que chegaram pela Caixa de documentos).",
+      "\"Enviar\" manda o aviso: pelo Telegram, com o botão \"Ver e confirmar\" que abre o portal na hora; quem não tem Telegram recebe por e-mail o caminho para acessar.",
+      "No portal, a pessoa abre o contracheque e confirma o recebimento com uma selfie, como na batida de ponto. Só dá para confirmar depois de abrir.",
+      "Fica registrado quando ela abriu, quando confirmou, de qual IP e aparelho, qual arquivo (impressão digital do PDF) e a foto — o \"recebi\" assinado. Na tela, a coluna Confirmação tem o link \"Ver a foto\".",
+      "Filtros por situação: não enviados, sem como avisar, não abriram, falta confirmar e confirmados. Para quem falta, \"Reenviar\".",
+      "Contracheque já confirmado com foto não pode mais ser excluído da ficha nem desfeito na Caixa: a confirmação é a prova de recebimento.",
     ],
   },
   {

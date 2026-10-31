@@ -20,7 +20,6 @@ import {
   Plus,
   Search,
   Send,
-  Trash2,
   Users,
   XCircle,
 } from "lucide-react";
@@ -56,11 +55,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import {
-  createColaborador,
-  updateColaborador,
-  deleteColaborador,
-} from "@/lib/actions/rh-colaboradores";
+import { createColaborador, updateColaborador } from "@/lib/actions/rh-colaboradores";
 import { AtivarDesativarButton } from "./ativar-desativar-button";
 import { CobrarCadastroButton } from "./cobrar-cadastro-button";
 import { AlertaDuplicados } from "./alerta-duplicados";
@@ -881,7 +876,11 @@ export function ColaboradoresTable({
                     {/* Mesma razão do link acima: a ação tem de ir para a
                         empresa do colaborador, não para a da rota. */}
                     <AtivarDesativarButton empresaId={c.empresaId} id={c.id} ativo={c.ativo} />
-                    <DeleteColaboradorButton empresaId={c.empresaId} colaborador={c} />
+                    {/* Sem lixeira aqui desde a v1.182.1: excluir a ficha
+                        mora no menu "Ações" da ficha
+                        (excluir-colaborador-button.tsx). Ao lado do lápis,
+                        em toda linha, era o comando mais destrutivo da tela
+                        e o mais fácil de acertar sem querer. */}
                   </div>
                 </TableCell>
               </TableRow>
@@ -1171,39 +1170,5 @@ function ColaboradorForm({
         </Button>
       </DialogFooter>
     </form>
-  );
-}
-
-function DeleteColaboradorButton({ empresaId, colaborador }: { empresaId: string; colaborador: Colaborador }) {
-  const [confirming, setConfirming] = useState(false);
-
-  async function handleDelete() {
-    const result = await deleteColaborador(empresaId, colaborador.id);
-    if (result.ok) {
-      toast.success("Colaborador excluído.");
-    } else {
-      toast.error(result.error);
-    }
-    setConfirming(false);
-  }
-
-  if (confirming) {
-    return (
-      <span className="inline-flex items-center gap-1">
-        <span className="text-xs text-destructive">Apagar a ficha?</span>
-        <Button variant="destructive" size="sm" onClick={handleDelete}>
-          Confirmar
-        </Button>
-        <Button variant="ghost" size="sm" onClick={() => setConfirming(false)}>
-          Cancelar
-        </Button>
-      </span>
-    );
-  }
-
-  return (
-    <Button variant="ghost" size="icon" onClick={() => setConfirming(true)} title="Excluir">
-      <Trash2 className="size-4" />
-    </Button>
   );
 }
