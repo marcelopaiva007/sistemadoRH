@@ -108,8 +108,10 @@ jobs:
         run: npx tsx scripts/test-processos-licenciamento.ts
       - name: Caixa de documentos (leitura, de quem é, grava ou confere)
         run: npx tsx scripts/test-caixa-documentos.ts
+      - name: Contracheques (situação, folha e competência)
+        run: npx tsx scripts/test-contracheques.ts
 
-  # Os 30 smokes contra Postgres de verdade. O banco nasce vazio a cada
+  # Os 31 smokes contra Postgres de verdade. O banco nasce vazio a cada
   # execução: schema gerado do prisma/schema.prisma via `migrate diff` (o
   # `migrate deploy` não serve — o histórico de migrations não é reproduzível
   # do zero, ver prisma/checar-migracoes.mjs), MAIS as regras de SQL manual que
@@ -182,6 +184,8 @@ jobs:
         run: npx tsx scripts/smoke-caixa-documentos.ts
       - name: Acidente de trabalho (CAT)
         run: npx tsx scripts/smoke-cat.ts
+      - name: Envio de contracheques (aviso, abrir, confirmar com foto)
+        run: npx tsx scripts/smoke-contracheques.ts
       - name: Ciclo de pesquisas
         run: npx tsx scripts/smoke-ciclo-pesquisa.ts
       - name: Cobrança de cadastro

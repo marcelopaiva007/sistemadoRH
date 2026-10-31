@@ -26,15 +26,43 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
-    versao: "1.181.3",
-    data: "30/10/2026",
-    horario: "17:00",
+    versao: "1.182.3",
+    data: "31/10/2026",
+    horario: "10:00",
     titulo: "Ponto: com as duas travas ligadas, UMA prova de presença basta (IP ou GPS)",
     itens: [
       "Definição do CEO: quando a empresa tem a trava de IP E a cerca de GPS ligadas, a batida passa se provar presença por QUALQUER uma das duas — Wi-Fi da empresa OU localização dentro do raio. Antes era preciso passar nas duas ao mesmo tempo, e a batida de quem estava na empresa ficava refém do elo mais fraco do dia: Wi-Fi que caiu ou GPS que errou dentro do galpão.",
       "Recusa só quem falha nas duas provas — e a mensagem passou a listar os dois caminhos de volta (\"conecte ao Wi-Fi OU ative o GPS e aproxime-se\"), deixando claro que basta resolver um.",
       "Empresa com só uma trava ligada continua como sempre foi: aquela trava decide sozinha.",
       "Os textos da tela de Configurações explicam a regra nova, e o registro de cada batida continua marcando individualmente se ela veio de dentro da rede e de dentro do raio.",
+    ],
+  },
+  {
+    versao: "1.182.1",
+    data: "31/10/2026",
+    horario: "09:00",
+    titulo: "Telas mais limpas: barra de topo inteira, sem banner e sem nada cobrindo as tabelas",
+    itens: [
+      "A barra de topo passa a usar a largura toda da tela. Os nomes dos sistemas, da marca e do CNPJ não aparecem mais cortados (\"Pessoa…\", \"LM T…\") em monitor grande.",
+      "Em notebook, a busca vira só a lupa (o Ctrl K continua funcionando), para sobrar espaço para os nomes. A caixa \"Buscar tela ou pessoa\" aparece inteira em telas de 1536px ou mais.",
+      "A tela de Pendências não abre mais com o banner \"Bem-vindo ao Sistema RH\": os números e a lista do dia sobem para o topo.",
+      "\"Como usar esta tela\" saiu do canto direito, onde cobria os botões de editar e desativar das tabelas, e foi para o rodapé do menu lateral. No celular continua no canto.",
+      "O menu lateral (Pessoas, Processos & Ativos e Delegações) agora fica parado enquanto a página rola. Antes ele rolava junto e o fim dele ficava fora da tela.",
+      "A lixeira saiu de cada linha de Colaboradores. Excluir a ficha agora fica na própria ficha, em \"Ações\" → \"Excluir ficha\", com confirmação. Para quem saiu da empresa, o caminho continua sendo Desativar.",
+    ],
+  },
+  {
+    versao: "1.182.0",
+    data: "30/10/2026",
+    horario: "17:30",
+    titulo: "Contracheques: envie o do mês e saiba quem confirmou — com foto",
+    itens: [
+      "Nova tela em Departamento pessoal → \"Contracheques\". Escolha a competência e veja o contracheque de cada pessoa (os que chegaram pela Caixa de documentos).",
+      "\"Enviar\" manda o aviso: pelo Telegram, com o botão \"Ver e confirmar\" que abre o portal na hora; quem não tem Telegram recebe por e-mail o caminho para acessar.",
+      "No portal, a pessoa abre o contracheque e confirma o recebimento com uma selfie, como na batida de ponto. Só dá para confirmar depois de abrir.",
+      "Fica registrado quando ela abriu, quando confirmou, de qual IP e aparelho, qual arquivo (impressão digital do PDF) e a foto — o \"recebi\" assinado. Na tela, a coluna Confirmação tem o link \"Ver a foto\".",
+      "Filtros por situação: não enviados, sem como avisar, não abriram, falta confirmar e confirmados. Para quem falta, \"Reenviar\".",
+      "Contracheque já confirmado com foto não pode mais ser excluído da ficha nem desfeito na Caixa: a confirmação é a prova de recebimento.",
     ],
   },
   {

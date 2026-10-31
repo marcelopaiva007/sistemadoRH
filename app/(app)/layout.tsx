@@ -48,7 +48,15 @@ export default async function AppLayout({
           empresas={empresas}
           sistemasPermitidos={sistemas}
         />
-        <main className="flex-1 overflow-x-hidden p-6">{children}</main>
+        {/* `overflow-x-clip`, e não `hidden`, onde o navegador entende `clip`.
+            `hidden` num eixo força o outro a `auto` e transforma o <main> em
+            contêiner de rolagem — e aí o `sticky` das laterais (RH, Processos,
+            Delegações) passava a valer em relação ao <main>, que nunca rola:
+            até a v1.182.0 a lateral rolava junto com a página e começava 52px
+            mais baixa, com o fim dela abaixo da dobra. `clip` corta o que
+            transborda de lado sem criar rolagem. `hidden` fica de reserva para
+            Safari antigo (anterior ao 16). */}
+        <main className="flex-1 overflow-x-hidden p-6 supports-[overflow:clip]:overflow-x-clip">{children}</main>
       </div>
     </Providers>
   );

@@ -15,6 +15,7 @@ import { lerAnexo } from "@/lib/anexos";
 import { enviarParaBlob } from "@/lib/blob";
 import { MOTIVOS_DESLIGAMENTO, TIPOS_CONTRATO, CONTRATOS_POR_PRAZO } from "@/lib/constants-dp";
 import type { ActionResult } from "@/lib/constants";
+import { MSG_PROVA_DE_RECEBIMENTO, recibosConfirmadosTravando } from "@/lib/contracheques/protecao";
 
 const colaboradorSchema = z.object({
   nome: z.string().trim().min(2, "Informe o nome do colaborador"),
@@ -467,10 +468,15 @@ export async function deleteColaborador(empresaId: string, id: string): Promise<
   }
 
   try {
-    await prisma.$transaction([
-      prisma.surveyToken.deleteMany({ where: { colaboradorId: id } }),
-      prisma.colaborador.delete({ where: { id, empresaId } }),
-    ]);
+    const apagou = await prisma.$transaction(async (tx) => {
+      // Contracheque confirmado com foto é prova de recebimento: sairia em
+      // cascata com a ficha (e a selfie ficaria órfã). Recibos travados.
+      if ((await recibosConfirmadosTravando(tx, { colaboradorId: id })) > 0) return false;
+      await tx.surveyToken.deleteMany({ where: { colaboradorId: id } });
+      await tx.colaborador.delete({ where: { id, empresaId } });
+      return true;
+    });
+    if (!apagou) return { ok: false, error: `${MSG_PROVA_DE_RECEBIMENTO} Desative o colaborador em vez de excluir.` };
   } catch {
     return {
       ok: false,

@@ -152,11 +152,16 @@ export function BuscaGlobal({
         type="button"
         onClick={() => setAberta(true)}
         aria-label="Buscar tela ou pessoa (Ctrl K)"
-        className="flex h-8 shrink-0 items-center gap-2 border border-input bg-card px-2.5 text-[13px] text-muted-foreground transition-colors hover:border-foreground/45 lg:w-[300px]"
+        title="Buscar tela ou pessoa (Ctrl K)"
+        // Caixa com texto só a partir de 1536px (`2xl`). Era `lg:w-[300px]` —
+        // 300px tirados da linha justo na faixa dos notebooks (1280–1440), onde
+        // ela já não cabe, e quem pagava eram os rótulos de módulo e de marca.
+        // Abaixo disso fica o ícone; o Ctrl K vale do mesmo jeito.
+        className="flex h-8 shrink-0 items-center gap-2 border border-input bg-card px-2 text-[13px] text-muted-foreground transition-colors hover:border-foreground/45 2xl:w-[260px] 2xl:px-2.5"
       >
         <Search className="size-4 shrink-0" />
-        <span className="hidden flex-1 truncate text-left lg:inline">Buscar tela ou pessoa</span>
-        <kbd className="hidden border border-border px-1 font-mono text-[10px] lg:inline">Ctrl K</kbd>
+        <span className="hidden flex-1 truncate text-left 2xl:inline">Buscar tela ou pessoa</span>
+        <kbd className="hidden border border-border px-1 font-mono text-[10px] 2xl:inline">Ctrl K</kbd>
       </button>
 
       <Dialog

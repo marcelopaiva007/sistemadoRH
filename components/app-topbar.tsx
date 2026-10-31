@@ -49,6 +49,13 @@ function iniciaisDoNome(nome: string): string {
  * o que aconteceu entre a v1.110.1 e a v1.111.1. O celular continua sem
  * rolagem lateral porque os filhos ENCOLHEM: `min-w-0`, rótulos que truncam,
  * nome que some nas larguras estreitas.
+ *
+ * SEM `max-w-7xl` desde a v1.182.1. A linha ficava presa numa coluna de
+ * 1280px no centro enquanto a página abaixo usa a largura toda — num monitor
+ * de 1920px sobravam 600px de branco nas pontas e, ao mesmo tempo, os rótulos
+ * cortavam ("Pessoa…", "LM T…") porque logo + módulos + marca/CNPJ + busca +
+ * pessoa pedem ~1500px. O `px-6` acompanha o `p-6` do <main>, então o logo
+ * alinha com a lateral.
  */
 export function AppTopbar({
   role,
@@ -87,7 +94,7 @@ export function AppTopbar({
 
   return (
     <header className="sticky top-0 z-40 border-b-2 border-border bg-background">
-      <div className="mx-auto flex h-[52px] w-full min-w-0 max-w-7xl items-center gap-3 px-4 sm:gap-5">
+      <div className="flex h-[52px] w-full min-w-0 items-center gap-3 px-4 sm:gap-5 sm:px-6">
         {/* A marca do PRODUTO — FASTMAI em todo o chrome desde 26/08/2026. A
             L&M segue nas páginas em que a marca é a da EMPREGADORA. */}
         <FastmaiLogo className="shrink-0 text-[17px]" />

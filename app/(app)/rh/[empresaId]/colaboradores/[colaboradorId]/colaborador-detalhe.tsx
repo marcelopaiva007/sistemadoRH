@@ -13,6 +13,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,7 @@ import type { ConformidadeColaborador, SituacaoExame } from "@/lib/conformidade"
 import { AtivarDesativarButton } from "../ativar-desativar-button";
 import { DesvincularTelegramButton } from "../desvincular-telegram-button";
 import { CobrarCadastroButton } from "../cobrar-cadastro-button";
+import { ExcluirColaboradorButton } from "../excluir-colaborador-button";
 import { FichaBlocos } from "./ficha-blocos";
 import { DependentesCard } from "./dependentes-card";
 import { DocumentosCard } from "./documentos-card";
@@ -217,6 +219,16 @@ export function ColaboradorDetalhe({
                   <CobrarCadastroButton empresaId={empresaId} colaboradorIds={[colaborador.id]} />
                 </DropdownMenuItem>
               )}
+              {/* Por último e separado: é o único comando sem volta. Saiu da
+                  linha da lista de Colaboradores na v1.182.1. */}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem closeOnClick={false}>
+                <ExcluirColaboradorButton
+                  empresaId={empresaId}
+                  colaboradorId={colaborador.id}
+                  nome={colaborador.nome}
+                />
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         }
