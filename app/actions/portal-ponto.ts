@@ -10,7 +10,12 @@ import {
   type BatidaPonto,
 } from "@/lib/ponto-regras";
 import { resolverIdentidadeDePonto } from "@/lib/ponto-identidade";
-import { gerarHashPontoSHA256, validarIpPonto, validarGeofencingGps } from "@/lib/ponto-seguranca";
+import {
+  avaliarTravasDePresenca,
+  gerarHashPontoSHA256,
+  validarIpPonto,
+  validarGeofencingGps,
+} from "@/lib/ponto-seguranca";
 import {
   LIMITE_FOTO_DATA_URL,
   REGEX_FOTO_DATA_URL,
@@ -159,18 +164,14 @@ export async function registrarPontoPortal(input: RegistrarPontoInput) {
     where: { empresaId: colaborador.empresaId },
   });
 
-  // Validação de IP
+  // Travas de presença (IP e GPS) — UMA prova basta (definição do CEO,
+  // 24/09/2026): quem passa em qualquer uma das travas ATIVAS registra; recusa
+  // só quem falha em todas. O motivo: Wi-Fi cai e GPS erra em galpão — exigir
+  // as duas juntas fazia a batida de quem ESTÁ na empresa depender do elo mais
+  // fraco do dia. A tabela-verdade vive em avaliarTravasDePresenca
+  // (lib/ponto-seguranca.ts), com teste de guarda em scripts/test-ponto.ts.
   const ipValido = validarIpPonto(ipCliente, config?.ipsAutorizados);
-  if (config?.exigirIp && !ipValido) {
-    // Diz o caminho de volta: quase sempre o celular está no 4G/5G da
-    // operadora em vez do Wi-Fi da empresa — e é isso que a pessoa conserta.
-    return {
-      erro: "Sua conexão está fora da rede autorizada da empresa. Conecte o celular ao Wi-Fi da empresa (desligue os dados móveis) e tente de novo.",
-    };
-  }
 
-  // Validação de GPS Geofencing.
-  //
   // `typeof === "number" && isFinite`, não truthiness: coordenada 0 é lugar
   // válido (linha do Equador/Greenwich) e `if (input.latitude)` a tratava como
   // ausente; NaN vindo de chamada direta à action passava como presente. O
@@ -204,18 +205,42 @@ export async function registrarPontoPortal(input: RegistrarPontoInput) {
     );
     gpsValido = resGps.valido;
     distanciaMetros = resGps.distanciaMetros;
-  } else if (config?.exigirGps && temCercaCadastrada) {
-    return {
-      erro: "Sua localização (GPS) é obrigatória para registrar o ponto. Ative a localização do aparelho, permita o acesso para este site e tente de novo.",
-    };
   }
 
-  if (config?.exigirGps && !gpsValido) {
-    // A distância entra na mensagem de propósito: "fora do raio" seco não diz
-    // se a pessoa está na esquina ou com o GPS doido a 30 km — e é essa
-    // diferença que decide se ela caminha até a empresa ou chama o RH.
+  const travas = avaliarTravasDePresenca({
+    travaIpAtiva: config?.exigirIp === true,
+    ipOk: ipValido,
+    travaGpsAtiva: config?.exigirGps === true && temCercaCadastrada,
+    // Prova por GPS é coordenada PRESENTE e dentro do raio: sem coordenada não
+    // há prova — mas com a outra trava satisfeita a batida passa mesmo assim.
+    gpsOk: temCoordenada && gpsValido,
+  });
+
+  if (!travas.permitido) {
+    // A mensagem diz TODOS os caminhos de volta que a pessoa tem — com as duas
+    // travas ativas, resolver qualquer um dos problemas basta. A distância
+    // entra de propósito: "fora do raio" seco não diz se a pessoa está na
+    // esquina ou com o GPS doido a 30 km.
+    const problemaGps = !temCoordenada
+      ? "sua localização (GPS) não foi obtida — ative a localização do aparelho e permita o acesso para este site"
+      : `você está a cerca de ${distanciaMetros} m da empresa, fora do raio de ${raioPermitido} m`;
+    const problemaIp =
+      "sua conexão está fora da rede da empresa — conecte o celular ao Wi-Fi da empresa (desligue os dados móveis)";
+
+    if (travas.falhouIp && travas.falhouGps) {
+      return {
+        erro: `Não foi possível confirmar que você está na empresa: ${problemaIp}; e ${problemaGps}. Basta resolver UM dos dois e tentar de novo.`,
+      };
+    }
+    if (travas.falhouIp) {
+      return {
+        erro: "Sua conexão está fora da rede autorizada da empresa. Conecte o celular ao Wi-Fi da empresa (desligue os dados móveis) e tente de novo.",
+      };
+    }
     return {
-      erro: `Você está a cerca de ${distanciaMetros} m da empresa — fora do raio de ${raioPermitido} m permitido para bater o ponto. Aproxime-se do local de trabalho e tente de novo.`,
+      erro: !temCoordenada
+        ? "Sua localização (GPS) é obrigatória para registrar o ponto. Ative a localização do aparelho, permita o acesso para este site e tente de novo."
+        : `Você está a cerca de ${distanciaMetros} m da empresa — fora do raio de ${raioPermitido} m permitido para bater o ponto. Aproxime-se do local de trabalho e tente de novo.`,
     };
   }
 

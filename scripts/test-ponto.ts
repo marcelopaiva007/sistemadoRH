@@ -15,6 +15,7 @@ import {
   gerarHashPontoSHA256,
   validarIpPonto,
   validarGeofencingGps,
+  avaliarTravasDePresenca,
 } from "../lib/ponto-seguranca";
 import { gerarConteudoAFD } from "../lib/ponto-afdaej";
 
@@ -109,6 +110,34 @@ function testar() {
   const gpsSemCerca = validarGeofencingGps(-23.55052, -46.633308, null, null, 200);
   console.assert(gpsSemCerca.valido === true, "Erro Geofencing sem cerca cadastrada");
   console.log(" - Geofencing sem cerca cadastrada -> não bloqueia, OK");
+
+  // Travas de presença sob a regra "UMA prova basta" (24/09/2026): a
+  // tabela-verdade INTEIRA, porque cada linha é uma política de aceitação de
+  // registro de jornada — errar uma vira ou porta aberta ou gente de boa-fé
+  // barrada. Colunas: travaIp, ipOk, travaGps, gpsOk -> permitido.
+  const casosTravas: Array<[boolean, boolean, boolean, boolean, boolean]> = [
+    [false, false, false, false, true],  // nenhuma trava: sempre passa
+    [false, true,  false, true,  true],
+    [true,  true,  false, false, true],  // só IP, dentro da rede
+    [true,  false, false, true,  false], // só IP, fora da rede: gpsOk não socorre trava desligada
+    [false, false, true,  true,  true],  // só GPS, dentro do raio
+    [false, true,  true,  false, false], // só GPS, fora do raio: ipOk não socorre trava desligada
+    [true,  true,  true,  true,  true],  // as duas, as duas provas
+    [true,  true,  true,  false, true],  // as duas, SÓ o IP prova (GPS falhou) -> passa: é o "OU"
+    [true,  false, true,  true,  true],  // as duas, SÓ o GPS prova (Wi-Fi caiu) -> passa: é o "OU"
+    [true,  false, true,  false, false], // as duas, nenhuma prova -> recusa
+  ];
+  for (const [travaIpAtiva, ipOk, travaGpsAtiva, gpsOk, esperado] of casosTravas) {
+    const r = avaliarTravasDePresenca({ travaIpAtiva, ipOk, travaGpsAtiva, gpsOk });
+    console.assert(
+      r.permitido === esperado,
+      `Travas: ip(${travaIpAtiva},${ipOk}) gps(${travaGpsAtiva},${gpsOk}) esperava ${esperado}, veio ${r.permitido}`,
+    );
+  }
+  // `falhou*` alimenta a mensagem de recusa — trava desligada nunca "falha".
+  const rFalhas = avaliarTravasDePresenca({ travaIpAtiva: true, ipOk: false, travaGpsAtiva: false, gpsOk: false });
+  console.assert(rFalhas.falhouIp === true && rFalhas.falhouGps === false, "Erro nos indicadores de falha das travas");
+  console.log(" - Travas de presença (regra OU, tabela-verdade com 10 casos) -> OK");
 
   // 6. Teste de Arquivo Fiscal AFD (Portaria 671)
   console.log("\n5. Testando Gerador de AFD (Portaria MTP 671/2021):");
