@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { usuarioPorIdentificador } from "@/lib/usuario-por-identificador";
 import { sendEmail } from "@/lib/email";
 import { registrarAuditoria } from "@/lib/audit";
 import { estadoDoLogin, ipDaRequisicao, normalizarUsuario, registrarFalha } from "@/lib/login-tentativas";
@@ -83,17 +84,10 @@ export async function solicitarRecuperacaoSenha(_prev: ActionResult, formData: F
   }
   await registrarFalha(chaveLimite, ip).catch(() => {});
 
-  const user = await prisma.user.findUnique({
-    where: { email },
-    select: {
-      id: true,
-      nome: true,
-      username: true,
-      ativo: true,
-      recuperacaoSenhaTokenHash: true,
-      recuperacaoSenhaExpiraEm: true,
-    },
-  });
+  // Sem diferença de maiúsculas, como o login: o cadastro grava o e-mail como
+  // foi digitado, e `findUnique` com o texto em minúsculas nunca achava
+  // "Fulano@empresa.com" — a pessoa não recebia o link e a tela dizia "ok".
+  const user = await usuarioPorIdentificador(email, "email");
 
   if (user && user.ativo) {
     const token = randomBytes(32).toString("base64url");

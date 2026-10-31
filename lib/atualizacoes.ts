@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.182.2",
+    data: "31/10/2026",
+    horario: "09:30",
+    titulo: "Recuperação de senha para e-mail com maiúscula; deploy que falha agora avisa",
+    itens: [
+      "\"Esqueci minha senha\": quem tinha o e-mail cadastrado com letra maiúscula (\"Fulano@empresa.com\") nunca recebia o link, e a tela dizia que tinha enviado. Agora o e-mail é encontrado do mesmo jeito que no login, sem diferença de maiúsculas.",
+      "As atualizações do banco no momento da publicação passam a usar a conexão direta do banco, e não a compartilhada. Foi a compartilhada que travou a publicação de 28/09 e deixou o sistema um mês na mesma versão.",
+      "Se uma publicação do sistema falhar, o dono do sistema recebe um aviso por e-mail (pelo GitHub), e o aviso se fecha sozinho quando a próxima publicação der certo. Antes, a falha só aparecia no painel da Vercel.",
+    ],
+  },
+  {
     versao: "1.182.1",
     data: "31/10/2026",
     horario: "09:00",
