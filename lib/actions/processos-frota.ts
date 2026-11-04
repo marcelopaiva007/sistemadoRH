@@ -22,6 +22,8 @@ import {
   PONTOS_POR_NATUREZA,
 } from "@/lib/processos/ctb";
 import type { ActionResult } from "@/lib/constants";
+import { cpfValido } from "@/lib/cpf";
+import { cnpjValido } from "@/lib/cnpj";
 
 // Frota do módulo Processos & Ativos.
 //
@@ -78,8 +80,14 @@ export async function salvarVeiculo(input: {
   motoristaInformado?: string | null;
   /** Motorista do CADASTRO de colaboradores (31/08/2026) — o texto acima é legado. */
   motoristaColaboradorId?: string | null;
-  /** Só na edição: mover o veículo para outro CNPJ que o usuário alcança — é
-   *  como o RH tira da empresa provisória "A DEFINIR" da importação da frota. */
+  /** Proprietário que consta no CRLV — CPF ou CNPJ (04/11/2026). Diferente
+   *  da empresa onde o carro trabalha (`empresaId`/`empresaDestinoId`). */
+  proprietarioNome?: string | null;
+  proprietarioDocumento?: string | null;
+  /** A empresa onde o veículo TRABALHA, escolhida no formulário. Na edição,
+   *  mover para outro CNPJ que o usuário alcança (é como o RH tira da empresa
+   *  provisória "A DEFINIR"); desde 04/11/2026 vale também no cadastro novo,
+   *  que antes caía sempre no CNPJ da URL. */
   empresaDestinoId?: string | null;
 }): Promise<ActionResult & { id?: string }> {
   const usuario = await requireProcessosEmpresa(input.empresaId);
@@ -94,6 +102,15 @@ export async function salvarVeiculo(input: {
   // O CNPJ de destino, quando o usuário move o veículo na edição. Só vale para
   // um CNPJ que ele alcança — nunca da URL, e por escolha explícita.
   let empresaDestino: string | null = null;
+  if (!input.id && input.empresaDestinoId && input.empresaDestinoId !== input.empresaId) {
+    // Cadastro novo direto na empresa onde o carro trabalha — a mesma regra da
+    // edição: só um CNPJ que a pessoa alcança, nunca um id solto do payload.
+    const visiveis = await empresasVisiveis(usuario);
+    if (!visiveis.includes(input.empresaDestinoId)) {
+      return { ok: false, error: "Empresa onde o veículo trabalha está fora do seu acesso." };
+    }
+    empresaDestino = input.empresaDestinoId;
+  }
   if (input.id) {
     const visiveis = await empresasVisiveis(usuario);
     existente = await prisma.veiculo.findFirst({
@@ -144,6 +161,26 @@ export async function salvarVeiculo(input: {
     return { ok: false, error: `A placa ${formatarPlaca(placa)} já está cadastrada.` };
   }
 
+  // Proprietário (04/11/2026): CPF ou CNPJ pelos dígitos, com dígito
+  // verificador conferido — documento errado aqui é o que vai para a
+  // indicação de condutor e para o recibo de transferência. Nome sem documento
+  // é aceito (dado em levantamento); documento sem nome, não.
+  const proprietarioNome = (input.proprietarioNome ?? "").trim().slice(0, 200) || null;
+  const proprietarioDocumento = (input.proprietarioDocumento ?? "").replace(/\D/g, "") || null;
+  let proprietarioTipo: "PF" | "PJ" | null = null;
+  if (proprietarioDocumento) {
+    if (proprietarioDocumento.length === 11) {
+      if (!cpfValido(proprietarioDocumento)) return { ok: false, error: "CPF do proprietário inválido." };
+      proprietarioTipo = "PF";
+    } else if (proprietarioDocumento.length === 14) {
+      if (!cnpjValido(proprietarioDocumento)) return { ok: false, error: "CNPJ do proprietário inválido." };
+      proprietarioTipo = "PJ";
+    } else {
+      return { ok: false, error: "Documento do proprietário deve ser um CPF (11 dígitos) ou CNPJ (14 dígitos)." };
+    }
+    if (!proprietarioNome) return { ok: false, error: "Informe o nome do proprietário do documento." };
+  }
+
   // O motorista vem do CADASTRO (31/08/2026) — e só de ficha ativa que o
   // usuário alcança: id solto no payload não vira vínculo com gente de fora.
   const motoristaColaboradorId = input.motoristaColaboradorId || null;
@@ -188,6 +225,9 @@ export async function salvarVeiculo(input: {
     emplacado: input.emplacado ?? false,
     motoristaInformado: (input.motoristaInformado ?? "").trim() || null,
     motoristaColaboradorId,
+    proprietarioTipo,
+    proprietarioNome,
+    proprietarioDocumento,
   };
 
   const veiculo = input.id
@@ -203,7 +243,7 @@ export async function salvarVeiculo(input: {
     entidadeId: veiculo.id,
     resumo:
       `${input.id ? "Editou" : "Cadastrou"} o veículo ${formatarPlaca(placa)}` +
-      (empresaDestino ? " — MOVIDO de empresa" : ""),
+      (empresaDestino && input.id ? " — MOVIDO de empresa" : ""),
     detalhes: empresaDestino ? { empresaAnterior: existente?.empresaId, empresaNova: empresaDestino } : undefined,
   });
 

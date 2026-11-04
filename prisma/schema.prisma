@@ -2876,6 +2876,18 @@ model Veiculo {
   // PROPRIO | ALUGADO | COMODATO | LEASING
   propriedade String @default("PROPRIO")
 
+  // PROPRIETÁRIO do veículo — quem consta no CRLV. Pedido do CEO em
+  // 04/11/2026: o `empresaId` acima passou a ser usado como "onde o carro
+  // TRABALHA" (o CNPJ que usa e responde pela frota no dia a dia), e o dono no
+  // documento é outra coisa — pode ser outra empresa do grupo, uma locadora ou
+  // uma PESSOA FÍSICA (carro de sócio ou de colaborador em comodato). Por isso
+  // nome + documento livres, e não FK para Empresa.
+  // `proprietarioDocumento` só com dígitos: 11 = CPF, 14 = CNPJ — o tipo é
+  // gravado à parte para filtro e relatório não dependerem de contar dígitos.
+  proprietarioTipo      String? // PF | PJ
+  proprietarioNome      String?
+  proprietarioDocumento String?
+
   // COMBUSTAO | ELETRICO | HIBRIDO — decide o que a tela de consumo pede:
   // litros de combustível ou kWh de recarga. Pedido do CEO em 23/08/2026.
   motorizacao String @default("COMBUSTAO")
@@ -2918,6 +2930,7 @@ model Veiculo {
 
   @@index([empresaId, situacao])
   @@index([empresaId, ufEmplacamento])
+  @@index([proprietarioDocumento])
   @@schema("rh")
 }
 

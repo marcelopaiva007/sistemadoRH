@@ -51,6 +51,9 @@ export default async function VeiculosPage({
         motoristaColaborador: { select: { nome: true } },
         ufEmplacamento: true,
         propriedade: true,
+        proprietarioTipo: true,
+        proprietarioNome: true,
+        proprietarioDocumento: true,
         motorizacao: true,
         situacao: true,
         aderidoSne: true,
@@ -114,7 +117,13 @@ export default async function VeiculosPage({
       orderBy: { colaborador: { nome: "asc" } },
       select: { id: true, colaborador: { select: { nome: true } } },
     }),
-    prisma.empresa.findMany({ where: { id: { in: escopo } }, select: { id: true, nome: true } }),
+    // CNPJ e razão social entram para o atalho "o proprietário é empresa do
+    // grupo" do formulário — preencher nome e CNPJ sem redigitar.
+    prisma.empresa.findMany({
+      where: { id: { in: escopo } },
+      orderBy: { nome: "asc" },
+      select: { id: true, nome: true, cnpj: true, razaoSocial: true },
+    }),
     // O select de motorista do formulário — o CADASTRO de colaboradores, como
     // pedido em 31/08/2026: escolher da lista, não digitar texto solto.
     prisma.colaborador.findMany({
@@ -166,6 +175,9 @@ export default async function VeiculosPage({
       empresaId: v.empresaId,
       ufEmplacamento: v.ufEmplacamento,
       propriedade: v.propriedade,
+      proprietarioTipo: v.proprietarioTipo,
+      proprietarioNome: v.proprietarioNome,
+      proprietarioDocumento: v.proprietarioDocumento,
       motorizacao: v.motorizacao,
       situacao: v.situacao,
       aderidoSne: v.aderidoSne,

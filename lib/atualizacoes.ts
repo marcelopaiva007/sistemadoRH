@@ -26,6 +26,20 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.183.0",
+    data: "04/11/2026",
+    horario: "08:00",
+    titulo: "Veículos: proprietário (CPF ou CNPJ) separado da empresa onde o carro trabalha",
+    itens: [
+      "O cadastro do veículo ganhou o bloco \"Proprietário e uso\": nome do proprietário como está no CRLV e o CPF ou CNPJ dele. O sistema reconhece sozinho se é pessoa física ou jurídica e confere os dígitos.",
+      "Quando o dono é uma empresa do grupo, o atalho \"Proprietário — empresa do grupo\" preenche razão social e CNPJ de uma vez. Locadora, sócio ou colaborador se digitam à mão.",
+      "O antigo campo \"Empresa (CNPJ dono)\" passa a se chamar \"Empresa onde o veículo trabalha\" — é o que ele sempre representou na prática. Nada do que já estava cadastrado muda de empresa.",
+      "Esse campo agora aparece também no cadastro de veículo novo, e não só na edição: o carro já nasce na empresa certa.",
+      "A lista de veículos tem duas colunas: \"Proprietário\" (com CPF/CNPJ) e \"Trabalha em\". A busca encontra o carro pelo nome ou pelo CPF/CNPJ do proprietário.",
+      "O Relatório (CSV) ganhou as colunas Proprietário, Tipo e CPF/CNPJ do proprietário; a coluna de empresa virou \"Trabalha em (empresa)\".",
+    ],
+  },
+  {
     versao: "1.182.2",
     data: "31/10/2026",
     horario: "09:30",
