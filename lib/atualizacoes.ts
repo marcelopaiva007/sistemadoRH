@@ -26,6 +26,16 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.183.2",
+    data: "04/11/2026",
+    horario: "07:45",
+    titulo: "Veículos: \"Documento\", \"Entregar\" e editar abrem à vista",
+    itens: [
+      "Clicar em \"Documento\" ou \"Entregar\" parecia não fazer nada: o painel abria lá embaixo, depois da lista inteira de veículos. Agora ele abre acima da lista e a tela rola até ele.",
+      "O lápis de editar também passa a levar a tela até o formulário, mesmo clicando num carro do fim da lista.",
+    ],
+  },
+  {
     versao: "1.183.1",
     data: "04/11/2026",
     horario: "07:30",

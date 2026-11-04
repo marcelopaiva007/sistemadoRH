@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useMemo, useState, useTransition } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Car, Download, FileText, Paperclip, Plus, Pencil, Search, ShieldCheck, ShieldAlert, Trash2 } from "lucide-react";
@@ -200,6 +200,14 @@ export function VeiculosView({
     | null
   >(null);
   const [form, setForm] = useState<Record<string, string>>({});
+  const ancoraPainel = useRef<HTMLDivElement>(null);
+  // Leva a tela até o painel recém-aberto — o botão fica na linha da tabela,
+  // que pode estar bem abaixo. Depende da IDENTIDADE do painel (tipo + veículo)
+  // para rolar também ao trocar de um carro para outro.
+  const chavePainel = painel ? `${painel.tipo}:${"veiculoId" in painel ? painel.veiculoId : form.id ?? ""}` : "";
+  useEffect(() => {
+    if (chavePainel) ancoraPainel.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [chavePainel]);
   // A exclusão NÃO entra no `painel`. Painel é formulário: abre embaixo da
   // tabela, e com 64 placas na tela a confirmação nasceria fora da dobra —
   // confirmação que não se vê é confirmação que não confirma nada. Vai de
@@ -324,6 +332,12 @@ export function VeiculosView({
           Novo veículo
         </Button>
       </div>
+
+      {/* Âncora dos painéis. Eles abriam EMBAIXO da tabela: com 61 placas, o
+          clique em "Documento" ou "Entregar" montava o painel a ~3.000px e
+          parecia que o botão não fazia nada (relato do CEO em 04/11/2026). Agora
+          ficam acima da tabela e a tela rola até eles ao abrir. */}
+      <div ref={ancoraPainel} className="scroll-mt-20" />
 
       {painel?.tipo === "veiculo" && (
         <Card>
@@ -493,6 +507,48 @@ export function VeiculosView({
               <Button size="sm" disabled={pendente} onClick={salvar}>Salvar</Button>
               <Button size="sm" variant="ghost" onClick={fechar}>Cancelar</Button>
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {painel?.tipo === "documento" && veiculoDoPainel && (
+        <PainelDocumentos
+          empresaId={empresaId}
+          veiculo={veiculoDoPainel}
+          onFechar={fechar}
+          onSalvo={() => router.refresh()}
+        />
+      )}
+
+      {painel?.tipo === "entrega" && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Entregar o veículo a um condutor</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-3 sm:grid-cols-3">
+            <label className="text-xs text-muted-foreground">
+              Condutor
+              <select {...campo("condutorId")} className={CAMPO}>
+                <option value="">Escolha…</option>
+                {condutores.map((c) => (
+                  <option key={c.id} value={c.id}>{c.nome}</option>
+                ))}
+              </select>
+            </label>
+            <label className="text-xs text-muted-foreground">
+              A partir de
+              <input {...campo("dataInicio")} type="date" className={CAMPO} />
+            </label>
+            <div className="flex items-end gap-2">
+              <Button size="sm" disabled={pendente} onClick={() => entregar(painel.veiculoId)}>Entregar</Button>
+              <Button size="sm" variant="ghost" onClick={fechar}>Cancelar</Button>
+            </div>
+            <p className="text-xs text-muted-foreground sm:col-span-3">
+              É este registro que, meses depois, responde quem estava com a placa no dia da
+              infração — e permite indicar o condutor sem a assinatura dele. A entrega anterior é
+              encerrada automaticamente: dois condutores em posse ao mesmo tempo tornaria a
+              resposta ambígua justamente quando ela precisa ser inequívoca.
+            </p>
           </CardContent>
         </Card>
       )}
@@ -777,47 +833,6 @@ export function VeiculosView({
         />
       )}
 
-      {painel?.tipo === "documento" && veiculoDoPainel && (
-        <PainelDocumentos
-          empresaId={empresaId}
-          veiculo={veiculoDoPainel}
-          onFechar={fechar}
-          onSalvo={() => router.refresh()}
-        />
-      )}
-
-      {painel?.tipo === "entrega" && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Entregar o veículo a um condutor</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-3 sm:grid-cols-3">
-            <label className="text-xs text-muted-foreground">
-              Condutor
-              <select {...campo("condutorId")} className={CAMPO}>
-                <option value="">Escolha…</option>
-                {condutores.map((c) => (
-                  <option key={c.id} value={c.id}>{c.nome}</option>
-                ))}
-              </select>
-            </label>
-            <label className="text-xs text-muted-foreground">
-              A partir de
-              <input {...campo("dataInicio")} type="date" className={CAMPO} />
-            </label>
-            <div className="flex items-end gap-2">
-              <Button size="sm" disabled={pendente} onClick={() => entregar(painel.veiculoId)}>Entregar</Button>
-              <Button size="sm" variant="ghost" onClick={fechar}>Cancelar</Button>
-            </div>
-            <p className="text-xs text-muted-foreground sm:col-span-3">
-              É este registro que, meses depois, responde quem estava com a placa no dia da
-              infração — e permite indicar o condutor sem a assinatura dele. A entrega anterior é
-              encerrada automaticamente: dois condutores em posse ao mesmo tempo tornaria a
-              resposta ambígua justamente quando ela precisa ser inequívoca.
-            </p>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }
