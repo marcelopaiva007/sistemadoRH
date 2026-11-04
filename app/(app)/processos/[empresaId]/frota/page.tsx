@@ -117,12 +117,10 @@ export default async function VeiculosPage({
       orderBy: { colaborador: { nome: "asc" } },
       select: { id: true, colaborador: { select: { nome: true } } },
     }),
-    // CNPJ e razão social entram para o atalho "o proprietário é empresa do
-    // grupo" do formulário — preencher nome e CNPJ sem redigitar.
     prisma.empresa.findMany({
       where: { id: { in: escopo } },
       orderBy: { nome: "asc" },
-      select: { id: true, nome: true, cnpj: true, razaoSocial: true },
+      select: { id: true, nome: true },
     }),
     // O select de motorista do formulário — o CADASTRO de colaboradores, como
     // pedido em 31/08/2026: escolher da lista, não digitar texto solto.

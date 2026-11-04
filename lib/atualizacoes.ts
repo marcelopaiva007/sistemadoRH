@@ -26,6 +26,15 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.183.1",
+    data: "04/11/2026",
+    horario: "07:30",
+    titulo: "Veículos: proprietário digitado à mão",
+    itens: [
+      "Saiu do cadastro do veículo o atalho \"Proprietário — empresa do grupo\". O nome e o CPF/CNPJ do proprietário agora são sempre digitados à mão, como estão no CRLV.",
+    ],
+  },
+  {
     versao: "1.183.0",
     data: "04/11/2026",
     horario: "08:00",

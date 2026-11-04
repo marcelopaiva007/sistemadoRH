@@ -121,7 +121,7 @@ function formatarDocumento(doc: string | null | undefined): string {
   return doc ?? "";
 }
 
-type EmpresaDoGrupo = { id: string; nome: string; cnpj?: string | null; razaoSocial?: string | null };
+type EmpresaDoGrupo = { id: string; nome: string };
 
 export function VeiculosView({
   empresaId,
@@ -337,32 +337,8 @@ export function VeiculosView({
             <fieldset className="grid gap-3 rounded-md border border-border p-3 sm:col-span-2 sm:grid-cols-2 lg:col-span-3 lg:grid-cols-3">
               <legend className="px-1 text-xs font-medium text-foreground">Proprietário e uso</legend>
               <label className="text-xs text-muted-foreground">
-                Proprietário — empresa do grupo (atalho)
-                <select
-                  className={CAMPO}
-                  value=""
-                  onChange={(e) => {
-                    const emp = empresas.find((x) => x.id === e.target.value);
-                    if (!emp) return;
-                    setForm((f) => ({
-                      ...f,
-                      proprietarioNome: emp.razaoSocial || emp.nome,
-                      proprietarioDocumento: emp.cnpj ? formatarCnpj(emp.cnpj) : "",
-                    }));
-                  }}
-                >
-                  <option value="">— escolher para preencher —</option>
-                  {empresas.map((e) => (
-                    <option key={e.id} value={e.id}>{e.nome}</option>
-                  ))}
-                </select>
-                <span className="mt-0.5 block text-[11px] text-muted-foreground/80">
-                  Ou digite ao lado: locadora, sócio, colaborador.
-                </span>
-              </label>
-              <label className="text-xs text-muted-foreground">
                 Nome do proprietário (como no CRLV)
-                <input {...campo("proprietarioNome")} className={CAMPO} placeholder="BR SISTEMAS LTDA / Fulano de Tal" />
+                <input {...campo("proprietarioNome")} className={CAMPO} placeholder="Nome ou razão social" />
               </label>
               <label className="text-xs text-muted-foreground">
                 CPF ou CNPJ do proprietário
