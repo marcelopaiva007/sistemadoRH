@@ -26,6 +26,15 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.183.3",
+    data: "04/11/2026",
+    horario: "07:45",
+    titulo: "Menu lateral mantém a empresa escolhida no topo",
+    itens: [
+      "Com uma marca ou CNPJ escolhido na barra de topo, clicar em Pesquisas (ou em qualquer outro item do menu lateral) abria a tela com todas as empresas. Agora a escolha acompanha o clique e a tela já abre filtrada.",
+    ],
+  },
+  {
     versao: "1.183.2",
     data: "04/11/2026",
     horario: "07:45",
