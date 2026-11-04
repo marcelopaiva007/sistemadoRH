@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
+import { PARAM } from "@/app/(app)/rh/[empresaId]/filtro-empresas";
 import { useSyncExternalStore, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -110,11 +111,22 @@ export function NavLateral({
   const todos = [...(topo ? [topo] : []), ...grupos.flatMap((g) => g.itens)];
   const ativo = hrefAtivo(pathname, todos);
 
+  // O filtro de marca/CNPJ da barra de topo (`?empresas=`) ACOMPANHA o clique
+  // na lateral. Antes os links iam sem querystring: com "LM Telecom" escolhida
+  // no topo, clicar em Pesquisas (ou em qualquer outro item) abria a visão
+  // consolidada de todas as empresas — o filtro sumia sem aviso (relatado em
+  // 04/11/2026). Só o `?empresas=`, e não a querystring inteira: o resto são
+  // filtros da tela de onde se sai — mesma regra de components/seletor-modulo.tsx.
+  // O `ativo` acima continua comparando o href SEM query, contra o pathname.
+  const searchParams = useSearchParams();
+  const filtro = searchParams.get(PARAM);
+  const comFiltro = (href: string) => (filtro ? `${href}?${PARAM}=${filtro}` : href);
+
   return (
     <nav className="flex gap-1 md:flex-col md:gap-0 md:space-y-3">
       {topo && (
         <Link
-          href={topo.href}
+          href={comFiltro(topo.href)}
           aria-current={ativo === topo.href ? "page" : undefined}
           className={cn(
             "flex h-[34px] shrink-0 items-center gap-2 border-l-2 pr-2 pl-3 text-sm whitespace-nowrap transition-colors",
@@ -163,7 +175,7 @@ export function NavLateral({
                 return (
                   <li key={item.href} className="shrink-0">
                     <Link
-                      href={item.href}
+                      href={comFiltro(item.href)}
                       aria-current={esteAtivo ? "page" : undefined}
                       className={cn(
                         "flex h-[30px] items-center gap-2 border-l-2 pr-2 pl-3 text-[13.5px] whitespace-nowrap transition-colors",
