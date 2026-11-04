@@ -461,6 +461,11 @@ model Colaborador {
   dataAdmissao               DateTime?
   dataDesligamento           DateTime?
   motivoDesligamento         String?
+  // Para qual CNPJ do grupo a pessoa foi, quando motivoDesligamento é
+  // TRANSFERENCIA_GRUPO (ver lib/transferencia.ts). A data é dataDesligamento.
+  // Referência SOFT, sem @relation: é registro histórico — não deve travar
+  // nem sumir junto com a Empresa de destino.
+  transferidoParaEmpresaId   String?
   // Desligamento anterior ao sistema, sem como cobrar devolução de crachá,
   // notebook, EPI — nem entrevista de saída — de quem já saiu há tempo. A
   // dispensa tira a pessoa das pendências de checklist E de entrevista

@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
+import { empresasVisiveis, requireEmpresaAccess } from "@/lib/rh-auth-guard";
+import { destinoDaTransferencia, ehTransferencia } from "@/lib/transferencia";
 import { registrarAuditoria } from "@/lib/audit";
 import { dataDoFormulario, formatarData } from "@/lib/datas";
 import { ITENS_OFFBOARDING, itemOffboardingLabel } from "@/lib/constants-offboarding";
@@ -75,6 +76,8 @@ export async function corrigirDadosDesligamento(
     where: { id: colaboradorId, empresaId },
     select: {
       id: true,
+      empresaId: true,
+      cpf: true,
       nome: true,
       createdAt: true,
       dataDesligamento: true,
@@ -94,6 +97,15 @@ export async function corrigirDadosDesligamento(
   const motivo = String(formData.get("motivoDesligamento") ?? "").trim();
   if (!MOTIVOS_DESLIGAMENTO.some((m) => m.value === motivo)) {
     return { ok: false, error: "Informe o motivo da saída." };
+  }
+
+  // Transferência: o destino é o CNPJ da ficha ativa com o mesmo CPF. Trocar
+  // para outro motivo limpa o destino — senão a ficha seguiria "Transferido".
+  let destino: { empresaId: string; empresaNome: string } | null = null;
+  if (ehTransferencia(motivo)) {
+    const r = await destinoDaTransferencia(prisma, colaborador, await empresasVisiveis(usuario));
+    if (!r.ok) return { ok: false, error: r.error };
+    destino = r;
   }
 
   // Desligamento ANTIGO — anterior ao próprio cadastro no sistema, ou seja,
@@ -121,6 +133,7 @@ export async function corrigirDadosDesligamento(
     data: {
       dataDesligamento,
       motivoDesligamento: motivo,
+      transferidoParaEmpresaId: destino?.empresaId ?? null,
       ...(dispensarOffboarding
         ? {
             checklistDispensado: true,
@@ -138,7 +151,8 @@ export async function corrigirDadosDesligamento(
     entidade: "Colaborador",
     entidadeId: colaboradorId,
     resumo:
-      `Desligamento de ${colaborador.nome} corrigido: ${formatarData(dataDesligamento)}, ${motivoDesligamentoLabel(motivo)}.` +
+      `Desligamento de ${colaborador.nome} corrigido: ${formatarData(dataDesligamento)}, ${motivoDesligamentoLabel(motivo)}` +
+      (destino ? ` → ${destino.empresaNome}.` : ".") +
       (dispensarOffboarding
         ? " Offboarding dispensado (desligamento anterior ao cadastro no sistema)."
         : ""),
@@ -146,6 +160,7 @@ export async function corrigirDadosDesligamento(
 
   revalidatePath(`/rh/${empresaId}/desligamentos`);
   revalidatePath(`/rh/${empresaId}/colaboradores/${colaboradorId}`);
+  revalidatePath(`/rh/${empresaId}/colaboradores`);
   return { ok: true };
 }
 

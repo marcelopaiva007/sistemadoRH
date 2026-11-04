@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
+import { empresasVisiveis, requireEmpresaAccess } from "@/lib/rh-auth-guard";
+import { destinoDaTransferencia, ehTransferencia } from "@/lib/transferencia";
 import { empresasDaMesmaMarca } from "@/lib/escopo-marca";
 import { registrarAuditoria, diffCampos } from "@/lib/audit";
 import { violouUnique } from "@/lib/prisma-erros";
@@ -176,7 +177,7 @@ export async function atualizarFicha(
   _prev: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
-  await requireEmpresaAccess(empresaId);
+  const usuario = await requireEmpresaAccess(empresaId);
 
   const atual = await prisma.colaborador.findFirst({ where: { id: colaboradorId, empresaId } });
   if (!atual) return { ok: false, error: "Colaborador não encontrado nesta empresa." };
@@ -240,6 +241,25 @@ export async function atualizarFicha(
     const admissao = data.dataAdmissao instanceof Date ? data.dataAdmissao : atual.dataAdmissao;
     if (!(admissao instanceof Date)) {
       return { ok: false, error: "Informe a data de admissão antes de registrar o desligamento." };
+    }
+  }
+
+  // Motivo trocado no bloco "Vínculo": transferência acha o CNPJ de destino
+  // (lib/transferencia.ts); qualquer outro motivo limpa o destino antigo.
+  // Só procura quando o motivo MUDOU para transferência (ou ainda não tem
+  // destino): o bloco reposta o motivo em todo salvar, e uma correção de
+  // salário não pode travar porque a ficha nova foi encerrada depois.
+  if ("motivoDesligamento" in data) {
+    const motivoNovo = data.motivoDesligamento as string | null;
+    if (
+      ehTransferencia(motivoNovo) &&
+      (motivoNovo !== atual.motivoDesligamento || !atual.transferidoParaEmpresaId)
+    ) {
+      const r = await destinoDaTransferencia(prisma, atual, await empresasVisiveis(usuario));
+      if (!r.ok) return { ok: false, error: r.error };
+      data.transferidoParaEmpresaId = r.empresaId;
+    } else if (!ehTransferencia(motivoNovo) && atual.transferidoParaEmpresaId) {
+      data.transferidoParaEmpresaId = null;
     }
   }
 
