@@ -157,6 +157,9 @@ export const MOTIVOS_DESLIGAMENTO = [
   { value: "APOSENTADORIA", label: "Aposentadoria" },
   { value: "FALECIMENTO", label: "Falecimento" },
   { value: "ABANDONO", label: "Abandono de emprego" },
+  // Não é rescisão para fora do grupo: a pessoa segue trabalhando, em outro
+  // CNPJ. A ficha antiga aparece como "Transferido" (lib/transferencia.ts).
+  { value: "TRANSFERENCIA_GRUPO", label: "Transferência para outro CNPJ do grupo" },
 ] as const;
 
 const rotulo = <T extends readonly { value: string; label: string }[]>(lista: T) =>

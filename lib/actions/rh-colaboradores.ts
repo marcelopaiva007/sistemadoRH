@@ -11,6 +11,7 @@ import { empresasDaMesmaMarca, marcaDaEmpresa } from "@/lib/escopo-marca";
 import { invalidarConvitesDeDesligados } from "@/lib/pesquisa-vinculo";
 import { convidarParaPesquisaDesligamento } from "@/lib/pesquisa-desligamento";
 import { hojeUTC } from "@/lib/datas";
+import { destinoDaTransferencia, ehTransferencia } from "@/lib/transferencia";
 import { lerAnexo } from "@/lib/anexos";
 import { enviarParaBlob } from "@/lib/blob";
 import { MOTIVOS_DESLIGAMENTO, TIPOS_CONTRATO, CONTRATOS_POR_PRAZO } from "@/lib/constants-dp";
@@ -309,11 +310,11 @@ export async function toggleColaboradorAtivo(
   ativo: boolean,
   motivoDesligamento?: string
 ): Promise<ActionResult> {
-  await requireEmpresaAccess(empresaId);
+  const usuario = await requireEmpresaAccess(empresaId);
 
   const colaborador = await prisma.colaborador.findFirst({
     where: { id, empresaId },
-    select: { nome: true, ativo: true, dataDesligamento: true },
+    select: { id: true, empresaId: true, cpf: true, nome: true, ativo: true, dataDesligamento: true },
   });
   if (!colaborador) return { ok: false, error: "Colaborador não encontrado." };
 
@@ -322,6 +323,15 @@ export async function toggleColaboradorAtivo(
     if (!motivoDesligamento || !MOTIVOS_DESLIGAMENTO.some((m) => m.value === motivoDesligamento)) {
       return { ok: false, error: "Selecione o motivo do desligamento." };
     }
+  }
+
+  // Transferência: o destino é o CNPJ da ficha ativa com o mesmo CPF.
+  const transferindo = estaDesligando && ehTransferencia(motivoDesligamento);
+  let destino: { empresaId: string; empresaNome: string } | null = null;
+  if (transferindo) {
+    const r = await destinoDaTransferencia(prisma, colaborador, await empresasVisiveis(usuario));
+    if (!r.ok) return { ok: false, error: r.error };
+    destino = r;
   }
 
   await prisma.$transaction(async (tx) => {
@@ -335,14 +345,19 @@ export async function toggleColaboradorAtivo(
               // bloco "Vínculo" pode ter sido preenchido antes do clique).
               dataDesligamento: colaborador.dataDesligamento ?? hojeUTC(),
               motivoDesligamento,
+              transferidoParaEmpresaId: destino?.empresaId ?? null,
             }
           : {}),
       },
     });
     // RD-001 + fase 4 (P09-OFF): mesma regra do formulário de edição — ver acima.
+    // Os convites expiram também na transferência (a ficha nova recebe os
+    // dela); a pesquisa de DESLIGAMENTO não sai — a pessoa não saiu do grupo.
     if (estaDesligando) {
       await invalidarConvitesDeDesligados(tx, id);
-      await convidarParaPesquisaDesligamento(tx, id, empresaId, await marcaDaEmpresa(empresaId));
+      if (!transferindo) {
+        await convidarParaPesquisaDesligamento(tx, id, empresaId, await marcaDaEmpresa(empresaId));
+      }
     }
   });
 
@@ -351,7 +366,9 @@ export async function toggleColaboradorAtivo(
     acao: "ATUALIZAR",
     entidade: "Colaborador",
     entidadeId: id,
-    resumo: `${colaborador.nome} foi ${ativo ? "reativado(a)" : "desativado(a)"}.`,
+    resumo: destino
+      ? `${colaborador.nome} foi transferido(a) para ${destino.empresaNome}.`
+      : `${colaborador.nome} foi ${ativo ? "reativado(a)" : "desativado(a)"}.`,
   });
 
   revalidatePath(`/rh/${empresaId}/colaboradores`);

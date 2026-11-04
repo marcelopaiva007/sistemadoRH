@@ -21,6 +21,7 @@ import {
 } from "@/lib/actions/rh-offboarding";
 import { itemOffboardingLabel } from "@/lib/constants-offboarding";
 import { motivoDesligamentoLabel } from "@/lib/constants-dp";
+import { ehTransferencia } from "@/lib/transferencia";
 import { formatarData } from "@/lib/datas";
 import { Campo, CampoData, CampoTexto, FormularioAction } from "./campos";
 import { BotaoExcluir } from "./dependentes-card";
@@ -48,6 +49,7 @@ export function OffboardingCard({
   colaboradorId,
   dataDesligamento,
   motivoDesligamento,
+  transferidoParaNome = null,
   checklistDispensado,
   checklistDispensadoEm,
   checklistDispensadoPorNome,
@@ -58,6 +60,7 @@ export function OffboardingCard({
   colaboradorId: string;
   dataDesligamento: Date | null;
   motivoDesligamento: string | null;
+  transferidoParaNome?: string | null;
   checklistDispensado: boolean;
   checklistDispensadoEm: Date | null;
   checklistDispensadoPorNome: string | null;
@@ -97,8 +100,17 @@ export function OffboardingCard({
         <CardHeader>
           <CardTitle>Desligamento</CardTitle>
           <CardDescription>
-            Desligado em {formatarData(dataDesligamento)}
-            {motivoDesligamento && ` · ${motivoDesligamentoLabel(motivoDesligamento)}`}
+            {ehTransferencia(motivoDesligamento) ? (
+              <>
+                Transferido em {formatarData(dataDesligamento)}
+                {transferidoParaNome ? ` para ${transferidoParaNome}` : " para outro CNPJ do grupo"}
+              </>
+            ) : (
+              <>
+                Desligado em {formatarData(dataDesligamento)}
+                {motivoDesligamento && ` · ${motivoDesligamentoLabel(motivoDesligamento)}`}
+              </>
+            )}
           </CardDescription>
         </CardHeader>
       </Card>

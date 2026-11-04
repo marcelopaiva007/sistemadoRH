@@ -8,6 +8,7 @@ import { pendenciasDaAdmissao } from "@/lib/admissao";
 import { faltasNaFicha, documentosFaltando } from "@/lib/cobranca-cadastro-colaborador";
 import { opcoesDoCatalogo } from "@/lib/catalogos";
 import { ColaboradorDetalhe } from "./colaborador-detalhe";
+import { ehTransferencia } from "@/lib/transferencia";
 import { Trilha } from "@/components/trilha";
 
 // Ficha completa do colaborador: dados cadastrais, dependentes, dossiê digital,
@@ -37,6 +38,15 @@ export default async function ColaboradorPage({
     },
   });
   if (!colaborador) notFound();
+
+  // Nome do CNPJ de destino, para a ficha antiga dizer "Transferido → X".
+  const transferidoParaNome =
+    !colaborador.ativo && ehTransferencia(colaborador.motivoDesligamento) && colaborador.transferidoParaEmpresaId
+      ? ((await prisma.empresa.findUnique({
+          where: { id: colaborador.transferidoParaEmpresaId },
+          select: { nome: true },
+        }))?.nome ?? null)
+      : null;
 
   // Setores e cargos são oferecidos no escopo da MARCA: o catálogo foi
   // unificado por grupo (telas de Setores/Cargos), então a linha do cargo de
@@ -376,6 +386,7 @@ export default async function ColaboradorPage({
       <ColaboradorDetalhe
         empresaId={empresaId}
         colaborador={colaborador}
+        transferidoParaNome={transferidoParaNome}
         dependentes={dependentes}
         documentos={documentos}
         ferias={ferias}

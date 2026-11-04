@@ -1,4 +1,5 @@
 import { requireEmpresaAccess, empresasVisiveis } from "@/lib/rh-auth-guard";
+import { ehTransferencia } from "@/lib/transferencia";
 import { prisma } from "@/lib/prisma";
 import { hojeUTC, somarAnosUTC } from "@/lib/datas";
 import { empresasDaMesmaMarca } from "@/lib/escopo-marca";
@@ -146,6 +147,9 @@ export default async function ColaboradoresPage({
       semFerias: Boolean(dataAdmissao && dataAdmissao < umAnoAtras && _count.ferias === 0),
       semDataDesligamento: !dataDesligamento,
       semMotivoDesligamento: !motivoDesligamento,
+      // Ficha encerrada porque a pessoa foi para outro CNPJ do grupo — o chip
+      // diz "Transferido" em vez de "Inativo" (lib/transferencia.ts).
+      transferido: !c.ativo && ehTransferencia(motivoDesligamento),
       comDisciplinarPendente: _count.ocorrenciasDisciplinares > 0,
     }),
   );

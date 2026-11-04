@@ -26,6 +26,18 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.184.0",
+    data: "04/11/2026",
+    horario: "08:30",
+    titulo: "Novo status: Transferido para outro CNPJ do grupo",
+    itens: [
+      "Quem muda de CNPJ dentro do grupo não aparece mais como desligado. Na ficha antiga, escolha o motivo \"Transferência para outro CNPJ do grupo\" (ao desativar, no lápis da tela Desligamentos ou no bloco Vínculo da ficha).",
+      "O CNPJ de destino é preenchido sozinho: é o CNPJ onde está a ficha ativa com o mesmo CPF. Se a ficha nova ainda não existe, o sistema pede para cadastrá-la primeiro.",
+      "A ficha antiga passa a mostrar \"Transferido → CNPJ de destino\" na lista, no cabeçalho da ficha, na aba Desligamento e no alerta de duplicatas. A data da transferência é a data de saída da ficha antiga.",
+      "Transferência não dispara a pesquisa de desligamento: a pessoa continua no grupo.",
+    ],
+  },
+  {
     versao: "1.183.3",
     data: "04/11/2026",
     horario: "07:45",

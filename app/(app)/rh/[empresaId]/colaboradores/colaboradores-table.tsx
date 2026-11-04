@@ -156,6 +156,8 @@ type Colaborador = {
   semFerias: boolean;
   semDataDesligamento: boolean;
   semMotivoDesligamento: boolean;
+  /** Encerrada por transferência para outro CNPJ do grupo. */
+  transferido: boolean;
   semCadastroCompleto: boolean;
   comDisciplinarPendente: boolean;
   gerente: boolean;
@@ -292,23 +294,26 @@ function AvatarIniciais({ nome, id, ativo }: { nome: string; id: string; ativo: 
 }
 
 /** Chip de status com bolinha colorida — mais legível que badge sólido. */
-function ChipStatus({ ativo }: { ativo: boolean }) {
+function ChipStatus({ ativo, transferido = false }: { ativo: boolean; transferido?: boolean }) {
   return (
     <span
+      title={transferido ? "Ficha encerrada: a pessoa foi para outro CNPJ do grupo" : undefined}
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset",
         ativo
           ? "bg-card text-success ring-success"
-          : "bg-card text-muted-foreground ring-border",
+          : transferido
+            ? "bg-card text-primary ring-primary/40"
+            : "bg-card text-muted-foreground ring-border",
       )}
     >
       <span
         className={cn(
           "size-1.5 rounded-full",
-          ativo ? "bg-success" : "bg-muted-foreground",
+          ativo ? "bg-success" : transferido ? "bg-primary" : "bg-muted-foreground",
         )}
       />
-      {ativo ? "Ativo" : "Inativo"}
+      {ativo ? "Ativo" : transferido ? "Transferido" : "Inativo"}
     </span>
   );
 }
@@ -866,7 +871,7 @@ export function ColaboradoresTable({
                       que era clicável e sem confirmar — quem passava por aqui
                       não achava a ação, e quem achava por acidente desativava
                       alguém sem querer. A ação foi para a coluna de ações. */}
-                  <ChipStatus ativo={c.ativo} />
+                  <ChipStatus ativo={c.ativo} transferido={c.transferido} />
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-0.5">

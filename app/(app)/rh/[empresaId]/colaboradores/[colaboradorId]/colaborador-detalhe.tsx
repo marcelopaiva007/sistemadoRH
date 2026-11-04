@@ -1,5 +1,6 @@
 "use client";
 
+import { ehTransferencia } from "@/lib/transferencia";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ClipboardList, Send } from "lucide-react";
@@ -61,6 +62,7 @@ function iniciais(nome: string): string {
 export function ColaboradorDetalhe({
   empresaId,
   colaborador,
+  transferidoParaNome = null,
   dependentes,
   documentos,
   ferias,
@@ -102,6 +104,8 @@ export function ColaboradorDetalhe({
 }: {
   empresaId: string;
   colaborador: Colaborador;
+  /** CNPJ de destino, quando esta ficha foi encerrada por transferência. */
+  transferidoParaNome?: string | null;
   dependentes: Parameters<typeof DependentesCard>[0]["dependentes"];
   documentos: Parameters<typeof DocumentosCard>[0]["documentos"];
   ferias: Parameters<typeof FeriasCard>[0]["solicitacoes"];
@@ -174,7 +178,11 @@ export function ColaboradorDetalhe({
         situacao={
           <>
             <Badge variant={colaborador.ativo ? "default" : "secondary"}>
-              {colaborador.ativo ? "Ativo" : "Inativo"}
+              {colaborador.ativo
+                ? "Ativo"
+                : ehTransferencia(colaborador.motivoDesligamento)
+                  ? `Transferido${transferidoParaNome ? ` → ${transferidoParaNome}` : ""}`
+                  : "Inativo"}
             </Badge>
             {colaborador.tipoContrato && (
               <Badge variant="secondary">{tipoContratoLabel(colaborador.tipoContrato)}</Badge>
@@ -496,6 +504,7 @@ export function ColaboradorDetalhe({
               colaboradorId={colaborador.id}
               dataDesligamento={colaborador.dataDesligamento}
               motivoDesligamento={colaborador.motivoDesligamento}
+              transferidoParaNome={transferidoParaNome}
               checklistDispensado={colaborador.checklistDispensado}
               checklistDispensadoEm={colaborador.checklistDispensadoEm}
               checklistDispensadoPorNome={colaborador.checklistDispensadoPorNome}

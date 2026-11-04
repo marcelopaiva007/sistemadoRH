@@ -20,6 +20,7 @@ type Colaborador = {
   telefone: string | null;
   telegramChatId: string | null;
   ativo: boolean;
+  transferido: boolean;
   empresaId: string;
   setor: { nome: string };
 };
@@ -81,6 +82,12 @@ export function AlertaDuplicados({ empresaId, colaboradores }: { empresaId: stri
     [colaboradores],
   );
 
+  // PessoaParaComparar não carrega o motivo; o rótulo da ficha encerrada vem daqui.
+  const transferidos = useMemo(
+    () => new Set(colaboradores.filter((c) => c.transferido).map((c) => c.id)),
+    [colaboradores],
+  );
+
   if (grupos.length === 0) return null;
 
   const urgentes = grupos.filter((g) => g.gravidade === "alta").length;
@@ -134,7 +141,7 @@ export function AlertaDuplicados({ empresaId, colaboradores }: { empresaId: stri
                         </Link>
                         {!p.ativo && (
                           <Badge variant="outline" className="text-muted-foreground">
-                            Desligado
+                            {transferidos.has(p.id) ? "Transferido" : "Desligado"}
                           </Badge>
                         )}
                         {p.temTelegram && (
