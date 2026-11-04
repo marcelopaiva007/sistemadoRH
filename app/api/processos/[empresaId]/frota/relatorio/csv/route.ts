@@ -4,6 +4,8 @@ import { escopoDeEmpresas, usuarioAlcancaEmpresa } from "@/lib/rh-auth-guard";
 import { sistemasPermitidos } from "@/lib/permissoes/efetivas";
 import { prisma } from "@/lib/prisma";
 import { gerarCsv } from "@/lib/csv";
+import { formatarCpf } from "@/lib/cpf";
+import { formatarCnpj } from "@/lib/cnpj";
 import { diferencaEmDiasUTC, formatarData, hojeUTC } from "@/lib/datas";
 import { retratoFinanceiro, ROTULO_STATUS_VENCIMENTO } from "@/lib/processos/frota-financeiro";
 import {
@@ -63,6 +65,9 @@ export async function GET(
         setor: true,
         emplacado: true,
         propriedade: true,
+        proprietarioTipo: true,
+        proprietarioNome: true,
+        proprietarioDocumento: true,
         motorizacao: true,
         situacao: true,
         aderidoSne: true,
@@ -110,7 +115,10 @@ export async function GET(
     "Marca",
     "Modelo",
     "Ano fab/modelo",
-    "Empresa (CNPJ)",
+    "Proprietário",
+    "Tipo proprietário",
+    "CPF/CNPJ proprietário",
+    "Trabalha em (empresa)",
     "Situação",
     "Propriedade",
     "Motorização",
@@ -163,6 +171,13 @@ export async function GET(
       v.marca ?? "",
       v.modelo ?? "",
       [v.anoFab, v.anoModelo].filter(Boolean).join("/"),
+      v.proprietarioNome ?? "",
+      v.proprietarioTipo === "PF" ? "Pessoa física" : v.proprietarioTipo === "PJ" ? "Pessoa jurídica" : "",
+      v.proprietarioDocumento
+        ? v.proprietarioTipo === "PF"
+          ? formatarCpf(v.proprietarioDocumento)
+          : formatarCnpj(v.proprietarioDocumento)
+        : "",
       nomeDaEmpresa.get(v.empresaId) ?? "",
       rotulo(SITUACAO_VEICULO, v.situacao),
       rotulo(PROPRIEDADE_VEICULO, v.propriedade),

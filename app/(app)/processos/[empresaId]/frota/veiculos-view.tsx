@@ -28,6 +28,8 @@ import {
 import { formatarTamanho } from "@/lib/anexos";
 import { MIMES_ANEXO_ACEITOS, TAMANHO_MAXIMO_ANEXO } from "@/lib/constants-dp";
 import type { ActionResult } from "@/lib/constants";
+import { formatarCpf } from "@/lib/cpf";
+import { formatarCnpj } from "@/lib/cnpj";
 import {
   MOTORIZACAO_VEICULO,
   PROPRIEDADE_VEICULO,
@@ -75,6 +77,12 @@ export type VeiculoNaTela = {
   empresaId: string;
   ufEmplacamento: string | null;
   propriedade: string;
+  /** Quem consta no CRLV (04/11/2026) — PF | PJ; independente de `empresaId`,
+   *  que é a empresa onde o carro TRABALHA. */
+  proprietarioTipo: string | null;
+  proprietarioNome: string | null;
+  /** Só dígitos: 11 = CPF, 14 = CNPJ. */
+  proprietarioDocumento: string | null;
   motorizacao: string;
   situacao: string;
   aderidoSne: boolean;
@@ -105,6 +113,16 @@ export type VeiculoNaTela = {
 
 const CAMPO = "w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm";
 
+/** CPF ou CNPJ com a máscara certa, pelo número de dígitos. */
+function formatarDocumento(doc: string | null | undefined): string {
+  const d = (doc ?? "").replace(/\D/g, "");
+  if (d.length === 11) return formatarCpf(d);
+  if (d.length === 14) return formatarCnpj(d);
+  return doc ?? "";
+}
+
+type EmpresaDoGrupo = { id: string; nome: string; cnpj?: string | null; razaoSocial?: string | null };
+
 export function VeiculosView({
   empresaId,
   veiculos,
@@ -116,7 +134,7 @@ export function VeiculosView({
   empresaId: string;
   veiculos: VeiculoNaTela[];
   condutores: { id: string; nome: string }[];
-  empresas: { id: string; nome: string }[];
+  empresas: EmpresaDoGrupo[];
   /** Colaboradores ativos — o select de motorista busca daqui (31/08/2026). */
   colaboradores: { id: string; nome: string }[];
   /** O `?empresas=` da URL — o CSV herda quando nenhum CNPJ é escolhido aqui. */
@@ -147,9 +165,18 @@ export function VeiculosView({
       if (!consulta) return true;
       return (
         (placaConsulta !== "" && v.placa.includes(placaConsulta)) ||
-        [v.marca, v.modelo, v.empresaNome, v.condutorAtual, v.motoristaNome, v.motoristaInformado].some(
-          (campo) => campo?.toLowerCase().includes(textoConsulta),
-        )
+        [
+          v.marca,
+          v.modelo,
+          v.empresaNome,
+          v.condutorAtual,
+          v.motoristaNome,
+          v.motoristaInformado,
+          v.proprietarioNome,
+        ].some((campo) => campo?.toLowerCase().includes(textoConsulta)) ||
+        // CPF/CNPJ do proprietário digitado com ou sem máscara.
+        (consulta.replace(/\D/g, "").length >= 3 &&
+          !!v.proprietarioDocumento?.includes(consulta.replace(/\D/g, "")))
       );
     });
     if (!ordenarPorVencimento) return filtrados;
@@ -240,6 +267,8 @@ export function VeiculosView({
         motoristaInformado: form.motoristaInformado ?? null,
         motoristaColaboradorId: form.motoristaColaboradorId || null,
         observacoes: form.observacoes ?? null,
+        proprietarioNome: form.proprietarioNome ?? null,
+        proprietarioDocumento: form.proprietarioDocumento ?? null,
         empresaDestinoId: form.empresaDestino || null,
       });
       if (!r.ok) {
@@ -282,7 +311,15 @@ export function VeiculosView({
       )}
 
       <div className="flex justify-end">
-        <Button size="sm" className="gap-2" onClick={() => abrir({ tipo: "veiculo" }, { propriedade: "PROPRIO", situacao: "ATIVO" })}>
+        <Button size="sm" className="gap-2" onClick={() =>
+            abrir({ tipo: "veiculo" }, {
+              propriedade: "PROPRIO",
+              situacao: "ATIVO",
+              // A empresa da tela, se ela estiver na lista; senão a primeira —
+              // o select nunca mostra uma empresa e grava outra.
+              empresaDestino: empresas.some((e) => e.id === empresaId) ? empresaId : (empresas[0]?.id ?? ""),
+            })
+          }>
           <Plus className="size-4" />
           Novo veículo
         </Button>
@@ -294,6 +331,69 @@ export function VeiculosView({
             <CardTitle className="text-base">{form.id ? "Editar veículo" : "Novo veículo"}</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {/* Propriedade × uso — pedido do CEO em 04/11/2026. O antigo campo
+                "Empresa (CNPJ dono)" era usado para dizer onde o carro TRABALHA;
+                quem é o DONO no documento é outra informação, e pode ser CPF. */}
+            <fieldset className="grid gap-3 rounded-md border border-border p-3 sm:col-span-2 sm:grid-cols-2 lg:col-span-3 lg:grid-cols-3">
+              <legend className="px-1 text-xs font-medium text-foreground">Proprietário e uso</legend>
+              <label className="text-xs text-muted-foreground">
+                Proprietário — empresa do grupo (atalho)
+                <select
+                  className={CAMPO}
+                  value=""
+                  onChange={(e) => {
+                    const emp = empresas.find((x) => x.id === e.target.value);
+                    if (!emp) return;
+                    setForm((f) => ({
+                      ...f,
+                      proprietarioNome: emp.razaoSocial || emp.nome,
+                      proprietarioDocumento: emp.cnpj ? formatarCnpj(emp.cnpj) : "",
+                    }));
+                  }}
+                >
+                  <option value="">— escolher para preencher —</option>
+                  {empresas.map((e) => (
+                    <option key={e.id} value={e.id}>{e.nome}</option>
+                  ))}
+                </select>
+                <span className="mt-0.5 block text-[11px] text-muted-foreground/80">
+                  Ou digite ao lado: locadora, sócio, colaborador.
+                </span>
+              </label>
+              <label className="text-xs text-muted-foreground">
+                Nome do proprietário (como no CRLV)
+                <input {...campo("proprietarioNome")} className={CAMPO} placeholder="BR SISTEMAS LTDA / Fulano de Tal" />
+              </label>
+              <label className="text-xs text-muted-foreground">
+                CPF ou CNPJ do proprietário
+                <input
+                  {...campo("proprietarioDocumento")}
+                  className={CAMPO}
+                  inputMode="numeric"
+                  placeholder="000.000.000-00 ou 00.000.000/0000-00"
+                />
+                <span className="mt-0.5 block text-[11px] text-muted-foreground/80">
+                  {(() => {
+                    const n = (form.proprietarioDocumento ?? "").replace(/\D/g, "").length;
+                    if (n === 11) return "Pessoa física (CPF)";
+                    if (n === 14) return "Pessoa jurídica (CNPJ)";
+                    return "11 dígitos = CPF · 14 dígitos = CNPJ";
+                  })()}
+                </span>
+              </label>
+              <label className="text-xs text-muted-foreground sm:col-span-2 lg:col-span-3">
+                Empresa onde o veículo trabalha
+                <select {...campo("empresaDestino")} className={CAMPO}>
+                  {empresas.map((e) => (
+                    <option key={e.id} value={e.id}>{e.nome}</option>
+                  ))}
+                </select>
+                <span className="mt-0.5 block text-[11px] text-muted-foreground/80">
+                  O CNPJ que usa o carro no dia a dia — define em qual empresa ele aparece nos filtros e
+                  relatórios. Troque para tirar da empresa provisória &ldquo;A definir&rdquo; da importação.
+                </span>
+              </label>
+            </fieldset>
             <label className="text-xs text-muted-foreground">
               Placa
               <input {...campo("placa")} className={CAMPO} placeholder="ABC1D23" />
@@ -413,19 +513,6 @@ export function VeiculosView({
               Observações
               <textarea {...campo("observacoes")} rows={2} className={CAMPO} />
             </label>
-            {form.id && (
-              <label className="text-xs text-muted-foreground sm:col-span-2 lg:col-span-3">
-                Empresa (CNPJ dono)
-                <select {...campo("empresaDestino")} className={CAMPO}>
-                  {empresas.map((e) => (
-                    <option key={e.id} value={e.id}>{e.nome}</option>
-                  ))}
-                </select>
-                <span className="mt-0.5 block text-[11px] text-muted-foreground/80">
-                  Troque para tirar o veículo da empresa provisória &ldquo;A definir&rdquo; da importação.
-                </span>
-              </label>
-            )}
             <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-3">
               <Button size="sm" disabled={pendente} onClick={salvar}>Salvar</Button>
               <Button size="sm" variant="ghost" onClick={fechar}>Cancelar</Button>
@@ -448,7 +535,7 @@ export function VeiculosView({
               <div className="relative sm:w-64">
                 <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
                 <Input
-                  placeholder="Buscar placa, modelo ou motorista…"
+                  placeholder="Buscar placa, modelo, motorista ou proprietário…"
                   className="pl-8"
                   value={busca}
                   onChange={(e) => setBusca(e.target.value)}
@@ -509,7 +596,8 @@ export function VeiculosView({
                 <TableRow>
                   <TableHead>Placa</TableHead>
                   <TableHead>Veículo</TableHead>
-                  <TableHead>Empresa</TableHead>
+                  <TableHead>Proprietário</TableHead>
+                  <TableHead>Trabalha em</TableHead>
                   <TableHead>Com quem está</TableHead>
                   <TableHead>Próximo vencimento</TableHead>
                   <TableHead>
@@ -529,7 +617,7 @@ export function VeiculosView({
               <TableBody>
                 {veiculosFiltrados.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="py-8 text-center text-sm text-muted-foreground">
+                    <TableCell colSpan={9} className="py-8 text-center text-sm text-muted-foreground">
                       Nenhum veículo encontrado para &ldquo;{busca}&rdquo;.
                     </TableCell>
                   </TableRow>
@@ -544,6 +632,21 @@ export function VeiculosView({
                         <Badge variant="outline" className="ml-2 font-normal">
                           {rotulo(SITUACAO_VEICULO, v.situacao)}
                         </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {v.proprietarioNome ? (
+                        <span className="text-sm">
+                          {v.proprietarioNome}
+                          {v.proprietarioDocumento && (
+                            <span className="block text-xs tabular-nums text-muted-foreground">
+                              {v.proprietarioTipo === "PF" ? "CPF " : "CNPJ "}
+                              {formatarDocumento(v.proprietarioDocumento)}
+                            </span>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">não informado</span>
                       )}
                     </TableCell>
                     <TableCell className="text-muted-foreground">{v.empresaNome}</TableCell>
@@ -655,6 +758,8 @@ export function VeiculosView({
                               motoristaInformado: v.motoristaInformado ?? "",
                               motoristaColaboradorId: v.motoristaColaboradorId ?? "",
                               empresaDestino: v.empresaId,
+                              proprietarioNome: v.proprietarioNome ?? "",
+                              proprietarioDocumento: formatarDocumento(v.proprietarioDocumento),
                             })
                           }
                         >
