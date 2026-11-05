@@ -233,7 +233,9 @@ model UserMarca {
   id        String   @id @default(cuid())
   userId    String
   marcaId   String
-  role      String // "RH_MANAGER" | "GESTOR_SETOR"
+  // "RH_MANAGER" | "GESTOR_SETOR"; "ADMIN"/"DIRETORIA" quando a tela de admin
+  // prende a direção a algumas marcas (lib/grupo.ts, `direcaoRestrita`).
+  role      String
   ativo     Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt

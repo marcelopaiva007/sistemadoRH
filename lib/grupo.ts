@@ -34,6 +34,44 @@ export const grupoDoUsuario = cache(
   },
 );
 
+/**
+ * Marcas MARCADAS para este login dentro do próprio grupo — o que a tela de
+ * admin chama de "marcas que vê" (`UserMarca` ativo). Vínculo com marca de
+ * OUTRO grupo não conta: a parede de grupo vem antes de tudo.
+ *
+ * Para ADMIN e DIRETORIA, lista vazia quer dizer "o grupo inteiro"; com alguma
+ * marca marcada, a pessoa fica só nelas (decisão do CEO em 05/11/2026: "tem
+ * usuário que só vê uma daquelas marcas"). Para RH e gestor de setor nada muda:
+ * eles sempre viram só os próprios vínculos.
+ */
+export const marcasMarcadasNoGrupo = cache(
+  async (userId: string | undefined): Promise<string[]> => {
+    if (!userId) return [];
+    const grupoId = await grupoDoUsuario(userId);
+    if (!grupoId) return [];
+    const vinculos = await prisma.userMarca.findMany({
+      where: { userId, ativo: true, marca: { grupoId } },
+      select: { marcaId: true },
+    });
+    return vinculos.map((v) => v.marcaId);
+  },
+);
+
+/**
+ * ADMIN ou DIRETORIA preso a algumas marcas do grupo (ver
+ * `marcasMarcadasNoGrupo`). Quem está restrito deixa de ser "global no grupo":
+ * enxerga só as marcas marcadas e não administra contas — senão bastaria criar
+ * uma conta de Diretoria nova, ou desmarcar a própria restrição, para voltar a
+ * ver tudo.
+ */
+export async function direcaoRestrita(user: {
+  id?: string;
+  role: string;
+}): Promise<boolean> {
+  if (user.role !== "ADMIN" && user.role !== "DIRETORIA") return false;
+  return (await marcasMarcadasNoGrupo(user.id)).length > 0;
+}
+
 /** CNPJs ativos do grupo. Grupo nulo = lista vazia (falha fechada). */
 export const empresasDoGrupo = cache(
   async (grupoId: string | null): Promise<string[]> => {

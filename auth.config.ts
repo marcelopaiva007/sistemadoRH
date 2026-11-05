@@ -10,6 +10,9 @@ import type { NextAuthConfig } from "next-auth";
 export const authConfig = {
   pages: {
     signIn: "/login",
+    // Erro do login com Google (credencial, callback) volta para a tela de
+    // login com `?error=`, e não para a página de erro em inglês do NextAuth.
+    error: "/login",
   },
   session: {
     strategy: "jwt",

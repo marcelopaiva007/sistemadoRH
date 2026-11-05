@@ -1,5 +1,6 @@
 import { requireUser } from "@/lib/auth-guard";
 import { empresasVisiveis } from "@/lib/rh-auth-guard";
+import { direcaoRestrita } from "@/lib/grupo";
 import { sistemasPermitidos } from "@/lib/permissoes/efetivas";
 import { prisma } from "@/lib/prisma";
 import { AppTopbar } from "@/components/app-topbar";
@@ -47,6 +48,7 @@ export default async function AppLayout({
           marcas={marcas}
           empresas={empresas}
           sistemasPermitidos={sistemas}
+          direcaoRestrita={await direcaoRestrita(user)}
         />
         {/* `overflow-x-clip`, e não `hidden`, onde o navegador entende `clip`.
             `hidden` num eixo força o outro a `auto` e transforma o <main> em

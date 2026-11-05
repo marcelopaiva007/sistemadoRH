@@ -2,6 +2,7 @@ import Link from "next/link";
 import { LoginForm } from "./login-form";
 import { FastmaiLogo } from "@/components/logo-fastmai";
 import { versaoDoSistema } from "@/lib/versao";
+import { googleConfigurado, mensagemDoErroDeLogin } from "@/lib/login-google";
 
 /**
  * A porta de entrada, em duas metades (arquétipo G do handoff Modernist).
@@ -17,8 +18,16 @@ import { versaoDoSistema } from "@/lib/versao";
  * responde "estou vendo a versão nova?" sem precisar entrar — mas não
  * disputa espaço com o campo de senha.
  */
-export default function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ erro?: string; error?: string }>;
+}) {
   const versao = versaoDoSistema();
+  // Recusa do login com Google volta para cá com o motivo na URL
+  // (`?erro=google-...`, ver auth.ts) ou com o erro do próprio NextAuth.
+  const { erro, error } = await searchParams;
+  const erroInicial = mensagemDoErroDeLogin(erro, error);
 
   return (
     <div className="grid flex-1 lg:grid-cols-2">
@@ -41,7 +50,7 @@ export default function LoginPage() {
           <h1>Entrar</h1>
           <p className="mt-1 text-sm text-muted-foreground">Acesso do RH, diretoria e gestores.</p>
           <div className="mt-8">
-            <LoginForm />
+            <LoginForm googleHabilitado={googleConfigurado()} erroInicial={erroInicial} />
           </div>
           <div className="mt-10 border-t-2 border-border pt-5 text-sm text-muted-foreground">
             É colaborador? O portal é pelo celular.{" "}

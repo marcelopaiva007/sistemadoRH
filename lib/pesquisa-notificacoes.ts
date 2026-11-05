@@ -29,7 +29,7 @@ export async function buscarDestinatarios(
   // (sociedade — lib/grupo.ts); RH_MANAGER, pelo vínculo com o CNPJ.
   const empresa = await cliente.empresa.findUnique({
     where: { id: empresaId },
-    select: { marca: { select: { grupoId: true } } },
+    select: { marcaId: true, marca: { select: { grupoId: true } } },
   });
   const grupoId = empresa?.marca.grupoId;
   if (!grupoId) return [];
@@ -48,8 +48,33 @@ export async function buscarDestinatarios(
     },
   });
 
+  // ADMIN/DIRETORIA preso a algumas marcas pela tela de admin (lib/grupo.ts,
+  // `direcaoRestrita`) só recebe aviso das empresas dessas marcas — o aviso
+  // traz título e link de uma tela que ele não enxergaria.
+  const direcaoIds = users
+    .filter((u) => u.role === "ADMIN" || u.role === "DIRETORIA")
+    .map((u) => u.id);
+  const marcadas = direcaoIds.length
+    ? await cliente.userMarca.findMany({
+        where: { userId: { in: direcaoIds }, ativo: true, marca: { grupoId } },
+        select: { userId: true, marcaId: true },
+      })
+    : [];
+  const marcasDe = new Map<string, Set<string>>();
+  for (const v of marcadas) {
+    const conjunto = marcasDe.get(v.userId) ?? new Set<string>();
+    conjunto.add(v.marcaId);
+    marcasDe.set(v.userId, conjunto);
+  }
+  const direcaoVeEstaEmpresa = (userId: string) => {
+    const marcas = marcasDe.get(userId);
+    return !marcas || marcas.has(empresa!.marcaId);
+  };
+
   return users
-    .filter((u) => u.role === "ADMIN" || u.role === "DIRETORIA" || u.empresaId === empresaId)
+    .filter((u) =>
+      u.role === "ADMIN" || u.role === "DIRETORIA" ? direcaoVeEstaEmpresa(u.id) : u.empresaId === empresaId,
+    )
     .map((u) => ({
       userId: u.id,
       nome: u.nome,

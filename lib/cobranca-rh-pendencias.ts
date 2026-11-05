@@ -52,11 +52,34 @@ export async function executarCobrancaPendenciasRH(
       email: { not: null },
       grupoId: { not: null },
     },
-    select: { email: true, grupoId: true },
+    select: { id: true, email: true, grupoId: true },
   });
-  const copiaDoGrupo = (grupoId: string | null) =>
+  // ADMIN preso a algumas marcas pela tela de admin (lib/grupo.ts,
+  // `direcaoRestrita`) só recebe cópia de quem trabalha APENAS nessas marcas:
+  // o e-mail soma pendências de todas as empresas da pessoa cobrada, e uma
+  // cópia "parcial" mostraria número de marca que esse ADMIN não enxerga.
+  const marcadas = gestores.length
+    ? await cliente.userMarca.findMany({
+        where: { userId: { in: gestores.map((g) => g.id) }, ativo: true },
+        select: { userId: true, marcaId: true, marca: { select: { grupoId: true } } },
+      })
+    : [];
+  const marcasDoGestor = new Map<string, Set<string>>();
+  for (const v of marcadas) {
+    const gestor = gestores.find((g) => g.id === v.userId);
+    // Marca de outro grupo não restringe nada — não dá acesso nenhum.
+    if (!gestor || v.marca.grupoId !== gestor.grupoId) continue;
+    const conjunto = marcasDoGestor.get(v.userId) ?? new Set<string>();
+    conjunto.add(v.marcaId);
+    marcasDoGestor.set(v.userId, conjunto);
+  }
+  const copiaDoGrupo = (grupoId: string | null, marcasDaPessoa: Set<string>) =>
     gestores
       .filter((g) => grupoId !== null && g.grupoId === grupoId)
+      .filter((g) => {
+        const marcas = marcasDoGestor.get(g.id);
+        return !marcas || [...marcasDaPessoa].every((m) => marcas.has(m));
+      })
       .map((g) => g.email)
       .filter((e): e is string => Boolean(e));
 
@@ -73,7 +96,7 @@ export async function executarCobrancaPendenciasRH(
           grupoId: true,
         },
       },
-      empresa: { select: { marca: { select: { grupoId: true } } } },
+      empresa: { select: { marcaId: true, marca: { select: { grupoId: true } } } },
     },
   });
 
@@ -86,6 +109,7 @@ export async function executarCobrancaPendenciasRH(
       email: string;
       grupoId: string | null;
       empresaIds: Set<string>;
+      marcaIds: Set<string>;
     }
   >();
   for (const v of vinculos) {
@@ -98,8 +122,10 @@ export async function executarCobrancaPendenciasRH(
       email: v.user.email,
       grupoId: v.user.grupoId,
       empresaIds: new Set<string>(),
+      marcaIds: new Set<string>(),
     };
     entrada.empresaIds.add(v.empresaId);
+    entrada.marcaIds.add(v.empresa.marcaId);
     porUsuario.set(v.user.id, entrada);
   }
 
@@ -149,7 +175,7 @@ export async function executarCobrancaPendenciasRH(
       const diaChave = diaBrasilia(hoje);
       const r = await sendEmail({
         to: dados.email,
-        cc: copiaDoGrupo(dados.grupoId),
+        cc: copiaDoGrupo(dados.grupoId, dados.marcaIds),
         subject: `[RH] ${total} pendência(s) aguardando você`,
         text: texto,
         html,

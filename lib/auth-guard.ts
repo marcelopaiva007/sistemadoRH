@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
+import { direcaoRestrita } from "@/lib/grupo";
 
 export async function requireUser() {
   const session = await auth();
@@ -25,7 +26,20 @@ export async function requireAdmin() {
 // MASTER também entra (v1.186.0): é ele quem cria as contas de cada grupo. O
 // recorte de QUAIS contas cada um alcança mora nas actions (lib/actions/
 // usuarios.ts, `escopoGestao`) e na tela — ver lib/grupo.ts.
+//
+// ADMIN ou DIRETORIA PRESO A ALGUMAS MARCAS (tela de admin — ver
+// `direcaoRestrita` em lib/grupo.ts) NÃO entra: gerir contas é poder sobre o
+// grupo inteiro, e bastaria criar uma conta de Diretoria nova ou desmarcar a
+// própria restrição para voltar a ver todas as marcas.
 export async function requireGestaoUsuarios() {
+  const user = await requireDirecaoOuMaster();
+  if (await direcaoRestrita(user)) redirect("/");
+  return user;
+}
+
+// ADMIN, DIRETORIA (restrita ou não) e MASTER — para telas que não dão poder
+// sobre o grupo, como o histórico de Atualizações.
+export async function requireDirecaoOuMaster() {
   const user = await requireUser();
   if (
     user.role !== "ADMIN" &&

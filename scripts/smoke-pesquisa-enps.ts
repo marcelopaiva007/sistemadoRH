@@ -37,7 +37,7 @@ async function main() {
   console.log("P05-ENPS — candidatos e criação do pulso mensal\n");
 
   await rodarComRollback(async (tx) => {
-    const marca = await tx.marca.create({ data: { nome: `__smoke_enps_marca_${Date.now()}` } });
+    const marca = await tx.marca.create({ data: { nome: `__smoke_enps_marca_${Date.now()}`, grupo: { connectOrCreate: { where: { nome: "CI Fixture" }, create: { nome: "CI Fixture" } } } } });
     const empresa = await tx.empresa.create({ data: { nome: `__smoke_enps_empresa_${Date.now()}`, marcaId: marca.id } });
 
     const antes = await coletarCandidatosEnps(tx, HOJE);

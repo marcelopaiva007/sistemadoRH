@@ -181,7 +181,7 @@ async function testarSelecao() {
 
   await rodarComRollback(async (tx) => {
     const carimbo = Date.now();
-    const marca = await tx.marca.create({ data: { nome: `__smoke_cobranca_marca_${carimbo}` } });
+    const marca = await tx.marca.create({ data: { nome: `__smoke_cobranca_marca_${carimbo}`, grupo: { connectOrCreate: { where: { nome: "CI Fixture" }, create: { nome: "CI Fixture" } } } } });
     const empresa = await tx.empresa.create({
       data: { nome: `__smoke_cobranca_empresa_${carimbo}`, marcaId: marca.id },
     });
@@ -322,7 +322,7 @@ async function testarCaminhoFeliz() {
   try {
     await rodarComRollback(async (tx) => {
       const carimbo = Date.now();
-      const marca = await tx.marca.create({ data: { nome: `__smoke_feliz_marca_${carimbo}` } });
+      const marca = await tx.marca.create({ data: { nome: `__smoke_feliz_marca_${carimbo}`, grupo: { connectOrCreate: { where: { nome: "CI Fixture" }, create: { nome: "CI Fixture" } } } } });
       const empresa = await tx.empresa.create({
         data: { nome: `__smoke_feliz_empresa_${carimbo}`, marcaId: marca.id },
       });
@@ -438,7 +438,7 @@ async function testarCobrancaManual() {
   try {
     await rodarComRollback(async (tx) => {
       const carimbo = Date.now();
-      const marca = await tx.marca.create({ data: { nome: `__smoke_manual_marca_${carimbo}` } });
+      const marca = await tx.marca.create({ data: { nome: `__smoke_manual_marca_${carimbo}`, grupo: { connectOrCreate: { where: { nome: "CI Fixture" }, create: { nome: "CI Fixture" } } } } });
       const empresa = await tx.empresa.create({
         data: { nome: `__smoke_manual_empresa_${carimbo}`, marcaId: marca.id },
       });

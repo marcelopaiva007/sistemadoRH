@@ -66,6 +66,7 @@ export function AppTopbar({
   marcas,
   empresas,
   sistemasPermitidos,
+  direcaoRestrita = false,
 }: {
   role: string;
   nome: string;
@@ -79,13 +80,21 @@ export function AppTopbar({
   empresas: { id: string; nome: string; marcaId: string }[];
   /** Os sistemas que este usuário alcança — decide o que a barra mostra. */
   sistemasPermitidos: string[];
+  /** ADMIN/DIRETORIA preso a algumas marcas pela tela de admin: sem gestão de
+   *  contas nem painel do grupo inteiro (ver `direcaoRestrita`, lib/grupo.ts). */
+  direcaoRestrita?: boolean;
 }) {
   const pathname = usePathname();
   // Papel desconhecido não herda menu nenhum (falha fechada): as páginas têm
   // guarda própria, e mostrar caminho que não abre é ensinar a pessoa a bater
   // na porta trancada. `navByRole` + `globalNavByRole` continuam sendo a fonte
   // por papel — só mudaram de lugar (da linha 2 para o menu do avatar).
-  const itensDoMenu = [...(navByRole[role] ?? []), ...(globalNavByRole[role] ?? [])];
+  const itensDoMenu = [...(navByRole[role] ?? []), ...(globalNavByRole[role] ?? [])].filter(
+    // Quem está preso a algumas marcas não abre a gestão de contas nem a
+    // Produtividade (painel do grupo inteiro): as duas páginas recusam, e o
+    // menu não ensina caminho que não abre.
+    (item) => !direcaoRestrita || (item.href !== "/usuarios" && item.href !== "/produtividade"),
+  );
 
   function ativo(href: string) {
     if (href === "/") return pathname === "/";

@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { gestorSetorPodeAbrirMeuSetor } from "@/lib/usuarios-regras";
 import { sistemasPermitidos } from "@/lib/permissoes/efetivas";
-import { empresasDoGrupo, grupoDoUsuario } from "@/lib/grupo";
+import { direcaoRestrita, empresasDoGrupo, grupoDoUsuario } from "@/lib/grupo";
 
 // DIRETORIA entra na lista: o papel é GLOBAL (alcança qualquer empresa) —
 // barrá-lo aqui fazia todo clique em empresa voltar para a home, sem mensagem.
@@ -59,7 +59,10 @@ export async function usuarioAlcancaEmpresa(
   // do próprio grupo (e ambos podem escrever — DIRETORIA não é read-only
   // imposta; ver requireEmpresaAccess). Nenhum dos dois passa pelo pivô —
   // exigir vínculo deles devolvia a diretoria para a home a cada clique.
-  if (user.role === "ADMIN" || user.role === "DIRETORIA") return true;
+  // EXCETO quem o admin prendeu a algumas marcas (`direcaoRestrita`): esse
+  // segue a regra dos vínculos logo abaixo, como o RH.
+  if ((user.role === "ADMIN" || user.role === "DIRETORIA") && !(await direcaoRestrita(user)))
+    return true;
   if (user.empresas.some((e) => e.empresaId === empresaId && e.ativo)) return true;
 
   // Pode não ter vínculo com este CNPJ e ainda assim alcançá-lo pela marca.
@@ -145,9 +148,12 @@ export async function empresasVisiveis(user: {
   empresas: { empresaId: string; ativo: boolean }[];
 }): Promise<string[]> {
   // Tudo recortado pelo GRUPO do usuário (lib/grupo.ts): ADMIN e DIRETORIA
-  // enxergam o grupo inteiro, e nenhum vínculo leva para fora dele.
+  // enxergam o grupo inteiro, e nenhum vínculo leva para fora dele. Com marca
+  // marcada na tela de admin (`direcaoRestrita`), ADMIN e DIRETORIA ficam só
+  // com os vínculos, pela mesma conta do RH logo abaixo.
   const doGrupo = await empresasDoGrupo(await grupoDoUsuario(user.id));
-  if (user.role === "ADMIN" || user.role === "DIRETORIA") return doGrupo;
+  if ((user.role === "ADMIN" || user.role === "DIRETORIA") && !(await direcaoRestrita(user)))
+    return doGrupo;
 
   const porEmpresa = user.empresas.filter((e) => e.ativo).map((e) => e.empresaId);
   const porMarca = await empresasDasMarcasDoUsuario(user.id);

@@ -29,7 +29,7 @@ async function main() {
   try {
     await prisma.$transaction(async (tx) => {
       console.log("marca com dois CNPJs");
-      const marca = await tx.marca.create({ data: { nome: `__smoke_marca_${Date.now()}` } });
+      const marca = await tx.marca.create({ data: { nome: `__smoke_marca_${Date.now()}`, grupo: { connectOrCreate: { where: { nome: "CI Fixture" }, create: { nome: "CI Fixture" } } } } });
       const e1 = await tx.empresa.create({
         data: {
           nome: `__smoke_cnpj_a_${Date.now()}`,
@@ -68,7 +68,7 @@ async function main() {
       conferir(contagem === 0, "o outro CNPJ da mesma marca não herda o colaborador");
 
       console.log("CNPJ pode mudar de marca sem levar os colaboradores junto");
-      const outraMarca = await tx.marca.create({ data: { nome: `__smoke_marca2_${Date.now()}` } });
+      const outraMarca = await tx.marca.create({ data: { nome: `__smoke_marca2_${Date.now()}`, grupo: { connectOrCreate: { where: { nome: "CI Fixture" }, create: { nome: "CI Fixture" } } } } });
       const movida = await tx.empresa.update({
         where: { id: e1.id },
         data: { marcaId: outraMarca.id },

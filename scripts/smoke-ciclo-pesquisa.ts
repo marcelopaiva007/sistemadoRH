@@ -45,7 +45,11 @@ async function main() {
   await limpar(); // sobras de execução anterior interrompida
 
   const marca = await prisma.marca.create({
-    data: { nome: NOME_MARCA, ativo: false },
+    data: {
+      nome: NOME_MARCA,
+      ativo: false,
+      grupo: { connectOrCreate: { where: { nome: "CI Fixture" }, create: { nome: "CI Fixture" } } },
+    },
   });
   const empresa = await prisma.empresa.create({
     data: { nome: NOME_EMPRESA, marcaId: marca.id, ativo: false },

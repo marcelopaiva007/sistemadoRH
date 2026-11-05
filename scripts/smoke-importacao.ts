@@ -101,7 +101,7 @@ async function main() {
   console.log("planejamento criar/atualizar (com banco, rollback)");
   try {
     await prisma.$transaction(async (tx) => {
-      const marca = await tx.marca.create({ data: { nome: `__smokeimp_${Date.now()}` } });
+      const marca = await tx.marca.create({ data: { nome: `__smokeimp_${Date.now()}`, grupo: { connectOrCreate: { where: { nome: "CI Fixture" }, create: { nome: "CI Fixture" } } } } });
       const empresa = await tx.empresa.create({
         data: { nome: `__smokeimp_e_${Date.now()}`, marcaId: marca.id },
       });

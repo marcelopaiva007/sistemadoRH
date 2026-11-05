@@ -15,6 +15,7 @@ import { registrarAuditoria, diffCampos } from "@/lib/audit";
 import { escreverCookieEmpresaAtiva } from "@/lib/empresa-ativa";
 import type { ActionResult } from "@/lib/constants";
 import { deixariaSistemaSemAdmin, promoveriaAGestorSemSetor } from "@/lib/usuarios-regras";
+import { aplicarMarcasQueVe } from "@/lib/marcas-que-ve";
 
 const ROLES = ["ADMIN", "DIRETORIA", "RH_MANAGER", "GESTOR_SETOR"] as const;
 type Role = (typeof ROLES)[number];
@@ -156,6 +157,31 @@ async function marcaNoGrupo(
 }
 
 const ERRO_ALVO = { ok: false as const, error: "Usuário não encontrado." };
+
+/**
+ * Marca de ADMIN/DIRETORIA não é "vínculo de trabalho": é RESTRIÇÃO de acesso
+ * (lib/grupo.ts, `direcaoRestrita`) — com marca marcada a pessoa deixa de ver o
+ * grupo inteiro. Por isso só o admin (MASTER) mexe nelas: se a própria
+ * Diretoria pudesse, ela se soltaria da restrição ou prenderia um colega.
+ * Vínculo de RH e de gestor segue com quem já cuidava dele.
+ */
+async function marcasDaDirecaoSoComMaster(
+  esc: EscopoGestao,
+  userId: string,
+): Promise<ActionResult | null> {
+  if (esc.master) return null;
+  const alvo = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true },
+  });
+  if (alvo && (alvo.role === "ADMIN" || alvo.role === "DIRETORIA")) {
+    return {
+      ok: false,
+      error: "As marcas de Diretoria e Administrativo só o admin muda, na tela de admin.",
+    };
+  }
+  return null;
+}
 
 export async function createUsuario(
   _prev: ActionResult,
@@ -724,6 +750,8 @@ export async function vincularMarcaUsuario(
   const { userId, marcaId, role } = parsed.data;
   const grupoAlvo = await grupoDoAlvo(esc, userId);
   if (grupoAlvo === false) return ERRO_ALVO;
+  const soMaster = await marcasDaDirecaoSoComMaster(esc, userId);
+  if (soMaster) return soMaster;
   if (!(await marcaNoGrupo(marcaId, grupoAlvo)))
     return { ok: false, error: "Esta marca não é do grupo do usuário." };
 
@@ -758,18 +786,24 @@ export async function desativarVinculoMarca(
 ): Promise<ActionResult> {
   const esc = await escopoGestao();
   if ((await grupoDoAlvo(esc, userId)) === false) return ERRO_ALVO;
+  const soMaster = await marcasDaDirecaoSoComMaster(esc, userId);
+  if (soMaster) return soMaster;
 
   const vinculo = await prisma.userMarca.findUnique({
     where: { userId_marcaId: { userId, marcaId } },
+    include: { user: { select: { role: true } } },
   });
   if (!vinculo) return { ok: false, error: "Vínculo não encontrado." };
 
   // Mesma trava do vínculo por empresa: ninguém fica sem acesso nenhum por aqui.
+  // Não vale para ADMIN/DIRETORIA: para eles a marca é restrição, e tirar a
+  // última devolve o grupo inteiro (lib/grupo.ts, `direcaoRestrita`).
+  const ehDirecao = vinculo.user.role === "ADMIN" || vinculo.user.role === "DIRETORIA";
   const [empresasAtivas, marcasRestantes] = await Promise.all([
     prisma.userEmpresa.count({ where: { userId, ativo: true } }),
     prisma.userMarca.count({ where: { userId, ativo: true, NOT: { id: vinculo.id } } }),
   ]);
-  if (empresasAtivas + marcasRestantes === 0) {
+  if (!ehDirecao && empresasAtivas + marcasRestantes === 0) {
     return { ok: false, error: "Não é possível remover o único acesso ativo do usuário." };
   }
 
@@ -793,6 +827,8 @@ export async function reativarVinculoMarca(
   const esc = await escopoGestao();
   const grupoAlvo = await grupoDoAlvo(esc, userId);
   if (grupoAlvo === false) return ERRO_ALVO;
+  const soMaster = await marcasDaDirecaoSoComMaster(esc, userId);
+  if (soMaster) return soMaster;
   if (!(await marcaNoGrupo(marcaId, grupoAlvo)))
     return { ok: false, error: "Esta marca não é do grupo do usuário." };
 
@@ -1222,5 +1258,43 @@ export async function aceitarConviteUsuario(token: string, senha: string): Promi
     resumo: `${user.nome} (${user.email}) aceitou o convite`,
   });
 
+  return { ok: true };
+}
+
+const marcasQueVeSchema = z.object({
+  userId: z.string().min(1),
+  grupoId: z.string().min(1),
+  marcaIds: z.array(z.string().min(1)).max(200),
+});
+
+/**
+ * TELA DE ADMIN — "quais marcas esta conta vê" (só o MASTER). A regra mora em
+ * lib/marcas-que-ve.ts (`aplicarMarcasQueVe`), fora deste arquivo de actions
+ * para poder ser testada direto no banco (scripts/smoke-marcas-direcao.ts).
+ */
+export async function definirMarcasQueVe(
+  userId: string,
+  grupoId: string,
+  marcaIds: string[],
+): Promise<ActionResult> {
+  const esc = await escopoGestao();
+  if (!esc.master) {
+    return { ok: false, error: "Só o admin define as marcas que cada conta vê." };
+  }
+  const parsed = marcasQueVeSchema.safeParse({ userId, grupoId, marcaIds });
+  if (!parsed.success) return { ok: false, error: "Dados inválidos." };
+
+  const r = await aplicarMarcasQueVe(parsed.data);
+  if (!r.ok) return r;
+
+  await registrarAuditoria({
+    acao: "ATUALIZAR",
+    entidade: "User",
+    entidadeId: parsed.data.userId,
+    resumo: r.resumo,
+  });
+
+  revalidatePath("/cadastros/usuarios");
+  revalidatePath("/cadastros/grupos");
   return { ok: true };
 }

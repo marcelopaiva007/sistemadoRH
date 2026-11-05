@@ -22,10 +22,27 @@ import { motivoDaFalhaDeLogin } from "@/lib/actions/login";
 // O logo e o nome do sistema ficam em page.tsx, com o arquivo oficial da
 // marca. Aqui dentro havia uma segunda logo (um hexágono neon desenhado à
 // mão, piscando) — duas marcas empilhadas na mesma tela.
-export function LoginForm() {
+export function LoginForm({
+  googleHabilitado = false,
+  erroInicial = null,
+}: {
+  /** Só aparece com a credencial OAuth do Google configurada (lib/login-google.ts). */
+  googleHabilitado?: boolean;
+  /** Recusa que voltou do Google para a tela, já em português. */
+  erroInicial?: string | null;
+}) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(erroInicial);
+  const [indoProGoogle, setIndoProGoogle] = useState(false);
+
+  // O Google decide quem é a pessoa; quem pode entrar continua sendo o
+  // cadastro de usuários — Gmail sem conta volta recusado (auth.ts).
+  function entrarComGoogle() {
+    setError(null);
+    setIndoProGoogle(true);
+    void signIn("google", { callbackUrl: "/" });
+  }
 
   function handleSubmit(formData: FormData) {
     setError(null);
@@ -100,11 +117,33 @@ export function LoginForm() {
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
-        <Button type="submit" size="lg" className="h-[46px] w-full" disabled={isPending}>
+        <Button type="submit" size="lg" className="h-[46px] w-full" disabled={isPending || indoProGoogle}>
           {isPending ? "Entrando..." : "Entrar"}
           <ArrowRight data-icon="inline-end" />
         </Button>
       </form>
+      {googleHabilitado && (
+        <div className="mt-6 space-y-4">
+          <div className="flex items-center gap-3 text-xs text-muted-foreground" aria-hidden>
+            <span className="h-px flex-1 bg-border" />
+            ou
+            <span className="h-px flex-1 bg-border" />
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            className="h-[46px] w-full"
+            onClick={entrarComGoogle}
+            disabled={isPending || indoProGoogle}
+          >
+            {indoProGoogle ? "Abrindo o Google..." : "Entrar com Google"}
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            Vale para quem já tem usuário no sistema com o mesmo Gmail.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
