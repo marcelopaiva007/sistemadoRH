@@ -26,6 +26,20 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.185.0",
+    data: "05/11/2026",
+    horario: "08:30",
+    titulo: "Usuários: ativos e inativos separados, busca e alerta de cadastro incompleto",
+    itens: [
+      "A tela Usuários abre só com as contas ativas. As inativas ficam numa seção própria, embaixo, em cinza e com o botão \"Reativar\" à vista. As abas Ativos, Inativos e Todos mostram quantas contas há em cada.",
+      "Busca por nome, login ou e-mail e filtros por papel e por marca.",
+      "Cartões no topo com o total de contas, ativas, inativas e cadastros com pendência.",
+      "Faixa de alerta e etiqueta na linha para cadastro incompleto: sem e-mail, e-mail repetido em duas contas (possível duplicado), e-mail digitado no lugar do login e gestor sem empresa.",
+      "Cada linha tem só \"Editar\" e um menu ⋯ com o resto (vincular, convidar, redefinir senha, desativar, excluir). Excluir agora pede confirmação numa janela.",
+      "Contas agrupadas por papel, com iniciais, login logo abaixo do nome e nomes em MAIÚSCULAS exibidos como os demais (o cadastro não muda). Administrativo e Diretoria aparecem como \"Todas as empresas\" no lugar do traço.",
+    ],
+  },
+  {
     versao: "1.184.0",
     data: "04/11/2026",
     horario: "08:30",
