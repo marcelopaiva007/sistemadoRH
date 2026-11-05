@@ -1,3 +1,4 @@
+import { whereUsuariosDoGrupoDaEmpresa } from "@/lib/grupo";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireProcessosEmpresa } from "@/lib/processos-auth-guard";
@@ -103,7 +104,8 @@ export default async function ContratosPage({
     // Mesma consulta da Central (app/(app)/processos/[empresaId]/page.tsx) —
     // as duas listas precisam concordar sobre quem pode ser dono.
     prisma.user.findMany({
-      where: { ativo: true, role: { in: PAPEIS_QUE_ASSUMEM_PENDENCIA } },
+      // Só gente do GRUPO dono deste CNPJ (sociedade — lib/grupo.ts).
+      where: { ativo: true, role: { in: PAPEIS_QUE_ASSUMEM_PENDENCIA }, ...whereUsuariosDoGrupoDaEmpresa(empresaId) },
       orderBy: { nome: "asc" },
       select: { id: true, nome: true },
     }),

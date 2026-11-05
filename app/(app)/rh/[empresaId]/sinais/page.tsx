@@ -1,3 +1,4 @@
+import { whereUsuariosDoGrupoDaEmpresa } from "@/lib/grupo";
 import { empresasVisiveis, requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { PAPEL_PORTAL } from "@/lib/delegacoes/acesso-colaborador";
 import { prisma } from "@/lib/prisma";
@@ -66,7 +67,11 @@ export default async function SinaisPage({
       // e com algumas centenas deles a tela viraria uma lista de gente que
       // nunca vai entrar aqui. Ver lib/delegacoes/acesso-colaborador.ts.
     prisma.user.findMany({
-      where: { ativo: true, role: { not: PAPEL_PORTAL } },
+      where: {
+        ativo: true,
+        role: { not: PAPEL_PORTAL },
+        ...whereUsuariosDoGrupoDaEmpresa(empresaId),
+      },
       orderBy: { nome: "asc" },
       select: { id: true, nome: true },
     }),

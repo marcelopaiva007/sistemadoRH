@@ -49,6 +49,9 @@ export const globalNavByRole: Record<string, NavItem[]> = {
   DIRETORIA: [usuariosItem],
   RH_MANAGER: [],
   GESTOR_SETOR: [],
+  // O MASTER só administra grupos e contas (lib/grupo.ts): o cadastro é a
+  // casa dele, e nenhuma tela de dado aparece.
+  MASTER: [usuariosItem],
 };
 
 export const adminNav: NavItem[] = [inicioItem, produtividadeItem, atualizacoesItem];
@@ -60,4 +63,5 @@ export const navByRole: Record<string, NavItem[]> = {
   DIRETORIA: diretoriaNav,
   RH_MANAGER: [inicioItem],
   GESTOR_SETOR: [meuSetorItem],
+  MASTER: [],
 };

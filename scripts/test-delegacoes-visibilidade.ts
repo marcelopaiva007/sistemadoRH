@@ -50,7 +50,13 @@ console.log("\nQuem é Direção — o recorte de quem vê tudo\n");
 
 console.log("\nO where da lista\n");
 {
-  igual(demandasVisiveisPara(ADMIN), {}, "direção não leva recorte — vê tudo");
+  // Direção vê tudo — do PRÓPRIO grupo de sociedade (lib/grupo.ts, v1.186.0):
+  // a demanda é do grupo de quem a pediu.
+  igual(
+    demandasVisiveisPara(ADMIN),
+    { solicitante: { grupo: { usuarios: { some: { id: ADMIN.id } } } } },
+    "direção vê tudo do próprio grupo — e nada do outro",
+  );
   igual(
     demandasVisiveisPara(SOL),
     { OR: [{ solicitanteId: SOL.id }, { responsavelId: SOL.id }] },
@@ -64,20 +70,27 @@ console.log("\nO where da lista\n");
     { id: { in: [] } },
     "sessão sem id não vê NADA (falha fechada, nunca 'sem filtro')",
   );
-  // E a direção sem id continua vendo tudo: o papel já basta, não há o que
-  // comparar com o id dela.
-  igual(demandasVisiveisPara({ role: "ADMIN" }), {}, "direção sem id ainda vê tudo");
+  // Direção sem id não tem grupo para comparar: falha fechada, como os demais.
+  // (Até a v1.185 o papel bastava e ela via a base inteira.)
+  igual(demandasVisiveisPara({ role: "ADMIN" }), { id: { in: [] } }, "direção sem id não vê NADA");
 }
 
-console.log("\nA mesma pergunta para UMA demanda (tela de detalhe)\n");
-{
-  ok(podeVerDemanda(SOL, demanda), "quem pediu vê");
-  ok(podeVerDemanda(RESP, demanda), "quem faz vê");
-  ok(podeVerDemanda(DIRETORIA, demanda), "a direção vê");
-  ok(!podeVerDemanda(OUTRO, demanda), "quem não participa NÃO vê — nem com id válido");
-  ok(!podeVerDemanda({ role: "RH_MANAGER" }, demanda), "sessão sem id não vê");
+// Grupos de sociedade de mentira para o teste sem banco: SOL, RESP e DIRETORIA
+// no grupo A; a "DIRETORIA_B" no grupo B.
+const DIRETORIA_B = { id: "u-dir-b", role: "DIRETORIA" };
+const GRUPOS: Record<string, string> = { "u-sol": "A", "u-resp": "A", "u-dir": "A", "u-dir-b": "B" };
+const grupoDe = async (id: string) => GRUPOS[id] ?? null;
+
+async function blocoDetalhe() {
+  console.log("\nA mesma pergunta para UMA demanda (tela de detalhe)\n");
+  ok(await podeVerDemanda(SOL, demanda, grupoDe), "quem pediu vê");
+  ok(await podeVerDemanda(RESP, demanda, grupoDe), "quem faz vê");
+  ok(await podeVerDemanda(DIRETORIA, demanda, grupoDe), "a direção do grupo vê");
+  ok(!(await podeVerDemanda(DIRETORIA_B, demanda, grupoDe)), "a direção de OUTRO grupo NÃO vê");
+  ok(!(await podeVerDemanda(OUTRO, demanda, grupoDe)), "quem não participa NÃO vê — nem com id válido");
+  ok(!(await podeVerDemanda({ role: "RH_MANAGER" }, demanda, grupoDe)), "sessão sem id não vê");
   const propria = { solicitanteId: "eu", responsavelId: "eu" };
-  ok(podeVerDemanda({ id: "eu", role: "GESTOR_SETOR" }, propria), "quem delegou para si vê");
+  ok(await podeVerDemanda({ id: "eu", role: "GESTOR_SETOR" }, propria, grupoDe), "quem delegou para si vê");
 }
 
 console.log("\nO recorte não se mistura com filtro de tela\n");
@@ -114,5 +127,7 @@ console.log("\nO prazo na tela é o dia que a pessoa digitou — em Brasília\n"
   );
 }
 
-console.log(falhas === 0 ? "\n✅ Tudo passou.\n" : `\n❌ ${falhas} falha(s).\n`);
-process.exit(falhas === 0 ? 0 : 1);
+blocoDetalhe().then(() => {
+  console.log(falhas === 0 ? "\n✅ Tudo passou.\n" : `\n❌ ${falhas} falha(s).\n`);
+  process.exit(falhas === 0 ? 0 : 1);
+});

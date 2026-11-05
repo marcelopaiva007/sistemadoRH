@@ -1,3 +1,4 @@
+import { noGrupo } from "@/lib/grupo";
 import { prisma } from "@/lib/prisma";
 import { sendTelegramMessage } from "@/lib/telegram";
 import { sendEmail } from "@/lib/email";
@@ -38,7 +39,7 @@ const SELECT_COBRANCA = {
   status: true,
   nivelEscalonamento: true,
   emRisco: true,
-  solicitante: { select: { nome: true } },
+  solicitante: { select: { nome: true, grupoId: true } },
   responsavel: {
     select: {
       nome: true,
@@ -194,7 +195,9 @@ async function enviarPorEmail(d: DemandaCobranca, degrau: DegrauComMomento) {
     ? `RH ${d.responsavel.colaborador.empresa.marca.nome}`
     : "Delegações";
 
-  const cc = degrau.ccDirecao ? await emailsDaDirecao() : undefined;
+  const cc = degrau.ccDirecao
+    ? await emailsDaDirecao(d.solicitante.grupoId)
+    : undefined;
 
   const envio = await sendEmail({
     to: d.responsavel.email,
@@ -217,9 +220,16 @@ async function enviarPorEmail(d: DemandaCobranca, degrau: DegrauComMomento) {
   });
 }
 
-async function emailsDaDirecao(): Promise<string[]> {
+// "A Direção" é a do GRUPO da demanda (o de quem pediu) — a Direção do outro
+// grupo (sociedade) não recebe cópia nem aviso de demanda que não é dela.
+async function emailsDaDirecao(grupoId: string | null): Promise<string[]> {
   const direcao = await prisma.user.findMany({
-    where: { role: { in: ["ADMIN", "DIRETORIA"] }, ativo: true, email: { not: null } },
+    where: {
+      role: { in: ["ADMIN", "DIRETORIA"] },
+      ativo: true,
+      email: { not: null },
+      ...noGrupo(grupoId),
+    },
     select: { email: true },
   });
   return direcao.map((u) => u.email).filter((e): e is string => !!e);
@@ -233,7 +243,11 @@ async function emailsDaDirecao(): Promise<string[]> {
  */
 async function notificarDirecao(d: DemandaCobranca, degrau: DegrauComMomento) {
   const direcao = await prisma.user.findMany({
-    where: { role: { in: ["ADMIN", "DIRETORIA"] }, ativo: true },
+    where: {
+      role: { in: ["ADMIN", "DIRETORIA"] },
+      ativo: true,
+      ...noGrupo(d.solicitante.grupoId),
+    },
     select: { email: true, colaborador: { select: { telegramChatId: true } } },
   });
   const texto = [

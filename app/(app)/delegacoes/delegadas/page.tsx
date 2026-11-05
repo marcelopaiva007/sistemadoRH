@@ -1,3 +1,4 @@
+import { whereMarcasDoGrupoDe } from "@/lib/grupo";
 import { prisma } from "@/lib/prisma";
 import { requireDelegacoesAccess } from "@/lib/delegacoes-auth-guard";
 import { paraLinha, paraPainel, SELECT_LISTA, SELECT_PAINEL } from "@/lib/delegacoes/consultas";
@@ -40,7 +41,7 @@ export default async function DelegadasPage() {
     // tela de Reuniões (ver lib/delegacoes/pessoas.ts, extraída em 31/08/2026).
     listarPessoasParaDelegar(usuario.id),
     prisma.marca.findMany({
-      where: { ativo: true },
+      where: { ativo: true, ...whereMarcasDoGrupoDe(usuario.id!) },
       select: { id: true, nome: true },
       orderBy: { nome: "asc" },
     }),

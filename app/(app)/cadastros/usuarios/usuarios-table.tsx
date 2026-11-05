@@ -162,6 +162,7 @@ export function UsuariosTable({
   marcas,
   perfis,
   currentUserId,
+  grupoId,
 }: {
   usuarios: Usuario[];
   empresas: EmpresaResumo[];
@@ -169,6 +170,8 @@ export function UsuariosTable({
   marcas: MarcaResumo[];
   perfis: PerfilOpcao[];
   currentUserId: string;
+  /** Só para o MASTER: o grupo em que a conta nova nasce (o que está aberto na tela). */
+  grupoId?: string;
 }) {
   const [createOpen, setCreateOpen] = useState(false);
   const [editUsuario, setEditUsuario] = useState<Usuario | null>(null);
@@ -316,6 +319,7 @@ export function UsuariosTable({
                 setores={setores}
                 marcas={marcas}
                 perfis={perfis}
+                grupoId={grupoId}
                 onSuccess={() => setCreateOpen(false)}
               />
             </DialogContent>
@@ -453,6 +457,7 @@ function UsuarioForm({
   setores,
   marcas,
   perfis,
+  grupoId,
   onSuccess,
 }: {
   action: (prev: ActionResult, formData: FormData) => Promise<ActionResult>;
@@ -462,6 +467,7 @@ function UsuarioForm({
   setores: SetorResumo[];
   marcas: MarcaResumo[];
   perfis: PerfilOpcao[];
+  grupoId?: string;
   onSuccess: () => void;
 }) {
   const isEdit = !!defaultValues;
@@ -509,6 +515,7 @@ function UsuarioForm({
 
   return (
     <form action={formAction} className="space-y-4">
+      {grupoId && <input type="hidden" name="grupoId" value={grupoId} />}
       <DialogHeader>
         <DialogTitle>{title}</DialogTitle>
       </DialogHeader>

@@ -73,7 +73,13 @@ export async function garantirAcessoDoColaborador(
 ): Promise<ResultadoAcesso> {
   const colaborador = await tx.colaborador.findUnique({
     where: { id: colaboradorId },
-    select: { id: true, nome: true, ativo: true, email: true },
+    select: {
+      id: true,
+      nome: true,
+      ativo: true,
+      email: true,
+      empresa: { select: { marca: { select: { grupoId: true } } } },
+    },
   });
   if (!colaborador) return { ok: false, erro: "Funcionário não encontrado." };
   if (!colaborador.ativo) {
@@ -121,6 +127,9 @@ export async function garantirAcessoDoColaborador(
       passwordHash: await senhaImpossivel(),
       role: PAPEL_PORTAL,
       colaboradorId,
+      // O acesso de portal nasce no GRUPO de quem é a ficha (lib/grupo.ts) —
+      // senão ele não aparece para ninguém do grupo nem recebe nada dele.
+      grupoId: colaborador.empresa.marca.grupoId,
       ativo: true,
     },
     select: { id: true, nome: true },

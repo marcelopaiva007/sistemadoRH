@@ -26,6 +26,19 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.186.0",
+    data: "05/11/2026",
+    horario: "12:30",
+    titulo: "Grupos: a LM Telecom separada das demais marcas",
+    itens: [
+      "O sistema passa a ter GRUPOS acima das marcas. A LM Telecom fica num grupo só dela; as demais marcas, em outro. Nenhuma tela, relatório, busca ou e-mail automático junta os dois grupos.",
+      "Quem trabalha num grupo não vê nada do outro, nem sendo Administrativo ou Diretoria: colaboradores, folha, pendências, processos, delegações, usuários, marcas e CNPJs ficam todos do lado de dentro.",
+      "Nova conta MASTER, que cria os grupos e as contas de cada um e decide em que grupo fica cada marca (aba Grupos, em Usuários e perfis). O MASTER só administra: não abre os dados de nenhum grupo.",
+      "Quem precisa trabalhar nos dois grupos usa um login para cada um.",
+      "Perfis de acesso valem para os dois grupos, por isso criar, editar e excluir perfil passou a ser só do MASTER. Dar e tirar perfil de uma conta continua com Administrativo e Diretoria, só para as contas do próprio grupo.",
+    ],
+  },
+  {
     versao: "1.185.1",
     data: "05/11/2026",
     horario: "12:00",

@@ -3,8 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireRHAccess } from "@/lib/rh-auth-guard";
-import { requireAdmin } from "@/lib/auth-guard";
-import { grupoDoUsuario } from "@/lib/grupo";
+import {
+  empresaDoGrupo,
+  marcaDoGrupo,
+  requireAdminDoGrupo,
+} from "@/lib/grupo-guard";
 import { registrarAuditoria } from "@/lib/audit";
 import { violouUnique } from "@/lib/prisma-erros";
 import { apenasDigitosCnpj, cnpjValido, ufValida } from "@/lib/cnpj";
@@ -80,11 +83,12 @@ function lerCorPrimaria(fd: FormData): { ok: true; cor: string | null } | { ok: 
 // (que aceita os quatro papéis, GESTOR_SETOR incluso) manteria aberto o mesmo
 // buraco que fechamos no CNPJ — renomear marca, trocar cor e logo do grupo
 // inteiro, e criar a marca para onde puxar um CNPJ depois.
-export async function criarMarca(_prev: ActionResult, fd: FormData): Promise<ActionResult> {
-  const admin = await requireAdmin();
-  // Marca nova nasce no GRUPO de sociedade de quem a cria (lib/grupo.ts).
-  const grupoId = await grupoDoUsuario(admin.id);
-  if (!grupoId) return { ok: false, error: "Sua conta não está em nenhum grupo — peça ao master." };
+export async function criarMarca(
+  _prev: ActionResult,
+  fd: FormData,
+): Promise<ActionResult> {
+  // Marca nova nasce no GRUPO de quem a cria (lib/grupo.ts).
+  const { grupoId } = await requireAdminDoGrupo();
 
   const nome = texto(fd, "nome");
   if (!nome) return { ok: false, error: "Informe o nome da marca." };
@@ -97,7 +101,12 @@ export async function criarMarca(_prev: ActionResult, fd: FormData): Promise<Act
     // o upload preenche em seguida. Se o upload falhar, a marca fica criada
     // sem logo e o erro aparece — melhor que perder o cadastro inteiro.
     const marca = await prisma.marca.create({
-      data: { nome, grupoId, logoUrl: texto(fd, "logoUrl"), corPrimaria: cor.cor },
+      data: {
+        nome,
+        grupoId,
+        logoUrl: texto(fd, "logoUrl"),
+        corPrimaria: cor.cor,
+      },
     });
 
     const logo = await resolverLogo(fd, marca.id);
@@ -128,7 +137,9 @@ export async function editarMarca(
   _prev: ActionResult,
   fd: FormData,
 ): Promise<ActionResult> {
-  await requireAdmin();
+  const { grupoId } = await requireAdminDoGrupo();
+  if (!(await marcaDoGrupo(marcaId, grupoId)))
+    return { ok: false, error: "Marca não encontrada." };
 
   const nome = texto(fd, "nome");
   if (!nome) return { ok: false, error: "Informe o nome da marca." };
@@ -238,7 +249,9 @@ export async function criarEmpresa(
   _prev: ActionResult,
   fd: FormData,
 ): Promise<ActionResult> {
-  await requireAdmin();
+  const { grupoId } = await requireAdminDoGrupo();
+  if (!(await marcaDoGrupo(marcaId, grupoId)))
+    return { ok: false, error: "Marca não encontrada." };
 
   const lido = lerDadosDaEmpresa(fd);
   if (!lido.ok) return { ok: false, error: lido.erro };
@@ -265,7 +278,9 @@ export async function criarEmpresa(
 }
 
 export async function excluirEmpresa(empresaId: string): Promise<ActionResult> {
-  await requireAdmin();
+  const { grupoId } = await requireAdminDoGrupo();
+  if (!(await empresaDoGrupo(empresaId, grupoId)))
+    return { ok: false, error: "Empresa não encontrada." };
 
   const count = await prisma.colaborador.count({ where: { empresaId } });
   if (count > 0) {
@@ -292,13 +307,19 @@ export async function editarEmpresa(
   _prev: ActionResult,
   fd: FormData,
 ): Promise<ActionResult> {
-  await requireAdmin();
+  const { grupoId } = await requireAdminDoGrupo();
+  if (!(await empresaDoGrupo(empresaId, grupoId)))
+    return { ok: false, error: "Empresa não encontrada." };
 
   const lido = lerDadosDaEmpresa(fd);
   if (!lido.ok) return { ok: false, error: lido.erro };
 
   const marcaId = texto(fd, "marcaId");
   if (!marcaId) return { ok: false, error: "Informe a marca." };
+  // Trocar o CNPJ de marca, sim; levá-lo para uma marca de OUTRO grupo, não —
+  // isso é mover a empresa de sociedade, e só o MASTER faz (tela de Grupos).
+  if (!(await marcaDoGrupo(marcaId, grupoId)))
+    return { ok: false, error: "Marca não encontrada." };
 
   // O estado ANTERIOR, para a trilha registrar as duas mudanças que não se veem
   // no nome: trocar o CNPJ de marca (o caminho da escalada de acesso) e

@@ -6,7 +6,11 @@ import { requireDelegacoesAccess } from "@/lib/delegacoes-auth-guard";
 import { registrarAuditoria } from "@/lib/audit";
 import { podeVerDemanda } from "@/lib/delegacoes/consultas";
 import { sistemasPermitidos } from "@/lib/permissoes/efetivas";
-import { garantirAcessoDoColaborador, PAPEL_PORTAL } from "@/lib/delegacoes/acesso-colaborador";
+import {
+  garantirAcessoDoColaborador,
+  PAPEL_PORTAL,
+} from "@/lib/delegacoes/acesso-colaborador";
+import { grupoDoColaborador, grupoDoUsuario, mesmoGrupo } from "@/lib/grupo";
 import {
   avisarDemandaEnviada,
   avisarDemandaEntregue,
@@ -86,11 +90,29 @@ async function carregarDemanda(id: string, ator: Ator) {
     where: { id },
     select: SELECT_REGRAS,
   });
-  if (!demanda || !podeVerDemanda(ator, demanda)) return null;
+  if (!demanda || !(await podeVerDemanda(ator, demanda))) return null;
   return demanda;
 }
 
 const ERRO_SESSAO = "Sessão sem identificação — saia e entre de novo.";
+
+const ERRO_OUTRO_GRUPO = "Pessoa não encontrada entre os usuários ativos.";
+
+/**
+ * Ficha de funcionário de OUTRO grupo (sociedade) não recebe demanda de quem
+ * está aqui — ver lib/grupo.ts. Mesma mensagem de "não encontrada" de
+ * propósito: dizer "é de outro grupo" confirmaria que a ficha existe.
+ */
+async function fichaNoGrupoDoAtor(
+  atorId: string,
+  colaboradorId: string,
+): Promise<boolean> {
+  const [doAtor, daFicha] = await Promise.all([
+    grupoDoUsuario(atorId),
+    grupoDoColaborador(colaboradorId),
+  ]);
+  return doAtor !== null && doAtor === daFicha;
+}
 const ERRO_NAO_ENCONTRADA = "Demanda não encontrada.";
 const ERRO_CONFLITO =
   "A demanda mudou enquanto você agia — recarregue e veja o estado atual antes de repetir.";
@@ -180,7 +202,12 @@ export async function criarDemanda(
   let responsavelId = input.responsavelId ?? "";
   let ehPortal = false;
   if (!responsavelId && input.responsavelColaboradorId) {
-    const acesso = await garantirAcessoDoColaborador(input.responsavelColaboradorId);
+    if (!(await fichaNoGrupoDoAtor(ator.id, input.responsavelColaboradorId))) {
+      return { ok: false, error: ERRO_OUTRO_GRUPO };
+    }
+    const acesso = await garantirAcessoDoColaborador(
+      input.responsavelColaboradorId,
+    );
     if (!acesso.ok) return { ok: false, error: acesso.erro };
     responsavelId = acesso.userId;
     ehPortal = true;
@@ -209,8 +236,15 @@ export async function criarDemanda(
       colaborador: { select: { telegramChatId: true } },
     },
   });
-  if (!responsavel || !responsavel.ativo) {
-    return { ok: false, error: "Responsável não encontrado entre os usuários ativos." };
+  if (
+    !responsavel ||
+    !responsavel.ativo ||
+    !(await mesmoGrupo(ator.id, responsavel.id))
+  ) {
+    return {
+      ok: false,
+      error: "Responsável não encontrado entre os usuários ativos.",
+    };
   }
   // A tela já filtra a lista, mas a recusa mora AQUI: sem isto, uma chamada
   // direta grava uma demanda para quem a guarda redireciona — e ela fica presa
@@ -236,9 +270,16 @@ export async function criarDemanda(
   if (input.marcaId) {
     const marca = await prisma.marca.findUnique({
       where: { id: input.marcaId },
-      select: { ativo: true },
+      select: { ativo: true, grupoId: true },
     });
-    if (!marca || !marca.ativo) return { ok: false, error: "Marca não encontrada." };
+    // Marca de outro grupo (sociedade) responde como inexistente — lib/grupo.ts.
+    if (
+      !marca ||
+      !marca.ativo ||
+      marca.grupoId !== (await grupoDoUsuario(ator.id))
+    ) {
+      return { ok: false, error: "Marca não encontrada." };
+    }
   }
 
   if (input.reuniaoId) {
@@ -787,7 +828,14 @@ export async function transferirDemanda(input: {
   let novoResponsavelId = input.novoResponsavelId ?? "";
   let ehPortal = false;
   if (!novoResponsavelId && input.novoResponsavelColaboradorId) {
-    const acesso = await garantirAcessoDoColaborador(input.novoResponsavelColaboradorId);
+    if (
+      !(await fichaNoGrupoDoAtor(ator.id, input.novoResponsavelColaboradorId))
+    ) {
+      return { ok: false, error: ERRO_OUTRO_GRUPO };
+    }
+    const acesso = await garantirAcessoDoColaborador(
+      input.novoResponsavelColaboradorId,
+    );
     if (!acesso.ok) return { ok: false, error: acesso.erro };
     novoResponsavelId = acesso.userId;
     ehPortal = true;
@@ -801,8 +849,15 @@ export async function transferirDemanda(input: {
     where: { id: novoResponsavelId },
     select: { id: true, nome: true, role: true, ativo: true },
   });
-  if (!novoResponsavel || !novoResponsavel.ativo) {
-    return { ok: false, error: "Responsável não encontrado entre os usuários ativos." };
+  if (
+    !novoResponsavel ||
+    !novoResponsavel.ativo ||
+    !(await mesmoGrupo(ator.id, novoResponsavel.id))
+  ) {
+    return {
+      ok: false,
+      error: "Responsável não encontrado entre os usuários ativos.",
+    };
   }
   if (
     !ehPortal &&
@@ -1128,6 +1183,8 @@ export async function alternarFavorito(input: {
 
   let favoritoId = input.favoritoId;
   if (input.ehColaborador) {
+    if (!(await fichaNoGrupoDoAtor(ator.id, input.favoritoId)))
+      return { ok: false, error: ERRO_OUTRO_GRUPO };
     const acesso = await garantirAcessoDoColaborador(input.favoritoId);
     if (!acesso.ok) return { ok: false, error: acesso.erro };
     favoritoId = acesso.userId;
@@ -1138,8 +1195,11 @@ export async function alternarFavorito(input: {
       where: { id: favoritoId },
       select: { id: true, nome: true, role: true, ativo: true },
     });
-    if (!pessoa || !pessoa.ativo) {
-      return { ok: false, error: "Pessoa não encontrada entre os usuários ativos." };
+    if (!pessoa || !pessoa.ativo || !(await mesmoGrupo(ator.id, pessoa.id))) {
+      return {
+        ok: false,
+        error: "Pessoa não encontrada entre os usuários ativos.",
+      };
     }
     // Acesso de portal não precisa alcançar o módulo — ele responde pelo
     // portal. A exigência vale só para quem opera o sistema.

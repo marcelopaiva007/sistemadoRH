@@ -23,6 +23,7 @@ const ROLE_LABELS: Record<string, string> = {
   DIRETORIA: "Diretoria/Gestão",
   RH_MANAGER: "RH",
   GESTOR_SETOR: "Gestor de Setor",
+  MASTER: "Master (administra os grupos)",
   // Acesso de portal (funcionário sem login do sistema). Não navega por aqui —
   // a porta dele é /portal —, mas o rótulo existe para não cair no fallback.
   COLABORADOR: "Colaborador",

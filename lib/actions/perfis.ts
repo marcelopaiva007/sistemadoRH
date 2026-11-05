@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireGestaoUsuarios } from "@/lib/auth-guard";
+import { ehMaster, grupoDoUsuario } from "@/lib/grupo";
 import { registrarAuditoria } from "@/lib/audit";
 import { SISTEMAS, todasAsPermissoes } from "@/lib/permissoes/catalogo";
 import type { ActionResult } from "@/lib/constants";
@@ -16,6 +17,22 @@ import type { ActionResult } from "@/lib/constants";
 // permissão de "editar perfis" cuja edição se protege por ela mesma). Fica na
 // guarda por papel enquanto a Onda 3 não migra o resto — e quando migrar, esta
 // será uma das últimas, com cuidado.
+//
+// GRUPOS (v1.186.0): o perfil é um MOLDE compartilhado pelos dois grupos —
+// editar um muda o acesso de gente do outro grupo. Por isso criar, editar e
+// excluir perfil passou a ser só do MASTER. Dar e tirar perfil de uma conta
+// continua com ADMIN/DIRETORIA, mas só para contas do PRÓPRIO grupo.
+
+/** Quem administra alcança esta conta? MASTER alcança todas; os demais, só as do próprio grupo. */
+async function alcancaConta(userId: string): Promise<boolean> {
+  const quem = await requireGestaoUsuarios();
+  if (ehMaster(quem)) return true;
+  const [meu, dele] = await Promise.all([
+    grupoDoUsuario(quem.id),
+    grupoDoUsuario(userId),
+  ]);
+  return meu !== null && meu === dele;
+}
 
 const CAMINHO = "/cadastros/perfis";
 
@@ -54,7 +71,12 @@ export async function salvarPerfil(input: {
   descricao?: string | null;
   grants: string[];
 }): Promise<ActionResult & { id?: string }> {
-  await requireGestaoUsuarios();
+  if (!ehMaster(await requireGestaoUsuarios()))
+    return {
+      ok: false,
+      error:
+        "Só o usuário master cria, edita ou exclui perfis — eles valem para todos os grupos.",
+    };
 
   const nome = (input.nome ?? "").trim();
   if (!nome) return { ok: false, error: "Dê um nome ao perfil." };
@@ -93,8 +115,15 @@ export async function salvarPerfil(input: {
   return { ok: true, id: perfil.id };
 }
 
-export async function excluirPerfil(input: { id: string }): Promise<ActionResult> {
-  await requireGestaoUsuarios();
+export async function excluirPerfil(input: {
+  id: string;
+}): Promise<ActionResult> {
+  if (!ehMaster(await requireGestaoUsuarios()))
+    return {
+      ok: false,
+      error:
+        "Só o usuário master cria, edita ou exclui perfis — eles valem para todos os grupos.",
+    };
 
   const perfil = await prisma.perfil.findUnique({
     where: { id: input.id },
@@ -128,8 +157,12 @@ export async function excluirPerfil(input: { id: string }): Promise<ActionResult
 }
 
 /** Atribui um perfil a um usuário (idempotente pelo unique userId+perfilId). */
-export async function atribuirPerfil(input: { userId: string; perfilId: string }): Promise<ActionResult> {
-  await requireGestaoUsuarios();
+export async function atribuirPerfil(input: {
+  userId: string;
+  perfilId: string;
+}): Promise<ActionResult> {
+  if (!(await alcancaConta(input.userId)))
+    return { ok: false, error: "Usuário não encontrado." };
 
   const [usuario, perfil] = await Promise.all([
     prisma.user.findUnique({ where: { id: input.userId }, select: { id: true, nome: true } }),
@@ -157,8 +190,12 @@ export async function atribuirPerfil(input: { userId: string; perfilId: string }
   return { ok: true };
 }
 
-export async function removerPerfilDoUsuario(input: { userId: string; perfilId: string }): Promise<ActionResult> {
-  await requireGestaoUsuarios();
+export async function removerPerfilDoUsuario(input: {
+  userId: string;
+  perfilId: string;
+}): Promise<ActionResult> {
+  if (!(await alcancaConta(input.userId)))
+    return { ok: false, error: "Usuário não encontrado." };
 
   const vinculo = await prisma.userPerfil.findUnique({
     where: { userId_perfilId: { userId: input.userId, perfilId: input.perfilId } },

@@ -3,6 +3,7 @@ import { diaBrasilia } from "@/lib/datas";
 import { severidadeDoPrazo, semaforoDaDemanda, type SeveridadePrazo, type Semaforo } from "@/lib/constants-delegacoes";
 import { STATUS_ATIVOS } from "@/lib/delegacoes/estados";
 import type { DemandaParaPainel } from "@/lib/delegacoes/painel-entregas";
+import { grupoDoUsuario } from "@/lib/grupo";
 
 // QUEM ENXERGA QUAL DEMANDA — a regra de visibilidade por linha, no servidor.
 //
@@ -51,11 +52,26 @@ export function ehDirecao(user: { role: string }): boolean {
  * quebra silenciosamente no dia em que o recorte também usar `OR` — os dois
  * `OR` no mesmo nível se sobrescrevem, e o de acesso é o que some.
  */
+/**
+ * O recorte de GRUPO (sociedade — lib/grupo.ts) de uma demanda: ela é do grupo
+ * de quem a PEDIU. Toda tela "da Direção" (painel, relatório, CSV) entra com
+ * isto no `where`: "a Direção vê tudo" passou a ser "tudo do próprio grupo".
+ *
+ * Escrito só com o id de quem pergunta, sem ida prévia ao banco: "o
+ * solicitante está no mesmo grupo que eu". Sem id, falha fechada.
+ */
+export function demandasDoMeuGrupo(
+  userId: string | undefined,
+): Prisma.DemandaWhereInput {
+  if (!userId) return { id: { in: [] } };
+  return { solicitante: { grupo: { usuarios: { some: { id: userId } } } } };
+}
+
 export function demandasVisiveisPara(user: {
   id?: string;
   role: string;
 }): Prisma.DemandaWhereInput {
-  if (ehDirecao(user)) return {};
+  if (ehDirecao(user)) return demandasDoMeuGrupo(user.id);
   // Sem id na sessão não há como provar participação: não mostra nada. Falhar
   // fechado é o único jeito seguro — a alternativa devolveria a base inteira.
   if (!user.id) return { id: { in: [] } };
@@ -67,13 +83,18 @@ export function demandasVisiveisPara(user: {
  * onde a consulta é por id e o recorte não pode ir no `where` sem transformar
  * "sem acesso" em "não existe".
  */
-export function podeVerDemanda(
+export async function podeVerDemanda(
   user: { id?: string; role: string },
   demanda: { solicitanteId: string; responsavelId: string },
-): boolean {
-  if (ehDirecao(user)) return true;
+  // Injetável só para o teste sem banco (scripts/test-delegacoes-visibilidade.ts).
+  grupoDe: (userId: string) => Promise<string | null> = grupoDoUsuario,
+): Promise<boolean> {
   if (!user.id) return false;
-  return demanda.solicitanteId === user.id || demanda.responsavelId === user.id;
+  if (demanda.solicitanteId === user.id || demanda.responsavelId === user.id) return true;
+  if (!ehDirecao(user)) return false;
+  // Direção vê tudo — do PRÓPRIO grupo (lib/grupo.ts).
+  const [meu, doSolicitante] = await Promise.all([grupoDe(user.id), grupoDe(demanda.solicitanteId)]);
+  return meu !== null && meu === doSolicitante;
 }
 
 // ── O que as duas listas leem, e como a linha chega pronta na tela ──────────

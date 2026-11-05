@@ -1,5 +1,6 @@
 "use server";
 
+import { whereUsuariosDoGrupoDaEmpresa } from "@/lib/grupo";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireProcessosEmpresa } from "@/lib/processos-auth-guard";
@@ -45,9 +46,24 @@ export async function definirResponsavel(input: {
   // Os ids vêm do cliente. Só usuário ATIVO vira dono: apontar para quem já saiu
   // da empresa é o mesmo que não ter dono, com a agravante de parecer que tem.
   const [responsavel, substituto] = await Promise.all([
-    prisma.user.findFirst({ where: { id: input.responsavelId, ativo: true }, select: { id: true, nome: true, username: true } }),
+    // Dono e substituto só do GRUPO dono do CNPJ (lib/grupo.ts).
+    prisma.user.findFirst({
+      where: {
+        id: input.responsavelId,
+        ativo: true,
+        ...whereUsuariosDoGrupoDaEmpresa(input.empresaId),
+      },
+      select: { id: true, nome: true, username: true },
+    }),
     input.substitutoId
-      ? prisma.user.findFirst({ where: { id: input.substitutoId, ativo: true }, select: { id: true, nome: true, username: true } })
+      ? prisma.user.findFirst({
+          where: {
+            id: input.substitutoId,
+            ativo: true,
+            ...whereUsuariosDoGrupoDaEmpresa(input.empresaId),
+          },
+          select: { id: true, nome: true, username: true },
+        })
       : Promise.resolve(null),
   ]);
   if (!responsavel) return { ok: false, error: "Escolha um responsável ativo." };

@@ -1,5 +1,10 @@
 "use server";
 
+import {
+  whereColaboradoresDoGrupoDe,
+  whereMarcasDoGrupoDe,
+  whereUsuariosDoGrupoDe,
+} from "@/lib/grupo";
 import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/prisma";
 import { requireDelegacoesAccess } from "@/lib/delegacoes-auth-guard";
@@ -59,7 +64,7 @@ export async function rascunharComIA(input: {
   idEhFicha?: boolean;
   contexto: string;
 }): Promise<ResultadoRedacao> {
-  await requireDelegacoesAccess();
+  const ator = await requireDelegacoesAccess();
 
   const contexto = input.contexto.trim().slice(0, LIMITE_CONTEXTO);
   if (contexto.length < 10) {
@@ -79,12 +84,16 @@ export async function rascunharComIA(input: {
   // provisionar usuário para um rascunho que pode ser descartado deixaria
   // lixo no cadastro. Quem cria o acesso é `criarDemanda`, ao gravar.
   const responsavel = input.idEhFicha
-    ? await prisma.colaborador.findUnique({
-        where: { id: input.responsavelId },
+    ? await prisma.colaborador.findFirst({
+        // Só ficha do GRUPO de quem delega (sociedade — lib/grupo.ts).
+        where: {
+          id: input.responsavelId,
+          ...whereColaboradoresDoGrupoDe(ator.id!),
+        },
         select: { id: true, nome: true, ativo: true },
       })
-    : await prisma.user.findUnique({
-        where: { id: input.responsavelId },
+    : await prisma.user.findFirst({
+        where: { id: input.responsavelId, ...whereUsuariosDoGrupoDe(ator.id!) },
         select: { id: true, nome: true, ativo: true, role: true },
       });
   if (!responsavel || !responsavel.ativo) {
@@ -107,7 +116,7 @@ export async function rascunharComIA(input: {
   }
 
   const marcas = await prisma.marca.findMany({
-    where: { ativo: true },
+    where: { ativo: true, ...whereMarcasDoGrupoDe(ator.id!) },
     select: { nome: true },
     orderBy: { nome: "asc" },
   });

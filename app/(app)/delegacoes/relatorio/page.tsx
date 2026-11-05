@@ -1,7 +1,12 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireDelegacoesAccess } from "@/lib/delegacoes-auth-guard";
-import { ehDirecao, paraPainel, SELECT_PAINEL } from "@/lib/delegacoes/consultas";
+import {
+  demandasDoMeuGrupo,
+  ehDirecao,
+  paraPainel,
+  SELECT_PAINEL,
+} from "@/lib/delegacoes/consultas";
 import { montarPainelEntregas } from "@/lib/delegacoes/painel-entregas";
 import { JANELAS_VALIDAS, janelaValida } from "@/lib/delegacoes/relatorio";
 import { TabelaEntregas } from "../tabela-entregas";
@@ -37,7 +42,12 @@ export default async function RelatorioPage({
   inicioJanela.setHours(0, 0, 0, 0);
 
   const linhas = await prisma.demanda.findMany({
-    where: { createdAt: { gte: inicioJanela } },
+    where: {
+      AND: [
+        { createdAt: { gte: inicioJanela } },
+        demandasDoMeuGrupo(usuario.id),
+      ],
+    },
     select: SELECT_PAINEL,
   });
 

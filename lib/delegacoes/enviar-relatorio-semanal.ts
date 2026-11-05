@@ -64,41 +64,61 @@ export async function enviarRelatorioSemanal(agora = new Date()): Promise<Result
   const inicioJanela = new Date(agora.getTime() - (DIAS_JANELA - 1) * 86_400_000);
   inicioJanela.setHours(0, 0, 0, 0);
 
-  const [linhas, usuarios] = await Promise.all([
-    prisma.demanda.findMany({
-      where: { createdAt: { gte: inicioJanela } },
-      select: SELECT_PAINEL,
-    }),
-    prisma.user.findMany({
-      where: { ativo: true },
-      select: { id: true, role: true, email: true },
-    }),
-  ]);
-
-  const painel = montarPainelEntregas(linhas.map((d) => paraPainel(d)), agora);
-  const destinatarios = usuarios.filter((u) => ehDirecao(u));
-
-  const resultado: ResultadoRelatorioSemanal = { enviados: 0, deduplicados: 0, semEmail: 0 };
-  if (painel.linhas.length === 0) return resultado;
-
-  const { assunto, texto, html } = montarEmail(painel, DIAS_JANELA);
+  // UM relatório POR GRUPO (sociedade — lib/grupo.ts): a Direção de cada
+  // grupo recebe só as demandas pedidas por gente do próprio grupo. Até a
+  // até a v1.185 era um relatório só, com a casa inteira, para toda a Direção.
+  const grupos = await prisma.grupo.findMany({
+    where: { ativo: true },
+    select: { id: true },
+  });
+  const resultado: ResultadoRelatorioSemanal = {
+    enviados: 0,
+    deduplicados: 0,
+    semEmail: 0,
+  };
   const diaDoEnvio = diaBrasilia(agora);
 
-  for (const destinatario of destinatarios) {
-    if (!destinatario.email) {
-      resultado.semEmail++;
-      continue;
+  for (const grupo of grupos) {
+    const [linhas, usuarios] = await Promise.all([
+      prisma.demanda.findMany({
+        where: {
+          createdAt: { gte: inicioJanela },
+          solicitante: { grupoId: grupo.id },
+        },
+        select: SELECT_PAINEL,
+      }),
+      prisma.user.findMany({
+        where: { ativo: true, grupoId: grupo.id },
+        select: { id: true, role: true, email: true },
+      }),
+    ]);
+
+    const painel = montarPainelEntregas(
+      linhas.map((d) => paraPainel(d)),
+      agora,
+    );
+    const destinatarios = usuarios.filter((u) => ehDirecao(u));
+
+    if (painel.linhas.length === 0) continue;
+
+    const { assunto, texto, html } = montarEmail(painel, DIAS_JANELA);
+
+    for (const destinatario of destinatarios) {
+      if (!destinatario.email) {
+        resultado.semEmail++;
+        continue;
+      }
+      const envio = await sendEmail({
+        to: destinatario.email,
+        fromName: "Delegações",
+        subject: assunto,
+        text: texto,
+        html,
+        chave: `delegacoes-relatorio-semanal:${destinatario.id}:${diaDoEnvio}`,
+      });
+      if (envio.ok && envio.deduplicado) resultado.deduplicados++;
+      else if (envio.ok) resultado.enviados++;
     }
-    const envio = await sendEmail({
-      to: destinatario.email,
-      fromName: "Delegações",
-      subject: assunto,
-      text: texto,
-      html,
-      chave: `delegacoes-relatorio-semanal:${destinatario.id}:${diaDoEnvio}`,
-    });
-    if (envio.ok && envio.deduplicado) resultado.deduplicados++;
-    else if (envio.ok) resultado.enviados++;
   }
 
   return resultado;

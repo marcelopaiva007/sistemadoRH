@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+import { ehMaster, grupoDoUsuario } from "@/lib/grupo";
 import { requireGestaoUsuarios } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { inicioDoDiaSaoPaulo } from "@/lib/email";
@@ -37,14 +39,18 @@ export default async function ProdutividadePage({
 }: {
   searchParams: Promise<{ periodo?: string; empresa?: string }>;
 }) {
-  await requireGestaoUsuarios();
+  const quem = await requireGestaoUsuarios();
+  // O MASTER não abre dado de grupo nenhum (lib/grupo.ts) — produtividade é
+  // trilha de auditoria de gente de um grupo.
+  if (ehMaster(quem)) redirect("/cadastros/usuarios");
+  const grupoId = (await grupoDoUsuario(quem.id)) ?? "__nenhum__";
   const { periodo: periodoParam, empresa: empresaParam } = await searchParams;
   const periodo: PeriodoChave =
     periodoParam && periodoParam in PERIODOS ? (periodoParam as PeriodoChave) : "hoje";
   const desde = somarDiasUTC(inicioDoDiaSaoPaulo(), -PERIODOS[periodo].diasAntes);
 
   const empresas = await prisma.empresa.findMany({
-    where: { ativo: true },
+    where: { ativo: true, marca: { grupoId } },
     select: { id: true, nome: true },
     orderBy: { nome: "asc" },
   });
@@ -54,6 +60,15 @@ export default async function ProdutividadePage({
     where: {
       createdAt: { gte: desde },
       usuarioRole: { in: PAPEIS_SISTEMA },
+      // Só as ações de contas do PRÓPRIO grupo.
+      usuarioId: {
+        in: (
+          await prisma.user.findMany({
+            where: { grupoId },
+            select: { id: true },
+          })
+        ).map((u) => u.id),
+      },
       ...(empresaSelecionada ? { empresaId: empresaSelecionada } : {}),
     },
     select: { usuarioId: true, usuarioNome: true, usuarioRole: true, entidade: true, createdAt: true },

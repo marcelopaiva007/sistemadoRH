@@ -1,6 +1,11 @@
+import { whereMarcasDoGrupoDe } from "@/lib/grupo";
 import { prisma } from "@/lib/prisma";
 import { requireDelegacoesAccess } from "@/lib/delegacoes-auth-guard";
-import { paraLinhaPainelDirecao, SELECT_PAINEL_DIRECAO } from "@/lib/delegacoes/consultas";
+import {
+  demandasDoMeuGrupo,
+  paraLinhaPainelDirecao,
+  SELECT_PAINEL_DIRECAO,
+} from "@/lib/delegacoes/consultas";
 import { PainelDirecaoView } from "./painel-direcao-view";
 
 /**
@@ -23,16 +28,18 @@ import { PainelDirecaoView } from "./painel-direcao-view";
  * "mostrar histórico".
  */
 export default async function PainelDirecaoPage() {
-  await requireDelegacoesAccess();
+  const usuario = await requireDelegacoesAccess();
 
   const [linhas, marcas] = await Promise.all([
     prisma.demanda.findMany({
-      where: { status: { not: "RASCUNHO" } },
+      where: {
+        AND: [{ status: { not: "RASCUNHO" } }, demandasDoMeuGrupo(usuario.id)],
+      },
       select: SELECT_PAINEL_DIRECAO,
       orderBy: { prazo: "asc" },
     }),
     prisma.marca.findMany({
-      where: { ativo: true },
+      where: { ativo: true, ...whereMarcasDoGrupoDe(usuario.id!) },
       select: { id: true, nome: true },
       orderBy: { nome: "asc" },
     }),

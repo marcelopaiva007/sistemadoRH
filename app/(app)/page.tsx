@@ -1,3 +1,4 @@
+import { empresasVisiveis } from "@/lib/rh-auth-guard";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Briefcase, Building2, CheckCircle2, CircleDashed, Rocket, Users } from "lucide-react";
@@ -28,6 +29,8 @@ import { PendenciasIndicador } from "./pendencias-indicador";
 export default async function HomePage() {
   const user = await requireUser();
   if (user.role === "GESTOR_SETOR") redirect("/rh/meu-setor");
+  // O MASTER só administra grupos e contas (lib/grupo.ts): a casa dele é o cadastro.
+  if (user.role === "MASTER") redirect("/cadastros/usuarios");
 
   // Esta home é o painel de GRUPO do RH (colaboradores, pendências, folha).
   // Quem tem um perfil "só Processos" não pode vê-la: vai para o sistema dele.
@@ -37,18 +40,15 @@ export default async function HomePage() {
   const sistemas = await sistemasPermitidos(user);
   if (!sistemas.includes("rh")) redirect(sistemas.includes("processos") ? "/processos" : "/conta");
 
-  // RH_MANAGER: buscar apenas as empresas vinculadas a ele
-  // ADMIN/DIRETORIA: buscar todas as empresas ativas
-  const isRHManager = user.role === "RH_MANAGER";
-  const empresasIds =
-    isRHManager && Array.isArray(user.empresas) && user.empresas.length > 0
-      ? user.empresas.map((e) => e.empresaId)
-      : undefined;
+  // O que a pessoa enxerga — a mesma conta de toda tela (papel, vínculo por
+  // CNPJ ou por marca), recortada pelo GRUPO dela (lib/grupo.ts). Até a
+  // v1.184 o ADMIN/DIRETORIA via aqui todas as empresas ativas da base.
+  const empresasIds = await empresasVisiveis(user);
 
   const empresas = await prisma.empresa.findMany({
     where: {
       ativo: true,
-      ...(empresasIds ? { id: { in: empresasIds } } : {}),
+      id: { in: empresasIds },
     },
     orderBy: { nome: "asc" },
     select: { id: true, nome: true, marca: { select: { id: true, nome: true } } },

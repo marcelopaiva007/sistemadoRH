@@ -1,5 +1,6 @@
 "use server";
 
+import { whereUsuariosDoGrupoDaEmpresa } from "@/lib/grupo";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireProcessosEmpresa } from "@/lib/processos-auth-guard";
@@ -412,7 +413,13 @@ export async function salvarContrato(input: {
   // mudar quando a pessoa troca de cargo ou sai.
   const gestor = dados.gestorId
     ? await prisma.user.findFirst({
-        where: { id: dados.gestorId, ativo: true, role: { in: PAPEIS_QUE_ASSUMEM_PENDENCIA } },
+        where: {
+          id: dados.gestorId,
+          ativo: true,
+          role: { in: PAPEIS_QUE_ASSUMEM_PENDENCIA },
+          // Gestor do contrato só do GRUPO dono do CNPJ (lib/grupo.ts).
+          ...whereUsuariosDoGrupoDaEmpresa(dados.empresaId),
+        },
         select: { nome: true },
       })
     : null;

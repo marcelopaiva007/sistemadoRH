@@ -1,3 +1,7 @@
+import {
+  whereColaboradoresDoGrupoDe,
+  whereUsuariosDoGrupoDe,
+} from "@/lib/grupo";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireDelegacoesAccess } from "@/lib/delegacoes-auth-guard";
@@ -88,7 +92,7 @@ export default async function DemandaPage({
 
   // "Não encontrada" também para quem não participa: mensagem diferente para
   // "não existe" e "não é sua" transforma a URL em oráculo de ids.
-  if (!demanda || !podeVerDemanda(usuario, demanda)) notFound();
+  if (!demanda || !(await podeVerDemanda(usuario, demanda))) notFound();
 
   // Candidatos a NOVO responsável, só para quem pode transferir (solicitante,
   // antes do aceite) — em qualquer outro caso a lista nunca é usada, mas
@@ -101,12 +105,16 @@ export default async function DemandaPage({
     ? await (async () => {
         const [usuarios, colaboradores] = await Promise.all([
           prisma.user.findMany({
-            where: { ativo: true, NOT: { id: demanda.responsavelId } },
+            where: {
+              ativo: true,
+              NOT: { id: demanda.responsavelId },
+              ...whereUsuariosDoGrupoDe(usuario.id!),
+            },
             select: { id: true, nome: true, role: true },
             orderBy: { nome: "asc" },
           }),
           prisma.colaborador.findMany({
-            where: { ativo: true },
+            where: { ativo: true, ...whereColaboradoresDoGrupoDe(usuario.id!) },
             select: { id: true, nome: true, usuario: { select: { id: true } } },
             orderBy: { nome: "asc" },
           }),

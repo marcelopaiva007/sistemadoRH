@@ -6,7 +6,9 @@ import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireGestaoUsuarios } from "@/lib/auth-guard";
-import { empresasVisiveis } from "@/lib/rh-auth-guard";
+import { empresasVisiveis, usuarioAlcancaEmpresa } from "@/lib/rh-auth-guard";
+import { redirect } from "next/navigation";
+import { ehMaster, grupoDoUsuario } from "@/lib/grupo";
 import { auth } from "@/auth";
 import { sendEmail } from "@/lib/email";
 import { registrarAuditoria, diffCampos } from "@/lib/audit";
@@ -92,8 +94,74 @@ function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
-export async function createUsuario(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
+// ── GRUPO (sociedade) na gestão de usuários — ver lib/grupo.ts ─────────────
+//
+// O MASTER administra as contas de TODOS os grupos e escolhe em qual grupo
+// cada conta nova nasce. ADMIN e DIRETORIA administram só as contas do PRÓPRIO
+// grupo: não veem, não editam e não vinculam ninguém do outro. Conta fora do
+// alcance responde "Usuário não encontrado." — a mesma resposta de id que não
+// existe, para a tela não virar oráculo de quem existe no outro grupo.
+
+type EscopoGestao = {
+  admin: Awaited<ReturnType<typeof requireGestaoUsuarios>>;
+  master: boolean;
+  grupoId: string | null;
+};
+
+async function escopoGestao(): Promise<EscopoGestao> {
   const admin = await requireGestaoUsuarios();
+  const master = ehMaster(admin);
+  const grupoId = master ? null : await grupoDoUsuario(admin.id);
+  if (!master && !grupoId) redirect("/");
+  return { admin, master, grupoId };
+}
+
+/** O grupo do usuário-alvo, se quem administra o alcança; `false` se não. */
+async function grupoDoAlvo(
+  esc: EscopoGestao,
+  userId: string,
+): Promise<string | null | false> {
+  const alvo = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { grupoId: true, role: true },
+  });
+  if (!alvo) return false;
+  if (esc.master) return alvo.grupoId;
+  if (alvo.role === "MASTER" || alvo.grupoId !== esc.grupoId) return false;
+  return alvo.grupoId;
+}
+
+async function empresaNoGrupo(
+  empresaId: string,
+  grupoId: string | null,
+): Promise<boolean> {
+  if (!grupoId) return false;
+  const e = await prisma.empresa.findUnique({
+    where: { id: empresaId },
+    select: { marca: { select: { grupoId: true } } },
+  });
+  return e?.marca.grupoId === grupoId;
+}
+
+async function marcaNoGrupo(
+  marcaId: string,
+  grupoId: string | null,
+): Promise<boolean> {
+  if (!grupoId) return false;
+  const m = await prisma.marca.findUnique({
+    where: { id: marcaId },
+    select: { grupoId: true },
+  });
+  return m?.grupoId === grupoId;
+}
+
+const ERRO_ALVO = { ok: false as const, error: "Usuário não encontrado." };
+
+export async function createUsuario(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const esc = await escopoGestao();
 
   const senha = String(formData.get("senha") ?? "");
   if (senha.length < 8) return { ok: false, error: "A senha deve ter pelo menos 8 caracteres." };
@@ -110,7 +178,29 @@ export async function createUsuario(_prev: ActionResult, formData: FormData): Pr
   });
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
 
-  const { nome, username, email, telefone, role, marcaId, empresaId, setorId } = parsed.data;
+  const { nome, username, email, telefone, role, marcaId, empresaId, setorId } =
+    parsed.data;
+
+  // Em que grupo a conta nasce: o MASTER escolhe; os demais criam no próprio.
+  const grupoId = esc.master
+    ? String(formData.get("grupoId") ?? "").trim() || null
+    : esc.grupoId;
+  if (
+    !grupoId ||
+    !(await prisma.grupo.findFirst({
+      where: { id: grupoId, ativo: true },
+      select: { id: true },
+    }))
+  ) {
+    return { ok: false, error: "Escolha o grupo do usuário." };
+  }
+  if (marcaId && !(await marcaNoGrupo(marcaId, grupoId))) {
+    return { ok: false, error: "A marca escolhida não é deste grupo." };
+  }
+  if (empresaId && !(await empresaNoGrupo(empresaId, grupoId))) {
+    return { ok: false, error: "O CNPJ escolhido não é deste grupo." };
+  }
+
   const passwordHash = await bcrypt.hash(senha, 10);
 
   // Perfis de acesso escolhidos no próprio formulário — é o que "conecta o
@@ -136,6 +226,7 @@ export async function createUsuario(_prev: ActionResult, formData: FormData): Pr
           telefone: telefone ?? null,
           passwordHash,
           role,
+          grupoId,
           // Mantém colunas legadas em sincronia com a ativa inicial — o que
           // existia antes do pivô. Útil até a Fase 8 (limpeza).
           empresaId: empresaId ?? null,
@@ -189,8 +280,15 @@ export async function createUsuario(_prev: ActionResult, formData: FormData): Pr
   }
 }
 
-export async function updateUsuario(id: string, _prev: ActionResult, formData: FormData): Promise<ActionResult> {
-  const admin = await requireGestaoUsuarios();
+export async function updateUsuario(
+  id: string,
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const esc = await escopoGestao();
+  const admin = esc.admin;
+  const grupoAlvo = await grupoDoAlvo(esc, id);
+  if (grupoAlvo === false) return ERRO_ALVO;
 
   const parsed = editarSchema.safeParse({
     nome: formData.get("nome"),
@@ -234,13 +332,15 @@ export async function updateUsuario(id: string, _prev: ActionResult, formData: F
   // ADMIN tranca o sistema exatamente como apagá-lo — a porta é outra, o
   // resultado é o mesmo. Até 14/08/2026 só a exclusão era protegida.
   if (antes.role === "ADMIN" && antes.ativo) {
+    // Cada grupo precisa de um ADMIN próprio — o do outro grupo não o alcança.
     const outrosAdmins = await prisma.user.count({
-      where: { role: "ADMIN", ativo: true, NOT: { id } },
+      where: { role: "ADMIN", ativo: true, grupoId: grupoAlvo, NOT: { id } },
     });
     if (deixariaSistemaSemAdmin(antes, parsed.data, outrosAdmins)) {
       return {
         ok: false,
-        error: "Não é possível rebaixar ou desativar o único ADMIN ativo do sistema.",
+        error:
+          "Não é possível rebaixar ou desativar o único ADMIN ativo do grupo.",
       };
     }
   }
@@ -317,8 +417,13 @@ export async function updateUsuario(id: string, _prev: ActionResult, formData: F
   }
 }
 
-export async function resetSenhaUsuario(id: string, _prev: ActionResult, formData: FormData): Promise<ActionResult> {
-  await requireGestaoUsuarios();
+export async function resetSenhaUsuario(
+  id: string,
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const esc = await escopoGestao();
+  if ((await grupoDoAlvo(esc, id)) === false) return ERRO_ALVO;
 
   const senha = String(formData.get("senha") ?? "");
   if (senha.length < 8) return { ok: false, error: "A senha deve ter pelo menos 8 caracteres." };
@@ -342,7 +447,10 @@ export async function resetSenhaUsuario(id: string, _prev: ActionResult, formDat
 }
 
 export async function deleteUsuario(id: string): Promise<ActionResult> {
-  const admin = await requireGestaoUsuarios();
+  const esc = await escopoGestao();
+  const admin = esc.admin;
+  const grupoAlvo = await grupoDoAlvo(esc, id);
+  if (grupoAlvo === false) return ERRO_ALVO;
   if (admin.id === id) {
     return { ok: false, error: "Você não pode excluir seu próprio usuário." };
   }
@@ -356,10 +464,13 @@ export async function deleteUsuario(id: string): Promise<ActionResult> {
   // Bloqueia último ADMIN ativo — sem isso, fica fácil trancar o sistema.
   if (alvo.role === "ADMIN" && alvo.ativo) {
     const outrosAdmins = await prisma.user.count({
-      where: { role: "ADMIN", ativo: true, NOT: { id } },
+      where: { role: "ADMIN", ativo: true, grupoId: grupoAlvo, NOT: { id } },
     });
     if (outrosAdmins === 0) {
-      return { ok: false, error: "Não é possível excluir/desativar o único ADMIN ativo do sistema." };
+      return {
+        ok: false,
+        error: "Não é possível excluir/desativar o único ADMIN ativo do grupo.",
+      };
     }
   }
 
@@ -387,7 +498,10 @@ export async function deleteUsuario(id: string): Promise<ActionResult> {
 }
 
 export async function toggleStatusUsuario(id: string): Promise<ActionResult> {
-  const admin = await requireGestaoUsuarios();
+  const esc = await escopoGestao();
+  const admin = esc.admin;
+  const grupoAlvo = await grupoDoAlvo(esc, id);
+  if (grupoAlvo === false) return ERRO_ALVO;
   if (admin.id === id) {
     return { ok: false, error: "Você não pode desativar seu próprio usuário." };
   }
@@ -401,10 +515,13 @@ export async function toggleStatusUsuario(id: string): Promise<ActionResult> {
   // Bloqueia desativação do último ADMIN ativo
   if (usuario.role === "ADMIN" && usuario.ativo) {
     const outrosAdmins = await prisma.user.count({
-      where: { role: "ADMIN", ativo: true, NOT: { id } },
+      where: { role: "ADMIN", ativo: true, grupoId: grupoAlvo, NOT: { id } },
     });
     if (outrosAdmins === 0) {
-      return { ok: false, error: "Não é possível desativar o único ADMIN ativo do sistema." };
+      return {
+        ok: false,
+        error: "Não é possível desativar o único ADMIN ativo do grupo.",
+      };
     }
   }
 
@@ -429,8 +546,11 @@ export async function toggleStatusUsuario(id: string): Promise<ActionResult> {
   }
 }
 
-export async function vincularEmpresaUsuario(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
-  await requireGestaoUsuarios();
+export async function vincularEmpresaUsuario(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const esc = await escopoGestao();
 
   const parsed = vincularSchema.safeParse({
     userId: formData.get("userId"),
@@ -442,6 +562,11 @@ export async function vincularEmpresaUsuario(_prev: ActionResult, formData: Form
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
 
   const { userId, empresaId, role, setorId, papelPrincipal } = parsed.data;
+  const grupoAlvo = await grupoDoAlvo(esc, userId);
+  if (grupoAlvo === false) return ERRO_ALVO;
+  if (!(await empresaNoGrupo(empresaId, grupoAlvo))) {
+    return { ok: false, error: "Este CNPJ não é do grupo do usuário." };
+  }
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -498,8 +623,12 @@ export async function vincularEmpresaUsuario(_prev: ActionResult, formData: Form
   }
 }
 
-export async function desativarVinculoUsuario(userId: string, empresaId: string): Promise<ActionResult> {
-  await requireGestaoUsuarios();
+export async function desativarVinculoUsuario(
+  userId: string,
+  empresaId: string,
+): Promise<ActionResult> {
+  const esc = await escopoGestao();
+  if ((await grupoDoAlvo(esc, userId)) === false) return ERRO_ALVO;
 
   const vinculo = await prisma.userEmpresa.findUnique({
     where: { userId_empresaId: { userId, empresaId } },
@@ -534,8 +663,16 @@ export async function desativarVinculoUsuario(userId: string, empresaId: string)
   return { ok: true };
 }
 
-export async function reativarVinculoUsuario(userId: string, empresaId: string): Promise<ActionResult> {
-  await requireGestaoUsuarios();
+export async function reativarVinculoUsuario(
+  userId: string,
+  empresaId: string,
+): Promise<ActionResult> {
+  const esc = await escopoGestao();
+  const grupoAlvo = await grupoDoAlvo(esc, userId);
+  if (grupoAlvo === false) return ERRO_ALVO;
+  if (!(await empresaNoGrupo(empresaId, grupoAlvo))) {
+    return { ok: false, error: "Este CNPJ não é do grupo do usuário." };
+  }
 
   const vinculo = await prisma.userEmpresa.findUnique({
     where: { userId_empresaId: { userId, empresaId } },
@@ -571,8 +708,11 @@ const vincularMarcaSchema = z.object({
   role: z.literal("RH_MANAGER"),
 });
 
-export async function vincularMarcaUsuario(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
-  await requireGestaoUsuarios();
+export async function vincularMarcaUsuario(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const esc = await escopoGestao();
 
   const parsed = vincularMarcaSchema.safeParse({
     userId: formData.get("userId"),
@@ -582,6 +722,10 @@ export async function vincularMarcaUsuario(_prev: ActionResult, formData: FormDa
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
 
   const { userId, marcaId, role } = parsed.data;
+  const grupoAlvo = await grupoDoAlvo(esc, userId);
+  if (grupoAlvo === false) return ERRO_ALVO;
+  if (!(await marcaNoGrupo(marcaId, grupoAlvo)))
+    return { ok: false, error: "Esta marca não é do grupo do usuário." };
 
   try {
     // upsert e não create: revincular uma marca que já foi desativada deve
@@ -608,8 +752,12 @@ export async function vincularMarcaUsuario(_prev: ActionResult, formData: FormDa
   }
 }
 
-export async function desativarVinculoMarca(userId: string, marcaId: string): Promise<ActionResult> {
-  await requireGestaoUsuarios();
+export async function desativarVinculoMarca(
+  userId: string,
+  marcaId: string,
+): Promise<ActionResult> {
+  const esc = await escopoGestao();
+  if ((await grupoDoAlvo(esc, userId)) === false) return ERRO_ALVO;
 
   const vinculo = await prisma.userMarca.findUnique({
     where: { userId_marcaId: { userId, marcaId } },
@@ -638,8 +786,15 @@ export async function desativarVinculoMarca(userId: string, marcaId: string): Pr
   return { ok: true };
 }
 
-export async function reativarVinculoMarca(userId: string, marcaId: string): Promise<ActionResult> {
-  await requireGestaoUsuarios();
+export async function reativarVinculoMarca(
+  userId: string,
+  marcaId: string,
+): Promise<ActionResult> {
+  const esc = await escopoGestao();
+  const grupoAlvo = await grupoDoAlvo(esc, userId);
+  if (grupoAlvo === false) return ERRO_ALVO;
+  if (!(await marcaNoGrupo(marcaId, grupoAlvo)))
+    return { ok: false, error: "Esta marca não é do grupo do usuário." };
 
   const vinculo = await prisma.userMarca.findUnique({
     where: { userId_marcaId: { userId, marcaId } },
@@ -668,8 +823,11 @@ const LIMITE_BUSCA_FICHAS = 20;
 export async function buscarColaboradoresParaVincular(
   userId: string,
   termo: string,
-): Promise<{ id: string; nome: string; empresaNome: string; setorNome: string }[]> {
-  await requireGestaoUsuarios();
+): Promise<
+  { id: string; nome: string; empresaNome: string; setorNome: string }[]
+> {
+  const esc = await escopoGestao();
+  if ((await grupoDoAlvo(esc, userId)) === false) return [];
 
   const busca = termo.trim();
   if (busca.length < 2) return [];
@@ -733,7 +891,8 @@ export async function vincularColaboradorAoUsuario(
   userId: string,
   colaboradorId: string,
 ): Promise<ActionResult> {
-  await requireGestaoUsuarios();
+  const esc = await escopoGestao();
+  if ((await grupoDoAlvo(esc, userId)) === false) return ERRO_ALVO;
 
   const [alvo, colaborador] = await Promise.all([
     prisma.user.findUnique({
@@ -791,8 +950,11 @@ export async function vincularColaboradorAoUsuario(
   return { ok: true };
 }
 
-export async function desvincularColaboradorDoUsuario(userId: string): Promise<ActionResult> {
-  await requireGestaoUsuarios();
+export async function desvincularColaboradorDoUsuario(
+  userId: string,
+): Promise<ActionResult> {
+  const esc = await escopoGestao();
+  if ((await grupoDoAlvo(esc, userId)) === false) return ERRO_ALVO;
 
   const alvo = await prisma.user.findUnique({
     where: { id: userId },
@@ -821,12 +983,15 @@ export async function trocarEmpresaAtiva(empresaId: string, setorId?: string | n
   const user = session?.user;
   if (!user) return { ok: false, error: "Não autenticado." };
 
-  // ADMIN/DIRETORIA não têm pivô — cookie é irrelevante, mas aceitamos setar
-  // para ficar consistente com a Fase 7.
-  if (user.role !== "ADMIN" && user.role !== "DIRETORIA") {
-    const temAcesso = user.empresas.some((e) => e.empresaId === empresaId && e.ativo);
-    if (!temAcesso) return { ok: false, error: "Sem acesso a esta empresa." };
-  }
+  // A mesma pergunta de toda tela: alcança este CNPJ? (papel, vínculo, marca
+  // e — antes de tudo — o GRUPO; ver lib/grupo.ts). O GESTOR_SETOR continua
+  // exigindo o vínculo direto com o CNPJ, como antes.
+  const temAcesso =
+    (user.role === "ADMIN" ||
+      user.role === "DIRETORIA" ||
+      user.empresas.some((e) => e.empresaId === empresaId && e.ativo)) &&
+    (await usuarioAlcancaEmpresa(user, empresaId));
+  if (!temAcesso) return { ok: false, error: "Sem acesso a esta empresa." };
 
   await escreverCookieEmpresaAtiva(empresaId);
   revalidatePath("/", "layout");
@@ -850,8 +1015,11 @@ const conviteSchema = z
     path: ["setorId"],
   });
 
-export async function criarConviteUsuario(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
-  await requireGestaoUsuarios();
+export async function criarConviteUsuario(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const esc = await escopoGestao();
 
   const parsed = conviteSchema.safeParse({
     email: formData.get("email"),
@@ -864,9 +1032,25 @@ export async function criarConviteUsuario(_prev: ActionResult, formData: FormDat
 
   const { email, nome, role, empresaId, setorId } = parsed.data;
 
+  // O convite nasce no GRUPO dono do CNPJ. Quem não é MASTER só convida para
+  // CNPJ do próprio grupo.
+  const empresaAlvo = await prisma.empresa.findUnique({
+    where: { id: empresaId },
+    select: { marca: { select: { grupoId: true } } },
+  });
+  const grupoId = empresaAlvo?.marca.grupoId ?? null;
+  if (!grupoId || (!esc.master && grupoId !== esc.grupoId)) {
+    return { ok: false, error: "Empresa não encontrada." };
+  }
+
   // Se o e-mail já bate com um user existente, vincula direto — não manda
   // convite (não faria sentido o user "aceitar" um convite pra si mesmo).
   const userExistente = await prisma.user.findUnique({ where: { email } });
+  if (userExistente && userExistente.grupoId !== grupoId) {
+    // Conta de OUTRO grupo com o mesmo e-mail: não se vincula por cima — seria
+    // abrir este grupo para uma conta do outro. Um login por grupo.
+    return { ok: false, error: "Já existe um usuário com esse e-mail." };
+  }
   if (userExistente) {
     try {
       await prisma.userEmpresa.upsert({
@@ -919,6 +1103,7 @@ export async function criarConviteUsuario(_prev: ActionResult, formData: FormDat
           email,
           passwordHash: placeholder,
           role,
+          grupoId,
           ativo: false,
           conviteExpiraEm: expiraEm,
           conviteTokenHash: tokenHash,

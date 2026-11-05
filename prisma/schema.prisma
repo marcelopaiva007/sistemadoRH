@@ -168,7 +168,7 @@ model UserEmpresa {
 // precisou mudar quando a Marca entrou acima. O colaborador se vincula ao
 // CNPJ porque é esse o vínculo empregatício, não à marca.
 
-// GRUPO — a fronteira de SOCIEDADE, acima da marca (v1.185.0, 05/11/2026).
+// GRUPO — a fronteira de SOCIEDADE, acima da marca (v1.186.0, 05/11/2026).
 //
 // A LM Telecom tem dois sócios; as demais marcas são de um só deles. Por isso
 // os dados da LM não podem aparecer somados, listados ou sequer visíveis para

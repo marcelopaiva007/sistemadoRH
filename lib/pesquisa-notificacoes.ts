@@ -21,10 +21,22 @@ export type Destinatario = {
 // Buscar destinatários (diretoria + RH + admin) da empresa. `cliente` aceita
 // um `tx` de transação — default `prisma` pra quem chama fora de uma (cron,
 // server action normal).
-export async function buscarDestinatarios(empresaId: string, cliente: Cliente = prisma): Promise<Destinatario[]> {
+export async function buscarDestinatarios(
+  empresaId: string,
+  cliente: Cliente = prisma,
+): Promise<Destinatario[]> {
+  // ADMIN e DIRETORIA recebem só se forem do GRUPO dono da empresa
+  // (sociedade — lib/grupo.ts); RH_MANAGER, pelo vínculo com o CNPJ.
+  const empresa = await cliente.empresa.findUnique({
+    where: { id: empresaId },
+    select: { marca: { select: { grupoId: true } } },
+  });
+  const grupoId = empresa?.marca.grupoId;
+  if (!grupoId) return [];
   const users = await cliente.user.findMany({
     where: {
       role: { in: ["ADMIN", "DIRETORIA", "RH_MANAGER"] },
+      grupoId,
       OR: [{ empresaId }, { role: "ADMIN" }, { role: "DIRETORIA" }],
     },
     select: {
