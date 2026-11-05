@@ -88,6 +88,8 @@ type Vinculo = {
   setorNome: string | null;
   ativo: boolean;
   papelPrincipal: boolean;
+  /** CNPJ de outro grupo de sociedade: o vínculo existe no banco, mas não dá acesso (lib/grupo.ts). */
+  foraDoGrupo: boolean;
 };
 
 // Vínculo com a marca inteira: não tem setor nem papelPrincipal porque não
@@ -97,6 +99,8 @@ type VinculoMarca = {
   marcaId: string;
   marcaNome: string;
   ativo: boolean;
+  /** Marca de outro grupo de sociedade: o vínculo não dá acesso. */
+  foraDoGrupo: boolean;
 };
 
 // A ficha de colaborador que este login representa, quando existe. `null` é o
@@ -213,8 +217,11 @@ export function UsuariosTable({
   });
   const ativosFiltrados = filtrados.filter((u) => u.ativo);
   const inativosFiltrados = filtrados.filter((u) => !u.ativo);
+  const filtrando = Boolean(termo) || filtroPapel !== "TODOS" || filtroMarca !== "TODAS";
   const mostraAtivos = aba !== "INATIVOS";
-  const mostraInativos = aba !== "ATIVOS" || inativosFiltrados.length > 0;
+  // A aba Ativos mostra SÓ ativos (com um aviso no rodapé que leva aos
+  // inativos); a seção própria dos inativos aparece embaixo apenas em Todos.
+  const mostraSecaoInativos = aba === "TODOS";
 
   const acoesDaLinha = {
     currentUserId,
@@ -340,24 +347,36 @@ export function UsuariosTable({
           <TabelaUsuarios
             usuarios={ativosFiltrados}
             agruparPorPapel
-            vazio={termo || filtroPapel !== "TODOS" || filtroMarca !== "TODAS" ? "Nenhum usuário ativo com esses filtros." : "Nenhum usuário ativo."}
+            vazio={filtrando ? "Nenhum usuário ativo com esses filtros." : "Nenhum usuário ativo."}
             {...acoesDaLinha}
           />
+        )}
+        {aba === "ATIVOS" && inativosFiltrados.length > 0 && (
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t px-4 py-3 text-sm text-muted-foreground">
+            <span>{avisoInativos(inativosFiltrados.length, filtrando)}</span>
+            <button
+              type="button"
+              onClick={() => setAba("INATIVOS")}
+              className="font-medium text-primary underline-offset-2 hover:underline"
+            >
+              Ver inativos
+            </button>
+          </div>
         )}
         {!mostraAtivos && (
           <TabelaUsuarios
             usuarios={inativosFiltrados}
             agruparPorPapel={false}
             inativos
-            vazio="Nenhum usuário inativo."
+            vazio={filtrando ? "Nenhum usuário inativo com esses filtros." : "Nenhum usuário inativo."}
             {...acoesDaLinha}
           />
         )}
       </section>
 
-      {/* Na aba Ativos (padrão) e em Todos, os inativos ficam numa seção
-          própria embaixo — fora da lista de quem opera o sistema, mas à vista. */}
-      {mostraAtivos && mostraInativos && (
+      {/* Na aba Todos, os inativos ficam numa seção própria embaixo — fora da
+          lista de quem opera o sistema, mas à vista. */}
+      {mostraSecaoInativos && (
         <section className="overflow-hidden rounded-xl border border-dashed bg-muted/30">
           <button
             type="button"
@@ -1421,7 +1440,7 @@ const PENDENCIA_DICA: Record<Pendencia, string> = {
   SEM_EMAIL: "Sem e-mail a pessoa não recebe convite nem recupera a senha sozinha.",
   EMAIL_DUPLICADO: "Outra conta usa o mesmo e-mail — provavelmente a mesma pessoa com dois logins.",
   LOGIN_EMAIL: "O login está com um e-mail. Confira se o e-mail não foi digitado no campo errado.",
-  SEM_ACESSO: "Gestor sem marca nem CNPJ ativo: entra no sistema mas não enxerga nenhuma empresa.",
+  SEM_ACESSO: "Gestor sem marca nem CNPJ ativo neste grupo: entra no sistema mas não enxerga nenhuma empresa.",
 };
 
 function calcularPendencias(usuarios: Usuario[]) {
@@ -1440,7 +1459,10 @@ function calcularPendencias(usuarios: Usuario[]) {
     else if ((porEmail.get(email) ?? 0) > 1) lista.push("EMAIL_DUPLICADO");
     if (u.username.includes("@")) lista.push("LOGIN_EMAIL");
     const precisaVinculo = u.role === "RH_MANAGER" || u.role === "GESTOR_SETOR";
-    if (precisaVinculo && u.ativo && !u.empresas.some((e) => e.ativo) && !u.marcasVinculadas.some((m) => m.ativo)) {
+    // Vínculo de outro grupo não conta: ele não dá acesso (lib/grupo.ts).
+    const temAcessoNoGrupo =
+      u.empresas.some((e) => e.ativo && !e.foraDoGrupo) || u.marcasVinculadas.some((m) => m.ativo && !m.foraDoGrupo);
+    if (precisaVinculo && u.ativo && !temAcessoNoGrupo) {
       lista.push("SEM_ACESSO");
     }
     if (lista.length > 0) porUsuario.set(u.id, lista);
@@ -1622,36 +1644,56 @@ function LinhaUsuario({
         </TableCell>
       )}
       <TableCell>
-        <div className="flex flex-wrap gap-1">
-          {u.empresas.length === 0 && u.marcasVinculadas.length === 0 && (
-            <span className="text-xs text-muted-foreground">{veTudo ? "Todas as empresas" : "—"}</span>
+        <div className="flex flex-wrap items-center gap-1">
+          {/* Administrativo e Diretoria enxergam o grupo de sociedade inteiro,
+              com ou sem vínculo (lib/rh-auth-guard.ts, empresasVisiveis). */}
+          {veTudo && (
+            <span
+              className="mr-1 text-xs text-muted-foreground"
+              title="Administrativo e Diretoria enxergam todas as empresas do grupo de sociedade."
+            >
+              Todas do grupo
+            </span>
+          )}
+          {!veTudo && u.empresas.length === 0 && u.marcasVinculadas.length === 0 && (
+            <span className="text-xs text-muted-foreground">—</span>
           )}
           {/* Marca primeiro, com variante própria: esse vínculo cobre
               CNPJs que nem aparecem nos badges ao lado. */}
           {u.marcasVinculadas.map((v) => (
-            <Badge
-              key={`marca-${v.marcaId}`}
-              variant="secondary"
-              className={!v.ativo ? "opacity-50 line-through" : undefined}
-              title={`${v.marcaNome} · marca — todos os CNPJs, inclusive os cadastrados depois`}
-            >
-              {v.marcaNome} · marca
-            </Badge>
+            <span key={`marca-${v.marcaId}`} className="inline-flex items-center gap-1">
+              <Badge
+                variant="secondary"
+                className={!v.ativo || v.foraDoGrupo ? "opacity-50 line-through" : undefined}
+                title={
+                  v.foraDoGrupo
+                    ? `${v.marcaNome} · marca — ${DICA_FORA_DO_GRUPO}`
+                    : `${v.marcaNome} · marca — todos os CNPJs, inclusive os cadastrados depois`
+                }
+              >
+                {v.marcaNome} · marca
+              </Badge>
+              {v.foraDoGrupo && <AvisoForaDoGrupo />}
+            </span>
           ))}
           {u.empresas.map((v) => (
-            <Badge
-              key={v.empresaId}
-              variant="outline"
-              className={!v.ativo ? "opacity-50 line-through" : undefined}
-              title={
-                v.setorNome
-                  ? `${v.empresaNome} · ${PAPEL_LABEL[v.role] ?? v.role} · ${v.setorNome}${v.papelPrincipal ? " (principal)" : ""}`
-                  : `${v.empresaNome} · ${PAPEL_LABEL[v.role] ?? v.role}${v.papelPrincipal ? " (principal)" : ""}`
-              }
-            >
-              {v.empresaNome}
-              {v.papelPrincipal ? " ★" : ""}
-            </Badge>
+            <span key={v.empresaId} className="inline-flex items-center gap-1">
+              <Badge
+                variant="outline"
+                className={!v.ativo || v.foraDoGrupo ? "opacity-50 line-through" : undefined}
+                title={
+                  v.foraDoGrupo
+                    ? `${v.empresaNome} — ${DICA_FORA_DO_GRUPO}`
+                    : v.setorNome
+                      ? `${v.empresaNome} · ${PAPEL_LABEL[v.role] ?? v.role} · ${v.setorNome}${v.papelPrincipal ? " (principal)" : ""}`
+                      : `${v.empresaNome} · ${PAPEL_LABEL[v.role] ?? v.role}${v.papelPrincipal ? " (principal)" : ""}`
+                }
+              >
+                {v.empresaNome}
+                {v.papelPrincipal ? " ★" : ""}
+              </Badge>
+              {v.foraDoGrupo && <AvisoForaDoGrupo />}
+            </span>
           ))}
         </div>
       </TableCell>
@@ -1671,6 +1713,25 @@ function LinhaUsuario({
       </TableCell>
     </TableRow>
   );
+}
+
+function avisoInativos(n: number, filtrando: boolean) {
+  const um = n === 1;
+  if (filtrando) {
+    return um ? "1 conta inativa também atende a esses filtros." : `${n} contas inativas também atendem a esses filtros.`;
+  }
+  return um ? "1 conta inativa está na aba Inativos." : `${n} contas inativas estão na aba Inativos.`;
+}
+
+// Vínculo com marca ou CNPJ de outro grupo de sociedade: continua no banco,
+// mas não dá acesso — empresasVisiveis só devolve empresas do grupo do login.
+// A regra do grupo é um login por grupo, então a tela avisa em vez de fingir
+// que o acesso existe.
+const DICA_FORA_DO_GRUPO =
+  "de outro grupo de sociedade: este vínculo não dá acesso. Para trabalhar lá, a pessoa precisa de um login no outro grupo.";
+
+function AvisoForaDoGrupo() {
+  return <span className="text-[11px] font-medium text-muted-foreground">fora do grupo</span>;
 }
 
 function SeloPendencia({ pendencia, rotulo }: { pendencia: Pendencia; rotulo?: string }) {

@@ -26,6 +26,18 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.186.1",
+    data: "05/11/2026",
+    horario: "15:45",
+    titulo: "Usuários: aba Ativos só com ativos e acesso mostrado por grupo",
+    itens: [
+      "A aba Ativos mostra só as contas ativas. As inativas ficam na aba Inativos (um aviso no fim da lista leva até elas) e, na aba Todos, aparecem numa seção própria embaixo.",
+      "Administrativo e Diretoria aparecem com \"Todas do grupo\" na coluna Acesso: desde a separação por grupo de sociedade, eles enxergam todas as empresas do próprio grupo, e não mais as de todas as marcas.",
+      "Vínculo com marca ou CNPJ de outro grupo aparece riscado, com o aviso \"fora do grupo\": ele continua cadastrado, mas não dá acesso. Para trabalhar no outro grupo, a pessoa precisa de um login lá.",
+      "O alerta \"gestor sem empresa\" passa a considerar só os vínculos do próprio grupo.",
+    ],
+  },
+  {
     versao: "1.186.0",
     data: "05/11/2026",
     horario: "12:30",

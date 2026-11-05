@@ -45,7 +45,9 @@ export default async function UsuariosPage({
         empresas: {
           orderBy: [{ papelPrincipal: "desc" }, { createdAt: "asc" }],
           include: {
-            empresa: { select: { id: true, nome: true, ativo: true } },
+            // O grupo da marca do CNPJ vai junto só para a tela marcar o
+            // vínculo que ficou em outro grupo de sociedade — ele não dá acesso.
+            empresa: { select: { id: true, nome: true, ativo: true, marca: { select: { grupoId: true } } } },
             setor: { select: { id: true, nome: true } },
           },
         },
@@ -54,7 +56,7 @@ export default async function UsuariosPage({
         // forem cadastrados depois. A tela precisa mostrar os dois lado a lado.
         marcas: {
           orderBy: { createdAt: "asc" },
-          include: { marca: { select: { id: true, nome: true } } },
+          include: { marca: { select: { id: true, nome: true, grupoId: true } } },
         },
         // Qual pessoa da folha é este login. Diferente dos vínculos acima: eles
         // dizem ONDE o usuário mexe, este diz QUEM ele é — é o que permite a
@@ -158,11 +160,13 @@ export default async function UsuariosPage({
             setorNome: e.setor?.nome ?? null,
             ativo: e.ativo,
             papelPrincipal: e.papelPrincipal,
+            foraDoGrupo: e.empresa.marca.grupoId !== doGrupo,
           })),
           marcasVinculadas: u.marcas.map((m) => ({
             marcaId: m.marcaId,
             marcaNome: m.marca.nome,
             ativo: m.ativo,
+            foraDoGrupo: m.marca.grupoId !== doGrupo,
           })),
           ficha: u.colaborador && {
             id: u.colaborador.id,
