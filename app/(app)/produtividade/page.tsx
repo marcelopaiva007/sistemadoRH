@@ -1,6 +1,5 @@
-import { redirect } from "next/navigation";
-import { ehMaster, grupoDoUsuario } from "@/lib/grupo";
-import { requireGestaoUsuarios } from "@/lib/auth-guard";
+import { grupoDoUsuario } from "@/lib/grupo";
+import { requireDirecaoDoGrupoInteiro } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { inicioDoDiaSaoPaulo } from "@/lib/email";
 import { somarDiasUTC, formatarDataHoraBrasilia } from "@/lib/datas";
@@ -39,10 +38,11 @@ export default async function ProdutividadePage({
 }: {
   searchParams: Promise<{ periodo?: string; empresa?: string }>;
 }) {
-  const quem = await requireGestaoUsuarios();
-  // O MASTER não abre dado de grupo nenhum (lib/grupo.ts) — produtividade é
-  // trilha de auditoria de gente de um grupo.
-  if (ehMaster(quem)) redirect("/cadastros/usuarios");
+  // ADMIN/DIRETORIA do grupo inteiro. Era a guarda da gestão de usuários até a
+  // v1.187.0; quando as contas foram para a área de admin (só MASTER), a tela
+  // ganhou portão próprio. O MASTER fica de fora — ele não abre dado de grupo
+  // nenhum (lib/grupo.ts), e produtividade é trilha de gente de um grupo.
+  const quem = await requireDirecaoDoGrupoInteiro();
   const grupoId = (await grupoDoUsuario(quem.id)) ?? "__nenhum__";
   const { periodo: periodoParam, empresa: empresaParam } = await searchParams;
   const periodo: PeriodoChave =

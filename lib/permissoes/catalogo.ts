@@ -132,8 +132,8 @@ export const AREAS_RH: GrupoDeAreas[] = [
       { slug: "importacoes", label: "Importações" },
       { slug: "auditoria", label: "Auditoria", soLeitura: true },
       // "papeis" saiu do catálogo em 26/08/2026 junto com o item de menu: a
-      // tela virou redirect para /cadastros/perfis, e o cadastro de acesso
-      // (usuários + perfis) é governado por requireGestaoUsuarios, fora da
+      // tela virou redirect para os perfis (hoje /admin/perfis), e o cadastro
+      // de acesso (usuários + perfis) é governado por requireGestaoUsuarios, fora da
       // matriz por-tela — dar "ver/editar perfis" via perfil seria deixar um
       // perfil conceder acesso a quem edita perfis.
     ],

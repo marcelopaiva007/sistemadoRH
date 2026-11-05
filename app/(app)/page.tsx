@@ -29,8 +29,9 @@ import { PendenciasIndicador } from "./pendencias-indicador";
 export default async function HomePage() {
   const user = await requireUser();
   if (user.role === "GESTOR_SETOR") redirect("/rh/meu-setor");
-  // O MASTER só administra grupos e contas (lib/grupo.ts): a casa dele é o cadastro.
-  if (user.role === "MASTER") redirect("/cadastros/usuarios");
+  // O MASTER só administra grupos e contas (lib/grupo.ts): a casa dele é a
+  // área de administração (o layout já o manda para lá; isto é a segunda tranca).
+  if (user.role === "MASTER") redirect("/admin");
 
   // Esta home é o painel de GRUPO do RH (colaboradores, pendências, folha).
   // Quem tem um perfil "só Processos" não pode vê-la: vai para o sistema dele.

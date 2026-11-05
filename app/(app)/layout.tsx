@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth-guard";
 import { empresasVisiveis } from "@/lib/rh-auth-guard";
 import { direcaoRestrita } from "@/lib/grupo";
@@ -15,6 +16,9 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   const user = await requireUser();
+  // O MASTER administra contas e grupos e não abre dado de RH (lib/grupo.ts):
+  // desde a v1.188.0 o lugar dele é a área de administração, fora do sistema.
+  if (user.role === "MASTER") redirect("/admin");
   const sistemas = await sistemasPermitidos(user);
 
   // GESTOR_SETOR não navega em /rh/[empresaId] (vai direto para

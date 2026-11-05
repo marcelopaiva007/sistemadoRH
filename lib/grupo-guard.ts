@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { auth } from "@/auth";
 import { requireAdmin, requireUser } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { direcaoRestrita, ehMaster, grupoDoUsuario } from "@/lib/grupo";
@@ -47,5 +48,21 @@ export async function empresaDoGrupo(
 export async function requireMaster() {
   const user = await requireUser();
   if (!ehMaster(user)) redirect("/");
+  return user;
+}
+
+/**
+ * Portão das telas da ÁREA DE ADMINISTRAÇÃO (rh.assinelm.com/admin — app/admin).
+ *
+ * Mesmo critério de `requireMaster`, com outro destino para quem não passa: o
+ * LOGIN DO ADMIN, e não a home do sistema. É lá que a tela diz "você está
+ * conectado como Fulano, que não administra o sistema" e oferece entrar com a
+ * conta de administrador — quem abre /admin logado como Diretoria entende o
+ * que aconteceu em vez de cair, sem explicação, no painel do RH.
+ */
+export async function requireAreaAdmin() {
+  const session = await auth();
+  const user = session?.user;
+  if (!user || !ehMaster(user)) redirect("/admin/login");
   return user;
 }

@@ -1,7 +1,7 @@
 import { requireUser } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlterarSenhaForm } from "./alterar-senha-form";
+import { AlterarSenhaForm } from "@/components/alterar-senha-form";
 
 const PAPEIS: Record<string, string> = {
   ADMIN: "Administrativo/Financeiro",

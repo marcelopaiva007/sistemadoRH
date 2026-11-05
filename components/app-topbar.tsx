@@ -80,8 +80,8 @@ export function AppTopbar({
   empresas: { id: string; nome: string; marcaId: string }[];
   /** Os sistemas que este usuário alcança — decide o que a barra mostra. */
   sistemasPermitidos: string[];
-  /** ADMIN/DIRETORIA preso a algumas marcas pela tela de admin: sem gestão de
-   *  contas nem painel do grupo inteiro (ver `direcaoRestrita`, lib/grupo.ts). */
+  /** ADMIN/DIRETORIA preso a algumas marcas pela área de admin: sem painel do
+   *  grupo inteiro (ver `direcaoRestrita`, lib/grupo.ts). */
   direcaoRestrita?: boolean;
 }) {
   const pathname = usePathname();
@@ -90,15 +90,15 @@ export function AppTopbar({
   // na porta trancada. `navByRole` + `globalNavByRole` continuam sendo a fonte
   // por papel — só mudaram de lugar (da linha 2 para o menu do avatar).
   const itensDoMenu = [...(navByRole[role] ?? []), ...(globalNavByRole[role] ?? [])].filter(
-    // Quem está preso a algumas marcas não abre a gestão de contas nem a
-    // Produtividade (painel do grupo inteiro): as duas páginas recusam, e o
-    // menu não ensina caminho que não abre.
-    (item) => !direcaoRestrita || (item.href !== "/usuarios" && item.href !== "/produtividade"),
+    // Quem está preso a algumas marcas não abre a Produtividade (painel do
+    // grupo inteiro): a página recusa, e o menu não ensina caminho que não
+    // abre. (A gestão de contas, que também ficava de fora aqui, saiu do
+    // sistema na v1.188.0 — mora na área de admin, só do MASTER.)
+    (item) => !direcaoRestrita || item.href !== "/produtividade",
   );
 
   function ativo(href: string) {
     if (href === "/") return pathname === "/";
-    if (href === "/usuarios") return pathname.startsWith("/usuarios") || pathname.startsWith("/cadastros");
     return pathname.startsWith(href);
   }
 

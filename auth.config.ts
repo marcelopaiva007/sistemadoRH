@@ -49,8 +49,25 @@ export const authConfig = {
       // acessar sem estar logado.
       if (request.nextUrl.pathname.startsWith("/esqueci-senha")) return true;
       if (request.nextUrl.pathname.startsWith("/redefinir-senha")) return true;
-      const isOnLogin = request.nextUrl.pathname.startsWith("/login");
+      // ÁREA DE ADMINISTRAÇÃO (app/admin, v1.188.0): endereço, login e tela
+      // próprios, só da conta MASTER. O login do admin é público — e quem já
+      // está como MASTER vai direto para o painel. O resto de /admin exige o
+      // MASTER; sem ele, volta para o login DO ADMIN (não o do sistema), que
+      // explica com que conta a pessoa está e oferece trocar.
+      // As páginas conferem de novo no servidor (requireAreaAdmin): isto aqui
+      // é o atalho, não a única tranca.
+      const caminho = request.nextUrl.pathname;
+      const ehMaster = isLoggedIn && auth?.user?.role === "MASTER";
+      if (caminho === "/admin/login" || caminho.startsWith("/admin/login/")) {
+        return ehMaster ? Response.redirect(new URL("/admin", request.nextUrl)) : true;
+      }
+      if (caminho === "/admin" || caminho.startsWith("/admin/")) {
+        return ehMaster ? true : Response.redirect(new URL("/admin/login", request.nextUrl));
+      }
+      const isOnLogin = caminho.startsWith("/login");
       if (isOnLogin) {
+        // O MASTER não usa o sistema do RH: o lugar dele é a área de admin.
+        if (ehMaster) return Response.redirect(new URL("/admin", request.nextUrl));
         return isLoggedIn ? Response.redirect(new URL("/", request.nextUrl)) : true;
       }
       return isLoggedIn;

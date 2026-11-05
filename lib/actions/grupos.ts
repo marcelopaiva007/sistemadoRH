@@ -13,7 +13,7 @@ import type { ActionResult } from "@/lib/constants";
 // em que grupo cada marca mora e em que grupo cada conta trabalha — e é só
 // isso: nenhuma destas ações lê dado de RH, folha ou processo.
 
-const CAMINHO = "/cadastros/grupos";
+const CAMINHO = "/admin/grupos";
 
 function texto(fd: FormData, campo: string): string {
   const v = fd.get(campo);
@@ -71,7 +71,7 @@ export async function renomearGrupo(
     throw e;
   }
   revalidatePath(CAMINHO);
-  revalidatePath("/cadastros/usuarios");
+  revalidatePath("/admin/usuarios");
   return { ok: true };
 }
 
@@ -209,6 +209,6 @@ export async function moverUsuarioDeGrupo(
     resumo: `Moveu ${user.nome} do grupo "${user.grupo?.nome ?? "—"}" para "${grupo.nome}" (vínculos de acesso antigos desativados)`,
   });
   revalidatePath(CAMINHO);
-  revalidatePath("/cadastros/usuarios");
+  revalidatePath("/admin/usuarios");
   return { ok: true };
 }

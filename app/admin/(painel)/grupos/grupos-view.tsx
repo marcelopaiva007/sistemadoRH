@@ -154,7 +154,7 @@ function CartaoGrupo({
         {admins === 0 && (
           <p className="text-sm text-amber-700">
             Este grupo não tem ADMIN ativo — ninguém dele consegue cadastrar
-            CNPJ ou conta. Crie um em Usuários.
+            marca ou CNPJ. Crie um em Usuários.
           </p>
         )}
       </CardHeader>

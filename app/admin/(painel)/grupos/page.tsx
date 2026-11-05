@@ -1,15 +1,16 @@
-import { requireMaster } from "@/lib/grupo-guard";
+import { requireAreaAdmin } from "@/lib/grupo-guard";
 import { prisma } from "@/lib/prisma";
 import { PAPEL_PORTAL } from "@/lib/delegacoes/acesso-colaborador";
 import { GruposView } from "./grupos-view";
 
-// Grupos de sociedade — a tela do MASTER (lib/grupo.ts).
+// Grupos de sociedade — a tela do MASTER (lib/grupo.ts), na área de
+// administração desde a v1.188.0 (era /cadastros/grupos, dentro do sistema).
 //
 // Mostra em que grupo mora cada marca e cada conta, e deixa mudar. Não mostra
 // número nenhum de RH (colaboradores, folha, pendências): por decisão do CEO
 // em 05/11/2026 o MASTER só administra, não enxerga o dado dos grupos.
 export default async function GruposPage() {
-  await requireMaster();
+  await requireAreaAdmin();
 
   const [grupos, marcas, usuarios] = await Promise.all([
     prisma.grupo.findMany({
