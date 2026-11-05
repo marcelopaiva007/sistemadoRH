@@ -137,8 +137,9 @@ export async function moverMarcaDeGrupo(
 /**
  * Muda uma CONTA de grupo. Os vínculos de acesso que ela tinha (CNPJ e marca)
  * ficam todos do grupo antigo, então são desativados: a conta chega ao grupo
- * novo sem acesso a CNPJ nenhum, e o ADMIN de lá (ou o MASTER) concede o que
- * for preciso. Conta de portal não aparece aqui — ela segue a ficha.
+ * novo sem acesso a CNPJ nenhum, e o MASTER concede o que for preciso (desde
+ * a v1.188.0 só ele gere contas). Conta de portal não aparece aqui — ela segue
+ * a ficha.
  */
 export async function moverUsuarioDeGrupo(
   _prev: ActionResult,

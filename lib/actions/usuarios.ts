@@ -130,8 +130,14 @@ async function grupoDoAlvo(
     select: { grupoId: true, role: true },
   });
   if (!alvo) return false;
+  // Conta MASTER não é alvo destas ações nem para outro MASTER: a tela não a
+  // lista, e rebaixá-la, desativá-la ou excluí-la por chamada montada à mão
+  // deixaria o sistema sem ninguém que gere contas (desde a v1.188.0 só o
+  // MASTER gere). Recuperar o acesso dela é pelo "Esqueci minha senha" ou
+  // por scripts/recuperar-acesso-admin.ts.
+  if (alvo.role === "MASTER") return false;
   if (esc.master) return alvo.grupoId;
-  if (alvo.role === "MASTER" || alvo.grupoId !== esc.grupoId) return false;
+  if (alvo.grupoId !== esc.grupoId) return false;
   return alvo.grupoId;
 }
 

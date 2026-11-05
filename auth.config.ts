@@ -1,4 +1,5 @@
 import type { NextAuthConfig } from "next-auth";
+import { CAMINHO_PADRAO_DO_ADMIN, voltaDoAdmin } from "@/lib/admin-volta";
 
 // Configuração Edge-safe: importada tanto pelo middleware (proxy.ts) quanto
 // pelo handler de auth (auth.ts). NÃO pode usar Prisma aqui — middleware
@@ -59,15 +60,29 @@ export const authConfig = {
       const caminho = request.nextUrl.pathname;
       const ehMaster = isLoggedIn && auth?.user?.role === "MASTER";
       if (caminho === "/admin/login" || caminho.startsWith("/admin/login/")) {
-        return ehMaster ? Response.redirect(new URL("/admin", request.nextUrl)) : true;
+        if (!ehMaster) return true;
+        // Já é o MASTER: segue para onde ia (`?volta=`, só dentro de /admin).
+        const volta = voltaDoAdmin(request.nextUrl.searchParams.get("volta"));
+        return Response.redirect(new URL(volta ?? CAMINHO_PADRAO_DO_ADMIN, request.nextUrl));
       }
       if (caminho === "/admin" || caminho.startsWith("/admin/")) {
-        return ehMaster ? true : Response.redirect(new URL("/admin/login", request.nextUrl));
+        if (ehMaster) return true;
+        // Guarda o destino (inclusive a query, como o ?grupo= de Usuários)
+        // para o login do admin devolver a pessoa ao mesmo lugar.
+        const login = new URL("/admin/login", request.nextUrl);
+        const volta = voltaDoAdmin(caminho + request.nextUrl.search);
+        if (volta) login.searchParams.set("volta", volta);
+        return Response.redirect(login);
       }
+      // O MASTER não usa o sistema do RH: qualquer outra tela (o login do
+      // sistema inclusive) o leva à área de admin. Fica AQUI, no proxy, e não
+      // só no layout do sistema: layout do App Router não roda de novo na
+      // navegação dentro do app, e uma aba aberta como Diretoria seguia
+      // navegando pelo RH depois que outra aba entrava como MASTER (achado da
+      // revisão da v1.188.0). O proxy roda em toda requisição.
+      if (ehMaster) return Response.redirect(new URL(CAMINHO_PADRAO_DO_ADMIN, request.nextUrl));
       const isOnLogin = caminho.startsWith("/login");
       if (isOnLogin) {
-        // O MASTER não usa o sistema do RH: o lugar dele é a área de admin.
-        if (ehMaster) return Response.redirect(new URL("/admin", request.nextUrl));
         return isLoggedIn ? Response.redirect(new URL("/", request.nextUrl)) : true;
       }
       return isLoggedIn;

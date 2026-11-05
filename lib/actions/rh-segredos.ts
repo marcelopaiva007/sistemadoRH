@@ -25,12 +25,12 @@ import type { ActionResult } from "@/lib/constants";
 /**
  * Cadastro da chave da Anthropic pela tela.
  *
- * ADMIN e DIRETORIA, os mesmos dois papéis da gestão de usuários — e pelo
- * mesmo motivo que está em `requireGestaoUsuarios`: a diretoria já pode criar
- * um ADMIN e com isso se promover, então exigir ADMIN aqui não seria uma
- * barreira, só um desvio. Na primeira versão desta tela era só ADMIN, e o
- * efeito prático foi deixar o dono do sistema — que é DIRETORIA — sem
- * conseguir ligar o recurso que pediu.
+ * ADMIN e DIRETORIA, os dois papéis que geriam usuários até a v1.187.0 —
+ * quando a diretoria podia criar um ADMIN e se promover, então exigir ADMIN
+ * aqui não seria uma barreira, só um desvio. (Desde a v1.188.0 as contas são
+ * só do MASTER; a lista daqui ficou como estava.) Na primeira versão desta
+ * tela era só ADMIN, e o efeito prático foi deixar o dono do sistema — que é
+ * DIRETORIA — sem conseguir ligar o recurso que pediu.
  *
  * O que a restrição de fato guarda: quem grava a chave passa a poder gastar na
  * conta da Anthropic do grupo. RH_MANAGER e GESTOR_SETOR ficam de fora.

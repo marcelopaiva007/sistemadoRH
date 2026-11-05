@@ -31,7 +31,9 @@ export function RedefinirSenhaForm({ token }: { token: string }) {
         return;
       }
       setRedefinida(true);
-      setTimeout(() => router.push("/login"), 2000);
+      // A conta de administrador volta para o login da área de admin.
+      const destino = "destino" in result && result.destino ? result.destino : "/login";
+      setTimeout(() => router.push(destino), 2000);
     });
   }
 
