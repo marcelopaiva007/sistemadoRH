@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireRHAccess } from "@/lib/rh-auth-guard";
 import { requireAdmin } from "@/lib/auth-guard";
+import { grupoDoUsuario } from "@/lib/grupo";
 import { registrarAuditoria } from "@/lib/audit";
 import { violouUnique } from "@/lib/prisma-erros";
 import { apenasDigitosCnpj, cnpjValido, ufValida } from "@/lib/cnpj";
@@ -80,7 +81,10 @@ function lerCorPrimaria(fd: FormData): { ok: true; cor: string | null } | { ok: 
 // buraco que fechamos no CNPJ — renomear marca, trocar cor e logo do grupo
 // inteiro, e criar a marca para onde puxar um CNPJ depois.
 export async function criarMarca(_prev: ActionResult, fd: FormData): Promise<ActionResult> {
-  await requireAdmin();
+  const admin = await requireAdmin();
+  // Marca nova nasce no GRUPO de sociedade de quem a cria (lib/grupo.ts).
+  const grupoId = await grupoDoUsuario(admin.id);
+  if (!grupoId) return { ok: false, error: "Sua conta não está em nenhum grupo — peça ao master." };
 
   const nome = texto(fd, "nome");
   if (!nome) return { ok: false, error: "Informe o nome da marca." };
@@ -93,7 +97,7 @@ export async function criarMarca(_prev: ActionResult, fd: FormData): Promise<Act
     // o upload preenche em seguida. Se o upload falhar, a marca fica criada
     // sem logo e o erro aparece — melhor que perder o cadastro inteiro.
     const marca = await prisma.marca.create({
-      data: { nome, logoUrl: texto(fd, "logoUrl"), corPrimaria: cor.cor },
+      data: { nome, grupoId, logoUrl: texto(fd, "logoUrl"), corPrimaria: cor.cor },
     });
 
     const logo = await resolverLogo(fd, marca.id);

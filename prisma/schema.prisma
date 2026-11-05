@@ -68,6 +68,13 @@ model User {
   empresaId String?
   setorId   String?
 
+  // GRUPO (sociedade) a que este login pertence — ver o model Grupo. Toda
+  // conta de trabalho tem um; só o MASTER fica sem, porque ele administra os
+  // grupos e não enxerga dado de nenhum. ADMIN e DIRETORIA, que antes eram
+  // "globais", passam a ser globais DENTRO do grupo.
+  grupoId String?
+  grupo   Grupo?  @relation(fields: [grupoId], references: [id])
+
   // Qual pessoa da folha é este login. Até 12/08/2026 não existia resposta:
   // `User` e `Colaborador` eram dois cadastros sem ponte, então um gestor que
   // entrava pelo sistema não tinha como o servidor saber quem ele é — e
@@ -109,6 +116,7 @@ model User {
 
   @@index([empresaId])
   @@index([setorId])
+  @@index([grupoId])
   @@schema("rh")
 }
 
@@ -160,9 +168,36 @@ model UserEmpresa {
 // precisou mudar quando a Marca entrou acima. O colaborador se vincula ao
 // CNPJ porque é esse o vínculo empregatício, não à marca.
 
+// GRUPO — a fronteira de SOCIEDADE, acima da marca (v1.185.0, 05/11/2026).
+//
+// A LM Telecom tem dois sócios; as demais marcas são de um só deles. Por isso
+// os dados da LM não podem aparecer somados, listados ou sequer visíveis para
+// quem trabalha nas outras marcas — e vice-versa. Grupo é essa parede:
+//
+//   Grupo → Marca → Empresa (CNPJ)
+//
+// Cada marca pertence a exatamente um grupo; cada usuário de trabalho também.
+// Nenhuma tela, relatório, e-mail ou rotina junta dois grupos. Quem cria os
+// grupos e os usuários de cada um é o MASTER, que por decisão do CEO SÓ
+// administra: não abre colaborador, folha nem pendência de grupo nenhum.
+model Grupo {
+  id        String   @id @default(cuid())
+  nome      String   @unique
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  marcas   Marca[]
+  usuarios User[]
+
+  @@schema("rh")
+}
+
 model Marca {
   id          String   @id @default(cuid())
   nome        String   @unique
+  grupoId     String
+  grupo       Grupo    @relation(fields: [grupoId], references: [id])
   logoUrl     String?
   // Hex "#RRGGBB", validado na action antes de gravar. Aplicado como override
   // da variável CSS --primary no layout da empresa (server component) — só
@@ -180,6 +215,7 @@ model Marca {
   // Direção em 28/08/2026 — FK para o cadastro vivo, não texto livre).
   demandas  Demanda[]
 
+  @@index([grupoId])
   @@schema("rh")
 }
 

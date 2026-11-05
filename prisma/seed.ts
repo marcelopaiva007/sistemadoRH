@@ -28,6 +28,18 @@ async function upsertUser(
 // si (cada uma com seus próprios setores/posições/colaboradores/pesquisas).
 async function seedEmpresas() {
   const nomes = ["LM Telecom", "Centrysol", "VAPT"];
+  // Grupos de sociedade (lib/grupo.ts) com os MESMOS ids da migration
+  // 20261105120000_grupos_sociedade: a LM Telecom num grupo só dela.
+  const grupoLm = await prisma.grupo.upsert({
+    where: { id: "grupo_lm_telecom" },
+    update: {},
+    create: { id: "grupo_lm_telecom", nome: "LM Telecom" },
+  });
+  const grupoDemais = await prisma.grupo.upsert({
+    where: { id: "grupo_demais_marcas" },
+    update: {},
+    create: { id: "grupo_demais_marcas", nome: "Demais marcas" },
+  });
   const empresas = [];
   for (const nome of nomes) {
     // Cada marca começa com uma pessoa jurídica de mesmo nome (Fase 6). Os
@@ -36,7 +48,10 @@ async function seedEmpresas() {
     const marca = await prisma.marca.upsert({
       where: { nome },
       update: {},
-      create: { nome },
+      create: {
+        nome,
+        grupoId: nome === "LM Telecom" ? grupoLm.id : grupoDemais.id,
+      },
     });
     const empresa = await prisma.empresa.upsert({
       where: { nome },
@@ -102,6 +117,23 @@ async function main() {
   );
 
   await seedEmpresas();
+
+  // Toda conta de trabalho pertence a um grupo (lib/grupo.ts). As contas do
+  // seed ligadas à LM Telecom vão para o grupo dela; as demais, para o outro.
+  const lm = await prisma.empresa.findUnique({
+    where: { nome: "LM Telecom" },
+    select: { id: true },
+  });
+  if (lm) {
+    await prisma.user.updateMany({
+      where: { grupoId: null, empresaId: lm.id },
+      data: { grupoId: "grupo_lm_telecom" },
+    });
+  }
+  await prisma.user.updateMany({
+    where: { grupoId: null, role: { not: "MASTER" } },
+    data: { grupoId: "grupo_demais_marcas" },
+  });
 
   console.log(
     "\nGuarde as senhas geradas acima em local seguro — elas não ficam salvas em nenhum arquivo e não podem ser recuperadas depois."

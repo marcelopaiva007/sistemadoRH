@@ -26,6 +26,15 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.185.1",
+    data: "05/11/2026",
+    horario: "12:00",
+    titulo: "Preparação para separar a LM Telecom das demais marcas",
+    itens: [
+      "O banco ganha o cadastro de GRUPOS: a LM Telecom num grupo só dela e as demais marcas em outro. Nada muda nas telas ainda. A separação de fato entra na próxima versão.",
+    ],
+  },
+  {
     versao: "1.185.0",
     data: "05/11/2026",
     horario: "08:30",
