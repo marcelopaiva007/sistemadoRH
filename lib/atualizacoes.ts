@@ -26,6 +26,19 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.189.0",
+    data: "05/11/2026",
+    horario: "19:05",
+    titulo: "Admin: marcas de cada conta direto na lista de Usuários",
+    itens: [
+      "Na lista de Usuários do admin, as marcas de cada conta viraram botões de liga/desliga na própria linha: um clique libera ou tira a marca, e já fica salvo.",
+      "Diretoria e Administrativo com todas as marcas ligadas veem o grupo inteiro, inclusive marca que entrar depois. A última marca não desliga: para tirar todo o acesso, desative a conta.",
+      "Cada aba de grupo mostra quantas contas tem, e a tela mostra o total de contas do sistema, para conferir de relance que todo mundo está lá.",
+      "A regra do grupo aparece em cima da lista: na LM Telecom, quem tem acesso vê só a LM; nas demais marcas, cada pessoa vê uma ou várias juntas.",
+      "Para passar alguém de um grupo para outro (por exemplo, da LM para as demais marcas), use Mais ações → Trocar de grupo.",
+    ],
+  },
+  {
     versao: "1.188.0",
     data: "05/11/2026",
     horario: "18:40",
