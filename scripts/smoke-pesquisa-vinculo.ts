@@ -43,7 +43,7 @@ async function main() {
   console.log("Matriz de elegibilidade — CLIMA/NR01 (RD-001)\n");
 
   await rodarComRollback(async (tx) => {
-    const marca = await tx.marca.create({ data: { nome: `__smoke_vinculo_marca_${Date.now()}` } });
+    const marca = await tx.marca.create({ data: { nome: `__smoke_vinculo_marca_${Date.now()}`, grupo: { connectOrCreate: { where: { nome: "CI Fixture" }, create: { nome: "CI Fixture" } } } } });
     const empresa = await tx.empresa.create({ data: { nome: `__smoke_vinculo_empresa_${Date.now()}`, marcaId: marca.id } });
     const setor = await tx.setor.create({ data: { nome: "__smoke_setor", empresaId: empresa.id } });
     const posicao = await tx.posicao.create({ data: { nome: "__smoke_cargo", empresaId: empresa.id } });
@@ -112,7 +112,7 @@ async function main() {
   console.log("\nExpiração de convite em aberto no desligamento (RD-001, item 3)\n");
 
   await rodarComRollback(async (tx) => {
-    const marca = await tx.marca.create({ data: { nome: `__smoke_vinculo_marca2_${Date.now()}` } });
+    const marca = await tx.marca.create({ data: { nome: `__smoke_vinculo_marca2_${Date.now()}`, grupo: { connectOrCreate: { where: { nome: "CI Fixture" }, create: { nome: "CI Fixture" } } } } });
     const empresa = await tx.empresa.create({ data: { nome: `__smoke_vinculo_empresa2_${Date.now()}`, marcaId: marca.id } });
     const setor = await tx.setor.create({ data: { nome: "__smoke_setor", empresaId: empresa.id } });
     const posicao = await tx.posicao.create({ data: { nome: "__smoke_cargo", empresaId: empresa.id } });
@@ -157,7 +157,7 @@ async function main() {
   console.log("\nPlanoAcao (fase 2) — status default, prazo, relação com pesquisa/setor\n");
 
   await rodarComRollback(async (tx) => {
-    const marca = await tx.marca.create({ data: { nome: `__smoke_vinculo_marca3_${Date.now()}` } });
+    const marca = await tx.marca.create({ data: { nome: `__smoke_vinculo_marca3_${Date.now()}`, grupo: { connectOrCreate: { where: { nome: "CI Fixture" }, create: { nome: "CI Fixture" } } } } });
     const empresa = await tx.empresa.create({ data: { nome: `__smoke_vinculo_empresa3_${Date.now()}`, marcaId: marca.id } });
     const setor = await tx.setor.create({ data: { nome: "__smoke_setor", empresaId: empresa.id } });
     const posicao = await tx.posicao.create({ data: { nome: "__smoke_cargo", empresaId: empresa.id } });

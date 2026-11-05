@@ -20,10 +20,19 @@ const prisma = new PrismaClient({
 });
 
 async function main() {
-  const marca = await prisma.marca.upsert({
+  // Desde a v1.185.1 toda marca mora num GRUPO de sociedade (lib/grupo.ts), e
+  // toda conta de trabalho também — sem os dois, o ADMIN abaixo não enxerga a
+  // empresa-palco e a criação da marca nem passa (`grupo` é obrigatório).
+  const grupo = await prisma.grupo.upsert({
     where: { nome: "CI Fixture" },
     update: {},
     create: { nome: "CI Fixture" },
+  });
+
+  const marca = await prisma.marca.upsert({
+    where: { nome: "CI Fixture" },
+    update: { grupoId: grupo.id },
+    create: { nome: "CI Fixture", grupoId: grupo.id },
   });
 
   let empresa = await prisma.empresa.findFirst({
@@ -84,13 +93,14 @@ async function main() {
   const username = process.env.SEED_ADMIN_USERNAME ?? "admin.ci";
   await prisma.user.upsert({
     where: { username },
-    update: {},
+    update: { grupoId: grupo.id },
     create: {
       username,
       nome: "Administrador CI",
       passwordHash: await bcrypt.hash("senha-de-teste-do-ci", 10),
       role: "ADMIN",
       ativo: true,
+      grupoId: grupo.id,
     },
   });
 

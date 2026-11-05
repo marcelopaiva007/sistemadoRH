@@ -5,6 +5,7 @@ import nodemailer from "nodemailer";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-guard";
+import { usuarioAlcancaEmpresa } from "@/lib/rh-auth-guard";
 import { registrarAuditoria } from "@/lib/audit";
 import { cifrar, dicaDe } from "@/lib/cripto";
 import { registrarWebhookTelegram as registrarWebhook, UPDATES_DO_WEBHOOK } from "@/lib/telegram";
@@ -41,18 +42,24 @@ import type { ActionResult } from "@/lib/constants";
  * A chave entra, nunca sai: nenhuma action deste arquivo devolve o valor, e o
  * banco guarda a versão cifrada (lib/cripto.ts).
  */
-async function exigirPapel(): Promise<
+async function exigirPapel(empresaId: string): Promise<
   { ok: true; user: { id: string; nome?: string | null } } | { ok: false; error: string }
 > {
   const user = await requireUser();
   if (!PAPEIS_QUE_CONFIGURAM.includes(user.role as string)) {
     return { ok: false, error: "Só a administração ou a diretoria pode alterar a chave da API." };
   }
+  // A chave é DA EMPRESA: só mexe quem alcança este CNPJ — o que barra o CNPJ
+  // de outro grupo e, para Diretoria/Administrativo preso a algumas marcas
+  // pela tela de admin, o CNPJ de marca que ele não vê (lib/grupo.ts).
+  if (!(await usuarioAlcancaEmpresa(user, empresaId))) {
+    return { ok: false, error: "Sem acesso a esta empresa." };
+  }
   return { ok: true, user };
 }
 
 export async function salvarChaveAnthropic(empresaId: string, chave: string): Promise<ActionResult> {
-  const permissao = await exigirPapel();
+  const permissao = await exigirPapel(empresaId);
   if (!permissao.ok) return permissao;
 
   // Colar de um e-mail ou do console traz espaço e quebra de linha junto, e o
@@ -114,7 +121,7 @@ export async function salvarChaveAnthropic(empresaId: string, chave: string): Pr
  * ativo via env var; só passa a valer se um dia a variável sair do projeto.
  */
 export async function salvarTelegramToken(empresaId: string, token: string): Promise<ActionResult> {
-  const permissao = await exigirPapel();
+  const permissao = await exigirPapel(empresaId);
   if (!permissao.ok) return permissao;
 
   const valor = token.trim();
@@ -149,7 +156,7 @@ export async function salvarTelegramToken(empresaId: string, token: string): Pro
 }
 
 export async function removerTelegramToken(empresaId: string): Promise<ActionResult> {
-  const permissao = await exigirPapel();
+  const permissao = await exigirPapel(empresaId);
   if (!permissao.ok) return permissao;
 
   const existente = await prisma.segredoApp.findUnique({
@@ -182,7 +189,7 @@ export async function salvarSmtp(
   empresaId: string,
   dados: { host: string; port: string; user: string; pass: string; from: string },
 ): Promise<ActionResult> {
-  const permissao = await exigirPapel();
+  const permissao = await exigirPapel(empresaId);
   if (!permissao.ok) return permissao;
 
   const host = dados.host.trim();
@@ -240,7 +247,7 @@ export async function salvarSmtp(
 }
 
 export async function removerSmtp(empresaId: string): Promise<ActionResult> {
-  const permissao = await exigirPapel();
+  const permissao = await exigirPapel(empresaId);
   if (!permissao.ok) return permissao;
 
   const existente = await prisma.segredoApp.findUnique({
@@ -266,7 +273,7 @@ export async function removerSmtp(empresaId: string): Promise<ActionResult> {
 }
 
 export async function removerChaveAnthropic(empresaId: string): Promise<ActionResult> {
-  const permissao = await exigirPapel();
+  const permissao = await exigirPapel(empresaId);
   if (!permissao.ok) return permissao;
 
   const existente = await prisma.segredoApp.findUnique({
@@ -304,7 +311,7 @@ export async function removerChaveAnthropic(empresaId: string): Promise<ActionRe
  * num endereço errado desliga o bot inteiro, em silêncio.
  */
 export async function registrarWebhookTelegram(empresaId: string): Promise<ActionResult> {
-  const permissao = await exigirPapel();
+  const permissao = await exigirPapel(empresaId);
   if (!permissao.ok) return permissao;
 
   const base = process.env.NEXT_PUBLIC_APP_URL;

@@ -16,6 +16,7 @@ import {
   MoreVertical,
   ChevronDown,
   TriangleAlert,
+  Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -70,6 +71,7 @@ import {
   reativarVinculoMarca,
   criarConviteUsuario,
   toggleStatusUsuario,
+  definirMarcasQueVe,
 } from "@/lib/actions/usuarios";
 import { ROLES, ROLE_LABEL, type ActionResult } from "@/lib/constants";
 import { PERFIS_SEMENTE } from "@/lib/permissoes/catalogo";
@@ -78,6 +80,14 @@ import { FichaVinculada } from "./ficha-vinculada";
 type EmpresaResumo = { id: string; nome: string; ativo: boolean; marcaId: string };
 type SetorResumo = { id: string; nome: string; empresaId: string; ativo: boolean };
 type MarcaResumo = { id: string; nome: string };
+
+/** Só a tela de admin (MASTER): os grupos e as marcas ativas de TODOS eles. */
+export type PainelAdmin = {
+  grupos: { id: string; nome: string }[];
+  marcas: { id: string; nome: string; grupoId: string }[];
+  /** O grupo aberto na tela — é o grupo das contas listadas. */
+  grupoAtualId: string | null;
+};
 
 type Vinculo = {
   empresaId: string;
@@ -101,7 +111,14 @@ type VinculoMarca = {
   ativo: boolean;
   /** Marca de outro grupo de sociedade: o vínculo não dá acesso. */
   foraDoGrupo: boolean;
+  /** Papel do vínculo. ADMIN/DIRETORIA = restrição posta pelo admin (lib/grupo.ts). */
+  role: string;
 };
+
+/** Marca que o ADMIN pôs como restrição de uma Diretoria/Administrativo (lib/grupo.ts). */
+function ehRestricao(v: VinculoMarca) {
+  return v.ativo && !v.foraDoGrupo && (v.role === "ADMIN" || v.role === "DIRETORIA");
+}
 
 // A ficha de colaborador que este login representa, quando existe. `null` é o
 // caso comum: ADMIN e RH em geral não têm ficha na empresa que administram.
@@ -167,6 +184,7 @@ export function UsuariosTable({
   perfis,
   currentUserId,
   grupoId,
+  painelAdmin,
 }: {
   usuarios: Usuario[];
   empresas: EmpresaResumo[];
@@ -176,6 +194,8 @@ export function UsuariosTable({
   currentUserId: string;
   /** Só para o MASTER: o grupo em que a conta nova nasce (o que está aberto na tela). */
   grupoId?: string;
+  /** Só para o MASTER: liga a ação "Marcas que vê" (tela de admin). */
+  painelAdmin?: PainelAdmin;
 }) {
   const [createOpen, setCreateOpen] = useState(false);
   const [editUsuario, setEditUsuario] = useState<Usuario | null>(null);
@@ -183,6 +203,7 @@ export function UsuariosTable({
   const [resetUsuario, setResetUsuario] = useState<Usuario | null>(null);
   const [vincularUsuario, setVincularUsuario] = useState<Usuario | null>(null);
   const [excluirUsuario, setExcluirUsuario] = useState<Usuario | null>(null);
+  const [marcasUsuario, setMarcasUsuario] = useState<Usuario | null>(null);
   const [aba, setAba] = useState<AbaStatus>("ATIVOS");
   const [busca, setBusca] = useState("");
   const [filtroPapel, setFiltroPapel] = useState<string>("TODOS");
@@ -201,12 +222,14 @@ export function UsuariosTable({
   const filtrados = usuarios.filter((u) => {
     if (filtroPapel !== "TODOS" && u.role !== filtroPapel) return false;
     if (filtroMarca !== "TODAS") {
-      const temMarca =
-        u.marcasVinculadas.some((m) => m.marcaId === filtroMarca) ||
-        u.empresas.some((e) => marcaDaEmpresa.get(e.empresaId) === filtroMarca) ||
-        // Administrativo e Diretoria enxergam todas as empresas do grupo.
-        u.role === "ADMIN" ||
-        u.role === "DIRETORIA";
+      const ehDirecao = u.role === "ADMIN" || u.role === "DIRETORIA";
+      const restricoes = u.marcasVinculadas.filter(ehRestricao);
+      const temMarca = ehDirecao
+        ? // Diretoria/Administrativo: sem marca marcada pelo admin, o grupo
+          // todo; com marca marcada, só ela.
+          restricoes.length === 0 || restricoes.some((m) => m.marcaId === filtroMarca)
+        : u.marcasVinculadas.some((m) => m.marcaId === filtroMarca) ||
+          u.empresas.some((e) => marcaDaEmpresa.get(e.empresaId) === filtroMarca);
       if (!temMarca) return false;
     }
     if (termo) {
@@ -231,6 +254,7 @@ export function UsuariosTable({
     onConvidar: setConviteUsuario,
     onSenha: setResetUsuario,
     onExcluir: setExcluirUsuario,
+    onMarcas: painelAdmin ? setMarcasUsuario : undefined,
   };
 
   return (
@@ -402,6 +426,18 @@ export function UsuariosTable({
           )}
         </section>
       )}
+
+      <Dialog open={!!marcasUsuario} onOpenChange={(open) => !open && setMarcasUsuario(null)}>
+        <DialogContent className="max-w-lg">
+          {marcasUsuario && painelAdmin && (
+            <MarcasQueVeForm
+              usuario={marcasUsuario}
+              painel={painelAdmin}
+              onFim={() => setMarcasUsuario(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!excluirUsuario} onOpenChange={(open) => !open && setExcluirUsuario(null)}>
         <DialogContent>
@@ -935,7 +971,13 @@ function VincularForm({
 
       {/* O seletor fica fora dos dois forms — ele escolhe qual form aparece,
           não é campo enviado. */}
-      <div className="space-y-2">
+      {(usuario.role === "ADMIN" || usuario.role === "DIRETORIA") && (
+        <p className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">
+          Diretoria e Administrativo veem todas as marcas do grupo. Para limitar a
+          algumas marcas, o admin usa o botão Marcas na tela de usuários.
+        </p>
+      )}
+      <div className={cn("space-y-2", (usuario.role === "ADMIN" || usuario.role === "DIRETORIA") && "hidden")}>
         <Label>Escopo do acesso</Label>
         <RadioGroup
           value={escopo}
@@ -1519,6 +1561,8 @@ type AcoesDaLinha = {
   onConvidar: (u: Usuario) => void;
   onSenha: (u: Usuario) => void;
   onExcluir: (u: Usuario) => void;
+  /** Só na tela de admin (MASTER). */
+  onMarcas?: (u: Usuario) => void;
 };
 
 function TabelaUsuarios({
@@ -1595,6 +1639,14 @@ function LinhaUsuario({
   const nome = nomeExibicao(u.nome);
   const minhas = pendencias.porUsuario.get(u.id) ?? [];
   const veTudo = u.role === "ADMIN" || u.role === "DIRETORIA";
+  // ADMIN/DIRETORIA com marca marcada pela tela de admin fica só nela(s)
+  // (lib/grupo.ts, `direcaoRestrita`); sem marca marcada, o grupo inteiro.
+  const direcaoGlobal = veTudo && !u.marcasVinculadas.some(ehRestricao);
+  // Para Diretoria/Administrativo, só a marca marcada pelo admin muda o que a
+  // pessoa vê; vínculo antigo de gestor ou de CNPJ que ficou na conta não muda
+  // nada — aparece apagado, para ninguém achar que ele restringe ou amplia.
+  const semEfeito = (v: { ativo: boolean; foraDoGrupo: boolean; role?: string }) =>
+    veTudo && v.ativo && !v.foraDoGrupo && !(v.role === "ADMIN" || v.role === "DIRETORIA");
 
   return (
     <TableRow className={cn(inativo && "text-muted-foreground")}>
@@ -1647,12 +1699,20 @@ function LinhaUsuario({
         <div className="flex flex-wrap items-center gap-1">
           {/* Administrativo e Diretoria enxergam o grupo de sociedade inteiro,
               com ou sem vínculo (lib/rh-auth-guard.ts, empresasVisiveis). */}
-          {veTudo && (
+          {direcaoGlobal && (
             <span
               className="mr-1 text-xs text-muted-foreground"
               title="Administrativo e Diretoria enxergam todas as empresas do grupo de sociedade."
             >
               Todas do grupo
+            </span>
+          )}
+          {veTudo && !direcaoGlobal && (
+            <span
+              className="mr-1 text-xs font-medium text-muted-foreground"
+              title="Restrito pela tela de admin: vê só as marcas ao lado e não administra contas."
+            >
+              Só:
             </span>
           )}
           {!veTudo && u.empresas.length === 0 && u.marcasVinculadas.length === 0 && (
@@ -1664,11 +1724,19 @@ function LinhaUsuario({
             <span key={`marca-${v.marcaId}`} className="inline-flex items-center gap-1">
               <Badge
                 variant="secondary"
-                className={!v.ativo || v.foraDoGrupo ? "opacity-50 line-through" : undefined}
+                className={
+                  !v.ativo || v.foraDoGrupo
+                    ? "opacity-50 line-through"
+                    : semEfeito(v)
+                      ? "opacity-50"
+                      : undefined
+                }
                 title={
                   v.foraDoGrupo
                     ? `${v.marcaNome} · marca — ${DICA_FORA_DO_GRUPO}`
-                    : `${v.marcaNome} · marca — todos os CNPJs, inclusive os cadastrados depois`
+                    : semEfeito(v)
+                      ? `${v.marcaNome} · marca — ${DICA_SEM_EFEITO}`
+                      : `${v.marcaNome} · marca — todos os CNPJs, inclusive os cadastrados depois`
                 }
               >
                 {v.marcaNome} · marca
@@ -1680,10 +1748,18 @@ function LinhaUsuario({
             <span key={v.empresaId} className="inline-flex items-center gap-1">
               <Badge
                 variant="outline"
-                className={!v.ativo || v.foraDoGrupo ? "opacity-50 line-through" : undefined}
+                className={
+                  !v.ativo || v.foraDoGrupo
+                    ? "opacity-50 line-through"
+                    : semEfeito(v)
+                      ? "opacity-50"
+                      : undefined
+                }
                 title={
                   v.foraDoGrupo
                     ? `${v.empresaNome} — ${DICA_FORA_DO_GRUPO}`
+                    : semEfeito(v)
+                      ? `${v.empresaNome} — ${DICA_SEM_EFEITO}`
                     : v.setorNome
                       ? `${v.empresaNome} · ${PAPEL_LABEL[v.role] ?? v.role} · ${v.setorNome}${v.papelPrincipal ? " (principal)" : ""}`
                       : `${v.empresaNome} · ${PAPEL_LABEL[v.role] ?? v.role}${v.papelPrincipal ? " (principal)" : ""}`
@@ -1730,6 +1806,9 @@ function avisoInativos(n: number, filtrando: boolean) {
 const DICA_FORA_DO_GRUPO =
   "de outro grupo de sociedade: este vínculo não dá acesso. Para trabalhar lá, a pessoa precisa de um login no outro grupo.";
 
+const DICA_SEM_EFEITO =
+  "vínculo antigo: para Diretoria e Administrativo não muda o que a pessoa vê. Quem limita as marcas é o admin, no botão Marcas.";
+
 function AvisoForaDoGrupo() {
   return <span className="text-[11px] font-medium text-muted-foreground">fora do grupo</span>;
 }
@@ -1753,6 +1832,7 @@ function AcoesUsuario({
   onConvidar,
   onSenha,
   onExcluir,
+  onMarcas,
 }: Omit<AcoesDaLinha, "pendencias"> & { usuario: Usuario }) {
   const [alternando, setAlternando] = useState(false);
 
@@ -1769,6 +1849,14 @@ function AcoesUsuario({
 
   return (
     <div className="flex items-center justify-end gap-1">
+      {/* Tela de admin: "quais marcas esta conta vê" é a ação principal, à vista.
+          Gestor de setor fica de fora — o acesso dele é o setor de um CNPJ. */}
+      {onMarcas && usuario.role !== "GESTOR_SETOR" && (
+        <Button variant="outline" size="sm" onClick={() => onMarcas(usuario)}>
+          <Eye className="size-4" />
+          Marcas
+        </Button>
+      )}
       {/* Inativo: a ação que importa é reativar, então ela fica à vista. */}
       {!usuario.ativo ? (
         <Button variant="outline" size="sm" onClick={alternarStatus} disabled={alternando}>
@@ -1826,6 +1914,129 @@ function AcoesUsuario({
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
+  );
+}
+
+function MarcasQueVeForm({
+  usuario,
+  painel,
+  onFim,
+}: {
+  usuario: Usuario;
+  painel: PainelAdmin;
+  onFim: () => void;
+}) {
+  const ehDirecao = usuario.role === "ADMIN" || usuario.role === "DIRETORIA";
+  const grupoAtual = painel.grupoAtualId ?? painel.grupos[0]?.id ?? "";
+  // Só o que a tela consegue mostrar: marca ATIVA do grupo atual (vínculo com
+  // marca desativada não tem checkbox, e o servidor o preserva). Para
+  // Diretoria/Administrativo, só a restrição posta pelo admin conta.
+  const marcadasHoje = usuario.marcasVinculadas
+    .filter((v) => v.ativo && !v.foraDoGrupo)
+    .filter((v) => !ehDirecao || ehRestricao(v))
+    .filter((v) => painel.marcas.some((m) => m.id === v.marcaId && m.grupoId === grupoAtual))
+    .map((v) => v.marcaId);
+  const [grupoId, setGrupoId] = useState(grupoAtual);
+  const [escolhidas, setEscolhidas] = useState<string[]>(marcadasHoje);
+  const [salvando, setSalvando] = useState(false);
+
+  const marcasDoGrupo = painel.marcas.filter((m) => m.grupoId === grupoId);
+  const mudaGrupo = grupoId !== grupoAtual;
+  const cnpjsNoGrupo = usuario.empresas.filter((e) => e.ativo && !e.foraDoGrupo);
+
+  function trocarGrupo(id: string) {
+    setGrupoId(id);
+    // Marca é sempre de UM grupo: trocar de grupo zera a escolha.
+    setEscolhidas(id === grupoAtual ? marcadasHoje : []);
+  }
+
+  function alternar(marcaId: string) {
+    setEscolhidas((atual) =>
+      atual.includes(marcaId) ? atual.filter((x) => x !== marcaId) : [...atual, marcaId],
+    );
+  }
+
+  async function salvar() {
+    setSalvando(true);
+    const result = await definirMarcasQueVe(usuario.id, grupoId, escolhidas);
+    setSalvando(false);
+    if (result.ok) {
+      toast.success(mudaGrupo ? "Grupo e marcas salvos." : "Marcas salvas.");
+      onFim();
+    } else {
+      toast.error(result.error);
+    }
+  }
+
+  const resumo = ehDirecao
+    ? escolhidas.length === 0
+      ? "Vê todas as marcas do grupo e administra as contas dele."
+      : "Vê só as marcas marcadas e deixa de administrar contas."
+    : escolhidas.length === 0 && (mudaGrupo || cnpjsNoGrupo.length === 0)
+      ? "Sem marca marcada, não vê nada."
+      : "Vê todos os CNPJs das marcas marcadas, inclusive os cadastrados depois.";
+
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>Marcas que {nomeExibicao(usuario.nome)} vê</DialogTitle>
+      </DialogHeader>
+      <div className="space-y-5">
+        <div className="space-y-1.5">
+          <Label htmlFor="marcas-grupo">Grupo</Label>
+          <select
+            id="marcas-grupo"
+            value={grupoId}
+            onChange={(e) => trocarGrupo(e.target.value)}
+            className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+          >
+            {painel.grupos.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.nome}
+              </option>
+            ))}
+          </select>
+          {mudaGrupo && (
+            <p className="text-xs text-amber-800 dark:text-amber-300">
+              Ao mudar de grupo, a pessoa perde os vínculos de CNPJ do grupo atual.
+            </p>
+          )}
+        </div>
+
+        <fieldset className="space-y-2">
+          <legend className="mb-1 text-sm font-medium">Marcas</legend>
+          {marcasDoGrupo.length === 0 && (
+            <p className="text-sm text-muted-foreground">Este grupo ainda não tem marca ativa.</p>
+          )}
+          {marcasDoGrupo.map((m) => (
+            <label key={m.id} className="flex min-h-9 cursor-pointer items-center gap-2 text-sm">
+              <Checkbox checked={escolhidas.includes(m.id)} onCheckedChange={() => alternar(m.id)} />
+              {m.nome}
+            </label>
+          ))}
+          <p className="text-xs text-muted-foreground">
+            {ehDirecao
+              ? "Diretoria e Administrativo: nenhuma marcada = todas as marcas do grupo."
+              : "Gestor de RH: marque as marcas que a pessoa atende. CNPJ avulso continua em Vincular."}
+          </p>
+          {!ehDirecao && !mudaGrupo && cnpjsNoGrupo.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              Também vê os CNPJs vinculados: {cnpjsNoGrupo.map((e) => e.empresaNome).join(", ")}.
+            </p>
+          )}
+        </fieldset>
+
+        <p className="rounded-md bg-muted px-3 py-2 text-sm">{resumo}</p>
+      </div>
+      <DialogFooter>
+        <Button variant="ghost" onClick={onFim} disabled={salvando}>
+          Cancelar
+        </Button>
+        <Button onClick={salvar} disabled={salvando}>
+          Salvar
+        </Button>
+      </DialogFooter>
+    </>
   );
 }
 

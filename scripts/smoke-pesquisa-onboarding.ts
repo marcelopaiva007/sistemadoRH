@@ -40,7 +40,7 @@ async function main() {
   console.log("P06-ONB30 — gatilho por evento (D+30 da admissão)\n");
 
   await rodarComRollback(async (tx) => {
-    const marca = await tx.marca.create({ data: { nome: `__smoke_onb_marca_${Date.now()}` } });
+    const marca = await tx.marca.create({ data: { nome: `__smoke_onb_marca_${Date.now()}`, grupo: { connectOrCreate: { where: { nome: "CI Fixture" }, create: { nome: "CI Fixture" } } } } });
     const empresa = await tx.empresa.create({ data: { nome: `__smoke_onb_empresa_${Date.now()}`, marcaId: marca.id } });
     const setor = await tx.setor.create({ data: { nome: "__smoke_setor", empresaId: empresa.id } });
     const posicao = await tx.posicao.create({ data: { nome: "__smoke_cargo", empresaId: empresa.id } });

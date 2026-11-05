@@ -47,7 +47,7 @@ const D_40 = new Date(HOJE.getTime() - 40 * 24 * 3600 * 1000);
 const D_95 = new Date(HOJE.getTime() - 95 * 24 * 3600 * 1000); // fora da janela de 90d
 
 async function novaEmpresa(tx: Prisma.TransactionClient, sufixo: string) {
-  const marca = await tx.marca.create({ data: { nome: `__smoke_alertas_marca_${sufixo}_${Date.now()}` } });
+  const marca = await tx.marca.create({ data: { nome: `__smoke_alertas_marca_${sufixo}_${Date.now()}`, grupo: { connectOrCreate: { where: { nome: "CI Fixture" }, create: { nome: "CI Fixture" } } } } });
   const empresa = await tx.empresa.create({ data: { nome: `__smoke_alertas_empresa_${sufixo}_${Date.now()}`, marcaId: marca.id } });
   const posicao = await tx.posicao.create({ data: { nome: "__smoke_cargo", empresaId: empresa.id } });
   return { marca, empresa, posicao };

@@ -26,6 +26,22 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.187.0",
+    data: "05/11/2026",
+    horario: "17:30",
+    titulo: "Tela de admin: as marcas que cada conta vê, e login com Google",
+    itens: [
+      "Na tela de Usuários do admin (conta MASTER), cada conta tem o botão \"Marcas\": ali o admin escolhe o grupo e quais marcas a pessoa vê. Dá para deixar alguém só na LM, só numa das outras marcas, ou com várias.",
+      "Vale também para Diretoria e Administrativo: sem nenhuma marca marcada, continuam vendo todas as marcas do grupo; com marca marcada, veem só ela. Quem fica preso a algumas marcas deixa de administrar contas (Usuários e perfis) e de ver a Produtividade do grupo inteiro.",
+      "Avisos de pesquisa e a cópia da cobrança de pendências do RH respeitam essa escolha: ninguém recebe e-mail de marca que não vê. Em Delegações, Diretoria e Administrativo continuam vendo as demandas do grupo.",
+      "As marcas de Diretoria e Administrativo só o admin muda, e o papel de quem tem marca definida pelo admin também. Os vínculos de gestor de RH continuam também em \"Vincular\". Vínculo antigo de gestor que ficou numa conta de Diretoria não restringe nada.",
+      "Quem está preso a algumas marcas também não mexe no cadastro de marcas e CNPJs, e na tela de estrutura vê só as próprias marcas.",
+      "\"Esqueci minha senha\" passa a mandar o link sempre para o e-mail cadastrado na conta, e a busca por e-mail compara o endereço inteiro (antes, \"_\" no e-mail digitado funcionava como coringa).",
+      "Conta de admin criada: login \"master\". A senha é definida pelo próprio dono em \"Esqueci minha senha\", com o link que chega no e-mail da conta. Se já existia uma conta MASTER, nada muda.",
+      "Botão \"Entrar com Google\" na tela de login, para quem já tem usuário com o mesmo Gmail. Gmail sem cadastro é recusado. O botão aparece quando a credencial do Google for cadastrada na Vercel.",
+    ],
+  },
+  {
     versao: "1.186.1",
     data: "05/11/2026",
     horario: "15:45",

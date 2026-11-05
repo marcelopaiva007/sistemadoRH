@@ -69,7 +69,7 @@ const doc = (p: Record<string, unknown>) => ({
 });
 
 async function main() {
-  const marca = await prisma.marca.create({ data: { nome: `Smoke Caixa ${SUFIXO}` } });
+  const marca = await prisma.marca.create({ data: { nome: `Smoke Caixa ${SUFIXO}`, grupo: { connectOrCreate: { where: { nome: "CI Fixture" }, create: { nome: "CI Fixture" } } } } });
   const empA = await prisma.empresa.create({ data: { nome: `Caixa A ${SUFIXO}`, cnpj: CNPJ_A + "", marcaId: marca.id, ativo: true } }).catch(async () =>
     prisma.empresa.create({ data: { nome: `Caixa A ${SUFIXO}`, marcaId: marca.id, ativo: true } }),
   );

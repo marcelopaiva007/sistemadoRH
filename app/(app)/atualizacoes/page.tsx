@@ -1,4 +1,4 @@
-import { requireGestaoUsuarios } from "@/lib/auth-guard";
+import { requireDirecaoOuMaster } from "@/lib/auth-guard";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ATUALIZACOES } from "@/lib/atualizacoes";
@@ -10,7 +10,9 @@ import { versaoDoSistema } from "@/lib/versao";
 // registro editorial versionado no git, não tabela de banco: a trilha de quem
 // escreveu o quê já é o próprio histórico de commits do arquivo.
 export default async function AtualizacoesPage() {
-  await requireGestaoUsuarios();
+  // Toda a Diretoria e Administrativo, inclusive quem está preso a algumas
+  // marcas: o histórico de versões não dá poder sobre o grupo.
+  await requireDirecaoOuMaster();
   const { numero } = versaoDoSistema();
 
   return (

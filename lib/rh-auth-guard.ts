@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { gestorSetorPodeAbrirMeuSetor } from "@/lib/usuarios-regras";
 import { sistemasPermitidos } from "@/lib/permissoes/efetivas";
-import { empresasDoGrupo, grupoDoUsuario } from "@/lib/grupo";
+import { empresasDoGrupo, grupoDoUsuario, marcasMarcadasNoGrupo } from "@/lib/grupo";
 
 // DIRETORIA entra na lista: o papel é GLOBAL (alcança qualquer empresa) —
 // barrá-lo aqui fazia todo clique em empresa voltar para a home, sem mensagem.
@@ -59,7 +59,14 @@ export async function usuarioAlcancaEmpresa(
   // do próprio grupo (e ambos podem escrever — DIRETORIA não é read-only
   // imposta; ver requireEmpresaAccess). Nenhum dos dois passa pelo pivô —
   // exigir vínculo deles devolvia a diretoria para a home a cada clique.
-  if (user.role === "ADMIN" || user.role === "DIRETORIA") return true;
+  // EXCETO quem o admin prendeu a algumas marcas (lib/grupo.ts,
+  // `marcasMarcadasNoGrupo`): esse alcança SÓ os CNPJs dessas marcas — nem
+  // vínculo de CNPJ nem vínculo antigo de gestor abrem outra coisa.
+  if (user.role === "ADMIN" || user.role === "DIRETORIA") {
+    const marcadas = await marcasMarcadasNoGrupo(user.id);
+    if (marcadas.length === 0) return true;
+    return (await empresasDasMarcas(marcadas)).includes(empresaId);
+  }
   if (user.empresas.some((e) => e.empresaId === empresaId && e.ativo)) return true;
 
   // Pode não ter vínculo com este CNPJ e ainda assim alcançá-lo pela marca.
@@ -145,9 +152,14 @@ export async function empresasVisiveis(user: {
   empresas: { empresaId: string; ativo: boolean }[];
 }): Promise<string[]> {
   // Tudo recortado pelo GRUPO do usuário (lib/grupo.ts): ADMIN e DIRETORIA
-  // enxergam o grupo inteiro, e nenhum vínculo leva para fora dele.
+  // enxergam o grupo inteiro, e nenhum vínculo leva para fora dele. Com marca
+  // marcada pelo admin (`marcasMarcadasNoGrupo`), ficam SÓ com os CNPJs dela.
   const doGrupo = await empresasDoGrupo(await grupoDoUsuario(user.id));
-  if (user.role === "ADMIN" || user.role === "DIRETORIA") return doGrupo;
+  if (user.role === "ADMIN" || user.role === "DIRETORIA") {
+    const marcadas = await marcasMarcadasNoGrupo(user.id);
+    if (marcadas.length === 0) return doGrupo;
+    return (await empresasDasMarcas(marcadas)).filter((id) => doGrupo.includes(id));
+  }
 
   const porEmpresa = user.empresas.filter((e) => e.ativo).map((e) => e.empresaId);
   const porMarca = await empresasDasMarcasDoUsuario(user.id);
@@ -186,9 +198,14 @@ async function empresasDasMarcasDoUsuario(userId?: string): Promise<string[]> {
     where: { userId, ativo: true },
     select: { marcaId: true },
   });
-  if (vinculos.length === 0) return [];
+  return empresasDasMarcas(vinculos.map((v) => v.marcaId));
+}
+
+/** CNPJs ativos destas marcas. */
+async function empresasDasMarcas(marcaIds: string[]): Promise<string[]> {
+  if (marcaIds.length === 0) return [];
   const empresas = await prisma.empresa.findMany({
-    where: { marcaId: { in: vinculos.map((v) => v.marcaId) }, ativo: true },
+    where: { marcaId: { in: marcaIds }, ativo: true },
     select: { id: true },
   });
   return empresas.map((e) => e.id);

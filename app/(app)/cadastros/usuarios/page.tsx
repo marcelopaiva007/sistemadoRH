@@ -33,6 +33,16 @@ export default async function UsuariosPage({
   // Sem grupo resolvido, nada aparece — falha fechada.
   const doGrupo = grupoId ?? "__nenhum__";
 
+  // Tela de admin (só o MASTER): as marcas ativas de TODOS os grupos, para a
+  // ação "Marcas que vê" poder trocar a conta de grupo e marcar as do novo.
+  const marcasDeTodosOsGrupos = master
+    ? await prisma.marca.findMany({
+        where: { ativo: true },
+        orderBy: { nome: "asc" },
+        select: { id: true, nome: true, grupoId: true },
+      })
+    : [];
+
   const [usuarios, empresas, setores, marcas, perfis] = await Promise.all([
       // Acessos de portal (funcionários sem login do sistema, criados pelo
       // módulo Delegações) ficam FORA desta lista: eles não operam o sistema,
@@ -167,6 +177,7 @@ export default async function UsuariosPage({
             marcaNome: m.marca.nome,
             ativo: m.ativo,
             foraDoGrupo: m.marca.grupoId !== doGrupo,
+            role: m.role,
           })),
           ficha: u.colaborador && {
             id: u.colaborador.id,
@@ -186,6 +197,11 @@ export default async function UsuariosPage({
         }))}
         currentUserId={admin.id}
         grupoId={master ? (grupoId ?? undefined) : undefined}
+        painelAdmin={
+          master
+            ? { grupos, marcas: marcasDeTodosOsGrupos, grupoAtualId: grupoId }
+            : undefined
+        }
       />
     </div>
   );

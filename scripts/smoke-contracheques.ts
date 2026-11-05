@@ -23,7 +23,7 @@ function ok(cond: boolean, msg: string) {
 const SUFIXO = Date.now().toString(36);
 
 async function main() {
-  const marca = await prisma.marca.create({ data: { nome: `Smoke CC ${SUFIXO}` } });
+  const marca = await prisma.marca.create({ data: { nome: `Smoke CC ${SUFIXO}`, grupo: { connectOrCreate: { where: { nome: "CI Fixture" }, create: { nome: "CI Fixture" } } } } });
   const empresa = await prisma.empresa.create({ data: { nome: `CC ${SUFIXO}`, marcaId: marca.id, ativo: true } });
   const setor = await prisma.setor.create({ data: { empresaId: empresa.id, nome: "Smoke", ativo: true } });
   const posicao = await prisma.posicao.create({ data: { empresaId: empresa.id, nome: "Smoke" } });

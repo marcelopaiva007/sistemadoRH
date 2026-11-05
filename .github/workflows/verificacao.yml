@@ -178,6 +178,8 @@ jobs:
       # do passo vermelho já diz o que quebrou.
       - name: Login e recuperação de senha (usuário ou e-mail, sem maiúsculas)
         run: npx tsx scripts/smoke-identificador-login.ts
+      - name: Marcas que cada conta vê (tela de admin) e login com Google
+        run: npx tsx scripts/smoke-marcas-direcao.ts
       - name: Alertas de RH
         run: npx tsx scripts/smoke-alertas-rh.ts
       - name: Recrutamento (ATS)

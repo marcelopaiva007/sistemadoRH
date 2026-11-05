@@ -1,4 +1,4 @@
-import { whereMarcasDoGrupoDe } from "@/lib/grupo";
+import { marcasMarcadasNoGrupo, whereMarcasDoGrupoDe } from "@/lib/grupo";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
 import { EstruturaView } from "./estrutura-view";
@@ -19,12 +19,21 @@ export default async function EstruturaPage({
   // Criar, editar e excluir CNPJ é do ADMIN (ver lib/actions/rh-estrutura.ts).
   // A tela precisa saber disso: botão que aparece e falha ao clicar é pior que
   // botão ausente — ensina que o sistema está quebrado, não que falta permissão.
-  const podeMexerEmCnpj = usuario.role === "ADMIN";
+  //
+  // Diretoria/Administrativo preso a algumas marcas pela tela de admin
+  // (lib/grupo.ts) vê só a estrutura dessas marcas, e não mexe em nada: mudar
+  // um CNPJ de marca seria o jeito de passar a ver o que o admin fechou.
+  const marcasDaRestricao = await marcasMarcadasNoGrupo(usuario.id);
+  const restrita =
+    (usuario.role === "ADMIN" || usuario.role === "DIRETORIA") && marcasDaRestricao.length > 0;
+  const podeMexerEmCnpj = usuario.role === "ADMIN" && !restrita;
 
   // "O grupo por inteiro" é o GRUPO de sociedade de quem olha (lib/grupo.ts) —
   // as marcas do outro grupo não aparecem nem como nome.
   const marcas = await prisma.marca.findMany({
-    where: whereMarcasDoGrupoDe(usuario.id!),
+    where: restrita
+      ? { AND: [whereMarcasDoGrupoDe(usuario.id!), { id: { in: marcasDaRestricao } }] }
+      : whereMarcasDoGrupoDe(usuario.id!),
     orderBy: { nome: "asc" },
     select: {
       id: true,
