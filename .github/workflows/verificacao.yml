@@ -90,6 +90,8 @@ jobs:
         run: npx tsx scripts/test-ponto-estagio.ts
       - name: Permissões de usuário (sistema nunca fica sem ADMIN)
         run: npx tsx scripts/test-usuarios-permissoes.ts
+      - name: Login da área de admin só devolve para dentro de /admin
+        run: npx tsx scripts/test-admin-volta.ts
       - name: Apuração de pesquisa pergunta a pergunta
         run: npx tsx scripts/test-pesquisa-apuracao.ts
       - name: Entregas ao colaborador (confirmação e devolução)

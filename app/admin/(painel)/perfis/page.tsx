@@ -39,11 +39,16 @@ export default async function PerfisPage() {
         // As contas de todos os grupos: o perfil é um molde comum aos grupos.
         role: { notIn: [PAPEL_PORTAL, "MASTER"] },
       },
-      orderBy: [{ nome: "asc" }],
+      // Ordem por grupo e depois nome; o login e o grupo vão junto porque a
+      // regra é UM login por grupo — a mesma pessoa pode aparecer duas vezes
+      // com o mesmo nome, e dar perfil à conta errada seria fácil sem eles.
+      orderBy: [{ grupo: { nome: "asc" } }, { nome: "asc" }],
       select: {
         id: true,
         nome: true,
+        username: true,
         role: true,
+        grupo: { select: { nome: true } },
         perfis: { select: { perfilId: true } },
       },
     }),
@@ -61,6 +66,8 @@ export default async function PerfisPage() {
   const usuariosComPerfis: UsuarioComPerfis[] = usuarios.map((u) => ({
     id: u.id,
     nome: u.nome,
+    username: u.username,
+    grupoNome: u.grupo?.nome ?? null,
     role: u.role,
     perfilIds: u.perfis.map((p) => p.perfilId),
   }));

@@ -22,7 +22,8 @@ import type { ActionResult } from "@/lib/constants";
 // GRUPOS (v1.186.0): o perfil é um MOLDE compartilhado pelos dois grupos —
 // editar um muda o acesso de gente do outro grupo. Por isso criar, editar e
 // excluir perfil passou a ser só do MASTER. Dar e tirar perfil de uma conta
-// continua com ADMIN/DIRETORIA, mas só para contas do PRÓPRIO grupo.
+// também é só dele desde a v1.188.0 (até ali, ADMIN/DIRETORIA davam perfil às
+// contas do PRÓPRIO grupo — o recorte abaixo ficou como defesa).
 
 /** Quem administra alcança esta conta? MASTER alcança todas; os demais, só as do próprio grupo. */
 async function alcancaConta(userId: string): Promise<boolean> {

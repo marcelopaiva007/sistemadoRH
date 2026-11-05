@@ -100,8 +100,8 @@ export default async function MeuSetorPage() {
           <Alert>
             <AlertDescription>
               O seu login ainda não está ligado à sua ficha de colaborador, e por isso o sistema
-              não sabe quem reporta a você. Peça a quem administra o sistema para fazer a ligação
-              na tela <strong>Usuários</strong> (menu de cima), em <strong>Vincular</strong>. Os
+              não sabe quem reporta a você. Peça ao <strong>administrador do sistema</strong> para
+              fazer a ligação na área de administração (<strong>Usuários → Vincular</strong>). Os
               resultados de clima abaixo não dependem disso e já aparecem.
             </AlertDescription>
           </Alert>
@@ -135,10 +135,10 @@ export default async function MeuSetorPage() {
 //
 // O texto diz o caminho exato da tela que resolve, porque quem lê isto não é
 // quem conserta: o gestor não tem acesso ao cadastro de usuários, e sem o nome
-// do menu a conversa começa por "não está abrindo aqui". Dois cuidados no
-// texto, ambos apanhados em revisão: quem conserta é ADMIN/DIRETORIA — "o RH"
-// (papel RH_MANAGER) não alcança a tela de usuários —, e o item de menu
-// chama-se só "Usuários" (não há menu "Cadastros"; isso é só a URL).
+// do menu a conversa começa por "não está abrindo aqui". Quem conserta, desde a
+// v1.188.0, é o ADMINISTRADOR DO SISTEMA (conta MASTER), na área de
+// administração (/admin → Usuários → Vincular) — Diretoria, Administrativo e
+// "o RH" não alcançam mais a tela de usuários.
 function AcessoIncompleto({ nome }: { nome: string }) {
   return (
     <div className="space-y-6">
@@ -158,10 +158,10 @@ function AcessoIncompleto({ nome }: { nome: string }) {
             nesta tela.
           </p>
           <p>
-            Peça a quem administra o sistema (perfil Administrativo ou Diretoria) para abrir a
-            tela <strong>Usuários</strong>, no menu de cima, clicar em <strong>Vincular</strong>{" "}
-            no seu nome e escolher a empresa e o setor. Feito isso, basta recarregar esta página
-            — e, se não aparecer, sair e entrar de novo.
+            Peça ao <strong>administrador do sistema</strong> para abrir a área de administração,
+            em <strong>Usuários</strong>, clicar em <strong>Vincular</strong> no seu nome e escolher
+            a empresa e o setor. Feito isso, basta recarregar esta página — e, se não aparecer, sair
+            e entrar de novo.
           </p>
         </AlertDescription>
       </Alert>

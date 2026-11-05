@@ -5,6 +5,7 @@ import { FastmaiLogo } from "@/components/logo-fastmai";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { versaoDoSistema } from "@/lib/versao";
 import { ehMaster } from "@/lib/grupo";
+import { CAMINHO_PADRAO_DO_ADMIN, voltaDoAdmin } from "@/lib/admin-volta";
 import { AdminLoginForm } from "./admin-login-form";
 
 /**
@@ -19,10 +20,17 @@ import { AdminLoginForm } from "./admin-login-form";
  * com quem está e por que não entrou: o proxy e as páginas do painel mandam
  * para cá qualquer conta que não seja a de administrador.
  */
-export default async function AdminLoginPage() {
+export default async function AdminLoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ volta?: string }>;
+}) {
+  // Para onde voltar depois de entrar (o proxy guarda o endereço pedido) —
+  // só caminho dentro de /admin (lib/admin-volta.ts).
+  const destino = voltaDoAdmin((await searchParams).volta) ?? CAMINHO_PADRAO_DO_ADMIN;
   const session = await auth();
   const user = session?.user;
-  if (user && ehMaster(user)) redirect("/admin");
+  if (user && ehMaster(user)) redirect(destino);
   const outraConta = user ? (user.name ?? user.username) : null;
   const versao = versaoDoSistema();
 
@@ -54,7 +62,8 @@ export default async function AdminLoginPage() {
             <Alert className="mt-6">
               <AlertDescription>
                 Você está conectado no sistema como <strong>{outraConta}</strong>, que não é a conta de
-                administrador. Entre abaixo com a conta de administrador, ou{" "}
+                administrador. Entrar abaixo com a conta de administrador troca a sessão deste
+                navegador — para usar as duas ao mesmo tempo, abra o admin numa janela anônima. Ou{" "}
                 <Link href="/" className="font-semibold text-primary hover:underline">
                   volte ao sistema
                 </Link>
@@ -63,7 +72,7 @@ export default async function AdminLoginPage() {
             </Alert>
           )}
           <div className="mt-8">
-            <AdminLoginForm />
+            <AdminLoginForm destino={destino} />
           </div>
           <div className="mt-10 border-t-2 border-border pt-5 text-sm text-muted-foreground">
             Procurando o sistema do RH?{" "}

@@ -27,8 +27,9 @@ export async function requireRHAccess() {
 //
 // ATENÇÃO — DIRETORIA **não** é somente-consulta imposta. O papel é de consulta
 // na INTENÇÃO, mas nenhuma escrita do módulo RH é bloqueada para ela hoje, por
-// decisão (a diretoria pode inclusive se promover a ADMIN pela tela de
-// usuários). Não trate "diretoria read-only" como fronteira de segurança: se um
+// decisão. (Até a v1.187.0 ela podia até se promover a ADMIN pela tela de
+// usuários; desde a v1.188.0 contas são só do MASTER, na área de admin.) Não
+// trate "diretoria read-only" como fronteira de segurança: se um
 // dia isso precisar valer de verdade, é enforcement a construir, não algo que já
 // existe. (Pentest 27/08/2026 apontou o comentário antigo como promessa falsa.)
 /**

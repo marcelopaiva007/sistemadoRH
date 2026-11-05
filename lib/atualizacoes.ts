@@ -37,7 +37,10 @@ export const ATUALIZACOES: Atualizacao[] = [
       "Os endereços antigos (/usuarios e /cadastros/...) levam para a área de administração.",
       "A Produtividade RH continua com Diretoria e Administrativo que veem o grupo inteiro.",
       "A conta de administrador troca a própria senha em \"Minha senha\", no menu do nome, dentro do /admin. Ao entrar pelo login do sistema, ela vai direto para a área de administração.",
-      "Em Delegações, o aviso de quem ainda não tem acesso ao módulo passa a dizer para pedir a liberação ao administrador do sistema.",
+      "Diretoria e Administrativo têm o atalho \"Área de administração\" no menu do nome e na tela Conta, com o endereço à vista. Entrar lá é com a conta de administrador, e isso troca a sessão do navegador: para usar as duas juntas, abra o admin numa janela anônima.",
+      "O e-mail de \"Esqueci minha senha\" da conta de administrador já traz o endereço do admin, e depois de criar a senha a tela leva direto ao login do admin.",
+      "Em Perfis de acesso, cada conta aparece com o login e o grupo, porque a mesma pessoa pode ter um login em cada grupo.",
+      "Em Delegações e em Meu Setor, os avisos passam a dizer para pedir ao administrador do sistema a liberação de acesso e a ligação do login com a ficha e o setor.",
     ],
   },
   {

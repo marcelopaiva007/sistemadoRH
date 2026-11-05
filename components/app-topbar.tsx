@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { ChevronDown, KeyRound, LogOut } from "lucide-react";
+import { ChevronDown, KeyRound, LogOut, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { navByRole, globalNavByRole } from "@/components/nav-config";
 import { FastmaiLogo } from "@/components/logo-fastmai";
@@ -67,6 +67,7 @@ export function AppTopbar({
   empresas,
   sistemasPermitidos,
   direcaoRestrita = false,
+  enderecoAdmin = null,
 }: {
   role: string;
   nome: string;
@@ -83,6 +84,9 @@ export function AppTopbar({
   /** ADMIN/DIRETORIA preso a algumas marcas pela área de admin: sem painel do
    *  grupo inteiro (ver `direcaoRestrita`, lib/grupo.ts). */
   direcaoRestrita?: boolean;
+  /** Ex.: "rh.assinelm.com/admin". Só para Diretoria e Administrativo: o
+   *  atalho para a área de administração, com o endereço à vista. */
+  enderecoAdmin?: string | null;
 }) {
   const pathname = usePathname();
   // Papel desconhecido não herda menu nenhum (falha fechada): as páginas têm
@@ -168,6 +172,26 @@ export function AppTopbar({
               );
             })}
             {itensDoMenu.length > 0 && <DropdownMenuSeparator />}
+            {/* Atalho para a área de administração (v1.188.0), pedido do dono:
+                quem está logado com a conta do dia a dia não precisa decorar o
+                endereço. A conta de administrador é outra — a tela de login de
+                lá explica isso e mostra com que conta a pessoa está. */}
+            {enderecoAdmin && (
+              <>
+                <DropdownMenuItem
+                  render={<Link href="/admin/login" />}
+                  title="Usuários, grupos e perfis de acesso. Entra com a conta de administrador."
+                  className="items-start"
+                >
+                  <ShieldCheck className="mt-0.5" />
+                  <span className="flex min-w-0 flex-col">
+                    <span>Área de administração</span>
+                    <span className="truncate font-mono text-[11px] text-muted-foreground">{enderecoAdmin}</span>
+                  </span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+              </>
+            )}
             <DropdownMenuItem
               render={<Link href="/conta" />}
               className={cn(pathname === "/conta" && "font-extrabold text-primary")}

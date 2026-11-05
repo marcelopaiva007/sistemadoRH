@@ -9,6 +9,7 @@ import { Providers } from "@/app/providers";
 // A versão vem daqui, não da barra: o commit só existe no ambiente do
 // servidor, e a barra é componente de cliente.
 import { versaoDoSistema } from "@/lib/versao";
+import { enderecoDaAreaAdmin } from "@/lib/area-admin";
 
 export default async function AppLayout({
   children,
@@ -53,6 +54,9 @@ export default async function AppLayout({
           empresas={empresas}
           sistemasPermitidos={sistemas}
           direcaoRestrita={await direcaoRestrita(user)}
+          enderecoAdmin={
+            user.role === "ADMIN" || user.role === "DIRETORIA" ? enderecoDaAreaAdmin() : null
+          }
         />
         {/* `overflow-x-clip`, e não `hidden`, onde o navegador entende `clip`.
             `hidden` num eixo força o outro a `auto` e transforma o <main> em

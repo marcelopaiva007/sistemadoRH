@@ -105,11 +105,19 @@ export async function solicitarRecuperacaoSenha(_prev: ActionResult, formData: F
 
     const baseUrl = process.env.NEXTAUTH_URL ?? process.env.APP_URL ?? "http://localhost:3000";
     const link = `${baseUrl}/redefinir-senha/${token}`;
+    // A conta de administrador (MASTER) entra por outra porta desde a v1.188.0:
+    // o e-mail já diz qual, para o endereço não depender de memória.
+    const ehContaAdmin = user.role === "MASTER";
 
     const html = `
       <p>Olá, ${user.nome},</p>
       <p>Recebemos um pedido para redefinir sua senha no sistema de RH.</p>
-      <p>Seu usuário de acesso é <b>${user.username}</b> — no login, vale ele ou este e-mail.</p>
+      <p>Seu usuário de acesso é <b>${user.username}</b> — no login, vale ele ou este e-mail.</p>${
+        ehContaAdmin
+          ? `
+      <p>Esta é a conta de <b>administrador do sistema</b>. Depois de criar a senha, entre pela área de administração: <a href="${baseUrl}/admin/login">${baseUrl.replace(/^https?:\/\//, "")}/admin</a>.</p>`
+          : ""
+      }
       <p>Para criar uma senha nova, clique abaixo. O link expira em ${RECUPERACAO_EXPIRA_EM_HORAS} hora.</p>
       <p style="margin:24px 0">
         <a href="${link}" style="background:#0f172a;color:white;padding:12px 20px;border-radius:6px;text-decoration:none;display:inline-block">Redefinir senha</a>
@@ -128,7 +136,9 @@ export async function solicitarRecuperacaoSenha(_prev: ActionResult, formData: F
       to: user.email ?? email,
       subject: "Redefinição de senha — Sistema de RH",
       html,
-      text: `Seu usuário de acesso é ${user.username} (no login, vale ele ou este e-mail). Acesse ${link} para redefinir sua senha. O link expira em ${RECUPERACAO_EXPIRA_EM_HORAS} hora.`,
+      text: `Seu usuário de acesso é ${user.username} (no login, vale ele ou este e-mail).${
+        ehContaAdmin ? ` Esta é a conta de administrador do sistema: depois de criar a senha, entre por ${baseUrl}/admin/login.` : ""
+      } Acesse ${link} para redefinir sua senha. O link expira em ${RECUPERACAO_EXPIRA_EM_HORAS} hora.`,
       chave: `recuperacao-senha:${tokenHash}`,
     });
 
@@ -169,7 +179,16 @@ const redefinirSchema = z.object({
   senha: z.string().min(8, "A senha deve ter pelo menos 8 caracteres."),
 });
 
-export async function redefinirSenhaComToken(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
+/**
+ * Além do resultado, diz para onde a tela leva a pessoa depois: a conta de
+ * administrador (MASTER) vai para o login DA ÁREA DE ADMIN — sem isso, quem
+ * estivesse logado no mesmo navegador com a conta do dia a dia caía na home do
+ * RH ao abrir /login, e precisava lembrar o endereço do admin.
+ */
+export async function redefinirSenhaComToken(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult & { destino?: string }> {
   const parsed = redefinirSchema.safeParse({
     token: formData.get("token"),
     senha: formData.get("senha"),
@@ -180,7 +199,7 @@ export async function redefinirSenhaComToken(_prev: ActionResult, formData: Form
 
   const user = await prisma.user.findFirst({
     where: { recuperacaoSenhaTokenHash: tokenHash },
-    select: { id: true, nome: true, recuperacaoSenhaExpiraEm: true },
+    select: { id: true, nome: true, role: true, recuperacaoSenhaExpiraEm: true },
   });
   if (!user) return { ok: false, error: "Link inválido ou já utilizado." };
   if (!user.recuperacaoSenhaExpiraEm || user.recuperacaoSenhaExpiraEm < new Date()) {
@@ -205,5 +224,5 @@ export async function redefinirSenhaComToken(_prev: ActionResult, formData: Form
     resumo: `${user.nome} redefiniu a própria senha pelo link de e-mail`,
   });
 
-  return { ok: true };
+  return { ok: true, destino: user.role === "MASTER" ? "/admin/login" : "/login" };
 }

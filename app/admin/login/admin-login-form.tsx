@@ -16,7 +16,7 @@ import { motivoDaFalhaDeLogin } from "@/lib/actions/login";
 // dando certo, vai para /admin. Se a conta digitada não for a de
 // administrador, o proxy devolve para esta tela — que então mostra com que
 // conta a pessoa entrou e que ela não administra o sistema.
-export function AdminLoginForm() {
+export function AdminLoginForm({ destino = "/admin" }: { destino?: string }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -41,7 +41,8 @@ export function AdminLoginForm() {
         return;
       }
 
-      router.push("/admin");
+      // `destino` já vem validado pela página (só caminho dentro de /admin).
+      router.push(destino);
       router.refresh();
     });
   }
