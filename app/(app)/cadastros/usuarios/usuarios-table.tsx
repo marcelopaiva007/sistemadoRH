@@ -1,8 +1,22 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { Fragment, useActionState, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Mail, KeyRound, Link2, Link2Off, Power, PowerOff } from "lucide-react";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  Mail,
+  KeyRound,
+  Link2,
+  Link2Off,
+  Power,
+  PowerOff,
+  Search,
+  MoreVertical,
+  ChevronDown,
+  TriangleAlert,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,6 +49,14 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
 import {
   createUsuario,
   updateUsuario,
@@ -153,157 +175,218 @@ export function UsuariosTable({
   const [conviteUsuario, setConviteUsuario] = useState<Usuario | null>(null);
   const [resetUsuario, setResetUsuario] = useState<Usuario | null>(null);
   const [vincularUsuario, setVincularUsuario] = useState<Usuario | null>(null);
+  const [excluirUsuario, setExcluirUsuario] = useState<Usuario | null>(null);
+  const [aba, setAba] = useState<AbaStatus>("ATIVOS");
+  const [busca, setBusca] = useState("");
+  const [filtroPapel, setFiltroPapel] = useState<string>("TODOS");
+  const [filtroMarca, setFiltroMarca] = useState<string>("TODAS");
+  const [inativosAbertos, setInativosAbertos] = useState(true);
+
+  const pendencias = calcularPendencias(usuarios);
+  const totalAtivos = usuarios.filter((u) => u.ativo).length;
+  const totalInativos = usuarios.length - totalAtivos;
+
+  // Busca e filtros valem para as duas seções (ativos e inativos). A aba só
+  // decide QUAIS seções aparecem — assim os contadores das abas mostram o
+  // total real, e não o recorte da busca.
+  const termo = normalizar(busca.trim());
+  const marcaDaEmpresa = new Map(empresas.map((e) => [e.id, e.marcaId]));
+  const filtrados = usuarios.filter((u) => {
+    if (filtroPapel !== "TODOS" && u.role !== filtroPapel) return false;
+    if (filtroMarca !== "TODAS") {
+      const temMarca =
+        u.marcasVinculadas.some((m) => m.marcaId === filtroMarca) ||
+        u.empresas.some((e) => marcaDaEmpresa.get(e.empresaId) === filtroMarca) ||
+        // Administrativo e Diretoria enxergam todas as empresas do grupo.
+        u.role === "ADMIN" ||
+        u.role === "DIRETORIA";
+      if (!temMarca) return false;
+    }
+    if (termo) {
+      const alvo = normalizar(`${u.nome} ${u.username} ${u.email ?? ""}`);
+      if (!alvo.includes(termo)) return false;
+    }
+    return true;
+  });
+  const ativosFiltrados = filtrados.filter((u) => u.ativo);
+  const inativosFiltrados = filtrados.filter((u) => !u.ativo);
+  const mostraAtivos = aba !== "INATIVOS";
+  const mostraInativos = aba !== "ATIVOS" || inativosFiltrados.length > 0;
+
+  const acoesDaLinha = {
+    currentUserId,
+    pendencias,
+    onEditar: setEditUsuario,
+    onVincular: setVincularUsuario,
+    onConvidar: setConviteUsuario,
+    onSenha: setResetUsuario,
+    onExcluir: setExcluirUsuario,
+  };
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
-        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogTrigger render={<Button />}>
-            <Plus className="size-4" />
-            Novo Usuário
-          </DialogTrigger>
-          <DialogContent>
-            <UsuarioForm
-              action={createUsuario}
-              title="Novo Usuário"
-              empresas={empresas}
-              setores={setores}
-              marcas={marcas}
-              perfis={perfis}
-              onSuccess={() => setCreateOpen(false)}
-            />
-          </DialogContent>
-        </Dialog>
-      </div>
+      <section aria-label="Resumo" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <CartaoResumo rotulo="Total de contas" valor={usuarios.length} />
+        <CartaoResumo rotulo="Ativas" valor={totalAtivos} tom="ok" />
+        <CartaoResumo rotulo="Inativas" valor={totalInativos} tom="neutro" />
+        <CartaoResumo rotulo="Cadastros com pendência" valor={pendencias.total} tom={pendencias.total > 0 ? "alerta" : "neutro"} />
+      </section>
 
-      <div className="rounded-md border bg-background">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Nome</TableHead>
-              <TableHead>Login</TableHead>
-              <TableHead>E-mail</TableHead>
-              <TableHead>Papel</TableHead>
-              {/* "Acesso" e não "Empresas": a coluna mistura marca e CNPJ. */}
-              <TableHead>Acesso</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="w-44 text-right">Ações</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {usuarios.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
-                  Nenhum usuário cadastrado ainda.
-                </TableCell>
-              </TableRow>
-            )}
-            {usuarios.map((u) => (
-              <TableRow key={u.id}>
-                <TableCell className="font-medium">
-                  {u.nome}
-                  {u.id === currentUserId && (
-                    <span className="ml-2 text-xs text-muted-foreground">(você)</span>
-                  )}
-                  {/* Mostrado só quando a ficha tem outro nome: repetir o mesmo
-                      nome duas vezes na célula não informa nada. O que importa
-                      aqui é ver de relance quem NÃO tem ficha ligada. */}
-                  {u.ficha && (
-                    <p className="text-xs font-normal text-muted-foreground">
-                      ficha: {u.ficha.nome === u.nome ? u.ficha.setorNome : u.ficha.nome}
-                    </p>
-                  )}
-                </TableCell>
-                <TableCell>{u.username}</TableCell>
-                <TableCell className="text-muted-foreground">{u.email ?? "—"}</TableCell>
-                <TableCell>
-                  <Badge variant={u.role === "ADMIN" ? "default" : "secondary"}>
-                    {ROLE_LABEL[u.role] ?? u.role}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <div className="flex flex-wrap gap-1">
-                    {u.empresas.length === 0 && u.marcasVinculadas.length === 0 && (
-                      <span className="text-xs text-muted-foreground">—</span>
-                    )}
-                    {/* Marca primeiro, com variante própria: esse vínculo cobre
-                        CNPJs que nem aparecem nos badges ao lado. */}
-                    {u.marcasVinculadas.map((v) => (
-                      <Badge
-                        key={`marca-${v.marcaId}`}
-                        variant="secondary"
-                        className={!v.ativo ? "opacity-50 line-through" : undefined}
-                        title={`${v.marcaNome} · marca — todos os CNPJs, inclusive os cadastrados depois`}
-                      >
-                        {v.marcaNome} · marca
-                      </Badge>
-                    ))}
-                    {u.empresas.map((v) => (
-                      <Badge
-                        key={v.empresaId}
-                        variant={v.ativo ? "outline" : "outline"}
-                        className={!v.ativo ? "opacity-50 line-through" : undefined}
-                        title={
-                          v.setorNome
-                            ? `${v.empresaNome} · ${PAPEL_LABEL[v.role] ?? v.role} · ${v.setorNome}${v.papelPrincipal ? " (principal)" : ""}`
-                            : `${v.empresaNome} · ${PAPEL_LABEL[v.role] ?? v.role}${v.papelPrincipal ? " (principal)" : ""}`
-                        }
-                      >
-                        {v.empresaNome}
-                        {v.papelPrincipal ? " ★" : ""}
-                      </Badge>
-                    ))}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <Badge variant={u.ativo ? "outline" : "destructive"}>
-                    {u.ativo ? "Ativo" : "Inativo"}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex justify-end gap-1">
-                    <ToggleStatusButton usuario={u} />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      title="Editar"
-                      onClick={() => setEditUsuario(u)}
-                    >
-                      <Pencil className="size-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      title="Vincular empresa"
-                      onClick={() => setVincularUsuario(u)}
-                    >
-                      <Link2 className="size-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      title="Convidar por e-mail"
-                      onClick={() => setConviteUsuario(u)}
-                    >
-                      <Mail className="size-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      title="Redefinir senha"
-                      onClick={() => setResetUsuario(u)}
-                    >
-                      <KeyRound className="size-4" />
-                    </Button>
-                    {u.id !== currentUserId && <DeleteUsuarioButton usuario={u} />}
-                  </div>
-                </TableCell>
-              </TableRow>
+      <section className="overflow-hidden rounded-xl border bg-background">
+        <div className="flex flex-wrap items-center gap-3 border-b p-3">
+          <div role="tablist" aria-label="Status das contas" className="inline-flex rounded-lg bg-muted p-1">
+            {(
+              [
+                ["ATIVOS", "Ativos", totalAtivos],
+                ["INATIVOS", "Inativos", totalInativos],
+                ["TODOS", "Todos", usuarios.length],
+              ] as const
+            ).map(([valor, rotulo, qtd]) => (
+              <button
+                key={valor}
+                type="button"
+                role="tab"
+                aria-selected={aba === valor}
+                onClick={() => setAba(valor)}
+                className={cn(
+                  "inline-flex h-8 items-center gap-2 rounded-md px-3 text-sm transition-colors",
+                  aba === valor
+                    ? "bg-background font-semibold text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {rotulo}
+                <span className="rounded-full bg-muted-foreground/10 px-2 text-xs font-semibold tabular-nums">{qtd}</span>
+              </button>
             ))}
-          </TableBody>
-        </Table>
-      </div>
+          </div>
 
+          <label className="flex h-9 min-w-56 flex-1 items-center gap-2 rounded-md border px-3 text-muted-foreground focus-within:ring-2 focus-within:ring-ring">
+            <Search className="size-4 shrink-0" aria-hidden />
+            <span className="sr-only">Buscar usuário</span>
+            <input
+              type="search"
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Buscar por nome, login ou e-mail"
+              className="h-full flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
+            />
+          </label>
+
+          <label className="flex items-center gap-2 text-sm text-muted-foreground">
+            Papel
+            <select
+              value={filtroPapel}
+              onChange={(e) => setFiltroPapel(e.target.value)}
+              className="h-9 rounded-md border bg-background px-2 text-sm text-foreground"
+            >
+              <option value="TODOS">Todos os papéis</option>
+              {ROLES.map((r) => (
+                <option key={r.value} value={r.value}>{r.label}</option>
+              ))}
+            </select>
+          </label>
+
+          {marcas.length > 0 && (
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+              Marca
+              <select
+                value={filtroMarca}
+                onChange={(e) => setFiltroMarca(e.target.value)}
+                className="h-9 rounded-md border bg-background px-2 text-sm text-foreground"
+              >
+                <option value="TODAS">Todas as marcas</option>
+                {marcas.map((m) => (
+                  <option key={m.id} value={m.id}>{m.nome}</option>
+                ))}
+              </select>
+            </label>
+          )}
+
+          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+            <DialogTrigger render={<Button className="ml-auto" />}>
+              <Plus className="size-4" />
+              Novo usuário
+            </DialogTrigger>
+            <DialogContent>
+              <UsuarioForm
+                action={createUsuario}
+                title="Novo Usuário"
+                empresas={empresas}
+                setores={setores}
+                marcas={marcas}
+                perfis={perfis}
+                onSuccess={() => setCreateOpen(false)}
+              />
+            </DialogContent>
+          </Dialog>
+        </div>
+
+        {pendencias.total > 0 && (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200">
+            <TriangleAlert className="size-4 shrink-0" aria-hidden />
+            <strong className="font-semibold">
+              {pendencias.total === 1 ? "1 cadastro precisa" : `${pendencias.total} cadastros precisam`} de atenção:
+            </strong>
+            <span>{pendencias.resumo.join(" · ")}</span>
+          </div>
+        )}
+
+        {mostraAtivos && (
+          <TabelaUsuarios
+            usuarios={ativosFiltrados}
+            agruparPorPapel
+            vazio={termo || filtroPapel !== "TODOS" || filtroMarca !== "TODAS" ? "Nenhum usuário ativo com esses filtros." : "Nenhum usuário ativo."}
+            {...acoesDaLinha}
+          />
+        )}
+        {!mostraAtivos && (
+          <TabelaUsuarios
+            usuarios={inativosFiltrados}
+            agruparPorPapel={false}
+            inativos
+            vazio="Nenhum usuário inativo."
+            {...acoesDaLinha}
+          />
+        )}
+      </section>
+
+      {/* Na aba Ativos (padrão) e em Todos, os inativos ficam numa seção
+          própria embaixo — fora da lista de quem opera o sistema, mas à vista. */}
+      {mostraAtivos && mostraInativos && (
+        <section className="overflow-hidden rounded-xl border border-dashed bg-muted/30">
+          <button
+            type="button"
+            aria-expanded={inativosAbertos}
+            onClick={() => setInativosAbertos((v) => !v)}
+            className="flex w-full items-center gap-2 px-4 py-3 text-left hover:bg-muted/50"
+          >
+            <ChevronDown className={cn("size-4 text-muted-foreground transition-transform", !inativosAbertos && "-rotate-90")} aria-hidden />
+            <h2 className="text-sm font-semibold text-foreground/80">Usuários inativos</h2>
+            <span className="rounded-full bg-muted px-2 text-xs font-semibold tabular-nums">{inativosFiltrados.length}</span>
+            <span className="text-sm text-muted-foreground">— sem acesso aos sistemas; ficam aqui para histórico.</span>
+          </button>
+          {inativosAbertos && (
+            <div className="border-t">
+              <TabelaUsuarios
+                usuarios={inativosFiltrados}
+                agruparPorPapel={false}
+                inativos
+                vazio="Nenhum usuário inativo com esses filtros."
+                {...acoesDaLinha}
+              />
+            </div>
+          )}
+        </section>
+      )}
+
+      <Dialog open={!!excluirUsuario} onOpenChange={(open) => !open && setExcluirUsuario(null)}>
+        <DialogContent>
+          {excluirUsuario && (
+            <ExcluirUsuarioConfirmacao usuario={excluirUsuario} onFim={() => setExcluirUsuario(null)} />
+          )}
+        </DialogContent>
+      </Dialog>
       <Dialog open={!!editUsuario} onOpenChange={(open) => !open && setEditUsuario(null)}>
         <DialogContent>
           {editUsuario && (
@@ -1293,66 +1376,423 @@ function ConviteForm({
   );
 }
 
-function ToggleStatusButton({ usuario }: { usuario: Usuario }) {
-  const [loading, setLoading] = useState(false);
+// ─── Organização da lista ──────────────────────────────────────────────────
 
-  async function handleToggle() {
-    setLoading(true);
-    const result = await toggleStatusUsuario(usuario.id);
-    setLoading(false);
-    if (result.ok) {
-      toast.success(usuario.ativo ? "Usuário desativado." : "Usuário ativado.");
-    } else {
-      toast.error(result.error);
-    }
+type AbaStatus = "ATIVOS" | "INATIVOS" | "TODOS";
+
+function normalizar(texto: string) {
+  return texto.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+}
+
+// Só para exibir: nomes cadastrados TODOS EM MAIÚSCULAS aparecem como os
+// demais. O cadastro não muda — editar o usuário mostra o nome como foi gravado.
+const PARTICULAS = new Set(["da", "das", "de", "do", "dos", "e"]);
+function nomeExibicao(nome: string) {
+  if (nome !== nome.toUpperCase()) return nome;
+  return nome
+    .toLowerCase()
+    .split(/\s+/)
+    .map((p, i) => (i > 0 && PARTICULAS.has(p) ? p : p.charAt(0).toUpperCase() + p.slice(1)))
+    .join(" ");
+}
+
+function iniciais(nome: string) {
+  const partes = nome.split(/\s+/).filter((p) => p && !PARTICULAS.has(p.toLowerCase()));
+  const primeira = partes[0]?.[0] ?? "?";
+  const ultima = partes.length > 1 ? partes[partes.length - 1][0] : "";
+  return (primeira + ultima).toUpperCase();
+}
+
+type Pendencia = "SEM_EMAIL" | "EMAIL_DUPLICADO" | "LOGIN_EMAIL" | "SEM_ACESSO";
+const PENDENCIA_ROTULO: Record<Pendencia, string> = {
+  SEM_EMAIL: "Sem e-mail",
+  EMAIL_DUPLICADO: "Possível duplicado",
+  LOGIN_EMAIL: "Login inválido",
+  SEM_ACESSO: "Sem empresa",
+};
+const PENDENCIA_DICA: Record<Pendencia, string> = {
+  SEM_EMAIL: "Sem e-mail a pessoa não recebe convite nem recupera a senha sozinha.",
+  EMAIL_DUPLICADO: "Outra conta usa o mesmo e-mail — provavelmente a mesma pessoa com dois logins.",
+  LOGIN_EMAIL: "O login está com um e-mail. Confira se o e-mail não foi digitado no campo errado.",
+  SEM_ACESSO: "Gestor sem marca nem CNPJ ativo: entra no sistema mas não enxerga nenhuma empresa.",
+};
+
+function calcularPendencias(usuarios: Usuario[]) {
+  const porEmail = new Map<string, number>();
+  for (const u of usuarios) {
+    const e = u.email?.trim().toLowerCase();
+    if (e) porEmail.set(e, (porEmail.get(e) ?? 0) + 1);
   }
 
+  const porUsuario = new Map<string, Pendencia[]>();
+  const contagem: Record<Pendencia, number> = { SEM_EMAIL: 0, EMAIL_DUPLICADO: 0, LOGIN_EMAIL: 0, SEM_ACESSO: 0 };
+  for (const u of usuarios) {
+    const lista: Pendencia[] = [];
+    const email = u.email?.trim().toLowerCase();
+    if (!email) lista.push("SEM_EMAIL");
+    else if ((porEmail.get(email) ?? 0) > 1) lista.push("EMAIL_DUPLICADO");
+    if (u.username.includes("@")) lista.push("LOGIN_EMAIL");
+    const precisaVinculo = u.role === "RH_MANAGER" || u.role === "GESTOR_SETOR";
+    if (precisaVinculo && u.ativo && !u.empresas.some((e) => e.ativo) && !u.marcasVinculadas.some((m) => m.ativo)) {
+      lista.push("SEM_ACESSO");
+    }
+    if (lista.length > 0) porUsuario.set(u.id, lista);
+    for (const p of lista) contagem[p]++;
+  }
+
+  const resumo: string[] = [];
+  if (contagem.SEM_EMAIL) resumo.push(`${contagem.SEM_EMAIL} sem e-mail`);
+  if (contagem.EMAIL_DUPLICADO) resumo.push(`${contagem.EMAIL_DUPLICADO} contas com e-mail repetido`);
+  if (contagem.LOGIN_EMAIL) resumo.push(`${contagem.LOGIN_EMAIL} com e-mail no lugar do login`);
+  if (contagem.SEM_ACESSO) resumo.push(`${contagem.SEM_ACESSO} gestor(es) sem empresa`);
+
+  return { porUsuario, total: porUsuario.size, resumo };
+}
+
+function CartaoResumo({
+  rotulo,
+  valor,
+  tom = "padrao",
+}: {
+  rotulo: string;
+  valor: number;
+  tom?: "padrao" | "ok" | "neutro" | "alerta";
+}) {
   return (
-    <Button
-      variant="ghost"
-      size="icon"
-      onClick={handleToggle}
-      disabled={loading}
-      title={usuario.ativo ? "Desativar usuário" : "Ativar usuário"}
-    >
-      {usuario.ativo ? (
-        <Power className="size-4" />
-      ) : (
-        <PowerOff className="size-4 text-destructive" />
+    <div
+      className={cn(
+        "rounded-xl border bg-background px-4 py-3",
+        tom === "alerta" && "border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/40",
       )}
-    </Button>
+    >
+      <p className={cn("text-xs font-medium text-muted-foreground", tom === "alerta" && "text-amber-900 dark:text-amber-200")}>
+        {rotulo}
+      </p>
+      <p
+        className={cn(
+          "mt-1 text-2xl font-bold tabular-nums",
+          tom === "ok" && "text-emerald-700 dark:text-emerald-400",
+          tom === "neutro" && "text-muted-foreground",
+          tom === "alerta" && "text-amber-900 dark:text-amber-200",
+        )}
+      >
+        {valor}
+      </p>
+    </div>
   );
 }
 
-function DeleteUsuarioButton({ usuario }: { usuario: Usuario }) {
-  const [confirming, setConfirming] = useState(false);
+type AcoesDaLinha = {
+  currentUserId: string;
+  pendencias: ReturnType<typeof calcularPendencias>;
+  onEditar: (u: Usuario) => void;
+  onVincular: (u: Usuario) => void;
+  onConvidar: (u: Usuario) => void;
+  onSenha: (u: Usuario) => void;
+  onExcluir: (u: Usuario) => void;
+};
 
-  async function handleDelete() {
-    const result = await deleteUsuario(usuario.id);
+function TabelaUsuarios({
+  usuarios,
+  agruparPorPapel,
+  inativos = false,
+  vazio,
+  ...acoes
+}: AcoesDaLinha & {
+  usuarios: Usuario[];
+  agruparPorPapel: boolean;
+  inativos?: boolean;
+  vazio: string;
+}) {
+  // Diretoria primeiro: é quem manda na tela. Papel fora da lista vai ao fim.
+  const ordemPapel = ["DIRETORIA", "ADMIN", "RH_MANAGER", "GESTOR_SETOR"];
+  const grupos = agruparPorPapel
+    ? [...new Set(usuarios.map((u) => u.role))]
+        .sort((a, b) => (ordemPapel.indexOf(a) + 1 || 99) - (ordemPapel.indexOf(b) + 1 || 99))
+        .map((papel) => ({ papel, lista: usuarios.filter((u) => u.role === papel) }))
+    : [{ papel: null as string | null, lista: usuarios }];
+
+  return (
+    <div className="overflow-x-auto">
+      <Table>
+        <TableHeader>
+          <TableRow className="bg-muted/40">
+            <TableHead className="w-[34%]">Usuário</TableHead>
+            <TableHead className="w-[24%]">E-mail</TableHead>
+            {!agruparPorPapel && <TableHead>Papel</TableHead>}
+            {/* "Acesso" e não "Empresas": a coluna mistura marca e CNPJ. */}
+            <TableHead>Acesso</TableHead>
+            <TableHead className="w-24">Status</TableHead>
+            <TableHead className="w-32 text-right">Ações</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {usuarios.length === 0 && (
+            <TableRow>
+              <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+                {vazio}
+              </TableCell>
+            </TableRow>
+          )}
+          {grupos.map(({ papel, lista }) => (
+            <Fragment key={papel ?? "todos"}>
+              {papel && (
+                <TableRow className="bg-muted/40 hover:bg-muted/40">
+                  <TableCell colSpan={6} className="py-1.5 text-xs font-semibold text-foreground/80">
+                    {ROLE_LABEL[papel] ?? papel}
+                    <span className="ml-2 rounded-full bg-muted px-2 py-0.5 tabular-nums">{lista.length}</span>
+                  </TableCell>
+                </TableRow>
+              )}
+              {lista.map((u) => (
+                <LinhaUsuario key={u.id} usuario={u} mostrarPapel={!agruparPorPapel} inativo={inativos} {...acoes} />
+              ))}
+            </Fragment>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+function LinhaUsuario({
+  usuario: u,
+  mostrarPapel,
+  inativo,
+  currentUserId,
+  pendencias,
+  ...acoes
+}: AcoesDaLinha & { usuario: Usuario; mostrarPapel: boolean; inativo: boolean }) {
+  const nome = nomeExibicao(u.nome);
+  const minhas = pendencias.porUsuario.get(u.id) ?? [];
+  const veTudo = u.role === "ADMIN" || u.role === "DIRETORIA";
+
+  return (
+    <TableRow className={cn(inativo && "text-muted-foreground")}>
+      <TableCell>
+        <div className="flex items-center gap-3">
+          <span
+            aria-hidden
+            className={cn(
+              "flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-bold",
+              inativo ? "bg-muted text-muted-foreground" : "bg-primary/10 text-primary",
+            )}
+          >
+            {iniciais(nome)}
+          </span>
+          <div className="min-w-0">
+            <p className={cn("flex flex-wrap items-center gap-x-2 gap-y-1 font-medium", inativo ? "text-foreground/70" : "text-foreground")}>
+              {nome}
+              {u.id === currentUserId && <span className="text-xs font-normal text-muted-foreground">(você)</span>}
+              {minhas
+                .filter((p) => p !== "SEM_EMAIL")
+                .map((p) => (
+                  <SeloPendencia key={p} pendencia={p} />
+                ))}
+            </p>
+            <p className="font-mono text-xs text-muted-foreground">{u.username}</p>
+            {/* Mostrado só quando a ficha tem outro nome: repetir o mesmo
+                nome duas vezes na célula não informa nada. */}
+            {u.ficha && (
+              <p className="text-xs text-muted-foreground">
+                ficha: {u.ficha.nome === u.nome ? u.ficha.setorNome : u.ficha.nome}
+              </p>
+            )}
+          </div>
+        </div>
+      </TableCell>
+      <TableCell className="text-muted-foreground">
+        {u.email ?? (
+          <span className="inline-flex flex-wrap items-center gap-2">
+            <span className="italic">Sem e-mail</span>
+            <SeloPendencia pendencia="SEM_EMAIL" rotulo="Completar" />
+          </span>
+        )}
+      </TableCell>
+      {mostrarPapel && (
+        <TableCell>
+          <Badge variant="secondary">{ROLE_LABEL[u.role] ?? u.role}</Badge>
+        </TableCell>
+      )}
+      <TableCell>
+        <div className="flex flex-wrap gap-1">
+          {u.empresas.length === 0 && u.marcasVinculadas.length === 0 && (
+            <span className="text-xs text-muted-foreground">{veTudo ? "Todas as empresas" : "—"}</span>
+          )}
+          {/* Marca primeiro, com variante própria: esse vínculo cobre
+              CNPJs que nem aparecem nos badges ao lado. */}
+          {u.marcasVinculadas.map((v) => (
+            <Badge
+              key={`marca-${v.marcaId}`}
+              variant="secondary"
+              className={!v.ativo ? "opacity-50 line-through" : undefined}
+              title={`${v.marcaNome} · marca — todos os CNPJs, inclusive os cadastrados depois`}
+            >
+              {v.marcaNome} · marca
+            </Badge>
+          ))}
+          {u.empresas.map((v) => (
+            <Badge
+              key={v.empresaId}
+              variant="outline"
+              className={!v.ativo ? "opacity-50 line-through" : undefined}
+              title={
+                v.setorNome
+                  ? `${v.empresaNome} · ${PAPEL_LABEL[v.role] ?? v.role} · ${v.setorNome}${v.papelPrincipal ? " (principal)" : ""}`
+                  : `${v.empresaNome} · ${PAPEL_LABEL[v.role] ?? v.role}${v.papelPrincipal ? " (principal)" : ""}`
+              }
+            >
+              {v.empresaNome}
+              {v.papelPrincipal ? " ★" : ""}
+            </Badge>
+          ))}
+        </div>
+      </TableCell>
+      <TableCell>
+        <span
+          className={cn(
+            "inline-flex items-center gap-1.5 text-sm font-medium",
+            u.ativo ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground",
+          )}
+        >
+          <span aria-hidden className={cn("size-2 rounded-full", u.ativo ? "bg-emerald-500" : "bg-muted-foreground/50")} />
+          {u.ativo ? "Ativo" : "Inativo"}
+        </span>
+      </TableCell>
+      <TableCell className="text-right">
+        <AcoesUsuario usuario={u} currentUserId={currentUserId} {...acoes} />
+      </TableCell>
+    </TableRow>
+  );
+}
+
+function SeloPendencia({ pendencia, rotulo }: { pendencia: Pendencia; rotulo?: string }) {
+  return (
+    <span
+      title={PENDENCIA_DICA[pendencia]}
+      className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-900 dark:bg-amber-950 dark:text-amber-200"
+    >
+      {rotulo ?? PENDENCIA_ROTULO[pendencia]}
+    </span>
+  );
+}
+
+function AcoesUsuario({
+  usuario,
+  currentUserId,
+  onEditar,
+  onVincular,
+  onConvidar,
+  onSenha,
+  onExcluir,
+}: Omit<AcoesDaLinha, "pendencias"> & { usuario: Usuario }) {
+  const [alternando, setAlternando] = useState(false);
+
+  async function alternarStatus() {
+    setAlternando(true);
+    const result = await toggleStatusUsuario(usuario.id);
+    setAlternando(false);
     if (result.ok) {
-      toast.success("Usuário excluído (ou desativado, se há registros vinculados).");
+      toast.success(usuario.ativo ? "Usuário desativado." : "Usuário reativado.");
     } else {
       toast.error(result.error);
     }
-    setConfirming(false);
-  }
-
-  if (confirming) {
-    return (
-      <div className="flex gap-1">
-        <Button variant="destructive" size="sm" onClick={handleDelete}>
-          Confirmar
-        </Button>
-        <Button variant="ghost" size="sm" onClick={() => setConfirming(false)}>
-          Cancelar
-        </Button>
-      </div>
-    );
   }
 
   return (
-    <Button variant="ghost" size="icon" onClick={() => setConfirming(true)} title="Excluir">
-      <Trash2 className="size-4" />
-    </Button>
+    <div className="flex items-center justify-end gap-1">
+      {/* Inativo: a ação que importa é reativar, então ela fica à vista. */}
+      {!usuario.ativo ? (
+        <Button variant="outline" size="sm" onClick={alternarStatus} disabled={alternando}>
+          <Power className="size-4" />
+          Reativar
+        </Button>
+      ) : (
+        <Button variant="ghost" size="icon" title="Editar" aria-label={`Editar ${usuario.nome}`} onClick={() => onEditar(usuario)}>
+          <Pencil className="size-4" />
+        </Button>
+      )}
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={<Button variant="ghost" size="icon" title="Mais ações" aria-label={`Mais ações para ${usuario.nome}`} />}
+        >
+          <MoreVertical className="size-4" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-52">
+          {!usuario.ativo && (
+            <DropdownMenuItem onClick={() => onEditar(usuario)}>
+              <Pencil />
+              Editar
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuItem onClick={() => onVincular(usuario)}>
+            <Link2 />
+            Vincular empresa ou marca
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => onConvidar(usuario)}>
+            <Mail />
+            Convidar por e-mail
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => onSenha(usuario)}>
+            <KeyRound />
+            Redefinir senha
+          </DropdownMenuItem>
+          {usuario.ativo && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={alternarStatus} disabled={alternando}>
+                <PowerOff />
+                Desativar acesso
+              </DropdownMenuItem>
+            </>
+          )}
+          {usuario.id !== currentUserId && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive" onClick={() => onExcluir(usuario)}>
+                <Trash2 />
+                Excluir
+              </DropdownMenuItem>
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+}
+
+function ExcluirUsuarioConfirmacao({ usuario, onFim }: { usuario: Usuario; onFim: () => void }) {
+  const [excluindo, setExcluindo] = useState(false);
+
+  async function handleDelete() {
+    setExcluindo(true);
+    const result = await deleteUsuario(usuario.id);
+    setExcluindo(false);
+    if (result.ok) {
+      toast.success("Usuário excluído (ou desativado, se há registros vinculados).");
+      onFim();
+    } else {
+      toast.error(result.error);
+    }
+  }
+
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>Excluir {nomeExibicao(usuario.nome)}?</DialogTitle>
+      </DialogHeader>
+      <p className="text-sm text-muted-foreground">
+        Se a conta tiver registros ligados a ela, o sistema só desativa — o histórico não se perde. Para tirar o
+        acesso sem apagar nada, prefira <strong>Desativar acesso</strong>.
+      </p>
+      <DialogFooter>
+        <Button variant="ghost" onClick={onFim} disabled={excluindo}>
+          Cancelar
+        </Button>
+        <Button variant="destructive" onClick={handleDelete} disabled={excluindo}>
+          Excluir
+        </Button>
+      </DialogFooter>
+    </>
   );
 }
