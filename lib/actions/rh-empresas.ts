@@ -3,7 +3,11 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/auth-guard";
+import {
+  empresaDoGrupo,
+  marcaDoGrupo,
+  requireAdminDoGrupo,
+} from "@/lib/grupo-guard";
 import type { ActionResult } from "@/lib/constants";
 
 const empresaSchema = z.object({
@@ -14,22 +18,35 @@ const empresaCreateSchema = empresaSchema.extend({
   marcaId: z.string().trim().min(1, "Informe a marca"),
 });
 
-export async function createEmpresa(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
-  await requireAdmin();
+export async function createEmpresa(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const { grupoId } = await requireAdminDoGrupo();
   const parsed = empresaCreateSchema.safeParse({
     nome: formData.get("nome"),
     marcaId: formData.get("marcaId"),
   });
-  if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
+  if (!parsed.success)
+    return { ok: false, error: parsed.error.issues[0].message };
+  if (!(await marcaDoGrupo(parsed.data.marcaId, grupoId)))
+    return { ok: false, error: "Marca não encontrada." };
 
   try {
     const newEmpresa = await prisma.empresa.create({ data: parsed.data });
 
     // Replicate setors and positions from the default company (RSM TELECOM LTDA)
+    // Só copia se o modelo for do MESMO grupo (sociedade — lib/grupo.ts):
+    // nem a estrutura de um grupo vaza para o outro.
     const defaultCompanyId = "cms6u3mln0003si10dsp1fey5";
+    const modeloNoGrupo = await empresaDoGrupo(defaultCompanyId, grupoId);
     const [setoresDefault, posicoesFefault] = await Promise.all([
-      prisma.setor.findMany({ where: { empresaId: defaultCompanyId } }),
-      prisma.posicao.findMany({ where: { empresaId: defaultCompanyId } }),
+      modeloNoGrupo
+        ? prisma.setor.findMany({ where: { empresaId: defaultCompanyId } })
+        : [],
+      modeloNoGrupo
+        ? prisma.posicao.findMany({ where: { empresaId: defaultCompanyId } })
+        : [],
     ]);
 
     if (setoresDefault.length > 0 || posicoesFefault.length > 0) {
@@ -65,8 +82,14 @@ export async function createEmpresa(_prev: ActionResult, formData: FormData): Pr
   return { ok: true };
 }
 
-export async function updateEmpresa(id: string, _prev: ActionResult, formData: FormData): Promise<ActionResult> {
-  await requireAdmin();
+export async function updateEmpresa(
+  id: string,
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const { grupoId } = await requireAdminDoGrupo();
+  if (!(await empresaDoGrupo(id, grupoId)))
+    return { ok: false, error: "Empresa não encontrada." };
   const parsed = empresaSchema.safeParse({ nome: formData.get("nome") });
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
 
@@ -79,15 +102,22 @@ export async function updateEmpresa(id: string, _prev: ActionResult, formData: F
   return { ok: true };
 }
 
-export async function toggleEmpresaAtiva(id: string, ativo: boolean): Promise<ActionResult> {
-  await requireAdmin();
+export async function toggleEmpresaAtiva(
+  id: string,
+  ativo: boolean,
+): Promise<ActionResult> {
+  const { grupoId } = await requireAdminDoGrupo();
+  if (!(await empresaDoGrupo(id, grupoId)))
+    return { ok: false, error: "Empresa não encontrada." };
   await prisma.empresa.update({ where: { id }, data: { ativo } });
   revalidatePath("/rh/empresas");
   return { ok: true };
 }
 
 export async function deleteEmpresa(id: string): Promise<ActionResult> {
-  await requireAdmin();
+  const { grupoId } = await requireAdminDoGrupo();
+  if (!(await empresaDoGrupo(id, grupoId)))
+    return { ok: false, error: "Empresa não encontrada." };
   const [setores, colaboradores, pesquisas] = await Promise.all([
     prisma.setor.count({ where: { empresaId: id } }),
     prisma.colaborador.count({ where: { empresaId: id } }),

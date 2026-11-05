@@ -86,7 +86,8 @@ console.log("\nAs telas de administração não listam acessos de portal\n");
   ]) {
     const s = leia(tela);
     ok(
-      s.includes("PAPEL_PORTAL") && s.includes("role: { not: PAPEL_PORTAL }"),
+      s.includes("PAPEL_PORTAL") &&
+        (s.includes("role: { not: PAPEL_PORTAL }") || s.includes("role: { notIn: [PAPEL_PORTAL")),
       `${tela.split("/").slice(-2).join("/")} exclui os acessos de portal`,
     );
   }

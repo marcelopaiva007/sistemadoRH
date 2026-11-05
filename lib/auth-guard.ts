@@ -21,8 +21,17 @@ export async function requireAdmin() {
 //
 // Guarda própria e não `requireAdmin` alargado de propósito: o CRUD de
 // empresas (lib/actions/rh-empresas.ts) continua exclusivo do ADMIN.
+//
+// MASTER também entra (v1.186.0): é ele quem cria as contas de cada grupo. O
+// recorte de QUAIS contas cada um alcança mora nas actions (lib/actions/
+// usuarios.ts, `escopoGestao`) e na tela — ver lib/grupo.ts.
 export async function requireGestaoUsuarios() {
   const user = await requireUser();
-  if (user.role !== "ADMIN" && user.role !== "DIRETORIA") redirect("/");
+  if (
+    user.role !== "ADMIN" &&
+    user.role !== "DIRETORIA" &&
+    user.role !== "MASTER"
+  )
+    redirect("/");
   return user;
 }

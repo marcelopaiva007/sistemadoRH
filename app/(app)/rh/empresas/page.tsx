@@ -1,17 +1,18 @@
-import { requireAdmin } from "@/lib/auth-guard";
+import { requireAdminDoGrupo } from "@/lib/grupo-guard";
 import { prisma } from "@/lib/prisma";
 import { EmpresasTable } from "./empresas-table";
 
 export default async function EmpresasPage() {
-  await requireAdmin();
+  const { grupoId } = await requireAdminDoGrupo();
 
   const [empresas, marcas] = await Promise.all([
     prisma.empresa.findMany({
+      where: { marca: { grupoId } },
       orderBy: [{ ativo: "desc" }, { nome: "asc" }],
       include: { _count: { select: { setores: true, colaboradores: true, pesquisas: true } } },
     }),
     prisma.marca.findMany({
-      where: { ativo: true },
+      where: { ativo: true, grupoId },
       orderBy: { nome: "asc" },
       select: { id: true, nome: true },
     }),

@@ -1,7 +1,12 @@
 import { requireGestaoUsuarios } from "@/lib/auth-guard";
 import { PAPEL_PORTAL } from "@/lib/delegacoes/acesso-colaborador";
 import { prisma } from "@/lib/prisma";
-import { PerfisView, type PerfilNaTela, type UsuarioComPerfis } from "./perfis-view";
+import { ehMaster, grupoDoUsuario } from "@/lib/grupo";
+import {
+  PerfisView,
+  type PerfilNaTela,
+  type UsuarioComPerfis,
+} from "./perfis-view";
 
 // Perfis de acesso — a tela onde se desenha "o que cada um pode fazer", por
 // tela, nos dois sistemas, e onde se dá cada perfil às pessoas. Onda 2a do
@@ -10,7 +15,9 @@ import { PerfisView, type PerfilNaTela, type UsuarioComPerfis } from "./perfis-v
 // Editar perfil ou atribuí-lo é conceder acesso, então mora atrás de
 // `requireGestaoUsuarios` (ADMIN e Diretoria), o mesmo portão de criar usuário.
 export default async function PerfisPage() {
-  await requireGestaoUsuarios();
+  const quem = await requireGestaoUsuarios();
+  // Contas listadas: as do PRÓPRIO grupo (lib/grupo.ts); o MASTER vê todas.
+  const grupoId = ehMaster(quem) ? null : await grupoDoUsuario(quem.id);
 
   const [perfis, usuarios] = await Promise.all([
     prisma.perfil.findMany({
@@ -29,7 +36,11 @@ export default async function PerfisPage() {
       // e com algumas centenas deles a tela viraria uma lista de gente que
       // nunca vai entrar aqui. Ver lib/delegacoes/acesso-colaborador.ts.
     prisma.user.findMany({
-      where: { ativo: true, role: { not: PAPEL_PORTAL } },
+      where: {
+        ativo: true,
+        role: { notIn: [PAPEL_PORTAL, "MASTER"] },
+        ...(ehMaster(quem) ? {} : { grupoId: grupoId ?? "__nenhum__" }),
+      },
       orderBy: [{ nome: "asc" }],
       select: {
         id: true,

@@ -1,3 +1,7 @@
+import {
+  whereColaboradoresDoGrupoDe,
+  whereUsuariosDoGrupoDe,
+} from "@/lib/grupo";
 import { prisma } from "@/lib/prisma";
 import { PAPEL_PORTAL } from "@/lib/delegacoes/acesso-colaborador";
 
@@ -36,8 +40,13 @@ export async function listarPessoasParaDelegar(userId: string): Promise<PessoaPa
     // contar como "só ficha" (passa a ter usuário), e o papel de portal não
     // alcança módulo nenhum de propósito. Era impossível delegar duas vezes
     // para a mesma pessoa.
+    // Só gente do GRUPO de quem delega (sociedade — lib/grupo.ts).
     prisma.user.findMany({
-      where: { ativo: true, role: PAPEL_PORTAL },
+      where: {
+        ativo: true,
+        role: PAPEL_PORTAL,
+        ...whereUsuariosDoGrupoDe(userId),
+      },
       select: {
         id: true,
         nome: true,
@@ -55,7 +64,7 @@ export async function listarPessoasParaDelegar(userId: string): Promise<PessoaPa
     // Direção em 29/08/2026). Quem já é usuário é filtrado abaixo para não
     // aparecer duas vezes.
     prisma.colaborador.findMany({
-      where: { ativo: true },
+      where: { ativo: true, ...whereColaboradoresDoGrupoDe(userId) },
       select: {
         id: true,
         nome: true,

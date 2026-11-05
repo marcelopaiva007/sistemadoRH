@@ -1,3 +1,4 @@
+import { whereUsuariosDoGrupoDaEmpresa } from "@/lib/grupo";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Car, CheckCircle2, Compass } from "lucide-react";
@@ -104,7 +105,11 @@ export default async function CentralPendenciasPage({
     // Quem pode virar dono: usuário ativo de escritório. GESTOR_SETOR fica de
     // fora — não alcança o módulo, e nomeá-lo criaria pendência que ele não vê.
     prisma.user.findMany({
-      where: { ativo: true, role: { in: PAPEIS_QUE_ASSUMEM_PENDENCIA } },
+      where: {
+        ativo: true,
+        role: { in: PAPEIS_QUE_ASSUMEM_PENDENCIA },
+        ...whereUsuariosDoGrupoDaEmpresa(empresaId),
+      },
       orderBy: { nome: "asc" },
       select: { id: true, nome: true },
     }),

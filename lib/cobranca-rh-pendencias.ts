@@ -43,26 +43,62 @@ export async function executarCobrancaPendenciasRH(
   hoje: Date = new Date(),
   apenas?: string[],
 ): Promise<ResultadoCobrancaRH> {
+  // Cópia para os ADMINs do MESMO GRUPO da pessoa cobrada (sociedade —
+  // lib/grupo.ts): o ADMIN de um grupo não recebe a conta do outro.
   const gestores = await cliente.user.findMany({
-    where: { role: "ADMIN", ativo: true, email: { not: null } },
-    select: { email: true },
+    where: {
+      role: "ADMIN",
+      ativo: true,
+      email: { not: null },
+      grupoId: { not: null },
+    },
+    select: { email: true, grupoId: true },
   });
-  const copiaGestores = gestores.map((g) => g.email).filter((e): e is string => Boolean(e));
+  const copiaDoGrupo = (grupoId: string | null) =>
+    gestores
+      .filter((g) => grupoId !== null && g.grupoId === grupoId)
+      .map((g) => g.email)
+      .filter((e): e is string => Boolean(e));
 
   const vinculos = await cliente.userEmpresa.findMany({
     where: { role: "RH_MANAGER", ativo: true, ...(apenas ? { userId: { in: apenas } } : {}) },
     select: {
       empresaId: true,
-      user: { select: { id: true, nome: true, email: true, ativo: true } },
+      user: {
+        select: {
+          id: true,
+          nome: true,
+          email: true,
+          ativo: true,
+          grupoId: true,
+        },
+      },
+      empresa: { select: { marca: { select: { grupoId: true } } } },
     },
   });
 
   // Uma pessoa pode ter vínculo com mais de uma empresa — o e-mail é UM só
   // por pessoa, cobrindo tudo que ela responde, não um por CNPJ.
-  const porUsuario = new Map<string, { nome: string; email: string; empresaIds: Set<string> }>();
+  const porUsuario = new Map<
+    string,
+    {
+      nome: string;
+      email: string;
+      grupoId: string | null;
+      empresaIds: Set<string>;
+    }
+  >();
   for (const v of vinculos) {
     if (!v.user.ativo || !v.user.email) continue;
-    const entrada = porUsuario.get(v.user.id) ?? { nome: v.user.nome, email: v.user.email, empresaIds: new Set<string>() };
+    // Vínculo antigo com CNPJ de OUTRO grupo não conta — a pessoa nem enxerga
+    // esse CNPJ na tela (empresasVisiveis), então também não é cobrada por ele.
+    if (!v.user.grupoId || v.empresa.marca.grupoId !== v.user.grupoId) continue;
+    const entrada = porUsuario.get(v.user.id) ?? {
+      nome: v.user.nome,
+      email: v.user.email,
+      grupoId: v.user.grupoId,
+      empresaIds: new Set<string>(),
+    };
     entrada.empresaIds.add(v.empresaId);
     porUsuario.set(v.user.id, entrada);
   }
@@ -113,7 +149,7 @@ export async function executarCobrancaPendenciasRH(
       const diaChave = diaBrasilia(hoje);
       const r = await sendEmail({
         to: dados.email,
-        cc: copiaGestores,
+        cc: copiaDoGrupo(dados.grupoId),
         subject: `[RH] ${total} pendência(s) aguardando você`,
         text: texto,
         html,

@@ -2,7 +2,12 @@ import { redirect } from "next/navigation";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireDelegacoesAccess } from "@/lib/delegacoes-auth-guard";
-import { ehDirecao, paraPainel, SELECT_PAINEL } from "@/lib/delegacoes/consultas";
+import {
+  demandasDoMeuGrupo,
+  ehDirecao,
+  paraPainel,
+  SELECT_PAINEL,
+} from "@/lib/delegacoes/consultas";
 import { montarPainelEntregas } from "@/lib/delegacoes/painel-entregas";
 import { janelaValida, linhasParaCsv } from "@/lib/delegacoes/relatorio";
 import { gerarCsv } from "@/lib/csv";
@@ -27,7 +32,12 @@ export async function GET(req: Request) {
   inicioJanela.setHours(0, 0, 0, 0);
 
   const linhas = await prisma.demanda.findMany({
-    where: { createdAt: { gte: inicioJanela } },
+    where: {
+      AND: [
+        { createdAt: { gte: inicioJanela } },
+        demandasDoMeuGrupo(usuario.id),
+      ],
+    },
     select: SELECT_PAINEL,
   });
 

@@ -8,6 +8,7 @@
 // chegou) e, se o sinal é de um CNPJ, também enxergá-lo em empresasVisiveis —
 // um id de sinal digitado à mão não vira acesso a outro CNPJ.
 
+import { whereUsuariosDoGrupoDaEmpresa } from "@/lib/grupo";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireEmpresaAccess, empresasVisiveis } from "@/lib/rh-auth-guard";
@@ -132,7 +133,11 @@ export async function definirDonoEPrazoSinal(
   let donoNome: string | null = null;
   if (donoUserId) {
     const dono = await prisma.user.findFirst({
-      where: { id: donoUserId, ativo: true },
+      where: {
+        id: donoUserId,
+        ativo: true,
+        ...whereUsuariosDoGrupoDaEmpresa(empresaIdRota),
+      },
       select: { nome: true },
     });
     if (!dono) return { ok: false, error: "Usuário não encontrado ou inativo." };

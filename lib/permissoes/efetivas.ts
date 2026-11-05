@@ -82,6 +82,10 @@ export async function sistemasPermitidos(user: { id?: string; role: string }): P
   // Ver `abertoATodos` em components/modulos.ts.
   const comAbertos = (slugs: string[]) => [...new Set([...slugs, ...SLUGS_ABERTOS_A_TODOS])];
 
+  // O MASTER administra grupos e usuários e NÃO entra em módulo nenhum — nem
+  // nos abertos a todos (decisão do CEO em 05/11/2026; ver lib/grupo.ts).
+  if (user.role === "MASTER") return [];
+
   const porPapel = () => modulosDoPapel(user.role).map((m) => m.slug);
   if (!user.id) return comAbertos(porPapel());
   const grants = await grantsDoUsuario(user.id);

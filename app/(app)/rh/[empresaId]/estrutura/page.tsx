@@ -1,3 +1,4 @@
+import { whereMarcasDoGrupoDe } from "@/lib/grupo";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
 import { EstruturaView } from "./estrutura-view";
@@ -20,7 +21,10 @@ export default async function EstruturaPage({
   // botão ausente — ensina que o sistema está quebrado, não que falta permissão.
   const podeMexerEmCnpj = usuario.role === "ADMIN";
 
+  // "O grupo por inteiro" é o GRUPO de sociedade de quem olha (lib/grupo.ts) —
+  // as marcas do outro grupo não aparecem nem como nome.
   const marcas = await prisma.marca.findMany({
+    where: whereMarcasDoGrupoDe(usuario.id!),
     orderBy: { nome: "asc" },
     select: {
       id: true,

@@ -5,9 +5,33 @@ import { AjudaDaTela } from "@/components/ajuda-da-tela";
 import { PERFIS_SEMENTE } from "@/lib/permissoes/catalogo";
 import { PAPEL_PORTAL } from "@/lib/delegacoes/acesso-colaborador";
 import { UsuariosTable } from "./usuarios-table";
+import { ehMaster, grupoDoUsuario } from "@/lib/grupo";
+import { cn } from "@/lib/utils";
 
-export default async function UsuariosPage() {
+export default async function UsuariosPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ grupo?: string }>;
+}) {
   const admin = await requireGestaoUsuarios();
+
+  // GRUPO (sociedade — lib/grupo.ts): a tela mostra as contas, CNPJs e marcas
+  // de UM grupo. ADMIN/DIRETORIA veem o próprio; o MASTER escolhe qual abrir
+  // nas abas do topo, e a conta que ele cria nasce no grupo aberto.
+  const master = ehMaster(admin);
+  const grupos = master
+    ? await prisma.grupo.findMany({
+        where: { ativo: true },
+        orderBy: { nome: "asc" },
+        select: { id: true, nome: true },
+      })
+    : [];
+  const pedido = (await searchParams).grupo;
+  const grupoId = master
+    ? ((grupos.find((g) => g.id === pedido) ?? grupos[0])?.id ?? null)
+    : await grupoDoUsuario(admin.id);
+  // Sem grupo resolvido, nada aparece — falha fechada.
+  const doGrupo = grupoId ?? "__nenhum__";
 
   const [usuarios, empresas, setores, marcas, perfis] = await Promise.all([
       // Acessos de portal (funcionários sem login do sistema, criados pelo
@@ -15,7 +39,7 @@ export default async function UsuariosPage() {
       // e com algumas centenas deles a tela viraria uma lista de gente que
       // nunca vai entrar aqui. Ver lib/delegacoes/acesso-colaborador.ts.
     prisma.user.findMany({
-      where: { role: { not: PAPEL_PORTAL } },
+      where: { role: { notIn: [PAPEL_PORTAL, "MASTER"] }, grupoId: doGrupo },
       orderBy: [{ role: "asc" }, { nome: "asc" }],
       include: {
         empresas: {
@@ -53,6 +77,7 @@ export default async function UsuariosPage() {
     // inativas, para resolver o nome de um vínculo já desativado — e cruzamos
     // por id na tabela. O formulário filtra as ativas para os selects.
     prisma.empresa.findMany({
+      where: { marca: { grupoId: doGrupo } },
       orderBy: { nome: "asc" },
       // marcaId vai junto para a tela agrupar os CNPJs por marca no select —
       // com várias marcas no grupo, uma lista chapada de nomes não diz a quem
@@ -60,6 +85,7 @@ export default async function UsuariosPage() {
       select: { id: true, nome: true, ativo: true, marcaId: true },
     }),
     prisma.setor.findMany({
+      where: { empresa: { marca: { grupoId: doGrupo } } },
       orderBy: { nome: "asc" },
       select: { id: true, nome: true, empresaId: true, ativo: true },
     }),
@@ -67,7 +93,7 @@ export default async function UsuariosPage() {
     // conceder acesso a uma marca desativada não faz sentido. Vínculo antigo
     // numa marca desativada continua aparecendo pelo include acima.
     prisma.marca.findMany({
-      where: { ativo: true },
+      where: { ativo: true, grupoId: doGrupo },
       orderBy: { nome: "asc" },
       select: { id: true, nome: true },
     }),
@@ -93,6 +119,26 @@ export default async function UsuariosPage() {
           <Link href="/cadastros/perfis" className="underline underline-offset-2 hover:text-foreground">perfis de acesso</Link>.
         </p>
       </div>
+      {master && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm text-muted-foreground">Grupo:</span>
+          {grupos.map((g) => (
+            <Link
+              key={g.id}
+              href={`/cadastros/usuarios?grupo=${g.id}`}
+              aria-current={g.id === grupoId ? "page" : undefined}
+              className={cn(
+                "rounded-md border px-3 py-1 text-sm",
+                g.id === grupoId
+                  ? "border-primary bg-primary/10 font-medium"
+                  : "hover:bg-muted",
+              )}
+            >
+              {g.nome}
+            </Link>
+          ))}
+        </div>
+      )}
       <UsuariosTable
         usuarios={usuarios.map((u) => ({
           id: u.id,
@@ -135,6 +181,7 @@ export default async function UsuariosPage() {
           papelDeOrigem: PERFIS_SEMENTE.find((sem) => sem.id === p.id)?.papelDeOrigem ?? null,
         }))}
         currentUserId={admin.id}
+        grupoId={master ? (grupoId ?? undefined) : undefined}
       />
     </div>
   );
