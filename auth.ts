@@ -178,12 +178,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // Google), não a nossa conta. Troca pela conta do sistema com o mesmo
       // e-mail — a mesma pergunta do `signIn` acima, refeita aqui porque é
       // daqui que sai o JWT. Sem conta (desativada entre um passo e outro),
-      // não há sessão.
+      // não há sessão — e o erro leva a pessoa de volta à tela de login com
+      // uma mensagem (pages.error), em vez de devolvê-la lá calada.
       if (user && account?.provider === "google") {
         const conta = await contaDoGoogle(profile?.email, profile?.email_verified === true);
-        if (!conta.ok) return null;
+        if (!conta.ok) throw new Error(`Login com Google recusado: ${conta.motivo}`);
         const doBanco = await prisma.user.findUnique({ where: { id: conta.userId } });
-        if (!doBanco || !doBanco.ativo) return null;
+        if (!doBanco || !doBanco.ativo) throw new Error("Login com Google recusado: conta inativa");
         user = await usuarioParaSessao(doBanco);
         next.sub = doBanco.id;
         // O nome que aparece no topo é o do cadastro, não o do perfil Google.

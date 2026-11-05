@@ -177,6 +177,7 @@ export default async function UsuariosPage({
             marcaNome: m.marca.nome,
             ativo: m.ativo,
             foraDoGrupo: m.marca.grupoId !== doGrupo,
+            role: m.role,
           })),
           ficha: u.colaborador && {
             id: u.colaborador.id,

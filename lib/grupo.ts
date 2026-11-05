@@ -35,12 +35,22 @@ export const grupoDoUsuario = cache(
 );
 
 /**
- * Marcas MARCADAS para este login dentro do próprio grupo — o que a tela de
- * admin chama de "marcas que vê" (`UserMarca` ativo). Vínculo com marca de
- * OUTRO grupo não conta: a parede de grupo vem antes de tudo.
+ * Papel gravado no `UserMarca` quando a tela de admin PRENDE uma Diretoria ou
+ * um Administrativo a uma marca. É o que separa a restrição do vínculo de
+ * trabalho de gestor (RH_MANAGER/GESTOR_SETOR): vínculo antigo de gestor que
+ * ficou numa conta depois promovida a Diretoria não restringe nada — e por isso
+ * esta regra não prende ninguém de surpresa no dia em que entra no ar.
+ */
+export const PAPEIS_DE_RESTRICAO: string[] = ["ADMIN", "DIRETORIA"];
+
+/**
+ * Marcas MARCADAS pelo admin para este login dentro do próprio grupo — o que a
+ * tela de admin chama de "marcas que vê" (`UserMarca` ativo com papel de
+ * restrição). Vínculo com marca de OUTRO grupo não conta: a parede de grupo
+ * vem antes de tudo.
  *
  * Para ADMIN e DIRETORIA, lista vazia quer dizer "o grupo inteiro"; com alguma
- * marca marcada, a pessoa fica só nelas (decisão do CEO em 05/11/2026: "tem
+ * marca marcada, a pessoa fica SÓ nelas (decisão do CEO em 05/11/2026: "tem
  * usuário que só vê uma daquelas marcas"). Para RH e gestor de setor nada muda:
  * eles sempre viram só os próprios vínculos.
  */
@@ -50,7 +60,7 @@ export const marcasMarcadasNoGrupo = cache(
     const grupoId = await grupoDoUsuario(userId);
     if (!grupoId) return [];
     const vinculos = await prisma.userMarca.findMany({
-      where: { userId, ativo: true, marca: { grupoId } },
+      where: { userId, ativo: true, role: { in: PAPEIS_DE_RESTRICAO }, marca: { grupoId } },
       select: { marcaId: true },
     });
     return vinculos.map((v) => v.marcaId);

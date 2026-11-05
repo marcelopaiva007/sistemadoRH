@@ -111,7 +111,14 @@ type VinculoMarca = {
   ativo: boolean;
   /** Marca de outro grupo de sociedade: o vínculo não dá acesso. */
   foraDoGrupo: boolean;
+  /** Papel do vínculo. ADMIN/DIRETORIA = restrição posta pelo admin (lib/grupo.ts). */
+  role: string;
 };
+
+/** Marca que o ADMIN pôs como restrição de uma Diretoria/Administrativo (lib/grupo.ts). */
+function ehRestricao(v: VinculoMarca) {
+  return v.ativo && !v.foraDoGrupo && (v.role === "ADMIN" || v.role === "DIRETORIA");
+}
 
 // A ficha de colaborador que este login representa, quando existe. `null` é o
 // caso comum: ADMIN e RH em geral não têm ficha na empresa que administram.
@@ -215,12 +222,14 @@ export function UsuariosTable({
   const filtrados = usuarios.filter((u) => {
     if (filtroPapel !== "TODOS" && u.role !== filtroPapel) return false;
     if (filtroMarca !== "TODAS") {
-      const temMarca =
-        u.marcasVinculadas.some((m) => m.marcaId === filtroMarca) ||
-        u.empresas.some((e) => marcaDaEmpresa.get(e.empresaId) === filtroMarca) ||
-        // Administrativo e Diretoria sem marca marcada enxergam o grupo todo.
-        ((u.role === "ADMIN" || u.role === "DIRETORIA") &&
-          !u.marcasVinculadas.some((m) => m.ativo && !m.foraDoGrupo));
+      const ehDirecao = u.role === "ADMIN" || u.role === "DIRETORIA";
+      const restricoes = u.marcasVinculadas.filter(ehRestricao);
+      const temMarca = ehDirecao
+        ? // Diretoria/Administrativo: sem marca marcada pelo admin, o grupo
+          // todo; com marca marcada, só ela.
+          restricoes.length === 0 || restricoes.some((m) => m.marcaId === filtroMarca)
+        : u.marcasVinculadas.some((m) => m.marcaId === filtroMarca) ||
+          u.empresas.some((e) => marcaDaEmpresa.get(e.empresaId) === filtroMarca);
       if (!temMarca) return false;
     }
     if (termo) {
@@ -962,7 +971,13 @@ function VincularForm({
 
       {/* O seletor fica fora dos dois forms — ele escolhe qual form aparece,
           não é campo enviado. */}
-      <div className="space-y-2">
+      {(usuario.role === "ADMIN" || usuario.role === "DIRETORIA") && (
+        <p className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">
+          Diretoria e Administrativo veem todas as marcas do grupo. Para limitar a
+          algumas marcas, o admin usa o botão Marcas na tela de usuários.
+        </p>
+      )}
+      <div className={cn("space-y-2", (usuario.role === "ADMIN" || usuario.role === "DIRETORIA") && "hidden")}>
         <Label>Escopo do acesso</Label>
         <RadioGroup
           value={escopo}
@@ -1626,7 +1641,12 @@ function LinhaUsuario({
   const veTudo = u.role === "ADMIN" || u.role === "DIRETORIA";
   // ADMIN/DIRETORIA com marca marcada pela tela de admin fica só nela(s)
   // (lib/grupo.ts, `direcaoRestrita`); sem marca marcada, o grupo inteiro.
-  const direcaoGlobal = veTudo && !u.marcasVinculadas.some((v) => v.ativo && !v.foraDoGrupo);
+  const direcaoGlobal = veTudo && !u.marcasVinculadas.some(ehRestricao);
+  // Para Diretoria/Administrativo, só a marca marcada pelo admin muda o que a
+  // pessoa vê; vínculo antigo de gestor ou de CNPJ que ficou na conta não muda
+  // nada — aparece apagado, para ninguém achar que ele restringe ou amplia.
+  const semEfeito = (v: { ativo: boolean; foraDoGrupo: boolean; role?: string }) =>
+    veTudo && v.ativo && !v.foraDoGrupo && !(v.role === "ADMIN" || v.role === "DIRETORIA");
 
   return (
     <TableRow className={cn(inativo && "text-muted-foreground")}>
@@ -1704,11 +1724,19 @@ function LinhaUsuario({
             <span key={`marca-${v.marcaId}`} className="inline-flex items-center gap-1">
               <Badge
                 variant="secondary"
-                className={!v.ativo || v.foraDoGrupo ? "opacity-50 line-through" : undefined}
+                className={
+                  !v.ativo || v.foraDoGrupo
+                    ? "opacity-50 line-through"
+                    : semEfeito(v)
+                      ? "opacity-50"
+                      : undefined
+                }
                 title={
                   v.foraDoGrupo
                     ? `${v.marcaNome} · marca — ${DICA_FORA_DO_GRUPO}`
-                    : `${v.marcaNome} · marca — todos os CNPJs, inclusive os cadastrados depois`
+                    : semEfeito(v)
+                      ? `${v.marcaNome} · marca — ${DICA_SEM_EFEITO}`
+                      : `${v.marcaNome} · marca — todos os CNPJs, inclusive os cadastrados depois`
                 }
               >
                 {v.marcaNome} · marca
@@ -1720,10 +1748,18 @@ function LinhaUsuario({
             <span key={v.empresaId} className="inline-flex items-center gap-1">
               <Badge
                 variant="outline"
-                className={!v.ativo || v.foraDoGrupo ? "opacity-50 line-through" : undefined}
+                className={
+                  !v.ativo || v.foraDoGrupo
+                    ? "opacity-50 line-through"
+                    : semEfeito(v)
+                      ? "opacity-50"
+                      : undefined
+                }
                 title={
                   v.foraDoGrupo
                     ? `${v.empresaNome} — ${DICA_FORA_DO_GRUPO}`
+                    : semEfeito(v)
+                      ? `${v.empresaNome} — ${DICA_SEM_EFEITO}`
                     : v.setorNome
                       ? `${v.empresaNome} · ${PAPEL_LABEL[v.role] ?? v.role} · ${v.setorNome}${v.papelPrincipal ? " (principal)" : ""}`
                       : `${v.empresaNome} · ${PAPEL_LABEL[v.role] ?? v.role}${v.papelPrincipal ? " (principal)" : ""}`
@@ -1769,6 +1805,9 @@ function avisoInativos(n: number, filtrando: boolean) {
 // que o acesso existe.
 const DICA_FORA_DO_GRUPO =
   "de outro grupo de sociedade: este vínculo não dá acesso. Para trabalhar lá, a pessoa precisa de um login no outro grupo.";
+
+const DICA_SEM_EFEITO =
+  "vínculo antigo: para Diretoria e Administrativo não muda o que a pessoa vê. Quem limita as marcas é o admin, no botão Marcas.";
 
 function AvisoForaDoGrupo() {
   return <span className="text-[11px] font-medium text-muted-foreground">fora do grupo</span>;
@@ -1889,8 +1928,13 @@ function MarcasQueVeForm({
 }) {
   const ehDirecao = usuario.role === "ADMIN" || usuario.role === "DIRETORIA";
   const grupoAtual = painel.grupoAtualId ?? painel.grupos[0]?.id ?? "";
+  // Só o que a tela consegue mostrar: marca ATIVA do grupo atual (vínculo com
+  // marca desativada não tem checkbox, e o servidor o preserva). Para
+  // Diretoria/Administrativo, só a restrição posta pelo admin conta.
   const marcadasHoje = usuario.marcasVinculadas
     .filter((v) => v.ativo && !v.foraDoGrupo)
+    .filter((v) => !ehDirecao || ehRestricao(v))
+    .filter((v) => painel.marcas.some((m) => m.id === v.marcaId && m.grupoId === grupoAtual))
     .map((v) => v.marcaId);
   const [grupoId, setGrupoId] = useState(grupoAtual);
   const [escolhidas, setEscolhidas] = useState<string[]>(marcadasHoje);

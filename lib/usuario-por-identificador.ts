@@ -41,9 +41,17 @@ export async function usuarioPorIdentificador(
   const qual = campo ?? campoDoIdentificador(texto);
   const exato = await cliente.user.findFirst({ where: { [qual]: texto } });
   if (exato) return exato;
-  const parecidos = await cliente.user.findMany({
-    where: { [qual]: { equals: texto, mode: "insensitive" } },
-    take: 2,
-  });
+  // O `equals` com `mode: "insensitive"` do Prisma vira ILIKE no Postgres, e
+  // aí "_" e "%" do texto digitado funcionam como coringa: "ana_souza@x.com"
+  // achava a conta de "ana.souza@x.com" — e a recuperação de senha mandava o
+  // link dela para o endereço digitado. O banco só pré-filtra; quem decide é a
+  // comparação exata (sem maiúsculas) logo abaixo.
+  const minusculo = texto.toLowerCase();
+  const parecidos = (
+    await cliente.user.findMany({
+      where: { [qual]: { equals: texto, mode: "insensitive" } },
+      take: 50,
+    })
+  ).filter((u) => (u[qual] ?? "").toLowerCase() === minusculo);
   return parecidos.length === 1 ? parecidos[0] : null;
 }

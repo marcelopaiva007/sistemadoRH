@@ -123,7 +123,9 @@ export async function solicitarRecuperacaoSenha(_prev: ActionResult, formData: F
     // portanto deduplicar apenas por e-mail deixaria o usuário com o token novo
     // salvo no banco, mas sem receber um e-mail contendo esse token.
     const envio = await sendEmail({
-      to: email,
+      // O endereço CADASTRADO, não o digitado: quem pede o link não escolhe
+      // para onde ele vai.
+      to: user.email ?? email,
       subject: "Redefinição de senha — Sistema de RH",
       html,
       text: `Seu usuário de acesso é ${user.username} (no login, vale ele ou este e-mail). Acesse ${link} para redefinir sua senha. O link expira em ${RECUPERACAO_EXPIRA_EM_HORAS} hora.`,

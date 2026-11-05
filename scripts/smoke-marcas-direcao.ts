@@ -21,6 +21,7 @@ import { empresasVisiveis, usuarioAlcancaEmpresa } from "../lib/rh-auth-guard";
 import { aplicarMarcasQueVe } from "../lib/marcas-que-ve";
 import { contaDoGoogle } from "../lib/login-google";
 import { buscarDestinatarios } from "../lib/pesquisa-notificacoes";
+import { usuarioPorIdentificador } from "../lib/usuario-por-identificador";
 
 let falhas = 0;
 function ok(condicao: boolean, descricao: string) {
@@ -70,7 +71,10 @@ async function usuario(apelido: string, role: string, grupoId: string | null, ex
 async function marcar(userId: string, marcaId: string, role: string) {
   await prisma.userMarca.create({ data: { userId, marcaId, role } });
 }
-const sessao = (u: { id: string; role: string }) => ({ id: u.id, role: u.role, empresas: [] });
+const sessao = (
+  u: { id: string; role: string },
+  empresas: { empresaId: string; ativo: boolean }[] = [],
+) => ({ id: u.id, role: u.role, empresas });
 
 async function main() {
   const g1 = await grupo("Smoke Marcas G1");
@@ -90,12 +94,21 @@ async function main() {
   const rh = await usuario("rh", "RH_MANAGER", g1.id);
   await marcar(rh.id, mb.id, "RH_MANAGER");
   const gestor = await usuario("gestor", "GESTOR_SETOR", g1.id);
+  // Diretoria com vínculo ANTIGO de gestor (papel RH) — o caso de quem foi
+  // promovido: não pode ficar restrita de surpresa no deploy.
+  const dirLegado = await usuario("dir-legado", "DIRETORIA", g1.id);
+  await marcar(dirLegado.id, ma.id, "RH_MANAGER");
 
   console.log("\nQuem está preso a algumas marcas\n");
   ok(!(await direcaoRestrita(dirGlobal)), "Diretoria sem marca marcada NÃO está restrita");
   ok(await direcaoRestrita(dirRestrita), "Diretoria com marca marcada está restrita");
   ok(!(await direcaoRestrita(admForaDoGrupo)), "marca de OUTRO grupo não restringe o ADMIN");
   ok(!(await direcaoRestrita(rh)), "gestor de RH não é 'direção restrita' — segue os vínculos");
+  ok(!(await direcaoRestrita(dirLegado)), "vínculo antigo de gestor numa Diretoria NÃO restringe");
+  {
+    const v = await empresasVisiveis(sessao(dirLegado));
+    ok(v.includes(ea.id) && v.includes(eb.id), "…e ela segue vendo o grupo inteiro");
+  }
 
   console.log("\nO que cada um enxerga (empresasVisiveis)\n");
   {
@@ -125,6 +138,15 @@ async function main() {
   ok(await usuarioAlcancaEmpresa(sessao(dirGlobal), eb.id), "global alcança qualquer CNPJ do grupo");
   ok(!(await usuarioAlcancaEmpresa(sessao(dirGlobal), ex.id)), "global não alcança CNPJ do outro grupo");
   ok(!(await usuarioAlcancaEmpresa(sessao(admForaDoGrupo), ex.id)), "vínculo antigo com outro grupo não abre o CNPJ de lá");
+  {
+    // Vínculo de CNPJ de OUTRA marca numa Diretoria restrita não amplia nada.
+    await prisma.userEmpresa.create({
+      data: { userId: dirRestrita.id, empresaId: eb.id, role: "RH_MANAGER", papelPrincipal: false },
+    });
+    const comCnpj = sessao(dirRestrita, [{ empresaId: eb.id, ativo: true }]);
+    ok(!(await empresasVisiveis(comCnpj)).includes(eb.id), "restrita com CNPJ de outra marca vinculado NÃO o vê");
+    ok(!(await usuarioAlcancaEmpresa(comCnpj, eb.id)), "…nem o alcança");
+  }
 
   console.log("\nAvisos de pesquisa por empresa (buscarDestinatarios)\n");
   {
@@ -154,6 +176,25 @@ async function main() {
   {
     const r = await aplicarMarcasQueVe({ userId: dirRestrita.id, grupoId: g1.id, marcaIds: [mx.id] });
     ok(!r.ok && /não é deste grupo/.test(r.error), "marca de outro grupo é recusada");
+  }
+  {
+    const r = await aplicarMarcasQueVe({ userId: dirLegado.id, grupoId: g1.id, marcaIds: [ma.id] });
+    ok(r.ok, "admin marca a mesma marca do vínculo antigo");
+    ok(await direcaoRestrita(dirLegado), "…e o vínculo vira restrição de verdade");
+  }
+  {
+    // Vínculo com marca DESATIVADA: a tela não mostra, e salvar não pode apagá-lo.
+    const mc = await marca("Smoke MC", g1.id);
+    await prisma.marca.update({ where: { id: mc.id }, data: { ativo: false } });
+    const rh2 = await usuario("rh2", "RH_MANAGER", g1.id);
+    await marcar(rh2.id, mb.id, "RH_MANAGER");
+    await marcar(rh2.id, mc.id, "RH_MANAGER");
+    const r = await aplicarMarcasQueVe({ userId: rh2.id, grupoId: g1.id, marcaIds: [ma.id] });
+    ok(r.ok, "admin troca as marcas de um gestor de RH");
+    const links = await prisma.userMarca.findMany({ where: { userId: rh2.id }, select: { marcaId: true, ativo: true } });
+    const ativo = (id: string) => links.find((l) => l.marcaId === id)?.ativo;
+    ok(ativo(ma.id) === true && ativo(mb.id) === false, "…a marca escolhida entra e a desmarcada sai");
+    ok(ativo(mc.id) === true, "…e o vínculo com marca desativada (sem checkbox) fica");
   }
   {
     const r = await aplicarMarcasQueVe({ userId: rh.id, grupoId: g1.id, marcaIds: [] });
@@ -202,6 +243,21 @@ async function main() {
   {
     const r = await contaDoGoogle(`DUP.${sfx}@EXAMPLE.COM`, true);
     ok(!r.ok && r.motivo === "mais-de-uma-conta", "e-mail em duas contas não escolhe uma ao acaso");
+  }
+  {
+    // "_" e "%" não são coringa: o Google de "ana_souza@" não entra na conta de "ana.souza@".
+    const ana = await usuario("ana", "RH_MANAGER", g1.id, { email: `ana.souza.${sfx}@example.com` });
+    const r = await contaDoGoogle(`ana_souza.${sfx}@example.com`, true);
+    ok(!r.ok && r.motivo === "sem-cadastro", "\"_\" no e-mail do Google não funciona como coringa");
+    const r2 = await contaDoGoogle(`ana%.${sfx}@example.com`, true);
+    ok(!r2.ok, "\"%\" também não");
+    ok((await usuarioPorIdentificador(`ana_souza.${sfx}@example.com`, "email")) === null, "login/senha por e-mail com \"_\" não acha a conta de outro");
+    ok((await usuarioPorIdentificador(`ANA.SOUZA.${sfx}@EXAMPLE.COM`, "email"))?.id === ana.id, "…e maiúscula continua não importando");
+  }
+  {
+    const master = await usuario("master", "MASTER", null, { email: `master.${sfx}@example.com` });
+    const r = await contaDoGoogle(`master.${sfx}@example.com`, true);
+    ok(!r.ok && master.role === "MASTER", "a conta MASTER não entra pelo Google (só usuário e senha)");
   }
 }
 

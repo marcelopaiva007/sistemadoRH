@@ -107,17 +107,27 @@ export async function aplicarMarcasQueVe(entrada: {
         data: { ativo: false, papelPrincipal: false },
       });
     }
-    // As marcas escolhidas ficam ativas; qualquer outra (deste grupo ou de
-    // outro) sai — a lista da tela é a lista inteira, não um acréscimo.
+    // As marcas escolhidas ficam ativas; qualquer outra sai — a lista da tela
+    // é a lista inteira, não um acréscimo. Exceção: vínculo com marca
+    // DESATIVADA do mesmo grupo, que a tela não mostra (não tem checkbox) e
+    // ainda pode abrir CNPJ ativo dela. Só some quando a conta muda de grupo.
     await tx.userMarca.updateMany({
-      where: { userId: alvo.id, ativo: true, marcaId: { notIn: escolhidas } },
+      where: {
+        userId: alvo.id,
+        ativo: true,
+        marcaId: { notIn: escolhidas },
+        ...(mudaGrupo ? {} : { marca: { ativo: true } }),
+      },
       data: { ativo: false },
     });
+    // O papel do vínculo é o da pessoa: para ADMIN/DIRETORIA é ele que faz da
+    // marca uma RESTRIÇÃO (lib/grupo.ts, `PAPEIS_DE_RESTRICAO`) — inclusive
+    // quando o admin marca uma marca que já tinha vínculo antigo de gestor.
     for (const marcaId of escolhidas) {
       await tx.userMarca.upsert({
         where: { userId_marcaId: { userId: alvo.id, marcaId } },
         create: { userId: alvo.id, marcaId, role: alvo.role },
-        update: { ativo: true },
+        update: { ativo: true, role: alvo.role },
       });
     }
   });

@@ -12,6 +12,7 @@
 // dias como a régua de pesquisa: aqui "parado" é medido pela repetição — se a
 // pendência não sumir, o e-mail volta amanhã, até alguém resolver. O gestor
 // (role ADMIN) entra em cópia em toda cobrança.
+import { PAPEIS_DE_RESTRICAO } from "@/lib/grupo";
 import { diaBrasilia } from "@/lib/datas";
 import { prisma, type Cliente } from "@/lib/prisma";
 import { sendEmail } from "@/lib/email";
@@ -60,7 +61,7 @@ export async function executarCobrancaPendenciasRH(
   // cópia "parcial" mostraria número de marca que esse ADMIN não enxerga.
   const marcadas = gestores.length
     ? await cliente.userMarca.findMany({
-        where: { userId: { in: gestores.map((g) => g.id) }, ativo: true },
+        where: { userId: { in: gestores.map((g) => g.id) }, ativo: true, role: { in: PAPEIS_DE_RESTRICAO } },
         select: { userId: true, marcaId: true, marca: { select: { grupoId: true } } },
       })
     : [];

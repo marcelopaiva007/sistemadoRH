@@ -8,7 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { requireGestaoUsuarios } from "@/lib/auth-guard";
 import { empresasVisiveis, usuarioAlcancaEmpresa } from "@/lib/rh-auth-guard";
 import { redirect } from "next/navigation";
-import { ehMaster, grupoDoUsuario } from "@/lib/grupo";
+import { ehMaster, grupoDoUsuario, PAPEIS_DE_RESTRICAO } from "@/lib/grupo";
 import { auth } from "@/auth";
 import { sendEmail } from "@/lib/email";
 import { registrarAuditoria, diffCampos } from "@/lib/audit";
@@ -168,13 +168,24 @@ const ERRO_ALVO = { ok: false as const, error: "Usuário não encontrado." };
 async function marcasDaDirecaoSoComMaster(
   esc: EscopoGestao,
   userId: string,
+  marcaId?: string,
 ): Promise<ActionResult | null> {
   if (esc.master) return null;
-  const alvo = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { role: true },
-  });
-  if (alvo && (alvo.role === "ADMIN" || alvo.role === "DIRETORIA")) {
+  const [alvo, vinculo] = await Promise.all([
+    prisma.user.findUnique({ where: { id: userId }, select: { role: true } }),
+    marcaId
+      ? prisma.userMarca.findUnique({
+          where: { userId_marcaId: { userId, marcaId } },
+          select: { role: true },
+        })
+      : null,
+  ]);
+  // O vínculo também conta, e não só o papel de hoje: rebaixar a pessoa a RH,
+  // mexer na marca e promovê-la de volta seria o atalho para desfazer o que o
+  // admin decidiu.
+  const ehDirecao = alvo && PAPEIS_DE_RESTRICAO.includes(alvo.role);
+  const ehRestricao = vinculo && PAPEIS_DE_RESTRICAO.includes(vinculo.role);
+  if (ehDirecao || ehRestricao) {
     return {
       ok: false,
       error: "As marcas de Diretoria e Administrativo só o admin muda, na tela de admin.",
@@ -339,6 +350,21 @@ export async function updateUsuario(
     },
   });
   if (!antes) return { ok: false, error: "Usuário não encontrado." };
+
+  // Conta presa a algumas marcas pelo admin (lib/grupo.ts) só muda de papel
+  // pelas mãos do admin: rebaixar a RH e promover de volta era o atalho para
+  // desfazer a restrição sem passar por ele.
+  if (!esc.master && antes.role !== parsed.data.role) {
+    const restricoes = await prisma.userMarca.count({
+      where: { userId: id, ativo: true, role: { in: PAPEIS_DE_RESTRICAO } },
+    });
+    if (restricoes > 0) {
+      return {
+        ok: false,
+        error: "Esta conta tem marcas definidas pelo admin. Só o admin muda o papel dela.",
+      };
+    }
+  }
 
   // Promover a gestor de setor por AQUI não conclui o cadastro: esta tela não
   // tem campo de setor, e gestor sem setor entra no sistema sem nada para ver.
@@ -750,7 +776,7 @@ export async function vincularMarcaUsuario(
   const { userId, marcaId, role } = parsed.data;
   const grupoAlvo = await grupoDoAlvo(esc, userId);
   if (grupoAlvo === false) return ERRO_ALVO;
-  const soMaster = await marcasDaDirecaoSoComMaster(esc, userId);
+  const soMaster = await marcasDaDirecaoSoComMaster(esc, userId, marcaId);
   if (soMaster) return soMaster;
   if (!(await marcaNoGrupo(marcaId, grupoAlvo)))
     return { ok: false, error: "Esta marca não é do grupo do usuário." };
@@ -786,7 +812,7 @@ export async function desativarVinculoMarca(
 ): Promise<ActionResult> {
   const esc = await escopoGestao();
   if ((await grupoDoAlvo(esc, userId)) === false) return ERRO_ALVO;
-  const soMaster = await marcasDaDirecaoSoComMaster(esc, userId);
+  const soMaster = await marcasDaDirecaoSoComMaster(esc, userId, marcaId);
   if (soMaster) return soMaster;
 
   const vinculo = await prisma.userMarca.findUnique({
@@ -827,7 +853,7 @@ export async function reativarVinculoMarca(
   const esc = await escopoGestao();
   const grupoAlvo = await grupoDoAlvo(esc, userId);
   if (grupoAlvo === false) return ERRO_ALVO;
-  const soMaster = await marcasDaDirecaoSoComMaster(esc, userId);
+  const soMaster = await marcasDaDirecaoSoComMaster(esc, userId, marcaId);
   if (soMaster) return soMaster;
   if (!(await marcaNoGrupo(marcaId, grupoAlvo)))
     return { ok: false, error: "Esta marca não é do grupo do usuário." };

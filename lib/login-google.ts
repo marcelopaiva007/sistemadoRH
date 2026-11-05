@@ -34,17 +34,23 @@ export async function contaDoGoogle(
 ): Promise<ContaDoGoogle> {
   const texto = email?.trim();
   if (!texto || !emailVerificado) return { ok: false, motivo: "email-nao-verificado" };
-  const contas = await prisma.user.findMany({
-    where: {
-      email: { equals: texto, mode: "insensitive" },
-      ativo: true,
-      // Acesso de portal (funcionário sem login do sistema) não entra por
-      // aqui: o portal tem porta própria (lib/portal-auth.ts).
-      role: { not: PAPEL_PORTAL },
-    },
-    select: { id: true },
-    take: 2,
-  });
+  // Igualdade EXATA, só sem diferença de maiúscula. Não usar o `equals` com
+  // `mode: "insensitive"` do Prisma: no Postgres ele vira ILIKE, e aí "_" e "%"
+  // no e-mail do Google viram coringa ("ana_souza@" entraria na conta de
+  // "ana.souza@").
+  //
+  // Fora: acesso de portal (funcionário sem login do sistema — o portal tem
+  // porta própria, lib/portal-auth.ts) e o MASTER, que entra só com usuário e
+  // senha: a conta que administra todos os grupos não fica a um Gmail de
+  // distância.
+  const contas = await prisma.$queryRaw<{ id: string }[]>`
+    SELECT id FROM "rh"."User"
+    WHERE lower(email) = lower(${texto})
+      AND ativo = true
+      AND role <> ${PAPEL_PORTAL}
+      AND role <> 'MASTER'
+    LIMIT 2
+  `;
   if (contas.length === 0) return { ok: false, motivo: "sem-cadastro" };
   if (contas.length > 1) return { ok: false, motivo: "mais-de-uma-conta" };
   return { ok: true, userId: contas[0].id };

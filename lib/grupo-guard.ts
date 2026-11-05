@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { requireAdmin, requireUser } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
-import { ehMaster, grupoDoUsuario } from "@/lib/grupo";
+import { direcaoRestrita, ehMaster, grupoDoUsuario } from "@/lib/grupo";
 
 /**
  * ADMIN de cadastro (marcas, CNPJs) — e o GRUPO em que ele manda.
@@ -13,6 +13,9 @@ import { ehMaster, grupoDoUsuario } from "@/lib/grupo";
  */
 export async function requireAdminDoGrupo() {
   const user = await requireAdmin();
+  // ADMIN preso a algumas marcas pela tela de admin não mexe na estrutura: com
+  // ela, bastaria mudar um CNPJ de outra marca para a sua e passar a vê-lo.
+  if (await direcaoRestrita(user)) redirect("/");
   const grupoId = await grupoDoUsuario(user.id);
   if (!grupoId) redirect("/");
   return { user, grupoId };

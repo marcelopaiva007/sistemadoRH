@@ -3,6 +3,7 @@
 
 import { prisma, type Cliente } from "@/lib/prisma";
 import { sendEmail } from "@/lib/email";
+import { PAPEIS_DE_RESTRICAO } from "@/lib/grupo";
 
 export type NotificacaoCiclo = {
   empresaId: string;
@@ -56,7 +57,7 @@ export async function buscarDestinatarios(
     .map((u) => u.id);
   const marcadas = direcaoIds.length
     ? await cliente.userMarca.findMany({
-        where: { userId: { in: direcaoIds }, ativo: true, marca: { grupoId } },
+        where: { userId: { in: direcaoIds }, ativo: true, role: { in: PAPEIS_DE_RESTRICAO }, marca: { grupoId } },
         select: { userId: true, marcaId: true },
       })
     : [];
