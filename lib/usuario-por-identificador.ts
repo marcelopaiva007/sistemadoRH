@@ -30,29 +30,45 @@ export function pareceEmail(texto: string): boolean {
 }
 
 /**
+ * Onde o login está sendo procurado (v1.198.0):
+ * - `{ grupoId }`: o endereço próprio de um cliente — só os usuários dele;
+ * - `"comum"`: o endereço comum — usuários sem cliente e de clientes SEM
+ *   endereço próprio (quem tem endereço próprio entra por ele);
+ * - omitido: o sistema todo (usos internos que já sabem a conta).
+ */
+export type OndeProcurar = { grupoId: string } | "comum";
+
+function filtroDeOnde(onde?: OndeProcurar) {
+  if (!onde) return {};
+  if (onde === "comum") return { OR: [{ grupoId: null }, { grupo: { dominio: null } }] };
+  return { grupoId: onde.grupoId };
+}
+
+/**
  * O usuário cujo LOGIN é o texto digitado, sem espaços nas pontas e sem
  * diferença de maiúsculas.
  *
- * O índice único de `username` diferencia maiúsculas, então cadastros antigos
- * podem diferir só nelas: o texto exato vence, e sem exato só vale quando há
- * UM candidato. Na dúvida, ninguém — entrar (ou mandar o link de senha) na
- * conta errada é pior que não entrar. Cadastro novo não repete nem assim
- * (`loginJaUsado`).
+ * O texto exato vence, e sem exato só vale quando há UM candidato. Desde a
+ * v1.198.0 o login é único por cliente, então o exato também pode ter mais
+ * de um dono: aí ninguém — entrar (ou mandar o link de senha) na conta
+ * errada é pior que não entrar. `onde` restringe a busca (ver OndeProcurar).
  */
-export async function usuarioPorLogin(digitado: string, cliente: Cliente = prisma) {
+export async function usuarioPorLogin(digitado: string, cliente: Cliente = prisma, onde?: OndeProcurar) {
   const texto = digitado.trim();
   if (!texto) return null;
+  const filtro = filtroDeOnde(onde);
   // Só o campo `username`. O e-mail não entra mais: "fulano@empresa.com" só
   // acharia uma conta cujo NOME DE USUÁRIO fosse literalmente esse texto.
-  const exato = await cliente.user.findFirst({ where: { username: texto } });
-  if (exato) return exato;
+  const exatos = await cliente.user.findMany({ where: { username: texto, ...filtro }, take: 2 });
+  if (exatos.length === 1) return exatos[0];
+  if (exatos.length > 1) return null;
   // O `equals` com `mode: "insensitive"` do Prisma vira ILIKE no Postgres, e
   // aí "_" e "%" do texto digitado funcionam como coringa. O banco só
   // pré-filtra; quem decide é a comparação exata (sem maiúsculas) logo abaixo.
   const minusculo = texto.toLowerCase();
   const parecidos = (
     await cliente.user.findMany({
-      where: { username: { equals: texto, mode: "insensitive" } },
+      where: { username: { equals: texto, mode: "insensitive" }, ...filtro },
       take: 50,
     })
   ).filter((u) => u.username.toLowerCase() === minusculo);
@@ -65,7 +81,7 @@ export async function usuarioPorLogin(digitado: string, cliente: Cliente = prism
  * Acesso de portal (colaborador sem login) fica de fora: não tem usuário que
  * se use na tela de login.
  */
-export async function usuariosPorEmail(digitado: string, cliente: Cliente = prisma) {
+export async function usuariosPorEmail(digitado: string, cliente: Cliente = prisma, onde?: OndeProcurar) {
   const texto = digitado.trim();
   if (!texto || !pareceEmail(texto)) return [];
   const minusculo = texto.toLowerCase();
@@ -75,6 +91,7 @@ export async function usuariosPorEmail(digitado: string, cliente: Cliente = pris
         email: { equals: texto, mode: "insensitive" },
         ativo: true,
         role: { not: PAPEL_PORTAL },
+        ...filtroDeOnde(onde),
       },
       select: { id: true, nome: true, username: true, email: true, role: true, grupo: { select: { nome: true } } },
       orderBy: { username: "asc" },
@@ -87,14 +104,27 @@ export async function usuariosPorEmail(digitado: string, cliente: Cliente = pris
  * O login já existe, sem diferença de maiúsculas? (Ignora a própria conta, na
  * edição.) Comparação exata em SQL (`lower`), sem ILIKE: "ana_souza" não pode
  * bater com "ana.souza".
+ *
+ * Desde a v1.198.0 o login é único POR CLIENTE, com uma exceção: todos os que
+ * entram pelo ENDEREÇO COMUM (sem cliente, ou de cliente sem endereço próprio)
+ * dividem a mesma tela de login, então entre eles também não pode repetir —
+ * senão o login ali fica ambíguo. Sem `grupoId` informado (undefined), vale a
+ * regra antiga: único no sistema todo.
  */
 export async function loginJaUsado(
   username: string,
   excetoId?: string,
   cliente: Cliente = prisma,
+  grupoId?: string | null,
 ): Promise<{ id: string; username: string; grupoId: string | null; grupoNome: string | null } | null> {
   const texto = username.trim();
   if (!texto) return null;
+  const todos = grupoId === undefined;
+  let destinoNoComum = true;
+  if (grupoId) {
+    const g = await cliente.grupo.findUnique({ where: { id: grupoId }, select: { dominio: true } });
+    destinoNoComum = !g?.dominio;
+  }
   const achados = await cliente.$queryRaw<
     { id: string; username: string; grupoId: string | null; grupoNome: string | null }[]
   >`
@@ -103,6 +133,11 @@ export async function loginJaUsado(
     LEFT JOIN "rh"."Grupo" g ON g.id = u."grupoId"
     WHERE lower(u.username) = lower(${texto})
       AND (${excetoId ?? null}::text IS NULL OR u.id <> ${excetoId ?? null}::text)
+      AND (
+        ${todos}::boolean
+        OR u."grupoId" IS NOT DISTINCT FROM ${grupoId ?? null}::text
+        OR (${destinoNoComum}::boolean AND (u."grupoId" IS NULL OR g.dominio IS NULL))
+      )
     LIMIT 1`;
   return achados[0] ?? null;
 }

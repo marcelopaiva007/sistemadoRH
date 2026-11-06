@@ -98,7 +98,7 @@ async function main() {
   console.log("6. O caminho do login (authorize) resolve na tabela nova");
   const usuarioSeed = process.env.SEED_ADMIN_USERNAME;
   if (usuarioSeed) {
-    const usuario = await prisma.user.findUnique({ where: { username: usuarioSeed } });
+    const usuario = await prisma.user.findFirst({ where: { username: usuarioSeed } });
     ok(usuario !== null, `prisma.user.findUnique acha "${usuarioSeed}" (agora em rh."User")`);
     if (usuario) {
       // O hash guardado é bcrypt e é o que o authorize() vai comparar.

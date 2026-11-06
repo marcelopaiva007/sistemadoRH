@@ -6,7 +6,8 @@ import { after } from "next/server";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
-import { usuarioPorLogin, usuariosPorEmail } from "@/lib/usuario-por-identificador";
+import { usuarioPorLogin, usuariosPorEmail, type OndeProcurar } from "@/lib/usuario-por-identificador";
+import { ondeDestaRequisicao } from "@/lib/endereco-cliente";
 import { PAPEL_PORTAL } from "@/lib/delegacoes/acesso-colaborador";
 import { sendEmail } from "@/lib/email";
 import { registrarAuditoria } from "@/lib/audit";
@@ -77,10 +78,6 @@ function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
-function urlBase(): string {
-  return process.env.NEXTAUTH_URL ?? process.env.APP_URL ?? "http://localhost:3000";
-}
-
 /** "rh.assinelm.com/admin" — o endereço da área de administração, para o e-mail. */
 function enderecoDoAdmin(baseUrl: string): string {
   return `${baseUrl.replace(/^https?:\/\//, "")}/admin`;
@@ -146,19 +143,23 @@ export async function solicitarRecuperacaoSenha(_prev: ActionResult, formData: F
     return { ok: false, error: MENSAGEM_BARRADO };
   }
 
-  const baseUrl = urlBase();
+  // Endereço próprio do cliente (v1.198.0): procura só nele e o link volta
+  // para ele. Mesma resposta em qualquer caso (não revela se a conta existe).
+  const local = await ondeDestaRequisicao(await headers());
+  if (local.bloqueado) return { ok: true };
+  const baseUrl = local.baseUrl;
   after(() =>
-    enviarLinkDeSenha(digitado, baseUrl).catch((e) => console.error("[recuperacao-senha] pedido falhou:", e)),
+    enviarLinkDeSenha(digitado, baseUrl, local.onde).catch((e) => console.error("[recuperacao-senha] pedido falhou:", e)),
   );
   return { ok: true };
 }
 
 /** O trabalho do "Esqueci minha senha", depois da resposta. */
-async function enviarLinkDeSenha(digitado: string, baseUrl: string): Promise<void> {
+async function enviarLinkDeSenha(digitado: string, baseUrl: string, onde: OndeProcurar): Promise<void> {
   // A mesma regra do login (sem diferença de maiúsculas, texto exato vence).
   // Acesso de portal (funcionário sem login) não ganha senha por aqui: é a
   // trava de lib/delegacoes/acesso-colaborador.ts, além do e-mail nulo.
-  const user = await usuarioPorLogin(digitado);
+  const user = await usuarioPorLogin(digitado, undefined, onde);
   if (!user || !user.ativo || user.role === PAPEL_PORTAL || !user.email) return;
 
   const emailDestino = user.email.trim().toLowerCase();
@@ -266,16 +267,18 @@ export async function solicitarLembreteDeUsuario(_prev: ActionResult, formData: 
     return { ok: false, error: MENSAGEM_BARRADO };
   }
 
-  const baseUrl = urlBase();
+  const local = await ondeDestaRequisicao(await headers());
+  if (local.bloqueado) return { ok: true };
+  const baseUrl = local.baseUrl;
   after(() =>
-    enviarLembreteDeUsuario(email, baseUrl).catch((e) => console.error("[lembrete-usuario] pedido falhou:", e)),
+    enviarLembreteDeUsuario(email, baseUrl, local.onde).catch((e) => console.error("[lembrete-usuario] pedido falhou:", e)),
   );
   return { ok: true };
 }
 
 /** O trabalho do "Esqueci meu usuário", depois da resposta. */
-async function enviarLembreteDeUsuario(email: string, baseUrl: string): Promise<void> {
-  const contas = await usuariosPorEmail(email);
+async function enviarLembreteDeUsuario(email: string, baseUrl: string, onde: OndeProcurar): Promise<void> {
+  const contas = await usuariosPorEmail(email, undefined, onde);
   if (contas.length === 0) return;
   if (await tetoDoDiaAtingido(email)) return;
 

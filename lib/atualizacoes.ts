@@ -26,6 +26,18 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.198.0",
+    data: "06/11/2026",
+    horario: "17:30",
+    titulo: "Gestão FASTMAI: endereço de acesso próprio por cliente",
+    itens: [
+      "No cadastro do contratante, o novo campo \"Endereço de acesso próprio\" (ex.: rh.cliente.com.br).",
+      "Quem entra por esse endereço só acha os usuários daquele cliente — o mesmo login (ex.: \"maria\") pode existir em clientes diferentes.",
+      "\"Esqueci minha senha\" e \"Esqueci meu usuário\" também respeitam o endereço, e os links de senha voltam para ele.",
+      "Nada muda para quem usa hoje: os clientes atuais continuam no endereço comum até ganharem um endereço próprio.",
+    ],
+  },
+  {
     versao: "1.197.0",
     data: "06/11/2026",
     horario: "17:00",

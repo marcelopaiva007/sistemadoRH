@@ -182,6 +182,8 @@ jobs:
       # do passo vermelho já diz o que quebrou.
       - name: Login só pelo usuário, esqueci senha/usuário (um usuário por grupo)
         run: npx tsx scripts/smoke-identificador-login.ts
+      - name: Login pelo endereço do cliente (v1.198.0)
+        run: npx tsx scripts/smoke-login-por-endereco.ts
       - name: Marcas que cada conta vê (tela de admin)
         run: npx tsx scripts/smoke-marcas-direcao.ts
       - name: Regras das marcas (só ela / junto com) na área de admin
