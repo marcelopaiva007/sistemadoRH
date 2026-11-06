@@ -22,6 +22,7 @@ import { prisma } from "@/lib/prisma";
 import { conferirNascimento, extrairCpfEData } from "@/lib/telegram-identidade";
 import { answerCallbackQuery, sendTelegramMessage, telegramWebhookSecret } from "@/lib/telegram";
 import { CALLBACK_ABRIR_PORTAL } from "@/lib/contracheques/situacao";
+import { parseCallbackCienciaContracheque, tratarCallbackCienciaContracheque } from "@/lib/contracheques/telegram-ciencia";
 import { criarLinkDeAcesso, MINUTOS_VALIDADE_LINK } from "@/lib/portal-auth";
 import { sufixoTelefone } from "@/lib/telefone";
 import { tratarCallbackInformativo } from "@/lib/informativos";
@@ -41,7 +42,7 @@ type TelegramUpdate = {
   callback_query?: {
     id?: string;
     data?: string;
-    message?: { message_id?: number; chat?: { id?: number | string } };
+    message?: { message_id?: number; chat?: { id?: number | string }; text?: string };
   };
   message?: {
     chat?: { id?: number | string };
@@ -315,6 +316,23 @@ export async function POST(req: NextRequest) {
   const callback = update.callback_query;
   if (callback?.id && callback.data) {
     const chatDoBotao = callback.message?.chat?.id;
+    // Botão "Estou ciente" do aviso de contracheque
+    const reciboIdCiencia = parseCallbackCienciaContracheque(callback.data);
+    if (chatDoBotao !== undefined && reciboIdCiencia) {
+      try {
+        await tratarCallbackCienciaContracheque(
+          reciboIdCiencia,
+          String(chatDoBotao),
+          callback.message?.message_id,
+          callback.id,
+          callback.message?.text
+        );
+      } catch (e) {
+        console.error("telegram-webhook (callback ciencia contracheque):", e);
+      }
+      return NextResponse.json({ ok: true });
+    }
+
     // Botão "Ver e confirmar" do aviso de contracheque: o link do portal é
     // gerado AGORA, no toque — o aviso pode ter sido lido horas depois, e o
     // link vale 15 minutos. Mesmo caminho do /portal (só para o chat vinculado).
