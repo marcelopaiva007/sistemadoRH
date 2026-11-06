@@ -228,9 +228,9 @@ async function loginRepetido(
       break;
     }
   }
-  const onde = existente.grupoNome ? ` (grupo ${existente.grupoNome})` : "";
+  const onde = existente.grupoNome ? ` (cliente ${existente.grupoNome})` : "";
   const saida = sugestao
-    ? ` Se é a mesma pessoa${grupoDestino ? ` no grupo ${grupoDestino.nome}` : ""}, crie outro usuário — por exemplo “${sugestao}” — e ela pode usar a mesma senha.`
+    ? ` Se é a mesma pessoa${grupoDestino ? ` no cliente ${grupoDestino.nome}` : ""}, crie outro usuário — por exemplo “${sugestao}” — e ela pode usar a mesma senha.`
     : " Escolha outro.";
   return `Já existe o usuário “${existente.username}”${onde}. Usuário não se repete, nem com maiúsculas diferentes.${saida}`;
 }
@@ -274,13 +274,13 @@ export async function createUsuario(
       select: { id: true },
     }))
   ) {
-    return { ok: false, error: "Escolha o grupo do usuário." };
+    return { ok: false, error: "Escolha o cliente do usuário." };
   }
   if (marcaId && !(await marcaNoGrupo(marcaId, grupoId))) {
-    return { ok: false, error: "A marca escolhida não é deste grupo." };
+    return { ok: false, error: "A marca escolhida não é deste cliente." };
   }
   if (empresaId && !(await empresaNoGrupo(empresaId, grupoId))) {
-    return { ok: false, error: "O CNPJ escolhido não é deste grupo." };
+    return { ok: false, error: "O CNPJ escolhido não é deste cliente." };
   }
   // Um usuário por grupo: quem trabalha nos dois tem dois usuários.
   const repetido = await loginRepetido(username, grupoId);
@@ -450,7 +450,7 @@ export async function updateUsuario(
       return {
         ok: false,
         error:
-          "Não é possível rebaixar ou desativar o único ADMIN ativo do grupo.",
+          "Não é possível rebaixar ou desativar o único ADMIN ativo do cliente.",
       };
     }
   }
@@ -577,7 +577,7 @@ export async function deleteUsuario(id: string): Promise<ActionResult> {
     if (outrosAdmins === 0) {
       return {
         ok: false,
-        error: "Não é possível excluir/desativar o único ADMIN ativo do grupo.",
+        error: "Não é possível excluir/desativar o único ADMIN ativo do cliente.",
       };
     }
   }
@@ -628,7 +628,7 @@ export async function toggleStatusUsuario(id: string): Promise<ActionResult> {
     if (outrosAdmins === 0) {
       return {
         ok: false,
-        error: "Não é possível desativar o único ADMIN ativo do grupo.",
+        error: "Não é possível desativar o único ADMIN ativo do cliente.",
       };
     }
   }
@@ -673,7 +673,7 @@ export async function vincularEmpresaUsuario(
   const grupoAlvo = await grupoDoAlvo(esc, userId);
   if (grupoAlvo === false) return ERRO_ALVO;
   if (!(await empresaNoGrupo(empresaId, grupoAlvo))) {
-    return { ok: false, error: "Este CNPJ não é do grupo do usuário." };
+    return { ok: false, error: "Este CNPJ não é do cliente do usuário." };
   }
 
   try {
@@ -779,7 +779,7 @@ export async function reativarVinculoUsuario(
   const grupoAlvo = await grupoDoAlvo(esc, userId);
   if (grupoAlvo === false) return ERRO_ALVO;
   if (!(await empresaNoGrupo(empresaId, grupoAlvo))) {
-    return { ok: false, error: "Este CNPJ não é do grupo do usuário." };
+    return { ok: false, error: "Este CNPJ não é do cliente do usuário." };
   }
 
   const vinculo = await prisma.userEmpresa.findUnique({
@@ -835,7 +835,7 @@ export async function vincularMarcaUsuario(
   const soMaster = await marcasDaDirecaoSoComMaster(esc, userId, marcaId);
   if (soMaster) return soMaster;
   if (!(await marcaNoGrupo(marcaId, grupoAlvo)))
-    return { ok: false, error: "Esta marca não é do grupo do usuário." };
+    return { ok: false, error: "Esta marca não é do cliente do usuário." };
 
   try {
     // upsert e não create: revincular uma marca que já foi desativada deve
@@ -912,7 +912,7 @@ export async function reativarVinculoMarca(
   const soMaster = await marcasDaDirecaoSoComMaster(esc, userId, marcaId);
   if (soMaster) return soMaster;
   if (!(await marcaNoGrupo(marcaId, grupoAlvo)))
-    return { ok: false, error: "Esta marca não é do grupo do usuário." };
+    return { ok: false, error: "Esta marca não é do cliente do usuário." };
 
   const vinculo = await prisma.userMarca.findUnique({
     where: { userId_marcaId: { userId, marcaId } },
@@ -1150,6 +1150,6 @@ export async function definirMarcasQueVe(
   });
 
   revalidatePath("/admin/usuarios");
-  revalidatePath("/admin/grupos");
+  revalidatePath("/admin/clientes");
   return { ok: true };
 }

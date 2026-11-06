@@ -88,7 +88,7 @@ export async function aplicarRegraDaMarca(entrada: {
     if (outrasDaOrigem === 0) {
       return {
         ok: true,
-        resumo: `${marca.nome} já é vista sozinha (é a única marca de "${origem.nome}").`,
+        resumo: `${marca.nome} já é vista sozinha (é a única marca do cliente "${origem.nome}").`,
         grupoDestinoId: origem.id,
       };
     }
@@ -96,13 +96,13 @@ export async function aplicarRegraDaMarca(entrada: {
   } else {
     const grupoId = entrada.destino.grupoId;
     if (grupoId === origem.id) {
-      return { ok: true, resumo: `${marca.nome} já está nesse conjunto.`, grupoDestinoId: origem.id };
+      return { ok: true, resumo: `${marca.nome} já está nesse cliente.`, grupoDestinoId: origem.id };
     }
     const alvo = await prisma.grupo.findUnique({
       where: { id: grupoId },
       select: { id: true, nome: true, ativo: true, _count: { select: { marcas: { where: { ativo: true } } } } },
     });
-    if (!alvo || !alvo.ativo) return { ok: false, error: "Grupo não encontrado." };
+    if (!alvo || !alvo.ativo) return { ok: false, error: "Cliente não encontrado." };
     if (alvo._count.marcas === 0) {
       return { ok: false, error: `"${alvo.nome}" não tem marca ativa para ${marca.nome} se juntar.` };
     }
@@ -135,7 +135,7 @@ export async function aplicarRegraDaMarca(entrada: {
       const nomes = adminsAntes.map((u) => u.nome).join(", ");
       return {
         ok: false,
-        error: `"${origem.nome}" ficaria sem ADMIN ativo (${nomes} ${adminsAntes.length === 1 ? "é o único" : "são os únicos"}). Deixe pelo menos um no grupo.`,
+        error: `"${origem.nome}" ficaria sem ADMIN ativo (${nomes} ${adminsAntes.length === 1 ? "é o único" : "são os únicos"}). Deixe pelo menos um no cliente.`,
       };
     }
   }
@@ -234,12 +234,12 @@ export async function aplicarRegraDaMarca(entrada: {
           .join(", ")})`;
   const regra =
     entrada.destino.tipo === "SO_ELA"
-      ? `passou a ser vista sozinha (grupo "${grupoNovo?.nome}")`
-      : `passou a se juntar com as marcas de "${destino?.nome}"`;
+      ? `virou cliente próprio, de marca única ("${grupoNovo?.nome}")`
+      : `passou para o cliente "${destino?.nome}"`;
   return {
     ok: true,
     resumo: `${marca.nome} ${regra}, saindo de "${origem.nome}"; ${quem}.${
-      esvaziaOrigem ? ` O grupo "${origem.nome}" ficou sem marca e foi encerrado.` : ""
+      esvaziaOrigem ? ` O cliente "${origem.nome}" ficou sem marca e foi encerrado.` : ""
     }`,
     grupoDestinoId,
   };

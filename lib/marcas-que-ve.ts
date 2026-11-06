@@ -60,12 +60,12 @@ export async function aplicarMarcasQueVe(entrada: {
       error: "Gestor de setor vê só o próprio setor: o acesso dele é pelo CNPJ e setor, em Vincular.",
     };
   }
-  if (!grupo || !grupo.ativo) return { ok: false, error: "Grupo não encontrado." };
+  if (!grupo || !grupo.ativo) return { ok: false, error: "Cliente não encontrado." };
   if (
     marcas.length !== escolhidas.length ||
     marcas.some((m) => m.grupoId !== grupo.id || !m.ativo)
   ) {
-    return { ok: false, error: "Alguma marca escolhida não é deste grupo." };
+    return { ok: false, error: "Alguma marca escolhida não é deste cliente." };
   }
 
   const mudaGrupo = alvo.grupoId !== grupo.id;
@@ -137,12 +137,12 @@ export async function aplicarMarcasQueVe(entrada: {
     nomes.length > 0
       ? nomes.join(", ")
       : alvo.role === "ADMIN" || alvo.role === "DIRETORIA"
-        ? "todas as marcas do grupo"
+        ? "todas as marcas do cliente"
         : "só os CNPJs vinculados";
   return {
     ok: true,
     resumo:
       `Definiu as marcas que ${alvo.nome} vê: ${oQueVe}` +
-      (mudaGrupo ? ` (mudou do grupo "${alvo.grupo?.nome ?? "—"}" para "${grupo.nome}")` : ""),
+      (mudaGrupo ? ` (mudou do cliente "${alvo.grupo?.nome ?? "—"}" para "${grupo.nome}")` : ""),
   };
 }

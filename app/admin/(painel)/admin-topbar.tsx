@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { ChevronDown, KeyRound, LogOut, Network, ShieldCheck, UserCog } from "lucide-react";
+import { Building2, ChevronDown, KeyRound, LogOut, ShieldCheck, UserCog } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FastmaiLogo } from "@/components/logo-fastmai";
 import {
@@ -14,13 +14,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-// As três telas da administração. Usuários primeiro: é a tela que motivou a
-// área — escolher, conta a conta, que marcas cada pessoa vê.
+// As três telas da GESTÃO FASTMAI (v1.192.0, pedido do CEO): a FASTMAI tem
+// clientes — a LM Telecom, de marca única, e o cliente multimarcas — e controla
+// os usuários de cada um. Clientes primeiro: é de lá que se chega aos usuários
+// de cada cliente. (Até a v1.191.0 eram "Usuários", "Regras das marcas" e
+// "Perfis"; /admin/grupos leva a /admin/clientes, em next.config.ts.)
 const ABAS = [
+  { href: "/admin/clientes", rotulo: "Clientes", icon: Building2 },
   { href: "/admin/usuarios", rotulo: "Usuários", icon: UserCog },
-  // "Regras das marcas" desde a v1.190.0: a tela abre na regra de cada marca
-  // ("só ela" / "junto com"), com os grupos crus embaixo. O endereço ficou.
-  { href: "/admin/grupos", rotulo: "Regras das marcas", icon: Network },
   { href: "/admin/perfis", rotulo: "Perfis de acesso", icon: ShieldCheck },
 ];
 
@@ -34,7 +35,7 @@ function iniciais(nome: string): string {
 function Abas({ className, linkClassName }: { className?: string; linkClassName?: string }) {
   const pathname = usePathname();
   return (
-    <nav aria-label="Administração" className={className}>
+    <nav aria-label="Gestão FASTMAI" className={className}>
       {ABAS.map((aba) => {
         const ativa = pathname === aba.href || pathname.startsWith(`${aba.href}/`);
         const Icon = aba.icon;
@@ -62,10 +63,10 @@ function Abas({ className, linkClassName }: { className?: string; linkClassName?
 }
 
 /**
- * A barra da área de administração. ESCURA de propósito: o sistema do RH tem
- * a barra clara, e a pessoa precisa saber de relance em qual dos dois está —
- * aqui se concedem e se tiram acessos. A etiqueta "Admin" ao lado da logo diz
- * o mesmo em texto.
+ * A barra da Gestão FASTMAI (a área de administração). ESCURA de propósito: o
+ * sistema do RH tem a barra clara, e a pessoa precisa saber de relance em qual
+ * dos dois está — aqui se concedem e se tiram acessos. A etiqueta "Gestão" ao
+ * lado da logo diz o mesmo em texto.
  *
  * Sem seletor de marca, de módulo e sem busca: nada do RH aparece aqui.
  * Abaixo de `sm` as abas descem para uma segunda linha, com rolagem lateral
@@ -90,13 +91,13 @@ export function AdminTopbar({
     <header className="sticky top-0 z-40 bg-foreground text-background">
       <div className="flex h-[52px] w-full min-w-0 items-stretch gap-3 px-4 sm:gap-5 sm:px-6">
         <Link
-          href="/admin/usuarios"
-          aria-label="FASTMAI Admin — início da administração"
+          href="/admin/clientes"
+          aria-label="Gestão FASTMAI — início"
           className="flex shrink-0 items-center gap-2"
         >
           <FastmaiLogo className="text-[17px] text-background" />
           <span className="bg-primary px-1.5 py-1 text-[10px] leading-none font-extrabold tracking-[0.08em] text-primary-foreground uppercase">
-            Admin
+            Gestão
           </span>
         </Link>
 
@@ -119,7 +120,7 @@ export function AdminTopbar({
               <span className="hidden min-w-0 md:block">
                 <span className="block max-w-44 truncate text-[13px] leading-tight font-semibold">{nome}</span>
                 <span className="block truncate text-[11px] leading-tight text-background/70">
-                  Administrador
+                  Administrador FASTMAI
                   <span className="font-mono"> · {versaoCurta}</span>
                 </span>
               </span>

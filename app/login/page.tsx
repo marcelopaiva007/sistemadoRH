@@ -56,8 +56,8 @@ export default async function LoginPage({
           {/* Um usuário por grupo (v1.191.0): quem trabalha na L&M e nas demais
               marcas tem dois, e é o usuário que diz em qual grupo se entra. */}
           <p className="mt-6 text-xs text-muted-foreground">
-            Trabalha na L&amp;M e nas demais marcas? Você tem um usuário para cada — entre com o do
-            grupo em que vai trabalhar. Para trocar, use <strong>Sair / trocar de usuário</strong> no
+            Trabalha na L&amp;M e nas demais marcas? Você tem um usuário para cada — entre com o da
+            empresa em que vai trabalhar. Para trocar, use <strong>Sair / trocar de usuário</strong> no
             menu do seu nome e entre com o outro.
           </p>
           <div className="mt-10 border-t-2 border-border pt-5 text-sm text-muted-foreground">

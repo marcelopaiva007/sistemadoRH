@@ -173,7 +173,7 @@ async function main() {
   }
   {
     const r = await aplicarMarcasQueVe({ userId: dirRestrita.id, grupoId: g1.id, marcaIds: [mx.id] });
-    ok(!r.ok && /não é deste grupo/.test(r.error), "marca de outro grupo é recusada");
+    ok(!r.ok && /não é deste cliente/.test(r.error), "marca de outro grupo é recusada");
   }
   {
     const r = await aplicarMarcasQueVe({ userId: dirLegado.id, grupoId: g1.id, marcaIds: [ma.id] });

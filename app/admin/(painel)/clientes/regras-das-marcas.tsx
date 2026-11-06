@@ -15,6 +15,12 @@ import { ROLE_LABEL } from "@/lib/constants";
 import { definirRegraDaMarca } from "@/lib/actions/regras-marcas";
 import { cn } from "@/lib/utils";
 
+// MARCAS E CLIENTES (tela Clientes da Gestão FASTMAI, v1.192.0): em qual
+// cliente fica cada marca. É a regra "só ela" / "junto com" da v1.190.0 dita
+// do jeito da Gestão — "só ela" é a marca virar um cliente de marca única, e
+// "junto com" é ela passar para um cliente multimarcas. A mecânica (quem vai
+// junto, quem deixa de ver) é a mesma, em lib/regras-marcas.ts.
+
 type Grupo = { id: string; nome: string; ativo: boolean };
 type MarcaNaRegra = { id: string; nome: string; ativo: boolean; grupoId: string; cnpjs: number };
 
@@ -91,7 +97,7 @@ export function RegrasDasMarcas({
         <thead className="bg-muted/40 text-left text-xs font-semibold tracking-wide text-muted-foreground uppercase">
           <tr>
             <th className="px-4 py-2.5">Marca</th>
-            <th className="px-4 py-2.5">Regra</th>
+            <th className="px-4 py-2.5">Cliente</th>
             <th className="px-4 py-2.5">Quem trabalha nela</th>
           </tr>
         </thead>
@@ -111,12 +117,12 @@ export function RegrasDasMarcas({
                 <td className="px-4 py-3">
                   <p className="font-semibold">{m.nome}</p>
                   <p className="text-xs text-muted-foreground">
-                    {m.cnpjs} {m.cnpjs === 1 ? "CNPJ" : "CNPJs"} · grupo {grupoAtivo(m.grupoId)?.nome ?? "—"}
+                    {m.cnpjs} {m.cnpjs === 1 ? "CNPJ" : "CNPJs"}
                   </p>
                 </td>
                 <td className="px-4 py-3">
                   <label className="sr-only" htmlFor={`regra-${m.id}`}>
-                    Regra de {m.nome}
+                    Cliente de {m.nome}
                   </label>
                   <select
                     id={`regra-${m.id}`}
@@ -131,20 +137,20 @@ export function RegrasDasMarcas({
                   >
                     <option value="ATUAL">
                       {sozinha
-                        ? "Só ela — quem vê esta marca não vê outra"
-                        : `Junto com ${juntar(outras.map((x) => x.nome))}`}
+                        ? `${grupoAtivo(m.grupoId)?.nome ?? "—"} — marca única`
+                        : `${grupoAtivo(m.grupoId)?.nome ?? "—"} — multimarcas, com ${juntar(outras.map((x) => x.nome))}`}
                     </option>
-                    {!sozinha && <option value="SO_ELA">Mudar para: só ela (vista sozinha)</option>}
+                    {!sozinha && <option value="SO_ELA">Mudar para: cliente só dela (marca única)</option>}
                     {destinos.map((g) => (
                       <option key={g.id} value={`JUNTO:${g.id}`}>
-                        Mudar para: junto com {juntar(ativasDo(g.id).map((x) => x.nome))}
+                        Mudar para: cliente {g.nome}, com {juntar(ativasDo(g.id).map((x) => x.nome))}
                       </option>
                     ))}
                   </select>
                   <p className="mt-1 text-xs text-muted-foreground">
                     {sozinha
                       ? "Quem tem acesso a ela vê só ela."
-                      : "Cada pessoa pode ver esta marca sozinha ou junto com as outras do conjunto."}
+                      : "Cada pessoa pode ver esta marca sozinha ou junto com as outras do cliente."}
                   </p>
                 </td>
                 <td className="px-4 py-3 text-muted-foreground">
@@ -255,15 +261,15 @@ function ConfirmarRegra({
       <DialogHeader>
         <DialogTitle>
           {escolha.tipo === "SO_ELA"
-            ? `${marca.nome} passa a ser vista sozinha`
-            : `${marca.nome} passa a se juntar com ${nomeDestino}`}
+            ? `${marca.nome} vira um cliente só dela`
+            : `${marca.nome} passa para o cliente ${destino?.nome ?? ""}`}
         </DialogTitle>
       </DialogHeader>
       <div className="max-h-[60vh] space-y-4 overflow-y-auto text-sm">
         <p className="text-muted-foreground">
           {escolha.tipo === "SO_ELA"
-            ? `${marca.nome} sai de "${origem?.nome}"${comCnpjs} e ganha um grupo só dela. Quem tiver acesso a ${marca.nome} vê só ela.`
-            : `${marca.nome} sai de "${origem?.nome}"${comCnpjs} e entra no grupo de ${nomeDestino}. Lá, cada pessoa pode ver uma marca ou várias juntas.`}
+            ? `${marca.nome} sai do cliente "${origem?.nome}"${comCnpjs} e vira um cliente de marca única, com o nome dela. Quem tiver acesso a ${marca.nome} vê só ela.`
+            : `${marca.nome} sai do cliente "${origem?.nome}"${comCnpjs} e entra no cliente "${destino?.nome}", com ${nomeDestino}. Lá, cada pessoa pode ver uma marca ou várias juntas.`}
         </p>
 
         {esvazia ? (
@@ -281,7 +287,7 @@ function ConfirmarRegra({
                 {marca.nome}; as outras marcas você libera pessoa a pessoa em Usuários.
               </p>
             )}
-            <p className="text-muted-foreground">O grupo &quot;{origem?.nome}&quot; fica sem marca e é encerrado.</p>
+            <p className="text-muted-foreground">O cliente &quot;{origem?.nome}&quot; fica sem marca e é encerrado.</p>
           </div>
         ) : (
           <fieldset className="space-y-2">
@@ -289,7 +295,7 @@ function ConfirmarRegra({
             <p className="text-xs text-muted-foreground">
               {escolha.tipo === "SO_ELA"
                 ? `Quem vai junto passa a ver só ${marca.nome}. Já vêm marcadas as contas que hoje veem só ela.`
-                : `Quem vai junto passa para o grupo de ${nomeDestino} vendo só ${marca.nome} (Diretoria e Administrativo entram restritos a ela). Já vêm marcadas as contas que hoje veem só ${marca.nome}.`}
+                : `Quem vai junto passa para o cliente "${destino?.nome}" vendo só ${marca.nome} (Diretoria e Administrativo entram restritos a ela). Já vêm marcadas as contas que hoje veem só ${marca.nome}.`}
             </p>
             {veem.length === 0 && (
               <p className="text-muted-foreground">Nenhuma conta trabalha com {marca.nome} hoje.</p>
@@ -327,7 +333,7 @@ function ConfirmarRegra({
 
         {origemSemAdmin && (
           <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-destructive">
-            &quot;{origem?.nome}&quot; ficaria sem ADMIN ativo. Deixe pelo menos um ADMIN no grupo.
+            &quot;{origem?.nome}&quot; ficaria sem ADMIN ativo. Deixe pelo menos um ADMIN no cliente.
           </p>
         )}
       </div>

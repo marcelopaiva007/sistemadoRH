@@ -180,12 +180,12 @@ export function AppTopbar({
               <>
                 <DropdownMenuItem
                   render={<Link href="/admin/login" />}
-                  title="Usuários, grupos e perfis de acesso. Entra com a conta de administrador."
+                  title="Clientes, usuários e perfis de acesso. Entra com a conta de administrador da FASTMAI."
                   className="items-start"
                 >
                   <ShieldCheck className="mt-0.5" />
                   <span className="flex min-w-0 flex-col">
-                    <span>Área de administração</span>
+                    <span>Gestão FASTMAI</span>
                     <span className="truncate font-mono text-[11px] text-muted-foreground">{enderecoAdmin}</span>
                   </span>
                 </DropdownMenuItem>

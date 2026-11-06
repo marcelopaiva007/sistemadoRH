@@ -9,7 +9,10 @@ import { CAMINHO_PADRAO_DO_ADMIN, voltaDoAdmin } from "@/lib/admin-volta";
 import { AdminLoginForm } from "./admin-login-form";
 
 /**
- * A porta da área de administração (rh.assinelm.com/admin/login).
+ * A porta da Gestão FASTMAI — a área de administração
+ * (rh.assinelm.com/admin/login). "Gestão FASTMAI" desde a v1.192.0: a FASTMAI
+ * administra os clientes (LM Telecom, o cliente multimarcas) e os usuários de
+ * cada um.
  *
  * Mesmo desenho em duas metades do login do sistema (app/login/page.tsx),
  * mas a metade da marca é ESCURA, não vermelha: é outra porta, e a pessoa
@@ -40,15 +43,15 @@ export default async function AdminLoginPage({
         <div className="flex items-center gap-2">
           <FastmaiLogo className="text-[22px] text-background" />
           <span className="bg-primary px-1.5 py-1 text-[11px] leading-none font-extrabold tracking-[0.08em] text-primary-foreground uppercase">
-            Admin
+            Gestão
           </span>
         </div>
         <div className="py-12 lg:py-0">
           <h2 className="max-w-[14ch] font-heading text-[40px] leading-[1.05] font-extrabold tracking-[-0.03em] text-balance sm:text-[52px] lg:text-[64px]">
-            Administração do sistema.
+            Gestão FASTMAI.
           </h2>
           <p className="mt-6 max-w-md text-base font-semibold text-background/80">
-            Contas, grupos e perfis de acesso — quem entra no sistema e quais marcas cada pessoa vê.
+            Clientes, marcas, usuários e perfis de acesso — quem entra em cada cliente e quais marcas cada pessoa vê.
           </p>
         </div>
         <p className="font-mono text-xs text-background/70">{versao.rotulo}</p>
@@ -56,14 +59,14 @@ export default async function AdminLoginPage({
 
       <section className="flex items-center justify-center px-6 py-12 lg:px-14">
         <div className="w-full max-w-[400px]">
-          <h1>Entrar como administrador</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Só a conta de administrador entra aqui.</p>
+          <h1>Entrar na Gestão FASTMAI</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Só a conta de administrador da FASTMAI entra aqui.</p>
           {outraConta && (
             <Alert className="mt-6">
               <AlertDescription>
                 Você está conectado no sistema como <strong>{outraConta}</strong>, que não é a conta de
                 administrador. Entrar abaixo com a conta de administrador troca a sessão deste
-                navegador — para usar as duas ao mesmo tempo, abra o admin numa janela anônima. Ou{" "}
+                navegador — para usar as duas ao mesmo tempo, abra a Gestão numa janela anônima. Ou{" "}
                 <Link href="/" className="font-semibold text-primary hover:underline">
                   volte ao sistema
                 </Link>
