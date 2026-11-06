@@ -4,24 +4,49 @@
 /** Dado do botão do aviso no Telegram: o webhook responde mandando o link do portal. */
 export const CALLBACK_ABRIR_PORTAL = "portal:abrir";
 
-export type Situacao = "NAO_ENVIADO" | "SEM_CANAL" | "ENVIADO" | "ABERTO" | "CONFIRMADO";
+export type Situacao =
+  | "NAO_ENVIADO"
+  | "SEM_CANAL"
+  | "ENVIADO"
+  | "CIENTE"
+  | "ABERTO"
+  | "CONFIRMADO"
+  | "ATRASADO"
+  | "BLOQUEADO";
 
 export const SITUACAO_LABEL: Record<Situacao, string> = {
   NAO_ENVIADO: "Não enviado",
   SEM_CANAL: "Sem como avisar",
   ENVIADO: "Avisado — não abriu",
-  ABERTO: "Abriu — falta confirmar",
-  CONFIRMADO: "Confirmado com foto",
+  CIENTE: "Ciente no Telegram",
+  ABERTO: "Abriu — falta assinar",
+  CONFIRMADO: "Assinado com foto",
+  ATRASADO: "Atrasado (> 5 dias)",
+  BLOQUEADO: "Bloqueado (5 erros)",
 };
 
 export function situacaoDo(
-  recibo: { enviadoEm: Date | null; canal: string | null; vistoEm: Date | null; confirmadoEm: Date | null } | null,
+  recibo: {
+    enviadoEm: Date | null;
+    canal: string | null;
+    vistoEm: Date | null;
+    confirmadoEm: Date | null;
+    bloqueadoEm?: Date | null;
+    cienciaTelegramEm?: Date | null;
+  } | null,
+  agora?: Date
 ): Situacao {
   if (!recibo) return "NAO_ENVIADO";
   if (recibo.confirmadoEm) return "CONFIRMADO";
+  if (recibo.bloqueadoEm) return "BLOQUEADO";
   if (recibo.vistoEm) return "ABERTO";
+  if (recibo.cienciaTelegramEm) return "CIENTE";
   if (!recibo.enviadoEm) return "NAO_ENVIADO";
-  return recibo.canal ? "ENVIADO" : "SEM_CANAL";
+  if (!recibo.canal) return "SEM_CANAL";
+  if (agora && (agora.getTime() - recibo.enviadoEm.getTime()) / (24 * 60 * 60 * 1000) > 5) {
+    return "ATRASADO";
+  }
+  return "ENVIADO";
 }
 
 export const TIPOS_FOLHA_LABEL: Record<string, string> = {
