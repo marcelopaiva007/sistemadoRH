@@ -18,7 +18,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "FASTMAI | Sistema do RH",
-  description: "Sistema de RH do grupo — departamento pessoal, segurança, desempenho e recrutamento",
+  description: "Sistema de RH — departamento pessoal, segurança, desempenho e recrutamento",
 };
 
 export default function RootLayout({

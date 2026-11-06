@@ -16,7 +16,7 @@ import type { MetadataRoute } from "next";
 // instalar as telas de mesa no telefone e receber um app que não se navega.
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Portal do Colaborador — LM Telecom",
+    name: "Portal do Colaborador",
     // Até 12 caracteres: é o que cabe embaixo do ícone na tela inicial do
     // Android. Mais que isso o próprio sistema corta com reticências.
     short_name: "Meu RH",

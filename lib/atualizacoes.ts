@@ -26,6 +26,18 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.196.0",
+    data: "06/11/2026",
+    horario: "08:30",
+    titulo: "Tela de login sem nomes de clientes e com vermelho mais suave",
+    itens: [
+      "A tela de entrada não mostra mais nomes de empresas clientes: a frase virou \"Pessoas, processos e delegações.\" com o subtítulo \"Gestão de RH, departamento pessoal e equipes\".",
+      "Os avisos de login e do \"Esqueci meu usuário\" falam em \"mais de uma empresa\", sem citar marcas, e o exemplo de usuário ficou genérico.",
+      "O aplicativo do portal no celular se chama só \"Portal do Colaborador\".",
+      "O painel vermelho da tela de login ficou num tom mais suave.",
+    ],
+  },
+  {
     versao: "1.195.0",
     data: "06/11/2026",
     horario: "08:40",
