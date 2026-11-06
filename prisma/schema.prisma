@@ -770,19 +770,44 @@ model ReciboContracheque {
   canal                 String?
   envioErro             String?
   envios                Int                  @default(0)
-  // A pessoa abriu o contracheque pelo portal (só depois disso confirma).
+
+  // Token único para a página de assinatura (/assinar/[token])
+  tokenAssinatura       String?              @unique
+
+  // 2FA: Código de 6 dígitos e segurança contra força bruta
+  codigo2faHash         String?
+  codigoExpiraEm        DateTime?
+  canalCodigo           String?              // "TELEGRAM" | "EMAIL"
+  codigoValidadoEm      DateTime?
+  tentativasCodigo      Int                  @default(0)
+  bloqueadoEm           DateTime?
+
+  // Notificação e cobrança
+  cienciaTelegramEm     DateTime?
+  lembretesEnviados     Int                  @default(0)
+  ultimoLembreteEm      DateTime?
+
+  // A pessoa abriu o contracheque pelo portal ou pela página de assinatura
   vistoEm               DateTime?
   confirmadoEm          DateTime?
   confirmadoIp          String?
   confirmadoDispositivo String?
+  confirmadoLocalizacao String?
   // SHA-256 do arquivo que a pessoa abriu e confirmou.
   hashDocumento         String?
+  textoAceite           String?
+
   fotoArquivoId         String?              @unique
   fotoArquivo           Arquivo?             @relation("FotoReciboContracheque", fields: [fotoArquivoId], references: [id], onDelete: SetNull)
+
+  comprovanteArquivoId  String?              @unique
+  comprovanteArquivo    Arquivo?             @relation("ComprovanteReciboContracheque", fields: [comprovanteArquivoId], references: [id], onDelete: SetNull)
+
   createdAt             DateTime             @default(now())
   updatedAt             DateTime             @updatedAt
 
   @@index([empresaId, competencia])
+  @@index([tokenAssinatura])
   @@index([colaboradorId, confirmadoEm])
   @@schema("rh")
 }

@@ -73,10 +73,11 @@ export default async function ContrachequesPage({
             select: {
               id: true,
               nome: true,
+              cpf: true,
               ativo: true,
               email: true,
               telegramChatId: true,
-              empresa: { select: { nome: true } },
+              empresa: { select: { nome: true, cnpj: true } },
               setor: { select: { nome: true } },
             },
           },
@@ -86,16 +87,22 @@ export default async function ContrachequesPage({
               canal: true,
               envioErro: true,
               envios: true,
+              cienciaTelegramEm: true,
               vistoEm: true,
               confirmadoEm: true,
               confirmadoIp: true,
               fotoArquivoId: true,
+              comprovanteArquivoId: true,
+              hashDocumento: true,
+              lembretesEnviados: true,
+              bloqueadoEm: true,
             },
           },
         },
       })
     : [];
 
+  const agora = new Date();
   const quando = (d: Date | null | undefined) => (d ? formatarDataHoraBrasilia(d) : null);
   const linhas: LinhaContracheque[] = docs.map((d) => {
     const tipoFolha = tipoFolhaDaChave(d.chaveDedupe);
@@ -104,22 +111,30 @@ export default async function ContrachequesPage({
       empresaId: d.empresaId,
       arquivoId: d.arquivoId,
       pessoa: d.colaborador.nome,
+      cpf: d.colaborador.cpf ?? "—",
       colaboradorId: d.colaborador.id,
       desligado: !d.colaborador.ativo,
       empresa: d.colaborador.empresa.nome,
+      cnpj: d.colaborador.empresa.cnpj ?? "—",
       setor: d.colaborador.setor?.nome ?? "—",
       temTelegram: !!d.colaborador.telegramChatId,
       temEmail: !!d.colaborador.email,
+      email: d.colaborador.email,
       folha: rotuloDoContracheque(escolhida!, tipoFolha),
-      situacao: situacaoDo(d.recibo),
+      situacao: situacaoDo(d.recibo, agora),
       enviadoEm: quando(d.recibo?.enviadoEm),
       canal: d.recibo?.canal ?? null,
       envioErro: d.recibo?.envioErro ?? null,
       envios: d.recibo?.envios ?? 0,
+      cienciaTelegramEm: quando(d.recibo?.cienciaTelegramEm),
       vistoEm: quando(d.recibo?.vistoEm),
       confirmadoEm: quando(d.recibo?.confirmadoEm),
       confirmadoIp: d.recibo?.confirmadoIp ?? null,
+      hashDocumento: d.recibo?.hashDocumento ?? null,
       fotoArquivoId: d.recibo?.fotoArquivoId ?? null,
+      comprovanteArquivoId: d.recibo?.comprovanteArquivoId ?? null,
+      lembretesEnviados: d.recibo?.lembretesEnviados ?? 0,
+      bloqueado: d.recibo?.bloqueadoEm !== null && d.recibo?.bloqueadoEm !== undefined,
     };
   });
 
