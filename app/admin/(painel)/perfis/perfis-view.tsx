@@ -315,7 +315,7 @@ export function PerfisView({ perfis, usuarios }: { perfis: PerfilNaTela[]; usuar
                   <span className="block text-xs text-muted-foreground">
                     <span className="font-mono">{u.username}</span>
                     {" · "}
-                    {u.grupoNome ?? "sem grupo"}
+                    {u.grupoNome ? `cliente ${u.grupoNome}` : "sem cliente"}
                   </span>
                 </span>
                 <span className="flex flex-wrap items-center gap-1">

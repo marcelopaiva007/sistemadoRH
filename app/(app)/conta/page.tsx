@@ -92,19 +92,19 @@ export default async function ContaPage() {
       {(user.role === "ADMIN" || user.role === "DIRETORIA") && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Área de administração</CardTitle>
+            <CardTitle className="text-base">Gestão FASTMAI</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <p>
-              Usuários, grupos e perfis de acesso são geridos fora do sistema, em{" "}
+              Clientes, usuários e perfis de acesso são geridos na Gestão FASTMAI, em{" "}
               <Link href="/admin/login" className="font-mono font-semibold text-primary hover:underline">
                 {enderecoAdmin}
               </Link>
               , com a <strong>conta de administrador</strong> — não com esta.
             </p>
             <p className="text-muted-foreground">
-              Entrar lá troca a sessão deste navegador. Para usar as duas ao mesmo tempo, abra o
-              admin numa janela anônima.
+              Entrar lá troca a sessão deste navegador. Para usar as duas ao mesmo tempo, abra a
+              Gestão numa janela anônima.
             </p>
           </CardContent>
         </Card>

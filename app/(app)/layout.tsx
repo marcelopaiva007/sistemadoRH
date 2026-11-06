@@ -48,6 +48,7 @@ export default async function AppLayout({
         <AppTopbar
           role={user.role}
           nome={user.name ?? user.username}
+          usuario={user.username}
           versao={versaoDoSistema().rotulo}
           versaoCurta={`v${versaoDoSistema().numero}`}
           marcas={marcas}

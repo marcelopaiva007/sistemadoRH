@@ -47,7 +47,7 @@ export function problemaNoLogin(login: string): string | null {
     return "Use só letras sem acento, números, ponto, hífen ou sublinhado no usuário.";
   }
   if (!/^[a-z0-9]/.test(login) || !/[a-z0-9]$/.test(login)) {
-    return "O usuário começa e termina com letra ou número.";
+    return "O usuário precisa começar e terminar com letra ou número.";
   }
   if (login.startsWith(PREFIXO_DO_PORTAL)) {
     return "Usuários começados por “colaborador.” são reservados aos acessos do portal.";

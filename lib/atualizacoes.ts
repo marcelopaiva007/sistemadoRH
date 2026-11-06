@@ -26,6 +26,24 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.192.0",
+    data: "06/11/2026",
+    horario: "07:40",
+    titulo: "Gestão FASTMAI: a LM Telecom e as demais marcas viram clientes",
+    itens: [
+      "A área de administração virou a Gestão FASTMAI (mesmo endereço, rh.assinelm.com/admin). A FASTMAI administra os seus clientes e os usuários de cada um.",
+      "Nova tela de entrada, Clientes: cada cliente num cartão, com o tipo (marca única ou multimarcas), as marcas, quantos usuários e CNPJs tem, e o botão Usuários para gerenciar as contas daquele cliente. Novo cliente se cria ali mesmo.",
+      "A LM Telecom é um cliente de marca única (quem está nela vê só a LM); Centrysol, VAPT e as outras formam o cliente multimarcas (cada pessoa vê uma, várias ou todas). O tipo acompanha as marcas sozinho.",
+      "A antiga \"Regras das marcas\" virou \"Marcas e clientes\", na mesma tela: em qual cliente fica cada marca, com a confirmação que mostra quem vai junto. O endereço antigo leva para Clientes.",
+      "Em Usuários, as abas são os clientes; \"Trocar de grupo\" virou \"Trocar de cliente\", e as mensagens falam em cliente.",
+      "No sistema do RH, o atalho do menu do nome e da tela Conta passa a se chamar Gestão FASTMAI. Para quem usa o RH no dia a dia, nada muda.",
+      "O menu do nome mostra com qual usuário você entrou (ex.: \"Conectado como marcelo.lm\"), para quem tem um usuário em cada cliente.",
+      "Correção: na edição de um usuário, o campo \"Nova senha\" agora troca a senha de verdade. Antes a tela dizia \"Usuário atualizado\" e a senha continuava a mesma.",
+      "Ao criar um usuário que já existe no mesmo cliente, a tela avisa que a pessoa provavelmente já tem acesso, em vez de sugerir uma segunda conta.",
+      "Segurança: \"Esqueci minha senha\" e \"Esqueci meu usuário\" respondem igual e no mesmo tempo, exista a conta ou não, e têm limite de pedidos por conexão — ninguém descobre por ali quais usuários existem.",
+    ],
+  },
+  {
     versao: "1.191.1",
     data: "06/11/2026",
     horario: "07:30",

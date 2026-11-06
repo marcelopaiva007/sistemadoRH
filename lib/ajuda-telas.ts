@@ -286,6 +286,7 @@ export const AJUDA_DAS_TELAS = {
       "Uma ficha só pode ser o login de UMA conta. Se a busca não encontra alguém, ou a pessoa está inativa, ou já tem login, ou está numa empresa que este usuário não acessa.",
       "A busca por CPF funciona com pedaço do número, sem pontos. Por nome, bastam 2 letras.",
       "Quem monta o time do gestor é o campo \"Reporta a\" na ficha de cada colaborador — vincular a ficha do gestor sem preencher o \"Reporta a\" do time dele resulta numa tela vazia.",
+      "Cada usuário é de UM cliente (a aba aberta). Quem trabalha na LM Telecom e no cliente multimarcas tem dois usuários — ex.: \"marcelo\" e \"marcelo.lm\" —, que podem ter a mesma senha e o mesmo e-mail. O usuário não se repete, nem com maiúsculas diferentes.",
     ],
   },
 

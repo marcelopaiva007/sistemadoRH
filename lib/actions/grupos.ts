@@ -7,13 +7,15 @@ import { registrarAuditoria } from "@/lib/audit";
 import { violouUnique } from "@/lib/prisma-erros";
 import type { ActionResult } from "@/lib/constants";
 
-// Ações do MASTER sobre os GRUPOS de sociedade (lib/grupo.ts).
+// Ações do MASTER sobre os GRUPOS de sociedade (lib/grupo.ts) — os CLIENTES
+// da FASTMAI na Gestão (v1.192.0): cada grupo é um cliente, com as suas marcas
+// e os seus usuários. As mensagens falam "cliente"; o banco segue "Grupo".
 //
 // Só o MASTER chega aqui (`requireMaster`). Ele cria e renomeia grupos, decide
 // em que grupo cada marca mora e em que grupo cada conta trabalha — e é só
 // isso: nenhuma destas ações lê dado de RH, folha ou processo.
 
-const CAMINHO = "/admin/grupos";
+const CAMINHO = "/admin/clientes";
 
 function texto(fd: FormData, campo: string): string {
   const v = fd.get(campo);
@@ -26,18 +28,18 @@ export async function criarGrupo(
 ): Promise<ActionResult> {
   await requireMaster();
   const nome = texto(fd, "nome");
-  if (nome.length < 2) return { ok: false, error: "Informe o nome do grupo." };
+  if (nome.length < 2) return { ok: false, error: "Informe o nome do cliente." };
   try {
     const grupo = await prisma.grupo.create({ data: { nome } });
     await registrarAuditoria({
       acao: "CRIAR",
       entidade: "Grupo",
       entidadeId: grupo.id,
-      resumo: `Criou o grupo "${nome}"`,
+      resumo: `Criou o cliente "${nome}"`,
     });
   } catch (e) {
     if (violouUnique(e, "Grupo_nome_key"))
-      return { ok: false, error: `Já existe um grupo chamado "${nome}".` };
+      return { ok: false, error: `Já existe um cliente chamado "${nome}".` };
     throw e;
   }
   revalidatePath(CAMINHO);
@@ -51,23 +53,23 @@ export async function renomearGrupo(
 ): Promise<ActionResult> {
   await requireMaster();
   const nome = texto(fd, "nome");
-  if (nome.length < 2) return { ok: false, error: "Informe o nome do grupo." };
+  if (nome.length < 2) return { ok: false, error: "Informe o nome do cliente." };
   try {
     const antes = await prisma.grupo.findUnique({
       where: { id: grupoId },
       select: { nome: true },
     });
-    if (!antes) return { ok: false, error: "Grupo não encontrado." };
+    if (!antes) return { ok: false, error: "Cliente não encontrado." };
     await prisma.grupo.update({ where: { id: grupoId }, data: { nome } });
     await registrarAuditoria({
       acao: "ATUALIZAR",
       entidade: "Grupo",
       entidadeId: grupoId,
-      resumo: `Renomeou o grupo "${antes.nome}" para "${nome}"`,
+      resumo: `Renomeou o cliente "${antes.nome}" para "${nome}"`,
     });
   } catch (e) {
     if (violouUnique(e, "Grupo_nome_key"))
-      return { ok: false, error: `Já existe um grupo chamado "${nome}".` };
+      return { ok: false, error: `Já existe um cliente chamado "${nome}".` };
     throw e;
   }
   revalidatePath(CAMINHO);
@@ -107,7 +109,7 @@ export async function moverMarcaDeGrupo(
   ]);
   if (!marca) return { ok: false, error: "Marca não encontrada." };
   if (!grupo || !grupo.ativo)
-    return { ok: false, error: "Grupo não encontrado." };
+    return { ok: false, error: "Cliente não encontrado." };
   if (marca.grupoId === grupo.id) return { ok: true };
 
   await prisma.$transaction([
@@ -128,7 +130,7 @@ export async function moverMarcaDeGrupo(
     acao: "ATUALIZAR",
     entidade: "Marca",
     entidadeId: marca.id,
-    resumo: `Moveu a marca "${marca.nome}" do grupo "${marca.grupo.nome}" para "${grupo.nome}" (vínculos de acesso antigos desativados)`,
+    resumo: `Moveu a marca "${marca.nome}" do cliente "${marca.grupo.nome}" para "${grupo.nome}" (vínculos de acesso antigos desativados)`,
   });
   revalidatePath("/", "layout");
   return { ok: true };
@@ -167,7 +169,7 @@ export async function moverUsuarioDeGrupo(
   if (!user || user.role === "MASTER")
     return { ok: false, error: "Usuário não encontrado." };
   if (!grupo || !grupo.ativo)
-    return { ok: false, error: "Grupo não encontrado." };
+    return { ok: false, error: "Cliente não encontrado." };
   if (user.grupoId === grupo.id) return { ok: true };
 
   // Não deixa o grupo de origem sem ADMIN ativo — ninguém lá conseguiria mais
@@ -207,7 +209,7 @@ export async function moverUsuarioDeGrupo(
     acao: "ATUALIZAR",
     entidade: "User",
     entidadeId: user.id,
-    resumo: `Moveu ${user.nome} do grupo "${user.grupo?.nome ?? "—"}" para "${grupo.nome}" (vínculos de acesso antigos desativados)`,
+    resumo: `Moveu ${user.nome} do cliente "${user.grupo?.nome ?? "—"}" para "${grupo.nome}" (vínculos de acesso antigos desativados)`,
   });
   revalidatePath(CAMINHO);
   revalidatePath("/admin/usuarios");

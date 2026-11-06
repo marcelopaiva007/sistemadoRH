@@ -11,11 +11,14 @@ import type { ReactNode } from "react";
 //
 // Dois ramos aqui dentro:
 //   - login/      → a porta, pública;
-//   - (painel)/   → Usuários, Grupos, Perfis de acesso e a senha da conta,
+//   - (painel)/   → Clientes, Usuários, Perfis de acesso e a senha da conta,
 //                   atrás do portão do MASTER (o layout do grupo).
+//
+// GESTÃO FASTMAI desde a v1.192.0: a área é o painel da FASTMAI sobre os seus
+// clientes (os grupos de sociedade do banco) e os usuários de cada um.
 export const metadata: Metadata = {
-  title: "FASTMAI | Admin",
-  description: "Área de administração do sistema — contas, grupos e perfis de acesso.",
+  title: "FASTMAI | Gestão",
+  description: "Gestão FASTMAI — clientes, marcas, usuários e perfis de acesso.",
   // Endereço de administração não tem por que aparecer em buscador.
   robots: { index: false, follow: false },
 };

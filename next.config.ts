@@ -73,6 +73,8 @@ const nextConfig: NextConfig = {
       { source: "/cadastros", destination: "/admin", permanent: false },
       { source: "/cadastros/:caminho*", destination: "/admin/:caminho*", permanent: false },
       { source: "/usuarios", destination: "/admin/usuarios", permanent: false },
+      // "Regras das marcas" virou a tela Clientes da Gestão FASTMAI (v1.192.0).
+      { source: "/admin/grupos", destination: "/admin/clientes", permanent: false },
     ];
   },
   // Headers de segurança aplicados a toda resposta. Colocados aqui (não em

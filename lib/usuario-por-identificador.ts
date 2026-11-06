@@ -92,11 +92,13 @@ export async function loginJaUsado(
   username: string,
   excetoId?: string,
   cliente: Cliente = prisma,
-): Promise<{ id: string; username: string; grupoNome: string | null } | null> {
+): Promise<{ id: string; username: string; grupoId: string | null; grupoNome: string | null } | null> {
   const texto = username.trim();
   if (!texto) return null;
-  const achados = await cliente.$queryRaw<{ id: string; username: string; grupoNome: string | null }[]>`
-    SELECT u.id, u.username, g.nome AS "grupoNome"
+  const achados = await cliente.$queryRaw<
+    { id: string; username: string; grupoId: string | null; grupoNome: string | null }[]
+  >`
+    SELECT u.id, u.username, u."grupoId", g.nome AS "grupoNome"
     FROM "rh"."User" u
     LEFT JOIN "rh"."Grupo" g ON g.id = u."grupoId"
     WHERE lower(u.username) = lower(${texto})

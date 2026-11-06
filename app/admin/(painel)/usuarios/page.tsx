@@ -9,7 +9,8 @@ import { cn } from "@/lib/utils";
 
 // Usuários — a tela que deu origem à área de administração (v1.188.0). Até a
 // v1.187.0 morava dentro do sistema (/cadastros/usuarios) e ADMIN e DIRETORIA
-// também a abriam; agora só a conta MASTER, aqui.
+// também a abriam; agora só a conta MASTER, aqui. Desde a v1.192.0 (Gestão
+// FASTMAI) as abas são os CLIENTES — no banco, os grupos de sociedade.
 export default async function UsuariosPage({
   searchParams,
 }: {
@@ -17,9 +18,9 @@ export default async function UsuariosPage({
 }) {
   const admin = await requireAreaAdmin();
 
-  // GRUPO (sociedade — lib/grupo.ts): a tela mostra as contas, CNPJs e marcas
-  // de UM grupo, escolhido nas abas "Grupo:" — a conta criada aqui nasce no
-  // grupo aberto.
+  // CLIENTE (o grupo de sociedade — lib/grupo.ts): a tela mostra as contas,
+  // CNPJs e marcas de UM cliente, escolhido nas abas "Cliente:" — a conta
+  // criada aqui nasce no cliente aberto.
   const grupos = await prisma.grupo.findMany({
     where: { ativo: true },
     orderBy: { nome: "asc" },
@@ -62,10 +63,10 @@ export default async function UsuariosPage({
   const nomeDoGrupo = grupos.find((g) => g.id === grupoId)?.nome ?? "";
   const fraseDaRegra =
     marcasAqui.length === 1
-      ? `Em ${nomeDoGrupo}, quem tem acesso vê só ${marcasAqui[0].nome} — ela não se junta com as outras marcas.`
+      ? `${nomeDoGrupo} é um cliente de marca única: quem tem acesso vê só ${marcasAqui[0].nome}.`
       : marcasAqui.length > 1
-        ? `Em ${nomeDoGrupo}, cada pessoa pode ver uma marca ou várias juntas: ${marcasAqui.map((m) => m.nome).join(", ")}.`
-        : `${nomeDoGrupo} ainda não tem marca ativa.`;
+        ? `${nomeDoGrupo} é um cliente multimarcas: cada pessoa pode ver uma marca ou várias juntas (${marcasAqui.map((m) => m.nome).join(", ")}).`
+        : `O cliente ${nomeDoGrupo} ainda não tem marca ativa.`;
 
   const [usuarios, empresas, setores, marcas, perfis] = await Promise.all([
       // Acessos de portal (funcionários sem login do sistema, criados pelo
@@ -150,16 +151,15 @@ export default async function UsuariosPage({
           <AjudaDaTela modulo="usuarios" />
         </div>
         <p className="text-muted-foreground">
-          As contas de acesso de cada grupo — um cadastro só para os dois sistemas. Aqui você cria,
-          edita e desativa contas e escolhe as marcas que cada pessoa vê: clique numa marca, na linha
-          da pessoa, para ligar ou desligar — salva na hora. O que cada uma pode fazer, por tela e por
-          sistema, vem dos{" "}
+          Os usuários de cada cliente da FASTMAI. Aqui você cria, edita e desativa usuários e escolhe
+          as marcas que cada pessoa vê: clique numa marca, na linha da pessoa, para ligar ou desligar
+          — salva na hora. O que cada uma pode fazer, por tela e por sistema, vem dos{" "}
           <Link href="/admin/perfis" className="underline underline-offset-2 hover:text-foreground">perfis de acesso</Link>.
         </p>
       </div>
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm text-muted-foreground">Grupo:</span>
+          <span className="text-sm text-muted-foreground">Cliente:</span>
           {grupos.map((g) => {
             const marcasDele = marcasDo(g.id);
             return (
@@ -172,7 +172,7 @@ export default async function UsuariosPage({
                     ? `Quem está aqui vê só ${marcasDele[0].nome}.`
                     : marcasDele.length > 1
                       ? `Quem está aqui pode ver ${marcasDele.map((m) => m.nome).join(", ")} — uma, várias ou todas.`
-                      : "Grupo sem marca ativa."
+                      : "Cliente sem marca ativa."
                 }
                 className={cn(
                   "flex items-center gap-2 rounded-md border px-3 py-1 text-sm",
@@ -189,28 +189,28 @@ export default async function UsuariosPage({
             );
           })}
         </div>
-        {/* A regra das marcas do grupo aberto, em português: a LM Telecom
-            sozinha (quem está lá vê só ela) e as demais juntas (cada pessoa vê
-            uma, várias ou todas). Vem da composição dos grupos, não de texto
-            fixo — se um grupo ganhar marca, a frase acompanha. */}
+        {/* O tipo do cliente aberto, em português: a LM Telecom de marca única
+            (quem está lá vê só ela) e o multimarcas (cada pessoa vê uma,
+            várias ou todas). Vem das marcas do cliente, não de texto fixo — se
+            um cliente ganhar marca, a frase acompanha. */}
         <p className="text-sm text-muted-foreground">
           {fraseDaRegra}{" "}
-          Para passar alguém para outro grupo, use <span className="font-medium">Mais ações → Trocar de grupo</span>.
-          A regra de cada marca (só ela ou junto com outras) fica em{" "}
-          <Link href="/admin/grupos" className="underline underline-offset-2 hover:text-foreground">
-            Regras das marcas
+          Para passar alguém para outro cliente, use <span className="font-medium">Mais ações → Trocar de cliente</span>.
+          Em qual cliente fica cada marca, você define em{" "}
+          <Link href="/admin/clientes" className="underline underline-offset-2 hover:text-foreground">
+            Clientes
           </Link>
           .
         </p>
         <p className="text-xs text-muted-foreground">
           {totalDeContas} {totalDeContas === 1 ? "conta" : "contas"} no sistema ({totalAtivas}{" "}
-          {totalAtivas === 1 ? "ativa" : "ativas"}), somando todos os grupos — fora a conta de
+          {totalAtivas === 1 ? "ativa" : "ativas"}), somando todos os clientes — fora a conta de
           administrador e os acessos de portal dos colaboradores.
           {foraDasAbas > 0 && (
             <>
               {" "}
-              <Link href="/admin/grupos" className="font-semibold text-amber-800 underline underline-offset-2 dark:text-amber-300">
-                {foraDasAbas === 1 ? "1 conta está" : `${foraDasAbas} contas estão`} sem grupo — ver em Grupos
+              <Link href="/admin/clientes" className="font-semibold text-amber-800 underline underline-offset-2 dark:text-amber-300">
+                {foraDasAbas === 1 ? "1 conta está" : `${foraDasAbas} contas estão`} sem cliente — ver em Clientes
               </Link>
               .
             </>

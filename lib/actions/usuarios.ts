@@ -207,32 +207,48 @@ async function marcasDaDirecaoSoComMaster(
 
 /**
  * O usuário já existe (sem diferença de maiúsculas)? Devolve a mensagem para a
- * tela, com o grupo da conta que já tem esse nome e uma sugestão livre para a
- * MESMA pessoa no grupo de destino ("marcelo" → "marcelo.lm"). `null` se o
- * nome está livre.
+ * tela, `null` se o nome está livre.
+ *
+ * A mensagem depende de ONDE está a conta que já tem o nome (revisão da
+ * v1.191.0):
+ * - em OUTRO cliente, criando: é o caso de "um usuário por cliente" — sugere
+ *   um nome livre para a mesma pessoa aqui ("marcelo" → "marcelo.lm");
+ * - no MESMO cliente, criando: a pessoa provavelmente já tem acesso aqui —
+ *   sugerir "marcelo.lm2" seria ensinar a criar conta duplicada;
+ * - renomeando: só pede outro nome (com uma sugestão livre, se houver).
+ * Sem cliente de destino conhecido, não há sufixo para sugerir.
  */
 async function loginRepetido(
   login: string,
   grupoDestinoId: string | null,
+  modo: "criar" | "renomear",
   excetoId?: string,
 ): Promise<string | null> {
   const existente = await loginJaUsado(login, excetoId);
   if (!existente) return null;
+  const onde = existente.grupoNome ? ` (cliente ${existente.grupoNome})` : "";
+  const base = `Já existe o usuário “${existente.username}”${onde}. Usuário não se repete, nem com maiúsculas diferentes.`;
+  const mesmoCliente = existente.grupoId !== null && existente.grupoId === grupoDestinoId;
+  if (modo === "criar" && mesmoCliente) {
+    return `${base} Se é a mesma pessoa, ela já tem acesso neste cliente — use essa conta. Se é outra pessoa, escolha outro nome.`;
+  }
+
   const grupoDestino = grupoDestinoId
     ? await prisma.grupo.findUnique({ where: { id: grupoDestinoId }, select: { nome: true } })
     : null;
   let sugestao: string | null = null;
-  for (const candidato of candidatosDeLogin(login, grupoDestino?.nome)) {
-    if (!(await loginJaUsado(candidato, excetoId))) {
-      sugestao = candidato;
-      break;
+  if (grupoDestino) {
+    for (const candidato of candidatosDeLogin(login, grupoDestino.nome)) {
+      if (!(await loginJaUsado(candidato, excetoId))) {
+        sugestao = candidato;
+        break;
+      }
     }
   }
-  const onde = existente.grupoNome ? ` (grupo ${existente.grupoNome})` : "";
-  const saida = sugestao
-    ? ` Se é a mesma pessoa${grupoDestino ? ` no grupo ${grupoDestino.nome}` : ""}, crie outro usuário — por exemplo “${sugestao}” — e ela pode usar a mesma senha.`
-    : " Escolha outro.";
-  return `Já existe o usuário “${existente.username}”${onde}. Usuário não se repete, nem com maiúsculas diferentes.${saida}`;
+  if (modo === "criar" && grupoDestino && sugestao) {
+    return `${base} Se é a mesma pessoa no cliente ${grupoDestino.nome}, crie o usuário dela aqui com outro nome — por exemplo “${sugestao}” — e ela pode usar a mesma senha.`;
+  }
+  return `${base} Escolha outro nome${sugestao ? ` — por exemplo “${sugestao}”` : ""}.`;
 }
 
 export async function createUsuario(
@@ -274,16 +290,16 @@ export async function createUsuario(
       select: { id: true },
     }))
   ) {
-    return { ok: false, error: "Escolha o grupo do usuário." };
+    return { ok: false, error: "Escolha o cliente do usuário." };
   }
   if (marcaId && !(await marcaNoGrupo(marcaId, grupoId))) {
-    return { ok: false, error: "A marca escolhida não é deste grupo." };
+    return { ok: false, error: "A marca escolhida não é deste cliente." };
   }
   if (empresaId && !(await empresaNoGrupo(empresaId, grupoId))) {
-    return { ok: false, error: "O CNPJ escolhido não é deste grupo." };
+    return { ok: false, error: "O CNPJ escolhido não é deste cliente." };
   }
   // Um usuário por grupo: quem trabalha nos dois tem dois usuários.
-  const repetido = await loginRepetido(username, grupoId);
+  const repetido = await loginRepetido(username, grupoId, "criar");
   if (repetido) return { ok: false, error: repetido };
 
   const passwordHash = await bcrypt.hash(senha, 10);
@@ -383,6 +399,15 @@ export async function updateUsuario(
   });
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
 
+  // "Nova senha (opcional)" do formulário de edição. Até a v1.191.0 o campo
+  // existia na tela e a action nem o lia: o admin via "Usuário atualizado." e a
+  // senha continuava a mesma (achado da revisão da v1.191.0). Em branco, a
+  // senha fica como está.
+  const novaSenha = String(formData.get("senha") ?? "");
+  if (novaSenha && novaSenha.length < 8) {
+    return { ok: false, error: "A senha nova deve ter pelo menos 8 caracteres." };
+  }
+
   const antes = await prisma.user.findUnique({
     where: { id },
     select: {
@@ -405,7 +430,7 @@ export async function updateUsuario(
   if (mudouLogin) {
     const problemaLogin = problemaNoLogin(username);
     if (problemaLogin) return { ok: false, error: problemaLogin };
-    const repetido = await loginRepetido(username, grupoAlvo, id);
+    const repetido = await loginRepetido(username, grupoAlvo, "renomear", id);
     if (repetido) return { ok: false, error: repetido };
   }
 
@@ -450,7 +475,7 @@ export async function updateUsuario(
       return {
         ok: false,
         error:
-          "Não é possível rebaixar ou desativar o único ADMIN ativo do grupo.",
+          "Não é possível rebaixar ou desativar o único ADMIN ativo do cliente.",
       };
     }
   }
@@ -471,6 +496,8 @@ export async function updateUsuario(
     (await prisma.perfil.findMany({ where: { id: { in: perfilIds } }, select: { id: true } })).map((p) => p.id),
   );
 
+  const passwordHash = novaSenha ? await bcrypt.hash(novaSenha, 10) : null;
+
   try {
     const depois = await prisma.$transaction(async (tx) => {
       const u = await tx.user.update({
@@ -482,6 +509,7 @@ export async function updateUsuario(
           telefone: parsed.data.telefone ?? null,
           role: parsed.data.role,
           ativo: parsed.data.ativo,
+          ...(passwordHash ? { passwordHash } : {}),
         },
       });
       const atuais = new Set(
@@ -498,6 +526,14 @@ export async function updateUsuario(
       return u;
     });
 
+    if (passwordHash) {
+      await registrarAuditoria({
+        acao: "RESET_SENHA",
+        entidade: "User",
+        entidadeId: id,
+        resumo: `Redefiniu senha de ${depois.username} (na edição do usuário)`,
+      });
+    }
     await registrarAuditoria({
       acao: "ATUALIZAR",
       entidade: "User",
@@ -577,7 +613,7 @@ export async function deleteUsuario(id: string): Promise<ActionResult> {
     if (outrosAdmins === 0) {
       return {
         ok: false,
-        error: "Não é possível excluir/desativar o único ADMIN ativo do grupo.",
+        error: "Não é possível excluir/desativar o único ADMIN ativo do cliente.",
       };
     }
   }
@@ -628,7 +664,7 @@ export async function toggleStatusUsuario(id: string): Promise<ActionResult> {
     if (outrosAdmins === 0) {
       return {
         ok: false,
-        error: "Não é possível desativar o único ADMIN ativo do grupo.",
+        error: "Não é possível desativar o único ADMIN ativo do cliente.",
       };
     }
   }
@@ -673,7 +709,7 @@ export async function vincularEmpresaUsuario(
   const grupoAlvo = await grupoDoAlvo(esc, userId);
   if (grupoAlvo === false) return ERRO_ALVO;
   if (!(await empresaNoGrupo(empresaId, grupoAlvo))) {
-    return { ok: false, error: "Este CNPJ não é do grupo do usuário." };
+    return { ok: false, error: "Este CNPJ não é do cliente do usuário." };
   }
 
   try {
@@ -779,7 +815,7 @@ export async function reativarVinculoUsuario(
   const grupoAlvo = await grupoDoAlvo(esc, userId);
   if (grupoAlvo === false) return ERRO_ALVO;
   if (!(await empresaNoGrupo(empresaId, grupoAlvo))) {
-    return { ok: false, error: "Este CNPJ não é do grupo do usuário." };
+    return { ok: false, error: "Este CNPJ não é do cliente do usuário." };
   }
 
   const vinculo = await prisma.userEmpresa.findUnique({
@@ -835,7 +871,7 @@ export async function vincularMarcaUsuario(
   const soMaster = await marcasDaDirecaoSoComMaster(esc, userId, marcaId);
   if (soMaster) return soMaster;
   if (!(await marcaNoGrupo(marcaId, grupoAlvo)))
-    return { ok: false, error: "Esta marca não é do grupo do usuário." };
+    return { ok: false, error: "Esta marca não é do cliente do usuário." };
 
   try {
     // upsert e não create: revincular uma marca que já foi desativada deve
@@ -912,7 +948,7 @@ export async function reativarVinculoMarca(
   const soMaster = await marcasDaDirecaoSoComMaster(esc, userId, marcaId);
   if (soMaster) return soMaster;
   if (!(await marcaNoGrupo(marcaId, grupoAlvo)))
-    return { ok: false, error: "Esta marca não é do grupo do usuário." };
+    return { ok: false, error: "Esta marca não é do cliente do usuário." };
 
   const vinculo = await prisma.userMarca.findUnique({
     where: { userId_marcaId: { userId, marcaId } },
@@ -1150,6 +1186,6 @@ export async function definirMarcasQueVe(
   });
 
   revalidatePath("/admin/usuarios");
-  revalidatePath("/admin/grupos");
+  revalidatePath("/admin/clientes");
   return { ok: true };
 }

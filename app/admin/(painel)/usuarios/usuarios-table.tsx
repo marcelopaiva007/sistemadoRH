@@ -594,7 +594,7 @@ function UsuarioForm({
         />
         <p id="username-dica" className="text-xs text-muted-foreground">
           Único no sistema: só letras sem acento, números, ponto, hífen ou sublinhado — sem “@” e
-          sem espaço. A mesma pessoa nos dois grupos tem dois usuários (ex.: “joao.silva” e
+          sem espaço. A mesma pessoa em dois clientes tem dois usuários (ex.: “joao.silva” e
           “joao.silva.lm”) e pode usar a mesma senha.
         </p>
       </div>
@@ -987,7 +987,7 @@ function VincularForm({
           não é campo enviado. */}
       {(usuario.role === "ADMIN" || usuario.role === "DIRETORIA") && (
         <p className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">
-          Diretoria e Administrativo veem todas as marcas do grupo. Para limitar a
+          Diretoria e Administrativo veem todas as marcas do cliente. Para limitar a
           algumas marcas, o admin usa o botão Marcas na tela de usuários.
         </p>
       )}
@@ -1031,7 +1031,7 @@ function VincularForm({
           <input type="hidden" name="role" value="RH_MANAGER" />
           {marcasDisponiveis.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Este usuário já tem acesso a todas as marcas ativas do grupo.
+              Este usuário já tem acesso a todas as marcas ativas do cliente.
               {usuario.marcasVinculadas.some((v) => !v.ativo) &&
                 " Use a lista abaixo para reativar um vínculo desativado."}
             </p>
@@ -1075,7 +1075,7 @@ function VincularForm({
           <input type="hidden" name="userId" value={usuario.id} />
           {empresasDisponiveis.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Nenhuma empresa ativa no grupo para vincular.
+              Nenhuma empresa ativa no cliente para vincular.
               {desativados.length > 0 && " Use a lista abaixo para reativar um vínculo desativado."}
             </p>
           ) : (
@@ -1353,13 +1353,13 @@ const PENDENCIA_ROTULO: Record<Pendencia, string> = {
 };
 const PENDENCIA_DICA: Record<Pendencia, string> = {
   SEM_EMAIL: "Sem e-mail a pessoa não recupera a senha nem o usuário sozinha.",
-  // A lista é de UM grupo: o mesmo e-mail no usuário deste grupo e no do outro
-  // é o normal (um usuário por grupo) e não aparece aqui.
+  // A lista é de UM cliente: o mesmo e-mail no usuário deste cliente e no do
+  // outro é o normal (um usuário por cliente) e não aparece aqui.
   EMAIL_DUPLICADO:
-    "Outra conta DESTE grupo usa o mesmo e-mail — provavelmente a mesma pessoa com dois usuários no mesmo grupo. Um usuário em cada grupo é o normal.",
+    "Outra conta DESTE cliente usa o mesmo e-mail — provavelmente a mesma pessoa com dois usuários no mesmo cliente. Um usuário em cada cliente é o normal.",
   LOGIN_EMAIL:
     "O usuário tem “@”. O acesso é pelo nome de usuário: troque por um sem “@” (ex.: marcelo ou marcelo.lm) e avise a pessoa.",
-  SEM_ACESSO: "Gestor sem marca nem CNPJ ativo neste grupo: entra no sistema mas não enxerga nenhuma empresa.",
+  SEM_ACESSO: "Gestor sem marca nem CNPJ ativo neste cliente: entra no sistema mas não enxerga nenhuma empresa.",
 };
 
 function calcularPendencias(usuarios: Usuario[]) {
@@ -1437,7 +1437,7 @@ type AcoesDaLinha = {
   onVincular: (u: Usuario) => void;
   onSenha: (u: Usuario) => void;
   onExcluir: (u: Usuario) => void;
-  /** Só na tela de admin (MASTER): abre "Grupo e marcas" para mudar a conta de grupo. */
+  /** Só na tela de admin (MASTER): abre "Cliente e marcas" para mudar a conta de cliente. */
   onTrocarGrupo?: (u: Usuario) => void;
   /** Só na tela de admin (MASTER): liga os botões de marca direto na linha. */
   painel?: PainelAdmin;
@@ -1586,9 +1586,9 @@ function LinhaUsuario({
           {direcaoGlobal && (
             <span
               className="mr-1 text-xs text-muted-foreground"
-              title="Administrativo e Diretoria enxergam todas as empresas do grupo de sociedade."
+              title="Administrativo e Diretoria enxergam todas as empresas do cliente."
             >
-              Todas do grupo
+              Todas do cliente
             </span>
           )}
           {veTudo && !direcaoGlobal && (
@@ -1689,13 +1689,13 @@ function avisoInativos(n: number, filtrando: boolean) {
 // A regra do grupo é um login por grupo, então a tela avisa em vez de fingir
 // que o acesso existe.
 const DICA_FORA_DO_GRUPO =
-  "de outro grupo de sociedade: este vínculo não dá acesso. Para trabalhar lá, a pessoa precisa de um login no outro grupo.";
+  "de outro cliente: este vínculo não dá acesso. Para trabalhar lá, a pessoa precisa de um usuário no outro cliente.";
 
 const DICA_SEM_EFEITO =
   "vínculo antigo: para Diretoria e Administrativo não muda o que a pessoa vê. Quem limita as marcas é o admin, nos botões de marca da linha.";
 
 function AvisoForaDoGrupo() {
-  return <span className="text-[11px] font-medium text-muted-foreground">fora do grupo</span>;
+  return <span className="text-[11px] font-medium text-muted-foreground">fora do cliente</span>;
 }
 
 function SeloPendencia({ pendencia, rotulo }: { pendencia: Pendencia; rotulo?: string }) {
@@ -1761,14 +1761,14 @@ function AcoesUsuario({
             <Link2 />
             Vincular empresa ou marca
           </DropdownMenuItem>
-          {/* Mudar de grupo é mudar o conjunto de marcas que a pessoa pode ver
-              (ex.: da LM Telecom para as demais). As marcas do grupo em que ela
+          {/* Mudar de cliente é mudar o conjunto de marcas que a pessoa pode ver
+              (ex.: da LM Telecom para o multimarcas). As marcas do cliente em que ela
               já está se ligam direto na linha. Gestor de setor fica de fora —
               o acesso dele é o setor de um CNPJ. */}
           {onTrocarGrupo && usuario.role !== "GESTOR_SETOR" && (
             <DropdownMenuItem onClick={() => onTrocarGrupo(usuario)}>
               <ArrowLeftRight />
-              Trocar de grupo
+              Trocar de cliente
             </DropdownMenuItem>
           )}
           <DropdownMenuItem onClick={() => onSenha(usuario)}>
@@ -1806,8 +1806,9 @@ function AcoesUsuario({
  * servidor (lib/marcas-que-ve.ts).
  *
  * Os botões são só as marcas do GRUPO da conta: a regra de quais marcas podem
- * ser vistas juntas é o grupo (a LM Telecom num grupo só dela; as demais
- * juntas no outro). Mudar de grupo é "Mais ações → Trocar de grupo".
+ * ser vistas juntas é o grupo — o CLIENTE, na Gestão (a LM Telecom num cliente
+ * só dela; as demais juntas no multimarcas). Mudar de cliente é "Mais ações →
+ * Trocar de cliente".
  *
  * Diretoria/Administrativo: todas ligadas = vê o grupo inteiro, inclusive
  * marca que entrar depois — por isso ligar a última manda a lista VAZIA, que é
@@ -1821,7 +1822,7 @@ function MarcasNaLinha({ usuario, painel }: { usuario: Usuario; painel: PainelAd
   const ehDirecao = usuario.role === "ADMIN" || usuario.role === "DIRETORIA";
   const grupoAtual = painel.grupoAtualId ?? "";
   const marcasDoGrupo = painel.marcas.filter((m) => m.grupoId === grupoAtual);
-  // A mesma leitura do diálogo "Grupo e marcas": só marca ATIVA do grupo
+  // A mesma leitura do diálogo "Cliente e marcas": só marca ATIVA do cliente
   // atual conta, e para a direção só a restrição posta pelo admin.
   const marcadasHoje = usuario.marcasVinculadas
     .filter((v) => v.ativo && !v.foraDoGrupo)
@@ -1853,7 +1854,7 @@ function MarcasNaLinha({ usuario, painel }: { usuario: Usuario; painel: PainelAd
     const nomes = nova.map(nomeDaMarca).filter(Boolean).join(", ");
     const descricao = ehDirecao
       ? todas
-        ? "vê todas as marcas do grupo"
+        ? "vê todas as marcas do cliente"
         : `vê só ${nomes}`
       : nova.length === 0
         ? cnpjs.length > 0
@@ -1869,7 +1870,7 @@ function MarcasNaLinha({ usuario, painel }: { usuario: Usuario; painel: PainelAd
   }
 
   if (marcasDoGrupo.length === 0) {
-    return <span className="text-xs text-muted-foreground">Grupo sem marca ativa.</span>;
+    return <span className="text-xs text-muted-foreground">Cliente sem marca ativa.</span>;
   }
 
   return (
@@ -1886,7 +1887,7 @@ function MarcasNaLinha({ usuario, painel }: { usuario: Usuario; painel: PainelAd
               onClick={() => alternar(m.id)}
               title={
                 soUmaParaDirecao
-                  ? `Neste grupo há só ${m.nome}: a pessoa vê só ela.`
+                  ? `Neste cliente há só ${m.nome}: a pessoa vê só ela.`
                   : ligada
                     ? `${nome} vê ${m.nome}. Clique para tirar.`
                     : `${nome} não vê ${m.nome}. Clique para liberar.`
@@ -1935,7 +1936,7 @@ function MarcasNaLinha({ usuario, painel }: { usuario: Usuario; painel: PainelAd
       )}
       {foraDoGrupo.length > 0 && (
         <p className="text-[11px] text-muted-foreground" title={DICA_FORA_DO_GRUPO}>
-          <span className="line-through">{foraDoGrupo.join(", ")}</span> — fora do grupo, sem efeito
+          <span className="line-through">{foraDoGrupo.join(", ")}</span> — fora do cliente, sem efeito
         </p>
       )}
     </div>
@@ -1986,7 +1987,7 @@ function MarcasQueVeForm({
     const result = await definirMarcasQueVe(usuario.id, grupoId, escolhidas);
     setSalvando(false);
     if (result.ok) {
-      toast.success(mudaGrupo ? "Grupo e marcas salvos." : "Marcas salvas.");
+      toast.success(mudaGrupo ? "Cliente e marcas salvos." : "Marcas salvas.");
       onFim();
     } else {
       toast.error(result.error);
@@ -1995,7 +1996,7 @@ function MarcasQueVeForm({
 
   const resumo = ehDirecao
     ? escolhidas.length === 0
-      ? "Vê todas as marcas do grupo, inclusive as que entrarem depois."
+      ? "Vê todas as marcas do cliente, inclusive as que entrarem depois."
       : "Vê só as marcas marcadas."
     : escolhidas.length === 0 && (mudaGrupo || cnpjsNoGrupo.length === 0)
       ? "Sem marca marcada, não vê nada."
@@ -2004,11 +2005,11 @@ function MarcasQueVeForm({
   return (
     <>
       <DialogHeader>
-        <DialogTitle>Grupo e marcas de {nomeExibicao(usuario.nome)}</DialogTitle>
+        <DialogTitle>Cliente e marcas de {nomeExibicao(usuario.nome)}</DialogTitle>
       </DialogHeader>
       <div className="space-y-5">
         <div className="space-y-1.5">
-          <Label htmlFor="marcas-grupo">Grupo</Label>
+          <Label htmlFor="marcas-grupo">Cliente</Label>
           <select
             id="marcas-grupo"
             value={grupoId}
@@ -2030,7 +2031,7 @@ function MarcasQueVeForm({
           </select>
           {mudaGrupo && (
             <p className="text-xs text-amber-800 dark:text-amber-300">
-              Ao mudar de grupo, a pessoa perde os vínculos de CNPJ do grupo atual.
+              Ao mudar de cliente, a pessoa perde os vínculos de CNPJ do cliente atual.
             </p>
           )}
         </div>
@@ -2038,7 +2039,7 @@ function MarcasQueVeForm({
         <fieldset className="space-y-2">
           <legend className="mb-1 text-sm font-medium">Marcas</legend>
           {marcasDoGrupo.length === 0 && (
-            <p className="text-sm text-muted-foreground">Este grupo ainda não tem marca ativa.</p>
+            <p className="text-sm text-muted-foreground">Este cliente ainda não tem marca ativa.</p>
           )}
           {marcasDoGrupo.map((m) => (
             <label key={m.id} className="flex min-h-9 cursor-pointer items-center gap-2 text-sm">
@@ -2048,7 +2049,7 @@ function MarcasQueVeForm({
           ))}
           <p className="text-xs text-muted-foreground">
             {ehDirecao
-              ? "Diretoria e Administrativo: nenhuma marcada = todas as marcas do grupo."
+              ? "Diretoria e Administrativo: nenhuma marcada = todas as marcas do cliente."
               : "Gestor de RH: marque as marcas que a pessoa atende. CNPJ avulso continua em Vincular."}
           </p>
           {!ehDirecao && !mudaGrupo && cnpjsNoGrupo.length > 0 && (
