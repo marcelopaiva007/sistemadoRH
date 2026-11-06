@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useActionState } from "react";
 import { toast } from "sonner";
-import { ArrowRight, FileText, TriangleAlert } from "lucide-react";
+import { ArrowRight, Building2, FileText, TriangleAlert } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -49,6 +49,7 @@ type Marca = {
   ativo: boolean;
   grupoId: string;
   _count: { empresas: number };
+  empresas: { id: string; nome: string; cnpj: string | null; razaoSocial: string | null; ativo: boolean }[];
 };
 type Usuario = {
   id: string;
@@ -230,6 +231,7 @@ function CartaoCliente({
       </CardHeader>
       <CardContent className="space-y-3">
         <DadosDoCliente grupo={grupo} />
+        <EmpresasDoCliente marcas={marcas} />
         <details className="group rounded-md border border-border px-3 py-2">
           <summary className="cursor-pointer text-sm font-medium text-muted-foreground select-none group-open:text-foreground">
             Ajustes: renomear, mover marca ou conta
@@ -448,8 +450,12 @@ function DadosDoCliente({ grupo }: { grupo: Grupo }) {
     <details className="group rounded-md border border-border px-3 py-2">
       <summary className="flex cursor-pointer items-center gap-1.5 text-sm font-medium text-muted-foreground select-none group-open:text-foreground">
         <FileText aria-hidden className="size-4" />
-        Dados do cliente
+        Contratante — quem assina e paga
       </summary>
+      <p className="mt-2 text-xs text-muted-foreground">
+        A empresa que contrata o sistema. As empresas do grupo que usam o sistema (cada CNPJ com os seus
+        dados) ficam em &quot;Empresas deste cliente&quot;, logo abaixo.
+      </p>
       <form action={acao} className="mt-3 grid gap-3 sm:grid-cols-2">
         <Campo id={`${p}-razao`} rotulo="Razão social" largo>
           <Input id={`${p}-razao`} name="razaoSocial" defaultValue={grupo.razaoSocial ?? ""} />
@@ -503,6 +509,56 @@ function DadosDoCliente({ grupo }: { grupo: Grupo }) {
           </Button>
         </div>
       </form>
+    </details>
+  );
+}
+
+/**
+ * As EMPRESAS do cliente (v1.197.0, pedido do CEO): um contratante pode ter
+ * várias empresas — o grupo empresarial de um dono ou de sócios —, cada uma com
+ * o seu CNPJ e os seus dados, organizadas por marca. Por ora só mostra; o
+ * cadastro de empresa nova pela Gestão vem no PR seguinte.
+ */
+function EmpresasDoCliente({ marcas }: { marcas: Marca[] }) {
+  const total = marcas.reduce((s, m) => s + m.empresas.length, 0);
+  return (
+    <details className="group rounded-md border border-border px-3 py-2">
+      <summary className="flex cursor-pointer items-center gap-1.5 text-sm font-medium text-muted-foreground select-none group-open:text-foreground">
+        <Building2 aria-hidden className="size-4" />
+        Empresas deste cliente <span className="tabular-nums">({total})</span>
+      </summary>
+      <div className="mt-3 space-y-3">
+        {total === 0 && <p className="text-sm text-muted-foreground">Nenhuma empresa cadastrada ainda.</p>}
+        {marcas
+          .filter((m) => m.empresas.length > 0)
+          .map((m) => (
+            <section key={m.id} className="space-y-1">
+              <h3 className="text-xs font-extrabold tracking-[0.06em] text-muted-foreground uppercase">
+                Marca {m.nome}
+              </h3>
+              <ul className="divide-y rounded-md border">
+                {m.empresas.map((e) => (
+                  <li key={e.id} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 px-3 py-1.5 text-sm">
+                    <span className="min-w-0">
+                      <span className="font-medium">{e.razaoSocial || e.nome}</span>
+                      {e.razaoSocial && e.razaoSocial !== e.nome && (
+                        <span className="text-muted-foreground"> · {e.nome}</span>
+                      )}
+                      {!e.ativo && (
+                        <Badge variant="secondary" className="ml-2">
+                          inativa
+                        </Badge>
+                      )}
+                    </span>
+                    <span className="font-mono text-xs text-muted-foreground tabular-nums">
+                      {e.cnpj ? formatarCnpj(e.cnpj) : "sem CNPJ"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
+      </div>
     </details>
   );
 }

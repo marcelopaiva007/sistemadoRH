@@ -31,7 +31,8 @@ export const ATUALIZACOES: Atualizacao[] = [
     horario: "17:00",
     titulo: "Gestão FASTMAI: cadastro completo do cliente",
     itens: [
-      "Cada cliente ganhou \"Dados do cliente\": razão social, CNPJ, responsável, e-mail e telefone de contato, plano, limite de usuários, início do contrato e observações.",
+      "Cada cliente ganhou o cadastro do contratante (quem assina e paga): razão social, CNPJ, responsável, e-mail e telefone de contato, plano, limite de usuários, início do contrato e observações.",
+      "Nova lista \"Empresas deste cliente\": cada CNPJ do grupo empresarial, com razão social, organizado por marca.",
       "O cartão do cliente mostra o resumo do contrato e avisa quando o cadastro está incompleto.",
       "Com limite de usuários preenchido, o cartão mostra quantos estão em uso e avisa quando passa do contratado.",
     ],

@@ -50,6 +50,12 @@ export default async function ClientesPage() {
         ativo: true,
         grupoId: true,
         _count: { select: { empresas: true } },
+        // As EMPRESAS do cliente (v1.197.0): cada CNPJ com os seus dados.
+        // Dado cadastral de empresa, não de gente — a Gestão segue sem ver RH.
+        empresas: {
+          orderBy: { nome: "asc" },
+          select: { id: true, nome: true, cnpj: true, razaoSocial: true, ativo: true },
+        },
       },
     }),
     prisma.user.findMany({
