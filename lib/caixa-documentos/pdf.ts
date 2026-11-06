@@ -4,7 +4,6 @@
 // quem lê é a IA. Aqui só se mexe em páginas — e é isso que garante que cada
 // pessoa receba um arquivo só com as páginas dela, nunca a folha inteira.
 import { EncryptedPDFError, ParseSpeeds, PDFDocument } from "pdf-lib";
-import sharp from "sharp";
 
 export type LeituraPdf = { ok: true; paginas: number } | { ok: false; error: string };
 
@@ -48,8 +47,16 @@ export async function recortarPdf(bytes: Uint8Array, inicio: number, fim: number
 /**
  * Foto (JPG/PNG/WEBP) no tamanho que a IA aceita: a API recusa imagem acima de
  * 5 MB ou 8000 px. O original enviado fica intocado — isto é só a cópia lida.
+ *
+ * O sharp é carregado AQUI, na hora de usar (v1.191.1), e não no topo do
+ * arquivo: importado no topo, qualquer falha dele derrubava todo módulo que
+ * importa este — inclusive a tela da Caixa de documentos, que nem mexe em
+ * foto. Foi o que aconteceu de 28/09 a 05/11/2026: o libvips não chegava à
+ * função na Vercel (ver outputFileTracingIncludes em next.config.ts) e a tela
+ * inteira respondia 500.
  */
 export async function imagemParaLeitura(bytes: Uint8Array): Promise<Uint8Array<ArrayBuffer>> {
+  const { default: sharp } = await import("sharp");
   const saida = await sharp(bytes)
     .rotate()
     .resize({ width: 2576, height: 2576, fit: "inside", withoutEnlargement: true })

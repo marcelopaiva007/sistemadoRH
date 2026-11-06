@@ -27,8 +27,8 @@ export type Atualizacao = {
 export const ATUALIZACOES: Atualizacao[] = [
   {
     versao: "1.192.0",
-    data: "05/11/2026",
-    horario: "23:30",
+    data: "06/11/2026",
+    horario: "07:40",
     titulo: "Gestão FASTMAI: a LM Telecom e as demais marcas viram clientes",
     itens: [
       "A área de administração virou a Gestão FASTMAI (mesmo endereço, rh.assinelm.com/admin). A FASTMAI administra os seus clientes e os usuários de cada um.",
@@ -41,6 +41,15 @@ export const ATUALIZACOES: Atualizacao[] = [
       "Correção: na edição de um usuário, o campo \"Nova senha\" agora troca a senha de verdade. Antes a tela dizia \"Usuário atualizado\" e a senha continuava a mesma.",
       "Ao criar um usuário que já existe no mesmo cliente, a tela avisa que a pessoa provavelmente já tem acesso, em vez de sugerir uma segunda conta.",
       "Segurança: \"Esqueci minha senha\" e \"Esqueci meu usuário\" respondem igual e no mesmo tempo, exista a conta ou não, e têm limite de pedidos por conexão — ninguém descobre por ali quais usuários existem.",
+    ],
+  },
+  {
+    versao: "1.191.1",
+    data: "06/11/2026",
+    horario: "07:30",
+    titulo: "Caixa de documentos volta a abrir",
+    itens: [
+      "A tela Caixa de documentos (Departamento Pessoal) voltava \"erro 500\" desde 28/09/2026. O componente que prepara as fotos para a leitura automática não chegava completo ao servidor e derrubava a tela inteira. Corrigido — e esse componente agora só é carregado na hora de ler uma foto, para uma falha dele nunca mais tirar a tela do ar.",
     ],
   },
   {
