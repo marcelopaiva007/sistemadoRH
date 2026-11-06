@@ -28,7 +28,7 @@ export const ATUALIZACOES: Atualizacao[] = [
   {
     versao: "1.190.0",
     data: "05/11/2026",
-    horario: "19:30",
+    horario: "21:35",
     titulo: "Admin: regras das marcas — \"só ela\" ou \"junto com\" outras",
     itens: [
       "A aba Grupos da área de admin virou \"Regras das marcas\". Em cada marca você escolhe a regra: \"Só ela\" (quem trabalha nela não vê outra marca, como a LM Telecom) ou \"Junto com\" as marcas de outro conjunto (cada pessoa vê uma, várias ou todas).",
@@ -40,7 +40,7 @@ export const ATUALIZACOES: Atualizacao[] = [
   {
     versao: "1.189.0",
     data: "05/11/2026",
-    horario: "19:05",
+    horario: "21:25",
     titulo: "Admin: marcas de cada conta direto na lista de Usuários",
     itens: [
       "Na lista de Usuários do admin, as marcas de cada conta viraram botões de liga/desliga na própria linha: um clique libera ou tira a marca, e já fica salvo.",
