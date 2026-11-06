@@ -26,6 +26,18 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.190.0",
+    data: "05/11/2026",
+    horario: "21:35",
+    titulo: "Admin: regras das marcas — \"só ela\" ou \"junto com\" outras",
+    itens: [
+      "A aba Grupos da área de admin virou \"Regras das marcas\". Em cada marca você escolhe a regra: \"Só ela\" (quem trabalha nela não vê outra marca, como a LM Telecom) ou \"Junto com\" as marcas de outro conjunto (cada pessoa vê uma, várias ou todas).",
+      "Antes de confirmar, a tela mostra quem vai junto com a marca (já vêm marcadas as contas que hoje veem só ela), quem fica e deixa de vê-la e quem passa a vê-la. Quem vai junto entra vendo só aquela marca; as outras você libera na lista de Usuários.",
+      "Juntar uma marca que estava sozinha leva todas as contas dela, e o grupo que fica vazio é encerrado. A tela não deixa um grupo ficar sem ADMIN.",
+      "Os grupos continuam na mesma tela, embaixo, para renomear e conferir em que grupo está cada marca e cada conta.",
+    ],
+  },
+  {
     versao: "1.189.0",
     data: "05/11/2026",
     horario: "21:25",

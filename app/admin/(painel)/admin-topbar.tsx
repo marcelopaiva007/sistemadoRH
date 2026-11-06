@@ -18,7 +18,9 @@ import {
 // área — escolher, conta a conta, que marcas cada pessoa vê.
 const ABAS = [
   { href: "/admin/usuarios", rotulo: "Usuários", icon: UserCog },
-  { href: "/admin/grupos", rotulo: "Grupos", icon: Network },
+  // "Regras das marcas" desde a v1.190.0: a tela abre na regra de cada marca
+  // ("só ela" / "junto com"), com os grupos crus embaixo. O endereço ficou.
+  { href: "/admin/grupos", rotulo: "Regras das marcas", icon: Network },
   { href: "/admin/perfis", rotulo: "Perfis de acesso", icon: ShieldCheck },
 ];
 

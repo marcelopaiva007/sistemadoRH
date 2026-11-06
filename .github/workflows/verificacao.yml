@@ -182,6 +182,8 @@ jobs:
         run: npx tsx scripts/smoke-identificador-login.ts
       - name: Marcas que cada conta vê (tela de admin) e login com Google
         run: npx tsx scripts/smoke-marcas-direcao.ts
+      - name: Regras das marcas (só ela / junto com) na área de admin
+        run: npx tsx scripts/smoke-regras-marcas.ts
       - name: Alertas de RH
         run: npx tsx scripts/smoke-alertas-rh.ts
       - name: Recrutamento (ATS)

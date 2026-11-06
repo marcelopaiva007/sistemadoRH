@@ -196,6 +196,11 @@ export default async function UsuariosPage({
         <p className="text-sm text-muted-foreground">
           {fraseDaRegra}{" "}
           Para passar alguém para outro grupo, use <span className="font-medium">Mais ações → Trocar de grupo</span>.
+          A regra de cada marca (só ela ou junto com outras) fica em{" "}
+          <Link href="/admin/grupos" className="underline underline-offset-2 hover:text-foreground">
+            Regras das marcas
+          </Link>
+          .
         </p>
         <p className="text-xs text-muted-foreground">
           {totalDeContas} {totalDeContas === 1 ? "conta" : "contas"} no sistema ({totalAtivas}{" "}
