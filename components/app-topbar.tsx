@@ -61,6 +61,7 @@ function iniciaisDoNome(nome: string): string {
 export function AppTopbar({
   role,
   nome,
+  usuario,
   versao,
   versaoCurta,
   marcas,
@@ -71,6 +72,9 @@ export function AppTopbar({
 }: {
   role: string;
   nome: string;
+  /** O nome de usuário com que se entrou. Com um usuário por cliente (v1.191.0),
+   *  quem tem dois ("marcelo" e "marcelo.lm") precisa ver em qual está. */
+  usuario: string;
   /** Ex.: "v1.0.0 · a1b2c3d". Vem do layout: o commit só existe no servidor. */
   versao: string;
   /** Só o número ("v1.0.0"), para a linha sob o nome — o commit não cabe ali. */
@@ -131,7 +135,7 @@ export function AppTopbar({
             quem é, e o menu continua a um toque. */}
         <DropdownMenu>
           <DropdownMenuTrigger
-            title={nome}
+            title={`${nome} (${usuario})`}
             className="flex h-9 min-w-0 shrink-0 items-center gap-2 px-1 text-left outline-none transition-colors hover:bg-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring aria-expanded:bg-card"
           >
             <span
@@ -158,6 +162,12 @@ export function AppTopbar({
             <ChevronDown aria-hidden className="hidden size-3.5 shrink-0 text-muted-foreground md:block" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" sideOffset={6} className="w-60">
+            {/* Com qual usuário se entrou — quem tem um para a LM e outro para
+                as demais marcas confere aqui antes de trabalhar (v1.192.0). */}
+            <div className="px-1.5 pt-1 pb-1.5 text-xs text-muted-foreground">
+              Conectado como <span className="font-mono font-semibold text-foreground">{usuario}</span>
+            </div>
+            <DropdownMenuSeparator />
             {itensDoMenu.map((item) => {
               const Icon = item.icon;
               return (

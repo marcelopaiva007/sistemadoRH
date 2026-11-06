@@ -18,6 +18,7 @@ import "dotenv/config";
 import { randomUUID } from "node:crypto";
 import { Client } from "pg";
 import bcrypt from "bcryptjs";
+import { normalizarLogin, problemaNoLogin } from "../lib/login-usuario";
 
 const [, , comando, ...args] = process.argv;
 
@@ -62,19 +63,29 @@ async function main() {
     }
 
     if (comando === "criar") {
-      const [username, senha, nome] = args;
-      if (!username || !senha) {
+      const [digitado, senha, nome] = args;
+      if (!digitado || !senha) {
         console.error('Uso: criar <username> <senha> "Nome Completo"');
+        process.exit(1);
+      }
+      // As mesmas regras da tela de Usuários (lib/login-usuario.ts).
+      const username = normalizarLogin(digitado);
+      const problema = problemaNoLogin(username);
+      if (problema) {
+        console.error(problema);
         process.exit(1);
       }
       if (senha.length < 8) {
         console.error("A senha precisa ter pelo menos 8 caracteres.");
         process.exit(1);
       }
-      const jaExiste = await client.query(`SELECT nome, role FROM "rh"."User" WHERE username = $1`, [username]);
+      const jaExiste = await client.query(
+        `SELECT nome, role, username FROM "rh"."User" WHERE lower(username) = lower($1)`,
+        [username],
+      );
       if (jaExiste.rows.length > 0) {
         console.error(
-          `Já existe um usuário com o login "${username}" (${jaExiste.rows[0].nome}, ${jaExiste.rows[0].role}). ` +
+          `Já existe um usuário com o login "${jaExiste.rows[0].username}" (${jaExiste.rows[0].nome}, ${jaExiste.rows[0].role}). ` +
             `Para trocar a senha dele, use "redefinir".`,
         );
         process.exit(1);

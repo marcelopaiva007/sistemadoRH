@@ -2,6 +2,7 @@
 
 import { randomBytes, createHash } from "node:crypto";
 import { headers } from "next/headers";
+import { after } from "next/server";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
@@ -21,8 +22,9 @@ const RECUPERACAO_EXPIRA_EM_HORAS = 1;
 // por grupo (o "marcelo" e o "marcelo.lm" recebem no mesmo endereço).
 //
 // Nenhum dos dois revela para quem não está logado se a conta existe: a
-// resposta é a mesma com ou sem conta. As exceções não dependem disso — o
-// balde de 15 min (conta todo pedido) e a falha operacional de envio.
+// resposta é a mesma com ou sem conta, e sai antes de qualquer busca (ver
+// `after`, mais abaixo). A única exceção não depende disso: os baldes de
+// 15 min, que contam todo pedido.
 
 // Tetos DIÁRIOS, por cima do balde de 15 min. O balde por (texto digitado, IP)
 // só reduz a taxa: 5 a cada 15 min ainda são 85 e-mails em ~4 h — a cota
@@ -84,44 +86,90 @@ function enderecoDoAdmin(baseUrl: string): string {
   return `${baseUrl.replace(/^https?:\/\//, "")}/admin`;
 }
 
+/** Nome, usuário e grupo vão para o HTML do e-mail: nada deles vira marcação. */
+function escaparHtml(texto: string): string {
+  return texto
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+// Balde por IP, somando os dois pedidos ("Esqueci minha senha" e "Esqueci meu
+// usuário"): o balde por texto digitado sozinho deixava testar nomes à
+// vontade — cada nome novo tinha um balde novo.
+const CHAVE_PEDIDOS_DO_IP = "recuperacao:*";
+
+/**
+ * Conta o pedido e diz se ele passou do limite. GRAVA ANTES DE CONFERIR
+ * (v1.192.0): conferindo antes, N pedidos em paralelo liam o balde ainda vazio
+ * e passavam todos. Falha aberta se o banco reclamar — mesmo critério do login.
+ *
+ * O estado dos baldes não depende de a conta existir (todo pedido conta), então
+ * a mensagem honesta de "muitos pedidos" não revela nada.
+ */
+async function pedidoBarrado(chave: string, ip: string): Promise<boolean> {
+  await Promise.all([registrarFalha(chave, ip), registrarFalha(CHAVE_PEDIDOS_DO_IP, ip)]).catch(() => {});
+  const [porTexto, porIp] = await Promise.all([
+    estadoDoLogin(chave, ip).catch(() => null),
+    estadoDoLogin(CHAVE_PEDIDOS_DO_IP, ip).catch(() => null),
+  ]);
+  return Boolean(porTexto?.bloqueado || porIp?.bloqueado);
+}
+
+const MENSAGEM_BARRADO = "Muitos pedidos seguidos. Aguarde alguns minutos e tente de novo.";
+
+// A RESPOSTA NÃO PODE DEPENDER DE A CONTA EXISTIR (revisão da v1.191.0): nem
+// no texto, nem no tempo. Até a v1.191.0 a busca, o token e o envio rodavam
+// antes da resposta — conta real demorava centenas de ms a mais (o envio) e,
+// com o envio fora do ar, só conta real ouvia "não foi possível enviar". Com o
+// acesso só por usuário, isso dizia quais usuários existem ("master",
+// "marcelo"...). Agora a resposta sai na hora, igual para todos, e o trabalho
+// roda depois dela (`after`). Falha de envio vai para o log do servidor.
+
 const solicitarSchema = z.object({ usuario: z.string().trim().min(1).max(200) });
 
 /**
  * "Esqueci minha senha", pelo USUÁRIO. O link vai para o e-mail CADASTRADO na
  * conta — quem pede não escolhe para onde ele vai. Devolve `{ ok: true }`
- * exista o usuário ou não, tenha e-mail ou não (a tela diz o que fazer se
- * nada chegar).
+ * exista o usuário ou não, tenha e-mail ou não (a tela diz o que fazer se nada
+ * chegar).
  */
 export async function solicitarRecuperacaoSenha(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   const parsed = solicitarSchema.safeParse({ usuario: formData.get("usuario") });
   if (!parsed.success) return { ok: false, error: "Informe o seu usuário." };
   const digitado = parsed.data.usuario;
 
-  // Rate limit por (usuário digitado, IP), reaproveitando o balde do login
-  // (5 em 15 min). Falha ABERTA se o banco reclamar — mesmo critério do login.
-  //
-  // O balde conta TODO pedido, exista o usuário ou não, e é gravado antes da
-  // busca (janela de um roundtrip, como no login): por isso pode responder com
-  // uma mensagem honesta quando bloqueia — o estado dele não depende de o
-  // usuário existir, então não revela nada. Já os tetos diários contam só
-  // e-mails que SAÍRAM (só existem para conta real), e por isso, quando
-  // barram, devolvem o mesmo `{ ok: true }` de sempre.
   const ip = ipDaRequisicao(await headers());
-  const chaveLimite = `reset:${normalizarUsuario(digitado)}`;
-  const limite = await estadoDoLogin(chaveLimite, ip).catch(() => null);
-  if (limite?.bloqueado) {
-    return { ok: false, error: "Muitos pedidos seguidos. Aguarde alguns minutos e tente de novo." };
+  if (await pedidoBarrado(`reset:${normalizarUsuario(digitado)}`, ip)) {
+    return { ok: false, error: MENSAGEM_BARRADO };
   }
-  await registrarFalha(chaveLimite, ip).catch(() => {});
 
+  const baseUrl = urlBase();
+  after(() =>
+    enviarLinkDeSenha(digitado, baseUrl).catch((e) => console.error("[recuperacao-senha] pedido falhou:", e)),
+  );
+  return { ok: true };
+}
+
+/** O trabalho do "Esqueci minha senha", depois da resposta. */
+async function enviarLinkDeSenha(digitado: string, baseUrl: string): Promise<void> {
   // A mesma regra do login (sem diferença de maiúsculas, texto exato vence).
   // Acesso de portal (funcionário sem login) não ganha senha por aqui: é a
   // trava de lib/delegacoes/acesso-colaborador.ts, além do e-mail nulo.
   const user = await usuarioPorLogin(digitado);
-  if (!user || !user.ativo || user.role === PAPEL_PORTAL || !user.email) return { ok: true };
+  if (!user || !user.ativo || user.role === PAPEL_PORTAL || !user.email) return;
 
   const emailDestino = user.email.trim().toLowerCase();
-  if (await tetoDoDiaAtingido(emailDestino)) return { ok: true };
+  if (await tetoDoDiaAtingido(emailDestino)) return;
+
+  // O grupo ANTES de mexer no token: se esta consulta falhar, o link que a
+  // pessoa já tinha continua valendo. Com um usuário por grupo, o mesmo
+  // endereço pode receber links de contas diferentes — o e-mail diz de qual.
+  const grupo = user.grupoId
+    ? await prisma.grupo.findUnique({ where: { id: user.grupoId }, select: { nome: true } })
+    : null;
 
   const token = randomBytes(32).toString("base64url");
   const tokenHash = hashToken(token);
@@ -136,25 +184,21 @@ export async function solicitarRecuperacaoSenha(_prev: ActionResult, formData: F
     data: { recuperacaoSenhaTokenHash: tokenHash, recuperacaoSenhaExpiraEm: expiraEm },
   });
 
-  const baseUrl = urlBase();
   const link = `${baseUrl}/redefinir-senha/${token}`;
-  // Com um usuário por grupo, o mesmo endereço pode receber links de contas
-  // diferentes: o e-mail diz de qual usuário (e grupo) é este.
-  const grupo = user.grupoId
-    ? await prisma.grupo.findUnique({ where: { id: user.grupoId }, select: { nome: true } })
-    : null;
+  const nome = escaparHtml(user.nome);
+  const usuario = escaparHtml(user.username);
   const deQualConta = grupo ? ` (${grupo.nome})` : "";
   // A conta de administrador (MASTER) entra por outra porta desde a v1.188.0:
   // o e-mail já diz qual, para o endereço não depender de memória.
   const ehContaAdmin = user.role === "MASTER";
 
   const html = `
-      <p>Olá, ${user.nome},</p>
-      <p>Recebemos um pedido para redefinir a senha do usuário <b>${user.username}</b>${deQualConta} no sistema de RH.</p>
-      <p>No login, digite o usuário <b>${user.username}</b> — o acesso é pelo nome de usuário, não pelo e-mail.</p>${
+      <p>Olá, ${nome},</p>
+      <p>Recebemos um pedido para redefinir a senha do usuário <b>${usuario}</b>${escaparHtml(deQualConta)} no sistema de RH.</p>
+      <p>No login, digite o usuário <b>${usuario}</b> — o acesso é pelo nome de usuário, não pelo e-mail.</p>${
         ehContaAdmin
           ? `
-      <p>Esta é a conta de <b>administrador do sistema</b>. Depois de criar a senha, entre pela área de administração: <a href="${baseUrl}/admin/login">${enderecoDoAdmin(baseUrl)}</a>.</p>`
+      <p>Esta é a conta de <b>administrador da FASTMAI</b>. Depois de criar a senha, entre pela Gestão FASTMAI: <a href="${baseUrl}/admin/login">${enderecoDoAdmin(baseUrl)}</a>.</p>`
           : ""
       }
       <p>Para criar uma senha nova, clique abaixo. O link expira em ${RECUPERACAO_EXPIRA_EM_HORAS} hora.</p>
@@ -174,7 +218,7 @@ export async function solicitarRecuperacaoSenha(_prev: ActionResult, formData: F
     subject: `Redefinição de senha do usuário ${user.username} — Sistema de RH`,
     html,
     text: `Pedido para redefinir a senha do usuário ${user.username}${deQualConta}. No login, digite o usuário ${user.username} (o acesso é pelo nome de usuário, não pelo e-mail).${
-      ehContaAdmin ? ` Esta é a conta de administrador do sistema: depois de criar a senha, entre por ${baseUrl}/admin/login.` : ""
+      ehContaAdmin ? ` Esta é a conta de administrador da FASTMAI: depois de criar a senha, entre por ${baseUrl}/admin/login.` : ""
     } Acesse ${link} para redefinir sua senha. O link expira em ${RECUPERACAO_EXPIRA_EM_HORAS} hora.`,
     chave: `recuperacao-senha:${tokenHash}`,
   });
@@ -187,14 +231,12 @@ export async function solicitarRecuperacaoSenha(_prev: ActionResult, formData: F
         recuperacaoSenhaExpiraEm: user.recuperacaoSenhaExpiraEm,
       },
     });
-    // Não revelamos se o usuário existe, mas uma falha operacional precisa
-    // aparecer para quem fez o pedido; caso contrário o fluxo parece concluído
-    // quando o envio está desligado ou indisponível.
-    return { ok: false, error: "Não foi possível enviar o link agora. Tente novamente em alguns minutos." };
+    console.error(`[recuperacao-senha] envio do link falhou (conta ${user.id}): ${envio.error}`);
+    return;
   }
 
   // Os tetos diários contam só o que SAIU: falha de envio não consome cota de
-  // ninguém. (O balde de 15 min, esse já foi gravado lá em cima.)
+  // ninguém.
   await contarEnvioNoDia(emailDestino);
   await registrarAuditoria({
     acao: "RESET_SENHA",
@@ -202,7 +244,6 @@ export async function solicitarRecuperacaoSenha(_prev: ActionResult, formData: F
     entidadeId: user.id,
     resumo: `Solicitou redefinição de senha do usuário ${user.username} (link enviado ao e-mail cadastrado)`,
   });
-  return { ok: true };
 }
 
 const lembreteSchema = z.object({ email: z.string().trim().email() });
@@ -210,44 +251,54 @@ const lembreteSchema = z.object({ email: z.string().trim().email() });
 /**
  * "Esqueci meu usuário": manda para o e-mail informado os usuários ATIVOS
  * ligados a ele — um e-mail só, com todos, porque a mesma pessoa pode ter um
- * usuário por grupo. Devolve `{ ok: true }` exista conta ou não.
+ * usuário por grupo. Devolve `{ ok: true }` exista conta ou não; o trabalho
+ * roda depois da resposta, como no "Esqueci minha senha".
  */
 export async function solicitarLembreteDeUsuario(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   const parsed = lembreteSchema.safeParse({ email: formData.get("email") });
   if (!parsed.success) return { ok: false, error: "Informe um e-mail válido." };
   const email = parsed.data.email.toLowerCase();
 
-  // Mesmo balde e mesmos tetos do "Esqueci minha senha" (ver lá em cima). O
-  // balde tem prefixo próprio: errar aqui não bloqueia pedir a senha.
+  // Balde próprio por texto (errar aqui não bloqueia pedir a senha) e o balde
+  // por IP, comum aos dois pedidos.
   const ip = ipDaRequisicao(await headers());
-  const chaveLimite = `lembrete:${email}`;
-  const limite = await estadoDoLogin(chaveLimite, ip).catch(() => null);
-  if (limite?.bloqueado) {
-    return { ok: false, error: "Muitos pedidos seguidos. Aguarde alguns minutos e tente de novo." };
+  if (await pedidoBarrado(`lembrete:${email}`, ip)) {
+    return { ok: false, error: MENSAGEM_BARRADO };
   }
-  await registrarFalha(chaveLimite, ip).catch(() => {});
-
-  const contas = await usuariosPorEmail(email);
-  if (contas.length === 0) return { ok: true };
-  if (await tetoDoDiaAtingido(email)) return { ok: true };
 
   const baseUrl = urlBase();
+  after(() =>
+    enviarLembreteDeUsuario(email, baseUrl).catch((e) => console.error("[lembrete-usuario] pedido falhou:", e)),
+  );
+  return { ok: true };
+}
+
+/** O trabalho do "Esqueci meu usuário", depois da resposta. */
+async function enviarLembreteDeUsuario(email: string, baseUrl: string): Promise<void> {
+  const contas = await usuariosPorEmail(email);
+  if (contas.length === 0) return;
+  if (await tetoDoDiaAtingido(email)) return;
+
   const itens = contas.map((c) => {
-    const onde =
-      c.role === "MASTER"
-        ? `conta de administrador — entra em <a href="${baseUrl}/admin/login">${enderecoDoAdmin(baseUrl)}</a>`
-        : c.grupo?.nome ?? "sem grupo";
-    return { html: `<li><b>${c.username}</b> (${onde})</li>`, texto: `${c.username} (${c.role === "MASTER" ? `administrador: ${baseUrl}/admin/login` : (c.grupo?.nome ?? "sem grupo")})` };
+    const usuario = escaparHtml(c.username);
+    if (c.role === "MASTER") {
+      return {
+        html: `<li><b>${usuario}</b> (conta de administrador da FASTMAI — entra em <a href="${baseUrl}/admin/login">${enderecoDoAdmin(baseUrl)}</a>)</li>`,
+        texto: `${c.username} (administrador da FASTMAI: ${baseUrl}/admin/login)`,
+      };
+    }
+    const grupo = c.grupo?.nome ?? "sem grupo";
+    return { html: `<li><b>${usuario}</b> (${escaparHtml(grupo)})</li>`, texto: `${c.username} (${grupo})` };
   });
   const varios = contas.length > 1;
 
   const html = `
-      <p>Olá, ${contas[0].nome},</p>
+      <p>Olá, ${escaparHtml(contas[0].nome)},</p>
       <p>${varios ? "Estes são os usuários de acesso ligados a este e-mail" : "Este é o seu usuário de acesso"} no sistema de RH:</p>
       <ul>${itens.map((i) => i.html).join("")}</ul>${
         varios
           ? `
-      <p>Cada usuário entra em um grupo de empresas. Use o do grupo em que vai trabalhar — a senha pode ser a mesma nos dois.</p>`
+      <p>Cada usuário entra nas empresas dele — use o da empresa em que vai trabalhar. A senha pode ser a mesma em todos.</p>`
           : ""
       }
       <p>No login, digite o usuário (não o e-mail): <a href="${baseUrl}/login">${baseUrl.replace(/^https?:\/\//, "")}/login</a>. Se também esqueceu a senha, use "Esqueci minha senha" na tela de login.</p>
@@ -261,7 +312,8 @@ export async function solicitarLembreteDeUsuario(_prev: ActionResult, formData: 
     text: `${varios ? "Seus usuários de acesso" : "Seu usuário de acesso"}: ${itens.map((i) => i.texto).join("; ")}. No login, digite o usuário (não o e-mail): ${baseUrl}/login.`,
   });
   if (!envio.ok) {
-    return { ok: false, error: "Não foi possível enviar agora. Tente novamente em alguns minutos." };
+    console.error(`[lembrete-usuario] envio falhou (${contas.length} conta(s)): ${envio.error}`);
+    return;
   }
 
   await contarEnvioNoDia(email);
@@ -275,7 +327,6 @@ export async function solicitarLembreteDeUsuario(_prev: ActionResult, formData: 
       }),
     ),
   ).catch(() => {});
-  return { ok: true };
 }
 
 const redefinirSchema = z.object({

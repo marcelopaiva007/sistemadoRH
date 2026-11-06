@@ -21,6 +21,7 @@ import "dotenv/config";
 import { randomUUID } from "node:crypto";
 import { Client } from "pg";
 import bcrypt from "bcryptjs";
+import { normalizarLogin, problemaNoLogin } from "../lib/login-usuario";
 
 const [, , comando, ...args] = process.argv;
 
@@ -45,9 +46,17 @@ async function main() {
     }
 
     if (comando === "criar") {
-      const [username, senha, nome] = args;
-      if (!username || !senha) {
+      const [digitado, senha, nome] = args;
+      if (!digitado || !senha) {
         console.error('Uso: criar <username> <senha> "Nome Completo"');
+        process.exit(1);
+      }
+      // As mesmas regras da tela de Usuários (lib/login-usuario.ts): minúsculas,
+      // sem "@" nem espaço, e sem repetir — nem com maiúsculas diferentes.
+      const username = normalizarLogin(digitado);
+      const problema = problemaNoLogin(username);
+      if (problema) {
+        console.error(problema);
         process.exit(1);
       }
       if (senha.length < 8) {
@@ -55,7 +64,7 @@ async function main() {
         process.exit(1);
       }
       const existe = await client.query(
-        `SELECT 1 FROM "rh"."User" WHERE username = $1`,
+        `SELECT 1 FROM "rh"."User" WHERE lower(username) = lower($1)`,
         [username],
       );
       if (existe.rowCount) {

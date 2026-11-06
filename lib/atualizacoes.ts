@@ -37,6 +37,10 @@ export const ATUALIZACOES: Atualizacao[] = [
       "A antiga \"Regras das marcas\" virou \"Marcas e clientes\", na mesma tela: em qual cliente fica cada marca, com a confirmação que mostra quem vai junto. O endereço antigo leva para Clientes.",
       "Em Usuários, as abas são os clientes; \"Trocar de grupo\" virou \"Trocar de cliente\", e as mensagens falam em cliente.",
       "No sistema do RH, o atalho do menu do nome e da tela Conta passa a se chamar Gestão FASTMAI. Para quem usa o RH no dia a dia, nada muda.",
+      "O menu do nome mostra com qual usuário você entrou (ex.: \"Conectado como marcelo.lm\"), para quem tem um usuário em cada cliente.",
+      "Correção: na edição de um usuário, o campo \"Nova senha\" agora troca a senha de verdade. Antes a tela dizia \"Usuário atualizado\" e a senha continuava a mesma.",
+      "Ao criar um usuário que já existe no mesmo cliente, a tela avisa que a pessoa provavelmente já tem acesso, em vez de sugerir uma segunda conta.",
+      "Segurança: \"Esqueci minha senha\" e \"Esqueci meu usuário\" respondem igual e no mesmo tempo, exista a conta ou não, e têm limite de pedidos por conexão — ninguém descobre por ali quais usuários existem.",
     ],
   },
   {
