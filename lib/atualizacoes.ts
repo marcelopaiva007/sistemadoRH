@@ -26,6 +26,19 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.193.0",
+    data: "06/11/2026",
+    horario: "08:00",
+    titulo: "Cadastro de usuário mais simples: basta usuário e senha",
+    itens: [
+      "O \"Novo usuário\" da Gestão FASTMAI abre com um aviso: para entrar, a pessoa só precisa de usuário e senha, sem e-mail e sem conta Google.",
+      "O formulário ficou em três partes: 1. Acesso (usuário, senha e nome), 2. O que a pessoa pode fazer (papel e, se precisar, ajustes de perfil) e 3. Contato (opcional, fechado por padrão).",
+      "O nome da pessoa passou a ser opcional no cadastro. Sem nome, ela aparece na lista pelo usuário.",
+      "Botões para mostrar a senha e para gerar uma senha fácil de ditar. Ao criar, o aviso lembra qual usuário passar para a pessoa.",
+      "A tela de login da Gestão FASTMAI ganhou o link \"Esqueci meu usuário\": quem não lembra o usuário de administrador recebe todos os seus usuários no e-mail cadastrado.",
+    ],
+  },
+  {
     versao: "1.192.0",
     data: "06/11/2026",
     horario: "07:40",

@@ -37,7 +37,7 @@ export function AdminLoginForm({ destino = "/admin" }: { destino?: string }) {
           motivo?.tipo === "bloqueado"
             ? `Muitas tentativas seguidas. Tente de novo em ${motivo.minutos} minuto${motivo.minutos > 1 ? "s" : ""}.`
             : usuario.includes("@")
-              ? "Usuário ou senha inválidos. O acesso é pelo nome de usuário, não pelo e-mail."
+              ? "Usuário ou senha inválidos. O acesso é pelo nome de usuário, não pelo e-mail. Não lembra o seu? Use “Esqueci meu usuário”."
               : "Usuário ou senha inválidos.",
         );
         return;
@@ -52,7 +52,12 @@ export function AdminLoginForm({ destino = "/admin" }: { destino?: string }) {
   return (
     <form action={handleSubmit} className="space-y-5">
       <div className="space-y-1.5">
-        <Label htmlFor="username">Usuário do administrador</Label>
+        <div className="flex items-baseline justify-between">
+          <Label htmlFor="username">Usuário do administrador</Label>
+          <Link href="/esqueci-usuario" className="text-xs text-primary hover:underline">
+            Esqueci meu usuário
+          </Link>
+        </div>
         <Input
           id="username"
           name="username"
