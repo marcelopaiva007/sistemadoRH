@@ -28,7 +28,7 @@ export const ATUALIZACOES: Atualizacao[] = [
   {
     versao: "1.189.0",
     data: "05/11/2026",
-    horario: "19:05",
+    horario: "21:25",
     titulo: "Admin: marcas de cada conta direto na lista de Usuários",
     itens: [
       "Na lista de Usuários do admin, as marcas de cada conta viraram botões de liga/desliga na própria linha: um clique libera ou tira a marca, e já fica salvo.",
