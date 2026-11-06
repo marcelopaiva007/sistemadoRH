@@ -26,6 +26,15 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.191.1",
+    data: "05/11/2026",
+    horario: "23:55",
+    titulo: "Caixa de documentos volta a abrir",
+    itens: [
+      "A tela Caixa de documentos (Departamento Pessoal) voltava \"erro 500\" desde 28/09/2026. O componente que prepara as fotos para a leitura automática não chegava completo ao servidor e derrubava a tela inteira. Corrigido — e esse componente agora só é carregado na hora de ler uma foto, para uma falha dele nunca mais tirar a tela do ar.",
+    ],
+  },
+  {
     versao: "1.191.0",
     data: "05/11/2026",
     horario: "22:45",
