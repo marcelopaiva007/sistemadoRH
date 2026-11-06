@@ -42,6 +42,7 @@ export const LEMBRETES_CONFIGURAVEIS = {
   // NASCE DESLIGADO (ver LEMBRETES_QUE_NASCEM_DESLIGADOS): ligar é o
   // interruptor na tela de Lembretes, e a prévia mora em Avisos ao gestor.
   "avisos-gestor": { label: "Avisos ao gestor sobre o time", padroes: ["08:00"] },
+  "lembrete-contracheque": { label: "Cobrança de contracheques pendentes", padroes: ["10:30"] },
 } as const;
 
 export type ChaveLembrete = keyof typeof LEMBRETES_CONFIGURAVEIS;
