@@ -1,4 +1,5 @@
 import type { NextAuthConfig } from "next-auth";
+import { CAMINHO_PADRAO_DO_ADMIN, voltaDoAdmin } from "@/lib/admin-volta";
 
 // Configuração Edge-safe: importada tanto pelo middleware (proxy.ts) quanto
 // pelo handler de auth (auth.ts). NÃO pode usar Prisma aqui — middleware
@@ -49,7 +50,38 @@ export const authConfig = {
       // acessar sem estar logado.
       if (request.nextUrl.pathname.startsWith("/esqueci-senha")) return true;
       if (request.nextUrl.pathname.startsWith("/redefinir-senha")) return true;
-      const isOnLogin = request.nextUrl.pathname.startsWith("/login");
+      // ÁREA DE ADMINISTRAÇÃO (app/admin, v1.188.0): endereço, login e tela
+      // próprios, só da conta MASTER. O login do admin é público — e quem já
+      // está como MASTER vai direto para o painel. O resto de /admin exige o
+      // MASTER; sem ele, volta para o login DO ADMIN (não o do sistema), que
+      // explica com que conta a pessoa está e oferece trocar.
+      // As páginas conferem de novo no servidor (requireAreaAdmin): isto aqui
+      // é o atalho, não a única tranca.
+      const caminho = request.nextUrl.pathname;
+      const ehMaster = isLoggedIn && auth?.user?.role === "MASTER";
+      if (caminho === "/admin/login" || caminho.startsWith("/admin/login/")) {
+        if (!ehMaster) return true;
+        // Já é o MASTER: segue para onde ia (`?volta=`, só dentro de /admin).
+        const volta = voltaDoAdmin(request.nextUrl.searchParams.get("volta"));
+        return Response.redirect(new URL(volta ?? CAMINHO_PADRAO_DO_ADMIN, request.nextUrl));
+      }
+      if (caminho === "/admin" || caminho.startsWith("/admin/")) {
+        if (ehMaster) return true;
+        // Guarda o destino (inclusive a query, como o ?grupo= de Usuários)
+        // para o login do admin devolver a pessoa ao mesmo lugar.
+        const login = new URL("/admin/login", request.nextUrl);
+        const volta = voltaDoAdmin(caminho + request.nextUrl.search);
+        if (volta) login.searchParams.set("volta", volta);
+        return Response.redirect(login);
+      }
+      // O MASTER não usa o sistema do RH: qualquer outra tela (o login do
+      // sistema inclusive) o leva à área de admin. Fica AQUI, no proxy, e não
+      // só no layout do sistema: layout do App Router não roda de novo na
+      // navegação dentro do app, e uma aba aberta como Diretoria seguia
+      // navegando pelo RH depois que outra aba entrava como MASTER (achado da
+      // revisão da v1.188.0). O proxy roda em toda requisição.
+      if (ehMaster) return Response.redirect(new URL(CAMINHO_PADRAO_DO_ADMIN, request.nextUrl));
+      const isOnLogin = caminho.startsWith("/login");
       if (isOnLogin) {
         return isLoggedIn ? Response.redirect(new URL("/", request.nextUrl)) : true;
       }

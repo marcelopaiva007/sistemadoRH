@@ -20,11 +20,12 @@ export const CHAVE_EMAIL_FROM = "EMAIL_FROM";
  * actions, porque um módulo "use server" só pode exportar função assíncrona —
  * uma constante exportada de lá quebra o build.
  *
- * Os mesmos dois papéis da gestão de usuários, pelo mesmo motivo registrado em
- * `requireGestaoUsuarios`: a diretoria já pode criar um ADMIN e com isso se
- * promover, então exigir ADMIN não seria barreira. O que a lista de fato
- * guarda é o gasto na conta da Anthropic do grupo — RH_MANAGER e GESTOR_SETOR
- * ficam de fora.
+ * Os mesmos dois papéis que geriam usuários até a v1.187.0 — quando a
+ * diretoria podia criar um ADMIN e se promover, então exigir ADMIN não seria
+ * barreira. Desde a v1.188.0 as contas são só do MASTER (área de admin), mas a
+ * lista fica como está: o dono do sistema é DIRETORIA e é quem liga o recurso.
+ * O que a lista de fato guarda é o gasto na conta da Anthropic do grupo —
+ * RH_MANAGER e GESTOR_SETOR ficam de fora.
  */
 export const PAPEIS_QUE_CONFIGURAM: readonly string[] = ["ADMIN", "DIRETORIA"];
 

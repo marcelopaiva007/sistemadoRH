@@ -73,7 +73,7 @@ async function main() {
         [randomUUID(), nome || "Master", username, hash],
       );
       console.log(
-        `Conta MASTER "${username}" criada. Ela abre direto em Usuários e perfis → Grupos.`,
+        `Conta MASTER "${username}" criada. Ela entra pela área de administração: /admin/login.`,
       );
       return;
     }

@@ -52,6 +52,21 @@ const nextConfig: NextConfig = {
     // limite de corpo de requisição da Vercel (4,5 MB + overhead).
     serverActions: { bodySizeLimit: "5mb" },
   },
+  // Endereços antigos do cadastro de contas, que saiu do sistema na v1.188.0
+  // para a área de administração (app/admin). Ficam de pé para favorito e link
+  // antigo não darem 404. Aqui e não em páginas-redirect: o redirect do
+  // next.config roda antes de tudo e repassa a query sozinho
+  // (/cadastros/usuarios?grupo=X → /admin/usuarios?grupo=X). Quem não é o
+  // MASTER cai no login do admin, que explica com que conta está.
+  // Temporário (307), não permanente: se a área mudar de novo, o navegador
+  // não fica preso a um destino guardado em cache.
+  async redirects() {
+    return [
+      { source: "/cadastros", destination: "/admin", permanent: false },
+      { source: "/cadastros/:caminho*", destination: "/admin/:caminho*", permanent: false },
+      { source: "/usuarios", destination: "/admin/usuarios", permanent: false },
+    ];
+  },
   // Headers de segurança aplicados a toda resposta. Colocados aqui (não em
   // proxy.ts) de propósito: por doc do Next 16, `headers` do next.config
   // roda ANTES do proxy na cadeia de execução, então isto nunca disputa com

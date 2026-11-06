@@ -263,7 +263,7 @@ export async function criarDemanda(
   ) {
     return {
       ok: false,
-      error: `${responsavel.nome} ainda não tem acesso ao módulo Delegações — libere em Usuários e perfis antes de delegar.`,
+      error: `${responsavel.nome} ainda não tem acesso ao módulo Delegações — peça ao administrador do sistema para liberar (área Admin → Perfis de acesso) antes de delegar.`,
     };
   }
 
@@ -866,7 +866,7 @@ export async function transferirDemanda(input: {
   ) {
     return {
       ok: false,
-      error: `${novoResponsavel.nome} ainda não tem acesso ao módulo Delegações — libere em Usuários e perfis antes de transferir.`,
+      error: `${novoResponsavel.nome} ainda não tem acesso ao módulo Delegações — peça ao administrador do sistema para liberar (área Admin → Perfis de acesso) antes de transferir.`,
     };
   }
 
@@ -1210,7 +1210,7 @@ export async function alternarFavorito(input: {
     ) {
       return {
         ok: false,
-        error: `${pessoa.nome} ainda não tem acesso ao módulo Delegações — libere em Usuários e perfis.`,
+        error: `${pessoa.nome} ainda não tem acesso ao módulo Delegações — peça ao administrador do sistema para liberar (área Admin → Perfis de acesso).`,
       };
     }
     // `upsert` em vez de `create`: favoritar duas vezes (dois cliques, duas

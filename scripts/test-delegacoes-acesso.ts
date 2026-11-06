@@ -62,8 +62,10 @@ console.log("\nA TRAVA PRINCIPAL: sem e-mail, não há 'esqueci minha senha'\n")
   ok(!/(^|\W)email:/.test(trechoCreate), "o acesso de portal NASCE sem e-mail");
 
   const recuperacao = leia("lib/actions/recuperacao-senha.ts");
+  // Desde a v1.187.0 a busca é exata e sem maiúsculas (lib/usuario-por-
+  // identificador.ts), mas continua SÓ pelo campo e-mail.
   ok(
-    recuperacao.includes("where: { email }"),
+    recuperacao.includes('usuarioPorIdentificador(email, "email")'),
     "a recuperação de senha acha a pessoa SÓ por e-mail — por isso o e-mail nulo é a trava",
   );
 }
@@ -80,8 +82,8 @@ console.log("\nO username é reservado e estável\n");
 console.log("\nAs telas de administração não listam acessos de portal\n");
 {
   for (const tela of [
-    "app/(app)/cadastros/usuarios/page.tsx",
-    "app/(app)/cadastros/perfis/page.tsx",
+    "app/admin/(painel)/usuarios/page.tsx",
+    "app/admin/(painel)/perfis/page.tsx",
     "app/(app)/rh/[empresaId]/sinais/page.tsx",
   ]) {
     const s = leia(tela);

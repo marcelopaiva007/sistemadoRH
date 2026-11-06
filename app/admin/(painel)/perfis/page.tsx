@@ -1,7 +1,6 @@
-import { requireGestaoUsuarios } from "@/lib/auth-guard";
+import { requireAreaAdmin } from "@/lib/grupo-guard";
 import { PAPEL_PORTAL } from "@/lib/delegacoes/acesso-colaborador";
 import { prisma } from "@/lib/prisma";
-import { ehMaster, grupoDoUsuario } from "@/lib/grupo";
 import {
   PerfisView,
   type PerfilNaTela,
@@ -12,12 +11,11 @@ import {
 // tela, nos dois sistemas, e onde se dá cada perfil às pessoas. Onda 2a do
 // controle de acesso.
 //
-// Editar perfil ou atribuí-lo é conceder acesso, então mora atrás de
-// `requireGestaoUsuarios` (ADMIN e Diretoria), o mesmo portão de criar usuário.
+// Editar perfil ou atribuí-lo é conceder acesso, então mora no mesmo portão de
+// criar usuário: a área de administração, só da conta MASTER (v1.188.0 — até
+// a v1.187.0 era /cadastros/perfis, aberta também a ADMIN e Diretoria).
 export default async function PerfisPage() {
-  const quem = await requireGestaoUsuarios();
-  // Contas listadas: as do PRÓPRIO grupo (lib/grupo.ts); o MASTER vê todas.
-  const grupoId = ehMaster(quem) ? null : await grupoDoUsuario(quem.id);
+  await requireAreaAdmin();
 
   const [perfis, usuarios] = await Promise.all([
     prisma.perfil.findMany({
@@ -38,14 +36,19 @@ export default async function PerfisPage() {
     prisma.user.findMany({
       where: {
         ativo: true,
+        // As contas de todos os grupos: o perfil é um molde comum aos grupos.
         role: { notIn: [PAPEL_PORTAL, "MASTER"] },
-        ...(ehMaster(quem) ? {} : { grupoId: grupoId ?? "__nenhum__" }),
       },
-      orderBy: [{ nome: "asc" }],
+      // Ordem por grupo e depois nome; o login e o grupo vão junto porque a
+      // regra é UM login por grupo — a mesma pessoa pode aparecer duas vezes
+      // com o mesmo nome, e dar perfil à conta errada seria fácil sem eles.
+      orderBy: [{ grupo: { nome: "asc" } }, { nome: "asc" }],
       select: {
         id: true,
         nome: true,
+        username: true,
         role: true,
+        grupo: { select: { nome: true } },
         perfis: { select: { perfilId: true } },
       },
     }),
@@ -63,6 +66,8 @@ export default async function PerfisPage() {
   const usuariosComPerfis: UsuarioComPerfis[] = usuarios.map((u) => ({
     id: u.id,
     nome: u.nome,
+    username: u.username,
+    grupoNome: u.grupo?.nome ?? null,
     role: u.role,
     perfilIds: u.perfis.map((p) => p.perfilId),
   }));

@@ -13,7 +13,7 @@ import type { ActionResult } from "@/lib/constants";
 // em que grupo cada marca mora e em que grupo cada conta trabalha — e é só
 // isso: nenhuma destas ações lê dado de RH, folha ou processo.
 
-const CAMINHO = "/cadastros/grupos";
+const CAMINHO = "/admin/grupos";
 
 function texto(fd: FormData, campo: string): string {
   const v = fd.get(campo);
@@ -71,7 +71,7 @@ export async function renomearGrupo(
     throw e;
   }
   revalidatePath(CAMINHO);
-  revalidatePath("/cadastros/usuarios");
+  revalidatePath("/admin/usuarios");
   return { ok: true };
 }
 
@@ -137,8 +137,9 @@ export async function moverMarcaDeGrupo(
 /**
  * Muda uma CONTA de grupo. Os vínculos de acesso que ela tinha (CNPJ e marca)
  * ficam todos do grupo antigo, então são desativados: a conta chega ao grupo
- * novo sem acesso a CNPJ nenhum, e o ADMIN de lá (ou o MASTER) concede o que
- * for preciso. Conta de portal não aparece aqui — ela segue a ficha.
+ * novo sem acesso a CNPJ nenhum, e o MASTER concede o que for preciso (desde
+ * a v1.188.0 só ele gere contas). Conta de portal não aparece aqui — ela segue
+ * a ficha.
  */
 export async function moverUsuarioDeGrupo(
   _prev: ActionResult,
@@ -209,6 +210,6 @@ export async function moverUsuarioDeGrupo(
     resumo: `Moveu ${user.nome} do grupo "${user.grupo?.nome ?? "—"}" para "${grupo.nome}" (vínculos de acesso antigos desativados)`,
   });
   revalidatePath(CAMINHO);
-  revalidatePath("/cadastros/usuarios");
+  revalidatePath("/admin/usuarios");
   return { ok: true };
 }

@@ -11,8 +11,9 @@ import type { ActionResult } from "@/lib/constants";
 // Ações do controle de acesso (Onda 2a): criar/editar/excluir Perfil e
 // atribuir/remover perfil de usuário.
 //
-// Guarda: `requireGestaoUsuarios` (ADMIN e DIRETORIA) — mexer em perfil é
-// conceder acesso, então mora no mesmo lugar que criar usuário. NÃO usa o
+// Guarda: `requireGestaoUsuarios` — mexer em perfil é conceder acesso, então
+// mora no mesmo lugar que criar usuário. Desde a v1.188.0 esse portão é SÓ do
+// MASTER (área de admin, app/admin); até a v1.187.0 era ADMIN e DIRETORIA. NÃO usa o
 // controle de acesso NOVO para se proteger: seria a cobra mordendo o rabo (uma
 // permissão de "editar perfis" cuja edição se protege por ela mesma). Fica na
 // guarda por papel enquanto a Onda 3 não migra o resto — e quando migrar, esta
@@ -21,7 +22,8 @@ import type { ActionResult } from "@/lib/constants";
 // GRUPOS (v1.186.0): o perfil é um MOLDE compartilhado pelos dois grupos —
 // editar um muda o acesso de gente do outro grupo. Por isso criar, editar e
 // excluir perfil passou a ser só do MASTER. Dar e tirar perfil de uma conta
-// continua com ADMIN/DIRETORIA, mas só para contas do PRÓPRIO grupo.
+// também é só dele desde a v1.188.0 (até ali, ADMIN/DIRETORIA davam perfil às
+// contas do PRÓPRIO grupo — o recorte abaixo ficou como defesa).
 
 /** Quem administra alcança esta conta? MASTER alcança todas; os demais, só as do próprio grupo. */
 async function alcancaConta(userId: string): Promise<boolean> {
@@ -34,7 +36,7 @@ async function alcancaConta(userId: string): Promise<boolean> {
   return meu !== null && meu === dele;
 }
 
-const CAMINHO = "/cadastros/perfis";
+const CAMINHO = "/admin/perfis";
 
 /** Conjunto das permissões válidas, para recusar grant inventado. */
 const PERMISSOES_VALIDAS = new Set(todasAsPermissoes());
@@ -185,7 +187,7 @@ export async function atribuirPerfil(input: {
     resumo: `Deu o perfil "${perfil.nome}" a ${usuario.nome}`,
   });
 
-  revalidatePath("/cadastros/usuarios");
+  revalidatePath("/admin/usuarios");
   revalidatePath(CAMINHO);
   return { ok: true };
 }
@@ -211,7 +213,7 @@ export async function removerPerfilDoUsuario(input: {
     resumo: `Tirou o perfil "${vinculo.perfil.nome}" de ${vinculo.user.nome}`,
   });
 
-  revalidatePath("/cadastros/usuarios");
+  revalidatePath("/admin/usuarios");
   revalidatePath(CAMINHO);
   return { ok: true };
 }

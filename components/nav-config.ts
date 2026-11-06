@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Activity, HeartHandshake, History, UserCog, LayoutDashboard } from "lucide-react";
+import { Activity, HeartHandshake, History, LayoutDashboard } from "lucide-react";
 
 export type NavItem = {
   href: string;
@@ -21,10 +21,10 @@ export type NavItem = {
 // "Processos & Ativos" como um item aqui o rebaixaria a uma tela entre
 // Usuários e Atualizações, que é o mesmo erro do "RH — Clima Organizacional".
 const inicioItem: NavItem = { href: "/", label: "Início", icon: LayoutDashboard };
-// "Usuários e perfis" desde 26/08/2026: o item abre o cadastro ÚNICO de acesso
-// (/cadastros — usuários e perfis de acesso em abas), que serve OS DOIS
-// sistemas. É o perfil que decide se o acesso cobre os dois ou telas de um só.
-const usuariosItem: NavItem = { href: "/usuarios", label: "Usuários e perfis", icon: UserCog };
+// "Usuários e perfis" (o cadastro de contas e perfis de acesso) SAIU deste
+// menu na v1.188.0: foi para a área de administração separada do sistema
+// (rh.assinelm.com/admin — app/admin), que só a conta MASTER abre. Ver
+// `requireGestaoUsuarios` em lib/auth-guard.ts.
 const produtividadeItem: NavItem = { href: "/produtividade", label: "Produtividade RH", icon: Activity };
 const atualizacoesItem: NavItem = { href: "/atualizacoes", label: "Atualizações", icon: History };
 const meuSetorItem: NavItem = { href: "/rh/meu-setor", label: "Meu Setor", icon: HeartHandshake };
@@ -41,17 +41,15 @@ const meuSetorItem: NavItem = { href: "/rh/meu-setor", label: "Meu Setor", icon:
 // de páginas soltas do usuário logado (início, produtividade). O que é de UM
 // sistema continua no menu de dentro dele.
 export const globalNavByRole: Record<string, NavItem[]> = {
-  // Diretoria também gere usuários desde 31/07/2026 — ver requireGestaoUsuarios
-  // em lib/auth-guard.ts. Sem o item aqui a permissão existiria sem caminho.
-  // Atualizações desceu para a linha 2 a pedido do dono (26/08/2026): na linha
-  // 1 fica só o cadastro de acesso, ao lado do nome dos sistemas.
-  ADMIN: [usuariosItem],
-  DIRETORIA: [usuariosItem],
+  // Vazio para todos desde a v1.188.0: o único item daqui era "Usuários e
+  // perfis", que foi para a área de admin (só MASTER). A lista continua como
+  // o lugar de administração GLOBAL do sistema, se um dia voltar a ter algo.
+  ADMIN: [],
+  DIRETORIA: [],
   RH_MANAGER: [],
   GESTOR_SETOR: [],
-  // O MASTER só administra grupos e contas (lib/grupo.ts): o cadastro é a
-  // casa dele, e nenhuma tela de dado aparece.
-  MASTER: [usuariosItem],
+  // O MASTER nem chega a este menu: o layout do sistema o manda para /admin.
+  MASTER: [],
 };
 
 export const adminNav: NavItem[] = [inicioItem, produtividadeItem, atualizacoesItem];

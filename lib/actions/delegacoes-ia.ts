@@ -111,7 +111,7 @@ export async function rascunharComIA(input: {
   ) {
     return {
       ok: false,
-      erro: `${responsavel.nome} ainda não tem acesso ao módulo Delegações — libere em Usuários e perfis antes de delegar.`,
+      erro: `${responsavel.nome} ainda não tem acesso ao módulo Delegações — peça ao administrador do sistema para liberar (área Admin → Perfis de acesso) antes de delegar.`,
     };
   }
 

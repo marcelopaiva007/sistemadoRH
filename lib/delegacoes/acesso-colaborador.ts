@@ -92,7 +92,7 @@ export async function garantirAcessoDoColaborador(
   });
   if (existente) {
     if (!existente.ativo) {
-      return { ok: false, erro: `O acesso de ${existente.nome} está desativado. Reative em Usuários e perfis.` };
+      return { ok: false, erro: `O acesso de ${existente.nome} está desativado. Peça ao administrador do sistema para reativar.` };
     }
     return { ok: true, userId: existente.id, nome: existente.nome, criado: false };
   }

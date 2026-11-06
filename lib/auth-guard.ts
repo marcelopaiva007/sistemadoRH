@@ -1,6 +1,6 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { direcaoRestrita } from "@/lib/grupo";
+import { direcaoRestrita, ehMaster } from "@/lib/grupo";
 
 export async function requireUser() {
   const session = await auth();
@@ -14,25 +14,33 @@ export async function requireAdmin() {
   return user;
 }
 
-// Gestão de usuários: ADMIN e DIRETORIA, por decisão do dono do sistema em
-// 31/07/2026. Vale dizer o que isso significa — quem cria usuário concede
-// acesso, e como não há restrição de papel, a diretoria pode criar um ADMIN e
-// com isso se promover. A separação entre os dois papéis, aqui, é de
-// organização e não de segurança.
+// Gestão de contas (usuários, perfis de acesso, grupos): SÓ o MASTER, na área
+// de administração separada do sistema — rh.assinelm.com/admin (app/admin),
+// desde a v1.188.0. Decisão do CEO em 05/11/2026: "a tela de usuários sai do
+// sistema"; criar, editar e desativar conta passa a ser só do admin.
 //
-// Guarda própria e não `requireAdmin` alargado de propósito: o CRUD de
-// empresas (lib/actions/rh-empresas.ts) continua exclusivo do ADMIN.
+// Até a v1.187.0 ADMIN e DIRETORIA também geriam as contas do próprio grupo
+// (decisão de 31/07/2026). O efeito colateral registrado na época era que a
+// diretoria podia criar um ADMIN e se promover — e, com a restrição de marcas
+// da v1.187.0, que bastaria criar outra conta para escapar dela. Com a gestão
+// só no MASTER, as duas portas fecham.
 //
-// MASTER também entra (v1.186.0): é ele quem cria as contas de cada grupo. O
-// recorte de QUAIS contas cada um alcança mora nas actions (lib/actions/
-// usuarios.ts, `escopoGestao`) e na tela — ver lib/grupo.ts.
-//
-// ADMIN ou DIRETORIA PRESO A ALGUMAS MARCAS (tela de admin — ver
-// `direcaoRestrita` em lib/grupo.ts) NÃO entra: gerir contas é poder sobre o
-// grupo inteiro, e bastaria criar uma conta de Diretoria nova ou desmarcar a
-// própria restrição para voltar a ver todas as marcas.
+// O recorte por grupo continua nas actions (lib/actions/usuarios.ts,
+// `escopoGestao`): os ramos de ADMIN/DIRETORIA ficaram lá como defesa, mas
+// ninguém além do MASTER passa daqui.
 export async function requireGestaoUsuarios() {
-  const user = await requireDirecaoOuMaster();
+  const user = await requireUser();
+  if (!ehMaster(user)) redirect("/");
+  return user;
+}
+
+// ADMIN ou DIRETORIA que enxerga o GRUPO INTEIRO — para painéis do grupo, como
+// a Produtividade do RH. Quem foi preso a algumas marcas pela área de admin
+// (`direcaoRestrita`, lib/grupo.ts) fica de fora: o painel mostra gente de
+// todas as marcas. O MASTER também fica: ele administra, não abre dado de RH.
+export async function requireDirecaoDoGrupoInteiro() {
+  const user = await requireUser();
+  if (user.role !== "ADMIN" && user.role !== "DIRETORIA") redirect("/");
   if (await direcaoRestrita(user)) redirect("/");
   return user;
 }

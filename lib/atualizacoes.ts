@@ -26,6 +26,24 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.188.0",
+    data: "05/11/2026",
+    horario: "18:40",
+    titulo: "Área de administração separada do sistema: rh.assinelm.com/admin",
+    itens: [
+      "A administração de contas ganhou endereço, login e tela próprios: rh.assinelm.com/admin. Lá ficam Usuários (criar, editar, desativar e escolher as marcas de cada conta), Grupos e Perfis de acesso. Nada do RH aparece nessa tela.",
+      "Só a conta de administrador (login \"master\") entra no /admin. Quem abre o endereço com outra conta vê com quem está conectado e o caminho para entrar como administrador.",
+      "O item \"Usuários e perfis\" saiu do menu do sistema. Diretoria e Administrativo deixam de criar, editar e desativar contas e de mexer em perfis de acesso: isso agora é só do administrador.",
+      "Os endereços antigos (/usuarios e /cadastros/...) levam para a área de administração.",
+      "A Produtividade RH continua com Diretoria e Administrativo que veem o grupo inteiro.",
+      "A conta de administrador troca a própria senha em \"Minha senha\", no menu do nome, dentro do /admin. Ao entrar pelo login do sistema, ela vai direto para a área de administração.",
+      "Diretoria e Administrativo têm o atalho \"Área de administração\" no menu do nome e na tela Conta, com o endereço à vista. Entrar lá é com a conta de administrador, e isso troca a sessão do navegador: para usar as duas juntas, abra o admin numa janela anônima.",
+      "O e-mail de \"Esqueci minha senha\" da conta de administrador já traz o endereço do admin, e depois de criar a senha a tela leva direto ao login do admin.",
+      "Em Perfis de acesso, cada conta aparece com o login e o grupo, porque a mesma pessoa pode ter um login em cada grupo.",
+      "Em Delegações e em Meu Setor, os avisos passam a dizer para pedir ao administrador do sistema a liberação de acesso e a ligação do login com a ficha e o setor.",
+    ],
+  },
+  {
     versao: "1.187.0",
     data: "05/11/2026",
     horario: "17:30",

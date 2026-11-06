@@ -1,47 +1,42 @@
 import Link from "next/link";
-import { requireGestaoUsuarios } from "@/lib/auth-guard";
+import { requireAreaAdmin } from "@/lib/grupo-guard";
 import { prisma } from "@/lib/prisma";
 import { AjudaDaTela } from "@/components/ajuda-da-tela";
 import { PERFIS_SEMENTE } from "@/lib/permissoes/catalogo";
 import { PAPEL_PORTAL } from "@/lib/delegacoes/acesso-colaborador";
 import { UsuariosTable } from "./usuarios-table";
-import { ehMaster, grupoDoUsuario } from "@/lib/grupo";
 import { cn } from "@/lib/utils";
 
+// Usuários — a tela que deu origem à área de administração (v1.188.0). Até a
+// v1.187.0 morava dentro do sistema (/cadastros/usuarios) e ADMIN e DIRETORIA
+// também a abriam; agora só a conta MASTER, aqui.
 export default async function UsuariosPage({
   searchParams,
 }: {
   searchParams: Promise<{ grupo?: string }>;
 }) {
-  const admin = await requireGestaoUsuarios();
+  const admin = await requireAreaAdmin();
 
   // GRUPO (sociedade — lib/grupo.ts): a tela mostra as contas, CNPJs e marcas
-  // de UM grupo. ADMIN/DIRETORIA veem o próprio; o MASTER escolhe qual abrir
-  // nas abas do topo, e a conta que ele cria nasce no grupo aberto.
-  const master = ehMaster(admin);
-  const grupos = master
-    ? await prisma.grupo.findMany({
-        where: { ativo: true },
-        orderBy: { nome: "asc" },
-        select: { id: true, nome: true },
-      })
-    : [];
+  // de UM grupo, escolhido nas abas "Grupo:" — a conta criada aqui nasce no
+  // grupo aberto.
+  const grupos = await prisma.grupo.findMany({
+    where: { ativo: true },
+    orderBy: { nome: "asc" },
+    select: { id: true, nome: true },
+  });
   const pedido = (await searchParams).grupo;
-  const grupoId = master
-    ? ((grupos.find((g) => g.id === pedido) ?? grupos[0])?.id ?? null)
-    : await grupoDoUsuario(admin.id);
+  const grupoId = (grupos.find((g) => g.id === pedido) ?? grupos[0])?.id ?? null;
   // Sem grupo resolvido, nada aparece — falha fechada.
   const doGrupo = grupoId ?? "__nenhum__";
 
-  // Tela de admin (só o MASTER): as marcas ativas de TODOS os grupos, para a
-  // ação "Marcas que vê" poder trocar a conta de grupo e marcar as do novo.
-  const marcasDeTodosOsGrupos = master
-    ? await prisma.marca.findMany({
-        where: { ativo: true },
-        orderBy: { nome: "asc" },
-        select: { id: true, nome: true, grupoId: true },
-      })
-    : [];
+  // As marcas ativas de TODOS os grupos, para a ação "Marcas" poder trocar a
+  // conta de grupo e marcar as do novo.
+  const marcasDeTodosOsGrupos = await prisma.marca.findMany({
+    where: { ativo: true },
+    orderBy: { nome: "asc" },
+    select: { id: true, nome: true, grupoId: true },
+  });
 
   const [usuarios, empresas, setores, marcas, perfis] = await Promise.all([
       // Acessos de portal (funcionários sem login do sistema, criados pelo
@@ -126,31 +121,30 @@ export default async function UsuariosPage({
           <AjudaDaTela modulo="usuarios" />
         </div>
         <p className="text-muted-foreground">
-          As contas de acesso do grupo — um cadastro só para os dois sistemas. O que cada pessoa
-          pode fazer, por tela e por sistema, vem dos{" "}
-          <Link href="/cadastros/perfis" className="underline underline-offset-2 hover:text-foreground">perfis de acesso</Link>.
+          As contas de acesso de cada grupo — um cadastro só para os dois sistemas. Aqui você cria,
+          edita e desativa contas e escolhe as marcas que cada pessoa vê. O que cada uma pode fazer,
+          por tela e por sistema, vem dos{" "}
+          <Link href="/admin/perfis" className="underline underline-offset-2 hover:text-foreground">perfis de acesso</Link>.
         </p>
       </div>
-      {master && (
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm text-muted-foreground">Grupo:</span>
-          {grupos.map((g) => (
-            <Link
-              key={g.id}
-              href={`/cadastros/usuarios?grupo=${g.id}`}
-              aria-current={g.id === grupoId ? "page" : undefined}
-              className={cn(
-                "rounded-md border px-3 py-1 text-sm",
-                g.id === grupoId
-                  ? "border-primary bg-primary/10 font-medium"
-                  : "hover:bg-muted",
-              )}
-            >
-              {g.nome}
-            </Link>
-          ))}
-        </div>
-      )}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm text-muted-foreground">Grupo:</span>
+        {grupos.map((g) => (
+          <Link
+            key={g.id}
+            href={`/admin/usuarios?grupo=${g.id}`}
+            aria-current={g.id === grupoId ? "page" : undefined}
+            className={cn(
+              "rounded-md border px-3 py-1 text-sm",
+              g.id === grupoId
+                ? "border-primary bg-primary/10 font-medium"
+                : "hover:bg-muted",
+            )}
+          >
+            {g.nome}
+          </Link>
+        ))}
+      </div>
       <UsuariosTable
         usuarios={usuarios.map((u) => ({
           id: u.id,
@@ -196,12 +190,8 @@ export default async function UsuariosPage({
           papelDeOrigem: PERFIS_SEMENTE.find((sem) => sem.id === p.id)?.papelDeOrigem ?? null,
         }))}
         currentUserId={admin.id}
-        grupoId={master ? (grupoId ?? undefined) : undefined}
-        painelAdmin={
-          master
-            ? { grupos, marcas: marcasDeTodosOsGrupos, grupoAtualId: grupoId }
-            : undefined
-        }
+        grupoId={grupoId ?? undefined}
+        painelAdmin={{ grupos, marcas: marcasDeTodosOsGrupos, grupoAtualId: grupoId }}
       />
     </div>
   );

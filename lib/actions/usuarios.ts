@@ -98,10 +98,13 @@ function hashToken(token: string): string {
 // ── GRUPO (sociedade) na gestão de usuários — ver lib/grupo.ts ─────────────
 //
 // O MASTER administra as contas de TODOS os grupos e escolhe em qual grupo
-// cada conta nova nasce. ADMIN e DIRETORIA administram só as contas do PRÓPRIO
-// grupo: não veem, não editam e não vinculam ninguém do outro. Conta fora do
-// alcance responde "Usuário não encontrado." — a mesma resposta de id que não
-// existe, para a tela não virar oráculo de quem existe no outro grupo.
+// cada conta nova nasce. Desde a v1.188.0 ele é o ÚNICO que passa por
+// `requireGestaoUsuarios` (a gestão de contas foi para a área de admin,
+// app/admin). Os ramos abaixo para ADMIN e DIRETORIA — só as contas do PRÓPRIO
+// grupo, ninguém do outro — ficaram como defesa caso o portão volte a abrir.
+// Conta fora do alcance responde "Usuário não encontrado." — a mesma resposta
+// de id que não existe, para a tela não virar oráculo de quem existe no outro
+// grupo.
 
 type EscopoGestao = {
   admin: Awaited<ReturnType<typeof requireGestaoUsuarios>>;
@@ -127,8 +130,14 @@ async function grupoDoAlvo(
     select: { grupoId: true, role: true },
   });
   if (!alvo) return false;
+  // Conta MASTER não é alvo destas ações nem para outro MASTER: a tela não a
+  // lista, e rebaixá-la, desativá-la ou excluí-la por chamada montada à mão
+  // deixaria o sistema sem ninguém que gere contas (desde a v1.188.0 só o
+  // MASTER gere). Recuperar o acesso dela é pelo "Esqueci minha senha" ou
+  // por scripts/recuperar-acesso-admin.ts.
+  if (alvo.role === "MASTER") return false;
   if (esc.master) return alvo.grupoId;
-  if (alvo.role === "MASTER" || alvo.grupoId !== esc.grupoId) return false;
+  if (alvo.grupoId !== esc.grupoId) return false;
   return alvo.grupoId;
 }
 
@@ -303,7 +312,7 @@ export async function createUsuario(
       detalhes: { nome: result.nome, email: result.email, role: result.role, marcaId, empresaId, setorId, perfis: perfisValidos },
     });
 
-    revalidatePath("/cadastros/usuarios");
+    revalidatePath("/admin/usuarios");
     return { ok: true };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -455,7 +464,7 @@ export async function updateUsuario(
       }),
     });
 
-    revalidatePath("/cadastros/usuarios");
+    revalidatePath("/admin/usuarios");
     return { ok: true };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -494,7 +503,7 @@ export async function resetSenhaUsuario(
     resumo: `Redefiniu senha de ${user.username}`,
   });
 
-  revalidatePath("/cadastros/usuarios");
+  revalidatePath("/admin/usuarios");
   return { ok: true };
 }
 
@@ -545,7 +554,7 @@ export async function deleteUsuario(id: string): Promise<ActionResult> {
     });
   }
 
-  revalidatePath("/cadastros/usuarios");
+  revalidatePath("/admin/usuarios");
   return { ok: true };
 }
 
@@ -591,7 +600,7 @@ export async function toggleStatusUsuario(id: string): Promise<ActionResult> {
       resumo: `${novoStatus ? "Ativou" : "Desativou"} usuário ${usuario.username}`,
     });
 
-    revalidatePath("/cadastros/usuarios");
+    revalidatePath("/admin/usuarios");
     return { ok: true };
   } catch (e) {
     return { ok: false, error: "Erro ao atualizar status do usuário." };
@@ -668,7 +677,7 @@ export async function vincularEmpresaUsuario(
       detalhes: { role, setorId, papelPrincipal },
     });
 
-    revalidatePath("/cadastros/usuarios");
+    revalidatePath("/admin/usuarios");
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Erro ao vincular." };
@@ -711,7 +720,7 @@ export async function desativarVinculoUsuario(
     resumo: `Desvinculou usuário ${userId} da empresa ${empresaId}`,
   });
 
-  revalidatePath("/cadastros/usuarios");
+  revalidatePath("/admin/usuarios");
   return { ok: true };
 }
 
@@ -744,7 +753,7 @@ export async function reativarVinculoUsuario(
     resumo: `Reativou vínculo do usuário ${userId} na empresa ${empresaId}`,
   });
 
-  revalidatePath("/cadastros/usuarios");
+  revalidatePath("/admin/usuarios");
   return { ok: true };
 }
 
@@ -799,7 +808,7 @@ export async function vincularMarcaUsuario(
       resumo: `Vinculou usuário ${userId} à marca ${marca?.nome ?? marcaId} (todos os CNPJs)`,
     });
 
-    revalidatePath("/cadastros/usuarios");
+    revalidatePath("/admin/usuarios");
     return { ok: true };
   } catch {
     return { ok: false, error: "Erro ao vincular a marca." };
@@ -842,7 +851,7 @@ export async function desativarVinculoMarca(
     resumo: `Desvinculou usuário ${userId} da marca ${marcaId}`,
   });
 
-  revalidatePath("/cadastros/usuarios");
+  revalidatePath("/admin/usuarios");
   return { ok: true };
 }
 
@@ -872,7 +881,7 @@ export async function reativarVinculoMarca(
     resumo: `Reativou vínculo do usuário ${userId} na marca ${marcaId}`,
   });
 
-  revalidatePath("/cadastros/usuarios");
+  revalidatePath("/admin/usuarios");
   return { ok: true };
 }
 
@@ -1007,7 +1016,7 @@ export async function vincularColaboradorAoUsuario(
     resumo: `Vinculou o login ${alvo.nome} à ficha de ${colaborador.nome}`,
   });
 
-  revalidatePath("/cadastros/usuarios");
+  revalidatePath("/admin/usuarios");
   revalidatePath("/rh/meu-setor");
   return { ok: true };
 }
@@ -1035,7 +1044,7 @@ export async function desvincularColaboradorDoUsuario(
     resumo: `Desvinculou o login ${alvo.nome} da ficha de ${alvo.colaborador.nome}`,
   });
 
-  revalidatePath("/cadastros/usuarios");
+  revalidatePath("/admin/usuarios");
   revalidatePath("/rh/meu-setor");
   return { ok: true };
 }
@@ -1128,7 +1137,7 @@ export async function criarConviteUsuario(
         resumo: `Vinculou usuário existente ${userExistente.username} (${email}) como ${role}`,
         detalhes: { via: "convite", role, setorId },
       });
-      revalidatePath("/cadastros/usuarios");
+      revalidatePath("/admin/usuarios");
       return { ok: true };
     } catch {
       return { ok: false, error: "Erro ao vincular usuário existente." };
@@ -1225,7 +1234,7 @@ export async function criarConviteUsuario(
       detalhes: { role, setorId, expiraEm },
     });
 
-    revalidatePath("/cadastros/usuarios");
+    revalidatePath("/admin/usuarios");
     return { ok: true };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -1320,7 +1329,7 @@ export async function definirMarcasQueVe(
     resumo: r.resumo,
   });
 
-  revalidatePath("/cadastros/usuarios");
-  revalidatePath("/cadastros/grupos");
+  revalidatePath("/admin/usuarios");
+  revalidatePath("/admin/grupos");
   return { ok: true };
 }

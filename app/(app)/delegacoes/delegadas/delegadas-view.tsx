@@ -395,8 +395,9 @@ export function DelegadasView({
                   )}
                   {usuarios.length === 0 && (
                     <p className="px-3 py-3 text-xs text-muted-foreground">
-                      Ninguém além de você alcança o módulo ainda. Libere as pessoas em
-                      Usuários e perfis para poder delegar a elas.
+                      Ninguém além de você alcança o módulo ainda. O administrador do
+                      sistema libera as pessoas na área Admin (Perfis de acesso) — depois
+                      disso você pode delegar a elas.
                     </p>
                   )}
                 </div>

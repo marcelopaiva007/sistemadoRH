@@ -310,7 +310,7 @@ export const AJUDA_DAS_TELAS = {
       },
     ],
     cuidados: [
-      "Tela vazia tem dois motivos diferentes, e ela diz qual é: ou o seu login ainda não foi ligado à sua ficha (peça ao RH: Cadastros → Usuários → Vincular), ou ninguém tem você no campo \"Reporta a\" da ficha.",
+      "Tela vazia tem dois motivos diferentes, e ela diz qual é: ou o seu login ainda não foi ligado à sua ficha (peça ao administrador do sistema: área de administração → Usuários → Vincular), ou ninguém tem você no campo \"Reporta a\" da ficha.",
       "O time vem do \"Reporta a\", não do setor. Você pode liderar gente de outro setor — ela aparece aqui do mesmo jeito.",
       "Salário, CPF e documentos do time NÃO aparecem nesta tela, de propósito. Gestor vê sinal de gestão, não ficha completa.",
     ],

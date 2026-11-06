@@ -23,6 +23,9 @@ export type PerfilNaTela = {
 export type UsuarioComPerfis = {
   id: string;
   nome: string;
+  /** Login e grupo: a mesma pessoa pode ter um login em cada grupo. */
+  username: string;
+  grupoNome: string | null;
   role: string;
   perfilIds: string[];
 };
@@ -307,7 +310,14 @@ export function PerfisView({ perfis, usuarios }: { perfis: PerfilNaTela[]; usuar
             const disponiveis = perfis.filter((p) => !u.perfilIds.includes(p.id));
             return (
               <div key={u.id} className="flex flex-wrap items-center gap-2 border-b border-border/50 py-2 last:border-0">
-                <span className="min-w-44 flex-1 text-sm font-medium">{u.nome}</span>
+                <span className="min-w-44 flex-1">
+                  <span className="block text-sm font-medium">{u.nome}</span>
+                  <span className="block text-xs text-muted-foreground">
+                    <span className="font-mono">{u.username}</span>
+                    {" · "}
+                    {u.grupoNome ?? "sem grupo"}
+                  </span>
+                </span>
                 <span className="flex flex-wrap items-center gap-1">
                   {u.perfilIds.length === 0 && (
                     <span className="text-xs text-muted-foreground">sem perfil</span>

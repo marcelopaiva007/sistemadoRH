@@ -166,8 +166,9 @@ const GRUPOS: GrupoDoMenu[] = [
       { slug: "importacoes", label: "Importações" },
       { slug: "auditoria", label: "Auditoria" },
       // "Papéis e permissões" saiu daqui em 26/08/2026: o cadastro de acesso é
-      // ÚNICO e dos dois sistemas, e mora no topo ("Usuários e perfis" →
-      // /cadastros). A rota antiga redireciona para /cadastros/perfis.
+      // ÚNICO e dos dois sistemas. Desde a v1.188.0 mora na área de
+      // administração (/admin, só MASTER). A rota antiga redireciona para
+      // /admin/perfis.
     ],
   },
 ];

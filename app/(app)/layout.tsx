@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth-guard";
 import { empresasVisiveis } from "@/lib/rh-auth-guard";
 import { direcaoRestrita } from "@/lib/grupo";
@@ -8,6 +9,7 @@ import { Providers } from "@/app/providers";
 // A versão vem daqui, não da barra: o commit só existe no ambiente do
 // servidor, e a barra é componente de cliente.
 import { versaoDoSistema } from "@/lib/versao";
+import { enderecoDaAreaAdmin } from "@/lib/area-admin";
 
 export default async function AppLayout({
   children,
@@ -15,6 +17,9 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   const user = await requireUser();
+  // O MASTER administra contas e grupos e não abre dado de RH (lib/grupo.ts):
+  // desde a v1.188.0 o lugar dele é a área de administração, fora do sistema.
+  if (user.role === "MASTER") redirect("/admin");
   const sistemas = await sistemasPermitidos(user);
 
   // GESTOR_SETOR não navega em /rh/[empresaId] (vai direto para
@@ -49,6 +54,9 @@ export default async function AppLayout({
           empresas={empresas}
           sistemasPermitidos={sistemas}
           direcaoRestrita={await direcaoRestrita(user)}
+          enderecoAdmin={
+            user.role === "ADMIN" || user.role === "DIRETORIA" ? enderecoDaAreaAdmin() : null
+          }
         />
         {/* `overflow-x-clip`, e não `hidden`, onde o navegador entende `clip`.
             `hidden` num eixo força o outro a `auto` e transforma o <main> em
