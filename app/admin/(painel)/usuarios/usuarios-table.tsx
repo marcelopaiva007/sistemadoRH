@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useActionState, useOptimistic, useState, useTransition } from "react";
+import { Fragment, useActionState, useOptimistic, useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
 import {
   Plus,
@@ -12,7 +12,6 @@ import {
   Power,
   PowerOff,
   Search,
-  MoreVertical,
   ChevronDown,
   TriangleAlert,
   Check,
@@ -56,13 +55,6 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import {
   createUsuario,
@@ -1613,7 +1605,7 @@ function CartaoResumo({
   return (
     <div
       className={cn(
-        "rounded-xl border bg-background px-4 py-3",
+        "flex items-center justify-between gap-3 rounded-lg border bg-background px-4 py-2.5",
         tom === "alerta" && "border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/40",
       )}
     >
@@ -1622,7 +1614,7 @@ function CartaoResumo({
       </p>
       <p
         className={cn(
-          "mt-1 text-2xl font-bold tabular-nums",
+          "text-xl font-bold tabular-nums",
           tom === "ok" && "text-emerald-700 dark:text-emerald-400",
           tom === "neutro" && "text-muted-foreground",
           tom === "alerta" && "text-amber-900 dark:text-amber-200",
@@ -1667,26 +1659,30 @@ function TabelaUsuarios({
         .map((papel) => ({ papel, lista: usuarios.filter((u) => u.role === papel) }))
     : [{ papel: null as string | null, lista: usuarios }];
 
+  const colunas = agruparPorPapel ? 8 : 9;
+
   return (
     <div className="overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow className="bg-muted/40">
-            <TableHead className="w-[34%]">Usuário</TableHead>
-            <TableHead className="w-[24%]">E-mail</TableHead>
+            <TableHead>Nome</TableHead>
+            <TableHead>Login</TableHead>
+            <TableHead>Senha</TableHead>
+            <TableHead>E-mail</TableHead>
             {!agruparPorPapel && <TableHead>Papel</TableHead>}
             {/* "Acesso" e não "Empresas": a coluna mistura marca e CNPJ. */}
             <TableHead title="Clique numa marca para ligar ou desligar o acesso da pessoa. Salva na hora.">
               Acesso
             </TableHead>
             <TableHead className="w-24">Status</TableHead>
-            <TableHead className="w-32 text-right">Ações</TableHead>
+            <TableHead className="text-right">Ações</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {usuarios.length === 0 && (
             <TableRow>
-              <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+              <TableCell colSpan={colunas} className="py-8 text-center text-muted-foreground">
                 {vazio}
               </TableCell>
             </TableRow>
@@ -1695,7 +1691,7 @@ function TabelaUsuarios({
             <Fragment key={papel ?? "todos"}>
               {papel && (
                 <TableRow className="bg-muted/40 hover:bg-muted/40">
-                  <TableCell colSpan={6} className="py-1.5 text-xs font-semibold text-foreground/80">
+                  <TableCell colSpan={colunas} className="py-1.5 text-xs font-semibold text-foreground/80">
                     {ROLE_LABEL[papel] ?? papel}
                     <span className="ml-2 rounded-full bg-muted px-2 py-0.5 tabular-nums">{lista.length}</span>
                   </TableCell>
@@ -1756,19 +1752,6 @@ function LinhaUsuario({
                   <SeloPendencia key={p} pendencia={p} />
                 ))}
             </p>
-            <p className="flex items-center gap-1 text-xs text-muted-foreground">
-              <span>login:</span>
-              <span className="font-mono font-medium text-foreground/80">{u.username}</span>
-              <button
-                type="button"
-                className="rounded p-0.5 hover:bg-muted hover:text-foreground"
-                title="Copiar login"
-                aria-label={`Copiar login de ${nome}`}
-                onClick={() => copiar(u.username, "Login copiado.")}
-              >
-                <Copy className="size-3" />
-              </button>
-            </p>
             {/* Mostrado só quando a ficha tem outro nome: repetir o mesmo
                 nome duas vezes na célula não informa nada. */}
             {u.ficha && (
@@ -1778,6 +1761,23 @@ function LinhaUsuario({
             )}
           </div>
         </div>
+      </TableCell>
+      <TableCell>
+        <span className="inline-flex items-center gap-1 whitespace-nowrap">
+          <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-sm font-medium">{u.username}</span>
+          <button
+            type="button"
+            className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            title="Copiar login"
+            aria-label={`Copiar login de ${nome}`}
+            onClick={() => copiar(u.username, "Login copiado.")}
+          >
+            <Copy className="size-3.5" />
+          </button>
+        </span>
+      </TableCell>
+      <TableCell>
+        <CelulaSenha usuario={u} onSenha={acoes.onSenha} />
       </TableCell>
       <TableCell className="text-muted-foreground">
         {u.email ?? (
@@ -1930,10 +1930,9 @@ function AcoesUsuario({
   currentUserId,
   onEditar,
   onVincular,
-  onSenha,
   onExcluir,
   onTrocarGrupo,
-}: Omit<AcoesDaLinha, "pendencias" | "painel"> & { usuario: Usuario }) {
+}: Omit<AcoesDaLinha, "pendencias" | "painel" | "onSenha"> & { usuario: Usuario }) {
   const [alternando, setAlternando] = useState(false);
 
   async function alternarStatus() {
@@ -1948,70 +1947,108 @@ function AcoesUsuario({
   }
 
   return (
-    <div className="flex items-center justify-end gap-1">
-      {/* Inativo: a ação que importa é reativar, então ela fica à vista. */}
-      {!usuario.ativo ? (
-        <Button variant="outline" size="sm" onClick={alternarStatus} disabled={alternando}>
+    <div className="flex items-center justify-end gap-0.5">
+      {!usuario.ativo && (
+        <Button variant="outline" size="sm" className="mr-1" onClick={alternarStatus} disabled={alternando}>
           <Power className="size-4" />
           Reativar
         </Button>
-      ) : (
-        <Button variant="ghost" size="icon" title="Editar" aria-label={`Editar ${usuario.nome}`} onClick={() => onEditar(usuario)}>
-          <Pencil className="size-4" />
-        </Button>
       )}
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          render={<Button variant="ghost" size="icon" title="Mais ações" aria-label={`Mais ações para ${usuario.nome}`} />}
-        >
-          <MoreVertical className="size-4" />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-52">
-          {!usuario.ativo && (
-            <DropdownMenuItem onClick={() => onEditar(usuario)}>
-              <Pencil />
-              Editar
-            </DropdownMenuItem>
-          )}
-          <DropdownMenuItem onClick={() => onVincular(usuario)}>
-            <Link2 />
-            Vincular empresa ou marca
-          </DropdownMenuItem>
-          {/* Mudar de cliente é mudar o conjunto de marcas que a pessoa pode ver
-              (ex.: da LM Telecom para o multimarcas). As marcas do cliente em que ela
-              já está se ligam direto na linha. Gestor de setor fica de fora —
-              o acesso dele é o setor de um CNPJ. */}
-          {onTrocarGrupo && usuario.role !== "GESTOR_SETOR" && (
-            <DropdownMenuItem onClick={() => onTrocarGrupo(usuario)}>
-              <ArrowLeftRight />
-              Trocar de cliente
-            </DropdownMenuItem>
-          )}
-          <DropdownMenuItem onClick={() => onSenha(usuario)}>
-            <KeyRound />
-            Senha / enviar por e-mail
-          </DropdownMenuItem>
-          {usuario.ativo && (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={alternarStatus} disabled={alternando}>
-                <PowerOff />
-                Desativar acesso
-              </DropdownMenuItem>
-            </>
-          )}
-          {usuario.id !== currentUserId && (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem variant="destructive" onClick={() => onExcluir(usuario)}>
-                <Trash2 />
-                Excluir
-              </DropdownMenuItem>
-            </>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <BotaoAcao rotulo="Editar" onClick={() => onEditar(usuario)}>
+        <Pencil className="size-4" />
+      </BotaoAcao>
+      <BotaoAcao rotulo="Vincular empresa ou marca" onClick={() => onVincular(usuario)}>
+        <Link2 className="size-4" />
+      </BotaoAcao>
+      {/* Mudar de cliente é mudar o conjunto de marcas que a pessoa pode ver
+          (ex.: da LM Telecom para o multimarcas). Gestor de setor fica de
+          fora — o acesso dele é o setor de um CNPJ. */}
+      {onTrocarGrupo && usuario.role !== "GESTOR_SETOR" && (
+        <BotaoAcao rotulo="Trocar de cliente" onClick={() => onTrocarGrupo(usuario)}>
+          <ArrowLeftRight className="size-4" />
+        </BotaoAcao>
+      )}
+      {usuario.ativo && (
+        <BotaoAcao rotulo="Desativar acesso" onClick={alternarStatus} disabled={alternando}>
+          <PowerOff className="size-4" />
+        </BotaoAcao>
+      )}
+      {usuario.id !== currentUserId && (
+        <BotaoAcao rotulo="Excluir" perigo onClick={() => onExcluir(usuario)}>
+          <Trash2 className="size-4" />
+        </BotaoAcao>
+      )}
     </div>
+  );
+}
+
+function BotaoAcao({
+  rotulo,
+  onClick,
+  disabled,
+  perigo,
+  children,
+}: {
+  rotulo: string;
+  onClick: () => void;
+  disabled?: boolean;
+  perigo?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      title={rotulo}
+      aria-label={rotulo}
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(
+        "size-8 text-muted-foreground hover:text-foreground",
+        perigo && "hover:bg-destructive/10 hover:text-destructive",
+      )}
+    >
+      {children}
+    </Button>
+  );
+}
+
+// A senha em si não existe para mostrar (o banco guarda só o hash): a célula
+// mostra que há senha e dá os dois caminhos — definir uma nova, ou mandar o
+// link por e-mail para a pessoa criar a dela.
+function CelulaSenha({ usuario, onSenha }: { usuario: Usuario; onSenha: (u: Usuario) => void }) {
+  const [enviando, setEnviando] = useState(false);
+
+  async function enviar() {
+    setEnviando(true);
+    const result = await enviarLinkSenhaPorEmail(usuario.id);
+    setEnviando(false);
+    if (result.ok) toast.success(`Link de nova senha enviado para ${usuario.email}.`);
+    else toast.error(result.error);
+  }
+
+  return (
+    <span className="inline-flex items-center gap-0.5 whitespace-nowrap">
+      <span aria-label="Senha protegida" className="mr-1 font-mono text-sm tracking-widest text-muted-foreground">
+        ••••••
+      </span>
+      <BotaoAcao rotulo="Definir nova senha" onClick={() => onSenha(usuario)}>
+        <KeyRound className="size-4" />
+      </BotaoAcao>
+      <BotaoAcao
+        rotulo={
+          !usuario.email
+            ? "Sem e-mail cadastrado"
+            : !usuario.ativo
+              ? "Conta desativada"
+              : `Enviar nova senha por e-mail (${usuario.email})`
+        }
+        onClick={enviar}
+        disabled={enviando || !usuario.email || !usuario.ativo}
+      >
+        {enviando ? <Loader2 className="size-4 animate-spin" /> : <Mail className="size-4" />}
+      </BotaoAcao>
+    </span>
   );
 }
 
@@ -2023,8 +2060,8 @@ function AcoesUsuario({
  *
  * Os botões são só as marcas do GRUPO da conta: a regra de quais marcas podem
  * ser vistas juntas é o grupo — o CLIENTE, na Gestão (a LM Telecom num cliente
- * só dela; as demais juntas no multimarcas). Mudar de cliente é "Mais ações →
- * Trocar de cliente".
+ * só dela; as demais juntas no multimarcas). Mudar de cliente é o
+ * botão "Trocar de cliente" da linha.
  *
  * Diretoria/Administrativo: todas ligadas = vê o grupo inteiro, inclusive
  * marca que entrar depois — por isso ligar a última manda a lista VAZIA, que é

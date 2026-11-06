@@ -26,6 +26,18 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.195.0",
+    data: "06/11/2026",
+    horario: "08:40",
+    titulo: "Tela de usuários reorganizada: login, senha e ações à vista",
+    itens: [
+      "A lista de usuários ganhou colunas próprias, na ordem: Nome, Login, Senha, E-mail, Acesso, Status e Ações.",
+      "Na coluna Senha, dois botões: definir uma senha nova (chave) e mandar o link de nova senha para o e-mail da pessoa (envelope).",
+      "As ações saíram do menu de três pontinhos e ficaram à vista na linha: Editar, Vincular empresa ou marca, Trocar de cliente, Desativar e Excluir.",
+      "Cabeçalho com texto mais curto e cartões de resumo mais compactos.",
+    ],
+  },
+  {
     versao: "1.194.0",
     data: "06/11/2026",
     horario: "09:00",
