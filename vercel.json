@@ -14,6 +14,7 @@
     { "path": "/api/cron/demandas-cobranca", "schedule": "0 * * * *" },
     { "path": "/api/cron/demandas-aceite", "schedule": "0 9,13,17,21 * * *" },
     { "path": "/api/cron/demandas-digest", "schedule": "0 10,21 * * *" },
-    { "path": "/api/cron/demandas-relatorio-semanal", "schedule": "0 11 * * 1" }
+    { "path": "/api/cron/demandas-relatorio-semanal", "schedule": "0 11 * * 1" },
+    { "path": "/api/cron/lembrete-contracheque", "schedule": "14,29,44,59 10-22 * * *" }
   ]
 }

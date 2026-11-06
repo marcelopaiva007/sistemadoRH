@@ -1,6 +1,6 @@
 {
   "name": "sistema-rh",
-  "version": "1.196.0",
+  "version": "1.197.0",
   "private": true,
   "scripts": {
     "// ━━━━━━━━━━━━━━━━ DESENVOLVIMENTO ━━━━━━━━━━━━━━━━": "",
@@ -68,6 +68,7 @@
     "test:delegacoes-digest": "tsx scripts/test-delegacoes-digest.ts",
     "test:delegacoes-relatorio": "tsx scripts/test-delegacoes-relatorio.ts",
     "// ━━━━━━━━━━━━━━━━ SMOKE TESTS ━━━━━━━━━━━━━━━━": "",
+    "smoke:contracheques-assinatura": "tsx scripts/smoke-contracheques-assinatura.ts",
     "smoke:dp": "tsx scripts/smoke-dp.ts",
     "smoke:sst": "tsx scripts/smoke-sst.ts",
     "smoke:movimentacoes": "tsx scripts/smoke-movimentacoes.ts",

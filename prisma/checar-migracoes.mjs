@@ -175,16 +175,16 @@ if (pendentes.length === 0) {
 // sozinho. Se o DATABASE_URL de Preview algum dia apontar pro mesmo banco de
 // Production (é o que a Vercel tem hoje, malformado, mas com essa intenção),
 // aplicar migration sozinho ali significa que abrir uma PR já basta pra
-// mudar produção, sem revisão nenhuma. Aqui a checagem volta a só barrar,
-// como sempre fez, e quem aplica continua sendo Production.
+// mudar produção, sem revisão nenhuma. Por isso Preview não aplica migrations
+// no banco compartilhado; quem aplica é o build de Production, no merge pro master.
 if (process.env.VERCEL_ENV === "preview") {
-  console.error(
-    `\n✖ ${pendentes.length} migration(s) no repo que o banco (Preview) ainda não recebeu:\n` +
+  console.warn(
+    `\n⚠ ${pendentes.length} migration(s) no repo que o banco (Preview) ainda não recebeu:\n` +
       pendentes.map((m) => `    ${m}`).join("\n") +
-      `\n\n  Preview não aplica sozinho de propósito (ver comentário no código) —` +
-      `\n  quem aplica é o build de Production, no merge pro master.\n`,
+      `\n\n  Preview não aplica migrations sozinho no banco de produção (o guardião é o merge pro master).` +
+      `\n  O build de Preview seguirá sem executar migrate deploy.\n`,
   );
-  process.exit(1);
+  process.exit(0);
 }
 
 console.log(

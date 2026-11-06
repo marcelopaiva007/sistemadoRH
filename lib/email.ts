@@ -110,6 +110,8 @@ export async function sendEmail(params: {
    * (lib/cobranca-rh-pendencias.ts), para o gestor acompanhar em cópia.
    */
   cc?: string[];
+  /** Arquivos anexos (ex: contracheque assinado em PDF). */
+  attachments?: Array<{ filename: string; content: Buffer | string; contentType?: string }>;
 }): Promise<ResultadoEnvio> {
   const [host, portRaw, user, pass, fromRaw] = await Promise.all([
     segredo(CHAVE_SMTP_HOST),
@@ -185,6 +187,7 @@ export async function sendEmail(params: {
       html: params.html,
       ...(params.text ? { text: params.text } : {}),
       ...(cc && cc.length > 0 ? { cc } : {}),
+      ...(params.attachments && params.attachments.length > 0 ? { attachments: params.attachments } : {}),
     });
   } catch (e) {
     erro = `Falha ao enviar e-mail: ${e instanceof Error ? e.message : String(e)}`;
