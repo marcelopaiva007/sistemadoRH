@@ -285,7 +285,7 @@ function LinhaMarca({ marca, grupos }: { marca: Marca; grupos: Grupo[] }) {
         name="grupoId"
         defaultValue={marca.grupoId}
         className={classeSelect}
-        aria-label={`Cliente de ${marca.nome}`}
+        aria-label={`Mover ${marca.nome} para o cliente`}
       >
         {!grupos.some((g) => g.id === marca.grupoId) && (
           <option value={marca.grupoId} disabled>
@@ -336,7 +336,7 @@ function LinhaUsuario({ usuario, grupos }: { usuario: Usuario; grupos: Grupo[] }
         name="grupoId"
         defaultValue={noCliente ? (usuario.grupoId ?? "") : ""}
         className={classeSelect}
-        aria-label={`Cliente de ${usuario.nome}`}
+        aria-label={`Mover ${usuario.nome} para o cliente`}
       >
         {!noCliente && (
           <option value="" disabled>
