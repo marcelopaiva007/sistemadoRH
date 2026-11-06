@@ -1,5 +1,7 @@
-// Tela de admin — "quais marcas cada conta vê" — e o login com Google, contra um
-// banco de verdade (v1.187.0).
+// Tela de admin — "quais marcas cada conta vê" —, contra um banco de verdade
+// (v1.187.0). O login com Google que nasceu junto saiu na v1.191.0 (o acesso é
+// só pelo nome de usuário); o "um usuário por grupo" é provado em
+// scripts/smoke-identificador-login.ts.
 //
 // O que se prova aqui:
 // - Diretoria/Administrativo SEM marca marcada continua vendo o grupo inteiro;
@@ -7,8 +9,6 @@
 //   nada (a parede de grupo vem antes).
 // - A regra do admin (`aplicarMarcasQueVe`) grava, solta, recusa marca de outro
 //   grupo, recusa gestor de RH sem acesso nenhum e muda a conta de grupo.
-// - O Google só entra numa conta ativa com o mesmo e-mail, sem diferença de
-//   maiúscula, e recusa e-mail não verificado, sem cadastro ou ambíguo.
 //
 // Os dados são criados com um sufixo único e apagados no fim, mesmo com falha.
 //
@@ -19,9 +19,7 @@ import { prisma } from "../lib/prisma";
 import { direcaoRestrita } from "../lib/grupo";
 import { empresasVisiveis, usuarioAlcancaEmpresa } from "../lib/rh-auth-guard";
 import { aplicarMarcasQueVe } from "../lib/marcas-que-ve";
-import { contaDoGoogle } from "../lib/login-google";
 import { buscarDestinatarios } from "../lib/pesquisa-notificacoes";
-import { usuarioPorIdentificador } from "../lib/usuario-por-identificador";
 
 let falhas = 0;
 function ok(condicao: boolean, descricao: string) {
@@ -216,48 +214,6 @@ async function main() {
       select: { ativo: true },
     });
     ok(antiga?.ativo === false, "…o vínculo com a marca do grupo antigo foi desligado");
-  }
-
-  console.log("\nLogin com Google (contaDoGoogle)\n");
-  const emailBase = `smoke.google.${sfx}@example.com`;
-  const comGoogle = await usuario("google", "RH_MANAGER", g1.id, { email: `Smoke.Google.${sfx}@Example.com` });
-  await usuario("google-inativo", "RH_MANAGER", g1.id, { email: `smoke.inativo.${sfx}@example.com`, ativo: false });
-  await usuario("dup1", "RH_MANAGER", g1.id, { email: `Dup.${sfx}@example.com` });
-  await usuario("dup2", "DIRETORIA", g1.id, { email: `dup.${sfx}@example.com` });
-  {
-    const r = await contaDoGoogle(emailBase, true);
-    ok(r.ok && r.userId === comGoogle.id, "e-mail verificado entra na conta certa, sem diferença de maiúscula");
-  }
-  {
-    const r = await contaDoGoogle(emailBase, false);
-    ok(!r.ok && r.motivo === "email-nao-verificado", "e-mail não verificado pelo Google é recusado");
-  }
-  {
-    const r = await contaDoGoogle(`ninguem.${sfx}@example.com`, true);
-    ok(!r.ok && r.motivo === "sem-cadastro", "Gmail sem conta é recusado (não cria conta)");
-  }
-  {
-    const r = await contaDoGoogle(`smoke.inativo.${sfx}@example.com`, true);
-    ok(!r.ok && r.motivo === "sem-cadastro", "conta desativada não entra pelo Google");
-  }
-  {
-    const r = await contaDoGoogle(`DUP.${sfx}@EXAMPLE.COM`, true);
-    ok(!r.ok && r.motivo === "mais-de-uma-conta", "e-mail em duas contas não escolhe uma ao acaso");
-  }
-  {
-    // "_" e "%" não são coringa: o Google de "ana_souza@" não entra na conta de "ana.souza@".
-    const ana = await usuario("ana", "RH_MANAGER", g1.id, { email: `ana.souza.${sfx}@example.com` });
-    const r = await contaDoGoogle(`ana_souza.${sfx}@example.com`, true);
-    ok(!r.ok && r.motivo === "sem-cadastro", "\"_\" no e-mail do Google não funciona como coringa");
-    const r2 = await contaDoGoogle(`ana%.${sfx}@example.com`, true);
-    ok(!r2.ok, "\"%\" também não");
-    ok((await usuarioPorIdentificador(`ana_souza.${sfx}@example.com`, "email")) === null, "login/senha por e-mail com \"_\" não acha a conta de outro");
-    ok((await usuarioPorIdentificador(`ANA.SOUZA.${sfx}@EXAMPLE.COM`, "email"))?.id === ana.id, "…e maiúscula continua não importando");
-  }
-  {
-    const master = await usuario("master", "MASTER", null, { email: `master.${sfx}@example.com` });
-    const r = await contaDoGoogle(`master.${sfx}@example.com`, true);
-    ok(!r.ok && master.role === "MASTER", "a conta MASTER não entra pelo Google (só usuário e senha)");
   }
 }
 

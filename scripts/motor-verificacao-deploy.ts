@@ -104,6 +104,7 @@ async function checarRotasCriticas() {
     { path: "/carreiras", label: "Portal de Carreiras" },
     { path: "/portal", label: "Portal do Colaborador" },
     { path: "/esqueci-senha", label: "Recuperação de Senha" },
+    { path: "/esqueci-usuario", label: "Recuperação de Usuário" },
   ];
 
   for (const r of rotas) {

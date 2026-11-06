@@ -24,7 +24,9 @@ export type AcaoAuditoria =
   | "REATIVAR"
   | "ENVIAR_CONVITE"
   | "ACEITAR_CONVITE"
-  | "RESET_SENHA";
+  | "RESET_SENHA"
+  // "Esqueci meu usuário" (v1.191.0): a lista de usuários foi para o e-mail.
+  | "LEMBRETE_USUARIO";
 
 export async function registrarAuditoria(params: {
   empresaId?: string | null;

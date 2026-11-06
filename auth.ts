@@ -1,12 +1,10 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
-import Google from "next-auth/providers/google";
 import bcrypt from "bcryptjs";
 import { authConfig } from "@/auth.config";
 import { prisma } from "@/lib/prisma";
 import { lerCookieEmpresaAtiva, resolverEmpresaAtiva } from "@/lib/empresa-ativa";
-import { usuarioPorIdentificador } from "@/lib/usuario-por-identificador";
-import { contaDoGoogle, googleConfigurado } from "@/lib/login-google";
+import { usuarioPorLogin } from "@/lib/usuario-por-identificador";
 import {
   estadoDoLogin,
   ipDaRequisicao,
@@ -27,6 +25,11 @@ const HASH_DESCARTAVEL = bcrypt.hashSync("::timing-guard::", 10);
 // inválidos" com a senha CERTA. Em 30/10/2026 o CEO trocou a senha duas vezes e
 // continuou de fora. A regra de "qual conta a pessoa quis dizer" mora em
 // lib/usuario-por-identificador.ts, compartilhada com o "Esqueci minha senha".
+//
+// Desde a v1.191.0 o acesso é SÓ pelo nome de usuário (decisão do CEO em
+// 05/11/2026): cada usuário é de um grupo, e quem trabalha na LM e nas demais
+// marcas tem dois. O e-mail virou contato (pode repetir) e o "Entrar com
+// Google", que dependia dele, saiu.
 
 type EmpresaNaSessao = {
   empresaId: string;
@@ -40,10 +43,9 @@ type EmpresaNaSessao = {
 // Prisma para resolver a empresa ativa. A versão stub em auth.config.ts
 // (Edge-safe) é sobrescrita por este callback mais completo.
 /**
- * O que vai para o JWT de quem acabou de entrar — igual para usuário e senha e
- * para o Google. Marca o último acesso (sem deixar erro de banco derrubar o
- * login: é caminho quente, não pode falhar por causa de telemetria) e carrega
- * o pivô UserEmpresa, só os vínculos ativos.
+ * O que vai para o JWT de quem acabou de entrar. Marca o último acesso (sem
+ * deixar erro de banco derrubar o login: é caminho quente, não pode falhar por
+ * causa de telemetria) e carrega o pivô UserEmpresa, só os vínculos ativos.
  */
 async function usuarioParaSessao(user: {
   id: string;
@@ -112,7 +114,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const estado = await estadoDoLogin(username, ip).catch(() => null);
         if (estado?.bloqueado) return null;
 
-        const user = await usuarioPorIdentificador(username);
+        // Só pelo usuário: texto com "@" (e-mail) não acha conta nenhuma e
+        // conta como tentativa errada, como qualquer usuário inexistente.
+        const user = await usuarioPorLogin(username);
         // Usuário inexistente e usuário desativado contam como falha. O
         // primeiro é justamente o caso de quem está adivinhando nome de
         // usuário, e é o que não teria onde ser contado se o contador
@@ -141,55 +145,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         return usuarioParaSessao(user);
       },
     }),
-    // "Entrar com Google" — só para quem já tem conta com o mesmo e-mail
-    // (lib/login-google.ts). Sem a credencial OAuth configurada na Vercel
-    // (AUTH_GOOGLE_ID e AUTH_GOOGLE_SECRET), o provedor nem existe e o botão
-    // some da tela de login.
-    ...(googleConfigurado()
-      ? [
-          Google({
-            clientId: process.env.AUTH_GOOGLE_ID,
-            clientSecret: process.env.AUTH_GOOGLE_SECRET,
-            // Quem tem mais de um Gmail no navegador escolhe qual usar, em vez
-            // de entrar calado com o último usado.
-            authorization: { params: { prompt: "select_account" } },
-          }),
-        ]
-      : []),
   ],
   callbacks: {
     // Mantém `authorized`/`session` do config; sobrescreve só `jwt`.
     authorized: authConfig.callbacks!.authorized!,
     session: authConfig.callbacks!.session!,
-    // Google: só entra quem tem UMA conta ativa com o mesmo e-mail verificado.
-    // Recusa volta para a tela de login com o motivo na URL — a tela explica
-    // em português (lib/login-google.ts, `mensagemDoErroDeLogin`).
-    async signIn({ account, profile }) {
-      if (account?.provider !== "google") return true;
-      const conta = await contaDoGoogle(profile?.email, profile?.email_verified === true);
-      if (!conta.ok) return `/login?erro=google-${conta.motivo}`;
-      return true;
-    },
-    async jwt({ token, user, account, profile }) {
+    async jwt({ token, user }) {
       // Reaplica tudo do token existente (campos spreads pelo NextAuth).
       const next = { ...token };
-
-      // Login fresco pelo Google: `user` é o perfil do Google (id = o do
-      // Google), não a nossa conta. Troca pela conta do sistema com o mesmo
-      // e-mail — a mesma pergunta do `signIn` acima, refeita aqui porque é
-      // daqui que sai o JWT. Sem conta (desativada entre um passo e outro),
-      // não há sessão — e o erro leva a pessoa de volta à tela de login com
-      // uma mensagem (pages.error), em vez de devolvê-la lá calada.
-      if (user && account?.provider === "google") {
-        const conta = await contaDoGoogle(profile?.email, profile?.email_verified === true);
-        if (!conta.ok) throw new Error(`Login com Google recusado: ${conta.motivo}`);
-        const doBanco = await prisma.user.findUnique({ where: { id: conta.userId } });
-        if (!doBanco || !doBanco.ativo) throw new Error("Login com Google recusado: conta inativa");
-        user = await usuarioParaSessao(doBanco);
-        next.sub = doBanco.id;
-        // O nome que aparece no topo é o do cadastro, não o do perfil Google.
-        next.name = doBanco.nome;
-      }
 
       if (user) {
         // Login fresco: copiar tudo que o `authorize` trouxe.

@@ -13,8 +13,8 @@ import { AdminLoginForm } from "./admin-login-form";
  *
  * Mesmo desenho em duas metades do login do sistema (app/login/page.tsx),
  * mas a metade da marca é ESCURA, não vermelha: é outra porta, e a pessoa
- * tem que perceber isso antes de digitar a senha. Sem "Entrar com Google" —
- * a conta MASTER não entra pelo Google (lib/login-google.ts).
+ * tem que perceber isso antes de digitar a senha. Como no sistema, só usuário
+ * e senha (v1.191.0).
  *
  * Quem chega aqui já logado no sistema com outra conta (Diretoria, RH...) vê
  * com quem está e por que não entrou: o proxy e as páginas do painel mandam

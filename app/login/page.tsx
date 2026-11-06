@@ -2,7 +2,6 @@ import Link from "next/link";
 import { LoginForm } from "./login-form";
 import { FastmaiLogo } from "@/components/logo-fastmai";
 import { versaoDoSistema } from "@/lib/versao";
-import { googleConfigurado, mensagemDoErroDeLogin } from "@/lib/login-google";
 
 /**
  * A porta de entrada, em duas metades (arquétipo G do handoff Modernist).
@@ -21,13 +20,13 @@ import { googleConfigurado, mensagemDoErroDeLogin } from "@/lib/login-google";
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ erro?: string; error?: string }>;
+  searchParams: Promise<{ error?: string }>;
 }) {
   const versao = versaoDoSistema();
-  // Recusa do login com Google volta para cá com o motivo na URL
-  // (`?erro=google-...`, ver auth.ts) ou com o erro do próprio NextAuth.
-  const { erro, error } = await searchParams;
-  const erroInicial = mensagemDoErroDeLogin(erro, error);
+  // Erro do próprio NextAuth volta para cá com `?error=` (auth.config.ts,
+  // `pages.error`), no lugar da página de erro em inglês dele.
+  const { error } = await searchParams;
+  const erroInicial = error ? "Não foi possível entrar. Tente de novo." : null;
 
   return (
     <div className="grid flex-1 lg:grid-cols-2">
@@ -48,10 +47,19 @@ export default async function LoginPage({
       <section className="flex items-center justify-center px-6 py-12 lg:px-14">
         <div className="w-full max-w-[400px]">
           <h1>Entrar</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Acesso do RH, diretoria e gestores.</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Acesso do RH, diretoria e gestores, com o seu usuário e senha.
+          </p>
           <div className="mt-8">
-            <LoginForm googleHabilitado={googleConfigurado()} erroInicial={erroInicial} />
+            <LoginForm erroInicial={erroInicial} />
           </div>
+          {/* Um usuário por grupo (v1.191.0): quem trabalha na L&M e nas demais
+              marcas tem dois, e é o usuário que diz em qual grupo se entra. */}
+          <p className="mt-6 text-xs text-muted-foreground">
+            Trabalha na L&amp;M e nas demais marcas? Você tem um usuário para cada — entre com o do
+            grupo em que vai trabalhar. Para trocar, use <strong>Sair / trocar de usuário</strong> no
+            menu do seu nome e entre com o outro.
+          </p>
           <div className="mt-10 border-t-2 border-border pt-5 text-sm text-muted-foreground">
             É colaborador? O portal é pelo celular.{" "}
             <Link href="/portal" className="font-extrabold text-primary hover:underline">

@@ -22,27 +22,21 @@ import { motivoDaFalhaDeLogin } from "@/lib/actions/login";
 // O logo e o nome do sistema ficam em page.tsx, com o arquivo oficial da
 // marca. Aqui dentro havia uma segunda logo (um hexágono neon desenhado à
 // mão, piscando) — duas marcas empilhadas na mesma tela.
+//
+// SÓ USUÁRIO E SENHA desde a v1.191.0 (decisão do CEO em 05/11/2026): o e-mail
+// não entra mais, e o "Entrar com Google", que dependia dele, saiu. Quem
+// digita o e-mail por hábito vê o aviso na hora — mas o formulário envia do
+// mesmo jeito, porque algum usuário antigo pode ter "@" no próprio nome.
 export function LoginForm({
-  googleHabilitado = false,
   erroInicial = null,
 }: {
-  /** Só aparece com a credencial OAuth do Google configurada (lib/login-google.ts). */
-  googleHabilitado?: boolean;
-  /** Recusa que voltou do Google para a tela, já em português. */
+  /** Erro que voltou do NextAuth para a tela, já em português. */
   erroInicial?: string | null;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(erroInicial);
-  const [indoProGoogle, setIndoProGoogle] = useState(false);
-
-  // O Google decide quem é a pessoa; quem pode entrar continua sendo o
-  // cadastro de usuários — Gmail sem conta volta recusado (auth.ts).
-  function entrarComGoogle() {
-    setError(null);
-    setIndoProGoogle(true);
-    void signIn("google", { callbackUrl: "/" });
-  }
+  const [digitouEmail, setDigitouEmail] = useState(false);
 
   function handleSubmit(formData: FormData) {
     setError(null);
@@ -63,7 +57,9 @@ export function LoginForm({
         setError(
           motivo?.tipo === "bloqueado"
             ? `Muitas tentativas seguidas. Tente de novo em ${motivo.minutos} minuto${motivo.minutos > 1 ? "s" : ""}.`
-            : "Usuário ou senha inválidos.",
+            : usuario.includes("@")
+              ? "Usuário ou senha inválidos. O acesso agora é pelo nome de usuário, não pelo e-mail — não lembra o seu? Use “Esqueci meu usuário”."
+              : "Usuário ou senha inválidos.",
         );
         return;
       }
@@ -75,75 +71,63 @@ export function LoginForm({
 
   return (
     // Sem cartão: o formulário senta direto no papel (Modernist). Campos de
-    // 42px e o botão de 46px com o rótulo à esquerda e a seta à direita —
-    // "Esqueci minha senha" fica na linha do rótulo Senha, onde a pessoa
+    // 42px e o botão de 46px com o rótulo à esquerda e a seta à direita — os
+    // dois "Esqueci" ficam na linha do rótulo de cada campo, onde a pessoa
     // está olhando quando trava.
-    <div>
-      <form action={handleSubmit} className="space-y-5">
-        <div className="space-y-1.5">
-          <Label htmlFor="username">Usuário ou e-mail</Label>
-          {/* Sem maiúscula e sem corretor automáticos: no celular o teclado
-              trocava "marcelo" por "Marcelo" sem a pessoa perceber. */}
-          <Input
-            id="username"
-            name="username"
-            autoComplete="username"
-            autoCapitalize="none"
-            autoCorrect="off"
-            spellCheck={false}
-            required
-            autoFocus
-            className="h-[42px]"
-          />
+    <form action={handleSubmit} className="space-y-5">
+      <div className="space-y-1.5">
+        <div className="flex items-baseline justify-between">
+          <Label htmlFor="username">Usuário</Label>
+          <Link href="/esqueci-usuario" className="text-xs text-primary hover:underline">
+            Esqueci meu usuário
+          </Link>
         </div>
-        <div className="space-y-1.5">
-          <div className="flex items-baseline justify-between">
-            <Label htmlFor="password">Senha</Label>
-            <Link href="/esqueci-senha" className="text-xs text-primary hover:underline">
-              Esqueci minha senha
-            </Link>
-          </div>
-          <Input
-            id="password"
-            name="password"
-            type="password"
-            autoComplete="current-password"
-            required
-            className="h-[42px]"
-          />
-        </div>
-        {error && (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-        <Button type="submit" size="lg" className="h-[46px] w-full" disabled={isPending || indoProGoogle}>
-          {isPending ? "Entrando..." : "Entrar"}
-          <ArrowRight data-icon="inline-end" />
-        </Button>
-      </form>
-      {googleHabilitado && (
-        <div className="mt-6 space-y-4">
-          <div className="flex items-center gap-3 text-xs text-muted-foreground" aria-hidden>
-            <span className="h-px flex-1 bg-border" />
-            ou
-            <span className="h-px flex-1 bg-border" />
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="lg"
-            className="h-[46px] w-full"
-            onClick={entrarComGoogle}
-            disabled={isPending || indoProGoogle}
-          >
-            {indoProGoogle ? "Abrindo o Google..." : "Entrar com Google"}
-          </Button>
-          <p className="text-xs text-muted-foreground">
-            Vale para quem já tem usuário no sistema com o mesmo Gmail.
+        {/* Sem maiúscula e sem corretor automáticos: no celular o teclado
+            trocava "marcelo" por "Marcelo" sem a pessoa perceber. */}
+        <Input
+          id="username"
+          name="username"
+          autoComplete="username"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+          required
+          autoFocus
+          aria-describedby={digitouEmail ? "aviso-email" : undefined}
+          onChange={(e) => setDigitouEmail(e.target.value.includes("@"))}
+          className="h-[42px]"
+        />
+        {digitouEmail && (
+          <p id="aviso-email" className="text-xs text-primary">
+            O acesso agora é pelo nome de usuário (ex.: marcelo ou marcelo.lm), não pelo e-mail.
           </p>
+        )}
+      </div>
+      <div className="space-y-1.5">
+        <div className="flex items-baseline justify-between">
+          <Label htmlFor="password">Senha</Label>
+          <Link href="/esqueci-senha" className="text-xs text-primary hover:underline">
+            Esqueci minha senha
+          </Link>
         </div>
+        <Input
+          id="password"
+          name="password"
+          type="password"
+          autoComplete="current-password"
+          required
+          className="h-[42px]"
+        />
+      </div>
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       )}
-    </div>
+      <Button type="submit" size="lg" className="h-[46px] w-full" disabled={isPending}>
+        {isPending ? "Entrando..." : "Entrar"}
+        <ArrowRight data-icon="inline-end" />
+      </Button>
+    </form>
   );
 }

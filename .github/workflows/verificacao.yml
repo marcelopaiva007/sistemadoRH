@@ -92,6 +92,8 @@ jobs:
         run: npx tsx scripts/test-usuarios-permissoes.ts
       - name: Login da área de admin só devolve para dentro de /admin
         run: npx tsx scripts/test-admin-volta.ts
+      - name: Nome de usuário (único, sem @, um por grupo)
+        run: npx tsx scripts/test-login-usuario.ts
       - name: Apuração de pesquisa pergunta a pergunta
         run: npx tsx scripts/test-pesquisa-apuracao.ts
       - name: Entregas ao colaborador (confirmação e devolução)
@@ -178,9 +180,9 @@ jobs:
 
       # Um passo por smoke, e não um laço — mesmo motivo do job acima: o nome
       # do passo vermelho já diz o que quebrou.
-      - name: Login e recuperação de senha (usuário ou e-mail, sem maiúsculas)
+      - name: Login só pelo usuário, esqueci senha/usuário (um usuário por grupo)
         run: npx tsx scripts/smoke-identificador-login.ts
-      - name: Marcas que cada conta vê (tela de admin) e login com Google
+      - name: Marcas que cada conta vê (tela de admin)
         run: npx tsx scripts/smoke-marcas-direcao.ts
       - name: Regras das marcas (só ela / junto com) na área de admin
         run: npx tsx scripts/smoke-regras-marcas.ts
