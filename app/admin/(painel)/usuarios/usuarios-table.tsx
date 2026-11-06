@@ -18,6 +18,9 @@ import {
   Check,
   Loader2,
   ArrowLeftRight,
+  Eye,
+  EyeOff,
+  Shuffle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -344,7 +347,7 @@ export function UsuariosTable({
             <DialogContent>
               <UsuarioForm
                 action={createUsuario}
-                title="Novo Usuário"
+                title="Novo usuário"
                 empresas={empresas}
                 setores={setores}
                 marcas={marcas}
@@ -450,7 +453,7 @@ export function UsuariosTable({
           {editUsuario && (
             <UsuarioForm
               action={updateUsuario.bind(null, editUsuario.id)}
-              title="Editar Usuário"
+              title="Editar usuário"
               empresas={empresas}
               setores={setores}
               marcas={marcas}
@@ -488,6 +491,15 @@ export function UsuariosTable({
       </Dialog>
     </div>
   );
+}
+
+// Senha fácil de ditar: sem letras que se confundem (l/1, O/0). 10 caracteres
+// do crypto do navegador — a pessoa troca depois em Minha conta.
+function gerarSenha(): string {
+  const alfabeto = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  const bytes = new Uint32Array(10);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => alfabeto[b % alfabeto.length]).join("");
 }
 
 function UsuarioForm({
@@ -531,6 +543,8 @@ function UsuarioForm({
     defaultValues?.empresas.find((v) => v.papelPrincipal)?.empresaId ?? "",
   );
   const [setorId, setSetorId] = useState<string>("");
+  const [senha, setSenha] = useState("");
+  const [verSenha, setVerSenha] = useState(false);
 
   // Só na criação. `updateUsuario` não lê marca/empresa/setor — quem altera
   // acesso de quem já existe é o diálogo "Vincular". Mostrar os campos aqui na
@@ -549,7 +563,12 @@ function UsuarioForm({
   const [state, formAction, isPending] = useActionState(async (prev: ActionResult, fd: FormData) => {
     const result = await action(prev, fd);
     if (result.ok) {
-      toast.success(isEdit ? "Usuário atualizado." : "Usuário criado.");
+      if (isEdit) toast.success("Usuário atualizado.");
+      else
+        toast.success("Usuário criado.", {
+          description: `Passe para a pessoa o usuário “${String(fd.get("username") ?? "").trim().toLowerCase()}” e a senha. Ela entra em rh.assinelm.com.`,
+          duration: 10000,
+        });
       onSuccess();
     }
     return result;
@@ -572,133 +591,173 @@ function UsuarioForm({
       <DialogHeader>
         <DialogTitle>{title}</DialogTitle>
       </DialogHeader>
-      <div className="space-y-2">
-        <Label htmlFor="nome">Nome</Label>
-        <Input id="nome" name="nome" defaultValue={defaultValues?.nome ?? ""} required autoFocus />
-      </div>
-      {/* O usuário é a ÚNICA forma de entrar (v1.191.0) e diz em que grupo a
-          pessoa entra: não se repete, nem com maiúsculas diferentes. */}
-      <div className="space-y-2">
-        <Label htmlFor="username">Usuário de login</Label>
-        <Input
-          id="username"
-          name="username"
-          defaultValue={defaultValues?.username ?? ""}
-          placeholder="ex.: joao.silva"
-          autoComplete="off"
-          autoCapitalize="none"
-          autoCorrect="off"
-          spellCheck={false}
-          aria-describedby="username-dica"
-          required
-        />
-        <p id="username-dica" className="text-xs text-muted-foreground">
-          Único no sistema: só letras sem acento, números, ponto, hífen ou sublinhado — sem “@” e
-          sem espaço. A mesma pessoa em dois clientes tem dois usuários (ex.: “joao.silva” e
-          “joao.silva.lm”) e pode usar a mesma senha.
-        </p>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-2">
-          <Label htmlFor="email">E-mail de contato</Label>
-          <Input
-            id="email"
-            name="email"
-            type="email"
-            defaultValue={defaultValues?.email ?? ""}
-            autoComplete="off"
-            placeholder="opcional"
-            aria-describedby="email-dica"
-          />
+      {/* Pedido do CEO (v1.193.0): deixar claro que para entrar bastam usuário
+          e senha, sem e-mail e sem conta Google. O resto vem depois e é
+          opcional ou define o que a pessoa vê. */}
+      {!isEdit && (
+        <div className="rounded-md border border-border bg-muted/40 p-3 text-sm">
+          <p className="font-medium">Para entrar, a pessoa só precisa de usuário e senha.</p>
+          <p className="mt-1 text-muted-foreground">
+            Não precisa de e-mail nem de conta Google. Crie os dois aqui, passe para a pessoa e ela
+            entra em rh.assinelm.com. Depois ela pode trocar a senha em Minha conta.
+          </p>
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="telefone">Telefone</Label>
-          <Input
-            id="telefone"
-            name="telefone"
-            defaultValue={defaultValues?.telefone ?? ""}
-            autoComplete="off"
-          />
-        </div>
-        <p id="email-dica" className="col-span-2 -mt-1 text-xs text-muted-foreground">
-          O e-mail não serve para entrar: recebe os avisos e os links de “Esqueci minha senha” e
-          “Esqueci meu usuário”. Pode ser o mesmo nos usuários da mesma pessoa.
-        </p>
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="senha">{isEdit ? "Nova senha (opcional)" : "Senha"}</Label>
-        <Input
-          id="senha"
-          name="senha"
-          type="password"
-          autoComplete="new-password"
-          placeholder={isEdit ? "Deixe em branco para manter a atual" : "Mínimo 8 caracteres"}
-          required={!isEdit}
-          minLength={isEdit ? 0 : 8}
-        />
-      </div>
-      <div className="space-y-2">
-        <Label>Papel de acesso</Label>
-        <Select
-          value={role}
-          onValueChange={(v) => {
-            const novo = v ?? "DIRETORIA";
-            // Ao criar, troca a sugestão de perfil junto com o papel: sai o
-            // perfil-semente do papel anterior, entra o do novo. Na edição não
-            // mexe — lá os perfis já vêm da ficha e são escolha do admin.
-            if (!isEdit) {
-              const antigo = perfilDoPapel(role);
-              const proposto = perfilDoPapel(novo);
-              setPerfilIds((atual) => {
-                const semAntigo = antigo ? atual.filter((x) => x !== antigo) : atual;
-                return proposto && !semAntigo.includes(proposto) ? [...semAntigo, proposto] : semAntigo;
-              });
-            }
-            setRole(novo);
-            if (novo !== "GESTOR_SETOR") setSetorId("");
-          }}
-          name="role"
-          items={Object.fromEntries(ROLES.map((r) => [r.value, r.label]))}
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="Selecione o papel" />
-          </SelectTrigger>
-          <SelectContent>
-            {ROLES.map((r) => (
-              <SelectItem key={r.value} value={r.value}>
-                {r.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      )}
 
-      <div className="space-y-2">
-        <Label>Perfis de acesso</Label>
-        <p className="text-xs text-muted-foreground">
-          O que a pessoa vê e edita, por sistema. O papel acima decide a sugestão; ajuste à vontade.
-          Sem perfil, o acesso segue o papel.
-        </p>
-        <div className="grid gap-1.5 rounded-md border border-border p-2 sm:grid-cols-2">
-          {perfis.map((pf) => (
-            <label key={pf.id} className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                name="perfilId"
-                value={pf.id}
-                checked={perfilIds.includes(pf.id)}
-                onChange={() => alternarPerfil(pf.id)}
-                className="size-4"
+      <fieldset className="space-y-3">
+        <legend className="mb-1 text-sm font-semibold">1. Acesso</legend>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="username">Usuário</Label>
+            <Input
+              id="username"
+              name="username"
+              defaultValue={defaultValues?.username ?? ""}
+              placeholder="ex.: joao.silva"
+              autoComplete="off"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              aria-describedby="username-dica"
+              required
+              autoFocus={!isEdit}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="senha">{isEdit ? "Nova senha (opcional)" : "Senha"}</Label>
+            <div className="flex gap-1">
+              <Input
+                id="senha"
+                name="senha"
+                type={verSenha ? "text" : "password"}
+                value={senha}
+                onChange={(e) => setSenha(e.target.value)}
+                autoComplete="new-password"
+                placeholder={isEdit ? "Em branco mantém a atual" : "Mínimo 8 caracteres"}
+                required={!isEdit}
+                minLength={isEdit ? 0 : 8}
               />
-              {pf.nome}
-              {pf.sistema && <span className="text-[11px] text-muted-foreground">(padrão)</span>}
-            </label>
-          ))}
-          {perfis.length === 0 && (
-            <span className="text-xs text-muted-foreground">Nenhum perfil cadastrado ainda.</span>
-          )}
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={() => setVerSenha((v) => !v)}
+                aria-label={verSenha ? "Esconder senha" : "Mostrar senha"}
+                title={verSenha ? "Esconder senha" : "Mostrar senha"}
+              >
+                {verSenha ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={() => {
+                  setSenha(gerarSenha());
+                  setVerSenha(true);
+                }}
+                aria-label="Gerar uma senha"
+                title="Gerar uma senha"
+              >
+                <Shuffle className="size-4" />
+              </Button>
+            </div>
+          </div>
         </div>
-      </div>
+        <p id="username-dica" className="text-xs text-muted-foreground">
+          O usuário é o nome que a pessoa digita para entrar: letras sem acento, números, ponto,
+          hífen ou sublinhado, sem “@” e sem espaço. Ele não se repete no sistema. Quem trabalha na
+          LM e nas outras empresas tem um usuário em cada cliente (ex.: “joao.silva” e
+          “joao.silva.lm”) e pode usar a mesma senha nos dois.
+        </p>
+        <div className="space-y-2">
+          <Label htmlFor="nome">
+            Nome da pessoa
+            {!isEdit && <span className="font-normal text-muted-foreground"> (opcional)</span>}
+          </Label>
+          <Input
+            id="nome"
+            name="nome"
+            defaultValue={defaultValues?.nome ?? ""}
+            required={isEdit}
+            autoFocus={isEdit}
+            placeholder={isEdit ? undefined : "Só para reconhecer na lista. Sem nome, aparece o usuário."}
+          />
+        </div>
+      </fieldset>
+
+      <fieldset className="space-y-3">
+        <legend className="mb-1 text-sm font-semibold">2. O que a pessoa pode fazer</legend>
+        <div className="space-y-2">
+          <Label>Papel</Label>
+          <Select
+            value={role}
+            onValueChange={(v) => {
+              const novo = v ?? "DIRETORIA";
+              // Ao criar, troca a sugestão de perfil junto com o papel: sai o
+              // perfil-semente do papel anterior, entra o do novo. Na edição não
+              // mexe — lá os perfis já vêm da ficha e são escolha do admin.
+              if (!isEdit) {
+                const antigo = perfilDoPapel(role);
+                const proposto = perfilDoPapel(novo);
+                setPerfilIds((atual) => {
+                  const semAntigo = antigo ? atual.filter((x) => x !== antigo) : atual;
+                  return proposto && !semAntigo.includes(proposto) ? [...semAntigo, proposto] : semAntigo;
+                });
+              }
+              setRole(novo);
+              if (novo !== "GESTOR_SETOR") setSetorId("");
+            }}
+            name="role"
+            items={Object.fromEntries(ROLES.map((r) => [r.value, r.label]))}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Selecione o papel" />
+            </SelectTrigger>
+            <SelectContent>
+              {ROLES.map((r) => (
+                <SelectItem key={r.value} value={r.value}>
+                  {r.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            O papel já define o que a pessoa vê. Os perfis abaixo servem só para ajustes finos.
+          </p>
+        </div>
+
+        {/* Campos dentro de <details> fechado continuam indo no envio. */}
+        <details className="rounded-md border border-border p-2 [&_summary]:cursor-pointer">
+          <summary className="text-sm">
+            Ajustar perfis de acesso{" "}
+            <span className="text-muted-foreground">
+              (opcional · {perfilIds.length} marcado{perfilIds.length === 1 ? "" : "s"})
+            </span>
+          </summary>
+          <p className="mt-2 text-xs text-muted-foreground">
+            O que a pessoa vê e edita, por sistema. O papel decide a sugestão. Sem perfil, o acesso
+            segue o papel.
+          </p>
+          <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
+            {perfis.map((pf) => (
+              <label key={pf.id} className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  name="perfilId"
+                  value={pf.id}
+                  checked={perfilIds.includes(pf.id)}
+                  onChange={() => alternarPerfil(pf.id)}
+                  className="size-4"
+                />
+                {pf.nome}
+                {pf.sistema && <span className="text-[11px] text-muted-foreground">(padrão)</span>}
+              </label>
+            ))}
+            {perfis.length === 0 && (
+              <span className="text-xs text-muted-foreground">Nenhum perfil cadastrado ainda.</span>
+            )}
+          </div>
+        </details>
       {precisaEmpresa && (
         <div className="space-y-2">
           <Label>Escopo do acesso</Label>
@@ -827,6 +886,43 @@ function UsuarioForm({
           Marca e CNPJs não se alteram por aqui — use &ldquo;Vincular&rdquo; na linha do usuário.
         </p>
       )}
+      </fieldset>
+
+      <details
+        className="rounded-md border border-border p-2 [&_summary]:cursor-pointer"
+        open={Boolean(defaultValues?.email || defaultValues?.telefone)}
+      >
+        <summary className="text-sm">
+          3. Contato <span className="text-muted-foreground">(opcional)</span>
+        </summary>
+        <div className="mt-2 grid grid-cols-2 gap-3">
+          <div className="space-y-2">
+            <Label htmlFor="email">E-mail</Label>
+            <Input
+              id="email"
+              name="email"
+              type="email"
+              defaultValue={defaultValues?.email ?? ""}
+              autoComplete="off"
+              aria-describedby="email-dica"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="telefone">Telefone</Label>
+            <Input
+              id="telefone"
+              name="telefone"
+              defaultValue={defaultValues?.telefone ?? ""}
+              autoComplete="off"
+            />
+          </div>
+          <p id="email-dica" className="col-span-2 -mt-1 text-xs text-muted-foreground">
+            O e-mail não serve para entrar. Ele só recebe os avisos e os links de “Esqueci minha
+            senha” e “Esqueci meu usuário”. Sem e-mail, quem esquecer a senha pede ao administrador
+            para trocar.
+          </p>
+        </div>
+      </details>
       {isEdit && (
         <div className="flex items-center gap-2">
           <Checkbox id="ativo" name="ativo" defaultChecked={defaultValues?.ativo ?? true} />
@@ -840,7 +936,7 @@ function UsuarioForm({
       )}
       <DialogFooter>
         <Button type="submit" disabled={isPending}>
-          {isPending ? "Salvando..." : "Salvar"}
+          {isPending ? "Salvando..." : isEdit ? "Salvar" : "Criar usuário"}
         </Button>
       </DialogFooter>
     </form>

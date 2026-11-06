@@ -38,7 +38,9 @@ const emailSchema = z
 
 const criarSchema = z
   .object({
-    nome: z.string().trim().min(2, "Informe o nome"),
+    // Opcional na criação (v1.193.0): para entrar bastam usuário e senha. Sem
+    // nome, a pessoa aparece na lista pelo próprio usuário.
+    nome: z.string().trim().optional(),
     // O formato (minúsculas, sem "@", sem espaço) e o "não repete" são
     // conferidos na action — lib/login-usuario.ts.
     username: z.string().trim().min(1, "Informe o usuário de login"),
@@ -261,7 +263,7 @@ export async function createUsuario(
   if (senha.length < 8) return { ok: false, error: "A senha deve ter pelo menos 8 caracteres." };
 
   const parsed = criarSchema.safeParse({
-    nome: formData.get("nome"),
+    nome: formData.get("nome") || undefined,
     username: formData.get("username"),
     email: formData.get("email") || undefined,
     telefone: formData.get("telefone") || undefined,
@@ -272,12 +274,13 @@ export async function createUsuario(
   });
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
 
-  const { nome, email, telefone, role, marcaId, empresaId, setorId } = parsed.data;
+  const { email, telefone, role, marcaId, empresaId, setorId } = parsed.data;
 
   // Usuário novo nasce no padrão: minúsculas, sem "@" e sem espaço.
   const username = normalizarLogin(parsed.data.username);
   const problemaLogin = problemaNoLogin(username);
   if (problemaLogin) return { ok: false, error: problemaLogin };
+  const nome = parsed.data.nome || username;
 
   // Em que grupo a conta nasce: o MASTER escolhe; os demais criam no próprio.
   const grupoId = esc.master
