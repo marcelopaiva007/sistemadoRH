@@ -67,7 +67,7 @@ console.log("\nA TRAVA PRINCIPAL: sem e-mail, não há 'esqueci minha senha'\n")
   // trava continua sendo o e-mail nulo. E ela recusa o papel de portal, para a
   // trava não depender de um campo só.
   ok(
-    recuperacao.includes("usuarioPorLogin(digitado)") && /!user\.email\)/.test(recuperacao),
+    recuperacao.includes("usuarioPorLogin(digitado") /* v1.198.0: + onde procurar (endereço do cliente) */ && /!user\.email\)/.test(recuperacao),
     "a recuperação de senha só manda o link para o e-mail cadastrado — por isso o e-mail nulo é a trava",
   );
   ok(
