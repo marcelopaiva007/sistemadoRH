@@ -26,6 +26,18 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.194.0",
+    data: "06/11/2026",
+    horario: "09:00",
+    titulo: "Gestão de usuários: login à vista e nova senha por e-mail",
+    itens: [
+      "Na lista de usuários, o login de cada pessoa aparece na linha, com botão para copiar.",
+      "Em Mais ações, \"Senha / enviar por e-mail\": gere uma senha nova, veja e copie; ao salvar, usuário e senha já vão para a área de transferência.",
+      "Botão \"Enviar nova senha por e-mail\": a pessoa recebe no e-mail cadastrado um link para criar a senha dela, válido por 24 horas.",
+      "A senha atual não aparece em lugar nenhum: o sistema guarda só uma versão embaralhada dela, que não volta a ser a senha.",
+    ],
+  },
+  {
     versao: "1.193.0",
     data: "06/11/2026",
     horario: "08:00",

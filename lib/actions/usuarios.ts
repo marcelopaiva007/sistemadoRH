@@ -2,6 +2,8 @@
 
 import { z } from "zod";
 import bcrypt from "bcryptjs";
+import { randomBytes, createHash } from "node:crypto";
+import { sendEmail } from "@/lib/email";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireGestaoUsuarios } from "@/lib/auth-guard";
@@ -590,6 +592,115 @@ export async function resetSenhaUsuario(
   });
 
   revalidatePath("/admin/usuarios");
+  return { ok: true };
+}
+
+// Link mandado pelo administrador vale mais que o do "Esqueci minha senha"
+// (1 h): a pessoa não está esperando o e-mail na frente do computador.
+const LINK_ADMIN_EXPIRA_EM_HORAS = 24;
+
+function escaparHtmlEmail(texto: string): string {
+  return texto
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/**
+ * "Enviar nova senha por e-mail" (v1.193.0, pedido do CEO em 06/11/2026): o
+ * administrador manda para o e-mail CADASTRADO na conta um link para a pessoa
+ * criar a senha nova — o mesmo link de /redefinir-senha do "Esqueci minha
+ * senha", só que disparado daqui e válido por 24 h. A senha atual não aparece
+ * em lugar nenhum: o banco guarda só o hash dela.
+ *
+ * Diferente do "Esqueci minha senha", aqui a resposta pode ser honesta (sem
+ * e-mail, envio falhou): quem pergunta é o administrador, que já vê a conta.
+ */
+export async function enviarLinkSenhaPorEmail(id: string): Promise<ActionResult> {
+  const esc = await escopoGestao();
+  if ((await grupoDoAlvo(esc, id)) === false) return ERRO_ALVO;
+
+  const user = await prisma.user.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      nome: true,
+      username: true,
+      email: true,
+      ativo: true,
+      grupoId: true,
+      recuperacaoSenhaTokenHash: true,
+      recuperacaoSenhaExpiraEm: true,
+    },
+  });
+  if (!user) return ERRO_ALVO;
+  if (!user.ativo) return { ok: false, error: "A conta está desativada. Reative antes de mandar a senha." };
+  if (!user.email?.trim()) {
+    return { ok: false, error: "Este usuário não tem e-mail cadastrado. Clique em Editar e coloque o e-mail." };
+  }
+
+  const grupo = user.grupoId
+    ? await prisma.grupo.findUnique({ where: { id: user.grupoId }, select: { nome: true } })
+    : null;
+
+  const token = randomBytes(32).toString("base64url");
+  const tokenHash = createHash("sha256").update(token).digest("hex");
+  const expiraEm = new Date(Date.now() + LINK_ADMIN_EXPIRA_EM_HORAS * 60 * 60 * 1000);
+
+  await prisma.user.update({
+    where: { id },
+    data: { recuperacaoSenhaTokenHash: tokenHash, recuperacaoSenhaExpiraEm: expiraEm },
+  });
+
+  const baseUrl = process.env.NEXTAUTH_URL ?? process.env.APP_URL ?? "http://localhost:3000";
+  const link = `${baseUrl}/redefinir-senha/${token}`;
+  const nome = escaparHtmlEmail(user.nome);
+  const usuario = escaparHtmlEmail(user.username);
+  const deQualConta = grupo ? ` (${escaparHtmlEmail(grupo.nome)})` : "";
+
+  const html = `
+      <p>Olá, ${nome},</p>
+      <p>O administrador do sistema de RH pediu para você criar uma senha nova.</p>
+      <p>Seu usuário de login é <b>${usuario}</b>${deQualConta} — no login, digite o usuário, não o e-mail.</p>
+      <p>Para criar a senha, clique abaixo. O link vale por ${LINK_ADMIN_EXPIRA_EM_HORAS} horas.</p>
+      <p style="margin:24px 0">
+        <a href="${link}" style="background:#0f172a;color:white;padding:12px 20px;border-radius:6px;text-decoration:none;display:inline-block">Criar nova senha</a>
+      </p>
+      <p>Ou cole este link no navegador:</p>
+      <p style="word-break:break-all;color:#475569">${link}</p>
+    `.trim();
+
+  const envio = await sendEmail({
+    to: user.email,
+    subject: `Crie sua nova senha — usuário ${user.username} — Sistema de RH`,
+    html,
+    text: `O administrador do sistema de RH pediu para você criar uma senha nova. Seu usuário de login é ${user.username}${
+      grupo ? ` (${grupo.nome})` : ""
+    }. Acesse ${link} para criar a senha. O link vale por ${LINK_ADMIN_EXPIRA_EM_HORAS} horas.`,
+    chave: `senha-admin:${tokenHash}`,
+  });
+
+  if (!envio.ok) {
+    // Não deixa a pessoa sem o link que talvez já tivesse.
+    await prisma.user.update({
+      where: { id },
+      data: {
+        recuperacaoSenhaTokenHash: user.recuperacaoSenhaTokenHash,
+        recuperacaoSenhaExpiraEm: user.recuperacaoSenhaExpiraEm,
+      },
+    });
+    return { ok: false, error: `Não foi possível enviar o e-mail: ${envio.error}` };
+  }
+
+  await registrarAuditoria({
+    acao: "RESET_SENHA",
+    entidade: "User",
+    entidadeId: id,
+    resumo: `Enviou link de nova senha para ${user.username} (${user.email})`,
+  });
+
   return { ok: true };
 }
 

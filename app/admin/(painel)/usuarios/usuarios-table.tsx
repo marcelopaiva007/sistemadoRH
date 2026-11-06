@@ -21,6 +21,8 @@ import {
   Eye,
   EyeOff,
   Shuffle,
+  Copy,
+  Mail,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -67,6 +69,7 @@ import {
   updateUsuario,
   deleteUsuario,
   resetSenhaUsuario,
+  enviarLinkSenhaPorEmail,
   vincularEmpresaUsuario,
   desativarVinculoUsuario,
   reativarVinculoUsuario,
@@ -943,6 +946,19 @@ function UsuarioForm({
   );
 }
 
+async function copiar(texto: string, aviso: string) {
+  try {
+    await navigator.clipboard.writeText(texto);
+    toast.success(aviso);
+  } catch {
+    toast.error("Não foi possível copiar. Selecione o texto e copie à mão.");
+  }
+}
+
+// A SENHA ATUAL NÃO TEM COMO APARECER: o banco guarda só o hash dela
+// (bcrypt), que não volta a ser a senha. O que o administrador faz aqui é
+// definir uma senha nova — visível e copiável, para passar à pessoa — ou
+// mandar para o e-mail cadastrado um link para ela mesma criar a senha.
 function ResetSenhaForm({
   usuario,
   onSuccess,
@@ -950,11 +966,19 @@ function ResetSenhaForm({
   usuario: Usuario;
   onSuccess: () => void;
 }) {
+  const [senha, setSenha] = useState("");
+  const [enviando, setEnviando] = useState(false);
   const [state, formAction, isPending] = useActionState(
     async (prev: ActionResult, fd: FormData) => {
       const result = await resetSenhaUsuario(usuario.id, prev, fd);
       if (result.ok) {
-        toast.success("Senha redefinida.");
+        const valor = String(fd.get("senha") ?? "");
+        try {
+          await navigator.clipboard.writeText(`Usuário: ${usuario.username}\nSenha: ${valor}`);
+          toast.success("Senha redefinida. Usuário e senha copiados — é só colar para a pessoa.");
+        } catch {
+          toast.success("Senha redefinida.");
+        }
         onSuccess();
       }
       return result;
@@ -962,26 +986,110 @@ function ResetSenhaForm({
     initialState,
   );
 
+  async function enviarPorEmail() {
+    setEnviando(true);
+    const result = await enviarLinkSenhaPorEmail(usuario.id);
+    setEnviando(false);
+    if (result.ok) {
+      toast.success(`Link enviado para ${usuario.email}.`);
+      onSuccess();
+    } else {
+      toast.error(result.error);
+    }
+  }
+
   return (
-    <form action={formAction} className="space-y-4">
-      <DialogHeader>
-        <DialogTitle>Redefinir senha de {usuario.nome}</DialogTitle>
-      </DialogHeader>
-      <div className="space-y-2">
-        <Label htmlFor="senha">Nova senha</Label>
-        <Input id="senha" name="senha" type="password" autoComplete="new-password" required minLength={8} autoFocus />
+    <div className="space-y-6">
+      <form action={formAction} className="space-y-4">
+        <DialogHeader>
+          <DialogTitle>Senha de {usuario.nome}</DialogTitle>
+        </DialogHeader>
+        <div className="rounded-md border bg-muted/40 p-3 text-sm">
+          <p className="text-xs text-muted-foreground">Usuário de login</p>
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-mono font-medium">{usuario.username}</span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              title="Copiar usuário"
+              aria-label="Copiar usuário"
+              onClick={() => copiar(usuario.username, "Usuário copiado.")}
+            >
+              <Copy className="size-4" />
+            </Button>
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            A senha atual não pode ser vista: o sistema guarda só uma versão embaralhada dela. Defina uma nova
+            abaixo ou mande o link por e-mail.
+          </p>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="senha">Nova senha</Label>
+          <div className="flex gap-2">
+            <Input
+              id="senha"
+              name="senha"
+              type="text"
+              className="font-mono"
+              autoComplete="off"
+              spellCheck={false}
+              required
+              minLength={8}
+              value={senha}
+              onChange={(e) => setSenha(e.target.value)}
+              autoFocus
+            />
+            <Button type="button" variant="outline" onClick={() => setSenha(gerarSenha())} title="Gerar senha">
+              <Shuffle className="size-4" />
+              Gerar
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              disabled={!senha}
+              title="Copiar senha"
+              aria-label="Copiar senha"
+              onClick={() => copiar(senha, "Senha copiada.")}
+            >
+              <Copy className="size-4" />
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">Mínimo de 8 caracteres. Ao salvar, usuário e senha já vão para a área de transferência.</p>
+        </div>
+        {!state.ok && (
+          <Alert variant="destructive">
+            <AlertDescription>{state.error}</AlertDescription>
+          </Alert>
+        )}
+        <DialogFooter>
+          <Button type="submit" disabled={isPending || senha.length < 8}>
+            {isPending ? "Salvando..." : "Salvar nova senha"}
+          </Button>
+        </DialogFooter>
+      </form>
+
+      <div className="space-y-2 border-t pt-4">
+        <p className="text-sm font-medium">Ou enviar por e-mail</p>
+        {usuario.email ? (
+          <>
+            <p className="text-xs text-muted-foreground">
+              A pessoa recebe em <b>{usuario.email}</b> um link para criar a senha dela (vale 24 horas). A senha
+              atual continua funcionando até ela trocar.
+            </p>
+            <Button type="button" variant="secondary" onClick={enviarPorEmail} disabled={enviando || !usuario.ativo}>
+              {enviando ? <Loader2 className="size-4 animate-spin" /> : <Mail className="size-4" />}
+              {enviando ? "Enviando..." : "Enviar nova senha por e-mail"}
+            </Button>
+          </>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Este usuário não tem e-mail cadastrado. Use Editar para colocar o e-mail e poder enviar.
+          </p>
+        )}
       </div>
-      {!state.ok && (
-        <Alert variant="destructive">
-          <AlertDescription>{state.error}</AlertDescription>
-        </Alert>
-      )}
-      <DialogFooter>
-        <Button type="submit" disabled={isPending}>
-          {isPending ? "Salvando..." : "Redefinir"}
-        </Button>
-      </DialogFooter>
-    </form>
+    </div>
   );
 }
 
@@ -1648,7 +1756,19 @@ function LinhaUsuario({
                   <SeloPendencia key={p} pendencia={p} />
                 ))}
             </p>
-            <p className="font-mono text-xs text-muted-foreground">{u.username}</p>
+            <p className="flex items-center gap-1 text-xs text-muted-foreground">
+              <span>login:</span>
+              <span className="font-mono font-medium text-foreground/80">{u.username}</span>
+              <button
+                type="button"
+                className="rounded p-0.5 hover:bg-muted hover:text-foreground"
+                title="Copiar login"
+                aria-label={`Copiar login de ${nome}`}
+                onClick={() => copiar(u.username, "Login copiado.")}
+              >
+                <Copy className="size-3" />
+              </button>
+            </p>
             {/* Mostrado só quando a ficha tem outro nome: repetir o mesmo
                 nome duas vezes na célula não informa nada. */}
             {u.ficha && (
@@ -1869,7 +1989,7 @@ function AcoesUsuario({
           )}
           <DropdownMenuItem onClick={() => onSenha(usuario)}>
             <KeyRound />
-            Redefinir senha
+            Senha / enviar por e-mail
           </DropdownMenuItem>
           {usuario.ativo && (
             <>
