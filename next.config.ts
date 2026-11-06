@@ -23,6 +23,14 @@ const nextConfig: NextConfig = {
       "./node_modules/playwright-core/**/*",
       "./node_modules/@sparticuz/chromium/**/*",
     ],
+    // O sharp (lib/caixa-documentos/pdf.ts, foto para a IA ler) chegava à
+    // função SEM o libvips: o tracer leva o .node do @img/sharp-linux-x64 mas
+    // não o libvips-cpp.so que esse .node carrega por dlopen (RPATH), e a tela
+    // Caixa de documentos — que importa o módulo — respondia 500 desde
+    // 28/09/2026 (achado na análise de 05/11/2026). Os dois padrões cobrem a
+    // tela e as rotas de API dela.
+    "/**/caixa-documentos": ["./node_modules/@img/sharp-libvips-linux-x64/lib/**/*"],
+    "/**/caixa-documentos/**": ["./node_modules/@img/sharp-libvips-linux-x64/lib/**/*"],
   },
   images: {
     // O projeto não otimiza imagem nenhuma: os três usos de next/image (o
