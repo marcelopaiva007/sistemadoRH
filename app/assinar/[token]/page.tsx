@@ -7,16 +7,15 @@ export const metadata = {
   description: "Portal seguro para visualização e assinatura eletrônica de contracheques.",
 };
 
-export default async function AssinarContrachequePage({
-  params,
-}: {
-  params: { token: string };
+export default async function AssinarContrachequePage(props: {
+  params: Promise<{ token: string }>;
 }) {
-  const dados = await obterDadosReciboPublicoAction(params.token);
+  const { token } = await props.params;
+  const dados = await obterDadosReciboPublicoAction(token);
 
   if (!dados.encontrado) {
     notFound();
   }
 
-  return <PaginaAssinaturaClient token={params.token} dados={dados} />;
+  return <PaginaAssinaturaClient token={token} dados={dados} />;
 }

@@ -301,9 +301,9 @@ async function rodarSimulado() {
   };
 
   // Inicializa o mock do prismaGlobal antes de importar módulos que o utilizam
-  (globalThis as any).prismaGlobal = {
+  (globalThis as unknown as { prismaGlobal: unknown }).prismaGlobal = {
     reciboContracheque: {
-      findUnique: async (args: any) => {
+      findUnique: async (args: { where?: { id?: string; tokenAssinatura?: string } }) => {
         if (args?.where?.id === dados.recibo.id || args?.where?.tokenAssinatura === dados.recibo.tokenAssinatura) {
           return {
             ...dados.recibo,
@@ -322,7 +322,7 @@ async function rodarSimulado() {
           empresa: dados.empresa,
         },
       }),
-      update: async (args: any) => {
+      update: async (args: { data: Record<string, unknown> }) => {
         Object.assign(dados.recibo, args.data);
         return { id: dados.recibo.id };
       },

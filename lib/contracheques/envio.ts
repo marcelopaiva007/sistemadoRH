@@ -122,6 +122,10 @@ export async function avisarColaborador(
   const linkAssinatura = `${baseUrl}/assinar/${tokenAssinatura}`;
   const prazoTexto = calcularPrazoFormatado();
 
+  if (!r.colaborador.telegramChatId && !r.colaborador.email) {
+    return { canal: null, erro: "A pessoa não tem Telegram vinculado nem e-mail cadastrado." };
+  }
+
   let emailOk = false;
   let telegramOk = false;
   let erroEmail: string | null = null;

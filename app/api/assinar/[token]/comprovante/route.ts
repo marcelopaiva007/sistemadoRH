@@ -6,9 +6,9 @@ export const runtime = "nodejs";
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { token: string } }
+  props: { params: Promise<{ token: string }> }
 ) {
-  const token = params.token;
+  const { token } = await props.params;
   const recibo = await prisma.reciboContracheque.findUnique({
     where: { tokenAssinatura: token },
     select: {

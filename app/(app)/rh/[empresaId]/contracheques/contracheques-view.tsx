@@ -9,12 +9,10 @@ import {
   Camera,
   Download,
   FileCheck,
-  FileText,
   Inbox,
   Lock,
   Mail,
   Send,
-  ShieldAlert,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

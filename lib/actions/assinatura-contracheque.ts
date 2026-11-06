@@ -55,7 +55,11 @@ async function obterCookieSeguro(nome: string): Promise<string | undefined> {
   }
 }
 
-async function setarCookieSeguro(nome: string, valor: string, options: any): Promise<void> {
+async function setarCookieSeguro(
+  nome: string,
+  valor: string,
+  options: { maxAge?: number; httpOnly?: boolean; secure?: boolean; sameSite?: "lax" | "strict" | "none"; path?: string }
+): Promise<void> {
   try {
     const c = await cookies();
     c.set(nome, valor, options);

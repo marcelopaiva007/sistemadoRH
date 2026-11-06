@@ -1,7 +1,7 @@
 // Mock do prismaGlobal antes de qualquer import para testes unitários das actions
-(globalThis as any).prismaGlobal = {
+(globalThis as unknown as { prismaGlobal: unknown }).prismaGlobal = {
   reciboContracheque: {
-    findUnique: async (args: any) => {
+    findUnique: async (args: { where?: { tokenAssinatura?: string } }) => {
       if (args?.where?.tokenAssinatura === "token-inexistente-xyz") return null;
       if (args?.where?.tokenAssinatura === "token-bloqueado") {
         return {
