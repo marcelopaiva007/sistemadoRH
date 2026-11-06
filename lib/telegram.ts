@@ -111,6 +111,32 @@ export async function removerBotoes(chatId: string, messageId: number): Promise<
   }
 }
 
+/** Edita o texto e limpa/atualiza botões de uma mensagem enviada anteriormente. */
+export async function editarMensagemTexto(
+  chatId: string,
+  messageId: number,
+  novoTexto: string,
+  replyMarkup?: unknown
+): Promise<void> {
+  const token = await segredo(CHAVE_TELEGRAM);
+  if (!token) return;
+  try {
+    await fetch(`https://api.telegram.org/bot${token}/editMessageText`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        message_id: messageId,
+        text: novoTexto,
+        link_preview_options: { is_disabled: true },
+        ...(replyMarkup ? { reply_markup: replyMarkup } : { reply_markup: { inline_keyboard: [] } }),
+      }),
+    });
+  } catch {
+    /* mensagem antiga ou apagada: não há o que consertar */
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Registro do webhook — o que o Telegram ENTREGA a este app.
 //

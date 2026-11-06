@@ -18,7 +18,7 @@ export function FaixaDeIndicadores({
   className,
 }: {
   children: ReactNode;
-  colunas?: 2 | 3 | 4 | 5;
+  colunas?: 2 | 3 | 4 | 5 | 6;
   className?: string;
 }) {
   return (
@@ -29,6 +29,7 @@ export function FaixaDeIndicadores({
         colunas === 3 && "grid-cols-2 sm:grid-cols-3",
         colunas === 4 && "grid-cols-2 lg:grid-cols-4",
         colunas === 5 && "grid-cols-2 lg:grid-cols-5",
+        colunas === 6 && "grid-cols-2 md:grid-cols-3 lg:grid-cols-6",
         "[&>*]:border-border [&>*]:pr-4 [&>*]:pb-4 [&>*:not(:last-child)]:border-r [&>*:not(:last-child)]:mr-4",
         className,
       )}
