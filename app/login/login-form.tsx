@@ -99,7 +99,7 @@ export function LoginForm({
         />
         {digitouEmail && (
           <p id="aviso-email" className="text-xs text-primary">
-            O acesso agora é pelo nome de usuário (ex.: marcelo ou marcelo.lm), não pelo e-mail.
+            O acesso agora é pelo nome de usuário (ex.: maria ou maria.silva), não pelo e-mail.
           </p>
         )}
       </div>

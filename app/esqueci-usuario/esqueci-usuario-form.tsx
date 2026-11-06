@@ -44,8 +44,8 @@ export function EsqueciUsuarioForm() {
               <Label htmlFor="email">Seu e-mail</Label>
               <Input id="email" name="email" type="email" autoComplete="email" required autoFocus />
               <p className="text-xs text-muted-foreground">
-                Mandamos para este e-mail o seu usuário de acesso. Quem tem um usuário na L&amp;M e
-                outro nas demais marcas recebe os dois.
+                Mandamos para este e-mail o seu usuário de acesso. Quem tem mais de um usuário
+                (um para cada empresa) recebe todos.
               </p>
             </div>
             {error && (
