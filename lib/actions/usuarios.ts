@@ -317,7 +317,10 @@ export async function createUsuario(
   const perfilIds = [...new Set(formData.getAll("perfilId").map(String).filter(Boolean))];
   const perfisValidos =
     perfilIds.length > 0
-      ? (await prisma.perfil.findMany({ where: { id: { in: perfilIds } }, select: { id: true } })).map((p) => p.id)
+      ? (
+          // Só perfis do cliente da conta (v1.199.0).
+          await prisma.perfil.findMany({ where: { id: { in: perfilIds }, grupoId }, select: { id: true } })
+        ).map((p) => p.id)
       : [];
 
   try {
@@ -499,7 +502,10 @@ export async function updateUsuario(
   // silencioso, o pior tipo de "salvei e não mudou nada".
   const perfilIds = [...new Set(formData.getAll("perfilId").map(String).filter(Boolean))];
   const perfisValidos = new Set(
-    (await prisma.perfil.findMany({ where: { id: { in: perfilIds } }, select: { id: true } })).map((p) => p.id),
+    // Só perfis do cliente da conta (v1.199.0).
+    (await prisma.perfil.findMany({ where: { id: { in: perfilIds }, grupoId: grupoAlvo }, select: { id: true } })).map(
+      (p) => p.id,
+    ),
   );
 
   const passwordHash = novaSenha ? await bcrypt.hash(novaSenha, 10) : null;

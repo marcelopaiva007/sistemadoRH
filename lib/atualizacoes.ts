@@ -26,6 +26,19 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.199.0",
+    data: "06/11/2026",
+    horario: "18:00",
+    titulo: "Gestão FASTMAI: perfis de acesso por cliente",
+    itens: [
+      "Cada cliente tem os seus próprios perfis de acesso e pode ajustá-los sem afetar os outros clientes.",
+      "Nova aba \"Modelos FASTMAI\" em Perfis de acesso: a base que cada cliente novo recebe ao ser criado.",
+      "A tela de Perfis mostra um cliente por vez — perfis e pessoas daquele cliente.",
+      "Uma pessoa só pode receber perfil do próprio cliente.",
+      "Ninguém ganhou nem perdeu acesso na mudança: cada pessoa passou para a cópia do perfil que já tinha, com as mesmas permissões.",
+    ],
+  },
+  {
     versao: "1.198.0",
     data: "06/11/2026",
     horario: "17:30",

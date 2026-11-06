@@ -184,6 +184,8 @@ jobs:
         run: npx tsx scripts/smoke-identificador-login.ts
       - name: Login pelo endereço do cliente (v1.198.0)
         run: npx tsx scripts/smoke-login-por-endereco.ts
+      - name: Perfis por cliente, a partir dos modelos FASTMAI (v1.199.0)
+        run: npx tsx scripts/smoke-perfis-por-cliente.ts
       - name: Marcas que cada conta vê (tela de admin)
         run: npx tsx scripts/smoke-marcas-direcao.ts
       - name: Regras das marcas (só ela / junto com) na área de admin

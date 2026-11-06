@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { requireAreaAdmin } from "@/lib/grupo-guard";
+import { cn } from "@/lib/utils";
 import { PAPEL_PORTAL } from "@/lib/delegacoes/acesso-colaborador";
 import { prisma } from "@/lib/prisma";
 import {
@@ -14,11 +16,29 @@ import {
 // Editar perfil ou atribuí-lo é conceder acesso, então mora no mesmo portão de
 // criar usuário: a área de administração, só da conta MASTER (v1.188.0 — até
 // a v1.187.0 era /cadastros/perfis, aberta também a ADMIN e Diretoria).
-export default async function PerfisPage() {
+export default async function PerfisPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ grupo?: string }>;
+}) {
   await requireAreaAdmin();
+
+  // PERFIS POR CLIENTE (v1.199.0): as abas são os clientes, mais a dos
+  // MODELOS FASTMAI (?grupo=modelos). Cada aba mostra só os perfis e as
+  // contas daquele cliente — perfil de um cliente nunca aparece em outro.
+  const grupos = await prisma.grupo.findMany({
+    where: { ativo: true },
+    orderBy: { nome: "asc" },
+    select: { id: true, nome: true },
+  });
+  const pedido = (await searchParams).grupo;
+  const verModelos = pedido === "modelos";
+  const grupoId = verModelos ? null : ((grupos.find((g) => g.id === pedido) ?? grupos[0])?.id ?? null);
+  const filtroGrupo = verModelos ? null : (grupoId ?? "__nenhum__");
 
   const [perfis, usuarios] = await Promise.all([
     prisma.perfil.findMany({
+      where: { grupoId: filtroGrupo },
       orderBy: [{ sistema: "desc" }, { nome: "asc" }],
       select: {
         id: true,
@@ -29,29 +49,22 @@ export default async function PerfisPage() {
         _count: { select: { usuarios: true } },
       },
     }),
-      // Acessos de portal (funcionários sem login do sistema, criados pelo
-      // módulo Delegações) ficam FORA desta lista: eles não operam o sistema,
-      // e com algumas centenas deles a tela viraria uma lista de gente que
-      // nunca vai entrar aqui. Ver lib/delegacoes/acesso-colaborador.ts.
-    prisma.user.findMany({
-      where: {
-        ativo: true,
-        // As contas de todos os grupos: o perfil é um molde comum aos grupos.
-        role: { notIn: [PAPEL_PORTAL, "MASTER"] },
-      },
-      // Ordem por grupo e depois nome; o login e o grupo vão junto porque a
-      // regra é UM login por grupo — a mesma pessoa pode aparecer duas vezes
-      // com o mesmo nome, e dar perfil à conta errada seria fácil sem eles.
-      orderBy: [{ grupo: { nome: "asc" } }, { nome: "asc" }],
-      select: {
-        id: true,
-        nome: true,
-        username: true,
-        role: true,
-        grupo: { select: { nome: true } },
-        perfis: { select: { perfilId: true } },
-      },
-    }),
+    // Acessos de portal (funcionários sem login do sistema) ficam FORA: eles
+    // não operam o sistema. Modelos não têm contas.
+    verModelos
+      ? Promise.resolve([])
+      : prisma.user.findMany({
+          where: { ativo: true, grupoId: filtroGrupo, role: { notIn: [PAPEL_PORTAL, "MASTER"] } },
+          orderBy: { nome: "asc" },
+          select: {
+            id: true,
+            nome: true,
+            username: true,
+            role: true,
+            grupo: { select: { nome: true } },
+            perfis: { select: { perfilId: true } },
+          },
+        }),
   ]);
 
   const naTela: PerfilNaTela[] = perfis.map((p) => ({
@@ -72,18 +85,39 @@ export default async function PerfisPage() {
     perfilIds: u.perfis.map((p) => p.perfilId),
   }));
 
+  const aba = (href: string, ativo: boolean, rotulo: string) => (
+    <Link
+      key={href}
+      href={href}
+      aria-current={ativo ? "page" : undefined}
+      className={cn(
+        "rounded-md border px-3 py-1.5 text-sm font-medium",
+        ativo ? "border-primary bg-primary/10 text-foreground" : "border-border text-muted-foreground hover:text-foreground",
+      )}
+    >
+      {rotulo}
+    </Link>
+  );
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Perfis de acesso</h1>
-        <p className="mt-1 max-w-3xl text-muted-foreground">
-          Um perfil é um pacote de permissões que você dá à pessoa — em vez de marcar tela por tela
-          para cada uma. Escolha o que cada perfil vê e edita nos dois sistemas, e dê o perfil a quem
-          precisa. Os quatro perfis padrão reproduzem o acesso de hoje: edite-os ou crie os seus.
+        <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
+          Um perfil é um pacote de permissões que se dá à pessoa. Cada cliente tem os seus perfis e pode
+          ajustá-los sem afetar os outros; os <strong>modelos FASTMAI</strong> são a base que cada cliente novo
+          recebe.
         </p>
       </div>
 
-      <PerfisView perfis={naTela} usuarios={usuariosComPerfis} />
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm text-muted-foreground">Cliente:</span>
+        {grupos.map((g) => aba(`/admin/perfis?grupo=${g.id}`, !verModelos && g.id === grupoId, g.nome))}
+        <span aria-hidden className="mx-1 h-5 w-px bg-border" />
+        {aba("/admin/perfis?grupo=modelos", verModelos, "Modelos FASTMAI")}
+      </div>
+
+      <PerfisView perfis={naTela} usuarios={usuariosComPerfis} grupoId={verModelos ? null : grupoId} />
     </div>
   );
 }

@@ -137,7 +137,9 @@ export default async function UsuariosPage({
     // Perfis de acesso ativos — para o formulário oferecer "conectar o usuário
     // ao perfil" na própria criação.
     prisma.perfil.findMany({
-      where: { ativo: true },
+      // Os perfis DESTE cliente (v1.199.0): o formulário só oferece o que a
+      // conta pode receber.
+      where: { ativo: true, grupoId: doGrupo },
       orderBy: [{ sistema: "desc" }, { nome: "asc" }],
       select: { id: true, nome: true, sistema: true },
     }),
