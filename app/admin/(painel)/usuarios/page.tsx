@@ -30,13 +30,42 @@ export default async function UsuariosPage({
   // Sem grupo resolvido, nada aparece — falha fechada.
   const doGrupo = grupoId ?? "__nenhum__";
 
-  // As marcas ativas de TODOS os grupos, para a ação "Marcas" poder trocar a
-  // conta de grupo e marcar as do novo.
+  // As marcas ativas de TODOS os grupos: os botões de marca de cada linha e o
+  // "Trocar de grupo" (que marca as do grupo novo) saem daqui.
   const marcasDeTodosOsGrupos = await prisma.marca.findMany({
     where: { ativo: true },
     orderBy: { nome: "asc" },
     select: { id: true, nome: true, grupoId: true },
   });
+
+  // Quantas contas há em cada grupo — e fora de qualquer grupo. É o que deixa
+  // conferir de relance que todo mundo está aqui: a soma das abas é o total de
+  // contas do sistema (fora a de administrador e os acessos de portal).
+  const contagem = await prisma.user.groupBy({
+    by: ["grupoId", "ativo"],
+    where: { role: { notIn: [PAPEL_PORTAL, "MASTER"] } },
+    _count: { _all: true },
+  });
+  const contasDoGrupo = (id: string | null) =>
+    contagem.filter((c) => c.grupoId === id).reduce((soma, c) => soma + c._count._all, 0);
+  const totalDeContas = contagem.reduce((soma, c) => soma + c._count._all, 0);
+  const totalAtivas = contagem.filter((c) => c.ativo).reduce((soma, c) => soma + c._count._all, 0);
+  const semGrupo = contasDoGrupo(null);
+  // Grupo inativo não tem aba; conta parada num deles conta como "fora das abas".
+  const foraDasAbas =
+    semGrupo +
+    contagem
+      .filter((c) => c.grupoId !== null && !grupos.some((g) => g.id === c.grupoId))
+      .reduce((soma, c) => soma + c._count._all, 0);
+  const marcasDo = (id: string) => marcasDeTodosOsGrupos.filter((m) => m.grupoId === id);
+  const marcasAqui = grupoId ? marcasDo(grupoId) : [];
+  const nomeDoGrupo = grupos.find((g) => g.id === grupoId)?.nome ?? "";
+  const fraseDaRegra =
+    marcasAqui.length === 1
+      ? `Em ${nomeDoGrupo}, quem tem acesso vê só ${marcasAqui[0].nome} — ela não se junta com as outras marcas.`
+      : marcasAqui.length > 1
+        ? `Em ${nomeDoGrupo}, cada pessoa pode ver uma marca ou várias juntas: ${marcasAqui.map((m) => m.nome).join(", ")}.`
+        : `${nomeDoGrupo} ainda não tem marca ativa.`;
 
   const [usuarios, empresas, setores, marcas, perfis] = await Promise.all([
       // Acessos de portal (funcionários sem login do sistema, criados pelo
@@ -122,28 +151,66 @@ export default async function UsuariosPage({
         </div>
         <p className="text-muted-foreground">
           As contas de acesso de cada grupo — um cadastro só para os dois sistemas. Aqui você cria,
-          edita e desativa contas e escolhe as marcas que cada pessoa vê. O que cada uma pode fazer,
-          por tela e por sistema, vem dos{" "}
+          edita e desativa contas e escolhe as marcas que cada pessoa vê: clique numa marca, na linha
+          da pessoa, para ligar ou desligar — salva na hora. O que cada uma pode fazer, por tela e por
+          sistema, vem dos{" "}
           <Link href="/admin/perfis" className="underline underline-offset-2 hover:text-foreground">perfis de acesso</Link>.
         </p>
       </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm text-muted-foreground">Grupo:</span>
-        {grupos.map((g) => (
-          <Link
-            key={g.id}
-            href={`/admin/usuarios?grupo=${g.id}`}
-            aria-current={g.id === grupoId ? "page" : undefined}
-            className={cn(
-              "rounded-md border px-3 py-1 text-sm",
-              g.id === grupoId
-                ? "border-primary bg-primary/10 font-medium"
-                : "hover:bg-muted",
-            )}
-          >
-            {g.nome}
-          </Link>
-        ))}
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm text-muted-foreground">Grupo:</span>
+          {grupos.map((g) => {
+            const marcasDele = marcasDo(g.id);
+            return (
+              <Link
+                key={g.id}
+                href={`/admin/usuarios?grupo=${g.id}`}
+                aria-current={g.id === grupoId ? "page" : undefined}
+                title={
+                  marcasDele.length === 1
+                    ? `Quem está aqui vê só ${marcasDele[0].nome}.`
+                    : marcasDele.length > 1
+                      ? `Quem está aqui pode ver ${marcasDele.map((m) => m.nome).join(", ")} — uma, várias ou todas.`
+                      : "Grupo sem marca ativa."
+                }
+                className={cn(
+                  "flex items-center gap-2 rounded-md border px-3 py-1 text-sm",
+                  g.id === grupoId
+                    ? "border-primary bg-primary/10 font-medium"
+                    : "hover:bg-muted",
+                )}
+              >
+                {g.nome}
+                <span className="rounded-full bg-muted-foreground/10 px-2 text-xs font-semibold tabular-nums">
+                  {contasDoGrupo(g.id)}
+                </span>
+              </Link>
+            );
+          })}
+        </div>
+        {/* A regra das marcas do grupo aberto, em português: a LM Telecom
+            sozinha (quem está lá vê só ela) e as demais juntas (cada pessoa vê
+            uma, várias ou todas). Vem da composição dos grupos, não de texto
+            fixo — se um grupo ganhar marca, a frase acompanha. */}
+        <p className="text-sm text-muted-foreground">
+          {fraseDaRegra}{" "}
+          Para passar alguém para outro grupo, use <span className="font-medium">Mais ações → Trocar de grupo</span>.
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {totalDeContas} {totalDeContas === 1 ? "conta" : "contas"} no sistema ({totalAtivas}{" "}
+          {totalAtivas === 1 ? "ativa" : "ativas"}), somando todos os grupos — fora a conta de
+          administrador e os acessos de portal dos colaboradores.
+          {foraDasAbas > 0 && (
+            <>
+              {" "}
+              <Link href="/admin/grupos" className="font-semibold text-amber-800 underline underline-offset-2 dark:text-amber-300">
+                {foraDasAbas === 1 ? "1 conta está" : `${foraDasAbas} contas estão`} sem grupo — ver em Grupos
+              </Link>
+              .
+            </>
+          )}
+        </p>
       </div>
       <UsuariosTable
         usuarios={usuarios.map((u) => ({
