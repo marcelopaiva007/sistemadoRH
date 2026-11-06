@@ -27,7 +27,20 @@ export default async function ClientesPage() {
   const [grupos, marcas, usuarios] = await Promise.all([
     prisma.grupo.findMany({
       orderBy: { nome: "asc" },
-      select: { id: true, nome: true, ativo: true },
+      select: {
+        id: true,
+        nome: true,
+        ativo: true,
+        razaoSocial: true,
+        cnpj: true,
+        responsavelNome: true,
+        contatoEmail: true,
+        contatoTelefone: true,
+        plano: true,
+        limiteUsuarios: true,
+        inicioContrato: true,
+        observacoes: true,
+      },
     }),
     prisma.marca.findMany({
       orderBy: { nome: "asc" },

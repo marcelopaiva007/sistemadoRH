@@ -109,7 +109,7 @@ model User {
 
   // Módulo Delegações: as pessoas que este login marcou como favoritas para
   // delegar, e as listas em que ele aparece como favorito de alguém.
-  favoritosDelegacao   DelegacaoFavorito[] @relation("FavoritosDeDelegacao")
+  favoritosDelegacao     DelegacaoFavorito[] @relation("FavoritosDeDelegacao")
   favoritadoPorDelegacao DelegacaoFavorito[] @relation("FavoritadoParaDelegacao")
 
   // Módulo Delegações: demandas em que este login é quem pediu / quem faz.
@@ -192,6 +192,21 @@ model Grupo {
   ativo     Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
+
+  // CADASTRO DO CLIENTE (v1.197.0, Fase 1 da Gestão FASTMAI): quem é o
+  // cliente para a FASTMAI — documento, responsável, contrato. Tudo opcional:
+  // os dois clientes de hoje nasceram só com nome, e a tela marca o que falta.
+  razaoSocial     String?
+  cnpj            String? // só dígitos (14), validado na action
+  responsavelNome String?
+  contatoEmail    String?
+  contatoTelefone String?
+  plano           String?
+  // Máximo de contas de trabalho ATIVAS do cliente. null = sem limite. Por
+  // ora só informa (a tela avisa quando passa); travar a criação é da Fase 2.
+  limiteUsuarios  Int?
+  inicioContrato  DateTime? @db.Date
+  observacoes     String?
 
   marcas   Marca[]
   usuarios User[]
@@ -669,7 +684,7 @@ model Arquivo {
   // fatias por pessoa viram Arquivos próprios, ligados ao destino de cada uma.
   documentoRecebido       DocumentoRecebido?
   // Selfie com que o colaborador confirmou o recebimento de um contracheque.
-  reciboContracheque      ReciboContracheque? @relation("FotoReciboContracheque")
+  reciboContracheque      ReciboContracheque?      @relation("FotoReciboContracheque")
 
   @@index([empresaId])
   @@schema("rh")
@@ -701,13 +716,13 @@ model DocumentoColaborador {
   // Mês de referência (dia 1, UTC) — só para documento que é "do mês", como o
   // contracheque. É o que impede o mesmo contracheque de entrar duas vezes
   // quando o contador reenvia a folha (Caixa de documentos, 28/09/2026).
-  competencia      DateTime?
+  competencia DateTime?
   // Chave de "é o mesmo documento" para o que vem da folha, única por pessoa
   // (índice parcial na migration 20260928160000): "CONTRACHEQUE:2026-09:MENSAL",
   // "INFORME:2025", "TRCT"... Reenviar a mesma folha não duplica nada.
-  chaveDedupe      String?
+  chaveDedupe String?
   // Contracheque enviado ao colaborador para confirmar recebimento com foto.
-  recibo           ReciboContracheque?
+  recibo      ReciboContracheque?
 
   @@index([colaboradorId])
   @@index([empresaId, validoAte])
@@ -818,51 +833,51 @@ model InformativoDestinatario {
 // lugar certo do sistema. Um DocumentoRecebido é UM arquivo enviado; cada
 // ItemDocumentoRecebido é um documento de UMA pessoa achado nele.
 model DocumentoRecebido {
-  id               String                  @id @default(cuid())
+  id                String                  @id @default(cuid())
   // CNPJ da tela de onde o arquivo foi enviado — é a âncora de ACESSO ao
   // arquivo e à fila. O destino de cada item usa o CNPJ da ficha da pessoa.
-  empresaId        String
+  empresaId         String
   // O escopo de quem ENVIOU (CNPJs que ele enxergava, filtro da tela
   // incluído), gravado uma vez. É o único conjunto de fichas candidatas, seja
   // quem for que continue o processamento — e quem não alcança todos esses
   // CNPJs não vê nem mexe no arquivo.
-  empresasEscopo   String[]
+  empresasEscopo    String[]
   // Nulo enquanto o navegador ainda está subindo o arquivo (AGUARDANDO_UPLOAD)
   // e depois que o original é apagado (tudo resolvido: só as fatias por
   // pessoa ficam, cada uma no seu destino).
-  arquivoId        String?                 @unique
-  arquivo          Arquivo?                @relation(fields: [arquivoId], references: [id])
-  nome             String
-  mimeType         String
-  tamanhoBytes     Int
-  paginas          Int?
+  arquivoId         String?                 @unique
+  arquivo           Arquivo?                @relation(fields: [arquivoId], references: [id])
+  nome              String
+  mimeType          String
+  tamanhoBytes      Int
+  paginas           Int?
   // sha256 do arquivo: o mesmo PDF reenviado não é lido (nem pago) de novo.
-  hash             String
+  hash              String
   // AGUARDANDO_UPLOAD → PENDENTE → LENDO → ROTEANDO → CONCLUIDO; ERRO; DESCARTADO
-  status           String                  @default("AGUARDANDO_UPLOAD")
+  status            String                  @default("AGUARDANDO_UPLOAD")
   // Leitura em blocos de páginas: a próxima página a ler (1 = começo).
-  proximaPagina    Int                     @default(1)
+  proximaPagina     Int                     @default(1)
   // Páginas por chamada à IA. Começa em 8 e cai pela metade (numa próxima
   // rodada) quando a resposta não coube ou a chamada estourou o tempo.
-  tamanhoBloco     Int                     @default(8)
+  tamanhoBloco      Int                     @default(8)
   // Trava de processamento: quem pegou o arquivo e quando. Vencida depois de
   // alguns minutos, para uma aba fechada no meio não travar o arquivo.
-  processandoDesde DateTime?
-  tentativas       Int                     @default(0)
-  erro             String?
-  resumoIa         String?
+  processandoDesde  DateTime?
+  tentativas        Int                     @default(0)
+  erro              String?
+  resumoIa          String?
   // Por página, segundo a IA: quantas pessoas aparecem e os CPFs impressos
   // ({"3": {"pessoas": 1, "cpfs": ["..."]}}). Fatia com página de mais de uma
   // pessoa, ou sem o CPF dela, nunca vai sozinha para o portal.
   inventarioPaginas Json?
-  modeloIa         String?
-  tokensEntrada    Int                     @default(0)
-  tokensSaida      Int                     @default(0)
-  criadoPorId      String?
-  criadoPorNome    String?
-  createdAt        DateTime                @default(now())
-  updatedAt        DateTime                @updatedAt
-  itens            ItemDocumentoRecebido[]
+  modeloIa          String?
+  tokensEntrada     Int                     @default(0)
+  tokensSaida       Int                     @default(0)
+  criadoPorId       String?
+  criadoPorNome     String?
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  itens             ItemDocumentoRecebido[]
 
   @@index([empresaId, status])
   @@index([empresaId, hash])
@@ -2550,27 +2565,27 @@ model RegistroPonto {
 
 // Tratamento de Inconsistências (PTRP - Programa de Tratamento de Registro de Ponto)
 model TratamentoPonto {
-  id              String         @id @default(cuid())
+  id              String           @id @default(cuid())
   empresaId       String
   colaboradorId   String
-  colaborador     Colaborador    @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  colaborador     Colaborador      @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
   registroPontoId String?
-  registroPonto   RegistroPonto? @relation(fields: [registroPontoId], references: [id], onDelete: SetNull)
+  registroPonto   RegistroPonto?   @relation(fields: [registroPontoId], references: [id], onDelete: SetNull)
   dataFato        DateTime // Dia a que se refere a ocorrência
   tipo            String // ver TIPOS_TRATAMENTO_PONTO em lib/constants-ponto.ts
   motivo          String // Texto justificando a alteração
   // Quem abriu o pedido: "RH" (aba Tratamento) ou "COLABORADOR" (portal/app
   // de ponto, desde 21/08/2026). O colaborador pede, o RH decide — a coluna
   // existe para a tela do RH distinguir pedido recebido de ajuste próprio.
-  origem          String         @default("RH")
+  origem          String           @default("RH")
   // Só nos pedidos de ajuste de marcação vindos do colaborador: qual marcação
   // deveria ter sido registrada e em que horário (de Brasília). Texto "HH:mm"
   // porque é um horário declarado pela pessoa, não um instante medido.
   tipoMarcacao    String? // "ENTRADA_1" | "SAIDA_1" | "ENTRADA_2" | "SAIDA_2"
   horaSolicitada  String? // "HH:mm"
-  arquivoId       String?        @unique
-  arquivo         Arquivo?       @relation(fields: [arquivoId], references: [id], onDelete: SetNull)
-  status          String         @default("PENDENTE") // "PENDENTE" | "APROVADO" | "REJEITADO"
+  arquivoId       String?          @unique
+  arquivo         Arquivo?         @relation(fields: [arquivoId], references: [id], onDelete: SetNull)
+  status          String           @default("PENDENTE") // "PENDENTE" | "APROVADO" | "REJEITADO"
   aprovadoPorId   String?
   aprovadoPorNome String?
   aprovadoEm      DateTime?
@@ -2580,8 +2595,8 @@ model TratamentoPonto {
   // (Portaria MTP 671/2021) o registro do pedido não pode ser alterado por
   // quem o julga.
   motivoDecisao   String?
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
   // A marcação que esta decisão materializou (só INCLUSAO_MANUAL aprovado).
   // Um tratamento gera no máximo UMA marcação — o @unique está do lado de lá.
   marcacao        MarcacaoTratada?
@@ -2776,25 +2791,25 @@ model Pendencia {
   responsavelNome String?
   // Quem assume em férias e afastamento. Numa empresa onde uma pessoa acumula
   // RH e compliance, as férias dela não podem congelar quarenta prazos legais.
-  substitutoId   String?
-  substitutoNome String?
+  substitutoId    String?
+  substitutoNome  String?
 
   // A data-alvo, já calculada e indexada. É por ela que a tela ordena.
-  venceEm DateTime
+  venceEm     DateTime
   // DIAS_UTEIS | DIAS_CORRIDOS — citação judicial conta em dias úteis,
   // intimação eletrônica conta em corridos. Um motor que só soma dias corridos
   // erra exatamente no prazo mais caro.
-  contagem String @default("DIAS_CORRIDOS")
+  contagem    String   @default("DIAS_CORRIDOS")
   // INTERNO | JUDICIAL. Prazo JUDICIAL não pode ser sobrestado: o relógio do
   // tribunal corre independentemente do que a empresa decidir.
-  origemLegal String @default("INTERNO")
+  origemLegal String   @default("INTERNO")
 
   // CRITICA | ALTA | ATENCAO — DERIVADA de (dias restantes × impacto do
   // domínio), nunca digitada. Digitada, vira opinião de quem cadastrou.
   severidade String
 
   // ABERTA | EM_ANDAMENTO | RESOLVIDA | DISPENSADA
-  estado String @default("ABERTA")
+  estado           String    @default("ABERTA")
   // Só em DISPENSADA. Sem essa saída um falso positivo fica eterno e o usuário
   // para de confiar na lista inteira — não só naquele item.
   dispensadaMotivo String?
@@ -2837,9 +2852,9 @@ model RegraAlerta {
   responsavelPadraoUserId String?
   responsavelPadraoNome   String?
   // Para quem sobe quando o prazo aperta e ninguém tratou. Soft ref a User.
-  escalonaParaUserId String?
-  severidadeBase     String @default("ATENCAO")
-  ativa              Boolean @default(true)
+  escalonaParaUserId      String?
+  severidadeBase          String  @default("ATENCAO")
+  ativa                   Boolean @default(true)
 
   // Nulo = vale para o grupo inteiro. Preenchido = só aquele CNPJ.
   empresaId String?
@@ -2856,8 +2871,8 @@ model RegraAlerta {
 /// Inclui FORENSE de propósito: o recesso e os feriados só do tribunal mudam o
 /// prazo processual e não aparecem em calendário nenhum de RH.
 model Feriado {
-  id   String   @id @default(cuid())
-  data DateTime
+  id          String   @id @default(cuid())
+  data        DateTime
   // NACIONAL | ESTADUAL | MUNICIPAL | FORENSE
   abrangencia String
   uf          String?
@@ -2892,29 +2907,29 @@ model Veiculo {
   // Peso bruto total e capacidade máxima de tração, do CRLV. Decidem se o
   // veículo exige cronotacógrafo — vans e carros de instalação ficam abaixo do
   // limite, mas isso se confirma pelo dado real, não por suposição.
-  pbt Float?
-  cmt Float?
+  pbt       Float?
+  cmt       Float?
 
   // Onde está emplacado: decide o CALENDÁRIO de licenciamento e de IPVA, que é
   // estadual. Sem isto o alerta de licenciamento não tem como saber a data.
-  ufEmplacamento        String?
+  ufEmplacamento         String?
   // Mudança de município é gatilho de troca de placa; venda não é.
-  municipioEmplacamento String?
+  municipioEmplacamento  String?
   // Cidade-base de operação — de onde o veículo roda. Diferente de
   // `municipioEmplacamento` (onde está emplacado): na frota da L&M muitos não
   // estão emplacados mas têm cidade de operação. Importado da coluna CIDADE.
-  cidadeBase            String?
+  cidadeBase             String?
   // Setor/área a que o veículo serve — texto livre de propósito: na planilha
   // vem misturado (TECNICA, INFRA, COMERCIAL, mas também papéis e marcas como
   // CENTRY/VAPT). Vínculo formal com Setor é decisão posterior.
-  setor                 String?
+  setor                  String?
   // O veículo está emplacado? Declarado à parte da placa: a planilha traz placa
   // preenchida mesmo em veículo marcado como NÃO emplacado (antiga/provisória).
-  emplacado             Boolean @default(false)
+  emplacado              Boolean      @default(false)
   // Motorista informado na planilha — TEXTO, pode trazer dois nomes ("A / B").
   // NÃO substitui o cadastro de Condutor (via AlocacaoVeiculo): é o dado cru
   // para o RH formalizar a alocação depois.
-  motoristaInformado    String?
+  motoristaInformado     String?
   // Motorista VINCULADO ao cadastro de colaboradores — pedido do RH em
   // 31/08/2026: "com quem está" busca no cadastro, não em texto solto. O texto
   // acima vira legado (exibido só quando este vínculo não existe). SetNull: o
@@ -3031,7 +3046,7 @@ model Condutor {
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
 
-  alocacoes         AlocacaoVeiculo[]
+  alocacoes          AlocacaoVeiculo[]
   infracoesIndicadas Infracao[]
   consumos           ConsumoVeiculo[]
 
@@ -3145,8 +3160,8 @@ model Infracao {
   veiculoId String
   veiculo   Veiculo @relation(fields: [veiculoId], references: [id], onDelete: Cascade)
 
-  numeroAIT       String
-  orgaoAutuador   String?
+  numeroAIT        String
+  orgaoAutuador    String?
   // A chave que casa a multa com quem estava dirigindo.
   dataHoraInfracao DateTime
   local            String?
@@ -3163,15 +3178,15 @@ model Infracao {
   // Algumas infrações multiplicam o valor base (o exame toxicológico vencido
   // multiplica por 5). Guardar o fator separado do valor mantém as duas coisas
   // auditáveis quando a tabela de valores for reajustada.
-  fatorMultiplicador Float @default(1)
+  fatorMultiplicador Float  @default(1)
 
-  dataExpedicaoNA      DateTime?
+  dataExpedicaoNA         DateTime?
   // Data em que a notificação passa a valer, já com a ficção do SNE aplicada.
-  dataNotificacaoFicta DateTime?
-  prazoIndicacaoCondutor DateTime?
-  prazoDefesaAutuacao    DateTime?
-  dataExpedicaoNP        DateTime?
-  prazoRecursoJARI       DateTime?
+  dataNotificacaoFicta    DateTime?
+  prazoIndicacaoCondutor  DateTime?
+  prazoDefesaAutuacao     DateTime?
+  dataExpedicaoNP         DateTime?
+  prazoRecursoJARI        DateTime?
   dataVencimentoPagamento DateTime?
 
   condutorIndicadoId String?
@@ -3191,7 +3206,7 @@ model Infracao {
   statusProcessual String @default("AUTUADA")
 
   // 0 | 20 | 40 — o de 40% depende de adesão ao SNE anterior à notificação.
-  descontoAplicado Int @default(0)
+  descontoAplicado   Int     @default(0)
   // A multa por NÃO ter indicado condutor, que vale o dobro da original.
   // Aponta para a infração que a originou.
   multaNicGerada     Boolean @default(false)
@@ -3270,11 +3285,11 @@ model TransferenciaVeiculo {
   veiculo   Veiculo @relation(fields: [veiculoId], references: [id], onDelete: Cascade)
 
   // COMPRA | VENDA
-  tipo                String
-  contraparteNome     String?
+  tipo                 String
+  contraparteNome      String?
   contraparteDocumento String?
   municipioContraparte String?
-  dataNegocio         DateTime
+  dataNegocio          DateTime
 
   // ELETRONICA | IMPRESSA — liga e desliga a tarefa de comunicar a venda.
   modalidadeAtpv String @default("ELETRONICA")
@@ -3315,20 +3330,20 @@ model ConsumoVeiculo {
   condutorId String?
   condutor   Condutor? @relation(fields: [condutorId], references: [id], onDelete: SetNull)
 
-  data DateTime
+  data        DateTime
   // COMBUSTIVEL | ENERGIA — segue a motorização do veículo, mas fica gravado
   // na linha: um híbrido tem os dois, e o veículo pode mudar de motorização
   // no cadastro sem reescrever o histórico.
-  tipo String
+  tipo        String
   // GASOLINA | ETANOL | DIESEL | GNV | ELETRICIDADE — o que de fato entrou.
   combustivel String?
   // Litros ou kWh, conforme o tipo. O rótulo é da tela.
-  quantidade Float
-  valorTotal Float
+  quantidade  Float
+  valorTotal  Float
   // Hodômetro NO MOMENTO do abastecimento — é o que permite km/l e R$/km
   // entre dois registros consecutivos. Sem ele o registro vale só como gasto.
-  hodometro Int?
-  posto     String?
+  hodometro   Int?
+  posto       String?
   observacoes String?
 
   criadoPorId   String?
@@ -3351,11 +3366,11 @@ model ManutencaoVeiculo {
   veiculo   Veiculo @relation(fields: [veiculoId], references: [id], onDelete: Cascade)
 
   // PREVENTIVA | CORRETIVA | REVISAO | PNEUS | SINISTRO | OUTRA
-  tipo      String
-  descricao String
-  data      DateTime
-  valor     Float?
-  hodometro Int?
+  tipo       String
+  descricao  String
+  data       DateTime
+  valor      Float?
+  hodometro  Int?
   fornecedor String?
 
   // Quando preenchidos, viram pendência na Central (o carro avisa a próxima
@@ -3400,19 +3415,19 @@ model ManutencaoVeiculo {
 /// estudo. Duplicar por CNPJ é como o endereço de notificação formal fica
 /// certo numa ficha e desatualizado na outra.
 model Contraparte {
-  id        String @id @default(cuid())
+  id String @id @default(cuid())
 
   // FISICA | JURIDICA
-  tipoPessoa String @default("JURIDICA")
-  razaoSocial String
-  nomeFantasia String?
+  tipoPessoa             String  @default("JURIDICA")
+  razaoSocial            String
+  nomeFantasia           String?
   // Só dígitos, sem máscara — mesma convenção do CNPJ de Empresa. Único no
   // grupo inteiro: é o que impede cadastrar o mesmo fornecedor duas vezes.
-  cnpjCpf   String  @unique
-  inscricaoEstadual String?
-  endereco  String?
+  cnpjCpf                String  @unique
+  inscricaoEstadual      String?
+  endereco               String?
   emailNotificacaoFormal String?
-  telefone  String?
+  telefone               String?
 
   // CSV, não array — mesma convenção de RegraAlerta.diasAntecedencia (o
   // schema roda em SQLite local, sem array nativo). Valores:
@@ -3425,11 +3440,11 @@ model Contraparte {
   // §5º, e STF Tema 725).
   criticidade String @default("NORMAL")
 
-  observacoes String?
+  observacoes   String?
   criadoPorId   String?
   criadoPorNome String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   contratos Contrato[]
 
@@ -3447,21 +3462,21 @@ model Contrato {
   empresaId String
 
   // Único por empresa — não global, dois CNPJs podem reaproveitar numeração.
-  numero String
+  numero        String
   contraparteId String
   contraparte   Contraparte @relation(fields: [contraparteId], references: [id])
 
   // LOCACAO_TORRE|LOCACAO_TERRENO|COMPARTILHAMENTO_POSTE|
   // PREFEITURA_USO_SOLO|CONDOMINIO|FORNECEDOR|PRESTADOR_PJ|CLIENTE_B2B|OUTRO
-  tipo String
+  tipo        String
   // RECEITA | DESPESA | SEM_VALOR
-  categoria String @default("DESPESA")
-  titulo String
-  objeto String?
+  categoria   String  @default("DESPESA")
+  titulo      String
+  objeto      String?
   // RASCUNHO|VIGENTE|SUSPENSO|EM_RENOVACAO|ENCERRADO|CANCELADO
-  status String @default("VIGENTE")
+  status      String  @default("VIGENTE")
   // NORMAL | ALTA — puxa a criticidade da contraparte no cadastro, editável.
-  criticidade String @default("NORMAL")
+  criticidade String  @default("NORMAL")
 
   // Soft ref a Colaborador, mesmo padrão de Sinal.donoUserId/donoNome: o
   // histórico não vira "colaborador excluído" se o gestor for desligado —
@@ -3471,42 +3486,42 @@ model Contrato {
   setorId    String?
 
   // ── Vigência ──────────────────────────────────────────────────────────
-  dataAssinatura DateTime?
-  dataInicio     DateTime
-  dataFim        DateTime?
-  indeterminado  Boolean @default(false)
-  renovacaoAutomatica Boolean @default(false)
+  dataAssinatura              DateTime?
+  dataInicio                  DateTime
+  dataFim                     DateTime?
+  indeterminado               Boolean   @default(false)
+  renovacaoAutomatica         Boolean   @default(false)
   // Em quantos dias antes do fim a denúncia precisa ser comunicada.
   avisoPrevioNaoRenovacaoDias Int?
   // = dataFim − avisoPrevioNaoRenovacaoDias. Nula se indeterminado ou sem
   // aviso prévio configurado.
-  dataLimiteDenuncia DateTime?
+  dataLimiteDenuncia          DateTime?
 
   // Lei 8.245/1991, art. 51, §5º: só locação NÃO RESIDENCIAL tem ação
   // renovatória, com decadência do direito — não suspende nem interrompe.
-  locacaoNaoResidencial Boolean @default(false)
+  locacaoNaoResidencial      Boolean   @default(false)
   // = dataFim − 12 meses
-  janelaRenovatoriaInicio DateTime?
+  janelaRenovatoriaInicio    DateTime?
   // = dataFim − 6 meses — última chamada
-  janelaRenovatoriaFim    DateTime?
+  janelaRenovatoriaFim       DateTime?
   // Build to Suit (Lei 8.245, art. 54-A): a renúncia à revisional é
   // FACULDADE contratual, nunca presumida — por isso é campo, não regra fixa.
-  buildToSuit Boolean @default(false)
-  renunciaRevisionalPactuada Boolean @default(false)
+  buildToSuit                Boolean   @default(false)
+  renunciaRevisionalPactuada Boolean   @default(false)
 
   // ── Financeiro ────────────────────────────────────────────────────────
-  valorMensal Float?
-  valorTotal  Float?
+  valorMensal                Float?
+  valorTotal                 Float?
   // IPCA|IPCA_E|IGPM|IGPDI|INPC|CONTRATUAL|SEM_REAJUSTE
-  indiceReajuste String?
+  indiceReajuste             String?
   // Validado ≥ 12 na action: Lei 10.192/2001, art. 2º, §1º — cláusula de
   // reajuste com periodicidade menor é NULA de pleno direito, e o §3º
   // alcança artifício de efeito equivalente.
   periodicidadeReajusteMeses Int?
   // 1–12, mês-base do índice.
-  mesBaseReajuste Int?
+  mesBaseReajuste            Int?
   // Materializada a partir de mesBaseReajuste + periodicidadeReajusteMeses.
-  proximoReajuste DateTime?
+  proximoReajuste            DateTime?
   /// Quando o reajuste foi APLICADO de verdade — é o que fecha o ciclo.
   ///
   /// Sem esta coluna, `proximoReajuste` era gravado uma vez e nada no sistema
@@ -3515,13 +3530,13 @@ model Contrato {
   /// reajuste daquele contrato em definitivo. Um alerta anual cuja única saída
   /// é o silêncio permanente é pior que alerta nenhum: treina o time a
   /// dispensar.
-  ultimoReajusteEm DateTime?
-  multaCompensatoriaPct Float?
-  multaMoratoriaPct     Float?
+  ultimoReajusteEm           DateTime?
+  multaCompensatoriaPct      Float?
+  multaMoratoriaPct          Float?
 
   // ── Jurídico ──────────────────────────────────────────────────────────
-  foroComarca String?
-  foroUf      String?
+  foroComarca   String?
+  foroUf        String?
   lgpdAplicavel Boolean @default(false)
 
   // ── Específico de telecom: compartilhamento de poste ────────────────────
@@ -3537,8 +3552,8 @@ model Contrato {
 
   criadoPorId   String?
   criadoPorNome String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   recebimentos RecebimentoAluguel[]
 
@@ -3624,7 +3639,7 @@ model UserPerfil {
 /// `recebidoEm` nulo = em aberto. Passada a data de `vencimento` sem receber,
 /// vira pendência na Central (mesmo motor dos outros prazos do módulo).
 model RecebimentoAluguel {
-  id         String  @id @default(cuid())
+  id         String   @id @default(cuid())
   contratoId String
   contrato   Contrato @relation(fields: [contratoId], references: [id], onDelete: Cascade)
 
@@ -3651,8 +3666,8 @@ model RecebimentoAluguel {
 
   registradoPorId   String?
   registradoPorNome String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   @@unique([contratoId, competencia])
   @@index([empresaId, vencimento])
@@ -3695,10 +3710,10 @@ model RecebimentoAluguel {
 /// (User.colaboradorId → Colaborador.telegramChatId) é cobrado pelos canais
 /// restantes, e a tela AVISA (sem bloquear) na criação.
 model Demanda {
-  id     String  @id @default(cuid())
+  id        String  @id @default(cuid())
   /// Máx. 120 caracteres — validado na action (convenção do repo: limite no
   /// backend, não em @db).
-  titulo String
+  titulo    String
   descricao String?
 
   solicitanteId String
@@ -3708,21 +3723,21 @@ model Demanda {
   /// do responsável único fica intacta: quem agrupa os convocados é a
   /// Reuniao, nunca a demanda). Null nas demandas comuns. SetNull: apagar a
   /// reunião não pode apagar as cobranças que já correm.
-  reuniaoId String?
-  reuniao   Reuniao? @relation(fields: [reuniaoId], references: [id], onDelete: SetNull)
+  reuniaoId     String?
+  reuniao       Reuniao? @relation(fields: [reuniaoId], references: [id], onDelete: SetNull)
   /// UM responsável, sempre. Regra 1: dono único — a coluna é escalar por
   /// desenho, e não existe tabela pivô de responsáveis de propósito.
   responsavelId String
-  responsavel   User   @relation("DemandaResponsavel", fields: [responsavelId], references: [id])
+  responsavel   User     @relation("DemandaResponsavel", fields: [responsavelId], references: [id])
 
   /// "Como sei que ficou pronto." Regra 2: sem isto o registro NÃO é salvo —
   /// a action recusa antes do INSERT, e o NOT NULL segura via API direta.
-  criterioAceite String
+  criterioAceite   String
   /// LINK | ARQUIVO | NUMERO | TEXTO — que forma de evidência a entrega exige.
   evidenciaExigida String
   /// 1 = crítica, 2 = alta, 3 = normal. Decide a régua de cobrança e o limite
   /// de aceite (24/48/72h) — ver lib/delegacoes/estados.ts.
-  criticidade Int
+  criticidade      Int
 
   /// Estimativa de ESFORÇO para concluir, em horas — sugerida pela IA ao
   /// redigir (redator.ts), editável antes de enviar. PLANEJAMENTO, não
@@ -3735,7 +3750,7 @@ model Demanda {
 
   /// SEMPRE timestamp, nunca texto livre (spec §3.5). O prazo VIGENTE — muda
   /// por repactuação.
-  prazo DateTime
+  prazo         DateTime
   /// O prazo pactuado na criação. IMUTÁVEL: nenhuma action escreve nesta
   /// coluna depois do INSERT (regra 6) — é ele que denuncia quantas vezes a
   /// demanda escorregou.
@@ -3755,7 +3770,7 @@ model Demanda {
   /// RASCUNHO | ENVIADA | ACEITA | EM_EXECUCAO | ENTREGUE | ENCERRADA |
   /// CANCELADA — máquina de estados em lib/delegacoes/estados.ts, com controle
   /// de QUEM pode cada transição. O responsável nunca chega a ENCERRADA.
-  status String @default("RASCUNHO")
+  status  String  @default("RASCUNHO")
   /// Flag ORTOGONAL ao status (spec §4): uma demanda ACEITA ou EM_EXECUCAO
   /// pode estar em risco sem mudar de estado.
   emRisco Boolean @default(false)
@@ -3769,13 +3784,13 @@ model Demanda {
 
   /// Guarda de idempotência das cobranças (spec §6.1): o cron só dispara se a
   /// janela ainda não foi coberta.
-  ultimaCobranca  DateTime?
+  ultimaCobranca     DateTime?
   /// O QUE O CRON CONSULTA (`proximaCobranca <= agora`). Nula até o PR 5
   /// ligar a régua — o modelo nasce pronto para ela.
-  proximaCobranca DateTime?
+  proximaCobranca    DateTime?
   /// 0–3. Sobe a cada degrau da régua e NUNCA desce sozinho — só zera no
   /// encerramento (spec §6.2).
-  nivelEscalonamento Int @default(0)
+  nivelEscalonamento Int       @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -3830,17 +3845,17 @@ model DemandaEntrega {
   /// A evidência quando é ARQUIVO — mesma esteira Arquivo/Blob do dossiê do
   /// colaborador e do documento do veículo. SetNull: apagar o arquivo não
   /// pode apagar o registro de que a entrega aconteceu.
-  arquivoId String?  @unique
-  arquivo   Arquivo? @relation(fields: [arquivoId], references: [id], onDelete: SetNull)
+  arquivoId      String?  @unique
+  arquivo        Arquivo? @relation(fields: [arquivoId], references: [id], onDelete: SetNull)
 
   /// O que o responsável declarou ao entregar.
-  resultado String?
+  resultado       String?
   /// null = aguardando o solicitante; true = aceita (demanda encerrou);
   /// false = devolvida (demanda voltou a EM_EXECUCAO).
   aceita          Boolean?
   motivoDevolucao String?
   avaliadaEm      DateTime?
-  createdAt       DateTime @default(now())
+  createdAt       DateTime  @default(now())
 
   @@index([demandaId, createdAt])
   @@schema("rh")
@@ -3854,10 +3869,10 @@ model DemandaInteracao {
   demanda   Demanda @relation(fields: [demandaId], references: [id], onDelete: Cascade)
 
   /// ENVIADA (o sistema cobrou) | RECEBIDA (o responsável respondeu).
-  tipo   String
+  tipo            String
   /// TELEGRAM | EMAIL | PAINEL
-  canal  String
-  conteudo String
+  canal           String
+  conteudo        String
   /// NO_PRAZO | EM_RISCO | TRAVADO_DEPENDENCIA | PRECISA_DECISAO_SUA —
   /// preenchidos pelo classificador (PR 6) nas interações RECEBIDAS.
   classificacaoIa String?
@@ -3882,10 +3897,10 @@ model Reuniao {
   id String @id @default(cuid())
 
   /// Máx. 120 caracteres — validado na action, como o título da demanda.
-  titulo String
-  pauta  String?
+  titulo   String
+  pauta    String?
   /// Onde acontece — sala, endereço ou link de vídeo.
-  local  String?
+  local    String?
   /// QUANDO acontece — timestamp, nunca texto livre (mesma regra do prazo da
   /// demanda). É ele que vira o prazo das demandas dos convocados.
   dataHora DateTime

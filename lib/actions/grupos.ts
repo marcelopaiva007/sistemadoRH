@@ -6,6 +6,7 @@ import { requireMaster } from "@/lib/grupo-guard";
 import { registrarAuditoria } from "@/lib/audit";
 import { violouUnique } from "@/lib/prisma-erros";
 import type { ActionResult } from "@/lib/constants";
+import { apenasDigitosCnpj, cnpjValido } from "@/lib/cnpj";
 
 // Ações do MASTER sobre os GRUPOS de sociedade (lib/grupo.ts) — os CLIENTES
 // da FASTMAI na Gestão (v1.192.0): cada grupo é um cliente, com as suas marcas
@@ -74,6 +75,72 @@ export async function renomearGrupo(
   }
   revalidatePath(CAMINHO);
   revalidatePath("/admin/usuarios");
+  return { ok: true };
+}
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * Dados cadastrais do cliente (v1.197.0, Fase 1): documento, responsável e
+ * contrato. Grava só o que veio no formulário; campo vazio vira null — o
+ * cliente pode ficar sem um dado, e a tela marca o que falta.
+ */
+export async function salvarDadosCliente(
+  grupoId: string,
+  _prev: ActionResult,
+  fd: FormData,
+): Promise<ActionResult> {
+  await requireMaster();
+  const antes = await prisma.grupo.findUnique({ where: { id: grupoId }, select: { nome: true } });
+  if (!antes) return { ok: false, error: "Cliente não encontrado." };
+
+  const ouNulo = (campo: string) => texto(fd, campo) || null;
+
+  const cnpjBruto = texto(fd, "cnpj");
+  const cnpj = cnpjBruto ? apenasDigitosCnpj(cnpjBruto) : null;
+  if (cnpj && !cnpjValido(cnpj)) return { ok: false, error: "CNPJ inválido. Confira os números." };
+
+  const contatoEmail = ouNulo("contatoEmail")?.toLowerCase() ?? null;
+  if (contatoEmail && !EMAIL_RE.test(contatoEmail)) return { ok: false, error: "E-mail de contato inválido." };
+
+  const limiteBruto = texto(fd, "limiteUsuarios");
+  let limiteUsuarios: number | null = null;
+  if (limiteBruto) {
+    const n = Number(limiteBruto);
+    if (!Number.isInteger(n) || n < 1 || n > 100000)
+      return { ok: false, error: "Limite de usuários precisa ser um número inteiro a partir de 1 (ou vazio para sem limite)." };
+    limiteUsuarios = n;
+  }
+
+  const dataBruta = texto(fd, "inicioContrato");
+  let inicioContrato: Date | null = null;
+  if (dataBruta) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dataBruta)) return { ok: false, error: "Data de início do contrato inválida." };
+    inicioContrato = new Date(`${dataBruta}T00:00:00.000Z`);
+    if (Number.isNaN(inicioContrato.getTime())) return { ok: false, error: "Data de início do contrato inválida." };
+  }
+
+  await prisma.grupo.update({
+    where: { id: grupoId },
+    data: {
+      razaoSocial: ouNulo("razaoSocial"),
+      cnpj,
+      responsavelNome: ouNulo("responsavelNome"),
+      contatoEmail,
+      contatoTelefone: ouNulo("contatoTelefone"),
+      plano: ouNulo("plano"),
+      limiteUsuarios,
+      inicioContrato,
+      observacoes: ouNulo("observacoes"),
+    },
+  });
+  await registrarAuditoria({
+    acao: "ATUALIZAR",
+    entidade: "Grupo",
+    entidadeId: grupoId,
+    resumo: `Atualizou os dados cadastrais do cliente "${antes.nome}"`,
+  });
+  revalidatePath(CAMINHO);
   return { ok: true };
 }
 

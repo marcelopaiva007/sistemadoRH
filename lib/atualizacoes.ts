@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.197.0",
+    data: "06/11/2026",
+    horario: "17:00",
+    titulo: "Gestão FASTMAI: cadastro completo do cliente",
+    itens: [
+      "Cada cliente ganhou \"Dados do cliente\": razão social, CNPJ, responsável, e-mail e telefone de contato, plano, limite de usuários, início do contrato e observações.",
+      "O cartão do cliente mostra o resumo do contrato e avisa quando o cadastro está incompleto.",
+      "Com limite de usuários preenchido, o cartão mostra quantos estão em uso e avisa quando passa do contratado.",
+    ],
+  },
+  {
     versao: "1.196.0",
     data: "06/11/2026",
     horario: "08:30",
