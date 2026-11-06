@@ -199,9 +199,12 @@ export function AppTopbar({
               <KeyRound />
               Conta
             </DropdownMenuItem>
+            {/* "trocar de usuário" (v1.191.0): quem trabalha na L&M e nas
+                demais marcas tem um usuário para cada grupo, e a troca é sair
+                e entrar com o outro. */}
             <DropdownMenuItem variant="destructive" onClick={() => signOut({ callbackUrl: "/login" })}>
               <LogOut />
-              Sair
+              Sair / trocar de usuário
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             {/* A versão responde "estou vendo a entrega nova?" — pergunta sobre

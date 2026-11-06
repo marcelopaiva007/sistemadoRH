@@ -11,7 +11,7 @@ import { CAMINHO_PADRAO_DO_ADMIN, voltaDoAdmin } from "@/lib/admin-volta";
 export const authConfig = {
   pages: {
     signIn: "/login",
-    // Erro do login com Google (credencial, callback) volta para a tela de
+    // Erro do próprio NextAuth (configuração, callback) volta para a tela de
     // login com `?error=`, e não para a página de erro em inglês do NextAuth.
     error: "/login",
   },
@@ -45,10 +45,11 @@ export const authConfig = {
       // /carreiras é a vitrine pública: lista as vagas publicadas do grupo e
       // leva para /vagas/<slug>. Só mostra o que já é público por definição.
       if (request.nextUrl.pathname.startsWith("/carreiras")) return true;
-      // "Esqueci minha senha": pedir o link e redefinir com o token são as
-      // duas telas que, por definição, quem não consegue logar precisa
-      // acessar sem estar logado.
+      // "Esqueci minha senha" e "Esqueci meu usuário": pedir o link, redefinir
+      // com o token e receber o usuário por e-mail são as telas que, por
+      // definição, quem não consegue logar precisa acessar sem estar logado.
       if (request.nextUrl.pathname.startsWith("/esqueci-senha")) return true;
+      if (request.nextUrl.pathname.startsWith("/esqueci-usuario")) return true;
       if (request.nextUrl.pathname.startsWith("/redefinir-senha")) return true;
       // ÁREA DE ADMINISTRAÇÃO (app/admin, v1.188.0): endereço, login e tela
       // próprios, só da conta MASTER. O login do admin é público — e quem já

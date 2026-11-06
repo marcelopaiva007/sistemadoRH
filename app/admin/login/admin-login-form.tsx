@@ -36,7 +36,9 @@ export function AdminLoginForm({ destino = "/admin" }: { destino?: string }) {
         setError(
           motivo?.tipo === "bloqueado"
             ? `Muitas tentativas seguidas. Tente de novo em ${motivo.minutos} minuto${motivo.minutos > 1 ? "s" : ""}.`
-            : "Usuário ou senha inválidos.",
+            : usuario.includes("@")
+              ? "Usuário ou senha inválidos. O acesso é pelo nome de usuário, não pelo e-mail."
+              : "Usuário ou senha inválidos.",
         );
         return;
       }

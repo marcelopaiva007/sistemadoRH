@@ -26,6 +26,20 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.191.0",
+    data: "05/11/2026",
+    horario: "22:45",
+    titulo: "Acesso só por usuário e senha — um usuário para cada grupo",
+    itens: [
+      "O login agora é só pelo nome de usuário e a senha. O e-mail não serve mais para entrar, e o botão \"Entrar com Google\" saiu. Quem digitar o e-mail por hábito vê o aviso na própria tela.",
+      "Cada usuário é de um grupo: a LM Telecom ou as demais marcas. Quem trabalha nos dois tem dois usuários (por exemplo, \"marcelo\" e \"marcelo.lm\") e pode usar a mesma senha nos dois. Para trocar, use \"Sair / trocar de usuário\" no menu do nome e entre com o outro.",
+      "O usuário não se repete, nem com maiúsculas diferentes. Ao criar um usuário que já existe, a tela diz em que grupo ele está e sugere outro livre (ex.: \"marcelo.lm\"). Usuário novo é gravado em minúsculas, sem \"@\" e sem espaço; os usuários de hoje continuam como estão.",
+      "O e-mail virou contato: pode ser o mesmo nos usuários da mesma pessoa, e recebe os avisos e os links de recuperação.",
+      "\"Esqueci minha senha\" agora pede o usuário e manda o link para o e-mail cadastrado nele. Novo \"Esqueci meu usuário\": a pessoa informa o e-mail e recebe todos os usuários ligados a ele, com o grupo de cada um.",
+      "Saiu o \"Convidar por e-mail\" da lista de Usuários do admin: o link do convite levava a uma página que não existia. O caminho é criar o usuário com uma senha inicial e a pessoa trocar depois.",
+    ],
+  },
+  {
     versao: "1.190.0",
     data: "05/11/2026",
     horario: "21:35",

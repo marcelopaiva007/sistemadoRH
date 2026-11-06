@@ -108,18 +108,16 @@ export async function garantirAcessoDoColaborador(
 
   // E-MAIL FICA NULO, E ISSO É UMA TRAVA DE SEGURANÇA — não economia de campo.
   //
-  // "Esqueci minha senha" (lib/actions/recuperacao-senha.ts) acha a pessoa por
-  // `findUnique({ where: { email } })` e só confere `ativo`. Um acesso de
-  // portal com e-mail preenchido pediria o link de recuperação, definiria uma
-  // senha e viraria login de verdade — sozinho, sem ninguém conceder nada. A
-  // senha impossível não segura isso; o e-mail nulo segura.
+  // "Esqueci minha senha" (lib/actions/recuperacao-senha.ts) manda o link para
+  // o e-mail cadastrado da conta. Um acesso de portal com e-mail preenchido
+  // poderia pedir o link, definir uma senha e virar login de verdade —
+  // sozinho, sem ninguém conceder nada. A senha impossível não segura isso; o
+  // e-mail nulo segura (e, desde a v1.191.0, a recuperação também recusa o
+  // papel de portal, para a trava não depender de um campo só).
   //
-  // De quebra, `User.email` é único: copiar da ficha quebraria na primeira
-  // pessoa com o mesmo e-mail em duas fichas, e ocuparia o endereço de quem
-  // amanhã vira usuário de verdade.
-  //
-  // Quem for promovido a usuário do sistema recebe e-mail e senha pela tela de
-  // Usuários — decisão explícita de alguém, que é como acesso deve nascer.
+  // Quem for promovido a usuário do sistema recebe usuário, e-mail e senha pela
+  // tela de Usuários — decisão explícita de alguém, que é como acesso deve
+  // nascer.
   const criado = await tx.user.create({
     data: {
       nome: colaborador.nome,

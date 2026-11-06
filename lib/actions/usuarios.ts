@@ -1,6 +1,5 @@
 "use server";
 
-import { randomBytes, createHash } from "node:crypto";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
@@ -10,12 +9,13 @@ import { empresasVisiveis, usuarioAlcancaEmpresa } from "@/lib/rh-auth-guard";
 import { redirect } from "next/navigation";
 import { ehMaster, grupoDoUsuario, PAPEIS_DE_RESTRICAO } from "@/lib/grupo";
 import { auth } from "@/auth";
-import { sendEmail } from "@/lib/email";
 import { registrarAuditoria, diffCampos } from "@/lib/audit";
 import { escreverCookieEmpresaAtiva } from "@/lib/empresa-ativa";
 import type { ActionResult } from "@/lib/constants";
 import { deixariaSistemaSemAdmin, promoveriaAGestorSemSetor } from "@/lib/usuarios-regras";
 import { aplicarMarcasQueVe } from "@/lib/marcas-que-ve";
+import { candidatosDeLogin, normalizarLogin, problemaNoLogin } from "@/lib/login-usuario";
+import { loginJaUsado } from "@/lib/usuario-por-identificador";
 
 const ROLES = ["ADMIN", "DIRETORIA", "RH_MANAGER", "GESTOR_SETOR"] as const;
 type Role = (typeof ROLES)[number];
@@ -25,6 +25,10 @@ type Role = (typeof ROLES)[number];
 const ROLES_COM_EMPRESA = ["RH_MANAGER", "GESTOR_SETOR"] as const;
 const ROLES_POR_EMPRESA = ROLES_COM_EMPRESA;
 
+// E-mail é CONTATO desde a v1.191.0 (avisos e os links de "Esqueci minha
+// senha"/"Esqueci meu usuário"), não identifica a conta: pode repetir entre os
+// usuários da mesma pessoa — o "marcelo" e o "marcelo.lm" recebem no mesmo
+// endereço.
 const emailSchema = z
   .string()
   .trim()
@@ -35,7 +39,9 @@ const emailSchema = z
 const criarSchema = z
   .object({
     nome: z.string().trim().min(2, "Informe o nome"),
-    username: z.string().trim().min(3, "Informe o usuário de login"),
+    // O formato (minúsculas, sem "@", sem espaço) e o "não repete" são
+    // conferidos na action — lib/login-usuario.ts.
+    username: z.string().trim().min(1, "Informe o usuário de login"),
     email: emailSchema,
     telefone: z.string().trim().optional(),
     role: z.enum(ROLES),
@@ -69,7 +75,9 @@ const criarSchema = z
 const editarSchema = z
   .object({
     nome: z.string().trim().min(2, "Informe o nome"),
-    username: z.string().trim().min(3, "Informe o usuário de login"),
+    // O formato (minúsculas, sem "@", sem espaço) e o "não repete" são
+    // conferidos na action — lib/login-usuario.ts.
+    username: z.string().trim().min(1, "Informe o usuário de login"),
     email: emailSchema,
     telefone: z.string().trim().optional(),
     role: z.enum(ROLES),
@@ -88,12 +96,6 @@ const vincularSchema = z
     message: "Selecione o setor do gestor",
     path: ["setorId"],
   });
-
-const CONVITE_EXPIRA_EM_DIAS = 7;
-
-function hashToken(token: string): string {
-  return createHash("sha256").update(token).digest("hex");
-}
 
 // ── GRUPO (sociedade) na gestão de usuários — ver lib/grupo.ts ─────────────
 //
@@ -203,6 +205,36 @@ async function marcasDaDirecaoSoComMaster(
   return null;
 }
 
+/**
+ * O usuário já existe (sem diferença de maiúsculas)? Devolve a mensagem para a
+ * tela, com o grupo da conta que já tem esse nome e uma sugestão livre para a
+ * MESMA pessoa no grupo de destino ("marcelo" → "marcelo.lm"). `null` se o
+ * nome está livre.
+ */
+async function loginRepetido(
+  login: string,
+  grupoDestinoId: string | null,
+  excetoId?: string,
+): Promise<string | null> {
+  const existente = await loginJaUsado(login, excetoId);
+  if (!existente) return null;
+  const grupoDestino = grupoDestinoId
+    ? await prisma.grupo.findUnique({ where: { id: grupoDestinoId }, select: { nome: true } })
+    : null;
+  let sugestao: string | null = null;
+  for (const candidato of candidatosDeLogin(login, grupoDestino?.nome)) {
+    if (!(await loginJaUsado(candidato, excetoId))) {
+      sugestao = candidato;
+      break;
+    }
+  }
+  const onde = existente.grupoNome ? ` (grupo ${existente.grupoNome})` : "";
+  const saida = sugestao
+    ? ` Se é a mesma pessoa${grupoDestino ? ` no grupo ${grupoDestino.nome}` : ""}, crie outro usuário — por exemplo “${sugestao}” — e ela pode usar a mesma senha.`
+    : " Escolha outro.";
+  return `Já existe o usuário “${existente.username}”${onde}. Usuário não se repete, nem com maiúsculas diferentes.${saida}`;
+}
+
 export async function createUsuario(
   _prev: ActionResult,
   formData: FormData,
@@ -224,8 +256,12 @@ export async function createUsuario(
   });
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
 
-  const { nome, username, email, telefone, role, marcaId, empresaId, setorId } =
-    parsed.data;
+  const { nome, email, telefone, role, marcaId, empresaId, setorId } = parsed.data;
+
+  // Usuário novo nasce no padrão: minúsculas, sem "@" e sem espaço.
+  const username = normalizarLogin(parsed.data.username);
+  const problemaLogin = problemaNoLogin(username);
+  if (problemaLogin) return { ok: false, error: problemaLogin };
 
   // Em que grupo a conta nasce: o MASTER escolhe; os demais criam no próprio.
   const grupoId = esc.master
@@ -246,6 +282,9 @@ export async function createUsuario(
   if (empresaId && !(await empresaNoGrupo(empresaId, grupoId))) {
     return { ok: false, error: "O CNPJ escolhido não é deste grupo." };
   }
+  // Um usuário por grupo: quem trabalha nos dois tem dois usuários.
+  const repetido = await loginRepetido(username, grupoId);
+  if (repetido) return { ok: false, error: repetido };
 
   const passwordHash = await bcrypt.hash(senha, 10);
 
@@ -316,11 +355,9 @@ export async function createUsuario(
     return { ok: true };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
+    // Corrida entre dois cadastros com o mesmo nome: o índice único barra.
     if (msg.includes("Unique constraint") && msg.includes("username")) {
       return { ok: false, error: "Já existe um usuário com esse login." };
-    }
-    if (msg.includes("Unique constraint") && msg.includes("email")) {
-      return { ok: false, error: "Já existe um usuário com esse e-mail." };
     }
     return { ok: false, error: "Erro ao criar usuário." };
   }
@@ -359,6 +396,18 @@ export async function updateUsuario(
     },
   });
   if (!antes) return { ok: false, error: "Usuário não encontrado." };
+
+  // O nome de usuário só é cobrado no padrão novo quando MUDA: usuário antigo
+  // fora do padrão (com maiúscula, por exemplo) continua como está ao editar
+  // o nome ou o e-mail.
+  const mudouLogin = parsed.data.username !== antes.username;
+  const username = mudouLogin ? normalizarLogin(parsed.data.username) : antes.username;
+  if (mudouLogin) {
+    const problemaLogin = problemaNoLogin(username);
+    if (problemaLogin) return { ok: false, error: problemaLogin };
+    const repetido = await loginRepetido(username, grupoAlvo, id);
+    if (repetido) return { ok: false, error: repetido };
+  }
 
   // Conta presa a algumas marcas pelo admin (lib/grupo.ts) só muda de papel
   // pelas mãos do admin: rebaixar a RH e promover de volta era o atalho para
@@ -428,7 +477,7 @@ export async function updateUsuario(
         where: { id },
         data: {
           nome: parsed.data.nome,
-          username: parsed.data.username,
+          username,
           email: parsed.data.email ?? null,
           telefone: parsed.data.telefone ?? null,
           role: parsed.data.role,
@@ -468,11 +517,9 @@ export async function updateUsuario(
     return { ok: true };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
+    // Corrida entre dois cadastros com o mesmo nome: o índice único barra.
     if (msg.includes("Unique constraint") && msg.includes("username")) {
       return { ok: false, error: "Já existe um usuário com esse login." };
-    }
-    if (msg.includes("Unique constraint") && msg.includes("email")) {
-      return { ok: false, error: "Já existe um usuário com esse e-mail." };
     }
     return { ok: false, error: "Erro ao atualizar usuário." };
   }
@@ -1066,233 +1113,6 @@ export async function trocarEmpresaAtiva(empresaId: string, setorId?: string | n
 
   await escreverCookieEmpresaAtiva(empresaId);
   revalidatePath("/", "layout");
-  return { ok: true };
-}
-
-const conviteSchema = z
-  .object({
-    email: z.string().trim().email("E-mail inválido"),
-    nome: z.string().trim().min(2, "Informe o nome"),
-    role: z.enum(ROLES_COM_EMPRESA),
-    empresaId: z.string().trim().min(1, "Selecione a empresa"),
-    setorId: z.string().trim().optional(),
-  })
-  // A mesma exigência de `criarSchema` e `vincularSchema`. Faltava só aqui, e o
-  // convite é justamente a porta que cria gestor sem ninguém revisar depois:
-  // quem aceitava entrava com papel de gestor e setor nenhum, e "Meu Setor" não
-  // tinha o que mostrar. Ver `gestorSetorPodeAbrirMeuSetor`.
-  .refine((d) => d.role !== "GESTOR_SETOR" || !!d.setorId, {
-    message: "Selecione o setor do gestor",
-    path: ["setorId"],
-  });
-
-export async function criarConviteUsuario(
-  _prev: ActionResult,
-  formData: FormData,
-): Promise<ActionResult> {
-  const esc = await escopoGestao();
-
-  const parsed = conviteSchema.safeParse({
-    email: formData.get("email"),
-    nome: formData.get("nome"),
-    role: formData.get("role"),
-    empresaId: formData.get("empresaId"),
-    setorId: formData.get("setorId") || undefined,
-  });
-  if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
-
-  const { email, nome, role, empresaId, setorId } = parsed.data;
-
-  // O convite nasce no GRUPO dono do CNPJ. Quem não é MASTER só convida para
-  // CNPJ do próprio grupo.
-  const empresaAlvo = await prisma.empresa.findUnique({
-    where: { id: empresaId },
-    select: { marca: { select: { grupoId: true } } },
-  });
-  const grupoId = empresaAlvo?.marca.grupoId ?? null;
-  if (!grupoId || (!esc.master && grupoId !== esc.grupoId)) {
-    return { ok: false, error: "Empresa não encontrada." };
-  }
-
-  // Se o e-mail já bate com um user existente, vincula direto — não manda
-  // convite (não faria sentido o user "aceitar" um convite pra si mesmo).
-  const userExistente = await prisma.user.findUnique({ where: { email } });
-  if (userExistente && userExistente.grupoId !== grupoId) {
-    // Conta de OUTRO grupo com o mesmo e-mail: não se vincula por cima — seria
-    // abrir este grupo para uma conta do outro. Um login por grupo.
-    return { ok: false, error: "Já existe um usuário com esse e-mail." };
-  }
-  if (userExistente) {
-    try {
-      await prisma.userEmpresa.upsert({
-        where: { userId_empresaId: { userId: userExistente.id, empresaId } },
-        update: { role, setorId: setorId ?? null, ativo: true },
-        create: { userId: userExistente.id, empresaId, role, setorId: setorId ?? null, papelPrincipal: false },
-      });
-      await registrarAuditoria({
-        acao: "VINCULAR",
-        entidade: "UserEmpresa",
-        entidadeId: `${userExistente.id}:${empresaId}`,
-        empresaId,
-        resumo: `Vinculou usuário existente ${userExistente.username} (${email}) como ${role}`,
-        detalhes: { via: "convite", role, setorId },
-      });
-      revalidatePath("/admin/usuarios");
-      return { ok: true };
-    } catch {
-      return { ok: false, error: "Erro ao vincular usuário existente." };
-    }
-  }
-
-  // Senão, cria User inativo + gera token + manda e-mail.
-  const token = randomBytes(32).toString("base64url");
-  const tokenHash = hashToken(token);
-  const expiraEm = new Date(Date.now() + CONVITE_EXPIRA_EM_DIAS * 24 * 60 * 60 * 1000);
-
-  // Username derivado do e-mail — único no sistema. Conflito cai em fallback.
-  const usernameBase = email.split("@")[0].replace(/[^a-zA-Z0-9._-]/g, "").slice(0, 24) || "user";
-  let username = usernameBase;
-  let tentativa = 0;
-  while (await prisma.user.findUnique({ where: { username } })) {
-    tentativa += 1;
-    username = `${usernameBase}${tentativa}`;
-    if (tentativa > 50) return { ok: false, error: "Não foi possível gerar username único." };
-  }
-
-  // Senha placeholder — nunca vai ser usada: o `aceitarConviteUsuario`
-  // sobrescreve antes do user logar pela primeira vez. Manter como hash
-  // garante que mesmo se o user for ativado por outro caminho, a senha
-  // placeholder não valide nada.
-  const placeholder = await bcrypt.hash(randomBytes(32).toString("hex"), 10);
-
-  try {
-    await prisma.$transaction(async (tx) => {
-      const user = await tx.user.create({
-        data: {
-          nome,
-          username,
-          email,
-          passwordHash: placeholder,
-          role,
-          grupoId,
-          ativo: false,
-          conviteExpiraEm: expiraEm,
-          conviteTokenHash: tokenHash,
-          empresaId: empresaId,
-          setorId: setorId ?? null,
-        },
-      });
-      await tx.userEmpresa.create({
-        data: {
-          userId: user.id,
-          empresaId,
-          role,
-          setorId: setorId ?? null,
-          papelPrincipal: true,
-        },
-      });
-    });
-
-    const baseUrl = process.env.NEXTAUTH_URL ?? process.env.APP_URL ?? "http://localhost:3000";
-    const link = `${baseUrl}/conta/aceitar-convite?token=${encodeURIComponent(token)}`;
-
-    const empresa = await prisma.empresa.findUnique({
-      where: { id: empresaId },
-      select: { nome: true },
-    });
-
-    const html = `
-      <p>Olá, ${nome},</p>
-      <p>Você foi convidado(a) a acessar o RH do grupo como <strong>${role === "RH_MANAGER" ? "gestor(a) de RH" : "gestor(a) de setor"}</strong>${empresa ? ` em <strong>${empresa.nome}</strong>` : ""}.</p>
-      <p>Para ativar seu acesso, defina sua senha clicando abaixo. O link expira em ${CONVITE_EXPIRA_EM_DIAS} dias.</p>
-      <p style="margin:24px 0">
-        <a href="${link}" style="background:#0f172a;color:white;padding:12px 20px;border-radius:6px;text-decoration:none;display:inline-block">Definir senha e entrar</a>
-      </p>
-      <p>Ou cole este link no navegador:</p>
-      <p style="word-break:break-all;color:#475569">${link}</p>
-    `.trim();
-
-    const envio = await sendEmail({
-      to: email,
-      subject: "Convite para acessar o sistema de RH",
-      html,
-      text: `Acesse ${link} para definir sua senha. O link expira em ${CONVITE_EXPIRA_EM_DIAS} dias.`,
-      // Protege contra duplo clique no botão de convidar. Reenvio legítimo
-      // (a pessoa perdeu o e-mail) volta a passar no dia seguinte.
-      chave: `convite-usuario:${email.trim().toLowerCase()}`,
-    });
-    if (!envio.ok) {
-      return { ok: false, error: `Convite criado, mas e-mail falhou: ${envio.error}` };
-    }
-
-    await registrarAuditoria({
-      acao: "ENVIAR_CONVITE",
-      entidade: "User",
-      entidadeId: email,
-      empresaId,
-      resumo: `Convidou ${email} como ${role} em ${empresa?.nome ?? empresaId}`,
-      detalhes: { role, setorId, expiraEm },
-    });
-
-    revalidatePath("/admin/usuarios");
-    return { ok: true };
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    if (msg.includes("Unique constraint") && msg.includes("email")) {
-      return { ok: false, error: "Já existe um usuário com esse e-mail." };
-    }
-    return { ok: false, error: "Erro ao criar convite." };
-  }
-}
-
-const aceitarSchema = z.object({
-  token: z.string().trim().min(10),
-  senha: z.string().min(8, "A senha deve ter pelo menos 8 caracteres."),
-});
-
-export async function aceitarConviteUsuario(token: string, senha: string): Promise<ActionResult> {
-  const parsed = aceitarSchema.safeParse({ token, senha });
-  if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
-
-  const tokenHash = hashToken(parsed.data.token);
-
-  const user = await prisma.user.findFirst({
-    where: {
-      conviteTokenHash: tokenHash,
-      ativo: false,
-    },
-    select: { id: true, email: true, nome: true, conviteExpiraEm: true },
-  });
-  if (!user) return { ok: false, error: "Convite inválido ou já utilizado." };
-  if (!user.conviteExpiraEm || user.conviteExpiraEm < new Date()) {
-    return { ok: false, error: "Convite expirado." };
-  }
-
-  const passwordHash = await bcrypt.hash(parsed.data.senha, 10);
-
-  await prisma.$transaction(async (tx) => {
-    await tx.user.update({
-      where: { id: user.id },
-      data: {
-        ativo: true,
-        passwordHash,
-        conviteTokenHash: null,
-        conviteExpiraEm: null,
-      },
-    });
-    await tx.userEmpresa.updateMany({
-      where: { userId: user.id },
-      data: { ativo: true },
-    });
-  });
-
-  await registrarAuditoria({
-    acao: "ACEITAR_CONVITE",
-    entidade: "User",
-    entidadeId: user.id,
-    resumo: `${user.nome} (${user.email}) aceitou o convite`,
-  });
-
   return { ok: true };
 }
 

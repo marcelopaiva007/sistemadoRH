@@ -62,11 +62,17 @@ console.log("\nA TRAVA PRINCIPAL: sem e-mail, não há 'esqueci minha senha'\n")
   ok(!/(^|\W)email:/.test(trechoCreate), "o acesso de portal NASCE sem e-mail");
 
   const recuperacao = leia("lib/actions/recuperacao-senha.ts");
-  // Desde a v1.187.0 a busca é exata e sem maiúsculas (lib/usuario-por-
-  // identificador.ts), mas continua SÓ pelo campo e-mail.
+  // Desde a v1.191.0 a recuperação acha a conta pelo USUÁRIO e manda o link
+  // para o e-mail CADASTRADO nela: sem e-mail, não há para onde mandar — a
+  // trava continua sendo o e-mail nulo. E ela recusa o papel de portal, para a
+  // trava não depender de um campo só.
   ok(
-    recuperacao.includes('usuarioPorIdentificador(email, "email")'),
-    "a recuperação de senha acha a pessoa SÓ por e-mail — por isso o e-mail nulo é a trava",
+    recuperacao.includes("usuarioPorLogin(digitado)") && /!user\.email\)/.test(recuperacao),
+    "a recuperação de senha só manda o link para o e-mail cadastrado — por isso o e-mail nulo é a trava",
+  );
+  ok(
+    /user\.role === PAPEL_PORTAL/.test(recuperacao),
+    "…e recusa acesso de portal mesmo que um dia ele ganhe e-mail",
   );
 }
 

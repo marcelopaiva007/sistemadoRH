@@ -6,7 +6,6 @@ import {
   Plus,
   Pencil,
   Trash2,
-  Mail,
   KeyRound,
   Link2,
   Link2Off,
@@ -71,7 +70,6 @@ import {
   vincularMarcaUsuario,
   desativarVinculoMarca,
   reativarVinculoMarca,
-  criarConviteUsuario,
   toggleStatusUsuario,
   definirMarcasQueVe,
 } from "@/lib/actions/usuarios";
@@ -201,7 +199,6 @@ export function UsuariosTable({
 }) {
   const [createOpen, setCreateOpen] = useState(false);
   const [editUsuario, setEditUsuario] = useState<Usuario | null>(null);
-  const [conviteUsuario, setConviteUsuario] = useState<Usuario | null>(null);
   const [resetUsuario, setResetUsuario] = useState<Usuario | null>(null);
   const [vincularUsuario, setVincularUsuario] = useState<Usuario | null>(null);
   const [excluirUsuario, setExcluirUsuario] = useState<Usuario | null>(null);
@@ -253,7 +250,6 @@ export function UsuariosTable({
     pendencias,
     onEditar: setEditUsuario,
     onVincular: setVincularUsuario,
-    onConvidar: setConviteUsuario,
     onSenha: setResetUsuario,
     onExcluir: setExcluirUsuario,
     onTrocarGrupo: painelAdmin ? setMarcasUsuario : undefined,
@@ -490,19 +486,6 @@ export function UsuariosTable({
           )}
         </DialogContent>
       </Dialog>
-
-      <Dialog open={!!conviteUsuario} onOpenChange={(open) => !open && setConviteUsuario(null)}>
-        <DialogContent className="max-w-2xl">
-          {conviteUsuario && (
-            <ConviteForm
-              usuario={conviteUsuario}
-              empresas={empresas}
-              setores={setores}
-              onSuccess={() => setConviteUsuario(null)}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
@@ -562,6 +545,7 @@ function UsuarioForm({
   const empresasAtivas = empresas.filter((e) => e.ativo);
   const setoresFiltrados = setores.filter((s) => s.empresaId === empresaId);
 
+  const [, iniciarEnvio] = useTransition();
   const [state, formAction, isPending] = useActionState(async (prev: ActionResult, fd: FormData) => {
     const result = await action(prev, fd);
     if (result.ok) {
@@ -572,7 +556,18 @@ function UsuarioForm({
   }, initialState);
 
   return (
-    <form action={formAction} className="space-y-4">
+    // Sem `action={formAction}`: o React 19 limpa o formulário depois de TODA
+    // ação, inclusive a que volta com erro — e o admin perdia nome, usuário,
+    // e-mail e senha justamente quando a tela recusava o usuário e sugeria
+    // outro (v1.191.0). Pelo `onSubmit` o que foi digitado fica.
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        const fd = new FormData(e.currentTarget);
+        iniciarEnvio(() => formAction(fd));
+      }}
+      className="space-y-4"
+    >
       {grupoId && <input type="hidden" name="grupoId" value={grupoId} />}
       <DialogHeader>
         <DialogTitle>{title}</DialogTitle>
@@ -581,27 +576,39 @@ function UsuarioForm({
         <Label htmlFor="nome">Nome</Label>
         <Input id="nome" name="nome" defaultValue={defaultValues?.nome ?? ""} required autoFocus />
       </div>
+      {/* O usuário é a ÚNICA forma de entrar (v1.191.0) e diz em que grupo a
+          pessoa entra: não se repete, nem com maiúsculas diferentes. */}
       <div className="space-y-2">
-        <Label htmlFor="username">Login</Label>
+        <Label htmlFor="username">Usuário de login</Label>
         <Input
           id="username"
           name="username"
           defaultValue={defaultValues?.username ?? ""}
           placeholder="ex.: joao.silva"
           autoComplete="off"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+          aria-describedby="username-dica"
           required
         />
+        <p id="username-dica" className="text-xs text-muted-foreground">
+          Único no sistema: só letras sem acento, números, ponto, hífen ou sublinhado — sem “@” e
+          sem espaço. A mesma pessoa nos dois grupos tem dois usuários (ex.: “joao.silva” e
+          “joao.silva.lm”) e pode usar a mesma senha.
+        </p>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-2">
-          <Label htmlFor="email">E-mail</Label>
+          <Label htmlFor="email">E-mail de contato</Label>
           <Input
             id="email"
             name="email"
             type="email"
             defaultValue={defaultValues?.email ?? ""}
             autoComplete="off"
-            placeholder="opcional, mas habilita convite"
+            placeholder="opcional"
+            aria-describedby="email-dica"
           />
         </div>
         <div className="space-y-2">
@@ -613,6 +620,10 @@ function UsuarioForm({
             autoComplete="off"
           />
         </div>
+        <p id="email-dica" className="col-span-2 -mt-1 text-xs text-muted-foreground">
+          O e-mail não serve para entrar: recebe os avisos e os links de “Esqueci minha senha” e
+          “Esqueci meu usuário”. Pode ser o mesmo nos usuários da mesma pessoa.
+        </p>
       </div>
       <div className="space-y-2">
         <Label htmlFor="senha">{isEdit ? "Nova senha (opcional)" : "Senha"}</Label>
@@ -1306,147 +1317,6 @@ function VincularForm({
   );
 }
 
-function ConviteForm({
-  usuario,
-  empresas,
-  setores,
-  onSuccess,
-}: {
-  usuario: Usuario;
-  empresas: EmpresaResumo[];
-  setores: SetorResumo[];
-  onSuccess: () => void;
-}) {
-  // Convite usa o e-mail do cadastro; só permite escolher empresa/setor.
-  // Pré-seleciona a principal; se o user não tem pivô (ADMIN/DIRETORIA),
-  // cai na primeira empresa ativa.
-  const inicial =
-    usuario.empresas.find((v) => v.papelPrincipal)?.empresaId ??
-    usuario.empresas[0]?.empresaId ??
-    empresas.find((e) => e.ativo)?.id ??
-    "";
-  const [empresaId, setEmpresaId] = useState<string>(inicial);
-  const [role, setRole] = useState<"RH_MANAGER" | "GESTOR_SETOR">("RH_MANAGER");
-  const [setorId, setSetorId] = useState<string>("");
-
-  const setoresFiltrados = setores.filter((s) => s.empresaId === empresaId && s.ativo);
-
-  const [state, formAction, isPending] = useActionState(async (prev: ActionResult, fd: FormData) => {
-    const result = await criarConviteUsuario(prev, fd);
-    if (result.ok) {
-      toast.success("Convite enviado.");
-      onSuccess();
-    } else if (result.error.startsWith("Convite criado")) {
-      // Caso o convite tenha sido gravado mas o SMTP tenha falhado — alerta
-      // amarelo para o admin saber que precisa reenviar ou configurar e-mail.
-      toast.warning(result.error);
-      onSuccess();
-    }
-    return result;
-  }, initialState);
-
-  return (
-    <form action={formAction} className="space-y-4">
-      <DialogHeader>
-        <DialogTitle>Convidar por e-mail</DialogTitle>
-      </DialogHeader>
-      <p className="text-sm text-muted-foreground">
-        Será enviado um link para {usuario.email ?? "definir e-mail primeiro"} definir a
-        senha e entrar. O link expira em 7 dias.
-      </p>
-      {!usuario.email && (
-        <Alert variant="destructive">
-          <AlertDescription>
-            Este usuário não tem e-mail cadastrado. Edite o cadastro para incluir antes de convidar.
-          </AlertDescription>
-        </Alert>
-      )}
-      <input type="hidden" name="nome" value={usuario.nome} />
-      <input type="hidden" name="email" value={usuario.email ?? ""} />
-      <div className="space-y-2">
-        <Label>Empresa</Label>
-        <Select
-          value={empresaId}
-          onValueChange={(v) => {
-            setEmpresaId(v ?? "");
-            setSetorId("");
-          }}
-          name="empresaId"
-          items={Object.fromEntries(empresas.filter((e) => e.ativo).map((e) => [e.id, e.nome]))}
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="Selecione" />
-          </SelectTrigger>
-          <SelectContent>
-            {empresas
-              .filter((e) => e.ativo)
-              .map((e) => (
-                <SelectItem key={e.id} value={e.id}>
-                  {e.nome}
-                </SelectItem>
-              ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="space-y-2">
-        <Label>Papel</Label>
-        <Select
-          value={role}
-          onValueChange={(v) => {
-            setRole((v ?? "RH_MANAGER") as "RH_MANAGER" | "GESTOR_SETOR");
-            if (v !== "GESTOR_SETOR") setSetorId("");
-          }}
-          name="role"
-          items={{
-            RH_MANAGER: "Gestor(a) de RH",
-            GESTOR_SETOR: "Gestor(a) de Setor",
-          }}
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="RH_MANAGER">Gestor(a) de RH</SelectItem>
-            <SelectItem value="GESTOR_SETOR">Gestor(a) de Setor</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      {role === "GESTOR_SETOR" && (
-        <div className="space-y-2">
-          <Label>Setor</Label>
-          <Select
-            value={setorId}
-            onValueChange={(v) => setSetorId(v ?? "")}
-            name="setorId"
-            items={Object.fromEntries(setoresFiltrados.map((s) => [s.id, s.nome]))}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Selecione o setor" />
-            </SelectTrigger>
-            <SelectContent>
-              {setoresFiltrados.map((s) => (
-                <SelectItem key={s.id} value={s.id}>
-                  {s.nome}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
-      {!state.ok && (
-        <Alert variant="destructive">
-          <AlertDescription>{state.error}</AlertDescription>
-        </Alert>
-      )}
-      <DialogFooter>
-        <Button type="submit" disabled={isPending || !usuario.email}>
-          {isPending ? "Enviando..." : "Enviar convite"}
-        </Button>
-      </DialogFooter>
-    </form>
-  );
-}
-
 // ─── Organização da lista ──────────────────────────────────────────────────
 
 type AbaStatus = "ATIVOS" | "INATIVOS" | "TODOS";
@@ -1478,13 +1348,17 @@ type Pendencia = "SEM_EMAIL" | "EMAIL_DUPLICADO" | "LOGIN_EMAIL" | "SEM_ACESSO";
 const PENDENCIA_ROTULO: Record<Pendencia, string> = {
   SEM_EMAIL: "Sem e-mail",
   EMAIL_DUPLICADO: "Possível duplicado",
-  LOGIN_EMAIL: "Login inválido",
+  LOGIN_EMAIL: "Usuário com @",
   SEM_ACESSO: "Sem empresa",
 };
 const PENDENCIA_DICA: Record<Pendencia, string> = {
-  SEM_EMAIL: "Sem e-mail a pessoa não recebe convite nem recupera a senha sozinha.",
-  EMAIL_DUPLICADO: "Outra conta usa o mesmo e-mail — provavelmente a mesma pessoa com dois logins.",
-  LOGIN_EMAIL: "O login está com um e-mail. Confira se o e-mail não foi digitado no campo errado.",
+  SEM_EMAIL: "Sem e-mail a pessoa não recupera a senha nem o usuário sozinha.",
+  // A lista é de UM grupo: o mesmo e-mail no usuário deste grupo e no do outro
+  // é o normal (um usuário por grupo) e não aparece aqui.
+  EMAIL_DUPLICADO:
+    "Outra conta DESTE grupo usa o mesmo e-mail — provavelmente a mesma pessoa com dois usuários no mesmo grupo. Um usuário em cada grupo é o normal.",
+  LOGIN_EMAIL:
+    "O usuário tem “@”. O acesso é pelo nome de usuário: troque por um sem “@” (ex.: marcelo ou marcelo.lm) e avise a pessoa.",
   SEM_ACESSO: "Gestor sem marca nem CNPJ ativo neste grupo: entra no sistema mas não enxerga nenhuma empresa.",
 };
 
@@ -1517,7 +1391,7 @@ function calcularPendencias(usuarios: Usuario[]) {
   const resumo: string[] = [];
   if (contagem.SEM_EMAIL) resumo.push(`${contagem.SEM_EMAIL} sem e-mail`);
   if (contagem.EMAIL_DUPLICADO) resumo.push(`${contagem.EMAIL_DUPLICADO} contas com e-mail repetido`);
-  if (contagem.LOGIN_EMAIL) resumo.push(`${contagem.LOGIN_EMAIL} com e-mail no lugar do login`);
+  if (contagem.LOGIN_EMAIL) resumo.push(`${contagem.LOGIN_EMAIL} com “@” no usuário`);
   if (contagem.SEM_ACESSO) resumo.push(`${contagem.SEM_ACESSO} gestor(es) sem empresa`);
 
   return { porUsuario, total: porUsuario.size, resumo };
@@ -1561,7 +1435,6 @@ type AcoesDaLinha = {
   pendencias: ReturnType<typeof calcularPendencias>;
   onEditar: (u: Usuario) => void;
   onVincular: (u: Usuario) => void;
-  onConvidar: (u: Usuario) => void;
   onSenha: (u: Usuario) => void;
   onExcluir: (u: Usuario) => void;
   /** Só na tela de admin (MASTER): abre "Grupo e marcas" para mudar a conta de grupo. */
@@ -1841,7 +1714,6 @@ function AcoesUsuario({
   currentUserId,
   onEditar,
   onVincular,
-  onConvidar,
   onSenha,
   onExcluir,
   onTrocarGrupo,
@@ -1899,10 +1771,6 @@ function AcoesUsuario({
               Trocar de grupo
             </DropdownMenuItem>
           )}
-          <DropdownMenuItem onClick={() => onConvidar(usuario)}>
-            <Mail />
-            Convidar por e-mail
-          </DropdownMenuItem>
           <DropdownMenuItem onClick={() => onSenha(usuario)}>
             <KeyRound />
             Redefinir senha

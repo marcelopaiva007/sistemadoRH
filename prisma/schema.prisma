@@ -44,7 +44,12 @@ model User {
   passwordHash              String
   role                      String
   ativo                     Boolean   @default(true)
-  email                     String?   @unique
+  // CONTATO, não identificação (v1.191.0, decisão do CEO em 05/11/2026): o
+  // acesso é só pelo `username`, e cada usuário é de um grupo — quem trabalha
+  // na LM e nas demais marcas tem dois usuários, que recebem no MESMO e-mail.
+  // Por isso deixou de ser único. Serve para avisos e para os links de
+  // "Esqueci minha senha" / "Esqueci meu usuário".
+  email                     String?
   telefone                  String?
   avatarUrl                 String?
   // Definidos quando o usuário é criado via convite e ainda não aceitou:
@@ -117,6 +122,7 @@ model User {
   @@index([empresaId])
   @@index([setorId])
   @@index([grupoId])
+  @@index([email])
   @@schema("rh")
 }
 
