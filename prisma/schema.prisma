@@ -696,6 +696,8 @@ model Arquivo {
   documentoRecebido       DocumentoRecebido?
   // Selfie com que o colaborador confirmou o recebimento de um contracheque.
   reciboContracheque      ReciboContracheque?      @relation("FotoReciboContracheque")
+  // PDF assinado final com folha de evidências de assinatura de contracheque
+  comprovanteContracheque ReciboContracheque?      @relation("ComprovanteReciboContracheque")
 
   @@index([empresaId])
   @@schema("rh")
@@ -753,39 +755,39 @@ model DocumentoColaborador {
 // Um por contracheque (documentoId único). Sai junto com o documento: um
 // contracheque excluído da ficha não tem mais o que provar.
 model ReciboContracheque {
-  id                    String               @id @default(cuid())
+  id             String               @id @default(cuid())
   // Sempre o CNPJ da ficha — nunca o da tela de onde o RH enviou.
-  empresaId             String
-  colaboradorId         String
-  colaborador           Colaborador          @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
-  documentoId           String               @unique
-  documento             DocumentoColaborador @relation(fields: [documentoId], references: [id], onDelete: Cascade)
+  empresaId      String
+  colaboradorId  String
+  colaborador    Colaborador          @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  documentoId    String               @unique
+  documento      DocumentoColaborador @relation(fields: [documentoId], references: [id], onDelete: Cascade)
   // Primeiro dia do mês de competência (UTC), copiado do documento.
-  competencia           DateTime
+  competencia    DateTime
   // MENSAL, ADIANTAMENTO, DECIMO_TERCEIRO, FERIAS, COMPLEMENTAR, PLR.
-  tipoFolha             String               @default("MENSAL")
+  tipoFolha      String               @default("MENSAL")
   // Envio do aviso. `canal` nulo com `envioErro` = não havia como avisar.
-  enviadoEm             DateTime?
-  enviadoPorNome        String?
-  canal                 String?
-  envioErro             String?
-  envios                Int                  @default(0)
+  enviadoEm      DateTime?
+  enviadoPorNome String?
+  canal          String?
+  envioErro      String?
+  envios         Int                  @default(0)
 
   // Token único para a página de assinatura (/assinar/[token])
-  tokenAssinatura       String?              @unique
+  tokenAssinatura String? @unique
 
   // 2FA: Código de 6 dígitos e segurança contra força bruta
-  codigo2faHash         String?
-  codigoExpiraEm        DateTime?
-  canalCodigo           String?              // "TELEGRAM" | "EMAIL"
-  codigoValidadoEm      DateTime?
-  tentativasCodigo      Int                  @default(0)
-  bloqueadoEm           DateTime?
+  codigo2faHash    String?
+  codigoExpiraEm   DateTime?
+  canalCodigo      String? // "TELEGRAM" | "EMAIL"
+  codigoValidadoEm DateTime?
+  tentativasCodigo Int       @default(0)
+  bloqueadoEm      DateTime?
 
   // Notificação e cobrança
-  cienciaTelegramEm     DateTime?
-  lembretesEnviados     Int                  @default(0)
-  ultimoLembreteEm      DateTime?
+  cienciaTelegramEm DateTime?
+  lembretesEnviados Int       @default(0)
+  ultimoLembreteEm  DateTime?
 
   // A pessoa abriu o contracheque pelo portal ou pela página de assinatura
   vistoEm               DateTime?
@@ -797,14 +799,14 @@ model ReciboContracheque {
   hashDocumento         String?
   textoAceite           String?
 
-  fotoArquivoId         String?              @unique
-  fotoArquivo           Arquivo?             @relation("FotoReciboContracheque", fields: [fotoArquivoId], references: [id], onDelete: SetNull)
+  fotoArquivoId String?  @unique
+  fotoArquivo   Arquivo? @relation("FotoReciboContracheque", fields: [fotoArquivoId], references: [id], onDelete: SetNull)
 
-  comprovanteArquivoId  String?              @unique
-  comprovanteArquivo    Arquivo?             @relation("ComprovanteReciboContracheque", fields: [comprovanteArquivoId], references: [id], onDelete: SetNull)
+  comprovanteArquivoId String?  @unique
+  comprovanteArquivo   Arquivo? @relation("ComprovanteReciboContracheque", fields: [comprovanteArquivoId], references: [id], onDelete: SetNull)
 
-  createdAt             DateTime             @default(now())
-  updatedAt             DateTime             @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([empresaId, competencia])
   @@index([tokenAssinatura])
