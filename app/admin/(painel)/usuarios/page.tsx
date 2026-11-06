@@ -150,10 +150,9 @@ export default async function UsuariosPage({
           <h1 className="text-2xl font-semibold tracking-tight">Usuários</h1>
           <AjudaDaTela modulo="usuarios" />
         </div>
-        <p className="text-muted-foreground">
-          Os usuários de cada cliente da FASTMAI. Aqui você cria, edita e desativa usuários e escolhe
-          as marcas que cada pessoa vê: clique numa marca, na linha da pessoa, para ligar ou desligar
-          — salva na hora. O que cada uma pode fazer, por tela e por sistema, vem dos{" "}
+        <p className="text-sm text-muted-foreground">
+          Crie, edite e desative os usuários de cada cliente. Clique numa marca, na linha da pessoa, para ligar
+          ou desligar o acesso — salva na hora. O que cada um pode fazer vem dos{" "}
           <Link href="/admin/perfis" className="underline underline-offset-2 hover:text-foreground">perfis de acesso</Link>.
         </p>
       </div>
@@ -195,7 +194,7 @@ export default async function UsuariosPage({
             um cliente ganhar marca, a frase acompanha. */}
         <p className="text-sm text-muted-foreground">
           {fraseDaRegra}{" "}
-          Para passar alguém para outro cliente, use <span className="font-medium">Mais ações → Trocar de cliente</span>.
+          Para passar alguém para outro cliente, use o botão <span className="font-medium">Trocar de cliente</span> na linha.
           Em qual cliente fica cada marca, você define em{" "}
           <Link href="/admin/clientes" className="underline underline-offset-2 hover:text-foreground">
             Clientes
