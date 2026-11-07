@@ -106,6 +106,27 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      // OS 07/11/2026: A visualização do contracheque na página de assinatura
+      // (/assinar/:token) usa iframe do próprio domínio. Sobrescreve X-Frame-Options
+      // para SAMEORIGIN e define frame-ancestors 'self' especificamente para esta rota,
+      // mantendo DENY em todas as demais rotas do sistema.
+      {
+        source: "/api/assinar/:token/pdf",
+        headers: [
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
+        ],
+      },
+      // Permite captura de selfie e geolocalização no fluxo de assinatura pública
+      {
+        source: "/assinar/:path*",
+        headers: [
+          {
+            key: "Permissions-Policy",
+            value: "camera=(self), microphone=(), geolocation=(self), payment=()",
+          },
+        ],
+      },
     ];
   },
 };

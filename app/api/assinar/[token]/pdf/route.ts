@@ -60,6 +60,8 @@ export async function GET(
     headers: {
       "Content-Type": arquivo.mimeType || "application/pdf",
       "Content-Disposition": `inline; filename="${arquivo.nome || "contracheque.pdf"}"`,
+      "X-Frame-Options": "SAMEORIGIN",
+      "Content-Security-Policy": "frame-ancestors 'self'",
       "Cache-Control": "private, no-cache, no-store, must-revalidate",
     },
   });

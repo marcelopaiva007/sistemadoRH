@@ -50,16 +50,44 @@ function mascararCpf(cpf: string): string {
 }
 
 /**
+ * Sanitiza strings para o charset padrão WinAnsi/Helvetica do PDF.
+ * Evita exceções do pdf-lib com caracteres fora do mapa (emojis, símbolos exóticos,
+ * quebras de linha indesejadas) que poderiam impedir a selagem do documento.
+ */
+function sanitizarTextoWinAnsi(str: string | null | undefined): string {
+  if (!str) return "";
+  return str
+    .normalize("NFC")
+    .replace(/[\r\n\t]+/g, " ")
+    .replace(/[^\x20-\x7E\xA0-\xFF\u2013\u2014\u2018\u2019\u201C\u201D\u2022\u20AC]/g, " ")
+    .trim();
+}
+
+/**
  * Carrega o PDF original, calcula seu hash SHA-256 e anexa uma página
  * de evidências A4 com selfie e trilha de auditoria.
+ *
+ * Utiliza o padrão de cópia de páginas para um PDFDocument limpo e gravação
+ * com useObjectStreams: false para garantir 100% de compatibilidade com
+ * leitores rigorosos de PDF (Adobe Acrobat, Preview, clientes de e-mail mobile).
  */
 export async function gerarPdfComprovanteAssinado(
   dados: DadosComprovante
 ): Promise<{ bytes: Uint8Array; hashOriginal: string }> {
   const hashOriginal = createHash("sha256").update(dados.pdfOriginalBytes).digest("hex");
-  const doc = await PDFDocument.load(dados.pdfOriginalBytes);
 
-  // Página A4 padrão: 595.28 x 841.89 pontos
+  // Carrega o documento original com ignoreEncryption para aceitar arquivos com flags de restrição de impressão
+  const docOrigem = await PDFDocument.load(dados.pdfOriginalBytes, { ignoreEncryption: true });
+
+  // Cria um documento novo e copia as páginas originais.
+  // Isso atua como sanitizador de árvores corrompidas ou referências cruzadas malformadas do PDF original.
+  const doc = await PDFDocument.create();
+  const paginasOriginais = await doc.copyPages(docOrigem, docOrigem.getPageIndices());
+  for (const p of paginasOriginais) {
+    doc.addPage(p);
+  }
+
+  // Página A4 padrão de evidências: 595.28 x 841.89 pontos
   const page = doc.addPage([595.28, 841.89]);
   const fontRegular = await doc.embedFont(StandardFonts.Helvetica);
   const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
@@ -104,7 +132,7 @@ export async function gerarPdfComprovanteAssinado(
     color: corAzul,
   });
 
-  page.drawText(`FASTMAI RH · Recibo ID: ${dados.reciboId}`, {
+  page.drawText(sanitizarTextoWinAnsi(`FASTMAI RH · Recibo ID: ${dados.reciboId}`), {
     x: margem + 16,
     y: altura - margem - 44,
     size: 9,
@@ -124,7 +152,7 @@ export async function gerarPdfComprovanteAssinado(
   });
   curY -= 16;
 
-  page.drawText(`Empregador: ${dados.empresaRazaoSocial}  (CNPJ: ${dados.empresaCnpj})`, {
+  page.drawText(sanitizarTextoWinAnsi(`Empregador: ${dados.empresaRazaoSocial}  (CNPJ: ${dados.empresaCnpj})`), {
     x: margem + 20,
     y: curY,
     size: 9,
@@ -133,7 +161,7 @@ export async function gerarPdfComprovanteAssinado(
   });
   curY -= 14;
 
-  page.drawText(`Colaborador: ${dados.colaboradorNome}  (CPF: ${mascararCpf(dados.colaboradorCpf)})`, {
+  page.drawText(sanitizarTextoWinAnsi(`Colaborador: ${dados.colaboradorNome}  (CPF: ${mascararCpf(dados.colaboradorCpf)})`), {
     x: margem + 20,
     y: curY,
     size: 9,
@@ -142,7 +170,7 @@ export async function gerarPdfComprovanteAssinado(
   });
   curY -= 14;
 
-  page.drawText(`Documento: Contracheque de ${dados.competenciaRotulo}  (Folha: ${dados.tipoFolhaRotulo})`, {
+  page.drawText(sanitizarTextoWinAnsi(`Documento: Contracheque de ${dados.competenciaRotulo}  (Folha: ${dados.tipoFolhaRotulo})`), {
     x: margem + 20,
     y: curY,
     size: 9,
@@ -170,7 +198,7 @@ export async function gerarPdfComprovanteAssinado(
   ];
 
   for (const linha of linhasAuditoria) {
-    page.drawText(linha, {
+    page.drawText(sanitizarTextoWinAnsi(linha), {
       x: margem + 20,
       y: curY,
       size: 8.5,
@@ -191,7 +219,7 @@ export async function gerarPdfComprovanteAssinado(
   });
   curY -= 16;
 
-  page.drawText(`• Endereço IP: ${dados.confirmadoIp ?? "Não registrado"}`, {
+  page.drawText(sanitizarTextoWinAnsi(`• Endereço IP: ${dados.confirmadoIp ?? "Não registrado"}`), {
     x: margem + 20,
     y: curY,
     size: 8.5,
@@ -201,7 +229,7 @@ export async function gerarPdfComprovanteAssinado(
   curY -= 13;
 
   const dispCortado = (dados.confirmadoDispositivo ?? "Navegador Web").slice(0, 95);
-  page.drawText(`• Dispositivo/Navegador: ${dispCortado}`, {
+  page.drawText(sanitizarTextoWinAnsi(`• Dispositivo/Navegador: ${dispCortado}`), {
     x: margem + 20,
     y: curY,
     size: 8,
@@ -211,7 +239,7 @@ export async function gerarPdfComprovanteAssinado(
   curY -= 13;
 
   if (dados.confirmadoLocalizacao) {
-    page.drawText(`• Localização geográfica: ${dados.confirmadoLocalizacao}`, {
+    page.drawText(sanitizarTextoWinAnsi(`• Localização geográfica: ${dados.confirmadoLocalizacao}`), {
       x: margem + 20,
       y: curY,
       size: 8.5,
@@ -221,7 +249,7 @@ export async function gerarPdfComprovanteAssinado(
     curY -= 13;
   }
 
-  page.drawText(`• Hash SHA-256 do Contracheque Original:`, {
+  page.drawText("• Hash SHA-256 do Contracheque Original:", {
     x: margem + 20,
     y: curY,
     size: 8.5,
@@ -230,7 +258,7 @@ export async function gerarPdfComprovanteAssinado(
   });
   curY -= 12;
 
-  page.drawText(`${hashOriginal}`, {
+  page.drawText(sanitizarTextoWinAnsi(hashOriginal), {
     x: margem + 24,
     y: curY,
     size: 7.5,
@@ -336,7 +364,7 @@ export async function gerarPdfComprovanteAssinado(
   });
 
   const textoAceite = dados.textoAceite ?? `Declaro que recebi o contracheque de ${dados.competenciaRotulo} e estou ciente do seu conteúdo.`;
-  page.drawText(`Aceite do Colaborador: "${textoAceite}"`, {
+  page.drawText(sanitizarTextoWinAnsi(`Aceite do Colaborador: "${textoAceite}"`), {
     x: margem + 24,
     y: curY - 20,
     size: 8.5,
@@ -377,6 +405,7 @@ export async function gerarPdfComprovanteAssinado(
     }
   );
 
-  const bytes = await doc.save();
-  return { bytes, hashOriginal };
+  // useObjectStreams: false garante tabelas tradicionais xref compatíveis universalmente (sem /ObjStm)
+  const bytes = await doc.save({ useObjectStreams: false });
+  return { bytes: new Uint8Array(bytes), hashOriginal };
 }
