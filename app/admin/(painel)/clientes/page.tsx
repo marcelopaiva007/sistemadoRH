@@ -27,7 +27,20 @@ export default async function ClientesPage() {
   const [grupos, marcas, usuarios] = await Promise.all([
     prisma.grupo.findMany({
       orderBy: { nome: "asc" },
-      select: { id: true, nome: true, ativo: true },
+      select: {
+        id: true,
+        nome: true,
+        ativo: true,
+        razaoSocial: true,
+        cnpj: true,
+        responsavelNome: true,
+        contatoEmail: true,
+        contatoTelefone: true,
+        plano: true,
+        limiteUsuarios: true,
+        inicioContrato: true,
+        observacoes: true,
+      },
     }),
     prisma.marca.findMany({
       orderBy: { nome: "asc" },
@@ -37,6 +50,12 @@ export default async function ClientesPage() {
         ativo: true,
         grupoId: true,
         _count: { select: { empresas: true } },
+        // As EMPRESAS do cliente (v1.197.0): cada CNPJ com os seus dados.
+        // Dado cadastral de empresa, não de gente — a Gestão segue sem ver RH.
+        empresas: {
+          orderBy: { nome: "asc" },
+          select: { id: true, nome: true, cnpj: true, razaoSocial: true, ativo: true },
+        },
       },
     }),
     prisma.user.findMany({
