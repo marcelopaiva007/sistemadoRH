@@ -193,7 +193,7 @@ export async function gerarPdfComprovanteAssinado(
     `• Envio do aviso: ${formatarDataBrasilia(dados.enviadoEm)}`,
     `• Confirmação de ciência no Telegram: ${dados.cienciaTelegramEm ? formatarDataBrasilia(dados.cienciaTelegramEm) : "Não confirmada no bot / notificado por e-mail"}`,
     `• Abertura e visualização na tela: ${formatarDataBrasilia(dados.vistoEm)}`,
-    `• Validação de código 2FA: ${formatarDataBrasilia(dados.codigoValidadoEm)} (Canal: ${dados.canalCodigo ?? "E-MAIL"})`,
+    `• Validação de identidade (CPF): ${formatarDataBrasilia(dados.codigoValidadoEm)}`,
     `• Assinatura eletrônica e aceite: ${formatarDataBrasilia(dados.confirmadoEm)}`,
   ];
 
