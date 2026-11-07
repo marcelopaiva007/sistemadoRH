@@ -97,3 +97,8 @@ CREATE TRIGGER pesquisa_anonimato_apaga_vinculos
 CREATE UNIQUE INDEX IF NOT EXISTS "DocumentoColaborador_colaboradorId_chaveDedupe_key"
   ON "rh"."DocumentoColaborador"("colaboradorId", "chaveDedupe")
   WHERE "chaveDedupe" IS NOT NULL;
+
+-- De prisma/migrations/20261106210000_login_por_endereco/migration.sql:
+-- login único entre as contas SEM cliente (MASTER e legado); com cliente, o
+-- índice (grupoId, username) do schema já cobre.
+CREATE UNIQUE INDEX IF NOT EXISTS "User_username_sem_grupo_key" ON "rh"."User"("username") WHERE "grupoId" IS NULL;

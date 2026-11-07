@@ -40,7 +40,11 @@ datasource db {
 model User {
   id                        String    @id @default(cuid())
   nome                      String
-  username                  String    @unique
+  // Único POR CLIENTE (v1.198.0, Fase 1): "maria" pode existir em dois
+  // clientes, cada um no seu endereço. Conta sem cliente (MASTER, legado)
+  // segue única entre si por um índice parcial que o schema não expressa
+  // (migration 20261106210000_login_por_endereco; scripts/ci-extras-banco.sql).
+  username                  String
   passwordHash              String
   role                      String
   ativo                     Boolean   @default(true)
@@ -119,6 +123,7 @@ model User {
   demandasRecebidas   Demanda[] @relation("DemandaResponsavel")
   reunioesMarcadas    Reuniao[] @relation("ReuniaoSolicitante")
 
+  @@unique([grupoId, username])
   @@index([empresaId])
   @@index([setorId])
   @@index([grupoId])
@@ -207,6 +212,11 @@ model Grupo {
   limiteUsuarios  Int?
   inicioContrato  DateTime? @db.Date
   observacoes     String?
+  // ENDEREÇO PRÓPRIO do cliente (v1.198.0), ex.: "rh.cliente.com.br" — só o
+  // host, minúsculo, sem https:// nem porta. Entrando por ele, o login procura
+  // o usuário SÓ neste cliente. Cliente sem endereço próprio entra pelo
+  // endereço comum (rh.assinelm.com), onde o login não pode ser ambíguo.
+  dominio         String?   @unique
 
   marcas   Marca[]
   usuarios User[]

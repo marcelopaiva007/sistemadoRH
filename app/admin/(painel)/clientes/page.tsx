@@ -40,6 +40,7 @@ export default async function ClientesPage() {
         limiteUsuarios: true,
         inicioContrato: true,
         observacoes: true,
+        dominio: true,
       },
     }),
     prisma.marca.findMany({

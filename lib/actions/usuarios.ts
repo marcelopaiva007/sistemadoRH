@@ -4,6 +4,7 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { randomBytes, createHash } from "node:crypto";
 import { sendEmail } from "@/lib/email";
+import { urlBaseDoCliente } from "@/lib/endereco-cliente";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireGestaoUsuarios } from "@/lib/auth-guard";
@@ -228,10 +229,10 @@ async function loginRepetido(
   modo: "criar" | "renomear",
   excetoId?: string,
 ): Promise<string | null> {
-  const existente = await loginJaUsado(login, excetoId);
+  const existente = await loginJaUsado(login, excetoId, prisma, grupoDestinoId);
   if (!existente) return null;
   const onde = existente.grupoNome ? ` (cliente ${existente.grupoNome})` : "";
-  const base = `Já existe o usuário “${existente.username}”${onde}. Usuário não se repete, nem com maiúsculas diferentes.`;
+  const base = `Já existe o usuário “${existente.username}”${onde}. Usuário não se repete no mesmo cliente (nem com maiúsculas diferentes), nem entre clientes que entram pelo endereço comum.`;
   const mesmoCliente = existente.grupoId !== null && existente.grupoId === grupoDestinoId;
   if (modo === "criar" && mesmoCliente) {
     return `${base} Se é a mesma pessoa, ela já tem acesso neste cliente — use essa conta. Se é outra pessoa, escolha outro nome.`;
@@ -243,7 +244,7 @@ async function loginRepetido(
   let sugestao: string | null = null;
   if (grupoDestino) {
     for (const candidato of candidatosDeLogin(login, grupoDestino.nome)) {
-      if (!(await loginJaUsado(candidato, excetoId))) {
+      if (!(await loginJaUsado(candidato, excetoId, prisma, grupoDestinoId))) {
         sugestao = candidato;
         break;
       }
@@ -654,7 +655,8 @@ export async function enviarLinkSenhaPorEmail(id: string): Promise<ActionResult>
     data: { recuperacaoSenhaTokenHash: tokenHash, recuperacaoSenhaExpiraEm: expiraEm },
   });
 
-  const baseUrl = process.env.NEXTAUTH_URL ?? process.env.APP_URL ?? "http://localhost:3000";
+  // O link volta pelo endereço próprio do cliente, se ele tiver (v1.198.0).
+  const baseUrl = await urlBaseDoCliente(user.grupoId);
   const link = `${baseUrl}/redefinir-senha/${token}`;
   const nome = escaparHtmlEmail(user.nome);
   const usuario = escaparHtmlEmail(user.username);

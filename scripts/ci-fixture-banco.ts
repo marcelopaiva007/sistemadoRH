@@ -92,8 +92,8 @@ async function main() {
   // impressão de que protege alguma coisa.
   const username = process.env.SEED_ADMIN_USERNAME ?? "admin.ci";
   await prisma.user.upsert({
-    where: { username },
-    update: { grupoId: grupo.id },
+    where: { grupoId_username: { grupoId: grupo.id, username } },
+    update: {},
     create: {
       username,
       nome: "Administrador CI",

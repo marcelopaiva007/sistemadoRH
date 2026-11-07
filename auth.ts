@@ -5,6 +5,7 @@ import { authConfig } from "@/auth.config";
 import { prisma } from "@/lib/prisma";
 import { lerCookieEmpresaAtiva, resolverEmpresaAtiva } from "@/lib/empresa-ativa";
 import { usuarioPorLogin } from "@/lib/usuario-por-identificador";
+import { ondeDestaRequisicao } from "@/lib/endereco-cliente";
 import {
   estadoDoLogin,
   ipDaRequisicao,
@@ -116,7 +117,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         // Só pelo usuário: texto com "@" (e-mail) não acha conta nenhuma e
         // conta como tentativa errada, como qualquer usuário inexistente.
-        const user = await usuarioPorLogin(username);
+        // O endereço decide o cliente (v1.198.0): no endereço próprio de um
+        // cliente, só os usuários dele; no comum, os sem endereço próprio.
+        // Falha fechada: se não der para saber onde, ninguém entra.
+        const local = await ondeDestaRequisicao(request.headers).catch(() => null);
+        const user = local && !local.bloqueado ? await usuarioPorLogin(username, undefined, local.onde) : null;
         // Usuário inexistente e usuário desativado contam como falha. O
         // primeiro é justamente o caso de quem está adivinhando nome de
         // usuário, e é o que não teria onde ser contado se o contador

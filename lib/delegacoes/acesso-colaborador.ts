@@ -98,7 +98,9 @@ export async function garantirAcessoDoColaborador(
   }
 
   const username = usernameDoPortal(colaboradorId);
-  const porUsername = await tx.user.findUnique({
+  // findFirst: o username do portal é derivado do colaborador (único por si),
+  // mas o índice do banco é por cliente desde a v1.198.0.
+  const porUsername = await tx.user.findFirst({
     where: { username },
     select: { id: true, nome: true },
   });

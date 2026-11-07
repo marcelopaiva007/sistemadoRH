@@ -16,11 +16,10 @@ async function upsertUser(
   escopo?: { empresaId?: string; setorId?: string }
 ) {
   const passwordHash = await bcrypt.hash(password, 10);
-  await prisma.user.upsert({
-    where: { username },
-    update: {},
-    create: { username, passwordHash, nome, role, ...escopo },
-  });
+  // findFirst + create, e não upsert: desde a v1.198.0 o login é único por
+  // cliente (grupoId + username), e conta de seed nasce sem cliente.
+  const existente = await prisma.user.findFirst({ where: { username, grupoId: null } });
+  if (!existente) await prisma.user.create({ data: { username, passwordHash, nome, role, ...escopo } });
   console.log(`Usuário "${username}" (${role}) pronto.${gerada ? ` Senha gerada: ${password}` : ""}`);
 }
 

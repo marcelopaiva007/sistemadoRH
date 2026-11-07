@@ -42,6 +42,7 @@ type Grupo = {
   limiteUsuarios: number | null;
   inicioContrato: Date | null;
   observacoes: string | null;
+  dominio: string | null;
 };
 type Marca = {
   id: string;
@@ -392,6 +393,7 @@ function ResumoCadastro({ grupo, contasAtivas }: { grupo: Grupo; contasAtivas: n
     grupo.responsavelNome ? `Responsável: ${grupo.responsavelNome}` : null,
     grupo.plano ? `Plano ${grupo.plano}` : null,
     grupo.inicioContrato ? `Desde ${dataBr(grupo.inicioContrato)}` : null,
+    grupo.dominio ? `Acesso: ${grupo.dominio}` : null,
   ].filter(Boolean);
   const faltando = !grupo.cnpj || !grupo.responsavelNome || !grupo.contatoEmail;
   const passouLimite = grupo.limiteUsuarios != null && contasAtivas > grupo.limiteUsuarios;
@@ -493,6 +495,19 @@ function DadosDoCliente({ grupo }: { grupo: Grupo }) {
         </Campo>
         <Campo id={`${p}-inicio`} rotulo="Início do contrato">
           <Input id={`${p}-inicio`} name="inicioContrato" type="date" defaultValue={dataIso(grupo.inicioContrato)} />
+        </Campo>
+        <Campo id={`${p}-dominio`} rotulo="Endereço de acesso próprio (ex.: rh.cliente.com.br)" largo>
+          <Input
+            id={`${p}-dominio`}
+            name="dominio"
+            placeholder="vazio = entra pelo endereço comum"
+            defaultValue={grupo.dominio ?? ""}
+            className="font-mono"
+          />
+          <p className="text-xs text-muted-foreground">
+            Com endereço próprio, os usuários deste cliente entram só por ele, e os logins podem repetir os de
+            outros clientes. O endereço também precisa ser apontado para o sistema (DNS e Vercel).
+          </p>
         </Campo>
         <Campo id={`${p}-obs`} rotulo="Observações" largo>
           <textarea

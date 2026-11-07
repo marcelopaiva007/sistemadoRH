@@ -7,6 +7,8 @@ import { registrarAuditoria } from "@/lib/audit";
 import { violouUnique } from "@/lib/prisma-erros";
 import type { ActionResult } from "@/lib/constants";
 import { apenasDigitosCnpj, cnpjValido } from "@/lib/cnpj";
+import { loginJaUsado } from "@/lib/usuario-por-identificador";
+import { dominioDigitado } from "@/lib/endereco-cliente";
 
 // Ações do MASTER sobre os GRUPOS de sociedade (lib/grupo.ts) — os CLIENTES
 // da FASTMAI na Gestão (v1.192.0): cada grupo é um cliente, com as suas marcas
@@ -120,25 +122,57 @@ export async function salvarDadosCliente(
     if (Number.isNaN(inicioContrato.getTime())) return { ok: false, error: "Data de início do contrato inválida." };
   }
 
-  await prisma.grupo.update({
-    where: { id: grupoId },
-    data: {
-      razaoSocial: ouNulo("razaoSocial"),
-      cnpj,
-      responsavelNome: ouNulo("responsavelNome"),
-      contatoEmail,
-      contatoTelefone: ouNulo("contatoTelefone"),
-      plano: ouNulo("plano"),
-      limiteUsuarios,
-      inicioContrato,
-      observacoes: ouNulo("observacoes"),
-    },
-  });
+  // Endereço próprio (v1.198.0). Tirar o endereço de um cliente devolve os
+  // usuários dele ao endereço comum: só pode se nenhum login lá repetir.
+  const dominio = dominioDigitado(texto(fd, "dominio"));
+  if (dominio === false)
+    return { ok: false, error: "Endereço inválido. Use só o endereço, ex.: rh.cliente.com.br" };
+  const atual = await prisma.grupo.findUnique({ where: { id: grupoId }, select: { dominio: true } });
+  if (atual?.dominio && !dominio) {
+    const repetidos = await prisma.$queryRaw<{ username: string }[]>`
+      SELECT u.username FROM "rh"."User" u
+      WHERE u."grupoId" = ${grupoId}
+        AND EXISTS (
+          SELECT 1 FROM "rh"."User" o
+          LEFT JOIN "rh"."Grupo" og ON og.id = o."grupoId"
+          WHERE lower(o.username) = lower(u.username)
+            AND o."grupoId" IS DISTINCT FROM ${grupoId}
+            AND (o."grupoId" IS NULL OR og.dominio IS NULL)
+        )
+      LIMIT 5`;
+    if (repetidos.length > 0)
+      return {
+        ok: false,
+        error: `Não dá para tirar o endereço: estes logins já existem no endereço comum — ${repetidos.map((r) => r.username).join(", ")}.`,
+      };
+  }
+
+  try {
+    await prisma.grupo.update({
+      where: { id: grupoId },
+      data: {
+        dominio,
+        razaoSocial: ouNulo("razaoSocial"),
+        cnpj,
+        responsavelNome: ouNulo("responsavelNome"),
+        contatoEmail,
+        contatoTelefone: ouNulo("contatoTelefone"),
+        plano: ouNulo("plano"),
+        limiteUsuarios,
+        inicioContrato,
+        observacoes: ouNulo("observacoes"),
+      },
+    });
+  } catch (e) {
+    if (violouUnique(e, "Grupo_dominio_key"))
+      return { ok: false, error: `O endereço ${dominio} já é de outro cliente.` };
+    throw e;
+  }
   await registrarAuditoria({
     acao: "ATUALIZAR",
     entidade: "Grupo",
     entidadeId: grupoId,
-    resumo: `Atualizou os dados cadastrais do cliente "${antes.nome}"`,
+    resumo: `Atualizou os dados cadastrais do cliente "${antes.nome}"${dominio ? ` (endereço ${dominio})` : ""}`,
   });
   revalidatePath(CAMINHO);
   return { ok: true };
@@ -223,6 +257,7 @@ export async function moverUsuarioDeGrupo(
       select: {
         id: true,
         nome: true,
+        username: true,
         role: true,
         grupoId: true,
         grupo: { select: { nome: true } },
@@ -238,6 +273,16 @@ export async function moverUsuarioDeGrupo(
   if (!grupo || !grupo.ativo)
     return { ok: false, error: "Cliente não encontrado." };
   if (user.grupoId === grupo.id) return { ok: true };
+
+  // Login é único por cliente (v1.198.0): no cliente de destino o nome não
+  // pode estar em uso — nem, se ele entra pelo endereço comum, entre os
+  // outros clientes que também entram por lá.
+  const conflito = await loginJaUsado(user.username, user.id, prisma, grupo.id);
+  if (conflito)
+    return {
+      ok: false,
+      error: `Já existe o usuário “${conflito.username}”${conflito.grupoNome ? ` no cliente ${conflito.grupoNome}` : ""}. Renomeie o login de ${user.nome} antes de mudá-lo de cliente.`,
+    };
 
   // Não deixa o grupo de origem sem ADMIN ativo — ninguém lá conseguiria mais
   // administrar contas nem CNPJs (o MASTER ainda conseguiria, mas a trava é a
