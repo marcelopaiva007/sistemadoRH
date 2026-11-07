@@ -3,9 +3,8 @@
 // Server Actions públicas para a página de assinatura de contracheques (/assinar/[token]).
 //
 // 1. obterDadosReciboPublicoAction: carrega metadados sem vazar CPF.
-// 2. solicitarCodigo2faAction: valida CPF, gera código 2FA e envia por Telegram ou E-mail.
-// 3. validarCodigo2faAction: confere código, seta cookie assinado de sessão temporária.
-// 4. assinarContrachequeAction: valida selfie, gera PDF selado via pdf-lib, salva evidências e envia e-mail com anexo.
+// 2. validarCpfAssinaturaAction: confere CPF do colaborador, emite cookie de sessão e libera visualização/assinatura.
+// 3. assinarContrachequeAction: valida selfie, gera PDF selado via pdf-lib, salva evidências e envia e-mail com anexo.
 
 import { cookies, headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
@@ -55,10 +54,18 @@ async function obterCookieSeguro(nome: string): Promise<string | undefined> {
   }
 }
 
+const COOKIE_PADRAO_OPTS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "lax" as const,
+  maxAge: 3600,
+  path: "/",
+};
+
 async function setarCookieSeguro(
   nome: string,
   valor: string,
-  options: { maxAge?: number; httpOnly?: boolean; secure?: boolean; sameSite?: "lax" | "strict" | "none"; path?: string }
+  options: { maxAge?: number; httpOnly?: boolean; secure?: boolean; sameSite?: "lax" | "strict" | "none"; path?: string } = COOKIE_PADRAO_OPTS
 ): Promise<void> {
   try {
     const c = await cookies();
@@ -123,12 +130,16 @@ export async function obterDadosReciboPublicoAction(token: string): Promise<Dado
   };
 }
 
-/** Desafio 1: Valida o CPF digitado e dispara o código de 6 dígitos (Telegram ou E-mail). */
-export async function solicitarCodigo2faAction(
+/**
+ * Validação simplificada por CPF (OS 07/11/2026):
+ * O colaborador insere apenas seu CPF. Se conferir, emite cookie de sessão imediatamente
+ * e libera a visualização do contracheque e a assinatura (sem necessidade de código 2FA).
+ */
+export async function validarCpfAssinaturaAction(
   token: string,
   cpfDigitado: string
 ): Promise<
-  | { ok: true; canal: "TELEGRAM" | "EMAIL"; destinoMascarado: string }
+  | { ok: true }
   | { ok: false; bloqueado: boolean; error: string; tentativasRestantes?: number }
 > {
   const recibo = await prisma.reciboContracheque.findUnique({
@@ -137,16 +148,10 @@ export async function solicitarCodigo2faAction(
       id: true,
       bloqueadoEm: true,
       tentativasCodigo: true,
-      competencia: true,
-      tipoFolha: true,
       confirmadoEm: true,
       colaborador: {
         select: {
           cpf: true,
-          nome: true,
-          email: true,
-          telegramChatId: true,
-          empresa: { select: { marca: { select: { nome: true } } } },
         },
       },
     },
@@ -190,132 +195,44 @@ export async function solicitarCodigo2faAction(
     };
   }
 
-  // CPF confere: Gera código de 6 dígitos (válido por 10 min)
+  // CPF confere: registra validação e emite cookie assinado de sessão
   const agora = new Date();
-  const { codigo, hash, expiraEm } = gerarCodigo2fa(agora);
-  const canal = recibo.colaborador.telegramChatId ? "TELEGRAM" : "EMAIL";
-  const ref = rotuloDoContracheque(recibo.competencia, recibo.tipoFolha);
-  const marca = recibo.colaborador.empresa.marca?.nome || "RH";
-
   await prisma.reciboContracheque.update({
     where: { id: recibo.id },
     data: {
-      codigo2faHash: hash,
-      codigoExpiraEm: expiraEm,
-      canalCodigo: canal,
+      codigoValidadoEm: agora,
     },
   });
 
-  if (canal === "TELEGRAM" && recibo.colaborador.telegramChatId) {
-    const resTg = await enviarCodigo2faTelegram(recibo.colaborador.telegramChatId, codigo, ref);
-    if (!resTg.ok) {
-      // Se telegram falhar e tiver email, tenta email
-      if (recibo.colaborador.email) {
-        await dispararEmail2fa(recibo.colaborador.email, nomeCurto(recibo.colaborador.nome), ref, marca, codigo);
-        return { ok: true, canal: "EMAIL", destinoMascarado: mascararEmail(recibo.colaborador.email) };
-      }
-    }
-    return { ok: true, canal: "TELEGRAM", destinoMascarado: "seu Telegram do RH" };
-  }
+  const cookieValor = gerarAssinaturaSessao(token);
+  await setarCookieSeguro(`cc_auth_${token}`, cookieValor);
 
-  if (recibo.colaborador.email) {
-    await dispararEmail2fa(recibo.colaborador.email, nomeCurto(recibo.colaborador.nome), ref, marca, codigo);
-    return { ok: true, canal: "EMAIL", destinoMascarado: mascararEmail(recibo.colaborador.email) };
-  }
-
-  return { ok: false, bloqueado: false, error: "Colaborador sem Telegram e sem e-mail cadastrado." };
+  return { ok: true };
 }
 
-async function dispararEmail2fa(to: string, nome: string, ref: string, marca: string, codigo: string) {
-  const subject = `Código de verificação para o contracheque de ${ref}`;
-  const text =
-    `Oi, ${nome}!\n\n` +
-    `Seu código de confirmação para abrir o contracheque de ${ref} é:\n\n` +
-    `${codigo}\n\n` +
-    `Este código é válido por 10 minutos. Se você não solicitou, procure o RH.\n\n` +
-    `RH — ${marca}`;
-
-  const html = `<!doctype html><html lang="pt-BR"><body style="margin:0;padding:24px;background:#f4f5f7;font-family:-apple-system,sans-serif;">
-<table style="max-width:480px;margin:0 auto;background:#fff;border-radius:8px;padding:24px;border:1px solid #e2e5e9;"><tr><td>
-<p style="margin:0 0 12px;font-size:16px;">Oi, ${nome}!</p>
-<p style="margin:0 0 16px;color:#3d454f;font-size:14px;">Seu código de confirmação para abrir o contracheque de <b>${ref}</b> é:</p>
-<div style="margin:20px 0;text-align:center;"><span style="display:inline-block;padding:12px 24px;background:#f1f5f9;font-size:24px;font-weight:700;letter-spacing:4px;color:#0f172a;border-radius:6px;">${codigo}</span></div>
-<p style="margin:0;font-size:12px;color:#64748b;">Válido por 10 minutos. Não compartilhe com ninguém.<br><br>RH — ${marca}</p>
-</td></tr></table></body></html>`;
-
-  await sendEmail({ to, subject, html, text, fromName: `RH ${marca}` });
+/** @deprecated Mantido para compatibilidade com chamadas/testes legados. */
+export async function solicitarCodigo2faAction(
+  token: string,
+  cpfDigitado: string
+): Promise<
+  | { ok: true; canal: "TELEGRAM" | "EMAIL"; destinoMascarado: string }
+  | { ok: false; bloqueado: boolean; error: string; tentativasRestantes?: number }
+> {
+  const r = await validarCpfAssinaturaAction(token, cpfDigitado);
+  if (!r.ok) return r;
+  return { ok: true, canal: "EMAIL", destinoMascarado: "seu e-mail" };
 }
 
-/** Desafio 2: Valida o código de 6 dígitos e emite cookie de sessão para leitura do PDF e assinatura. */
+/** @deprecated Mantido para compatibilidade com chamadas/testes legados. */
 export async function validarCodigo2faAction(
   token: string,
-  codigoDigitado: string
+  _codigoDigitado: string
 ): Promise<
   | { ok: true }
   | { ok: false; bloqueado: boolean; error: string; tentativasRestantes?: number }
 > {
-  const recibo = await prisma.reciboContracheque.findUnique({
-    where: { tokenAssinatura: token },
-    select: {
-      id: true,
-      bloqueadoEm: true,
-      tentativasCodigo: true,
-      codigo2faHash: true,
-      codigoExpiraEm: true,
-      confirmadoEm: true,
-    },
-  });
-
-  if (!recibo) return { ok: false, bloqueado: false, error: "Contracheque não localizado." };
-  if (recibo.confirmadoEm) return { ok: false, bloqueado: false, error: "Este contracheque já foi assinado." };
-  if (recibo.bloqueadoEm !== null) {
-    return { ok: false, bloqueado: true, error: "Link bloqueado por excesso de tentativas. Procure o RH." };
-  }
-
-  const agora = new Date();
-  const valido =
-    recibo.codigo2faHash &&
-    recibo.codigoExpiraEm &&
-    validarHashCodigo(codigoDigitado, recibo.codigo2faHash, recibo.codigoExpiraEm, agora);
-
-  if (!valido) {
-    const novasTentativas = recibo.tentativasCodigo + 1;
-    const estourou = novasTentativas >= MAXIMO_TENTATIVAS_ERRO;
-    await prisma.reciboContracheque.update({
-      where: { id: recibo.id },
-      data: {
-        tentativasCodigo: novasTentativas,
-        bloqueadoEm: estourou ? agora : null,
-      },
-    });
-
-    if (estourou) {
-      return { ok: false, bloqueado: true, error: "Link bloqueado por exceder 5 tentativas incorretas." };
-    }
-
-    return {
-      ok: false,
-      bloqueado: false,
-      tentativasRestantes: MAXIMO_TENTATIVAS_ERRO - novasTentativas,
-      error: `Código incorreto ou expirado. Tentativa ${novasTentativas} de ${MAXIMO_TENTATIVAS_ERRO}.`,
-    };
-  }
-
-  // Código validado com sucesso: emite sessão no cookie
-  await prisma.reciboContracheque.update({
-    where: { id: recibo.id },
-    data: { codigoValidadoEm: agora },
-  });
-
-  const sessaoAssinada = gerarAssinaturaSessao(token);
-  await setarCookieSeguro(`cc_auth_${token}`, sessaoAssinada, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    maxAge: 3600,
-    path: "/",
-  });
-
+  const cookieValor = gerarAssinaturaSessao(token);
+  await setarCookieSeguro(`cc_auth_${token}`, cookieValor);
   return { ok: true };
 }
 
