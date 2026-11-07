@@ -69,6 +69,8 @@ function limparGrants(grants: string[]): { ok: true; csv: string } | { ok: false
 
 export async function salvarPerfil(input: {
   id?: string | null;
+  /** v1.199.0: o cliente do perfil novo; null = modelo FASTMAI. Ignorado na edição. */
+  grupoId?: string | null;
   nome: string;
   descricao?: string | null;
   grants: string[];
@@ -77,7 +79,7 @@ export async function salvarPerfil(input: {
     return {
       ok: false,
       error:
-        "Só o usuário master cria, edita ou exclui perfis — eles valem para todos os grupos.",
+        "Só o usuário master cria, edita ou exclui perfis.",
     };
 
   const nome = (input.nome ?? "").trim();
@@ -86,13 +88,26 @@ export async function salvarPerfil(input: {
   const grants = limparGrants(input.grants);
   if (!grants.ok) return grants;
 
-  // Nome único — checar antes dá a mensagem que resolve; o unique do banco
-  // estoura um erro que ninguém entende.
+  // Em qual cliente o perfil mora (v1.199.0). Na edição, o do próprio perfil —
+  // não se muda perfil de cliente; no novo, o informado (null = modelo).
+  let grupoId: string | null = input.grupoId ?? null;
+  if (input.id) {
+    const atual = await prisma.perfil.findUnique({ where: { id: input.id }, select: { grupoId: true } });
+    if (!atual) return { ok: false, error: "Perfil não encontrado." };
+    grupoId = atual.grupoId;
+  } else if (grupoId) {
+    const g = await prisma.grupo.findUnique({ where: { id: grupoId }, select: { id: true } });
+    if (!g) return { ok: false, error: "Cliente não encontrado." };
+  }
+
+  // Nome único NO CLIENTE (ou entre os modelos) — checar antes dá a mensagem
+  // que resolve; o unique do banco estoura um erro que ninguém entende.
   const homonimo = await prisma.perfil.findFirst({
-    where: { nome, NOT: input.id ? { id: input.id } : undefined },
+    where: { nome: { equals: nome, mode: "insensitive" }, grupoId, NOT: input.id ? { id: input.id } : undefined },
     select: { id: true },
   });
-  if (homonimo) return { ok: false, error: `Já existe um perfil chamado "${nome}".` };
+  if (homonimo)
+    return { ok: false, error: `Já existe um perfil chamado "${nome}" ${grupoId ? "neste cliente" : "entre os modelos"}.` };
 
   // Perfil-semente pode ser EDITADO (é o ponto: ajustar o acesso de hoje), mas
   // o `sistema=true` não se mexe daqui — é o que impede a tela de apagá-lo.
@@ -102,14 +117,14 @@ export async function salvarPerfil(input: {
         data: { nome, descricao: (input.descricao ?? "").trim() || null, grants: grants.csv },
       })
     : await prisma.perfil.create({
-        data: { nome, descricao: (input.descricao ?? "").trim() || null, grants: grants.csv, sistema: false },
+        data: { nome, grupoId, descricao: (input.descricao ?? "").trim() || null, grants: grants.csv, sistema: false },
       });
 
   await registrarAuditoria({
     acao: input.id ? "ATUALIZAR" : "CRIAR",
     entidade: "Perfil",
     entidadeId: perfil.id,
-    resumo: `${input.id ? "Editou" : "Criou"} o perfil de acesso "${nome}"`,
+    resumo: `${input.id ? "Editou" : "Criou"} o ${grupoId ? "perfil de acesso" : "modelo de perfil"} "${nome}"`,
     detalhes: { grants: grants.csv },
   });
 
@@ -124,7 +139,7 @@ export async function excluirPerfil(input: {
     return {
       ok: false,
       error:
-        "Só o usuário master cria, edita ou exclui perfis — eles valem para todos os grupos.",
+        "Só o usuário master cria, edita ou exclui perfis.",
     };
 
   const perfil = await prisma.perfil.findUnique({
@@ -167,11 +182,15 @@ export async function atribuirPerfil(input: {
     return { ok: false, error: "Usuário não encontrado." };
 
   const [usuario, perfil] = await Promise.all([
-    prisma.user.findUnique({ where: { id: input.userId }, select: { id: true, nome: true } }),
-    prisma.perfil.findUnique({ where: { id: input.perfilId }, select: { id: true, nome: true } }),
+    prisma.user.findUnique({ where: { id: input.userId }, select: { id: true, nome: true, grupoId: true } }),
+    prisma.perfil.findUnique({ where: { id: input.perfilId }, select: { id: true, nome: true, grupoId: true } }),
   ]);
   if (!usuario) return { ok: false, error: "Usuário não encontrado." };
   if (!perfil) return { ok: false, error: "Perfil não encontrado." };
+  // Perfil é do cliente (v1.199.0): conta só recebe perfil do cliente dela.
+  // Modelo FASTMAI não se dá a ninguém de cliente — dá-se a cópia.
+  if (perfil.grupoId !== usuario.grupoId)
+    return { ok: false, error: "Este perfil é de outro cliente. Use um perfil do cliente da pessoa." };
 
   const jaTem = await prisma.userPerfil.findUnique({
     where: { userId_perfilId: { userId: usuario.id, perfilId: perfil.id } },

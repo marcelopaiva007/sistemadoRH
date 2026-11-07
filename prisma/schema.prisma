@@ -220,6 +220,7 @@ model Grupo {
 
   marcas   Marca[]
   usuarios User[]
+  perfis   Perfil[]
 
   @@schema("rh")
 }
@@ -3627,7 +3628,16 @@ model Contrato {
 /// editá-los e criar outros ao lado.
 model Perfil {
   id        String  @id @default(cuid())
-  nome      String  @unique
+  // Único POR CLIENTE (v1.199.0). Os MODELOS FASTMAI (grupoId null) seguem
+  // únicos entre si por índice parcial (migration
+  // 20261106220000_perfis_por_cliente; scripts/ci-extras-banco.sql).
+  nome      String
+  // PERFIS POR CLIENTE (v1.199.0, decisão do CEO em 06/11/2026): null = MODELO
+  // FASTMAI, copiado para cada cliente novo; preenchido = o perfil daquele
+  // cliente, que ele ajusta sem afetar os outros. Só se dá a uma conta perfil
+  // do cliente dela.
+  grupoId   String?
+  grupo     Grupo?  @relation(fields: [grupoId], references: [id])
   descricao String?
   grants    String
   sistema   Boolean @default(false)
@@ -3638,6 +3648,8 @@ model Perfil {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@unique([grupoId, nome])
+  @@index([grupoId])
   @@schema("rh")
 }
 

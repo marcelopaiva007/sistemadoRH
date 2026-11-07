@@ -102,3 +102,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS "DocumentoColaborador_colaboradorId_chaveDedup
 -- login único entre as contas SEM cliente (MASTER e legado); com cliente, o
 -- índice (grupoId, username) do schema já cobre.
 CREATE UNIQUE INDEX IF NOT EXISTS "User_username_sem_grupo_key" ON "rh"."User"("username") WHERE "grupoId" IS NULL;
+
+-- De prisma/migrations/20261106220000_perfis_por_cliente/migration.sql:
+-- os MODELOS de perfil (sem cliente) seguem com nome único entre si.
+CREATE UNIQUE INDEX IF NOT EXISTS "Perfil_nome_modelo_key" ON "rh"."Perfil"("nome") WHERE "grupoId" IS NULL;

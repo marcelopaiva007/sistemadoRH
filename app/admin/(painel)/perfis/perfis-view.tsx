@@ -32,7 +32,16 @@ export type UsuarioComPerfis = {
 
 const CAMPO = "w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm";
 
-export function PerfisView({ perfis, usuarios }: { perfis: PerfilNaTela[]; usuarios: UsuarioComPerfis[] }) {
+export function PerfisView({
+  perfis,
+  usuarios,
+  grupoId,
+}: {
+  perfis: PerfilNaTela[];
+  usuarios: UsuarioComPerfis[];
+  /** v1.199.0: o cliente aberto; null = os MODELOS FASTMAI. */
+  grupoId: string | null;
+}) {
   const router = useRouter();
   const [pendente, iniciar] = useTransition();
   const [erro, setErro] = useState<string | null>(null);
@@ -113,6 +122,7 @@ export function PerfisView({ perfis, usuarios }: { perfis: PerfilNaTela[]; usuar
     iniciar(async () => {
       const r = await salvarPerfil({
         id: editando === "novo" ? null : editando?.id,
+        grupoId,
         nome,
         descricao,
         grants,
@@ -298,6 +308,12 @@ export function PerfisView({ perfis, usuarios }: { perfis: PerfilNaTela[]; usuar
         })}
       </div>
 
+      {grupoId === null ? (
+        <p className="text-sm text-muted-foreground">
+          Modelos não se dão a ninguém: cada cliente novo nasce com uma cópia de cada modelo, e é a cópia que vai
+          para as pessoas. Editar um modelo aqui não muda os perfis dos clientes que já existem.
+        </p>
+      ) : (
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Quem tem cada perfil</CardTitle>
@@ -354,6 +370,7 @@ export function PerfisView({ perfis, usuarios }: { perfis: PerfilNaTela[]; usuar
           })}
         </CardContent>
       </Card>
+      )}
     </div>
   );
 }

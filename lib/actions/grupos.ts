@@ -8,6 +8,7 @@ import { violouUnique } from "@/lib/prisma-erros";
 import type { ActionResult } from "@/lib/constants";
 import { apenasDigitosCnpj, cnpjValido } from "@/lib/cnpj";
 import { loginJaUsado } from "@/lib/usuario-por-identificador";
+import { copiarModelosParaCliente } from "@/lib/perfis-cliente";
 import { dominioDigitado } from "@/lib/endereco-cliente";
 
 // Ações do MASTER sobre os GRUPOS de sociedade (lib/grupo.ts) — os CLIENTES
@@ -33,7 +34,13 @@ export async function criarGrupo(
   const nome = texto(fd, "nome");
   if (nome.length < 2) return { ok: false, error: "Informe o nome do cliente." };
   try {
-    const grupo = await prisma.grupo.create({ data: { nome } });
+    // Cliente novo nasce com uma cópia de cada modelo de perfil FASTMAI
+    // (v1.199.0) — sem isso, ninguém dele teria perfil para receber.
+    const grupo = await prisma.$transaction(async (tx) => {
+      const g = await tx.grupo.create({ data: { nome } });
+      await copiarModelosParaCliente(g.id, tx);
+      return g;
+    });
     await registrarAuditoria({
       acao: "CRIAR",
       entidade: "Grupo",
