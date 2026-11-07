@@ -26,6 +26,15 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.200.1",
+    data: "07/11/2026",
+    horario: "10:30",
+    titulo: "Rotina automática de backup desligada",
+    itens: [
+      "A cópia automática do banco que rodava toda madrugada foi desligada, a pedido da direção. Ela falhava todo dia porque o servidor não tem a ferramenta de cópia. O código continua no sistema e pode ser religado depois.",
+    ],
+  },
+  {
     versao: "1.200.0",
     data: "07/11/2026",
     horario: "10:10",
