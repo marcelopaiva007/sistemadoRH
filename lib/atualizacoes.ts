@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.200.0",
+    data: "07/11/2026",
+    horario: "10:10",
+    titulo: "Gestão FASTMAI: aba Atualizações",
+    itens: [
+      "A Gestão FASTMAI ganhou a aba \"Atualizações\", ao lado de Clientes, Usuários e Perfis de acesso.",
+      "Ela mostra as próximas atualizações combinadas e o histórico de cada versão publicada, com a versão no ar marcada.",
+      "O conteúdo é o mesmo da tela de Atualizações do sistema de RH.",
+    ],
+  },
+  {
     versao: "1.199.0",
     data: "06/11/2026",
     horario: "18:00",
