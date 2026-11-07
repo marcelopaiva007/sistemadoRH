@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { Camera, CheckCircle2, Download, FileText, RefreshCw, ShieldAlert, ShieldCheck } from "lucide-react";
+import { Camera, CheckCircle2, Download, ExternalLink, FileText, RefreshCw, ShieldAlert, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -38,6 +38,7 @@ export function PaginaAssinaturaClient({
   const [isPending, startTransition] = useTransition();
 
   // Etapa Assinatura
+  const [pdfVisualizado, setPdfVisualizado] = useState(false);
   const [fotoDataUrl, setFotoDataUrl] = useState<string | null>(null);
   const [aceite, setAceite] = useState(false);
   const [localizacao, setLocalizacao] = useState<string | null>(null);
@@ -293,19 +294,34 @@ export function PaginaAssinaturaClient({
                   Role a página abaixo para ler atentamente todos os vencimentos e descontos.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="p-2">
+              <CardContent className="p-2 space-y-2">
                 <div className="w-full h-[360px] rounded border border-slate-200 bg-slate-100 overflow-hidden relative">
                   <iframe
                     src={`/api/assinar/${token}/pdf#toolbar=0`}
                     className="w-full h-full border-0"
                     title="Contracheque"
+                    onLoad={() => setPdfVisualizado(true)}
                   />
+                </div>
+                <div className="pt-1 flex flex-wrap items-center justify-between gap-2 px-1">
+                  <span className="text-[11px] text-slate-500">
+                    Não visualizou o contracheque acima?
+                  </span>
+                  <a
+                    href={`/api/assinar/${token}/pdf`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setPdfVisualizado(true)}
+                    className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline"
+                  >
+                    <ExternalLink className="size-3.5" /> Abrir contracheque em nova aba
+                  </a>
                 </div>
               </CardContent>
             </Card>
 
             {/* Selfie e Aceite */}
-            <Card className="shadow-sm border-blue-100 bg-blue-50/20">
+            <Card className={`shadow-sm border-blue-100 transition-opacity ${pdfVisualizado ? "bg-blue-50/20" : "bg-slate-50/50 opacity-90"}`}>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-semibold flex items-center gap-1.5 text-slate-900">
                   <Camera className="size-4 text-blue-600" /> 2. Selfie e Confirmação de Recebimento
@@ -317,6 +333,12 @@ export function PaginaAssinaturaClient({
               <CardContent className="space-y-4">
                 {erro && <p className="p-2.5 text-xs rounded bg-red-50 text-red-700 border border-red-200">{erro}</p>}
 
+                {!pdfVisualizado && (
+                  <div className="p-3 rounded-md bg-amber-50 border border-amber-200 text-amber-800 text-xs">
+                    ⚠️ <b>Atenção:</b> Por segurança, confira o contracheque no passo 1 (ou abra em nova aba) para liberar a selfie e a assinatura.
+                  </div>
+                )}
+
                 {/* Input de Câmera nativo */}
                 <input
                   ref={inputFotoRef}
@@ -325,6 +347,7 @@ export function PaginaAssinaturaClient({
                   capture="user"
                   className="hidden"
                   onChange={aoCapturarFoto}
+                  disabled={!pdfVisualizado}
                 />
 
                 <div className="flex flex-col items-center justify-center p-4 border border-dashed border-slate-300 rounded-lg bg-white space-y-3">
@@ -339,6 +362,7 @@ export function PaginaAssinaturaClient({
                         variant="outline"
                         size="sm"
                         onClick={() => inputFotoRef.current?.click()}
+                        disabled={!pdfVisualizado}
                         className="text-xs"
                       >
                         <RefreshCw className="size-3 mr-1" /> Tirar outra foto
@@ -348,7 +372,8 @@ export function PaginaAssinaturaClient({
                     <Button
                       type="button"
                       onClick={() => inputFotoRef.current?.click()}
-                      className="bg-slate-900 hover:bg-slate-800 text-white text-xs gap-1.5"
+                      disabled={!pdfVisualizado}
+                      className="bg-slate-900 hover:bg-slate-800 text-white text-xs gap-1.5 disabled:opacity-50"
                     >
                       <Camera className="size-4" /> Tirar Selfie de Confirmação
                     </Button>
@@ -361,6 +386,7 @@ export function PaginaAssinaturaClient({
                     id="aceite"
                     checked={aceite}
                     onCheckedChange={(c) => setAceite(c === true)}
+                    disabled={!pdfVisualizado}
                     className="mt-0.5"
                   />
                   <label htmlFor="aceite" className="text-xs text-slate-700 font-medium leading-relaxed cursor-pointer">
@@ -372,8 +398,8 @@ export function PaginaAssinaturaClient({
                 <Button
                   type="button"
                   onClick={aoAssinar}
-                  disabled={isPending || !fotoDataUrl || !aceite}
-                  className="w-full bg-blue-700 hover:bg-blue-800 text-white font-semibold py-2.5 shadow-sm"
+                  disabled={isPending || !pdfVisualizado || !fotoDataUrl || !aceite}
+                  className="w-full bg-blue-700 hover:bg-blue-800 text-white font-semibold py-2.5 shadow-sm disabled:opacity-50"
                 >
                   {isPending ? "Processando e selando documento..." : "Assinar recebimento"}
                 </Button>

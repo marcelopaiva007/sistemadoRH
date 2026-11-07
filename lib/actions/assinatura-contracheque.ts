@@ -23,7 +23,7 @@ import { sendEmail } from "@/lib/email";
 import { fotoDeBatidaValida, REGEX_FOTO_DATA_URL } from "@/lib/ponto-foto";
 import { baixarDoBlob, blobConfigurado, enviarParaBlob } from "@/lib/blob";
 import { gerarPdfComprovanteAssinado } from "@/lib/contracheques/comprovante-pdf";
-import { mascararEmail } from "@/lib/contracheques/envio";
+import { mascararEmail, obterUrlBase } from "@/lib/contracheques/envio";
 
 export type DadosReciboPublico =
   | {
@@ -499,10 +499,13 @@ export async function assinarContrachequeAction(
   if (recibo.colaborador.email) {
     const marca = recibo.colaborador.empresa.marca?.nome || "RH";
     const subject = `Comprovante de contracheque assinado — ${refRotulo}`;
+    const baseUrl = obterUrlBase();
+    const linkComprovante = `${baseUrl}/api/assinar/${token}/comprovante`;
     const text =
       `Oi, ${nomeCurto(recibo.colaborador.nome)}!\n\n` +
       `Sua assinatura do contracheque de ${refRotulo} foi concluída com sucesso em ${agora.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}.\n\n` +
       `O comprovante com o dossiê probatório completo e sua selfie está anexado a este e-mail para seu arquivo pessoal.\n\n` +
+      `Caso seu aplicativo de e-mail não abra anexos, você também pode baixar o documento assinado pelo link seguro:\n${linkComprovante}\n\n` +
       `Hash SHA-256 do documento: ${hashOriginal}\n\n` +
       `RH — ${marca}`;
 
@@ -510,10 +513,15 @@ export async function assinarContrachequeAction(
 <table style="max-width:540px;margin:0 auto;background:#fff;border-radius:8px;padding:32px;border:1px solid #e2e5e9;"><tr><td>
 <h2 style="margin:0 0 16px;color:#0f172a;">Assinatura confirmada! 🎉</h2>
 <p style="margin:0 0 14px;color:#3d454f;font-size:15px;">Oi, <b>${recibo.colaborador.nome}</b>. Seu contracheque de <b>${refRotulo}</b> foi assinado com sucesso.</p>
-<p style="margin:0 0 20px;color:#5a636e;font-size:14px;">O documento assinado contendo a folha de comprovação legal, carimbo de data/hora e sua selfie foi anexado a este e-mail para seus arquivos.</p>
+<p style="margin:0 0 16px;color:#5a636e;font-size:14px;">O documento assinado contendo a folha de comprovação legal, carimbo de data/hora e sua selfie foi anexado a este e-mail para seus arquivos.</p>
 <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:12px 16px;font-size:12px;color:#64748b;margin-bottom:20px;">
   <b>Data/Hora (Brasília):</b> ${agora.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}<br>
   <b>Hash SHA-256:</b> <span style="word-break:break-all;">${hashOriginal}</span>
+</div>
+<div style="margin:24px 0;text-align:center;">
+  <a href="${linkComprovante}" style="display:inline-block;padding:12px 24px;background:#0f766e;color:#ffffff;text-decoration:none;font-weight:600;font-size:14px;border-radius:6px;">
+    Baixar Contracheque Assinado (PDF)
+  </a>
 </div>
 <p style="margin:0;font-size:12px;color:#8a929c;">RH — ${marca}</p>
 </td></tr></table></body></html>`;
@@ -527,7 +535,7 @@ export async function assinarContrachequeAction(
       attachments: [
         {
           filename: nomePdfAssinado,
-          content: Buffer.from(pdfAssinadoBytes),
+          content: Buffer.from(pdfAssinadoBytes.buffer, pdfAssinadoBytes.byteOffset, pdfAssinadoBytes.byteLength),
           contentType: "application/pdf",
         },
       ],

@@ -101,7 +101,7 @@ export function montarAvisoTelegram(
   return { text, replyMarkup };
 }
 
-function obterUrlBase(): string {
+export function obterUrlBase(): string {
   const url = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL;
   if (!url) return "https://rh.assinelm.com.br";
   return url.startsWith("http") ? url : `https://${url}`;
