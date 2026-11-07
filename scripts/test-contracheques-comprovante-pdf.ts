@@ -19,9 +19,9 @@ async function test() {
   const { bytes, hashOriginal } = await gerarPdfComprovanteAssinado({
     pdfOriginalBytes: pdfOriginal,
     reciboId: "recibo-ci-test-12345",
-    colaboradorNome: "Maria da Silva",
+    colaboradorNome: "Maria da Silva 🎉 (Com Emoji & Acentos: áéíóú ç)",
     colaboradorCpf: "12345678900",
-    empresaRazaoSocial: "LM Telecom LTDA",
+    empresaRazaoSocial: "LM Telecom LTDA — Matriz",
     empresaCnpj: "12.345.678/0001-90",
     competenciaRotulo: "11/2026",
     tipoFolhaRotulo: "Mensal",
@@ -32,7 +32,7 @@ async function test() {
     canalCodigo: "TELEGRAM",
     confirmadoEm: agora,
     confirmadoIp: "189.10.20.30",
-    confirmadoDispositivo: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)",
+    confirmadoDispositivo: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) \u2192 Mobile Safari 🚀",
     confirmadoLocalizacao: "-23.5505,-46.6333",
     textoAceite: "Declaro que recebi o contracheque de 11/2026 e estou ciente do seu conteúdo.",
     fotoDataUrl,
@@ -44,6 +44,12 @@ async function test() {
   }
   if (!hashOriginal || hashOriginal.length !== 64) {
     throw new Error(`Hash original esperado com 64 chars, obtido: ${hashOriginal}`);
+  }
+
+  // Verifica compatibilidade: deve usar tabela de xref tradicional (sem /ObjStm)
+  const pdfString = Buffer.from(bytes).toString("latin1");
+  if (!pdfString.includes("xref") || pdfString.includes("/ObjStm")) {
+    throw new Error("PDF gerado não possui tabela xref tradicional ou contém /ObjStm incompatível.");
   }
 
   console.log("  ✓ PDF final contém 2 páginas");
