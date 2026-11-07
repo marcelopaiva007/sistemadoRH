@@ -26,6 +26,98 @@ function texto(fd: FormData, campo: string): string {
   return typeof v === "string" ? v.trim() : "";
 }
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * Valor em reais digitado como gente digita — "1.500,00", "R$ 1500", "1500.5"
+ * — em centavos. Vazio = null; inválido = false.
+ */
+function centavosDigitados(bruto: string): number | null | false {
+  let v = bruto.replace(/R\$|\s/gi, "");
+  if (!v) return null;
+  if (v.includes(",")) v = v.replace(/\./g, "").replace(",", ".");
+  else if (!/^\d+\.\d{1,2}$/.test(v)) v = v.replace(/\./g, "");
+  if (!/^\d+(\.\d{1,2})?$/.test(v)) return false;
+  const centavos = Math.round(Number(v) * 100);
+  if (!Number.isSafeInteger(centavos) || centavos > 2_000_000_000) return false;
+  return centavos;
+}
+
+type DadosCadastro = {
+  razaoSocial: string | null;
+  cnpj: string | null;
+  responsavelNome: string | null;
+  contatoEmail: string | null;
+  contatoTelefone: string | null;
+  plano: string | null;
+  valorMensalCentavos: number | null;
+  diaVencimento: number | null;
+  limiteUsuarios: number | null;
+  inicioContrato: Date | null;
+  observacoes: string | null;
+};
+
+/**
+ * Lê e valida os campos de cadastro do cliente — os mesmos ao criar e ao
+ * salvar. Tudo opcional: campo vazio vira null.
+ */
+function lerCadastro(fd: FormData): { ok: true; dados: DadosCadastro } | { ok: false; error: string } {
+  const ouNulo = (campo: string) => texto(fd, campo) || null;
+
+  const cnpjBruto = texto(fd, "cnpj");
+  const cnpj = cnpjBruto ? apenasDigitosCnpj(cnpjBruto) : null;
+  if (cnpj && !cnpjValido(cnpj)) return { ok: false, error: "CNPJ inválido. Confira os números." };
+
+  const contatoEmail = ouNulo("contatoEmail")?.toLowerCase() ?? null;
+  if (contatoEmail && !EMAIL_RE.test(contatoEmail)) return { ok: false, error: "E-mail de contato inválido." };
+
+  const limiteBruto = texto(fd, "limiteUsuarios");
+  let limiteUsuarios: number | null = null;
+  if (limiteBruto) {
+    const n = Number(limiteBruto);
+    if (!Number.isInteger(n) || n < 1 || n > 100000)
+      return { ok: false, error: "Limite de usuários precisa ser um número inteiro a partir de 1 (ou vazio para sem limite)." };
+    limiteUsuarios = n;
+  }
+
+  const valorMensalCentavos = centavosDigitados(texto(fd, "valorMensal"));
+  if (valorMensalCentavos === false)
+    return { ok: false, error: "Valor mensal inválido. Use, por exemplo, 1.500,00." };
+
+  const diaBruto = texto(fd, "diaVencimento");
+  let diaVencimento: number | null = null;
+  if (diaBruto) {
+    const n = Number(diaBruto);
+    if (!Number.isInteger(n) || n < 1 || n > 31) return { ok: false, error: "Dia de vencimento precisa ser de 1 a 31." };
+    diaVencimento = n;
+  }
+
+  const dataBruta = texto(fd, "inicioContrato");
+  let inicioContrato: Date | null = null;
+  if (dataBruta) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dataBruta)) return { ok: false, error: "Data de início do contrato inválida." };
+    inicioContrato = new Date(`${dataBruta}T00:00:00.000Z`);
+    if (Number.isNaN(inicioContrato.getTime())) return { ok: false, error: "Data de início do contrato inválida." };
+  }
+
+  return {
+    ok: true,
+    dados: {
+      razaoSocial: ouNulo("razaoSocial"),
+      cnpj,
+      responsavelNome: ouNulo("responsavelNome"),
+      contatoEmail,
+      contatoTelefone: ouNulo("contatoTelefone"),
+      plano: ouNulo("plano"),
+      valorMensalCentavos,
+      diaVencimento,
+      limiteUsuarios,
+      inicioContrato,
+      observacoes: ouNulo("observacoes"),
+    },
+  };
+}
+
 export async function criarGrupo(
   _prev: ActionResult,
   fd: FormData,
@@ -33,11 +125,14 @@ export async function criarGrupo(
   await requireMaster();
   const nome = texto(fd, "nome");
   if (nome.length < 2) return { ok: false, error: "Informe o nome do cliente." };
+  // Cadastro completo já na criação (v1.201.0) — todos os campos opcionais.
+  const cadastro = lerCadastro(fd);
+  if (!cadastro.ok) return cadastro;
   try {
     // Cliente novo nasce com uma cópia de cada modelo de perfil FASTMAI
     // (v1.199.0) — sem isso, ninguém dele teria perfil para receber.
     const grupo = await prisma.$transaction(async (tx) => {
-      const g = await tx.grupo.create({ data: { nome } });
+      const g = await tx.grupo.create({ data: { nome, ...cadastro.dados } });
       await copiarModelosParaCliente(g.id, tx);
       return g;
     });
@@ -87,7 +182,6 @@ export async function renomearGrupo(
   return { ok: true };
 }
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
  * Dados cadastrais do cliente (v1.197.0, Fase 1): documento, responsável e
@@ -103,31 +197,8 @@ export async function salvarDadosCliente(
   const antes = await prisma.grupo.findUnique({ where: { id: grupoId }, select: { nome: true } });
   if (!antes) return { ok: false, error: "Cliente não encontrado." };
 
-  const ouNulo = (campo: string) => texto(fd, campo) || null;
-
-  const cnpjBruto = texto(fd, "cnpj");
-  const cnpj = cnpjBruto ? apenasDigitosCnpj(cnpjBruto) : null;
-  if (cnpj && !cnpjValido(cnpj)) return { ok: false, error: "CNPJ inválido. Confira os números." };
-
-  const contatoEmail = ouNulo("contatoEmail")?.toLowerCase() ?? null;
-  if (contatoEmail && !EMAIL_RE.test(contatoEmail)) return { ok: false, error: "E-mail de contato inválido." };
-
-  const limiteBruto = texto(fd, "limiteUsuarios");
-  let limiteUsuarios: number | null = null;
-  if (limiteBruto) {
-    const n = Number(limiteBruto);
-    if (!Number.isInteger(n) || n < 1 || n > 100000)
-      return { ok: false, error: "Limite de usuários precisa ser um número inteiro a partir de 1 (ou vazio para sem limite)." };
-    limiteUsuarios = n;
-  }
-
-  const dataBruta = texto(fd, "inicioContrato");
-  let inicioContrato: Date | null = null;
-  if (dataBruta) {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(dataBruta)) return { ok: false, error: "Data de início do contrato inválida." };
-    inicioContrato = new Date(`${dataBruta}T00:00:00.000Z`);
-    if (Number.isNaN(inicioContrato.getTime())) return { ok: false, error: "Data de início do contrato inválida." };
-  }
+  const cadastro = lerCadastro(fd);
+  if (!cadastro.ok) return cadastro;
 
   // Endereço próprio (v1.198.0). Tirar o endereço de um cliente devolve os
   // usuários dele ao endereço comum: só pode se nenhum login lá repetir.
@@ -159,15 +230,7 @@ export async function salvarDadosCliente(
       where: { id: grupoId },
       data: {
         dominio,
-        razaoSocial: ouNulo("razaoSocial"),
-        cnpj,
-        responsavelNome: ouNulo("responsavelNome"),
-        contatoEmail,
-        contatoTelefone: ouNulo("contatoTelefone"),
-        plano: ouNulo("plano"),
-        limiteUsuarios,
-        inicioContrato,
-        observacoes: ouNulo("observacoes"),
+        ...cadastro.dados,
       },
     });
   } catch (e) {
@@ -332,5 +395,30 @@ export async function moverUsuarioDeGrupo(
   });
   revalidatePath(CAMINHO);
   revalidatePath("/admin/usuarios");
+  return { ok: true };
+}
+
+/**
+ * Liga ou desliga o CONTRATO do cliente (v1.201.0). Situação comercial: o
+ * cliente inativo sai da receita mensal e aparece como inativo na Gestão. Por
+ * ora NÃO bloqueia login — cortar o acesso de quem está inativo é decisão à
+ * parte, que mexe em permissão.
+ */
+export async function definirContratoAtivo(grupoId: string, ativo: boolean): Promise<ActionResult> {
+  await requireMaster();
+  const antes = await prisma.grupo.findUnique({
+    where: { id: grupoId },
+    select: { nome: true, contratoAtivo: true },
+  });
+  if (!antes) return { ok: false, error: "Cliente não encontrado." };
+  if (antes.contratoAtivo === ativo) return { ok: true };
+  await prisma.grupo.update({ where: { id: grupoId }, data: { contratoAtivo: ativo } });
+  await registrarAuditoria({
+    acao: "ATUALIZAR",
+    entidade: "Grupo",
+    entidadeId: grupoId,
+    resumo: `${ativo ? "Reativou" : "Inativou"} o contrato do cliente "${antes.nome}"`,
+  });
+  revalidatePath(CAMINHO);
   return { ok: true };
 }

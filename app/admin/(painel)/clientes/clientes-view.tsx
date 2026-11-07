@@ -1,15 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useTransition } from "react";
 import { toast } from "sonner";
-import { ArrowRight, Building2, FileText, TriangleAlert } from "lucide-react";
+import { ArrowRight, Building2, FileText, Plus, TriangleAlert } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   criarGrupo,
+  definirContratoAtivo,
   moverMarcaDeGrupo,
   moverUsuarioDeGrupo,
   renomearGrupo,
@@ -43,6 +44,9 @@ type Grupo = {
   inicioContrato: Date | null;
   observacoes: string | null;
   dominio: string | null;
+  valorMensalCentavos: number | null;
+  diaVencimento: number | null;
+  contratoAtivo: boolean;
 };
 type Marca = {
   id: string;
@@ -89,6 +93,17 @@ function contagem(n: number, um: string, varios: string) {
   return `${n} ${n === 1 ? um : varios}`;
 }
 
+const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+
+function reais(centavos: number | null): string {
+  return centavos == null ? "" : BRL.format(centavos / 100);
+}
+
+/** Valor para o campo de edição: "1500,00" (o servidor aceita com ou sem ponto). */
+function reaisNoCampo(centavos: number | null): string {
+  return centavos == null ? "" : (centavos / 100).toFixed(2).replace(".", ",");
+}
+
 export function ClientesView({
   grupos,
   marcas,
@@ -109,27 +124,50 @@ export function ClientesView({
   const encerradosComAlgo = encerrados.filter((g) => temAlgo(g.id));
   const encerradosVazios = encerrados.filter((g) => !temAlgo(g.id));
   const totalAtivas = usuarios.filter((u) => u.ativo).length;
+  const contratosAtivos = ativos.filter((g) => g.contratoAtivo);
+  const receitaMensal = contratosAtivos.reduce((s, g) => s + (g.valorMensalCentavos ?? 0), 0);
+  const semValor = contratosAtivos.filter((g) => g.valorMensalCentavos == null).length;
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <p className="text-sm text-muted-foreground">
-          {contagem(ativos.length, "cliente", "clientes")} ·{" "}
-          {contagem(usuarios.length, "conta", "contas")} ({contagem(totalAtivas, "ativa", "ativas")}),
-          fora a conta de administrador e os acessos de portal dos colaboradores.
-        </p>
-        <form action={acaoCriar} className="flex w-full max-w-md items-end gap-2">
-          <div className="flex-1 space-y-1">
-            <label htmlFor="novo-cliente" className="text-sm font-medium">
-              Novo cliente
-            </label>
-            <Input id="novo-cliente" name="nome" placeholder="Nome do cliente" required minLength={2} />
-          </div>
-          <Button type="submit" disabled={criando}>
-            Criar cliente
-          </Button>
-        </form>
+      {/* PAINEL DO NEGÓCIO (v1.201.0): o que a FASTMAI fatura e com quem. */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Indicador rotulo="Clientes ativos" valor={String(contratosAtivos.length)} />
+        <Indicador
+          rotulo="Clientes inativos"
+          valor={String(ativos.length - contratosAtivos.length)}
+        />
+        <Indicador
+          rotulo="Receita mensal (ativos)"
+          valor={BRL.format(receitaMensal / 100)}
+          nota={semValor > 0 ? `${contagem(semValor, "cliente ativo", "clientes ativos")} sem valor cadastrado` : undefined}
+        />
+        <Indicador
+          rotulo="Contas ativas"
+          valor={String(totalAtivas)}
+          nota={`de ${contagem(usuarios.length, "conta", "contas")}, fora admin e portal`}
+        />
       </div>
+
+      <TabelaClientes grupos={ativos} marcas={marcas} usuarios={usuarios} />
+
+      <details className="group rounded-lg border border-border bg-card px-4 py-3">
+        <summary className="flex cursor-pointer items-center gap-2 font-medium select-none">
+          <Plus aria-hidden className="size-4" />
+          Cadastrar novo cliente
+        </summary>
+        <form action={acaoCriar} className="mt-4 grid gap-3 sm:grid-cols-2">
+          <Campo id="novo-nome" rotulo="Nome do cliente (como aparece na Gestão)" largo>
+            <Input id="novo-nome" name="nome" placeholder="ex.: Grupo Exemplo" required minLength={2} />
+          </Campo>
+          <CamposCadastro prefixo="novo" />
+          <div className="sm:col-span-2">
+            <Button type="submit" disabled={criando}>
+              {criando ? "Criando..." : "Criar cliente"}
+            </Button>
+          </div>
+        </form>
+      </details>
 
       {semCliente.length > 0 && (
         <Card className="border-amber-300">
@@ -187,7 +225,7 @@ function CartaoCliente({
   const tipo = grupo.ativo ? tipoDoCliente(ativas.length) : "Encerrado";
 
   return (
-    <Card className={cn(!grupo.ativo && "border-dashed")}>
+    <Card id={`cliente-${grupo.id}`} className={cn("scroll-mt-20", !grupo.ativo && "border-dashed")}>
       <CardHeader className="space-y-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 space-y-1">
@@ -199,7 +237,10 @@ function CartaoCliente({
             >
               {tipo}
             </p>
-            <h2 className="text-lg leading-tight font-semibold">{grupo.nome}</h2>
+            <h2 className="flex flex-wrap items-center gap-2 text-lg leading-tight font-semibold">
+              {grupo.nome}
+              {grupo.ativo && <SituacaoBadge ativo={grupo.contratoAtivo} />}
+            </h2>
             <p className="text-sm text-muted-foreground">
               {ativas.length === 0
                 ? "Nenhuma marca ativa ainda."
@@ -392,6 +433,8 @@ function ResumoCadastro({ grupo, contasAtivas }: { grupo: Grupo; contasAtivas: n
     grupo.cnpj ? `CNPJ ${formatarCnpj(grupo.cnpj)}` : null,
     grupo.responsavelNome ? `Responsável: ${grupo.responsavelNome}` : null,
     grupo.plano ? `Plano ${grupo.plano}` : null,
+    grupo.valorMensalCentavos != null ? `${reais(grupo.valorMensalCentavos)}/mês` : null,
+    grupo.diaVencimento != null ? `vence dia ${grupo.diaVencimento}` : null,
     grupo.inicioContrato ? `Desde ${dataBr(grupo.inicioContrato)}` : null,
     grupo.dominio ? `Acesso: ${grupo.dominio}` : null,
   ].filter(Boolean);
@@ -452,50 +495,14 @@ function DadosDoCliente({ grupo }: { grupo: Grupo }) {
     <details className="group rounded-md border border-border px-3 py-2">
       <summary className="flex cursor-pointer items-center gap-1.5 text-sm font-medium text-muted-foreground select-none group-open:text-foreground">
         <FileText aria-hidden className="size-4" />
-        Contratante — quem assina e paga
+        Contrato e cobrança — quem assina e paga
       </summary>
       <p className="mt-2 text-xs text-muted-foreground">
         A empresa que contrata o sistema. As empresas do grupo que usam o sistema (cada CNPJ com os seus
         dados) ficam em &quot;Empresas deste cliente&quot;, logo abaixo.
       </p>
       <form action={acao} className="mt-3 grid gap-3 sm:grid-cols-2">
-        <Campo id={`${p}-razao`} rotulo="Razão social" largo>
-          <Input id={`${p}-razao`} name="razaoSocial" defaultValue={grupo.razaoSocial ?? ""} />
-        </Campo>
-        <Campo id={`${p}-cnpj`} rotulo="CNPJ">
-          <Input
-            id={`${p}-cnpj`}
-            name="cnpj"
-            inputMode="numeric"
-            placeholder="00.000.000/0000-00"
-            defaultValue={grupo.cnpj ? formatarCnpj(grupo.cnpj) : ""}
-          />
-        </Campo>
-        <Campo id={`${p}-resp`} rotulo="Responsável no cliente">
-          <Input id={`${p}-resp`} name="responsavelNome" defaultValue={grupo.responsavelNome ?? ""} />
-        </Campo>
-        <Campo id={`${p}-email`} rotulo="E-mail de contato">
-          <Input id={`${p}-email`} name="contatoEmail" type="email" defaultValue={grupo.contatoEmail ?? ""} />
-        </Campo>
-        <Campo id={`${p}-tel`} rotulo="Telefone / WhatsApp">
-          <Input id={`${p}-tel`} name="contatoTelefone" inputMode="tel" defaultValue={grupo.contatoTelefone ?? ""} />
-        </Campo>
-        <Campo id={`${p}-plano`} rotulo="Plano">
-          <Input id={`${p}-plano`} name="plano" placeholder="ex.: Básico, Completo" defaultValue={grupo.plano ?? ""} />
-        </Campo>
-        <Campo id={`${p}-limite`} rotulo="Limite de usuários (vazio = sem limite)">
-          <Input
-            id={`${p}-limite`}
-            name="limiteUsuarios"
-            type="number"
-            min={1}
-            step={1}
-            defaultValue={grupo.limiteUsuarios ?? ""}
-          />
-        </Campo>
-        <Campo id={`${p}-inicio`} rotulo="Início do contrato">
-          <Input id={`${p}-inicio`} name="inicioContrato" type="date" defaultValue={dataIso(grupo.inicioContrato)} />
-        </Campo>
+        <CamposCadastro prefixo={p} grupo={grupo} />
         <Campo id={`${p}-dominio`} rotulo="Endereço de acesso próprio (ex.: rh.cliente.com.br)" largo>
           <Input
             id={`${p}-dominio`}
@@ -509,21 +516,20 @@ function DadosDoCliente({ grupo }: { grupo: Grupo }) {
             outros clientes. O endereço também precisa ser apontado para o sistema (DNS e Vercel).
           </p>
         </Campo>
-        <Campo id={`${p}-obs`} rotulo="Observações" largo>
-          <textarea
-            id={`${p}-obs`}
-            name="observacoes"
-            rows={2}
-            defaultValue={grupo.observacoes ?? ""}
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          />
-        </Campo>
         <div className="sm:col-span-2">
           <Button type="submit" size="sm" disabled={salvando}>
             {salvando ? "Salvando..." : "Salvar dados"}
           </Button>
         </div>
       </form>
+      {grupo.ativo && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t pt-3">
+          <p className="text-sm">
+            Situação do contrato: <SituacaoBadge ativo={grupo.contratoAtivo} />
+          </p>
+          <BotaoSituacao grupo={grupo} />
+        </div>
+      )}
     </details>
   );
 }
@@ -575,5 +581,199 @@ function EmpresasDoCliente({ marcas }: { marcas: Marca[] }) {
           ))}
       </div>
     </details>
+  );
+}
+
+function Indicador({ rotulo, valor, nota }: { rotulo: string; valor: string; nota?: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-card px-4 py-3">
+      <p className="text-xs font-medium text-muted-foreground">{rotulo}</p>
+      <p className="text-2xl font-semibold tabular-nums">{valor}</p>
+      {nota && <p className="text-xs text-muted-foreground">{nota}</p>}
+    </div>
+  );
+}
+
+function SituacaoBadge({ ativo }: { ativo: boolean }) {
+  return ativo ? (
+    <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">Ativo</Badge>
+  ) : (
+    <Badge variant="secondary">Inativo</Badge>
+  );
+}
+
+/**
+ * Ativar/inativar o contrato (v1.201.0). Comercial: tira o cliente da receita
+ * mensal. Não corta o login de ninguém — o aviso de confirmação diz isso.
+ */
+function BotaoSituacao({ grupo }: { grupo: Grupo }) {
+  const [pendente, iniciar] = useTransition();
+  const novo = !grupo.contratoAtivo;
+  return (
+    <Button
+      type="button"
+      size="sm"
+      variant={novo ? "default" : "outline"}
+      disabled={pendente}
+      onClick={() => {
+        const msg = novo
+          ? `Reativar o contrato de ${grupo.nome}? Ele volta a contar na receita mensal.`
+          : `Inativar o contrato de ${grupo.nome}? Ele sai da receita mensal. Os usuários dele continuam entrando no sistema.`;
+        if (!window.confirm(msg)) return;
+        iniciar(async () => {
+          const r = await definirContratoAtivo(grupo.id, novo);
+          if (r.ok) toast.success(novo ? "Contrato reativado." : "Contrato inativado.");
+          else toast.error(r.error);
+        });
+      }}
+    >
+      {novo ? "Reativar contrato" : "Inativar contrato"}
+    </Button>
+  );
+}
+
+/** Visão geral de todos os clientes numa tabela: plano, valor, vencimento e situação. */
+function TabelaClientes({
+  grupos,
+  marcas,
+  usuarios,
+}: {
+  grupos: Grupo[];
+  marcas: Marca[];
+  usuarios: Usuario[];
+}) {
+  if (grupos.length === 0) return null;
+  return (
+    <div className="overflow-x-auto rounded-lg border border-border">
+      <table className="w-full text-sm">
+        <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
+          <tr>
+            <th className="px-3 py-2 font-medium">Cliente</th>
+            <th className="px-3 py-2 font-medium">Tipo</th>
+            <th className="px-3 py-2 font-medium">Plano</th>
+            <th className="px-3 py-2 text-right font-medium">Valor/mês</th>
+            <th className="px-3 py-2 font-medium">Vencimento</th>
+            <th className="px-3 py-2 text-right font-medium">Usuários</th>
+            <th className="px-3 py-2 font-medium">Situação</th>
+            <th className="px-3 py-2" />
+          </tr>
+        </thead>
+        <tbody className="divide-y">
+          {grupos.map((g) => {
+            const ativas = marcas.filter((m) => m.grupoId === g.id && m.ativo).length;
+            const contas = usuarios.filter((u) => u.grupoId === g.id && u.ativo).length;
+            const acima = g.limiteUsuarios != null && contas > g.limiteUsuarios;
+            return (
+              <tr key={g.id} className={cn(!g.contratoAtivo && "text-muted-foreground")}>
+                <td className="px-3 py-2">
+                  <a href={`#cliente-${g.id}`} className="font-medium underline-offset-2 hover:underline">
+                    {g.nome}
+                  </a>
+                  {g.cnpj && (
+                    <span className="block font-mono text-xs text-muted-foreground">{formatarCnpj(g.cnpj)}</span>
+                  )}
+                </td>
+                <td className="px-3 py-2">{tipoDoCliente(ativas)}</td>
+                <td className="px-3 py-2">{g.plano || <span className="text-muted-foreground">—</span>}</td>
+                <td className="px-3 py-2 text-right tabular-nums">
+                  {g.valorMensalCentavos != null ? reais(g.valorMensalCentavos) : <span className="text-muted-foreground">—</span>}
+                </td>
+                <td className="px-3 py-2">
+                  {g.diaVencimento != null ? `Dia ${g.diaVencimento}` : <span className="text-muted-foreground">—</span>}
+                </td>
+                <td className={cn("px-3 py-2 text-right tabular-nums", acima && "font-medium text-destructive")}>
+                  {contas}
+                  {g.limiteUsuarios != null && ` / ${g.limiteUsuarios}`}
+                </td>
+                <td className="px-3 py-2">
+                  <SituacaoBadge ativo={g.contratoAtivo} />
+                </td>
+                <td className="px-3 py-2 text-right">
+                  <BotaoSituacao grupo={g} />
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/**
+ * Os campos de cadastro do contratante — os mesmos no "Cadastrar novo cliente"
+ * e no "Contrato e cobrança" do cartão. Sem `grupo`, nascem vazios.
+ */
+function CamposCadastro({ prefixo: p, grupo }: { prefixo: string; grupo?: Grupo }) {
+  return (
+    <>
+      <Campo id={`${p}-razao`} rotulo="Razão social" largo>
+        <Input id={`${p}-razao`} name="razaoSocial" defaultValue={grupo?.razaoSocial ?? ""} />
+      </Campo>
+      <Campo id={`${p}-cnpj`} rotulo="CNPJ">
+        <Input
+          id={`${p}-cnpj`}
+          name="cnpj"
+          inputMode="numeric"
+          placeholder="00.000.000/0000-00"
+          defaultValue={grupo?.cnpj ? formatarCnpj(grupo.cnpj) : ""}
+        />
+      </Campo>
+      <Campo id={`${p}-resp`} rotulo="Responsável no cliente">
+        <Input id={`${p}-resp`} name="responsavelNome" defaultValue={grupo?.responsavelNome ?? ""} />
+      </Campo>
+      <Campo id={`${p}-email`} rotulo="E-mail de contato">
+        <Input id={`${p}-email`} name="contatoEmail" type="email" defaultValue={grupo?.contatoEmail ?? ""} />
+      </Campo>
+      <Campo id={`${p}-tel`} rotulo="Telefone / WhatsApp">
+        <Input id={`${p}-tel`} name="contatoTelefone" inputMode="tel" defaultValue={grupo?.contatoTelefone ?? ""} />
+      </Campo>
+      <Campo id={`${p}-plano`} rotulo="Plano">
+        <Input id={`${p}-plano`} name="plano" placeholder="ex.: Básico, Completo" defaultValue={grupo?.plano ?? ""} />
+      </Campo>
+      <Campo id={`${p}-valor`} rotulo="Valor do plano por mês (R$)">
+        <Input
+          id={`${p}-valor`}
+          name="valorMensal"
+          inputMode="decimal"
+          placeholder="ex.: 1.500,00"
+          defaultValue={reaisNoCampo(grupo?.valorMensalCentavos ?? null)}
+        />
+      </Campo>
+      <Campo id={`${p}-venc`} rotulo="Dia do vencimento">
+        <Input
+          id={`${p}-venc`}
+          name="diaVencimento"
+          type="number"
+          min={1}
+          max={31}
+          step={1}
+          placeholder="ex.: 10"
+          defaultValue={grupo?.diaVencimento ?? ""}
+        />
+      </Campo>
+      <Campo id={`${p}-limite`} rotulo="Limite de usuários (vazio = sem limite)">
+        <Input
+          id={`${p}-limite`}
+          name="limiteUsuarios"
+          type="number"
+          min={1}
+          step={1}
+          defaultValue={grupo?.limiteUsuarios ?? ""}
+        />
+      </Campo>
+      <Campo id={`${p}-inicio`} rotulo="Início do contrato">
+        <Input id={`${p}-inicio`} name="inicioContrato" type="date" defaultValue={dataIso(grupo?.inicioContrato ?? null)} />
+      </Campo>
+      <Campo id={`${p}-obs`} rotulo="Observações" largo>
+        <textarea
+          id={`${p}-obs`}
+          name="observacoes"
+          rows={2}
+          defaultValue={grupo?.observacoes ?? ""}
+          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        />
+      </Campo>
+    </>
   );
 }

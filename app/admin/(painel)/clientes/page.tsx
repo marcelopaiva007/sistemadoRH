@@ -41,6 +41,9 @@ export default async function ClientesPage() {
         inicioContrato: true,
         observacoes: true,
         dominio: true,
+        valorMensalCentavos: true,
+        diaVencimento: true,
+        contratoAtivo: true,
       },
     }),
     prisma.marca.findMany({
