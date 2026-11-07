@@ -26,6 +26,19 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.201.0",
+    data: "07/11/2026",
+    horario: "10:45",
+    titulo: "Gestão FASTMAI: Clientes vira administração do sistema",
+    itens: [
+      "No topo da tela Clientes, o painel do negócio: clientes ativos, inativos, receita mensal dos ativos e contas ativas.",
+      "Nova tabela com todos os clientes: tipo, plano, valor por mês, dia do vencimento, usuários (e limite) e situação.",
+      "\"Cadastrar novo cliente\" agora pede o cadastro completo de uma vez: razão social, CNPJ, responsável, contato, plano, valor, vencimento, limite e início do contrato.",
+      "No cartão do cliente, \"Contrato e cobrança\" ganhou os campos Valor do plano por mês e Dia do vencimento.",
+      "Cada cliente pode ser marcado como ativo ou inativo. O inativo sai da receita mensal; por ora os usuários dele continuam entrando no sistema.",
+    ],
+  },
+  {
     versao: "1.200.1",
     data: "07/11/2026",
     horario: "10:30",

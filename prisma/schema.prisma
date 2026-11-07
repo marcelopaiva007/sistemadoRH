@@ -217,6 +217,14 @@ model Grupo {
   // o usuário SÓ neste cliente. Cliente sem endereço próprio entra pelo
   // endereço comum (rh.assinelm.com), onde o login não pode ser ambíguo.
   dominio         String?   @unique
+  // COBRANÇA E SITUAÇÃO (v1.201.0, pedido do CEO em 07/11/2026): quanto o
+  // cliente paga por mês ao FASTMAI, em centavos (inteiro, sem arredondamento
+  // de float), o dia do vencimento e se o contrato está ativo. A situação é
+  // COMERCIAL e, por ora, só informa: não bloqueia o login de ninguém. Não
+  // confundir com `ativo`, que marca o cliente encerrado por mudança de marca.
+  valorMensalCentavos Int?
+  diaVencimento       Int?
+  contratoAtivo       Boolean @default(true)
 
   marcas   Marca[]
   usuarios User[]
