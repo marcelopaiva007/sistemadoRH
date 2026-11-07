@@ -278,7 +278,7 @@ export function ContrachequesView({
         titulo="Contracheques com Assinatura Eletrônica"
         resumo={
           <>
-            Envie o contracheque mensal por e-mail com link exclusivo de assinatura. O colaborador autentica com CPF e código de 6 dígitos,
+            Envie o contracheque mensal por e-mail com link exclusivo de assinatura. O colaborador autentica informando seu CPF,
             confere o PDF, tira a selfie e assina. O Telegram avisa e cobra até que o status seja concluído.
           </>
         }

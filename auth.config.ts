@@ -45,6 +45,10 @@ export const authConfig = {
       // /carreiras é a vitrine pública: lista as vagas publicadas do grupo e
       // leva para /vagas/<slug>. Só mostra o que já é público por definição.
       if (request.nextUrl.pathname.startsWith("/carreiras")) return true;
+      // /assinar/<token> é o fluxo público de assinatura de contracheques:
+      // o colaborador acessa pelo link recebido por e-mail, sem login no sistema
+      // — a autorização é o próprio token e a conferência de CPF (ver lib/actions/assinatura-contracheque.ts).
+      if (request.nextUrl.pathname.startsWith("/assinar")) return true;
       // "Esqueci minha senha" e "Esqueci meu usuário": pedir o link, redefinir
       // com o token e receber o usuário por e-mail são as telas que, por
       // definição, quem não consegue logar precisa acessar sem estar logado.

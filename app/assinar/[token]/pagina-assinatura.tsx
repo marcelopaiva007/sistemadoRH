@@ -7,14 +7,13 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  solicitarCodigo2faAction,
-  validarCodigo2faAction,
+  validarCpfAssinaturaAction,
   assinarContrachequeAction,
   type DadosReciboPublico,
 } from "@/lib/actions/assinatura-contracheque";
 import { reduzirFoto } from "@/app/portal/selfie";
 
-type Etapa = "CPF" | "CODIGO" | "VISUALIZAR_E_ASSINAR" | "SUCESSO";
+type Etapa = "CPF" | "VISUALIZAR_E_ASSINAR" | "SUCESSO";
 
 export function PaginaAssinaturaClient({
   token,
@@ -31,9 +30,6 @@ export function PaginaAssinaturaClient({
 
   const [bloqueado, setBloqueado] = useState(dados.bloqueado);
   const [cpf, setCpf] = useState("");
-  const [codigo, setCodigo] = useState("");
-  const [destino2fa, setDestino2fa] = useState(dados.temTelegram ? "seu Telegram do RH" : dados.emailMascarado);
-  const [tempoRestante, setTempoRestante] = useState(600); // 10 min
   const [erro, setErro] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -57,15 +53,6 @@ export function PaginaAssinaturaClient({
     return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
   }
 
-  // Timer regressivo do código 2FA
-  useEffect(() => {
-    if (etapa !== "CODIGO") return;
-    const timer = setInterval(() => {
-      setTempoRestante((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [etapa]);
-
   // Captura geolocalização opcional
   useEffect(() => {
     if (etapa === "VISUALIZAR_E_ASSINAR" && typeof navigator !== "undefined" && navigator.geolocation) {
@@ -77,30 +64,11 @@ export function PaginaAssinaturaClient({
     }
   }, [etapa]);
 
-  const minutos = String(Math.floor(tempoRestante / 60)).padStart(2, "0");
-  const segundos = String(tempoRestante % 60).padStart(2, "0");
-
-  function aoSolicitarCodigo(e: React.FormEvent) {
+  function aoValidarCpf(e: React.FormEvent) {
     e.preventDefault();
     setErro(null);
     startTransition(async () => {
-      const res = await solicitarCodigo2faAction(token, cpf);
-      if (res.ok) {
-        setDestino2fa(res.destinoMascarado);
-        setTempoRestante(600);
-        setEtapa("CODIGO");
-      } else {
-        if (res.bloqueado) setBloqueado(true);
-        setErro(res.error);
-      }
-    });
-  }
-
-  function aoValidarCodigo(e: React.FormEvent) {
-    e.preventDefault();
-    setErro(null);
-    startTransition(async () => {
-      const res = await validarCodigo2faAction(token, codigo);
+      const res = await validarCpfAssinaturaAction(token, cpf);
       if (res.ok) {
         setEtapa("VISUALIZAR_E_ASSINAR");
       } else {
@@ -205,10 +173,10 @@ export function PaginaAssinaturaClient({
             <CardHeader>
               <CardTitle className="text-base font-semibold">Identificação do Colaborador</CardTitle>
               <CardDescription className="text-xs">
-                Olá, {dados.colaboradorPrimeiroNome}. Confirme seu CPF para receber o código de segurança.
+                Olá, {dados.colaboradorPrimeiroNome}. Confirme seu CPF para acessar seu contracheque.
               </CardDescription>
             </CardHeader>
-            <form onSubmit={aoSolicitarCodigo}>
+            <form onSubmit={aoValidarCpf}>
               <CardContent className="space-y-4">
                 {erro && <p className="p-2.5 text-xs rounded bg-red-50 text-red-700 border border-red-200">{erro}</p>}
                 <div className="space-y-1.5">
@@ -227,56 +195,13 @@ export function PaginaAssinaturaClient({
                     autoFocus
                   />
                   <p className="text-[11px] text-slate-400">
-                    O código será enviado para {dados.temTelegram ? "seu Telegram do RH" : dados.emailMascarado}.
+                    Digite apenas os números do seu CPF cadastrado na empresa.
                   </p>
                 </div>
               </CardContent>
               <CardFooter>
                 <Button type="submit" className="w-full" disabled={isPending || cpf.replace(/\D/g, "").length !== 11}>
-                  {isPending ? "Verificando..." : "Enviar código de confirmação"}
-                </Button>
-              </CardFooter>
-            </form>
-          </Card>
-        ) : etapa === "CODIGO" ? (
-          /* Etapa 2: Código 2FA */
-          <Card className="shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-base font-semibold">Código de Verificação</CardTitle>
-              <CardDescription className="text-xs">
-                Insira o código de 6 dígitos que enviamos para <b className="text-slate-800">{destino2fa}</b>.
-              </CardDescription>
-            </CardHeader>
-            <form onSubmit={aoValidarCodigo}>
-              <CardContent className="space-y-4">
-                {erro && <p className="p-2.5 text-xs rounded bg-red-50 text-red-700 border border-red-200">{erro}</p>}
-                <div className="space-y-2 text-center">
-                  <Input
-                    type="tel"
-                    inputMode="numeric"
-                    maxLength={6}
-                    placeholder="123456"
-                    value={codigo}
-                    onChange={(e) => setCodigo(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                    className="text-2xl font-bold tracking-[0.4em] text-center h-12"
-                    required
-                    autoFocus
-                  />
-                  <div className="flex items-center justify-between text-xs text-slate-500 pt-1">
-                    <span>Expira em: <b className="text-slate-700">{minutos}:{segundos}</b></span>
-                    <button
-                      type="button"
-                      onClick={() => setEtapa("CPF")}
-                      className="text-blue-600 hover:underline text-xs"
-                    >
-                      Trocar CPF / Reenviar
-                    </button>
-                  </div>
-                </div>
-              </CardContent>
-              <CardFooter>
-                <Button type="submit" className="w-full" disabled={isPending || codigo.length !== 6}>
-                  {isPending ? "Validando..." : "Validar e abrir contracheque"}
+                  {isPending ? "Validando..." : "Acessar contracheque"}
                 </Button>
               </CardFooter>
             </form>

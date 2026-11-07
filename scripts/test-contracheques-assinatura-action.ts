@@ -45,6 +45,7 @@
 async function test() {
   const {
     solicitarCodigo2faAction,
+    validarCpfAssinaturaAction,
     assinarContrachequeAction,
     obterDadosReciboPublicoAction,
   } = await import("../lib/actions/assinatura-contracheque");
@@ -65,9 +66,14 @@ async function test() {
   console.log("  ✓ Bloqueio de segurança respeitado");
 
   console.log("\n4. Testando CPF divergente em token válido:");
-  const rCpfErrado = await solicitarCodigo2faAction("token-valido", "00000000000");
+  const rCpfErrado = await validarCpfAssinaturaAction("token-valido", "00000000000");
   if (rCpfErrado.ok) throw new Error("CPF errado não pode prosseguir");
   console.log("  ✓ CPF divergente recusado com incremento de tentativa");
+
+  console.log("\n4.1. Testando CPF correto em token válido (fluxo simplificado sem 2FA):");
+  const rCpfCorreto = await validarCpfAssinaturaAction("token-valido", "11122233344");
+  if (!rCpfCorreto.ok) throw new Error("CPF correto deve autenticar com sucesso");
+  console.log("  ✓ CPF correto autentica diretamente e emite sessão");
 
   console.log("\n5. Testando assinar sem aceite ou foto inválida:");
   const r3 = await assinarContrachequeAction("token-inexistente-xyz", {

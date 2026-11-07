@@ -62,7 +62,7 @@ export function montarCorpoEmailContracheque(
     `Seu contracheque de ${ref} está disponível para assinatura eletrônica.\n\n` +
     `Para abrir, conferir e assinar com autenticação e selfie, acesse o link abaixo (prazo de 5 dias corridos):\n` +
     `${linkAssinatura}\n\n` +
-    `A assinatura é simples e rápida: basta confirmar seu CPF, validar o código e tirar uma selfie na tela.\n\n` +
+    `A assinatura é simples e rápida: basta confirmar seu CPF, conferir o documento e tirar uma selfie na tela.\n\n` +
     `RH — ${marca}\n`;
 
   const html = `<!doctype html><html lang="pt-BR"><body style="margin:0;padding:24px;background:#f4f5f7;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;">
