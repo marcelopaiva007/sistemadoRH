@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { Fragment, useActionState, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Car, Download, FileText, Paperclip, Plus, Pencil, Search, ShieldCheck, ShieldAlert, Trash2 } from "lucide-react";
@@ -39,6 +39,7 @@ import {
   normalizarPlaca,
   rotulo,
 } from "@/lib/processos/ctb";
+import { TIPOS_VEICULO, tipoDoVeiculo, type TipoVeiculo } from "@/lib/processos/tipo-veiculo";
 
 export type DocumentoNaTela = {
   id: string;
@@ -123,6 +124,37 @@ function formatarDocumento(doc: string | null | undefined): string {
 
 type EmpresaDoGrupo = { id: string; nome: string };
 
+/** Nº, Tipo, Placa, Veículo, Proprietário, Trabalha em, Cidade, Setor, Com quem
+ *  está, Próximo vencimento, Financeiro, SNE, ações. */
+const COLUNAS_TABELA = 13;
+
+/** Soma geral da frota por tipo — no topo e no fim da tabela (09/11/2026). */
+function SomaGeral({
+  grupos,
+  className,
+}: {
+  grupos: { tipo: { value: TipoVeiculo; label: string; icone: string }; lista: unknown[] }[];
+  className?: string;
+}) {
+  const n = (t: TipoVeiculo) => grupos.find((g) => g.tipo.value === t)?.lista.length ?? 0;
+  const total = grupos.reduce((s, g) => s + g.lista.length, 0);
+  return (
+    <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md bg-foreground px-3 py-2 text-xs text-background", className)}>
+      <span className="text-sm font-semibold">Soma geral: {total} veículo(s)</span>
+      {grupos.map((g) => (
+        <span key={g.tipo.value}>
+          {g.tipo.icone} {g.tipo.label}: <b>{g.lista.length}</b>
+        </span>
+      ))}
+      <span className="opacity-80">
+        Carros: <b>{n("CARRO_COMBUSTAO") + n("CARRO_ELETRICO")}</b> · Motos:{" "}
+        <b>{n("MOTO_COMBUSTAO") + n("MOTO_ELETRICA")}</b> · Elétricos (carro + tuk-tuk + moto):{" "}
+        <b>{n("CARRO_ELETRICO") + n("TUK_TUK") + n("MOTO_ELETRICA")}</b>
+      </span>
+    </div>
+  );
+}
+
 export function VeiculosView({
   empresaId,
   veiculos,
@@ -152,6 +184,9 @@ export function VeiculosView({
   // para tirar o relatório por empresa sem depender do seletor do topo.
   const [empresaFiltro, setEmpresaFiltro] = useState("");
   const [financeiroFiltro, setFinanceiroFiltro] = useState("");
+  // Tipo de veículo — pedido do CEO em 09/11/2026 (ver lib/processos/tipo-veiculo).
+  const [tipoFiltro, setTipoFiltro] = useState("");
+  const tipoPorId = useMemo(() => new Map(veiculos.map((v) => [v.id, tipoDoVeiculo(v)])), [veiculos]);
   // Clique no cabeçalho "Financeiro" liga a ordenação por vencimento (§6.2):
   // vencidos no topo, sem registro no fim. Novo clique volta à ordem padrão.
   const [ordenarPorVencimento, setOrdenarPorVencimento] = useState(false);
@@ -162,6 +197,7 @@ export function VeiculosView({
     const filtrados = veiculos.filter((v) => {
       if (empresaFiltro && v.empresaId !== empresaFiltro) return false;
       if (financeiroFiltro && v.financeiro.status !== financeiroFiltro) return false;
+      if (tipoFiltro && tipoPorId.get(v.id) !== tipoFiltro) return false;
       if (!consulta) return true;
       return (
         (placaConsulta !== "" && v.placa.includes(placaConsulta)) ||
@@ -173,6 +209,8 @@ export function VeiculosView({
           v.motoristaNome,
           v.motoristaInformado,
           v.proprietarioNome,
+          v.cidadeBase,
+          v.setor,
         ].some((campo) => campo?.toLowerCase().includes(textoConsulta)) ||
         // CPF/CNPJ do proprietário digitado com ou sem máscara.
         (consulta.replace(/\D/g, "").length >= 3 &&
@@ -188,7 +226,17 @@ export function VeiculosView({
       if (tb != null) return 1;
       return a.placa.localeCompare(b.placa);
     });
-  }, [veiculos, busca, empresaFiltro, financeiroFiltro, ordenarPorVencimento]);
+  }, [veiculos, busca, empresaFiltro, financeiroFiltro, tipoFiltro, tipoPorId, ordenarPorVencimento]);
+  // Grupos por tipo, na ordem fixa de TIPOS_VEICULO; a numeração recomeça em
+  // cada grupo ("numeração por quantidade") e a soma geral acompanha os filtros.
+  const grupos = useMemo(
+    () =>
+      TIPOS_VEICULO.map((t) => ({
+        tipo: t,
+        lista: veiculosFiltrados.filter((v) => tipoPorId.get(v.id) === t.value),
+      })),
+    [veiculosFiltrados, tipoPorId],
+  );
   // UM painel por vez, discriminado pelo tipo — não três estados soltos. Com
   // `form` + duas flags, abrir "Novo veículo" com o painel de documento aberto
   // deixava a flag antiga de pé: o formulário de veículo não aparecia (a
@@ -601,6 +649,15 @@ export function VeiculosView({
                   <option value="SEM_DADOS">➖ Não informado</option>
                 </select>
               </label>
+              <label className="text-xs text-muted-foreground">
+                Tipo
+                <select className={CAMPO} value={tipoFiltro} onChange={(e) => setTipoFiltro(e.target.value)}>
+                  <option value="">Todos</option>
+                  {TIPOS_VEICULO.map((t) => (
+                    <option key={t.value} value={t.value}>{t.icone} {t.label}</option>
+                  ))}
+                </select>
+              </label>
               {/* Contagem pedida em 31/08/2026 — acompanha os filtros. */}
               <span className="pb-2 text-xs text-muted-foreground">
                 {veiculosFiltrados.length === veiculos.length
@@ -623,13 +680,18 @@ export function VeiculosView({
                 Relatório (CSV)
               </a>
             </div>
+            <SomaGeral grupos={grupos} className="mx-4 mt-2" />
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10">Nº</TableHead>
+                  <TableHead>Tipo</TableHead>
                   <TableHead>Placa</TableHead>
                   <TableHead>Veículo</TableHead>
                   <TableHead>Proprietário</TableHead>
                   <TableHead>Trabalha em</TableHead>
+                  <TableHead>Cidade</TableHead>
+                  <TableHead>Setor</TableHead>
                   <TableHead>Com quem está</TableHead>
                   <TableHead>Próximo vencimento</TableHead>
                   <TableHead>
@@ -649,13 +711,25 @@ export function VeiculosView({
               <TableBody>
                 {veiculosFiltrados.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={9} className="py-8 text-center text-sm text-muted-foreground">
+                    <TableCell colSpan={COLUNAS_TABELA} className="py-8 text-center text-sm text-muted-foreground">
                       Nenhum veículo encontrado para &ldquo;{busca}&rdquo;.
                     </TableCell>
                   </TableRow>
                 )}
-                {veiculosFiltrados.map((v) => (
+                {grupos.map((g) =>
+                  g.lista.length === 0 ? null : (
+                <Fragment key={g.tipo.value}>
+                  <TableRow className="bg-muted/60 hover:bg-muted/60">
+                    <TableCell colSpan={COLUNAS_TABELA} className="py-2 text-sm font-semibold">
+                      {g.tipo.icone} {g.tipo.label} — {g.lista.length} veículo(s)
+                    </TableCell>
+                  </TableRow>
+                {g.lista.map((v, i) => (
                   <TableRow key={v.id}>
+                    <TableCell className="font-medium tabular-nums text-muted-foreground">{i + 1}</TableCell>
+                    <TableCell className="whitespace-nowrap text-xs">
+                      {g.tipo.icone} {g.tipo.label}
+                    </TableCell>
                     <TableCell className="font-medium tabular-nums">{formatarPlaca(v.placa)}</TableCell>
                     <TableCell className="text-muted-foreground">
                       {[v.marca, v.modelo].filter(Boolean).join(" ") || "—"}
@@ -682,6 +756,12 @@ export function VeiculosView({
                       )}
                     </TableCell>
                     <TableCell className="text-muted-foreground">{v.empresaNome}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {v.cidadeBase || <span className="text-xs">não informada</span>}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {v.setor || <span className="text-xs">não informado</span>}
+                    </TableCell>
                     <TableCell>
                       {/* Três degraus — pedido do RH em 31/08/2026: quem tem
                           motorista no CADASTRO não pode aparecer como "ninguém".
@@ -815,6 +895,16 @@ export function VeiculosView({
                     </TableCell>
                   </TableRow>
                 ))}
+                </Fragment>
+                  ),
+                )}
+                {veiculosFiltrados.length > 0 && (
+                  <TableRow className="hover:bg-transparent">
+                    <TableCell colSpan={COLUNAS_TABELA} className="p-0 pt-2">
+                      <SomaGeral grupos={grupos} />
+                    </TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </CardContent>

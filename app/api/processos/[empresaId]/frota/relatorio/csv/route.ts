@@ -16,6 +16,7 @@ import {
   SITUACAO_VEICULO,
   TIPOS_DOCUMENTO_VEICULO,
 } from "@/lib/processos/ctb";
+import { TIPOS_VEICULO, tipoDoVeiculo } from "@/lib/processos/tipo-veiculo";
 
 export const runtime = "nodejs";
 
@@ -111,6 +112,8 @@ export async function GET(
     v == null ? "" : v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const colunas = [
+    "Nº no tipo",
+    "Tipo",
     "Placa",
     "Marca",
     "Modelo",
@@ -142,7 +145,18 @@ export async function GET(
     "Chassi",
   ];
 
-  const linhas = veiculos.map((v) => {
+  // Agrupado por tipo, na mesma ordem e com a mesma regra da tela (09/11/2026);
+  // a numeração recomeça em cada tipo. Dentro do tipo, a ordem da consulta.
+  const ordemTipo = new Map(TIPOS_VEICULO.map((t, i) => [t.value, i]));
+  const contadorTipo = new Map<string, number>();
+  const ordenados = veiculos
+    .map((v, i) => ({ v, i, tipo: tipoDoVeiculo(v) }))
+    .sort((a, b) => ordemTipo.get(a.tipo)! - ordemTipo.get(b.tipo)! || a.i - b.i);
+
+  const linhas = ordenados.map(({ v, tipo }) => {
+    const n = (contadorTipo.get(tipo) ?? 0) + 1;
+    contadorTipo.set(tipo, n);
+    const t = TIPOS_VEICULO.find((x) => x.value === tipo)!;
     // Só o documento mais recente de cada tipo disputa o próximo vencimento —
     // um licenciamento antigo já substituído não é vencimento de nada.
     const maisRecentePorTipo = new Map<string, Date>();
@@ -167,6 +181,8 @@ export async function GET(
     const fin = retratoFinanceiro(v.financeiro, hoje);
 
     return [
+      String(n),
+      t.label,
       formatarPlaca(v.placa),
       v.marca ?? "",
       v.modelo ?? "",
