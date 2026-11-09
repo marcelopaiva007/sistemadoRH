@@ -26,6 +26,19 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.202.0",
+    data: "09/11/2026",
+    horario: "15:45",
+    titulo: "Frota: veículos separados por tipo, com cidade, setor e soma geral",
+    itens: [
+      "A tabela de Veículos agora vem agrupada por tipo: carro a combustão, carro elétrico, tuk-tuk, moto a combustão e moto elétrica.",
+      "Novas colunas Nº (a numeração recomeça em cada tipo), Tipo, Cidade e Setor.",
+      "Soma geral no topo e no fim da tabela: total, quantidade por tipo, carros, motos e elétricos. Acompanha os filtros.",
+      "Novo filtro por Tipo, e a busca também encontra cidade e setor.",
+      "O Relatório (CSV) sai agrupado por tipo, com as colunas Nº no tipo e Tipo.",
+    ],
+  },
+  {
     versao: "1.201.0",
     data: "07/11/2026",
     horario: "10:45",
