@@ -9,6 +9,12 @@ import { lerAnexo } from "@/lib/anexos";
 import { TIPOS_DOCUMENTO, tipoDocumentoLabel } from "@/lib/constants-dp";
 import type { ActionResult } from "@/lib/constants";
 import { MSG_PROVA_DE_RECEBIMENTO, recibosConfirmadosTravando } from "@/lib/contracheques/protecao";
+import {
+  resolverMetadadosContrachequeManual,
+  decidirSegundoContrachequeDossie,
+} from "@/lib/contracheques/dossie";
+import { camposResetAposInvalidacao } from "@/lib/contracheques/invalidacao";
+import { gerarTokenAssinatura } from "@/lib/contracheques/token-auth";
 
 const TIPOS_VALIDOS = new Set<string>(TIPOS_DOCUMENTO.map((t) => t.value));
 
@@ -42,6 +48,210 @@ export async function criarDocumento(
   }
 
   const anexo = anexoLido.anexo;
+
+  if (tipo === "CONTRACHEQUE") {
+    if (!anexo) {
+      return { ok: false, error: "Anexe o arquivo PDF do contracheque." };
+    }
+    const competenciaParam = String(formData.get("competencia") ?? "").trim() || null;
+    const tipoFolhaParam = String(formData.get("tipoFolha") ?? "").trim() || null;
+    const metadados = resolverMetadadosContrachequeManual({
+      competencia: competenciaParam,
+      tipoFolha: tipoFolhaParam,
+      descricao,
+    });
+    if (!metadados) {
+      return {
+        ok: false,
+        error: "Informe a competência do contracheque (mês e ano) no formulário ou na descrição.",
+      };
+    }
+
+    const agora = new Date();
+
+    const resultado = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT "id" FROM rh."Colaborador" WHERE "id" = ${colaboradorId} FOR UPDATE`;
+
+      const candidatos = await tx.documentoColaborador.findMany({
+        where: {
+          colaboradorId,
+          OR: [
+            { chaveDedupe: metadados.chaveDedupe },
+            ...(metadados.tipoFolha === "MENSAL"
+              ? [
+                  { tipo: "CONTRACHEQUE", competencia: metadados.competencia, chaveDedupe: null },
+                  { tipo: "CONTRACHEQUE", competencia: null, descricao: { contains: metadados.mesAno, mode: "insensitive" as const } },
+                ]
+              : []),
+          ],
+        },
+        select: {
+          id: true,
+          arquivoId: true,
+          chaveDedupe: true,
+          recibo: {
+            select: {
+              id: true,
+              confirmadoEm: true,
+            },
+          },
+        },
+      });
+
+      const candidatoEscolhido =
+        candidatos.find((c) => Boolean(c.recibo?.confirmadoEm)) ??
+        candidatos.find((c) => c.chaveDedupe === metadados.chaveDedupe) ??
+        candidatos[0] ??
+        null;
+
+      const decisao = decidirSegundoContrachequeDossie(candidatoEscolhido, metadados.rotulo);
+
+      if (decisao.acao === "BLOQUEAR_JA_ASSINADO") {
+        return { ok: false as const, error: decisao.error };
+      }
+
+      if (decisao.acao === "SUBSTITUIR_PENDENTE") {
+        const novoArquivo = await tx.arquivo.create({
+          data: {
+            empresaId,
+            nome: anexo.nome,
+            mimeType: anexo.mimeType,
+            tamanhoBytes: anexo.bytes.byteLength,
+            conteudo: anexo.bytes,
+            criadoPorId: usuario?.id ?? null,
+            criadoPorNome: usuario?.name ?? null,
+          },
+          select: { id: true },
+        });
+
+        await tx.documentoColaborador.update({
+          where: { id: decisao.documentoId },
+          data: {
+            arquivoId: novoArquivo.id,
+            competencia: metadados.competencia,
+            chaveDedupe: metadados.chaveDedupe,
+            descricao: descricao ?? metadados.descricaoPadrao,
+            emitidoEm,
+            validoAte,
+            observacoes,
+            conferidoEm: agora,
+            conferidoPorNome: usuario?.name ?? null,
+          },
+        });
+
+        if (decisao.reciboId) {
+          await tx.reciboContracheque.update({
+            where: { id: decisao.reciboId },
+            data: camposResetAposInvalidacao(gerarTokenAssinatura()),
+          });
+        }
+
+        if (decisao.arquivoAnteriorId) {
+          const [emUsoDocs, emUsoRecibos, emUsoInvalidados] = await Promise.all([
+            tx.documentoColaborador.count({
+              where: { arquivoId: decisao.arquivoAnteriorId },
+            }),
+            tx.reciboContracheque.count({
+              where: {
+                OR: [
+                  { fotoArquivoId: decisao.arquivoAnteriorId },
+                  { comprovanteArquivoId: decisao.arquivoAnteriorId },
+                ],
+              },
+            }),
+            tx.reciboContrachequeInvalidado.count({
+              where: {
+                OR: [
+                  { fotoArquivoId: decisao.arquivoAnteriorId },
+                  { comprovanteArquivoId: decisao.arquivoAnteriorId },
+                ],
+              },
+            }),
+          ]);
+
+          if (emUsoDocs === 0 && emUsoRecibos === 0 && emUsoInvalidados === 0) {
+            await tx.arquivo.delete({ where: { id: decisao.arquivoAnteriorId } });
+          }
+        }
+
+        return {
+          ok: true as const,
+          substituido: true,
+          documentoId: decisao.documentoId,
+        };
+      }
+
+      // decisao.acao === "CRIAR"
+      const novoArquivo = await tx.arquivo.create({
+        data: {
+          empresaId,
+          nome: anexo.nome,
+          mimeType: anexo.mimeType,
+          tamanhoBytes: anexo.bytes.byteLength,
+          conteudo: anexo.bytes,
+          criadoPorId: usuario?.id ?? null,
+          criadoPorNome: usuario?.name ?? null,
+        },
+        select: { id: true },
+      });
+
+      const novoDoc = await tx.documentoColaborador.create({
+        data: {
+          empresaId,
+          colaboradorId,
+          tipo: "CONTRACHEQUE",
+          descricao: descricao ?? metadados.descricaoPadrao,
+          observacoes,
+          emitidoEm,
+          validoAte,
+          competencia: metadados.competencia,
+          chaveDedupe: metadados.chaveDedupe,
+          arquivoId: novoArquivo.id,
+          origem: "RH",
+          conferidoEm: agora,
+          conferidoPorNome: usuario?.name ?? null,
+          criadoPorId: usuario?.id ?? null,
+          criadoPorNome: usuario?.name ?? null,
+        },
+        select: { id: true },
+      });
+
+      return {
+        ok: true as const,
+        substituido: false,
+        documentoId: novoDoc.id,
+      };
+    });
+
+    if (!resultado.ok) {
+      return { ok: false, error: resultado.error };
+    }
+
+    await registrarAuditoria({
+      empresaId,
+      acao: resultado.substituido ? "ATUALIZAR" : "CRIAR",
+      entidade: "DocumentoColaborador",
+      entidadeId: resultado.documentoId,
+      resumo: resultado.substituido
+        ? `Segunda via do contracheque ${metadados.rotulo} de ${colaborador.nome} anexada no Dossiê (substituiu PDF pendente anterior).`
+        : `Contracheque ${metadados.rotulo} de ${colaborador.nome} anexado no Dossiê.`,
+      detalhes: {
+        tipo: "CONTRACHEQUE",
+        competencia: metadados.mesAno,
+        tipoFolha: metadados.tipoFolha,
+        chaveDedupe: metadados.chaveDedupe,
+        arquivo: anexo.nome,
+        substituido: resultado.substituido,
+      },
+    });
+
+    revalidatePath(`/rh/${empresaId}/colaboradores/${colaboradorId}`);
+    revalidatePath(`/rh/${empresaId}/vencimentos`);
+    revalidatePath(`/rh/${empresaId}/contracheques`);
+    revalidatePath("/portal");
+    return { ok: true };
+  }
+
   // O blob vai numa linha própria antes do documento (numa transação, para não
   // sobrar arquivo órfão se a segunda inserção falhar).
   const documento = await prisma.$transaction(async (tx) => {

@@ -161,11 +161,17 @@ export async function impedimentosNoBanco(
       if (chave) {
         const igual = await db.documentoColaborador.findFirst({
           where: { colaboradorId: ficha.id, chaveDedupe: chave },
-          select: { id: true },
+          select: { id: true, recibo: { select: { confirmadoEm: true } } },
         });
         if (igual) {
           const ref = competenciaDe(c.competencia);
-          motivos.push(`${tipoCaixaLabel(tipo)}${ref ? ` de ${formatarCompetencia(ref)}` : ""} desta pessoa já está no Dossiê.`);
+          if (tipo === "CONTRACHEQUE" && igual.recibo?.confirmadoEm) {
+            motivos.push(
+              `Já existe contracheque assinado com foto${ref ? ` de ${formatarCompetencia(ref)}` : ""} desta pessoa no Dossiê. Para substituí-lo, acesse Contracheques e utilize a opção "Invalidar recibo".`,
+            );
+          } else {
+            motivos.push(`${tipoCaixaLabel(tipo)}${ref ? ` de ${formatarCompetencia(ref)}` : ""} desta pessoa já está no Dossiê.`);
+          }
         }
       } else {
         const emitidoEm = dataDe(c.dataDocumento);

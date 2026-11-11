@@ -12,6 +12,10 @@ import {
   rotuloAcaoReenvio,
   acoesDisponiveisParaRecibo,
 } from "../lib/contracheques/invalidacao";
+import {
+  resolverMetadadosContrachequeManual,
+  decidirSegundoContrachequeDossie,
+} from "../lib/contracheques/dossie";
 
 let falhas = 0;
 function ok(cond: boolean, msg: string) {
@@ -107,6 +111,12 @@ ok(reset.codigo2faHash === null, "codigo2faHash zerado");
 ok(reset.codigoExpiraEm === null, "codigoExpiraEm zerado");
 ok(reset.tentativasCodigo === 0, "tentativasCodigo zerado");
 ok(reset.bloqueadoEm === null, "bloqueadoEm zerado");
+ok(reset.enviadoEm === null, "enviadoEm zerado");
+ok(reset.enviadoPorNome === null, "enviadoPorNome zerado");
+ok(reset.canal === null, "canal zerado");
+ok(reset.envioErro === null, "envioErro zerado");
+ok(reset.lembretesEnviados === 0, "lembretesEnviados zerado");
+ok(reset.ultimoLembreteEm === null, "ultimoLembreteEm zerado");
 
 console.log("\n5. Regras de ação da listagem (ações disponíveis e rótulo):");
 ok(rotuloAcaoReenvio(true) === "Reenviar", "rotulo reenviar se já enviado");
@@ -126,6 +136,92 @@ ok(acBloqueado.podeReenviar === true, "bloqueado com email: pode reenviar");
 
 const acNaoEnviado = acoesDisponiveisParaRecibo({ situacao: "NAO_ENVIADO", temEmail: true });
 ok(acNaoEnviado.podeReenviar === true, "nao enviado com email: pode enviar/reenviar");
+
+console.log("\n6. Resolução de metadados de contracheque manual no Dossiê:");
+const metaMensal = resolverMetadadosContrachequeManual({
+  competencia: "2026-10",
+  tipoFolha: "MENSAL",
+});
+ok(metaMensal !== null, "metaMensal resolvido");
+if (metaMensal) {
+  ok(metaMensal.competencia.toISOString() === "2026-10-01T00:00:00.000Z", "competencia: 2026-10-01T00:00:00Z");
+  ok(metaMensal.tipoFolha === "MENSAL", "tipoFolha: MENSAL");
+  ok(metaMensal.chaveDedupe === "CONTRACHEQUE:2026-10:MENSAL", "chaveDedupe: CONTRACHEQUE:2026-10:MENSAL");
+  ok(metaMensal.mesAno === "10/2026", "mesAno: 10/2026");
+  ok(metaMensal.rotulo === "10/2026", "rotulo: 10/2026");
+  ok(metaMensal.descricaoPadrao === "Competência 10/2026", "descricaoPadrao: Competência 10/2026");
+}
+
+const meta13 = resolverMetadadosContrachequeManual({
+  competencia: "2026-10",
+  tipoFolha: "DECIMO_TERCEIRO",
+});
+ok(meta13 !== null, "meta13 resolvido");
+if (meta13) {
+  ok(meta13.chaveDedupe === "CONTRACHEQUE:2026-10:DECIMO_TERCEIRO", "chaveDedupe 13o");
+  ok(meta13.rotulo === "10/2026 (13º salário)", "rotulo 13o");
+  ok(meta13.descricaoPadrao === "Competência 10/2026 (13º salário)", "descricaoPadrao 13o");
+}
+
+const metaFallback = resolverMetadadosContrachequeManual({
+  competencia: "",
+  descricao: "Competência 10/2026",
+});
+ok(metaFallback !== null, "metaFallback resolvido via descricao");
+if (metaFallback) {
+  ok(metaFallback.chaveDedupe === "CONTRACHEQUE:2026-10:MENSAL", "metaFallback chaveDedupe");
+  ok(metaFallback.mesAno === "10/2026", "metaFallback mesAno");
+}
+
+const metaInvalido = resolverMetadadosContrachequeManual({
+  competencia: "2026-13",
+});
+ok(metaInvalido === null, "competencia 2026-13 retorna null");
+
+const metaSemMes = resolverMetadadosContrachequeManual({
+  competencia: "",
+  descricao: "Documento qualquer sem competencia",
+});
+ok(metaSemMes === null, "descricao sem mes/ano retorna null");
+
+console.log("\n7. Decisão de segundo contracheque manual no Dossiê:");
+const decCriar = decidirSegundoContrachequeDossie(null, "10/2026");
+ok(decCriar.acao === "CRIAR", "decisao sem existente: CRIAR");
+
+const decSubstSemRecibo = decidirSegundoContrachequeDossie(
+  { id: "d1", arquivoId: "a1", recibo: null },
+  "10/2026"
+);
+ok(
+  decSubstSemRecibo.acao === "SUBSTITUIR_PENDENTE" &&
+    decSubstSemRecibo.documentoId === "d1" &&
+    decSubstSemRecibo.arquivoAnteriorId === "a1" &&
+    decSubstSemRecibo.reciboId === null,
+  "decisao pendente sem recibo: SUBSTITUIR_PENDENTE"
+);
+
+const decSubstPendente = decidirSegundoContrachequeDossie(
+  { id: "d1", arquivoId: "a1", recibo: { id: "r1", confirmadoEm: null } },
+  "10/2026"
+);
+ok(
+  decSubstPendente.acao === "SUBSTITUIR_PENDENTE" &&
+    decSubstPendente.documentoId === "d1" &&
+    decSubstPendente.arquivoAnteriorId === "a1" &&
+    decSubstPendente.reciboId === "r1",
+  "decisao pendente com recibo: SUBSTITUIR_PENDENTE com reciboId"
+);
+
+const decBloqAssinado = decidirSegundoContrachequeDossie(
+  { id: "d1", arquivoId: "a1", recibo: { id: "r1", confirmadoEm: new Date() } },
+  "10/2026"
+);
+ok(
+  decBloqAssinado.acao === "BLOQUEAR_JA_ASSINADO" &&
+    decBloqAssinado.error.includes("assinado") &&
+    decBloqAssinado.error.includes("Invalidar recibo"),
+  "decisao já assinado: BLOQUEAR_JA_ASSINADO com orientacao de invalidar"
+);
 
 console.log(falhas === 0 ? "\nTodos os testes passaram." : `\n${falhas} teste(s) falharam.`);
 process.exit(falhas === 0 ? 0 : 1);

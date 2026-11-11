@@ -45,6 +45,16 @@ export async function GET(
       certificado: { select: { id: true, colaborador: { select: { nome: true } } } },
       documentoRecebido: { select: { id: true } },
       reciboContracheque: { select: { id: true, colaborador: { select: { nome: true } } } },
+      contrachequesInvalidadosFoto: {
+        take: 1,
+        orderBy: { invalidadoEm: "desc" },
+        select: { id: true, colaborador: { select: { nome: true } } },
+      },
+      contrachequesInvalidadosComprovante: {
+        take: 1,
+        orderBy: { invalidadoEm: "desc" },
+        select: { id: true, colaborador: { select: { nome: true } } },
+      },
     },
   });
   // O ORIGINAL da Caixa de documentos (a folha inteira, o lote da clínica)
@@ -54,6 +64,11 @@ export async function GET(
     return NextResponse.json({ error: "Arquivo não encontrado." }, { status: 404 });
   }
 
+  const invalidado =
+    arquivo.contrachequesInvalidadosFoto[0] ??
+    arquivo.contrachequesInvalidadosComprovante[0] ??
+    null;
+
   // Até 28/09/2026 todo arquivo que não fosse documento entrava na trilha como
   // "Ausencia", de dono "—" — inclusive o PDF de um ASO ou de um certificado.
   const dono =
@@ -62,6 +77,7 @@ export async function GET(
     arquivo.exame?.colaborador.nome ??
     arquivo.certificado?.colaborador.nome ??
     arquivo.reciboContracheque?.colaborador.nome ??
+    invalidado?.colaborador.nome ??
     "—";
   const [entidade, entidadeId] = arquivo.documento
     ? ["DocumentoColaborador", arquivo.documento.id]
@@ -73,7 +89,9 @@ export async function GET(
           ? ["CertificadoNR", arquivo.certificado.id]
           : arquivo.reciboContracheque
             ? ["ReciboContracheque", arquivo.reciboContracheque.id]
-            : ["Arquivo", null];
+            : invalidado
+              ? ["ReciboContrachequeInvalidado", invalidado.id]
+              : ["Arquivo", null];
   await registrarAuditoria({
     empresaId,
     acao: "BAIXAR_DOCUMENTO",

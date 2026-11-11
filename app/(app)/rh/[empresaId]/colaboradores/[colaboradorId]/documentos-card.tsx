@@ -132,20 +132,56 @@ export function DocumentosCard({
               ) : (
                 <FormularioAction
                   action={criarDocumento.bind(null, empresaId, colaboradorId)}
-                  mensagemSucesso="Documento salvo."
+                  mensagemSucesso={tipoNovo === "CONTRACHEQUE" ? "Contracheque salvo no Dossiê." : "Documento salvo."}
                   onSuccess={() => {
                     setNovoAberto(false);
                     setTipoNovo("");
                   }}
                 >
                   {seletorTipo}
-                  <CampoTexto name="descricao" label="Descrição (opcional)" placeholder="Ex: NR-35 — trabalho em altura" />
+                  {tipoNovo === "CONTRACHEQUE" && (
+                    <>
+                      <Alert>
+                        <AlertDescription className="text-xs">
+                          Contracheques lançados no Dossiê aparecem automaticamente no módulo de <b>Contracheques</b> para envio e assinatura. Se já houver um envio pendente para a mesma competência e tipo de folha, o arquivo PDF será substituído mantendo o histórico. Se o recibo já estiver <b>assinado</b>, o envio será bloqueado até que a assinatura seja invalidada em Contracheques.
+                        </AlertDescription>
+                      </Alert>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <Campo label="Competência (mês/ano)" required>
+                          <Input type="month" name="competencia" required />
+                        </Campo>
+                        <Campo label="Tipo de folha" required>
+                          <select name="tipoFolha" required defaultValue="MENSAL" className={classeSelect}>
+                            <option value="MENSAL">Mensal</option>
+                            <option value="ADIANTAMENTO">Adiantamento</option>
+                            <option value="DECIMO_TERCEIRO">13º salário</option>
+                            <option value="FERIAS">Férias</option>
+                            <option value="COMPLEMENTAR">Complementar</option>
+                            <option value="PLR">PLR</option>
+                          </select>
+                        </Campo>
+                      </div>
+                    </>
+                  )}
+                  <CampoTexto
+                    name="descricao"
+                    label="Descrição (opcional)"
+                    placeholder={tipoNovo === "CONTRACHEQUE" ? "Ex: Competência 10/2026" : "Ex: NR-35 — trabalho em altura"}
+                  />
                   <div className="grid gap-4 sm:grid-cols-2">
                     <CampoData name="emitidoEm" label="Emitido em" />
                     <CampoData name="validoAte" label="Válido até" />
                   </div>
-                  <Campo label="Arquivo (PDF ou foto, até 4 MB)">
-                    <Input type="file" name="arquivo" accept={MIMES_ANEXO_ACEITOS.join(",")} />
+                  <Campo
+                    label={tipoNovo === "CONTRACHEQUE" ? "Arquivo PDF do contracheque" : "Arquivo (PDF ou foto, até 4 MB)"}
+                    required={tipoNovo === "CONTRACHEQUE"}
+                  >
+                    <Input
+                      type="file"
+                      name="arquivo"
+                      accept={tipoNovo === "CONTRACHEQUE" ? "application/pdf" : MIMES_ANEXO_ACEITOS.join(",")}
+                      required={tipoNovo === "CONTRACHEQUE"}
+                    />
                   </Campo>
                   <Campo label="Observações">
                     <Textarea name="observacoes" rows={2} />

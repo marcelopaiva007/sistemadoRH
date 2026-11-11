@@ -114,6 +114,12 @@ export function camposResetAposInvalidacao(novoToken: string) {
     codigoExpiraEm: null,
     tentativasCodigo: 0,
     bloqueadoEm: null,
+    enviadoEm: null,
+    enviadoPorNome: null,
+    canal: null,
+    envioErro: null,
+    lembretesEnviados: 0,
+    ultimoLembreteEm: null,
   };
 }
 

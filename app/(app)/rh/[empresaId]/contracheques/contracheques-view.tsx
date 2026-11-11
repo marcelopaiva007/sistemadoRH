@@ -617,7 +617,7 @@ export function ContrachequesView({
                           title="Ver histórico de assinaturas invalidadas"
                         >
                           <History className="size-3 text-amber-600" />
-                          {l.invalidacoes.length} invalidada(s)
+                          Invalidado ({l.invalidacoes.length})
                         </button>
                       )}
                     </TableCell>
@@ -681,9 +681,9 @@ export function ContrachequesView({
                                 setReenviarAposInvalidar(true);
                               }}
                               className="text-xs h-8 px-2 text-rose-700 hover:text-rose-800 hover:bg-rose-50 border-rose-200"
-                              title="Invalidar assinatura e reabrir contracheque"
+                              title="Invalidar recibo e reenviar ao e-mail atual"
                             >
-                              <RotateCcw className="size-3.5 mr-1" /> Invalidar
+                              <RotateCcw className="size-3.5 mr-1" /> Invalidar recibo
                             </Button>
                           </>
                         ) : (
@@ -755,9 +755,14 @@ export function ContrachequesView({
             {historicoInvalidacao?.invalidacoes.map((inv, idx) => (
               <div key={inv.id} className="rounded-lg border bg-slate-50/80 p-3.5 space-y-2 text-xs">
                 <div className="flex items-center justify-between text-muted-foreground border-b pb-1.5">
-                  <span className="font-semibold text-slate-800">
-                    Registro #{historicoInvalidacao.invalidacoes.length - idx}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-slate-800">
+                      Registro #{historicoInvalidacao.invalidacoes.length - idx}
+                    </span>
+                    <Badge variant="destructive" className="text-[10px] uppercase">
+                      Invalidado
+                    </Badge>
+                  </div>
                   <span>Invalidado em: {inv.invalidadoEm}</span>
                 </div>
 
@@ -793,7 +798,7 @@ export function ContrachequesView({
                       rel="noreferrer"
                       className="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded border border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 font-medium"
                     >
-                      <FileCheck className="size-3.5 text-emerald-600" /> Ver comprovante PDF original
+                      <FileCheck className="size-3.5 text-emerald-600" /> Ver comprovante PDF preservado (invalidado)
                     </a>
                   ) : null}
                   {inv.fotoArquivoId ? (
@@ -833,7 +838,7 @@ export function ContrachequesView({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-rose-700">
               <RotateCcw className="size-5" />
-              Invalidar Assinatura de Contracheque
+              Invalidar Recibo e Reenviar
             </DialogTitle>
             <DialogDescription>
               Você está invalidando a assinatura de <b>{linhaParaInvalidar?.pessoa}</b> ({linhaParaInvalidar?.folha}).
