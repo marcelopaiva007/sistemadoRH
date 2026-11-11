@@ -5,6 +5,8 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { MODULOS, moduloDoCaminho, type Modulo } from "@/components/modulos";
 import { PARAM } from "@/app/(app)/rh/[empresaId]/filtro-empresas";
+import { areaDoCaminho, type AreaProcessos } from "@/lib/processos/areas";
+import { Car, FileText, type LucideIcon } from "lucide-react";
 
 /**
  * A porta entre os módulos, no canto esquerdo da barra de topo.
@@ -35,6 +37,16 @@ import { PARAM } from "@/app/(app)/rh/[empresaId]/filtro-empresas";
 const ABA =
   "flex min-w-0 items-center gap-1.5 border-b-2 px-0.5 text-sm whitespace-nowrap transition-colors";
 const ABA_ATIVA = "border-primary font-extrabold text-primary";
+// O módulo `processos` aparece na barra como DUAS abas — Frota e Contratos
+// (v1.205.0, pedido do dono do sistema em 11/11/2026): o nome "Processos &
+// Ativos" saiu da tela. É só a PORTA que se divide: a rota, a guarda e a
+// permissão continuam sendo as do módulo `processos` — quem alcança uma aba
+// alcança a outra. A área de um caminho é a de lib/processos/areas.ts.
+const ABAS_PROCESSOS: { area: AreaProcessos; nome: string; icone: LucideIcon; entrada: string }[] = [
+  { area: "frota", nome: "Frota", icone: Car, entrada: "" },
+  { area: "contratos", nome: "Contratos", icone: FileText, entrada: "/contratos/pendencias" },
+];
+
 const ABA_INATIVA = "border-transparent font-semibold text-muted-foreground hover:text-foreground";
 
 export function SeletorModulo({
@@ -102,8 +114,12 @@ export function SeletorModulo({
     return `/${destino.slug}`;
   }
 
-  function irPara(destino: Modulo) {
-    if (destino.slug === moduloAtual?.slug) return;
+  // A área aberta agora, quando se está dentro de `processos`.
+  const areaAtual: AreaProcessos | null =
+    moduloAtual?.slug === "processos" ? areaDoCaminho(partes.slice(3).join("/")) : null;
+
+  /** `sufixo` é a tela de entrada dentro do módulo (a área de Contratos). */
+  function irPara(destino: Modulo, sufixo = "") {
     // Leva o CNPJ e o filtro de marca junto quando os dois lados são escopados
     // por empresa. Sem empresa na URL (Início, Usuários), ou indo para um
     // módulo que não é escopado, entra por `portaSemEmpresa`.
@@ -114,9 +130,30 @@ export function SeletorModulo({
     // em que quiserem dizer OUTRA coisa com o mesmo nome o valor antigo
     // chegaria lá aplicado, sem ninguém ter pedido.
     const marcas = podeLevarEmpresa ? searchParams.get(PARAM) : null;
-    const base = podeLevarEmpresa ? `/${destino.slug}/${empresaIdAtual}` : portaSemEmpresa(destino);
+    const base = (podeLevarEmpresa ? `/${destino.slug}/${empresaIdAtual}` : portaSemEmpresa(destino)) + sufixo;
     router.push(marcas ? `${base}?${PARAM}=${marcas}` : base);
   }
+
+  // As abas da barra: um módulo vira uma aba, menos `processos`, que vira duas.
+  const abas = modulos.flatMap((modulo) =>
+    modulo.slug === "processos"
+      ? ABAS_PROCESSOS.map((a) => ({
+          chave: `processos:${a.area}`,
+          nome: a.nome,
+          icone: a.icone,
+          atual: areaAtual === a.area,
+          ir: () => irPara(modulo, a.entrada),
+        }))
+      : [
+          {
+            chave: modulo.slug,
+            nome: modulo.nome,
+            icone: modulo.icone,
+            atual: modulo.slug === moduloAtual?.slug,
+            ir: () => irPara(modulo),
+          },
+        ],
+  );
 
   return (
     // Os módulos como ABAS DE TEXTO (v1.155.0), não como pílulas num quadro:
@@ -131,20 +168,21 @@ export function SeletorModulo({
     // `title` com o nome inteiro. Antes encolhiam todos por igual, e a aba
     // ativa virava "Pessoa…".
     <div role="group" aria-label="Sistema" className="-mb-0.5 flex h-[54px] min-w-0 items-stretch gap-2 sm:gap-4 lg:shrink-0">
-      {modulos.map((modulo) => {
-        const Icone = modulo.icone;
-        const atual = modulo.slug === moduloAtual?.slug;
+      {abas.map((aba) => {
+        const Icone = aba.icone;
         return (
           <button
-            key={modulo.slug}
+            key={aba.chave}
             type="button"
-            aria-current={atual ? "page" : undefined}
-            title={modulo.nome}
-            onClick={() => irPara(modulo)}
-            className={cn(ABA, atual ? ABA_ATIVA : ABA_INATIVA)}
+            aria-current={aba.atual ? "page" : undefined}
+            title={aba.nome}
+            onClick={() => {
+              if (!aba.atual) aba.ir();
+            }}
+            className={cn(ABA, aba.atual ? ABA_ATIVA : ABA_INATIVA)}
           >
             <Icone className="size-4 shrink-0 sm:hidden" />
-            <span className="hidden max-w-44 truncate sm:inline">{modulo.nome}</span>
+            <span className="hidden max-w-44 truncate sm:inline">{aba.nome}</span>
           </button>
         );
       })}

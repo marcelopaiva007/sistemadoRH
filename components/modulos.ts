@@ -68,8 +68,11 @@ export const MODULOS: Modulo[] = [
   },
   {
     slug: "processos",
-    nome: "Processos & Ativos",
-    descricao: "Processos, documentos, contratos, frota e patrimônio.",
+    // Na barra de topo este módulo aparece como duas abas, Frota e Contratos
+    // (components/seletor-modulo.tsx, v1.205.0). O nome abaixo fica para os
+    // lugares que listam módulos por nome.
+    nome: "Frota e Contratos",
+    descricao: "Frota, contratos, contrapartes e aluguéis.",
     icone: FolderKanban,
     papeis: PAPEIS_DE_ESCRITORIO,
     escopadoPorEmpresa: true,

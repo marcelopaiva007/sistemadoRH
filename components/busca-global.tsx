@@ -97,7 +97,7 @@ export function BuscaGlobal({
   }
   if (empresaAtual && sistemasPermitidos.includes("processos")) {
     for (const t of TELAS_PROCESSOS) {
-      telas.push({ chave: `pr:${t.slug}`, titulo: t.label, detalhe: `Processos & Ativos · ${t.grupo}`, href: t.slug ? `/processos/${empresaAtual}/${t.slug}` : `/processos/${empresaAtual}`, tipo: "tela" });
+      telas.push({ chave: `pr:${t.slug}`, titulo: t.label, detalhe: t.grupo, href: t.slug ? `/processos/${empresaAtual}/${t.slug}` : `/processos/${empresaAtual}`, tipo: "tela" });
     }
   }
   if (sistemasPermitidos.includes("delegacoes")) {
