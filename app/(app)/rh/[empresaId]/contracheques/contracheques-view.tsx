@@ -41,7 +41,11 @@ import {
   reenviarEmailContrachequeAction,
 } from "@/lib/actions/rh-contracheques";
 import { SITUACAO_LABEL, type Situacao } from "@/lib/contracheques/situacao";
-import { TAMANHO_MINIMO_MOTIVO_INVALIDACAO } from "@/lib/contracheques/invalidacao";
+import {
+  TAMANHO_MINIMO_MOTIVO_INVALIDACAO,
+  acoesDisponiveisParaRecibo,
+  rotuloAcaoReenvio,
+} from "@/lib/contracheques/invalidacao";
 import { montarCsvContracheques } from "@/lib/contracheques/exportar";
 import { classeSelect } from "../colaboradores/[colaboradorId]/campos";
 
@@ -550,7 +554,14 @@ export function ContrachequesView({
                     </TableCell>
                   </TableRow>
                 )}
-                {visiveis.map((l) => (
+                {visiveis.map((l) => {
+                  const { podeInvalidar, podeReenviar } = acoesDisponiveisParaRecibo({
+                    situacao: l.situacao,
+                    temEmail: l.temEmail,
+                  });
+                  const rotuloEnvio = rotuloAcaoReenvio(Boolean(l.enviadoEm));
+
+                  return (
                   <TableRow key={l.documentoId}>
                     {/* Colaborador */}
                     <TableCell className="text-sm">
@@ -638,7 +649,7 @@ export function ContrachequesView({
                     {/* Ações */}
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1.5">
-                        {l.confirmadoEm ? (
+                        {podeInvalidar ? (
                           <>
                             {l.comprovanteArquivoId ? (
                               <a
@@ -690,14 +701,14 @@ export function ContrachequesView({
                               </Button>
                             )}
 
-                            {l.temEmail && (
+                            {podeReenviar && (
                               <Button
                                 size="sm"
                                 variant="outline"
                                 disabled={enviando || salvandoInvalidacao}
                                 onClick={() => reenviarIndividual(l.documentoId)}
                                 className="text-xs h-8 px-2 font-medium"
-                                title={l.bloqueado ? "Desbloquear e reenviar link" : "Reenviar e-mail"}
+                                title={l.bloqueado ? "Desbloquear e reenviar link" : `${rotuloEnvio} e-mail`}
                               >
                                 {l.bloqueado ? (
                                   <span className="text-red-700 flex items-center gap-1">
@@ -705,7 +716,7 @@ export function ContrachequesView({
                                   </span>
                                 ) : (
                                   <>
-                                    <Send className="size-3 mr-1" /> Reenviar
+                                    <Send className="size-3 mr-1" /> {rotuloEnvio}
                                   </>
                                 )}
                               </Button>
@@ -715,7 +726,8 @@ export function ContrachequesView({
                       </div>
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
           </div>

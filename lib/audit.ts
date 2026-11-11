@@ -13,7 +13,6 @@ import { auth } from "@/auth";
 export type AcaoAuditoria =
   | "CRIAR"
   | "ATUALIZAR"
-  | "EDITAR"
   | "EXCLUIR"
   | "APROVAR"
   | "REPROVAR"

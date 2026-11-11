@@ -361,7 +361,7 @@ export async function invalidarAssinaturaContrachequeAction(
       nome: user.name ?? "RH",
       papel: user.role ?? "RH",
     },
-    acao: "EDITAR",
+    acao: "ATUALIZAR",
     entidade: "ReciboContracheque",
     entidadeId: recibo.id,
     resumo: `Invalidou assinatura do contracheque de ${doc.colaborador.nome}: ${motivoLimpo}`,
