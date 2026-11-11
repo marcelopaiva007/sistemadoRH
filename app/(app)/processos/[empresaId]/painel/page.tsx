@@ -7,6 +7,7 @@ import { escopoDeEmpresas } from "@/lib/rh-auth-guard";
 import { hojeUTC, somarDiasUTC } from "@/lib/datas";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Indicador } from "@/components/indicador";
+import { filtroTipoDaArea } from "@/lib/processos/areas";
 import { GraficoCustoMensal, GraficoTopVeiculos, type MesDeCusto, type TopVeiculo } from "./painel-view";
 
 // Painel do módulo Processos & Ativos — a leitura de DIRETORIA.
@@ -54,7 +55,8 @@ export default async function PainelProcessosPage({
       select: { nome: true, marca: { select: { nome: true } } },
     }),
     prisma.pendencia.findMany({
-      where: { empresaId: { in: escopo }, estado: { in: ["ABERTA", "EM_ANDAMENTO"] } },
+      // Painel da FROTA (v1.204.0): pendência de contrato fica na área de Contratos.
+      where: { empresaId: { in: escopo }, estado: { in: ["ABERTA", "EM_ANDAMENTO"] }, tipo: filtroTipoDaArea("frota") },
       select: { venceEm: true, responsavelId: true },
     }),
     prisma.veiculo.count({ where: { empresaId: { in: escopo }, situacao: { in: ["ATIVO", "EM_MANUTENCAO"] } } }),
@@ -142,7 +144,7 @@ export default async function PainelProcessosPage({
   const base = `/processos/${empresaId}`;
 
   const atalhos = [
-    { href: base, icone: AlertTriangle, rotulo: "Central de Pendências" },
+    { href: base, icone: AlertTriangle, rotulo: "Pendências da frota" },
     { href: `${base}/frota/multas`, icone: FileWarning, rotulo: "Multas" },
     { href: `${base}/frota/analise`, icone: Car, rotulo: "Análise da frota" },
     { href: `${base}/frota/condutores`, icone: IdCard, rotulo: "Condutores" },

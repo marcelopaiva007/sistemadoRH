@@ -131,6 +131,7 @@ export async function definirResponsavel(input: {
   });
 
   revalidatePath(`/processos/${input.empresaId}`);
+  revalidatePath(`/processos/${input.empresaId}/contratos/pendencias`);
   return { ok: true };
 }
 
@@ -180,6 +181,7 @@ export async function dispensarPendencia(input: {
   });
 
   revalidatePath(`/processos/${input.empresaId}`);
+  revalidatePath(`/processos/${input.empresaId}/contratos/pendencias`);
   return { ok: true };
 }
 
@@ -199,5 +201,6 @@ export async function sincronizarAgora(input: { empresaId: string }): Promise<
   const visiveis = await empresasVisiveis(usuario);
   const resultado = await sincronizarPendencias(visiveis);
   revalidatePath(`/processos/${input.empresaId}`);
+  revalidatePath(`/processos/${input.empresaId}/contratos/pendencias`);
   return { ok: true, ...resultado };
 }
