@@ -26,6 +26,18 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.204.0",
+    data: "11/11/2026",
+    horario: "16:00",
+    titulo: "Processos & Ativos: Frota e Contratos em telas separadas",
+    itens: [
+      "No topo da lateral, um seletor Frota | Contratos. A lateral mostra só as telas da área escolhida.",
+      "Cada área tem suas Pendências: a da Frota (documentos, multas, condutores, manutenções e cadastro de veículos) e a dos Contratos (renovação, reajuste, ação renovatória e aluguel em atraso).",
+      "O Painel passa a contar só as pendências da frota.",
+      "O filtro de marca/CNPJ do topo acompanha a troca de área.",
+    ],
+  },
+  {
     versao: "1.202.0",
     data: "09/11/2026",
     horario: "15:45",
