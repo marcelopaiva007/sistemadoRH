@@ -18,7 +18,6 @@ import {
   Mail,
   Pencil,
   Plus,
-  Search,
   Send,
   Users,
   XCircle,
@@ -59,6 +58,7 @@ import { createColaborador, updateColaborador } from "@/lib/actions/rh-colaborad
 import { AtivarDesativarButton } from "./ativar-desativar-button";
 import { CobrarCadastroButton } from "./cobrar-cadastro-button";
 import { AlertaDuplicados } from "./alerta-duplicados";
+import type { ConflitoEmailExterno } from "@/lib/colaborador-email";
 import { ConferirCpfs } from "./conferir-cpfs";
 import { formatarCpf, mascararCpf } from "@/lib/cpf";
 import { telefoneCasaBusca } from "@/lib/telefone";
@@ -358,6 +358,7 @@ export function ColaboradoresTable({
   empresaId,
   empresasDoEscopo,
   colaboradores,
+  conflitosEmailExternos = [],
   setores,
   posicoes,
   marcaPorEmpresa,
@@ -367,6 +368,7 @@ export function ColaboradoresTable({
   // servidor agora manda só a MARCA do caminho, já cruzada com ?empresas=.
   empresasDoEscopo: string[];
   colaboradores: Colaborador[];
+  conflitosEmailExternos?: ConflitoEmailExterno[];
   setores: Setor[];
   posicoes: Posicao[];
   marcaPorEmpresa: Record<string, string>;
@@ -567,7 +569,11 @@ export function ColaboradoresTable({
 
   return (
     <div className="space-y-4">
-      <AlertaDuplicados empresaId={empresaId} colaboradores={colaboradores} />
+      <AlertaDuplicados
+        empresaId={empresaId}
+        colaboradores={colaboradores}
+        conflitosEmailExternos={conflitosEmailExternos}
+      />
       <ConferirCpfs empresaId={empresaId} colaboradores={colaboradores} />
 
       {/* Cabeçalho com identidade visual e KPIs — responde "quantos são" e

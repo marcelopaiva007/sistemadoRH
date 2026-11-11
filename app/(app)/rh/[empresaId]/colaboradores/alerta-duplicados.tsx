@@ -11,6 +11,7 @@ import {
   type MotivoDuplicado,
   type PessoaParaComparar,
 } from "@/lib/duplicados";
+import type { ConflitoEmailExterno } from "@/lib/colaborador-email";
 import { mascararCpf } from "@/lib/cpf";
 
 type Colaborador = {
@@ -18,6 +19,7 @@ type Colaborador = {
   nome: string;
   cpf: string | null;
   telefone: string | null;
+  email?: string | null;
   telegramChatId: string | null;
   ativo: boolean;
   transferido: boolean;
@@ -39,6 +41,9 @@ function oQueFazer(motivo: MotivoDuplicado, gravidade: Gravidade, comTelegramPre
   if (comTelegramPreso) {
     return "A ficha desligada está segurando o Telegram. É isto que faz o bot responder \"já está vinculado a outro colaborador\" para quem está na ativa: abra a ficha desligada e clique em Desvincular.";
   }
+  if (motivo === "Mesmo e-mail") {
+    return "Fichas diferentes dividindo o mesmo e-mail. Corrija o e-mail no cadastro para evitar envio de links de acesso e contracheques para a pessoa errada.";
+  }
   if (gravidade === "alta" && motivo === "Mesmo CPF") {
     return "Duas fichas ATIVAS com o mesmo CPF — é a mesma pessoa cadastrada duas vezes. Convite de pesquisa e cobrança saem em dobro, e o bot pode escolher a ficha errada. Encerre a que não tem histórico.";
   }
@@ -57,7 +62,15 @@ const ESTILO_GRAVIDADE: Record<Gravidade, { card: string; rotulo: string; varian
   baixa: { card: "", rotulo: "Provável recontratação", variante: "outline" },
 };
 
-export function AlertaDuplicados({ empresaId, colaboradores }: { empresaId: string; colaboradores: Colaborador[] }) {
+export function AlertaDuplicados({
+  empresaId,
+  colaboradores,
+  conflitosEmailExternos = [],
+}: {
+  empresaId: string;
+  colaboradores: Colaborador[];
+  conflitosEmailExternos?: ConflitoEmailExterno[];
+}) {
   const [aberto, setAberto] = useState(false);
 
   const grupos = useMemo(() => {
@@ -67,6 +80,7 @@ export function AlertaDuplicados({ empresaId, colaboradores }: { empresaId: stri
       nome: c.nome,
       telefone: c.telefone,
       cpf: c.cpf,
+      email: c.email,
       setorNome: c.setor.nome,
       ativo: c.ativo,
       temTelegram: Boolean(c.telegramChatId),
@@ -82,16 +96,24 @@ export function AlertaDuplicados({ empresaId, colaboradores }: { empresaId: stri
     [colaboradores],
   );
 
+  const colaboradoresPorId = useMemo(
+    () => new Map(colaboradores.map((c) => [c.id, c])),
+    [colaboradores],
+  );
+
   // PessoaParaComparar não carrega o motivo; o rótulo da ficha encerrada vem daqui.
   const transferidos = useMemo(
     () => new Set(colaboradores.filter((c) => c.transferido).map((c) => c.id)),
     [colaboradores],
   );
 
-  if (grupos.length === 0) return null;
+  if (grupos.length === 0 && conflitosEmailExternos.length === 0) return null;
 
-  const urgentes = grupos.filter((g) => g.gravidade === "alta").length;
-  const totalPessoas = grupos.reduce((acc, g) => acc + g.pessoas.length, 0);
+  const urgentes =
+    grupos.filter((g) => g.gravidade === "alta").length + conflitosEmailExternos.length;
+  const totalCasos = grupos.length + conflitosEmailExternos.length;
+  const totalPessoas =
+    grupos.reduce((acc, g) => acc + g.pessoas.length, 0) + conflitosEmailExternos.length;
 
   return (
     <Card className={urgentes > 0 ? "border-destructive/50 bg-destructive/5" : "border-border bg-card"}>
@@ -103,8 +125,8 @@ export function AlertaDuplicados({ empresaId, colaboradores }: { empresaId: stri
         >
           <span className="flex items-center gap-2 text-sm font-medium">
             <AlertTriangle className={`size-4 ${urgentes > 0 ? "text-destructive" : "text-muted-foreground"}`} />
-            {grupos.length} prováve{grupos.length > 1 ? "is" : "l"} duplicata
-            {grupos.length > 1 ? "s" : ""} ({totalPessoas} fichas)
+            {totalCasos} prováve{totalCasos > 1 ? "is" : "l"} duplicata
+            {totalCasos > 1 ? "s" : ""} ({totalPessoas} fichas)
             {urgentes > 0 && (
               <span className="font-normal text-destructive">
                 · {urgentes} para resolver agora
@@ -116,11 +138,43 @@ export function AlertaDuplicados({ empresaId, colaboradores }: { empresaId: stri
         {aberto && (
           <div className="space-y-3">
             <p className="text-xs text-muted-foreground">
-              Mesmo CPF, mesmo telefone ou nome muito parecido — entre todos os colaboradores,
-              inclusive desligados. A ficha duplicada quase sempre é a encerrada, e é ela que fica
+              Mesmo CPF, mesmo telefone, mesmo e-mail ou nome muito parecido — entre todos os colaboradores,
+              inclusive desligados e marcas do grupo. A ficha duplicada quase sempre é a encerrada, e é ela que fica
               segurando o Telegram da pessoa. A pesquisa de clima é anônima, então encerrar a ficha
               errada não perde nenhuma resposta.
             </p>
+            {conflitosEmailExternos.map((conf, i) => {
+              const colabNaTela = colaboradoresPorId.get(conf.colaboradorId);
+              return (
+                <div key={`conf-ext-${i}`} className="rounded-md border border-destructive/50 bg-destructive/5 p-3 text-sm">
+                  <div className="mb-2 flex flex-wrap items-center gap-2">
+                    <Badge variant="outline">Mesmo e-mail (outra empresa do grupo)</Badge>
+                    <Badge variant="destructive">Resolver agora</Badge>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Link
+                        href={`/rh/${empresaDoColaborador.get(conf.colaboradorId) ?? empresaId}/colaboradores/${conf.colaboradorId}`}
+                        className="font-medium hover:underline"
+                      >
+                        {colabNaTela?.nome ?? "Colaborador"}
+                      </Link>
+                      <span className="text-xs text-muted-foreground font-mono">
+                        {conf.email}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      E-mail já está em uso por <strong>{conf.outroColaborador.nome}</strong> na marca{" "}
+                      <strong>{conf.outroColaborador.marcaNome}</strong> ({conf.outroColaborador.empresaNome}
+                      {!conf.outroColaborador.ativo ? " · desligado" : ""}).
+                    </p>
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Fichas de marcas diferentes dividindo o mesmo e-mail. Corrija o e-mail no cadastro para evitar envio de links de acesso e contracheques para a pessoa errada.
+                  </p>
+                </div>
+              );
+            })}
             {grupos.map((g, i) => {
               const comTelegramPreso = g.pessoas.some((p) => !p.ativo && p.temTelegram);
               const estilo = ESTILO_GRAVIDADE[g.gravidade];

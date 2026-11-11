@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { hojeUTC, somarAnosUTC } from "@/lib/datas";
 import { empresasDaMesmaMarca } from "@/lib/escopo-marca";
 import { cadastroIncompleto } from "@/lib/pendencias";
+import { buscarConflitosDeEmailNoGrupo } from "@/lib/colaborador-email";
 import { ColaboradoresTable } from "./colaboradores-table";
 
 // A cobrança de cadastro é disparada desta tela por server action, e o laço
@@ -154,11 +155,21 @@ export default async function ColaboradoresPage({
     }),
   );
 
+  const candidatosConflito = colaboradores
+    .filter((c) => Boolean(c.email))
+    .map((c) => ({ id: c.id, cpf: c.cpf, email: c.email }));
+  const conflitosEmailExternos = await buscarConflitosDeEmailNoGrupo(
+    prisma,
+    visiveis,
+    candidatosConflito,
+  );
+
   return (
     <ColaboradoresTable
       empresaId={empresaId}
       empresasDoEscopo={escopo}
       colaboradores={colaboradores}
+      conflitosEmailExternos={conflitosEmailExternos}
       setores={setores}
       posicoes={posicoes}
       marcaPorEmpresa={marcaPorEmpresa}

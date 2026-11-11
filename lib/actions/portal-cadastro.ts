@@ -9,6 +9,7 @@ import { enviarParaBlob } from "@/lib/blob";
 import { dataDoFormulario } from "@/lib/datas";
 import { TIPOS_DOCUMENTO_ENVIAVEIS_PELO_PORTAL } from "@/lib/constants-dp";
 import { pisValido } from "@/lib/pis";
+import { validarEmailColaboradorLivre } from "@/lib/colaborador-email";
 import type { ActionResult } from "@/lib/constants";
 
 // Autoatendimento cadastral do colaborador.
@@ -48,13 +49,22 @@ export async function atualizarMeusDados(
 
   const colaborador = await prisma.colaborador.findUnique({
     where: { id: sessao.colaboradorId },
-    select: { id: true, nome: true, empresaId: true },
+    select: { id: true, nome: true, empresaId: true, cpf: true },
   });
   if (!colaborador) return { ok: false, error: "Cadastro não encontrado." };
 
   const email = texto(formData, "email");
   if (email && !/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(email)) {
     return { ok: false, error: "E-mail inválido. Confira o endereço." };
+  }
+  if (email) {
+    const erroEmail = await validarEmailColaboradorLivre(prisma, {
+      empresaId: colaborador.empresaId,
+      email,
+      colaboradorIdExcluir: colaborador.id,
+      cpfProprio: colaborador.cpf,
+    });
+    if (erroEmail) return { ok: false, error: erroEmail };
   }
   const cep = String(formData.get("cep") ?? "").replace(/\D/g, "").slice(0, 8) || null;
   if (cep && cep.length !== 8) return { ok: false, error: "O CEP precisa ter 8 dígitos." };
