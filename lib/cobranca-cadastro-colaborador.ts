@@ -55,6 +55,7 @@ import { diaBrasilia } from "@/lib/datas";
 import { prisma, type Cliente } from "@/lib/prisma";
 import { sendTelegramMessage } from "@/lib/telegram";
 import { sendEmail, orcamentoRestanteHoje } from "@/lib/email";
+import { emailLiberadoNoLembrete } from "@/lib/canal-lembretes";
 
 /**
  * Duas vezes por semana (decisão do Marcelo em 11/08/2026; era 7 dias). Três
@@ -561,7 +562,13 @@ export async function executarCobrancaCadastro(
   // consulta por pessoa seria uma ida ao banco por e-mail, e o valor mal teria
   // mudado entre elas. A conta local pode ficar um pouco defasada se outro
   // processo mandar e-mail no meio — daí a reserva, que absorve a diferença.
-  const orcamento = { restante: await orcamentoRestanteHoje(), respeitarReserva: true };
+  // Reserva por e-mail desligada em Configuração › Lembretes (OS 11/11/2026,
+  // item 3): orçamento zero = só Telegram nesta rodada automática. O botão
+  // manual da ficha não passa por aqui e continua mandando e-mail.
+  const orcamento = {
+    restante: (await emailLiberadoNoLembrete("cobranca-cadastro")) ? await orcamentoRestanteHoje() : 0,
+    respeitarReserva: true,
+  };
 
   for (const { pessoa, itens } of pendentes) {
     const anterior = porPessoa.get(pessoa.id);

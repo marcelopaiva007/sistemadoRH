@@ -74,6 +74,8 @@ export async function GET(
         proprietarioNome: true,
         proprietarioDocumento: true,
         motorizacao: true,
+        // Tipo informado à mão vence o deduzido (OS 11/11/2026, item 8).
+        tipo: true,
         situacao: true,
         aderidoSne: true,
         dataAdesaoSne: true,

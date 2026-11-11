@@ -1,3 +1,4 @@
+import { empresasDoMesmoGrupo } from "@/lib/transferencia-empresa";
 import { notFound } from "next/navigation";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { empresasDaMesmaMarca } from "@/lib/escopo-marca";
@@ -155,6 +156,8 @@ export default async function ColaboradorPage({
         posicaoNovaNome: true,
         supervisorAnteriorNome: true,
         supervisorNovoNome: true,
+        empresaAnteriorNome: true,
+        empresaNovaNome: true,
         motivo: true,
         registradoPorNome: true,
       },
@@ -322,6 +325,11 @@ export default async function ColaboradorPage({
   // posições — inserir no meio dele para uma busca nova é o tipo de mudança
   // fácil de desalinhar sem notar. Esta é independente e mais barata que
   // tudo ali (uma tabela pequena, sem relations).
+  // Opções de "Transferir para outra empresa do grupo" (OS 11/11/2026, item
+  // 6): empresas do grupo e o catálogo de setor/cargo de cada MARCA, para o
+  // formulário filtrar pela marca escolhida sem nova ida ao servidor.
+  const transferencia = colaborador.ativo ? await opcoesDeTransferencia(colaborador.empresaId) : null;
+
   const tiposBeneficioCustom = await prisma.tipoBeneficio.findMany({
     where: { empresaId, ativo: true },
     orderBy: { nome: "asc" },
@@ -419,6 +427,7 @@ export default async function ColaboradorPage({
         motivosEntregaDisponiveis={motivosEntregaDisponiveis}
         tiposAcidenteDisponiveis={tiposAcidenteDisponiveis}
         tiposMovimentacaoDisponiveis={tiposMovimentacaoDisponiveis}
+        transferencia={transferencia}
         statusMetaDisponiveis={statusMetaDisponiveis}
         dependentesNoPlanoSaude={colaborador._count.dependentes}
         entregasEpi={entregasEpi}
@@ -441,4 +450,35 @@ export default async function ColaboradorPage({
       />
     </div>
   );
+}
+
+async function opcoesDeTransferencia(empresaAtualId: string) {
+  const todas = await empresasDoMesmoGrupo(empresaAtualId);
+  const atual = todas.find((e) => e.id === empresaAtualId);
+  const empresas = todas.filter((e) => e.id !== empresaAtualId);
+  if (empresas.length === 0) return null;
+  const marcaDe = new Map(todas.map((e) => [e.id, e.marcaId]));
+  const ids = todas.map((e) => e.id);
+  const [setores, posicoes] = await Promise.all([
+    prisma.setor.findMany({ where: { empresaId: { in: ids }, ativo: true }, orderBy: { nome: "asc" }, select: { id: true, nome: true, empresaId: true } }),
+    prisma.posicao.findMany({ where: { empresaId: { in: ids }, ativo: true }, orderBy: { nome: "asc" }, select: { id: true, nome: true, empresaId: true } }),
+  ]);
+  // O catálogo é por marca e pode repetir o nome em CNPJs irmãos: um por nome.
+  const porMarca = (lista: { id: string; nome: string; empresaId: string }[]) => {
+    const vistos = new Set<string>();
+    const out: { id: string; nome: string; marcaId: string }[] = [];
+    for (const i of lista) {
+      const marcaId = marcaDe.get(i.empresaId);
+      if (!marcaId || vistos.has(`${marcaId}:${i.nome}`)) continue;
+      vistos.add(`${marcaId}:${i.nome}`);
+      out.push({ id: i.id, nome: i.nome, marcaId });
+    }
+    return out;
+  };
+  return {
+    empresaAtualNome: atual?.nome ?? "",
+    empresas,
+    setores: porMarca(setores),
+    posicoes: porMarca(posicoes),
+  };
 }

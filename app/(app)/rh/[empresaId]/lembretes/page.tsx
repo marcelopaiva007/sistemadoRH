@@ -7,6 +7,7 @@ import {
   type ChaveLembrete,
 } from "@/lib/cron-horario";
 import { podeConfigurarSistema } from "@/lib/segredos";
+import { CANAL_DOS_LEMBRETES, emailLiberadoPorLembrete } from "@/lib/canal-lembretes";
 import { LembretesView } from "./lembretes-view";
 
 // Horário dos crons de comunicação (alertas-rh, enviar-convites,
@@ -28,7 +29,10 @@ export default async function LembretesPage({
   const { empresaId } = await params;
   const user = await requireEmpresaAccess(empresaId);
 
-  const linhas = await prisma.configuracaoLembrete.findMany({ orderBy: { horario: "asc" } });
+  const [linhas, emailPorChave] = await Promise.all([
+    prisma.configuracaoLembrete.findMany({ orderBy: { horario: "asc" } }),
+    emailLiberadoPorLembrete(),
+  ]);
 
   const lembretes = (Object.keys(LEMBRETES_CONFIGURAVEIS) as ChaveLembrete[]).map((chave) => ({
     chave,
@@ -41,6 +45,9 @@ export default async function LembretesPage({
     // decidir se roda — tela e comportamento não podem discordar.
     precisaDecisaoDaGestao: LEMBRETES_QUE_NASCEM_DESLIGADOS.has(chave),
     ligado: envioAutomaticoLigado(chave, linhas),
+    // Canal de cada lembrete (OS 11/11/2026, item 3).
+    canal: CANAL_DOS_LEMBRETES[chave],
+    usarEmail: emailPorChave[chave] ?? true,
   }));
 
   return (

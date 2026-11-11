@@ -39,7 +39,14 @@ import {
   normalizarPlaca,
   rotulo,
 } from "@/lib/processos/ctb";
-import { TIPOS_VEICULO, tipoDoVeiculo, type TipoVeiculo } from "@/lib/processos/tipo-veiculo";
+import {
+  TIPOS_VEICULO,
+  rotuloTipoVeiculo,
+  tipoDeduzidoDoVeiculo,
+  tipoDoVeiculo,
+  type TipoVeiculo,
+} from "@/lib/processos/tipo-veiculo";
+import { MotoristasLegadoPainel } from "./motoristas-legado";
 
 export type DocumentoNaTela = {
   id: string;
@@ -72,6 +79,8 @@ export type VeiculoNaTela = {
   setor: string | null;
   emplacado: boolean;
   motoristaInformado: string | null;
+  /** Tipo informado à mão (OS 11/11/2026, item 8); nulo = deduzido. */
+  tipo: string | null;
   motoristaColaboradorId: string | null;
   /** Nome do motorista VINCULADO ao cadastro de colaboradores. */
   motoristaNome: string | null;
@@ -162,11 +171,17 @@ export function VeiculosView({
   empresas,
   colaboradores,
   empresasParam,
+  empresasDoGrupo,
 }: {
   empresaId: string;
   veiculos: VeiculoNaTela[];
   condutores: { id: string; nome: string }[];
   empresas: EmpresaDoGrupo[];
+  /**
+   * Todas as empresas ativas do grupo — destino possível ao MUDAR o veículo de
+   * empresa (OS 11/11/2026, item 7), inclusive marcas que este login não vê.
+   */
+  empresasDoGrupo?: EmpresaDoGrupo[];
   /** Colaboradores ativos — o select de motorista busca daqui (31/08/2026). */
   colaboradores: { id: string; nome: string }[];
   /** O `?empresas=` da URL — o CSV herda quando nenhum CNPJ é escolhido aqui. */
@@ -322,6 +337,8 @@ export function VeiculosView({
         emplacado: form.emplacado === "sim",
         motoristaInformado: form.motoristaInformado ?? null,
         motoristaColaboradorId: form.motoristaColaboradorId || null,
+        semPlaca: !form.id && form.semPlaca === "sim",
+        tipo: form.tipo || null,
         observacoes: form.observacoes ?? null,
         proprietarioNome: form.proprietarioNome ?? null,
         proprietarioDocumento: form.proprietarioDocumento ?? null,
@@ -422,19 +439,56 @@ export function VeiculosView({
               <label className="text-xs text-muted-foreground sm:col-span-2 lg:col-span-3">
                 Empresa onde o veículo trabalha
                 <select {...campo("empresaDestino")} className={CAMPO}>
-                  {empresas.map((e) => (
+                  {(form.id && empresasDoGrupo?.length ? empresasDoGrupo : empresas).map((e) => (
                     <option key={e.id} value={e.id}>{e.nome}</option>
                   ))}
                 </select>
                 <span className="mt-0.5 block text-[11px] text-muted-foreground/80">
                   O CNPJ que usa o carro no dia a dia — define em qual empresa ele aparece nos filtros e
-                  relatórios. Troque para tirar da empresa provisória &ldquo;A definir&rdquo; da importação.
+                  relatórios. Na edição, pode ser qualquer empresa do grupo: documentos, multas,
+                  manutenções e financeiro vão junto, e o veículo sai da empresa antiga.
                 </span>
               </label>
             </fieldset>
             <label className="text-xs text-muted-foreground">
               Placa
-              <input {...campo("placa")} className={CAMPO} placeholder="ABC1D23" />
+              <input
+                {...campo("placa")}
+                className={CAMPO}
+                placeholder={form.semPlaca === "sim" ? "gerada: SEMPLACA<nº>" : "ABC1D23"}
+                disabled={!form.id && form.semPlaca === "sim"}
+              />
+              {!form.id && (
+                <span className="mt-1 flex items-center gap-1.5 text-[11px]">
+                  <input
+                    type="checkbox"
+                    id="semPlaca"
+                    checked={form.semPlaca === "sim"}
+                    onChange={(e) => setForm((f) => ({ ...f, semPlaca: e.target.checked ? "sim" : "", placa: "" }))}
+                  />
+                  <label htmlFor="semPlaca">Ainda sem placa (cadastro provisório — informe chassi ou modelo)</label>
+                </span>
+              )}
+            </label>
+            <label className="text-xs text-muted-foreground">
+              Tipo
+              <select {...campo("tipo")} className={CAMPO}>
+                <option value="">
+                  Automático ({rotuloTipoVeiculo(
+                    tipoDeduzidoDoVeiculo({
+                      marca: form.marca ?? null,
+                      modelo: form.modelo ?? null,
+                      motorizacao: form.motorizacao || "COMBUSTAO",
+                    }),
+                  )})
+                </option>
+                {TIPOS_VEICULO.map((t) => (
+                  <option key={t.value} value={t.value}>{t.icone} {t.label}</option>
+                ))}
+              </select>
+              <span className="mt-0.5 block text-[11px] text-muted-foreground/80">
+                Deixe em automático, ou escolha quando a dedução errar (ex.: moto elétrica Centry).
+              </span>
             </label>
             <label className="text-xs text-muted-foreground">
               Marca
@@ -601,6 +655,9 @@ export function VeiculosView({
         </Card>
       )}
 
+      {/* Motorista só em texto da planilha → vínculo em lote (OS 11/11/2026, item 10) */}
+      <MotoristasLegadoPainel empresaId={empresaId} veiculos={veiculos} colaboradores={colaboradores} />
+
       {veiculos.length === 0 ? (
         <Card>
           <CardContent className="py-8 text-center text-sm text-muted-foreground">
@@ -730,7 +787,14 @@ export function VeiculosView({
                     <TableCell className="whitespace-nowrap text-xs">
                       {g.tipo.icone} {g.tipo.label}
                     </TableCell>
-                    <TableCell className="font-medium tabular-nums">{formatarPlaca(v.placa)}</TableCell>
+                    <TableCell className="font-medium tabular-nums">
+                      {formatarPlaca(v.placa)}
+                      {v.placa.startsWith("SEMPLACA") && (
+                        <Badge variant="outline" className="ml-1 border-amber-300 bg-amber-50 font-normal text-amber-800">
+                          Aguardando emplacamento
+                        </Badge>
+                      )}
+                    </TableCell>
                     <TableCell className="text-muted-foreground">
                       {[v.marca, v.modelo].filter(Boolean).join(" ") || "—"}
                       {v.anoModelo ? ` · ${v.anoModelo}` : ""}
@@ -869,6 +933,7 @@ export function VeiculosView({
                               emplacado: v.emplacado ? "sim" : "",
                               motoristaInformado: v.motoristaInformado ?? "",
                               motoristaColaboradorId: v.motoristaColaboradorId ?? "",
+                              tipo: v.tipo ?? "",
                               empresaDestino: v.empresaId,
                               proprietarioNome: v.proprietarioNome ?? "",
                               proprietarioDocumento: formatarDocumento(v.proprietarioDocumento),

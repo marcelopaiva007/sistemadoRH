@@ -130,7 +130,16 @@ export async function avisarColaborador(
   r: Avisado,
   tokenAssinatura: string,
   opts?: { ehReenvio?: boolean; empresaId?: string | null; marcaNome?: string | null }
-): Promise<{ canal: "AMBOS" | "EMAIL" | "TELEGRAM" | null; erro: string | null }> {
+): Promise<{
+  canal: "AMBOS" | "EMAIL" | "TELEGRAM" | null;
+  erro: string | null;
+  /**
+   * O e-mail foi recusado pelo TETO DIÁRIO (motivo "COTA") e deve entrar na
+   * fila — quem chamou grava `emailNaFilaDesde` no recibo, e o cron
+   * fila-email-contracheque manda no próximo dia com saldo.
+   */
+  emailNaFila: boolean;
+}> {
   const nome = primeiroNome(r.colaborador.nome);
   const ref = rotuloDoContracheque(r.competencia, r.tipoFolha);
   const marca = opts?.marcaNome ?? r.colaborador.empresa.marca.nome;
@@ -140,13 +149,14 @@ export async function avisarColaborador(
   const prazoTexto = calcularPrazoFormatado();
 
   if (!r.colaborador.telegramChatId && !r.colaborador.email) {
-    return { canal: null, erro: "A pessoa não tem Telegram vinculado nem e-mail cadastrado." };
+    return { canal: null, erro: "A pessoa não tem Telegram vinculado nem e-mail cadastrado.", emailNaFila: false };
   }
 
   let emailOk = false;
   let telegramOk = false;
   let erroEmail: string | null = null;
   let erroTelegram: string | null = null;
+  let emailNaFila = false;
 
   // 1. E-mail obrigatório com link único
   if (r.colaborador.email) {
@@ -162,7 +172,10 @@ export async function avisarColaborador(
       marcaNome: marca,
     });
     if (enviado.ok) emailOk = true;
-    else erroEmail = `E-mail: ${enviado.error}`;
+    else if (enviado.motivo === "COTA") {
+      emailNaFila = true;
+      erroEmail = `E-mail na fila do teto diário — sai sozinho no próximo dia com saldo`;
+    } else erroEmail = `E-mail: ${enviado.error}`;
   } else {
     erroEmail = "Sem e-mail cadastrado";
   }
@@ -176,13 +189,14 @@ export async function avisarColaborador(
     else erroTelegram = `Telegram: ${enviado.error}`;
   }
 
-  if (emailOk && telegramOk) return { canal: "AMBOS", erro: null };
-  if (emailOk) return { canal: "EMAIL", erro: erroTelegram ? `Aviso enviado por e-mail (${erroTelegram})` : null };
-  if (telegramOk) return { canal: "TELEGRAM", erro: erroEmail ? `Avisado pelo Telegram (${erroEmail})` : null };
+  if (emailOk && telegramOk) return { canal: "AMBOS", erro: null, emailNaFila };
+  if (emailOk) return { canal: "EMAIL", erro: erroTelegram ? `Aviso enviado por e-mail (${erroTelegram})` : null, emailNaFila };
+  if (telegramOk) return { canal: "TELEGRAM", erro: erroEmail ? `Avisado pelo Telegram (${erroEmail})` : null, emailNaFila };
 
   return {
     canal: null,
     erro: [erroEmail, erroTelegram].filter(Boolean).join(" · ") || "Colaborador sem canal de contato.",
+    emailNaFila,
   };
 }
 
@@ -197,6 +211,8 @@ export async function enviarContracheques(
   semCanal: number;
   jaConfirmados: number;
   falhas: number;
+  /** Quantos ficaram com o e-mail na fila do teto diário. */
+  naFila: number;
   porEmpresa: Record<string, { avisados: number; semCanal: number }>;
 }> {
   const docs = await prisma.documentoColaborador.findMany({
@@ -208,6 +224,7 @@ export async function enviarContracheques(
   let semCanal = 0;
   let jaConfirmados = 0;
   let falhas = 0;
+  let naFila = 0;
   const porEmpresa: Record<string, { avisados: number; semCanal: number }> = {};
 
   for (const d of docs) {
@@ -287,6 +304,7 @@ export async function enviarContracheques(
           enviadoPorNome: usuario.nome,
           canal: aviso.canal,
           envioErro: aviso.erro,
+          emailNaFilaDesde: aviso.emailNaFila ? new Date() : null,
           envios: { increment: 1 },
           // Reenvio reseta contadores de erro e desbloqueia
           bloqueadoEm: null,
@@ -295,10 +313,11 @@ export async function enviarContracheques(
       });
 
       const conta = (porEmpresa[d.empresaId] ??= { avisados: 0, semCanal: 0 });
+      if (aviso.emailNaFila) naFila++;
       if (aviso.canal) {
         avisados++;
         conta.avisados++;
-      } else {
+      } else if (!aviso.emailNaFila) {
         semCanal++;
         conta.semCanal++;
       }
@@ -308,5 +327,5 @@ export async function enviarContracheques(
     }
   }
 
-  return { avisados, semCanal, jaConfirmados, falhas, porEmpresa };
+  return { avisados, semCanal, jaConfirmados, falhas, naFila, porEmpresa };
 }

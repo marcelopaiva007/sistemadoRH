@@ -10,6 +10,7 @@ import { sendEmail } from "@/lib/email";
 import { idsComAfastamentoVigente } from "@/lib/pesquisa-vinculo";
 import { MODELOS_COM_REGUA_NOVA } from "@/lib/regua-cobranca";
 import { deveRodarAgora, origemAutorizacao } from "@/lib/cron-horario";
+import { emailLiberadoNoLembrete } from "@/lib/canal-lembretes";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -35,6 +36,10 @@ export async function GET(req: NextRequest) {
   if (origem === "cron" && !(await deveRodarAgora("lembrete-pesquisa"))) {
     return NextResponse.json({ ok: true, pulado: true, motivo: "fora do horário configurado" });
   }
+
+  // Reserva por e-mail desligada em Configuração › Lembretes (OS 11/11/2026,
+  // item 3): quem não tem Telegram fica sem o lembrete nesta rodada.
+  const emailLiberado = await emailLiberadoNoLembrete("lembrete-pesquisa");
 
   // Janela: tokens há pelo menos 3 dias e ainda não respondidos
   const limiteMaisDe = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
@@ -110,7 +115,7 @@ export async function GET(req: NextRequest) {
     if (token.colaborador.telegramChatId) {
       const r = await sendTelegramMessage(token.colaborador.telegramChatId, msg);
       ok = r.ok;
-    } else if (token.colaborador.email) {
+    } else if (token.colaborador.email && emailLiberado) {
       const marcaNome = token.colaborador.empresa?.marca?.nome;
       const r = await sendEmail({
         to: token.colaborador.email,

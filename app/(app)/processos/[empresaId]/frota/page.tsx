@@ -4,6 +4,7 @@ import { requireFrotaEmpresa } from "@/lib/processos-auth-guard";
 import { escopoDeEmpresas } from "@/lib/rh-auth-guard";
 import { diferencaEmDiasUTC, formatarData, hojeUTC, paraInputDate } from "@/lib/datas";
 import { retratoFinanceiro, ROTULO_STATUS_VENCIMENTO } from "@/lib/processos/frota-financeiro";
+import { empresasDoMesmoGrupo } from "@/lib/transferencia-empresa";
 import { VeiculosView, type VeiculoNaTela } from "./veiculos-view";
 
 // Veículos da frota. Consolidada por padrão e filtrada por `?empresas=`, como
@@ -24,7 +25,7 @@ export default async function VeiculosPage({
   // O cabeçalho entra no mesmo Promise.all das listas: ele só depende do
   // empresaId da URL, e serializá-lo antes custava um round-trip a mais por
   // carregamento.
-  const [empresa, veiculos, condutores, empresas, colaboradores] = await Promise.all([
+  const [empresa, veiculos, condutores, empresas, colaboradores, empresasDoGrupo] = await Promise.all([
     prisma.empresa.findUnique({
       where: { id: empresaId },
       select: { nome: true, marca: { select: { nome: true } } },
@@ -55,6 +56,7 @@ export default async function VeiculosPage({
         proprietarioNome: true,
         proprietarioDocumento: true,
         motorizacao: true,
+        tipo: true,
         situacao: true,
         aderidoSne: true,
         dataAdesaoSne: true,
@@ -129,6 +131,8 @@ export default async function VeiculosPage({
       orderBy: { nome: "asc" },
       select: { id: true, nome: true },
     }),
+    // Destino ao mudar o veículo de empresa: o grupo inteiro (OS 11/11/2026, item 7).
+    empresasDoMesmoGrupo(empresaId),
   ]);
   if (!empresa) notFound();
 
@@ -168,6 +172,7 @@ export default async function VeiculosPage({
       setor: v.setor,
       emplacado: v.emplacado,
       motoristaInformado: v.motoristaInformado,
+      tipo: v.tipo,
       motoristaColaboradorId: v.motoristaColaboradorId,
       motoristaNome: v.motoristaColaborador?.nome ?? null,
       empresaId: v.empresaId,
@@ -242,6 +247,7 @@ export default async function VeiculosPage({
         empresas={empresas}
         colaboradores={colaboradores}
         empresasParam={empresasParam}
+        empresasDoGrupo={empresasDoGrupo.map((e) => ({ id: e.id, nome: `${e.marca} · ${e.nome}` }))}
       />
     </div>
   );

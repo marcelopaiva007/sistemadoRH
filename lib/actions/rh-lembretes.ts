@@ -7,6 +7,7 @@ import { registrarAuditoria } from "@/lib/audit";
 import { ehChaveLembrete, LEMBRETES_CONFIGURAVEIS, type ChaveLembrete } from "@/lib/cron-horario";
 import { podeConfigurarSistema } from "@/lib/segredos";
 import { usuarioAlcancaEmpresa } from "@/lib/rh-auth-guard";
+import { CANAL_DOS_LEMBRETES } from "@/lib/canal-lembretes";
 import type { ActionResult } from "@/lib/constants";
 
 /**
@@ -184,6 +185,43 @@ export async function alternarHorarioLembrete(
     resumo: `Horário ${existente.horario} de "${
       ehChaveLembrete(existente.chave) ? LEMBRETES_CONFIGURAVEIS[existente.chave].label : existente.chave
     }" ${ativo ? "reativado" : "pausado"}.`,
+  });
+
+  revalidatePath(`/rh/${empresaId}/lembretes`);
+  return { ok: true };
+}
+
+/**
+ * Liga/desliga a reserva por e-mail de um lembrete (OS 11/11/2026, item 3).
+ * Só para os lembretes em que o e-mail é OPCIONAL (ver CANAL_DOS_LEMBRETES):
+ * nos que só existem por e-mail, desligar o e-mail seria desligar o lembrete,
+ * e isso é o interruptor de horários — não um segundo caminho escondido.
+ */
+export async function definirEmailDoLembrete(
+  empresaId: string,
+  chave: string,
+  usarEmail: boolean,
+): Promise<ActionResult> {
+  const permissao = await exigirPapel(empresaId);
+  if (!permissao.ok) return permissao;
+  if (!ehChaveLembrete(chave)) return { ok: false, error: "Lembrete desconhecido." };
+  if (!CANAL_DOS_LEMBRETES[chave].emailOpcional) {
+    return { ok: false, error: "Este lembrete não tem escolha de canal." };
+  }
+
+  const quem = permissao.user.nome ?? permissao.user.id;
+  await prisma.configuracaoCanalLembrete.upsert({
+    where: { chave },
+    create: { chave, usarEmail, atualizadoPor: quem },
+    update: { usarEmail, atualizadoPor: quem },
+  });
+
+  await registrarAuditoria({
+    empresaId,
+    acao: "ATUALIZAR",
+    entidade: "ConfiguracaoCanalLembrete",
+    entidadeId: chave,
+    resumo: `"${LEMBRETES_CONFIGURAVEIS[chave].label}": envio por e-mail ${usarEmail ? "ligado" : "desligado (só Telegram)"}.`,
   });
 
   revalidatePath(`/rh/${empresaId}/lembretes`);

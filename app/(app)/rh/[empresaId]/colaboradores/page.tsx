@@ -95,6 +95,8 @@ export default async function ColaboradoresPage({
         email: true,
         telefone: true,
         telegramChatId: true,
+        // Telegram recusou a última mensagem (OS 11/11/2026, item 4).
+        telegramInvalidoEm: true,
         supervisorId: true,
         gerente: true,
         ativo: true,

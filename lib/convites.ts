@@ -18,6 +18,7 @@ import { sendTelegramMessage } from "@/lib/telegram";
 import { sendEmail, orcamentoRestanteHoje, inicioDoDiaSaoPaulo } from "@/lib/email";
 import { LIMITE_DIARIO_ENVIOS } from "@/lib/constants-rh";
 import { idsComAfastamentoVigente } from "@/lib/pesquisa-vinculo";
+import { emailLiberadoNoLembrete } from "@/lib/canal-lembretes";
 
 export { LIMITE_DIARIO_ENVIOS, inicioDoDiaSaoPaulo };
 
@@ -140,7 +141,10 @@ export async function rodadaEnvioAutomatico(): Promise<{
   pesquisas: ResumoEnvioAutomatico[];
 }> {
   const orcamentoInicial = await enviosRestantesHoje();
-  let restanteEmail = orcamentoInicial;
+  // Reserva por e-mail desligada em Configuração › Lembretes (OS 11/11/2026,
+  // item 3): orçamento zero faz o laço de e-mail parar antes do primeiro — quem
+  // não tem Telegram fica PENDING e entra quando o e-mail for religado.
+  let restanteEmail = (await emailLiberadoNoLembrete("enviar-convites")) ? orcamentoInicial : 0;
   let totalEnviados = 0;
   let totalFalhas = 0;
   const resumo: ResumoEnvioAutomatico[] = [];

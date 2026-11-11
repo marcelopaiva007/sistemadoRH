@@ -4,6 +4,48 @@
 // Nunca do config pessoal do Claude Code (~/.claude/telegram/config.json).
 import { createHash } from "crypto";
 import { CHAVE_TELEGRAM, segredo } from "@/lib/segredos";
+import { prisma } from "@/lib/prisma";
+
+// Respostas da Bot API que querem dizer "este chat não recebe mais nada do
+// bot" — a pessoa bloqueou o bot, apagou a conta ou o chat nunca existiu.
+// OS 11/11/2026, item 4: antes, o colaborador seguia "Telegram ativo" na tela
+// e o RH não tinha como saber quem cobrar para reativar.
+const CHAT_INVALIDO =
+  /bot was blocked by the user|chat not found|user is deactivated|bot can't initiate conversation|bot was kicked/i;
+
+export function erroDeChatInvalido(descricao: string): boolean {
+  return CHAT_INVALIDO.test(descricao);
+}
+
+/**
+ * Grava (ou limpa) a marca de "Telegram bloqueado" na ficha dona do chat.
+ * Engole erro: é anotação para a tela, e não pode derrubar o envio de quem
+ * chamou (o lote de contracheques, por exemplo).
+ */
+async function anotarSituacaoDoChat(chatId: string, motivo: string | null): Promise<void> {
+  try {
+    if (motivo) {
+      await prisma.colaborador.updateMany({
+        where: { telegramChatId: chatId },
+        data: { telegramInvalidoEm: new Date(), telegramInvalidoMotivo: motivo.slice(0, 200) },
+      });
+    } else {
+      // Só escreve quando havia marca — envio bem-sucedido é o caso comum e
+      // não deve virar um UPDATE por mensagem.
+      await prisma.colaborador.updateMany({
+        where: { telegramChatId: chatId, telegramInvalidoEm: { not: null } },
+        data: { telegramInvalidoEm: null, telegramInvalidoMotivo: null },
+      });
+    }
+  } catch (e) {
+    console.error("telegram: falha ao anotar situação do chat", e);
+  }
+}
+
+/** A pessoa falou com o bot (webhook): o chat voltou a funcionar. */
+export async function chatVoltouAFuncionar(chatId: string): Promise<void> {
+  await anotarSituacaoDoChat(chatId, null);
+}
 
 export async function sendTelegramMessage(
   chatId: string,
@@ -35,8 +77,11 @@ export async function sendTelegramMessage(
     });
     const body = (await response.json()) as { ok: boolean; description?: string };
     if (!response.ok || !body.ok) {
-      return { ok: false, error: body.description ?? `HTTP ${response.status}` };
+      const descricao = body.description ?? `HTTP ${response.status}`;
+      if (erroDeChatInvalido(descricao)) await anotarSituacaoDoChat(chatId, descricao);
+      return { ok: false, error: descricao };
     }
+    await anotarSituacaoDoChat(chatId, null);
     return { ok: true };
   } catch {
     return { ok: false, error: "Falha de rede ao enviar mensagem pelo Telegram." };
@@ -247,4 +292,30 @@ export async function registrarWebhookTelegram(
   }
 
   return { ok: true, url, info: await infoWebhookTelegram() };
+}
+
+/**
+ * Conserta sozinho o webhook INCOMPLETO — OS 11/11/2026, item 5.
+ *
+ * Em 11/11 a tela de Canais de envio ainda mostrava "Incompleto: só recebe
+ * message", com os toques em botão das Delegações sendo descartados. O botão
+ * "Registrar webhook" resolve, mas depende de alguém com papel de
+ * configuração abrir a tela e clicar. Este reparo roda no cron horário: se há
+ * webhook registrado e ele NÃO recebe `callback_query`, re-registra no MESMO
+ * endereço (não troca de ambiente, não descarta fila), pedindo todos os tipos
+ * que o app trata. Sem webhook registrado, não faz nada — escolher o endereço
+ * é decisão de quem configura, não de um cron.
+ */
+export async function repararWebhookIncompleto(): Promise<"ok" | "reparado" | "sem-webhook" | "falhou"> {
+  const info = await infoWebhookTelegram();
+  if (!info || !info.url) return "sem-webhook";
+  if (info.recebeBotoes) return "ok";
+  const base = info.url.replace(/\/api\/telegram\/webhook\/?$/, "");
+  const r = await registrarWebhookTelegram(base);
+  if (!r.ok) {
+    console.error("telegram: reparo do webhook falhou:", r.error);
+    return "falhou";
+  }
+  console.log(`telegram: webhook re-registrado em ${r.url} recebendo ${UPDATES_DO_WEBHOOK.join(", ")}.`);
+  return "reparado";
 }

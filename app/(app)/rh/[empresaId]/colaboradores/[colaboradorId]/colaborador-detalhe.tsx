@@ -88,6 +88,7 @@ export function ColaboradorDetalhe({
   ausenciasElegiveisAcidente,
   tiposAcidenteDisponiveis,
   tiposMovimentacaoDisponiveis,
+  transferencia,
   checklistDesligamento,
   entrevistaDesligamento,
   avaliacoes,
@@ -131,6 +132,7 @@ export function ColaboradorDetalhe({
   ausenciasElegiveisAcidente: Parameters<typeof AcidentesCard>[0]["ausenciasElegiveis"];
   tiposAcidenteDisponiveis: Parameters<typeof AcidentesCard>[0]["tiposAcidenteDisponiveis"];
   tiposMovimentacaoDisponiveis: Parameters<typeof MovimentacoesCard>[0]["tiposMovimentacaoDisponiveis"];
+  transferencia: Parameters<typeof MovimentacoesCard>[0]["transferencia"];
   checklistDesligamento: Parameters<typeof OffboardingCard>[0]["checklist"];
   entrevistaDesligamento: Parameters<typeof OffboardingCard>[0]["entrevista"];
   avaliacoes: Parameters<typeof DesempenhoCard>[0]["avaliacoes"];
@@ -419,6 +421,7 @@ export function ColaboradorDetalhe({
             candidatosSupervisor={candidatosSupervisor}
             movimentacoes={movimentacoes}
             tiposMovimentacaoDisponiveis={tiposMovimentacaoDisponiveis}
+            transferencia={transferencia}
           />
         </TabsContent>
         <TabsContent value="beneficios">
