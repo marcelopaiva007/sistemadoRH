@@ -207,7 +207,7 @@ export type Sistema = {
 /** Os três sistemas e suas áreas — o que a matriz de permissão desenha. */
 export const SISTEMAS: Sistema[] = [
   { slug: "rh", nome: "Pessoas (RH)", grupos: AREAS_RH },
-  { slug: "processos", nome: "Processos & Ativos", grupos: AREAS_PROCESSOS },
+  { slug: "processos", nome: "Frota e Contratos", grupos: AREAS_PROCESSOS },
   { slug: "delegacoes", nome: "Delegações", grupos: AREAS_DELEGACOES },
 ];
 
@@ -302,7 +302,7 @@ export const PERFIS_SEMENTE: PerfilSemente[] = [
   {
     id: "perfil-semente-rh",
     nome: "Gestor de RH",
-    descricao: "Pessoas, Processos & Ativos e Delegações.",
+    descricao: "Pessoas, Frota, Contratos e Delegações.",
     papelDeOrigem: "RH_MANAGER",
     // `delegacoes:*` entrou em 09/09/2026, por decisão do CEO: o RH não
     // enxergava o módulo de Delegações e precisa dele para trabalhar. O

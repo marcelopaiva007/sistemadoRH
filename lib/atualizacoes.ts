@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.205.0",
+    data: "11/11/2026",
+    horario: "16:10",
+    titulo: "Frota e Contratos viram abas no topo da tela",
+    itens: [
+      "A barra de topo agora tem as abas Pessoas (RH), Frota e Contratos, lado a lado. O nome \"Processos & Ativos\" saiu.",
+      "O seletor Frota | Contratos que ficava na lateral foi retirado: a troca é pelas abas do topo.",
+      "O acesso não mudou: quem já entrava em Processos & Ativos vê as duas abas.",
+    ],
+  },
+  {
     versao: "1.204.0",
     data: "11/11/2026",
     horario: "16:00",
