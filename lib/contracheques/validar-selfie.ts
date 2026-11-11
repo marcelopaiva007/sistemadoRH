@@ -11,7 +11,7 @@ export const MSG_SELFIE_SEM_ROSTO =
 
 const MODELO_VISAO = "claude-sonnet-5";
 
-export type DetectorRostoFn = (jpegBuffer: Buffer) => Promise<{
+export type DetectorRostoFn = (imagemBytes: Buffer) => Promise<{
   ok: boolean;
   rostoDetectado: boolean;
   motivo?: string;
@@ -165,6 +165,11 @@ export async function validarSelfieContracheque(
           }
           return { ok: true, bytes, ehPng, validadoComIa: true };
         }
+
+        console.warn(
+          "[contracheques] resposta da Anthropic sem tool_use 'validar_selfie_rosto', mantendo validação sharp:",
+          resposta.stop_reason
+        );
       }
     } catch (err) {
       console.warn("[contracheques] falha na detecção facial via Anthropic, mantendo validação sharp:", err);

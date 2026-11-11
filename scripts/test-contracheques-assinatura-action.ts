@@ -109,6 +109,36 @@ async function test() {
   }
   console.log("  ✓ Selfie sólida azul recusada na action com orientação amigável");
 
+  console.log("\n5.2. Testando guarda de sessão estrita (token sem autenticação prévia):");
+  const rSemSessao = await assinarContrachequeAction("token-valido-sem-sessao", {
+    fotoDataUrl: selfieAzul,
+    aceite: true,
+    localizacao: null,
+  });
+  if (rSemSessao.ok) throw new Error("Assinatura sem autenticação prévia não pode prosseguir");
+  if (!rSemSessao.error.includes("Sessão expirada ou não autenticada")) {
+    throw new Error(`Esperava erro de sessão não autenticada, veio: ${rSemSessao.error}`);
+  }
+  console.log("  ✓ Token sem cookie de sessão é estritamente rejeitado");
+
+  console.log("\n5.3. Testando que NODE_ENV=production bloqueia fallback de cookie em memória:");
+  const envOriginal = process.env.NODE_ENV;
+  process.env.NODE_ENV = "production";
+  try {
+    const rProd = await assinarContrachequeAction("token-valido", {
+      fotoDataUrl: selfieAzul,
+      aceite: true,
+      localizacao: null,
+    });
+    if (rProd.ok) throw new Error("Em production sem cookies HTTP, não pode usar fallback em memória");
+    if (!rProd.error.includes("Sessão expirada ou não autenticada")) {
+      throw new Error(`Esperava rejeição por falta de sessão em production, veio: ${rProd.error}`);
+    }
+    console.log("  ✓ Fallback em memória estritamente desabilitado quando NODE_ENV=production");
+  } finally {
+    process.env.NODE_ENV = envOriginal;
+  }
+
   console.log("\nTodos os testes de guarda de assinatura-contracheque passaram.");
 }
 

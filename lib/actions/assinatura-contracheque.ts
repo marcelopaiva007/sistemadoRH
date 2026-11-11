@@ -47,9 +47,13 @@ const fallbackCookiesTeste = new Map<string, string>();
 async function obterCookieSeguro(nome: string): Promise<string | undefined> {
   try {
     const c = await cookies();
-    return c.get(nome)?.value ?? fallbackCookiesTeste.get(nome);
+    return c.get(nome)?.value;
   } catch {
-    return fallbackCookiesTeste.get(nome);
+    // Fora de requisição HTTP (ex: testes locais/CI)
+    if (process.env.NODE_ENV !== "production") {
+      return fallbackCookiesTeste.get(nome);
+    }
+    return undefined;
   }
 }
 
@@ -70,8 +74,10 @@ async function setarCookieSeguro(
     const c = await cookies();
     c.set(nome, valor, options);
   } catch {
-    // Fora de requisição HTTP (ex: testes)
-    fallbackCookiesTeste.set(nome, valor);
+    // Fora de requisição HTTP (ex: testes locais/CI)
+    if (process.env.NODE_ENV !== "production") {
+      fallbackCookiesTeste.set(nome, valor);
+    }
   }
 }
 
