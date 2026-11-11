@@ -9,10 +9,9 @@ import {
   type OrigemEmail,
   type StatusLogEmail,
   inicioDoDiaSaoPaulo,
-  intervaloBrasiliaParaDate,
+  montarFiltroLogsEmail,
   formatarDataHoraBrasilia,
 } from "@/lib/email";
-import type { Prisma } from "@/app/generated/prisma/client";
 import {
   AlertTriangle,
   Calendar,
@@ -27,30 +26,6 @@ import {
 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
-
-function hojeBrasiliaYmd(): string {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Sao_Paulo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
-  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
-  return `${get("year")}-${get("month")}-${get("day")}`;
-}
-
-function subtrairDiasYmd(ymd: string, dias: number): string {
-  const [ano, mes, dia] = ymd.split("-").map(Number);
-  const d = new Date(Date.UTC(ano, mes - 1, dia - dias, 12, 0, 0));
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Sao_Paulo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(d);
-  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
-  return `${get("year")}-${get("month")}-${get("day")}`;
-}
 
 function badgeStatus(status: string) {
   switch (status) {
@@ -108,36 +83,21 @@ export default async function LogsEmailPage({ searchParams }: Props) {
   await requireAreaAdmin();
 
   const params = await searchParams;
-  const hoje = hojeBrasiliaYmd();
-  const inicioParam = params.inicio || subtrairDiasYmd(hoje, 1);
-  const fimParam = params.fim || hoje;
   const statusParam = params.status || "";
   const origemParam = params.origem || "";
   const marcaParam = params.marca?.trim() || "";
   const qParam = params.q?.trim() || "";
 
-  const [dataInicio, dataFimExclusivo] = intervaloBrasiliaParaDate(inicioParam, fimParam);
-  const inicioHojeBrasilia = inicioDoDiaSaoPaulo();
+  const { where, inicioYmd, fimYmd } = montarFiltroLogsEmail({
+    inicio: params.inicio,
+    fim: params.fim,
+    status: statusParam,
+    origem: origemParam,
+    marca: marcaParam,
+    q: qParam,
+  });
 
-  // Filtro principal da tabela
-  const where: Prisma.EmailEnviadoWhereInput = {
-    enviadoEm: {
-      gte: dataInicio,
-      lt: dataFimExclusivo,
-    },
-    ...(statusParam ? { status: statusParam } : {}),
-    ...(origemParam ? { origem: origemParam } : {}),
-    ...(marcaParam ? { marcaNome: { contains: marcaParam, mode: "insensitive" } } : {}),
-    ...(qParam
-      ? {
-          OR: [
-            { para: { contains: qParam, mode: "insensitive" } },
-            { assunto: { contains: qParam, mode: "insensitive" } },
-            { erro: { contains: qParam, mode: "insensitive" } },
-          ],
-        }
-      : {}),
-  };
+  const inicioHojeBrasilia = inicioDoDiaSaoPaulo();
 
   // Consultas de agregação e listagem
   const [enviadosHoje, bloqueadosHoje, totalNoFiltro, falhasNoFiltro, logs] = await Promise.all([
@@ -163,8 +123,8 @@ export default async function LogsEmailPage({ searchParams }: Props) {
 
   // Query string para exportação CSV mantendo todos os filtros
   const csvParams = new URLSearchParams();
-  if (inicioParam) csvParams.set("inicio", inicioParam);
-  if (fimParam) csvParams.set("fim", fimParam);
+  if (inicioYmd) csvParams.set("inicio", inicioYmd);
+  if (fimYmd) csvParams.set("fim", fimYmd);
   if (statusParam) csvParams.set("status", statusParam);
   if (origemParam) csvParams.set("origem", origemParam);
   if (marcaParam) csvParams.set("marca", marcaParam);
@@ -296,7 +256,7 @@ export default async function LogsEmailPage({ searchParams }: Props) {
                   type="date"
                   id="inicio"
                   name="inicio"
-                  defaultValue={inicioParam}
+                  defaultValue={inicioYmd}
                   className="w-full text-xs text-slate-800 outline-none"
                 />
               </div>
@@ -313,7 +273,7 @@ export default async function LogsEmailPage({ searchParams }: Props) {
                   type="date"
                   id="fim"
                   name="fim"
-                  defaultValue={fimParam}
+                  defaultValue={fimYmd}
                   className="w-full text-xs text-slate-800 outline-none"
                 />
               </div>

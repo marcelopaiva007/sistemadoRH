@@ -32,10 +32,13 @@ async function main() {
     inicioDoDiaBrasiliaDe,
     montarCsvLogsEmail,
     sendEmail,
+    validarDataYmd,
+    resolverPeriodoLogsEmail,
+    montarFiltroLogsEmail,
   } = await import("@/lib/email");
 
-  // 1. intervaloBrasiliaParaDate
-  console.log("  [1/4] Testando intervaloBrasiliaParaDate e inicioDoDiaBrasiliaDe...");
+  // 1. intervaloBrasiliaParaDate e validação de datas
+  console.log("  [1/5] Testando intervaloBrasiliaParaDate, validação de datas e proteção contra NaN...");
   const [inicio, fim] = intervaloBrasiliaParaDate("2026-11-09", "2026-11-10");
   assert.strictEqual(
     inicio.toISOString(),
@@ -55,8 +58,41 @@ async function main() {
     "inicioDoDiaBrasiliaDe deve retornar 03:00:00.000Z"
   );
 
-  // 2. montarCsvLogsEmail
-  console.log("  [2/4] Testando montarCsvLogsEmail...");
+  // Validação estrita de datas
+  assert.strictEqual(validarDataYmd("2026-11-09"), "2026-11-09");
+  assert.strictEqual(validarDataYmd("invalid"), null, "'invalid' deve retornar null");
+  assert.strictEqual(validarDataYmd("2026-02-31"), null, "'2026-02-31' inexistente deve retornar null");
+  assert.strictEqual(validarDataYmd("2026-13-01"), null, "'2026-13-01' mês inválido deve retornar null");
+  assert.strictEqual(validarDataYmd("2026-04-31"), null, "'2026-04-31' dia 31 em abril deve retornar null");
+
+  // Resolução segura de período sem exceção
+  const resolvidoInvalido = resolverPeriodoLogsEmail("invalid", "2026-99-99");
+  assert.ok(!isNaN(resolvidoInvalido.dataInicio.getTime()), "dataInicio não pode ser NaN");
+  assert.ok(!isNaN(resolvidoInvalido.dataFimExclusivo.getTime()), "dataFimExclusivo não pode ser NaN");
+  assert.ok(resolvidoInvalido.dataInicio <= resolvidoInvalido.dataFimExclusivo, "dataInicio <= dataFimExclusivo");
+
+  // Inversão corrigida inicio > fim
+  const resolvidoInvertido = resolverPeriodoLogsEmail("2026-11-15", "2026-11-10");
+  assert.ok(resolvidoInvertido.inicioYmd <= resolvidoInvertido.fimYmd, "inicioYmd ajustado para <= fimYmd");
+
+  // Filtro compartilhado buscando Marca / Empresa
+  const filtro = montarFiltroLogsEmail({ marca: "Centrysol" });
+  assert.ok(filtro.where, "Filtro deve gerar cláusula where");
+  const whereObj = filtro.where as {
+    AND?: Array<{ OR?: Array<{ marcaNome?: unknown; empresaId?: unknown }> }>;
+    OR?: Array<{ marcaNome?: unknown; empresaId?: unknown }>;
+  };
+  assert.deepStrictEqual(
+    whereObj.AND?.[1]?.OR ?? whereObj.OR,
+    [
+      { marcaNome: { contains: "Centrysol", mode: "insensitive" } },
+      { empresaId: { contains: "Centrysol", mode: "insensitive" } },
+    ],
+    "Filtro marca deve buscar em marcaNome e empresaId"
+  );
+
+  // 2. montarCsvLogsEmail com proteção contra Formula Injection
+  console.log("  [2/5] Testando montarCsvLogsEmail e proteção contra CSV Formula Injection...");
   const csv = montarCsvLogsEmail([
     {
       dataHoraBrasilia: "09/11/2026 14:30:00",
@@ -77,6 +113,16 @@ async function main() {
       empresa: "",
       status: "INVALIDO",
       erro: "E-mail inválido",
+    },
+    {
+      dataHoraBrasilia: "10/11/2026 10:00:00",
+      destinatario: "=cmd|' /C calc'!A0",
+      origem: "+551199999999",
+      assunto: "@malicioso; com ponto e virgula",
+      marca: "-MarcaComMenos",
+      empresa: "\tTabulacao",
+      status: "FALHOU",
+      erro: "=2+2",
     },
   ]);
 
@@ -99,6 +145,14 @@ async function main() {
     csv.includes('"Aviso de demanda\nCom quebra de linha"'),
     "Quebras de linha devem ser mantidas entre aspas no CSV"
   );
+
+  // Checagens de neutralização de fórmula
+  assert.ok(csv.includes("'=cmd|'"), "Célula começando com = deve ser prefixada com apóstrofo");
+  assert.ok(csv.includes("'+551199999999"), "Célula começando com + deve ser prefixada com apóstrofo");
+  assert.ok(csv.includes("'-MarcaComMenos"), "Célula começando com - deve ser prefixada com apóstrofo");
+  assert.ok(csv.includes("'@malicioso"), "Célula começando com @ deve ser prefixada com apóstrofo");
+  assert.ok(csv.includes("'\tTabulacao"), "Célula começando com \t deve ser prefixada com apóstrofo");
+  assert.ok(csv.includes("'=2+2"), "Erro começando com = deve ser neutralizado");
 
   // 3. Simulações sendEmail
   console.log("  [3/4] Testando sendEmail com mock de prismaGlobal...");

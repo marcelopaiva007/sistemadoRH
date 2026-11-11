@@ -17,6 +17,7 @@
 // dos quais ~60 foram a campanha do portal disparada em 8 segundos.
 import nodemailer, { type Transporter } from "nodemailer";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@/app/generated/prisma/client";
 import { LIMITE_DIARIO_ENVIOS } from "@/lib/constants-rh";
 import {
   CHAVE_EMAIL_FROM,
@@ -116,23 +117,176 @@ export function inicioDoDiaSaoPaulo(agora = new Date()): Date {
   return new Date(Date.UTC(get("year"), get("month") - 1, get("day"), 3, 0, 0));
 }
 
-/** Retorna a meia-noite de Brasília (03:00 UTC) para uma data YYYY-MM-DD específica. */
+/** Retorna a data de hoje no fuso de Brasília no formato YYYY-MM-DD. */
+export function hojeBrasiliaYmd(): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
+/** Valida string YYYY-MM-DD e confere existência real no calendário (sem rollover). Retorna a string normalizada ou null. */
+export function validarDataYmd(valor: unknown): string | null {
+  if (typeof valor !== "string") return null;
+  const limpo = valor.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(limpo)) return null;
+  const [ano, mes, dia] = limpo.split("-").map(Number);
+  if (ano < 1970 || ano > 2100 || mes < 1 || mes > 12 || dia < 1 || dia > 31) return null;
+
+  const d = new Date(Date.UTC(ano, mes - 1, dia, 12, 0, 0));
+  if (
+    d.getUTCFullYear() !== ano ||
+    d.getUTCMonth() !== mes - 1 ||
+    d.getUTCDate() !== dia
+  ) {
+    return null;
+  }
+  return limpo;
+}
+
+/** Subtrai dias de uma data YYYY-MM-DD mantendo fuso de Brasília. */
+export function subtrairDiasYmd(ymd: string, dias: number): string {
+  const validado = validarDataYmd(ymd) ?? hojeBrasiliaYmd();
+  const [ano, mes, dia] = validado.split("-").map(Number);
+  const d = new Date(Date.UTC(ano, mes - 1, dia - dias, 12, 0, 0));
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(d);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
+/** Retorna a meia-noite de Brasília (03:00 UTC) para uma data YYYY-MM-DD específica. Seguro contra datas inválidas. */
 export function inicioDoDiaBrasiliaDe(ymd: string): Date {
-  const [ano, mes, dia] = ymd.split("-").map(Number);
+  const validado = validarDataYmd(ymd);
+  if (!validado) return inicioDoDiaSaoPaulo();
+  const [ano, mes, dia] = validado.split("-").map(Number);
   return new Date(Date.UTC(ano, mes - 1, dia, 3, 0, 0));
 }
 
 /**
  * Converte intervalo de datas YYYY-MM-DD de Brasília para [inicio, fimExclusivo) em Date UTC.
- * Ex: intervaloBrasiliaParaDate("2026-11-09", "2026-11-10") ->
- * [2026-11-09T03:00:00.000Z, 2026-11-11T03:00:00.000Z).
+ * Seguro contra datas inválidas ou invertidas.
  */
 export function intervaloBrasiliaParaDate(inicioYmd: string, fimYmd: string): [Date, Date] {
-  const [anoIni, mesIni, diaIni] = inicioYmd.split("-").map(Number);
-  const [anoFim, mesFim, diaFim] = fimYmd.split("-").map(Number);
+  const hoje = hojeBrasiliaYmd();
+  let ini = validarDataYmd(inicioYmd);
+  let fim = validarDataYmd(fimYmd);
+
+  if (!fim) fim = hoje;
+  if (!ini) ini = subtrairDiasYmd(fim, 1);
+
+  if (ini > fim) ini = fim;
+
+  const [anoIni, mesIni, diaIni] = ini.split("-").map(Number);
+  const [anoFim, mesFim, diaFim] = fim.split("-").map(Number);
   const inicio = new Date(Date.UTC(anoIni, mesIni - 1, diaIni, 3, 0, 0));
-  const fim = new Date(Date.UTC(anoFim, mesFim - 1, diaFim + 1, 3, 0, 0));
-  return [inicio, fim];
+  const fimData = new Date(Date.UTC(anoFim, mesFim - 1, diaFim + 1, 3, 0, 0));
+  return [inicio, fimData];
+}
+
+/**
+ * Resolve e normaliza com segurança o período de consulta de logs de e-mail.
+ */
+export function resolverPeriodoLogsEmail(
+  inicioParam?: string | null,
+  fimParam?: string | null
+): {
+  inicioYmd: string;
+  fimYmd: string;
+  dataInicio: Date;
+  dataFimExclusivo: Date;
+} {
+  const hoje = hojeBrasiliaYmd();
+  const fim = validarDataYmd(fimParam) ?? hoje;
+  let inicio = validarDataYmd(inicioParam) ?? subtrairDiasYmd(fim, 1);
+
+  if (inicio > fim) {
+    inicio = fim;
+  }
+
+  const [dataInicio, dataFimExclusivo] = intervaloBrasiliaParaDate(inicio, fim);
+  return {
+    inicioYmd: inicio,
+    fimYmd: fim,
+    dataInicio,
+    dataFimExclusivo,
+  };
+}
+
+/**
+ * Constrói a cláusula `where` compartilhada entre o painel e o CSV de logs de e-mail.
+ */
+export function montarFiltroLogsEmail(filtros: {
+  inicio?: string | null;
+  fim?: string | null;
+  status?: string | null;
+  origem?: string | null;
+  marca?: string | null;
+  q?: string | null;
+}): {
+  where: Prisma.EmailEnviadoWhereInput;
+  inicioYmd: string;
+  fimYmd: string;
+  dataInicio: Date;
+  dataFimExclusivo: Date;
+} {
+  const { inicioYmd, fimYmd, dataInicio, dataFimExclusivo } = resolverPeriodoLogsEmail(
+    filtros.inicio,
+    filtros.fim
+  );
+
+  const statusParam = filtros.status?.trim() || undefined;
+  const origemParam = filtros.origem?.trim() || undefined;
+  const marcaParam = filtros.marca?.trim() || undefined;
+  const qParam = filtros.q?.trim() || undefined;
+
+  const condicoes: Prisma.EmailEnviadoWhereInput[] = [
+    {
+      enviadoEm: {
+        gte: dataInicio,
+        lt: dataFimExclusivo,
+      },
+    },
+  ];
+
+  if (statusParam) condicoes.push({ status: statusParam });
+  if (origemParam) condicoes.push({ origem: origemParam });
+  if (marcaParam) {
+    condicoes.push({
+      OR: [
+        { marcaNome: { contains: marcaParam, mode: "insensitive" } },
+        { empresaId: { contains: marcaParam, mode: "insensitive" } },
+      ],
+    });
+  }
+  if (qParam) {
+    condicoes.push({
+      OR: [
+        { para: { contains: qParam, mode: "insensitive" } },
+        { assunto: { contains: qParam, mode: "insensitive" } },
+        { erro: { contains: qParam, mode: "insensitive" } },
+      ],
+    });
+  }
+
+  const where: Prisma.EmailEnviadoWhereInput =
+    condicoes.length === 1 ? condicoes[0] : { AND: condicoes };
+
+  return {
+    where,
+    inicioYmd,
+    fimYmd,
+    dataInicio,
+    dataFimExclusivo,
+  };
 }
 
 export function formatarDataHoraBrasilia(d: Date | string): string {
@@ -149,7 +303,11 @@ export function formatarDataHoraBrasilia(d: Date | string): string {
 }
 
 function escaparCsv(valor: unknown): string {
-  const str = String(valor ?? "");
+  let str = String(valor ?? "");
+  // Proteção contra CSV Formula Injection: prefixa apóstrofo se começar com =, +, -, @, \t ou \r
+  if (/^[=+\-@\t\r]/.test(str)) {
+    str = `'${str}`;
+  }
   if (str.includes(";") || str.includes('"') || str.includes("\n") || str.includes("\r")) {
     return `"${str.replace(/"/g, '""')}"`;
   }

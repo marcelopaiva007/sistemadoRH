@@ -3,37 +3,12 @@ import { auth } from "@/auth";
 import { ehMaster } from "@/lib/grupo";
 import { prisma } from "@/lib/prisma";
 import {
-  intervaloBrasiliaParaDate,
   montarCsvLogsEmail,
   formatarDataHoraBrasilia,
+  montarFiltroLogsEmail,
 } from "@/lib/email";
-import type { Prisma } from "@/app/generated/prisma/client";
 
 export const runtime = "nodejs";
-
-function hojeBrasiliaYmd(): string {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Sao_Paulo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
-  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
-  return `${get("year")}-${get("month")}-${get("day")}`;
-}
-
-function subtrairDiasYmd(ymd: string, dias: number): string {
-  const [ano, mes, dia] = ymd.split("-").map(Number);
-  const d = new Date(Date.UTC(ano, mes - 1, dia - dias, 12, 0, 0));
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Sao_Paulo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(d);
-  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
-  return `${get("year")}-${get("month")}-${get("day")}`;
-}
 
 export async function GET(req: Request) {
   const session = await auth();
@@ -42,34 +17,21 @@ export async function GET(req: Request) {
   }
 
   const url = new URL(req.url);
-  const hoje = hojeBrasiliaYmd();
-  const inicioParam = url.searchParams.get("inicio") || subtrairDiasYmd(hoje, 1);
-  const fimParam = url.searchParams.get("fim") || hoje;
-  const statusParam = url.searchParams.get("status") || undefined;
-  const origemParam = url.searchParams.get("origem") || undefined;
-  const marcaParam = url.searchParams.get("marca") || undefined;
-  const qParam = url.searchParams.get("q")?.trim() || undefined;
+  const inicioParam = url.searchParams.get("inicio");
+  const fimParam = url.searchParams.get("fim");
+  const statusParam = url.searchParams.get("status");
+  const origemParam = url.searchParams.get("origem");
+  const marcaParam = url.searchParams.get("marca");
+  const qParam = url.searchParams.get("q");
 
-  const [dataInicio, dataFimExclusivo] = intervaloBrasiliaParaDate(inicioParam, fimParam);
-
-  const where: Prisma.EmailEnviadoWhereInput = {
-    enviadoEm: {
-      gte: dataInicio,
-      lt: dataFimExclusivo,
-    },
-    ...(statusParam ? { status: statusParam } : {}),
-    ...(origemParam ? { origem: origemParam } : {}),
-    ...(marcaParam ? { marcaNome: { contains: marcaParam, mode: "insensitive" } } : {}),
-    ...(qParam
-      ? {
-          OR: [
-            { para: { contains: qParam, mode: "insensitive" } },
-            { assunto: { contains: qParam, mode: "insensitive" } },
-            { erro: { contains: qParam, mode: "insensitive" } },
-          ],
-        }
-      : {}),
-  };
+  const { where, inicioYmd, fimYmd } = montarFiltroLogsEmail({
+    inicio: inicioParam,
+    fim: fimParam,
+    status: statusParam,
+    origem: origemParam,
+    marca: marcaParam,
+    q: qParam,
+  });
 
   const logs = await prisma.emailEnviado.findMany({
     where,
@@ -89,7 +51,7 @@ export async function GET(req: Request) {
   }));
 
   const csv = montarCsvLogsEmail(linhas);
-  const nomeArquivo = `logs-smtp-${inicioParam}-a-${fimParam}.csv`;
+  const nomeArquivo = `logs-smtp-${inicioYmd}-a-${fimYmd}.csv`;
 
   return new NextResponse(csv, {
     headers: {
