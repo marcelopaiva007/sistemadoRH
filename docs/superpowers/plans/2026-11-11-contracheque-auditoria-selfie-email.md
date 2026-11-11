@@ -571,7 +571,98 @@ git commit -m "feat(email): rastreamento completo de logs SMTP, painel admin CSV
 
 ---
 
-## Task 6: Versão v1.203.0, Integração no CI e Verificação Global
+## Task 6: Complemento OS 11/11 — 2º Contracheque no Dossiê, Selos `"Invalidado"` e Reset de Cobranças
+
+**Contexto (Complemento OS-atualizada-Genilson-contracheque-10-2026.pdf):**
+Itens adicionais solicitados em 11/11/2026 pelo RH (Jeanderson):
+- **Item 4:** Botão e modal claros `"Invalidar recibo"` / `"Invalidar recibo e reenviar"` na linha do contracheque assinado.
+- **Item 5:** Após invalidar, zerar também `enviadoEm`, `enviadoPorNome`, `canal`, `envioErro`, `lembretesEnviados` e `ultimoLembreteEm` em `camposResetAposInvalidacao` para o colaborador sair dos assinados, voltar a pendente real e reiniciar o ciclo completo de cobranças no Telegram (manual e cron automático).
+- **Item 6:** Regra explícita para um segundo contracheque da mesma competência lançado manualmente no Dossiê (`documentos-card.tsx` + `lib/actions/rh-documentos.ts`): exigir competência e tipo de folha; se já existir recibo **assinado**, bloquear orientando ir em Contracheques -> `"Invalidar recibo"`; se estiver **pendente** (sem recibo ou `confirmadoEm === null`, inclusive pós-invalidação), substituir o arquivo PDF do envio pendente mantendo histórico/chaveDedupe consistentes e rotacionando o token pendente. Reforçar também a mensagem em `lib/caixa-documentos/gravar.ts` quando o duplicado já estiver assinado.
+- **Item 7:** Selo explícito `"Invalidado"` tanto no badge da tabela quanto dentro do histórico forense, além de identificar dono e entidade `ReciboContrachequeInvalidado` na trilha de download em `app/api/rh/[empresaId]/arquivos/[arquivoId]/route.ts`.
+
+**Files:**
+- Modify: `lib/contracheques/invalidacao.ts`
+- Create: `lib/contracheques/dossie.ts`
+- Modify: `lib/actions/rh-documentos.ts`
+- Modify: `app/(app)/rh/[empresaId]/colaboradores/[colaboradorId]/documentos-card.tsx`
+- Modify: `lib/caixa-documentos/gravar.ts`
+- Modify: `app/(app)/rh/[empresaId]/contracheques/contracheques-view.tsx`
+- Modify: `app/api/rh/[empresaId]/arquivos/[arquivoId]/route.ts`
+- Modify: `scripts/test-contracheques-invalidacao.ts`
+
+- [ ] **Step 1: Escrever testes TDD em `scripts/test-contracheques-invalidacao.ts` (RED)**
+
+Adicionar asserções antes da implementação:
+1. `camposResetAposInvalidacao(novoToken)` também zera `enviadoEm: null`, `enviadoPorNome: null`, `canal: null`, `envioErro: null`, `lembretesEnviados: 0`, `ultimoLembreteEm: null` (garantindo reentrada limpa na cobrança do Telegram e contagem de pendentes).
+2. Importar de `../lib/contracheques/dossie`:
+   - `resolverMetadadosContrachequeManual({ competencia, tipoFolha, descricao })`:
+     - `"2026-10"`, `"MENSAL"` -> `{ competencia: 2026-10-01T00:00:00Z, tipoFolha: "MENSAL", chaveDedupe: "CONTRACHEQUE:2026-10:MENSAL", mesAno: "10/2026", rotulo: "10/2026", descricaoPadrao: "Competência 10/2026" }`.
+     - `"2026-10"`, `"DECIMO_TERCEIRO"` -> `chaveDedupe: "CONTRACHEQUE:2026-10:DECIMO_TERCEIRO"`, `rotulo: "10/2026 (13º salário)"`, `descricaoPadrao: "Competência 10/2026 (13º salário)"`.
+     - `competencia: ""`, `descricao: "Competência 10/2026"` -> infere `"2026-10"` como fallback seguro; `"2026-13"` ou descrição sem mês/ano -> retorna `null`.
+   - `decidirSegundoContrachequeDossie(existente, rotulo)`:
+     - `null` -> `{ acao: "CRIAR" }`
+     - `{ id: "d1", arquivoId: "a1", recibo: null }` -> `{ acao: "SUBSTITUIR_PENDENTE", documentoId: "d1", arquivoAnteriorId: "a1", reciboId: null }`
+     - `{ id: "d1", arquivoId: "a1", recibo: { id: "r1", confirmadoEm: null } }` -> `{ acao: "SUBSTITUIR_PENDENTE", documentoId: "d1", arquivoAnteriorId: "a1", reciboId: "r1" }`
+     - `{ id: "d1", arquivoId: "a1", recibo: { id: "r1", confirmadoEm: new Date() } }` -> `{ acao: "BLOQUEAR_JA_ASSINADO", error }` contendo `"assinado"` e `"Invalidar recibo"`.
+
+Run:
+```bash
+npx tsx scripts/test-contracheques-invalidacao.ts
+```
+Expected: FAIL (`Cannot find module '../lib/contracheques/dossie'` / falha nas novas asserções).
+
+- [ ] **Step 2: Implementar regras puras em `lib/contracheques/invalidacao.ts` e `lib/contracheques/dossie.ts`**
+
+1. `lib/contracheques/invalidacao.ts`: atualizar `camposResetAposInvalidacao` para incluir `enviadoEm: null`, `enviadoPorNome: null`, `canal: null`, `envioErro: null`, `lembretesEnviados: 0`, `ultimoLembreteEm: null`.
+2. `lib/contracheques/dossie.ts`: exportar `resolverMetadadosContrachequeManual(...)` e `decidirSegundoContrachequeDossie(...)` reutilizando `competenciaDoTexto`, `rotuloDoContracheque` e `TIPOS_FOLHA_LABEL` de `./situacao`.
+
+- [ ] **Step 3: Atualizar `lib/actions/rh-documentos.ts`, `documentos-card.tsx` e `lib/caixa-documentos/gravar.ts`**
+
+1. `app/(app)/rh/[empresaId]/colaboradores/[colaboradorId]/documentos-card.tsx`:
+   - Quando `tipoNovo === "CONTRACHEQUE"`, exibir `<Alert>` informando a regra (aparece automaticamente em Contracheques; substitui envio pendente da mesma competência/folha; bloqueia se já assinado até invalidar em Contracheques), campos `Competência (mês/ano)` (`<Input type="month" name="competencia" required />`), `Tipo de folha` (`MENSAL`, `ADIANTAMENTO`, `DECIMO_TERCEIRO`, `FERIAS`, `COMPLEMENTAR`, `PLR`) e tornar o input `file` `required`.
+   - Passar `mensagemSucesso` apropriada ao `FormularioAction`.
+2. `lib/actions/rh-documentos.ts` (`criarDocumento`):
+   - Quando `tipo === "CONTRACHEQUE"`:
+     - Validar `metadados = resolverMetadadosContrachequeManual(...)` e exigir `!anexo` (`"Anexe o arquivo PDF do contracheque."`).
+     - Dentro de `prisma.$transaction`:
+       - Lock da ficha: `SELECT "id" FROM rh."Colaborador" WHERE "id" = ${colaboradorId} FOR UPDATE`.
+       - Buscar candidatos existentes de `DocumentoColaborador` para aquele colaborador e competência (`OR: [{ chaveDedupe: metadados.chaveDedupe }, ...(metadados.tipoFolha === "MENSAL" ? [{ tipo: "CONTRACHEQUE", competencia: metadados.competencia, chaveDedupe: null }, { tipo: "CONTRACHEQUE", competencia: null, descricao: { contains: metadados.mesAno, mode: "insensitive" } }] : [])]`), priorizando recibo confirmado primeiro e, na ausência, match exato de `chaveDedupe`.
+       - Aplicar `decidirSegundoContrachequeDossie`: se `BLOQUEAR_JA_ASSINADO`, retornar `{ ok: false, error }`.
+       - Se `SUBSTITUIR_PENDENTE`: criar novo `Arquivo`, atualizar o `DocumentoColaborador` existente (`arquivoId: novoArquivo.id`, `competencia`, `chaveDedupe`, `descricao: descricao ?? metadados.descricaoPadrao`, `emitidoEm`, `validoAte`, `observacoes`, `conferidoEm: agora`, `conferidoPorNome: usuario.name ?? null`), se houver `reciboId` pendente atualizar `tx.reciboContracheque.update` com `camposResetAposInvalidacao(gerarTokenAssinatura())` (preservando intacto o histórico em `ReciboContrachequeInvalidado`), e só apagar `arquivoAnteriorId` se ele não for referenciado em nenhum `DocumentoColaborador`, `ReciboContracheque` (`fotoArquivoId`/`comprovanteArquivoId`) ou `ReciboContrachequeInvalidado` (`fotoArquivoId`/`comprovanteArquivoId`).
+       - Se `CRIAR`: criar `Arquivo` e `DocumentoColaborador` com `competencia`, `chaveDedupe`, `descricao: descricao ?? metadados.descricaoPadrao`, `conferidoEm: agora`, `conferidoPorNome: usuario.name ?? null`.
+     - Registrar auditoria (`ATUALIZAR` na substituição ou `CRIAR` na criação) e revalidar também `/rh/${empresaId}/contracheques` e `/portal`.
+3. `lib/caixa-documentos/gravar.ts` (`impedimentosNoBanco`, bloco `DOSSIE`):
+   - Selecionar `recibo: { select: { confirmadoEm: true } }` na consulta de duplicata por `chaveDedupe`.
+   - Se `tipo === "CONTRACHEQUE"` e `igual?.recibo?.confirmadoEm`, informar explicitamente que já possui recibo assinado e orientar acessar Contracheques -> `"Invalidar recibo"`.
+
+- [ ] **Step 4: Reforçar clareza visual em `contracheques-view.tsx` e auditoria de download de comprovantes invalidados**
+
+1. `app/(app)/rh/[empresaId]/contracheques/contracheques-view.tsx`:
+   - Renomear botão da linha confirmada de `"Invalidar"` para `"Invalidar recibo"` (com `title="Invalidar recibo e reenviar ao e-mail atual"`) e título do modal para `"Invalidar Recibo e Reenviar"`.
+   - No badge da tabela para histórico existente, exibir `Invalidado (${l.invalidacoes.length})`.
+   - Dentro do modal `Histórico Forense de Invalidações`, exibir selo `<Badge variant="destructive" className="text-[10px] uppercase">Invalidado</Badge>` em cada registro preservado ao lado de `Registro #N` e ajustar o texto do link para `Ver comprovante PDF preservado (invalidado)`.
+2. `app/api/rh/[empresaId]/arquivos/[arquivoId]/route.ts`:
+   - Incluir `contrachequesInvalidadosFoto` e `contrachequesInvalidadosComprovante` (`take: 1, orderBy: { invalidadoEm: "desc" }`) no `select` de `arquivo` para que a auditoria de download registre o colaborador dono e entidade `"ReciboContrachequeInvalidado"` quando o RH baixar evidência preservada.
+
+- [ ] **Step 5: Verificação e commit da Task 6**
+
+Run:
+```bash
+npx tsx scripts/test-contracheques-invalidacao.ts && \
+npx tsx scripts/test-contracheques.ts && \
+npm run type-check && \
+npm run lint
+```
+Expected: exit 0 em todos.
+
+```bash
+git add lib/contracheques/invalidacao.ts lib/contracheques/dossie.ts lib/actions/rh-documentos.ts app/\(app\)/rh/\[empresaId\]/colaboradores/\[colaboradorId\]/documentos-card.tsx lib/caixa-documentos/gravar.ts app/\(app\)/rh/\[empresaId\]/contracheques/contracheques-view.tsx app/api/rh/\[empresaId\]/arquivos/\[arquivoId\]/route.ts scripts/test-contracheques-invalidacao.ts
+git commit -m "feat(contracheques): regra de 2o PDF no dossie, reset de cobrancas Telegram e selo Invalidado"
+```
+
+---
+
+## Task 7: Versão v1.203.0, Integração no CI e Verificação Global
 
 **Files:**
 - Modify: `.github/workflows/verificacao.yml`
