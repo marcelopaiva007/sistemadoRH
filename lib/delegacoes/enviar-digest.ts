@@ -157,6 +157,7 @@ export async function enviarDigests(agora = new Date()): Promise<ResultadoDigest
       subject: assunto,
       text: texto,
       html,
+      origem: "DELEGACOES",
       chave: `delegacoes-digest:${solicitanteId}:${hoje}:${periodo}`,
     });
     if (envio.ok && envio.deduplicado) resultado.deduplicados++;

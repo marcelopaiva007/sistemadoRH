@@ -17,8 +17,16 @@
 // dos quais ~60 foram a campanha do portal disparada em 8 segundos.
 import nodemailer, { type Transporter } from "nodemailer";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@/app/generated/prisma/client";
 import { LIMITE_DIARIO_ENVIOS } from "@/lib/constants-rh";
-import { CHAVE_EMAIL_FROM, CHAVE_SMTP_HOST, CHAVE_SMTP_PASS, CHAVE_SMTP_PORT, CHAVE_SMTP_USER, segredo } from "@/lib/segredos";
+import {
+  CHAVE_EMAIL_FROM,
+  CHAVE_SMTP_HOST,
+  CHAVE_SMTP_PASS,
+  CHAVE_SMTP_PORT,
+  CHAVE_SMTP_USER,
+  segredo,
+} from "@/lib/segredos";
 
 // Por que a falha importa para quem chamou: um convite recusado por COTA volta
 // amanhã e NÃO pode ser marcado FAILED (FAILED nunca é retentado pelo envio
@@ -29,6 +37,70 @@ export type MotivoFalhaEmail = "COTA" | "SUPRIMIDO" | "INVALIDO" | "CONFIG" | "E
 export type ResultadoEnvio =
   | { ok: true; deduplicado?: boolean }
   | { ok: false; error: string; motivo: MotivoFalhaEmail };
+
+export const ORIGENS_EMAIL = [
+  "CONTRACHEQUE",
+  "CONTRACHEQUE_REENVIO",
+  "CONTRACHEQUE_COMPROVANTE",
+  "CONVITE_PESQUISA",
+  "LEMBRETE_PESQUISA",
+  "CONVITE_PORTAL",
+  "COBRANCA_RH",
+  "NOTIFICACAO_PESQUISA",
+  "ALERTA_RH",
+  "AVISO_GESTOR",
+  "INFORMATIVO",
+  "REGUA_COBRANCA",
+  "CONVITE_USUARIO",
+  "REDEFINIR_SENHA_ADMIN",
+  "RECUPERACAO_SENHA",
+  "LEMBRAR_USUARIO",
+  "COBRANCA_CADASTRO",
+  "DELEGACOES",
+  "OUTRO",
+] as const;
+
+export type OrigemEmail = (typeof ORIGENS_EMAIL)[number];
+
+export const STATUS_LOG_EMAIL = [
+  "ENVIADO",
+  "FALHOU",
+  "BLOQUEADO_TETO",
+  "SUPRIMIDO",
+  "INVALIDO",
+] as const;
+
+export type StatusLogEmail = (typeof STATUS_LOG_EMAIL)[number];
+
+export const ROTULO_ORIGEM_EMAIL: Record<OrigemEmail, string> = {
+  CONTRACHEQUE: "Contracheque",
+  CONTRACHEQUE_REENVIO: "Contracheque (Reenvio)",
+  CONTRACHEQUE_COMPROVANTE: "Comprovante Contracheque",
+  CONVITE_PESQUISA: "Convite de Pesquisa",
+  LEMBRETE_PESQUISA: "Lembrete de Pesquisa",
+  CONVITE_PORTAL: "Convite do Portal",
+  COBRANCA_RH: "Cobrança RH",
+  NOTIFICACAO_PESQUISA: "Notificação de Pesquisa",
+  ALERTA_RH: "Alerta RH",
+  AVISO_GESTOR: "Aviso do Gestor",
+  INFORMATIVO: "Informativo RH",
+  REGUA_COBRANCA: "Régua de Cobrança",
+  CONVITE_USUARIO: "Convite de Usuário",
+  REDEFINIR_SENHA_ADMIN: "Redefinir Senha (Admin)",
+  RECUPERACAO_SENHA: "Recuperação de Senha",
+  LEMBRAR_USUARIO: "Lembrar Usuário",
+  COBRANCA_CADASTRO: "Cobrança de Cadastro",
+  DELEGACOES: "Delegações",
+  OUTRO: "Outro",
+};
+
+export const ROTULO_STATUS_EMAIL: Record<StatusLogEmail, string> = {
+  ENVIADO: "Enviado",
+  FALHOU: "Falha",
+  BLOQUEADO_TETO: "Bloqueado pelo Teto",
+  SUPRIMIDO: "Suprimido",
+  INVALIDO: "Inválido",
+};
 
 // Início do dia corrente no fuso de Brasília (o servidor roda em UTC). O teto
 // do provedor vira à meia-noite UTC, mas quem lê o relatório pensa em dia de
@@ -43,6 +115,248 @@ export function inicioDoDiaSaoPaulo(agora = new Date()): Date {
   const get = (t: string) => Number(parts.find((p) => p.type === t)?.value);
   // 00:00 em São Paulo = 03:00 UTC (UTC-3, sem horário de verão desde 2019).
   return new Date(Date.UTC(get("year"), get("month") - 1, get("day"), 3, 0, 0));
+}
+
+/** Retorna a data de hoje no fuso de Brasília no formato YYYY-MM-DD. */
+export function hojeBrasiliaYmd(): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
+/** Valida string YYYY-MM-DD e confere existência real no calendário (sem rollover). Retorna a string normalizada ou null. */
+export function validarDataYmd(valor: unknown): string | null {
+  if (typeof valor !== "string") return null;
+  const limpo = valor.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(limpo)) return null;
+  const [ano, mes, dia] = limpo.split("-").map(Number);
+  if (ano < 1970 || ano > 2100 || mes < 1 || mes > 12 || dia < 1 || dia > 31) return null;
+
+  const d = new Date(Date.UTC(ano, mes - 1, dia, 12, 0, 0));
+  if (
+    d.getUTCFullYear() !== ano ||
+    d.getUTCMonth() !== mes - 1 ||
+    d.getUTCDate() !== dia
+  ) {
+    return null;
+  }
+  return limpo;
+}
+
+/** Subtrai dias de uma data YYYY-MM-DD mantendo fuso de Brasília. */
+export function subtrairDiasYmd(ymd: string, dias: number): string {
+  const validado = validarDataYmd(ymd) ?? hojeBrasiliaYmd();
+  const [ano, mes, dia] = validado.split("-").map(Number);
+  const d = new Date(Date.UTC(ano, mes - 1, dia - dias, 12, 0, 0));
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(d);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
+/** Retorna a meia-noite de Brasília (03:00 UTC) para uma data YYYY-MM-DD específica. Seguro contra datas inválidas. */
+export function inicioDoDiaBrasiliaDe(ymd: string): Date {
+  const validado = validarDataYmd(ymd);
+  if (!validado) return inicioDoDiaSaoPaulo();
+  const [ano, mes, dia] = validado.split("-").map(Number);
+  return new Date(Date.UTC(ano, mes - 1, dia, 3, 0, 0));
+}
+
+/**
+ * Converte intervalo de datas YYYY-MM-DD de Brasília para [inicio, fimExclusivo) em Date UTC.
+ * Seguro contra datas inválidas ou invertidas.
+ */
+export function intervaloBrasiliaParaDate(inicioYmd: string, fimYmd: string): [Date, Date] {
+  const hoje = hojeBrasiliaYmd();
+  let ini = validarDataYmd(inicioYmd);
+  let fim = validarDataYmd(fimYmd);
+
+  if (!fim) fim = hoje;
+  if (!ini) ini = subtrairDiasYmd(fim, 1);
+
+  if (ini > fim) ini = fim;
+
+  const [anoIni, mesIni, diaIni] = ini.split("-").map(Number);
+  const [anoFim, mesFim, diaFim] = fim.split("-").map(Number);
+  const inicio = new Date(Date.UTC(anoIni, mesIni - 1, diaIni, 3, 0, 0));
+  const fimData = new Date(Date.UTC(anoFim, mesFim - 1, diaFim + 1, 3, 0, 0));
+  return [inicio, fimData];
+}
+
+/**
+ * Resolve e normaliza com segurança o período de consulta de logs de e-mail.
+ */
+export function resolverPeriodoLogsEmail(
+  inicioParam?: string | null,
+  fimParam?: string | null
+): {
+  inicioYmd: string;
+  fimYmd: string;
+  dataInicio: Date;
+  dataFimExclusivo: Date;
+} {
+  const hoje = hojeBrasiliaYmd();
+  const fim = validarDataYmd(fimParam) ?? hoje;
+  let inicio = validarDataYmd(inicioParam) ?? subtrairDiasYmd(fim, 1);
+
+  if (inicio > fim) {
+    inicio = fim;
+  }
+
+  const [dataInicio, dataFimExclusivo] = intervaloBrasiliaParaDate(inicio, fim);
+  return {
+    inicioYmd: inicio,
+    fimYmd: fim,
+    dataInicio,
+    dataFimExclusivo,
+  };
+}
+
+/**
+ * Constrói a cláusula `where` compartilhada entre o painel e o CSV de logs de e-mail.
+ */
+export function montarFiltroLogsEmail(filtros: {
+  inicio?: string | null;
+  fim?: string | null;
+  status?: string | null;
+  origem?: string | null;
+  marca?: string | null;
+  q?: string | null;
+}): {
+  where: Prisma.EmailEnviadoWhereInput;
+  inicioYmd: string;
+  fimYmd: string;
+  dataInicio: Date;
+  dataFimExclusivo: Date;
+} {
+  const { inicioYmd, fimYmd, dataInicio, dataFimExclusivo } = resolverPeriodoLogsEmail(
+    filtros.inicio,
+    filtros.fim
+  );
+
+  const statusParam = filtros.status?.trim() || undefined;
+  const origemParam = filtros.origem?.trim() || undefined;
+  const marcaParam = filtros.marca?.trim() || undefined;
+  const qParam = filtros.q?.trim() || undefined;
+
+  const condicoes: Prisma.EmailEnviadoWhereInput[] = [
+    {
+      enviadoEm: {
+        gte: dataInicio,
+        lt: dataFimExclusivo,
+      },
+    },
+  ];
+
+  if (statusParam) condicoes.push({ status: statusParam });
+  if (origemParam) condicoes.push({ origem: origemParam });
+  if (marcaParam) {
+    condicoes.push({
+      OR: [
+        { marcaNome: { contains: marcaParam, mode: "insensitive" } },
+        { empresaId: { contains: marcaParam, mode: "insensitive" } },
+      ],
+    });
+  }
+  if (qParam) {
+    condicoes.push({
+      OR: [
+        { para: { contains: qParam, mode: "insensitive" } },
+        { assunto: { contains: qParam, mode: "insensitive" } },
+        { erro: { contains: qParam, mode: "insensitive" } },
+      ],
+    });
+  }
+
+  const where: Prisma.EmailEnviadoWhereInput =
+    condicoes.length === 1 ? condicoes[0] : { AND: condicoes };
+
+  return {
+    where,
+    inicioYmd,
+    fimYmd,
+    dataInicio,
+    dataFimExclusivo,
+  };
+}
+
+export function formatarDataHoraBrasilia(d: Date | string): string {
+  const date = typeof d === "string" ? new Date(d) : d;
+  return new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(date);
+}
+
+function escaparCsv(valor: unknown): string {
+  let str = String(valor ?? "");
+  // Proteção contra CSV Formula Injection: prefixa apóstrofo se começar com =, +, -, @, \t ou \r
+  if (/^[=+\-@\t\r]/.test(str)) {
+    str = `'${str}`;
+  }
+  if (str.includes(";") || str.includes('"') || str.includes("\n") || str.includes("\r")) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
+/**
+ * Gera conteúdo CSV compatível com Excel (separador ';' e BOM UTF-8) para logs de e-mail.
+ */
+export function montarCsvLogsEmail(linhas: Array<Record<string, unknown>>): string {
+  const cabecalho = [
+    "Data/Hora (Brasília)",
+    "Destinatário",
+    "Origem",
+    "Assunto",
+    "Marca",
+    "Empresa",
+    "Status",
+    "Erro",
+  ];
+
+  const linhasTexto = linhas.map((l) => {
+    const dataHora =
+      l.dataHoraBrasilia != null
+        ? String(l.dataHoraBrasilia)
+        : l.enviadoEm instanceof Date || typeof l.enviadoEm === "string"
+        ? formatarDataHoraBrasilia(l.enviadoEm)
+        : "";
+    const destinatario = String(l.destinatario ?? l.para ?? "");
+    const origem = String(l.origem ?? "");
+    const assunto = String(l.assunto ?? "");
+    const marca = String(l.marca ?? l.marcaNome ?? "");
+    const empresa = String(l.empresa ?? l.empresaNome ?? l.empresaId ?? "");
+    const status = String(l.status ?? (l.ok ? "ENVIADO" : "FALHOU"));
+    const erro = String(l.erro ?? "");
+
+    return [
+      escaparCsv(dataHora),
+      escaparCsv(destinatario),
+      escaparCsv(origem),
+      escaparCsv(assunto),
+      escaparCsv(marca),
+      escaparCsv(empresa),
+      escaparCsv(status),
+      escaparCsv(erro),
+    ].join(";");
+  });
+
+  return "\uFEFF" + [cabecalho.join(";"), ...linhasTexto].join("\r\n");
 }
 
 // Formato bem básico de propósito: não é validação de existência, só evita
@@ -81,6 +395,37 @@ function getTransporter(host: string, port: number, user: string, pass: string):
   return transporter;
 }
 
+async function registrarLogEmail(dados: {
+  para: string;
+  chave?: string | null;
+  assunto: string;
+  origem?: OrigemEmail | string | null;
+  empresaId?: string | null;
+  marcaNome?: string | null;
+  ok: boolean;
+  status: StatusLogEmail;
+  erro?: string | null;
+}): Promise<void> {
+  try {
+    if (!prisma.emailEnviado?.create) return;
+    await prisma.emailEnviado.create({
+      data: {
+        para: dados.para,
+        assunto: dados.assunto.slice(0, 300),
+        chave: dados.chave ?? null,
+        origem: dados.origem ?? null,
+        empresaId: dados.empresaId ?? null,
+        marcaNome: dados.marcaNome ?? null,
+        ok: dados.ok,
+        status: dados.status,
+        erro: dados.erro?.slice(0, 500) ?? null,
+      },
+    });
+  } catch (e) {
+    console.error("[email] falha ao registrar log de e-mail:", e);
+  }
+}
+
 export async function sendEmail(params: {
   to: string;
   subject: string;
@@ -112,6 +457,12 @@ export async function sendEmail(params: {
   cc?: string[];
   /** Arquivos anexos (ex: contracheque assinado em PDF). */
   attachments?: Array<{ filename: string; content: Buffer | string; contentType?: string }>;
+  /** Origem/funcionalidade do sistema que disparou o envio. */
+  origem?: OrigemEmail;
+  /** ID da empresa escopada, quando disponível. */
+  empresaId?: string | null;
+  /** Nome da marca vinculada, quando disponível. */
+  marcaNome?: string | null;
 }): Promise<ResultadoEnvio> {
   const [host, portRaw, user, pass, fromRaw] = await Promise.all([
     segredo(CHAVE_SMTP_HOST),
@@ -133,16 +484,36 @@ export async function sendEmail(params: {
 
   const para = normalizarEmail(params.to);
   if (!FORMATO_EMAIL.test(para)) {
-    return { ok: false, motivo: "INVALIDO", error: `E-mail inválido: ${params.to}` };
+    const error = `E-mail inválido: ${params.to}`;
+    await registrarLogEmail({
+      para: params.to,
+      chave: params.chave ?? null,
+      assunto: params.subject,
+      origem: params.origem,
+      empresaId: params.empresaId,
+      marcaNome: params.marcaNome,
+      ok: false,
+      status: "INVALIDO",
+      erro: error,
+    });
+    return { ok: false, motivo: "INVALIDO", error };
   }
 
   const suprimido = await prisma.emailSuprimido.findUnique({ where: { email: para } });
   if (suprimido) {
-    return {
+    const error = `Endereço na lista de supressão (${suprimido.motivo}).`;
+    await registrarLogEmail({
+      para,
+      chave: params.chave ?? null,
+      assunto: params.subject,
+      origem: params.origem,
+      empresaId: params.empresaId,
+      marcaNome: params.marcaNome,
       ok: false,
-      motivo: "SUPRIMIDO",
-      error: `Endereço na lista de supressão (${suprimido.motivo}).`,
-    };
+      status: "SUPRIMIDO",
+      erro: error,
+    });
+    return { ok: false, motivo: "SUPRIMIDO", error };
   }
 
   const inicioDoDia = inicioDoDiaSaoPaulo();
@@ -163,12 +534,24 @@ export async function sendEmail(params: {
     where: { ok: true, enviadoEm: { gte: inicioDoDia } },
   });
   if (enviadosHoje >= LIMITE_DIARIO_ENVIOS) {
+    const error =
+      `Teto diário de ${LIMITE_DIARIO_ENVIOS} e-mails atingido — ` +
+      `o envio continua amanhã.`;
+    await registrarLogEmail({
+      para,
+      chave: params.chave ?? null,
+      assunto: params.subject,
+      origem: params.origem,
+      empresaId: params.empresaId,
+      marcaNome: params.marcaNome,
+      ok: false,
+      status: "BLOQUEADO_TETO",
+      erro: error,
+    });
     return {
       ok: false,
       motivo: "COTA",
-      error:
-        `Teto diário de ${LIMITE_DIARIO_ENVIOS} e-mails atingido — ` +
-        `o envio continua amanhã.`,
+      error,
     };
   }
 
@@ -193,30 +576,18 @@ export async function sendEmail(params: {
     erro = `Falha ao enviar e-mail: ${e instanceof Error ? e.message : String(e)}`;
   }
 
-  // Registra tentativa e sucesso. Fora do try do envio de propósito: o registro
-  // é a fonte do orçamento, e perder uma linha aqui faria o teto contar a menos
-  // e liberar envio além da cota. Se o próprio INSERT falhar, o envio já
-  // aconteceu — então falhamos fechado, devolvendo erro em vez de seguir.
-  try {
-    await prisma.emailEnviado.create({
-      data: {
-        para,
-        assunto: params.subject.slice(0, 300),
-        chave: params.chave ?? null,
-        ok: erro === null,
-        erro: erro?.slice(0, 500) ?? null,
-      },
-    });
-  } catch (e) {
-    console.error("[email] não consegui registrar o envio no orçamento:", e);
-    if (erro === null) {
-      return {
-        ok: false,
-        motivo: "ERRO",
-        error: "E-mail enviado, mas o registro do orçamento falhou — verifique antes de reenviar.",
-      };
-    }
-  }
+  // Registra tentativa e sucesso/falha
+  await registrarLogEmail({
+    para,
+    chave: params.chave ?? null,
+    assunto: params.subject,
+    origem: params.origem,
+    empresaId: params.empresaId,
+    marcaNome: params.marcaNome,
+    ok: erro === null,
+    status: erro === null ? "ENVIADO" : "FALHOU",
+    erro: erro?.slice(0, 500) ?? null,
+  });
 
   return erro === null ? { ok: true } : { ok: false, motivo: "ERRO", error: erro };
 }

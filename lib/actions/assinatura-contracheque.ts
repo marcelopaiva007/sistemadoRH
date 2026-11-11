@@ -12,14 +12,11 @@ import { rotuloDoContracheque } from "@/lib/contracheques/situacao";
 import {
   compararCpf,
   gerarAssinaturaSessao,
-  gerarCodigo2fa,
   MAXIMO_TENTATIVAS_ERRO,
-  validarHashCodigo,
   verificarAssinaturaSessao,
 } from "@/lib/contracheques/token-auth";
-import { enviarCodigo2faTelegram } from "@/lib/contracheques/telegram-ciencia";
 import { sendEmail } from "@/lib/email";
-import { fotoDeBatidaValida, REGEX_FOTO_DATA_URL } from "@/lib/ponto-foto";
+import { validarSelfieContracheque } from "@/lib/contracheques/validar-selfie";
 import { baixarDoBlob, blobConfigurado, enviarParaBlob } from "@/lib/blob";
 import { gerarPdfComprovanteAssinado } from "@/lib/contracheques/comprovante-pdf";
 import { mascararEmail, obterUrlBase } from "@/lib/contracheques/envio";
@@ -45,11 +42,17 @@ function nomeCurto(nome: string): string {
   return (nome.split(" ")[0] ?? "").toLowerCase().replace(/^\p{L}/u, (c) => c.toUpperCase());
 }
 
+const fallbackCookiesTeste = new Map<string, string>();
+
 async function obterCookieSeguro(nome: string): Promise<string | undefined> {
   try {
     const c = await cookies();
     return c.get(nome)?.value;
   } catch {
+    // Fora de requisição HTTP (ex: testes locais/CI)
+    if (process.env.NODE_ENV !== "production") {
+      return fallbackCookiesTeste.get(nome);
+    }
     return undefined;
   }
 }
@@ -71,7 +74,10 @@ async function setarCookieSeguro(
     const c = await cookies();
     c.set(nome, valor, options);
   } catch {
-    // Fora de requisição HTTP (ex: testes)
+    // Fora de requisição HTTP (ex: testes locais/CI)
+    if (process.env.NODE_ENV !== "production") {
+      fallbackCookiesTeste.set(nome, valor);
+    }
   }
 }
 
@@ -231,6 +237,7 @@ export async function validarCodigo2faAction(
   | { ok: true }
   | { ok: false; bloqueado: boolean; error: string; tentativasRestantes?: number }
 > {
+  void _codigoDigitado;
   const cookieValor = gerarAssinaturaSessao(token);
   await setarCookieSeguro(`cc_auth_${token}`, cookieValor);
   return { ok: true };
@@ -262,8 +269,9 @@ export async function assinarContrachequeAction(
     return { ok: false, error: "É obrigatório marcar a declaração de ciência para assinar." };
   }
 
-  if (!fotoDeBatidaValida(payload.fotoDataUrl)) {
-    return { ok: false, error: "Foto inválida ou não reconhecida. Por favor, tire uma nova selfie nítida." };
+  const checkFoto = await validarSelfieContracheque(payload.fotoDataUrl);
+  if (!checkFoto.ok) {
+    return { ok: false, error: checkFoto.error };
   }
 
   const recibo = await prisma.reciboContracheque.findUnique({
@@ -341,9 +349,8 @@ export async function assinarContrachequeAction(
   });
 
   // 2. Extrai bytes da foto para salvar no Arquivo
-  const casado = REGEX_FOTO_DATA_URL.exec(payload.fotoDataUrl)!;
-  const ehPng = casado[1] === "png";
-  const fotoBytes = Buffer.from(casado[2], "base64");
+  const ehPng = checkFoto.ehPng;
+  const fotoBytes = checkFoto.bytes;
   const nomeFoto = `selfie-contracheque-${recibo.id}.${ehPng ? "png" : "jpg"}`;
   const mimeFoto = ehPng ? "image/png" : "image/jpeg";
 
@@ -449,6 +456,9 @@ export async function assinarContrachequeAction(
       html,
       text,
       fromName: `RH ${marca}`,
+      origem: "CONTRACHEQUE_COMPROVANTE",
+      empresaId: recibo.empresaId,
+      marcaNome: marca,
       attachments: [
         {
           filename: nomePdfAssinado,

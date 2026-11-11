@@ -7,7 +7,7 @@ import { Camera, FileText, ReceiptText } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { confirmarContrachequePortal } from "@/lib/actions/portal-contracheques";
-import { reduzirFoto } from "./selfie";
+import { prepararSelfieParaAssinatura } from "./selfie";
 
 export type ContrachequeAConfirmar = {
   id: string;
@@ -46,12 +46,13 @@ export function ConfirmarContrachequesCard({ contracheques }: { contracheques: C
     const id = alvo.current;
     if (!arquivo || !id) return;
     setEnviando(id);
-    const foto = await reduzirFoto(arquivo);
-    if (!foto) {
+    const rFoto = await prepararSelfieParaAssinatura(arquivo);
+    if (!rFoto.ok) {
       setEnviando(null);
-      setErro("Não consegui ler a foto. Tente tirar de novo.");
+      setErro(rFoto.error);
       return;
     }
+    const foto = rFoto.dataUrl;
     const r = await confirmarContrachequePortal(id, foto);
     setEnviando(null);
     if (r.ok) {

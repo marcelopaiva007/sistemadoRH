@@ -76,6 +76,7 @@ export async function rodadaLembretePortal(agora = new Date()): Promise<Resultad
         id: true,
         nome: true,
         email: true,
+        empresaId: true,
         empresa: { select: { marca: { select: { nome: true } } } },
       },
     }),
@@ -103,6 +104,9 @@ export async function rodadaLembretePortal(agora = new Date()): Promise<Resultad
       html,
       text: texto,
       fromName: `RH ${marca}`,
+      origem: "CONVITE_PORTAL",
+      empresaId: p.empresaId,
+      marcaNome: marca,
       // Uma cobrança por pessoa por dia, mesmo se o cron for disparado à mão
       // mais de uma vez. Foi esta campanha que, em 28/07, mandou ~60 e-mails em
       // 8 segundos e comeu a cota do dia antes de os convites saírem.

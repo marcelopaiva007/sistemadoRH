@@ -118,6 +118,16 @@ jobs:
         run: npx tsx scripts/test-caixa-documentos.ts
       - name: Contracheques (situação, folha e competência)
         run: npx tsx scripts/test-contracheques.ts
+      - name: Invalidação de assinatura de contracheque e regra de dossiê
+        run: npx tsx scripts/test-contracheques-invalidacao.ts
+      - name: Validação facial e textura de selfie no contracheque
+        run: npx tsx scripts/test-selfie-validacao.ts
+      - name: Unicidade de e-mail entre marcas do grupo
+        run: npx tsx scripts/test-colaborador-email-unico.ts
+      - name: Logs SMTP, cota diária e CSV de auditoria
+        run: npx tsx scripts/test-email-logs.ts
+      - name: Guarda de assinatura e selfie de contracheque (actions)
+        run: npx tsx scripts/test-contracheques-assinatura-action.ts
 
   # Os 31 smokes contra Postgres de verdade. O banco nasce vazio a cada
   # execução: schema gerado do prisma/schema.prisma via `migrate diff` (o
@@ -204,6 +214,8 @@ jobs:
         run: npx tsx scripts/smoke-cat.ts
       - name: Envio de contracheques (aviso, abrir, confirmar com foto)
         run: npx tsx scripts/smoke-contracheques.ts
+      - name: Fluxo completo de assinatura de contracheque (2FA e selfie)
+        run: TESTE_SELFIE_SEM_IA=1 npx tsx scripts/smoke-contracheques-assinatura.ts
       - name: Ciclo de pesquisas
         run: npx tsx scripts/smoke-ciclo-pesquisa.ts
       - name: Cobrança de cadastro

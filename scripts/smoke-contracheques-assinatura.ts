@@ -35,18 +35,40 @@ async function gerarPdfMock(): Promise<Buffer> {
   return Buffer.from(bytes);
 }
 
-async function gerarSelfieMock(): Promise<string> {
+async function gerarSelfieSolidaMock(r = 60, g = 120, b = 200): Promise<string> {
   const imgBuffer = await sharp({
     create: {
       width: 120,
       height: 120,
       channels: 3,
-      background: { r: 60, g: 120, b: 200 },
+      background: { r, g, b },
     },
   })
     .jpeg()
     .toBuffer();
   return `data:image/jpeg;base64,${imgBuffer.toString("base64")}`;
+}
+
+async function gerarSelfieTexturizadaMock(): Promise<string> {
+  const svg = `<svg width="160" height="160">
+    <defs>
+      <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#111" />
+        <stop offset="100%" stop-color="#eee" />
+      </linearGradient>
+    </defs>
+    <rect width="160" height="160" fill="url(#g)" />
+    <circle cx="80" cy="80" r="50" fill="#f5deb3" />
+    <circle cx="65" cy="70" r="8" fill="#000" />
+    <circle cx="95" cy="70" r="8" fill="#000" />
+    <rect x="60" y="105" width="40" height="10" fill="#b22222" />
+  </svg>`;
+  const buf = await sharp(Buffer.from(svg)).jpeg({ quality: 85 }).toBuffer();
+  return `data:image/jpeg;base64,${buf.toString("base64")}`;
+}
+
+async function gerarSelfieMock(): Promise<string> {
+  return gerarSelfieTexturizadaMock();
 }
 
 async function rodarComBancoReal(databaseUrl: string) {
@@ -57,7 +79,7 @@ async function rodarComBancoReal(databaseUrl: string) {
   const { gerarTokenAssinatura, gerarCodigo2fa, validarHashCodigo } = await import("../lib/contracheques/token-auth");
   const { tratarCallbackCienciaContracheque } = await import("../lib/contracheques/telegram-ciencia");
   const { gerarPdfComprovanteAssinado } = await import("../lib/contracheques/comprovante-pdf");
-  const { fotoDeBatidaValida } = await import("../lib/ponto-foto");
+  const { validarSelfieContracheque } = await import("../lib/contracheques/validar-selfie");
   const { montarCsvContracheques } = await import("../lib/contracheques/exportar");
   const { situacaoDo, SITUACAO_LABEL } = await import("../lib/contracheques/situacao");
 
@@ -162,9 +184,13 @@ async function rodarComBancoReal(databaseUrl: string) {
     ok(!!reciboVisto.vistoEm, "Carimbo vistoEm registrado antes da assinatura");
 
     console.log("\n5. Assinatura com selfie e emissão do comprovante selado:");
+    const selfieSolida = await gerarSelfieSolidaMock();
+    const checkSolida = await validarSelfieContracheque(selfieSolida);
+    ok(!checkSolida.ok, "Selfie sólida azul é rejeitada pelo validador híbrido");
+
     const selfieDataUrl = await gerarSelfieMock();
-    const fotoValida = fotoDeBatidaValida(selfieDataUrl);
-    ok(fotoValida, "Selfie atende aos critérios biométricos");
+    const checkValida = await validarSelfieContracheque(selfieDataUrl);
+    ok(checkValida.ok, "Selfie texturizada aprovada pelo validador híbrido");
 
     const agora = new Date();
     const comprovante = await gerarPdfComprovanteAssinado({
@@ -333,7 +359,7 @@ async function rodarSimulado() {
   const { montarCorpoEmailContracheque, mascararEmail } = await import("../lib/contracheques/envio");
   const { tratarCallbackCienciaContracheque } = await import("../lib/contracheques/telegram-ciencia");
   const { gerarPdfComprovanteAssinado } = await import("../lib/contracheques/comprovante-pdf");
-  const { fotoDeBatidaValida } = await import("../lib/ponto-foto");
+  const { validarSelfieContracheque } = await import("../lib/contracheques/validar-selfie");
   const { montarCsvContracheques } = await import("../lib/contracheques/exportar");
   const { situacaoDo, SITUACAO_LABEL } = await import("../lib/contracheques/situacao");
 
@@ -374,9 +400,13 @@ async function rodarSimulado() {
   ok(!!dados.recibo.vistoEm, "Documento marcado como visualizado (vistoEm)");
 
   console.log("\n5. Assinatura com Selfie e Emissão do Comprovante Selado:");
+  const selfieSolida = await gerarSelfieSolidaMock();
+  const checkSolida = await validarSelfieContracheque(selfieSolida);
+  ok(!checkSolida.ok, "Selfie sólida azul é rejeitada pelo validador híbrido");
+
   const selfieDataUrl = await gerarSelfieMock();
-  const selfieValida = fotoDeBatidaValida(selfieDataUrl);
-  ok(selfieValida, "Selfie do dispositivo validada com dimensões e compressão JPEG adequadas");
+  const checkValida = await validarSelfieContracheque(selfieDataUrl);
+  ok(checkValida.ok, "Selfie texturizada aprovada pelo validador híbrido");
 
   const agora = new Date();
   const comprovante = await gerarPdfComprovanteAssinado({

@@ -9,6 +9,12 @@ import {
   validarPlanilhaColaboradores,
   type LinhaValidada,
 } from "@/lib/importacao-colaboradores";
+import {
+  normalizarEmailColaborador,
+  ehConflitoDeEmailEntrePessoas,
+  empresaIdsDoGrupoDaEmpresa,
+  validarEmailColaboradorLivre,
+} from "@/lib/colaborador-email";
 
 // Importação em massa de colaboradores, em duas etapas:
 //
@@ -131,7 +137,136 @@ export async function conferirPlanilha(
   const resultado = validarPlanilhaColaboradores(bytes, empresa?.cnpj ?? null);
   if (resultado.erroGeral) return { ok: false, error: resultado.erroGeral };
 
-  const { plano, setoresNovos, cargosNovos } = await planejar(empresaId, resultado.validas);
+  // Cruza com o banco previamente para obter existenteId (por CPF ou matrícula)
+  // permitindo que colaborador sem CPF consiga atualizar seu próprio cadastro
+  // via matrícula sem acusar falso conflito consigo mesmo no e-mail.
+  const { plano: planoInicial, setorPorNome, cargoPorNome } = await planejar(
+    empresaId,
+    resultado.validas,
+  );
+  const existenteIdPorLinha = new Map(
+    planoInicial.map((p) => [p.linha.numeroDaLinha, p.existenteId]),
+  );
+
+  const problemasAdicionais = new Map<number, { numeroDaLinha: number; nome: string; mensagens: string[] }>();
+  const adicionarProblema = (linha: LinhaValidada, mensagem: string) => {
+    const p = problemasAdicionais.get(linha.numeroDaLinha) ?? {
+      numeroDaLinha: linha.numeroDaLinha,
+      nome: linha.nome,
+      mensagens: [],
+    };
+    p.mensagens.push(mensagem);
+    problemasAdicionais.set(linha.numeroDaLinha, p);
+  };
+
+  // 1. E-mails repetidos dentro da própria planilha para CPFs diferentes (ou sem CPF)
+  const emailsVistosNaPlanilha = new Map<string, LinhaValidada>();
+  for (const linha of resultado.validas) {
+    const emailNorm = normalizarEmailColaborador(linha.email);
+    if (!emailNorm) continue;
+    const anterior = emailsVistosNaPlanilha.get(emailNorm);
+    if (anterior) {
+      const conflito = ehConflitoDeEmailEntrePessoas(
+        { id: existenteIdPorLinha.get(linha.numeroDaLinha) ?? undefined, cpf: linha.cpf },
+        {
+          id: existenteIdPorLinha.get(anterior.numeroDaLinha) ?? String(anterior.numeroDaLinha),
+          cpf: anterior.cpf,
+        },
+      );
+      if (conflito) {
+        adicionarProblema(
+          linha,
+          `E-mail repetido na planilha para CPFs distintos (mesmo da linha ${anterior.numeroDaLinha})`,
+        );
+      }
+    } else {
+      emailsVistosNaPlanilha.set(emailNorm, linha);
+    }
+  }
+
+  // 2. E-mails já cadastrados em outra pessoa no grupo (em UMA consulta findMany)
+  const empresaIdsGrupo = await empresaIdsDoGrupoDaEmpresa(prisma, empresaId);
+  const emailsUnicos = [
+    ...new Set(
+      resultado.validas
+        .map((l) => normalizarEmailColaborador(l.email))
+        .filter((em): em is string => Boolean(em)),
+    ),
+  ];
+
+  if (emailsUnicos.length > 0) {
+    const existentesNoGrupo = await prisma.colaborador.findMany({
+      where: {
+        empresaId: { in: empresaIdsGrupo },
+        OR: emailsUnicos.map((em) => ({
+          email: { equals: em, mode: "insensitive" },
+        })),
+      },
+      select: {
+        id: true,
+        nome: true,
+        cpf: true,
+        email: true,
+        ativo: true,
+        empresa: {
+          select: {
+            nome: true,
+            marca: { select: { nome: true } },
+          },
+        },
+      },
+    });
+
+    const existentesPorEmail = new Map<string, typeof existentesNoGrupo>();
+    for (const c of existentesNoGrupo) {
+      const norm = normalizarEmailColaborador(c.email);
+      if (!norm) continue;
+      (existentesPorEmail.get(norm) ?? existentesPorEmail.set(norm, []).get(norm)!).push(c);
+    }
+
+    for (const linha of resultado.validas) {
+      if (problemasAdicionais.has(linha.numeroDaLinha)) continue;
+      const emailNorm = normalizarEmailColaborador(linha.email);
+      if (!emailNorm) continue;
+      const cadastrados = existentesPorEmail.get(emailNorm);
+      if (!cadastrados) continue;
+
+      const existenteId = existenteIdPorLinha.get(linha.numeroDaLinha) ?? undefined;
+      for (const outro of cadastrados) {
+        const conflito = ehConflitoDeEmailEntrePessoas(
+          { id: existenteId, cpf: linha.cpf },
+          outro,
+        );
+        if (conflito) {
+          const marcaNome = outro.empresa?.marca?.nome ?? "Marca";
+          const empresaNome = outro.empresa?.nome ?? "Empresa";
+          const statusDesligado = outro.ativo ? "" : " · desligado";
+          adicionarProblema(
+            linha,
+            `E-mail já cadastrado para ${outro.nome} (${marcaNome} · ${empresaNome}${statusDesligado})`,
+          );
+          break;
+        }
+      }
+    }
+  }
+
+  const validasFinais = resultado.validas.filter((l) => !problemasAdicionais.has(l.numeroDaLinha));
+  const problemasFinais = [...resultado.problemas, ...problemasAdicionais.values()].sort(
+    (a, b) => a.numeroDaLinha - b.numeroDaLinha,
+  );
+
+  const plano = planoInicial.filter((p) => !problemasAdicionais.has(p.linha.numeroDaLinha));
+  const setoresNovos = [
+    ...new Set(
+      validasFinais.map((l) => l.setor).filter((s) => !setorPorNome.has(normalizar(s))),
+    ),
+  ];
+  const cargosNovos = [
+    ...new Set(
+      validasFinais.map((l) => l.cargo).filter((c) => !cargoPorNome.has(normalizar(c))),
+    ),
+  ];
 
   return {
     ok: true,
@@ -144,10 +279,10 @@ export async function conferirPlanilha(
     atualizar: plano
       .filter((p) => p.existenteId)
       .map((p) => ({ numeroDaLinha: p.linha.numeroDaLinha, nome: p.linha.nome, motivo: p.motivo })),
-    problemas: resultado.problemas,
+    problemas: problemasFinais,
     setoresNovos,
     cargosNovos,
-    lote: JSON.stringify(resultado.validas),
+    lote: JSON.stringify(validasFinais),
   };
 }
 
@@ -226,84 +361,104 @@ export async function confirmarImportacao(
   let criados = 0;
   let atualizados = 0;
 
-  await prisma.$transaction(
-    async (tx) => {
-      // Setores e cargos que a planilha menciona e ainda não existem nascem
-      // primeiro, uma vez só — as linhas depois só apontam.
-      for (const nome of setoresNovos) {
-        const s = await tx.setor.create({ data: { nome, empresaId } });
-        setorPorNome.set(normalizar(nome), s.id);
-      }
-      for (const nome of cargosNovos) {
-        const p = await tx.posicao.create({ data: { nome, empresaId } });
-        cargoPorNome.set(normalizar(nome), p.id);
-      }
-
-      for (const { linha, existenteId } of plano) {
-        const setorId = setorPorNome.get(normalizar(linha.setor))!;
-        const posicaoId = cargoPorNome.get(normalizar(linha.cargo))!;
-
-        if (existenteId) {
-          // Atualiza SÓ o que a planilha trouxe. Campo vazio na planilha não
-          // apaga o que a ficha já tem — planilha incompleta é o caso normal,
-          // não uma ordem de limpeza.
-          await tx.colaborador.update({
-            where: { id: existenteId },
-            data: {
-              nome: linha.nome,
-              setorId,
-              posicaoId,
-              ...(linha.cpf ? { cpf: linha.cpf } : {}),
-              ...(linha.matricula ? { matricula: linha.matricula } : {}),
-              ...(linha.email ? { email: linha.email } : {}),
-              ...(linha.telefone ? { telefone: linha.telefone } : {}),
-              ...(linha.dataAdmissao ? { dataAdmissao: paraData(linha.dataAdmissao) } : {}),
-              ...(linha.dataNascimento ? { dataNascimento: paraData(linha.dataNascimento) } : {}),
-              ...(linha.salarioBase !== null ? { salarioBase: linha.salarioBase } : {}),
-              ...(linha.tipoContrato ? { tipoContrato: linha.tipoContrato } : {}),
-            },
-          });
-          atualizados++;
-        } else {
-          await tx.colaborador.create({
-            data: {
-              empresaId,
-              nome: linha.nome,
-              setorId,
-              posicaoId,
-              cpf: linha.cpf,
-              // A planilha manda quando traz o número; sem ele, o sistema gera.
-              matricula: linha.matricula || (await proximaMatricula(tx)),
-              email: linha.email,
-              telefone: linha.telefone,
-              dataAdmissao: paraData(linha.dataAdmissao),
-              dataNascimento: paraData(linha.dataNascimento),
-              salarioBase: linha.salarioBase,
-              tipoContrato: linha.tipoContrato,
-              ativo: true,
-            },
-          });
-          criados++;
+  try {
+    await prisma.$transaction(
+      async (tx) => {
+        // Setores e cargos que a planilha menciona e ainda não existem nascem
+        // primeiro, uma vez só — as linhas depois só apontam.
+        for (const nome of setoresNovos) {
+          const s = await tx.setor.create({ data: { nome, empresaId } });
+          setorPorNome.set(normalizar(nome), s.id);
         }
-      }
+        for (const nome of cargosNovos) {
+          const p = await tx.posicao.create({ data: { nome, empresaId } });
+          cargoPorNome.set(normalizar(nome), p.id);
+        }
 
-      await tx.importacaoArquivo.create({
-        data: {
-          empresaId,
-          arquivoNome,
-          tipo: "COLABORADORES",
-          totalLinhas: saneadas.length,
-          criados,
-          atualizados,
-          comErro: 0, // linha com erro nunca chega ao lote — fica no relatório
-          criadoPorId: user.id,
-          criadoPorNome: user.username,
-        },
-      });
-    },
-    // 400 linhas em transação única passam do timeout padrão (5s) do client.
-    { timeout: 60_000 },
-  );
+        const empresaIdsGrupo = await empresaIdsDoGrupoDaEmpresa(tx, empresaId);
+
+        for (const { linha, existenteId } of plano) {
+          const setorId = setorPorNome.get(normalizar(linha.setor))!;
+          const posicaoId = cargoPorNome.get(normalizar(linha.cargo))!;
+
+          if (linha.email) {
+            const erroEmail = await validarEmailColaboradorLivre(tx, {
+              empresaId,
+              email: linha.email,
+              colaboradorIdExcluir: existenteId ?? undefined,
+              cpfProprio: linha.cpf,
+              empresaIdsGrupo,
+            });
+            if (erroEmail) {
+              throw new Error(`Linha ${linha.numeroDaLinha} (${linha.nome}): ${erroEmail}`);
+            }
+          }
+
+          if (existenteId) {
+            // Atualiza SÓ o que a planilha trouxe. Campo vazio na planilha não
+            // apaga o que a ficha já tem — planilha incompleta é o caso normal,
+            // não uma ordem de limpeza.
+            await tx.colaborador.update({
+              where: { id: existenteId },
+              data: {
+                nome: linha.nome,
+                setorId,
+                posicaoId,
+                ...(linha.cpf ? { cpf: linha.cpf } : {}),
+                ...(linha.matricula ? { matricula: linha.matricula } : {}),
+                ...(linha.email ? { email: linha.email } : {}),
+                ...(linha.telefone ? { telefone: linha.telefone } : {}),
+                ...(linha.dataAdmissao ? { dataAdmissao: paraData(linha.dataAdmissao) } : {}),
+                ...(linha.dataNascimento ? { dataNascimento: paraData(linha.dataNascimento) } : {}),
+                ...(linha.salarioBase !== null ? { salarioBase: linha.salarioBase } : {}),
+                ...(linha.tipoContrato ? { tipoContrato: linha.tipoContrato } : {}),
+              },
+            });
+            atualizados++;
+          } else {
+            await tx.colaborador.create({
+              data: {
+                empresaId,
+                nome: linha.nome,
+                setorId,
+                posicaoId,
+                cpf: linha.cpf,
+                // A planilha manda quando traz o número; sem ele, o sistema gera.
+                matricula: linha.matricula || (await proximaMatricula(tx)),
+                email: linha.email,
+                telefone: linha.telefone,
+                dataAdmissao: paraData(linha.dataAdmissao),
+                dataNascimento: paraData(linha.dataNascimento),
+                salarioBase: linha.salarioBase,
+                tipoContrato: linha.tipoContrato,
+                ativo: true,
+              },
+            });
+            criados++;
+          }
+        }
+
+        await tx.importacaoArquivo.create({
+          data: {
+            empresaId,
+            arquivoNome,
+            tipo: "COLABORADORES",
+            totalLinhas: saneadas.length,
+            criados,
+            atualizados,
+            comErro: 0, // linha com erro nunca chega ao lote — fica no relatório
+            criadoPorId: user.id,
+            criadoPorNome: user.username,
+          },
+        });
+      },
+      // 400 linhas em transação única passam do timeout padrão (5s) do client.
+      { timeout: 60_000 },
+    );
+  } catch (e: unknown) {
+    const mensagem = e instanceof Error ? e.message : "Erro ao confirmar importação.";
+    return { ok: false, error: mensagem };
+  }
 
   // O resumo diz quantos; a trilha nunca carrega CPF nem salário.
   await registrarAuditoria({

@@ -11,7 +11,7 @@ import {
   assinarContrachequeAction,
   type DadosReciboPublico,
 } from "@/lib/actions/assinatura-contracheque";
-import { reduzirFoto } from "@/app/portal/selfie";
+import { prepararSelfieParaAssinatura } from "@/app/portal/selfie";
 
 type Etapa = "CPF" | "VISUALIZAR_E_ASSINAR" | "SUCESSO";
 
@@ -82,12 +82,13 @@ export function PaginaAssinaturaClient({
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    const reduzida = await reduzirFoto(file);
-    if (!reduzida) {
-      setErro("Não foi possível processar a imagem. Tente tirar a foto novamente.");
+    const resFoto = await prepararSelfieParaAssinatura(file);
+    if (!resFoto.ok) {
+      setFotoDataUrl(null);
+      setErro(resFoto.error);
       return;
     }
-    setFotoDataUrl(reduzida);
+    setFotoDataUrl(resFoto.dataUrl);
     setErro(null);
   }
 

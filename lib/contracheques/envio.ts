@@ -18,11 +18,12 @@ type Avisado = {
   tokenAssinatura: string | null;
   competencia: Date;
   tipoFolha: string;
+  empresaId?: string | null;
   colaborador: {
     nome: string;
     telegramChatId: string | null;
     email: string | null;
-    empresa: { marca: { nome: string } };
+    empresa: { id?: string; marca: { nome: string } };
   };
 };
 
@@ -113,11 +114,13 @@ export function obterUrlBase(): string {
  */
 export async function avisarColaborador(
   r: Avisado,
-  tokenAssinatura: string
+  tokenAssinatura: string,
+  opts?: { ehReenvio?: boolean; empresaId?: string | null; marcaNome?: string | null }
 ): Promise<{ canal: "AMBOS" | "EMAIL" | "TELEGRAM" | null; erro: string | null }> {
   const nome = primeiroNome(r.colaborador.nome);
   const ref = rotuloDoContracheque(r.competencia, r.tipoFolha);
-  const marca = r.colaborador.empresa.marca.nome;
+  const marca = opts?.marcaNome ?? r.colaborador.empresa.marca.nome;
+  const empresaId = opts?.empresaId ?? r.empresaId ?? r.colaborador.empresa.id ?? null;
   const baseUrl = obterUrlBase();
   const linkAssinatura = `${baseUrl}/assinar/${tokenAssinatura}`;
   const prazoTexto = calcularPrazoFormatado();
@@ -140,6 +143,9 @@ export async function avisarColaborador(
       html: template.html,
       text: template.text,
       fromName: `RH ${marca}`,
+      origem: opts?.ehReenvio ? "CONTRACHEQUE_REENVIO" : "CONTRACHEQUE",
+      empresaId,
+      marcaNome: marca,
     });
     if (enviado.ok) emailOk = true;
     else erroEmail = `E-mail: ${enviado.error}`;
@@ -248,7 +254,11 @@ export async function enviarContracheques(
       // Se não tiver token ou estiver reenviando, garante token ativo
       const tokenAssinatura = recibo.tokenAssinatura ?? gerarTokenAssinatura();
 
-      const aviso = await avisarColaborador(recibo, tokenAssinatura);
+      const aviso = await avisarColaborador(recibo, tokenAssinatura, {
+        ehReenvio: false,
+        empresaId: d.empresaId,
+        marcaNome: recibo.colaborador.empresa.marca.nome,
+      });
       await prisma.reciboContracheque.update({
         where: { id: recibo.id },
         data: {

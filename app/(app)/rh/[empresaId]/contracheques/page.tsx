@@ -96,6 +96,20 @@ export default async function ContrachequesPage({
               hashDocumento: true,
               lembretesEnviados: true,
               bloqueadoEm: true,
+              invalidacoes: {
+                orderBy: { invalidadoEm: "desc" },
+                take: 5,
+                select: {
+                  id: true,
+                  motivo: true,
+                  invalidadoPorNome: true,
+                  invalidadoEm: true,
+                  confirmadoEmOriginal: true,
+                  confirmadoIp: true,
+                  fotoArquivoId: true,
+                  comprovanteArquivoId: true,
+                },
+              },
             },
           },
         },
@@ -135,6 +149,16 @@ export default async function ContrachequesPage({
       comprovanteArquivoId: d.recibo?.comprovanteArquivoId ?? null,
       lembretesEnviados: d.recibo?.lembretesEnviados ?? 0,
       bloqueado: d.recibo?.bloqueadoEm !== null && d.recibo?.bloqueadoEm !== undefined,
+      invalidacoes: (d.recibo?.invalidacoes ?? []).map((inv) => ({
+        id: inv.id,
+        motivo: inv.motivo,
+        invalidadoPorNome: inv.invalidadoPorNome,
+        invalidadoEm: formatarDataHoraBrasilia(inv.invalidadoEm),
+        confirmadoEmOriginal: formatarDataHoraBrasilia(inv.confirmadoEmOriginal),
+        confirmadoIp: inv.confirmadoIp ?? null,
+        fotoArquivoId: inv.fotoArquivoId ?? null,
+        comprovanteArquivoId: inv.comprovanteArquivoId ?? null,
+      })),
     };
   });
 

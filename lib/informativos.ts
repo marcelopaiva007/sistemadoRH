@@ -36,6 +36,7 @@ type Avisado = {
     nome: string;
     telegramChatId: string | null;
     email: string | null;
+    empresaId?: string | null;
     empresa: { marca: { nome: string } };
   };
 };
@@ -85,6 +86,9 @@ ${paragrafos}
       html,
       text: texto,
       fromName: `RH ${marca}`,
+      origem: "INFORMATIVO",
+      empresaId: d.colaborador.empresaId,
+      marcaNome: marca,
       // Dedupe pelo destinatário: o mesmo informativo nunca chega duas vezes
       // à mesma caixa no mesmo dia, nem com duplo clique em "Enviar".
       chave: `informativo:${d.id}`,
@@ -117,6 +121,7 @@ export async function dispararInformativo(
           nome: true,
           telegramChatId: true,
           email: true,
+          empresaId: true,
           empresa: { select: { marca: { select: { nome: true } } } },
         },
       },

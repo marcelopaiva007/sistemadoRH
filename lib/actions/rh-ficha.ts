@@ -9,6 +9,7 @@ import { registrarAuditoria, diffCampos } from "@/lib/audit";
 import { violouUnique } from "@/lib/prisma-erros";
 import { criariCiclo } from "@/lib/organograma";
 import { dataDoFormulario, inicioDoDiaUTC, mesmoDiaUTC } from "@/lib/datas";
+import { validarEmailColaboradorLivre } from "@/lib/colaborador-email";
 import type { ActionResult } from "@/lib/constants";
 
 // A ficha é editada por blocos (identificação, endereço, emergência, banco,
@@ -212,6 +213,15 @@ export async function atualizarFicha(
   }
   if (typeof data.email === "string" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
     return { ok: false, error: "E-mail inválido." };
+  }
+  if (typeof data.email === "string") {
+    const erroEmail = await validarEmailColaboradorLivre(prisma, {
+      empresaId,
+      email: data.email,
+      colaboradorIdExcluir: colaboradorId,
+      cpfProprio: typeof data.cpf === "string" ? data.cpf : atual.cpf,
+    });
+    if (erroEmail) return { ok: false, error: erroEmail };
   }
   // Comparações de data SEMPRE por dia de calendário (inicioDoDiaUTC), nunca
   // por timestamp: o formulário posta meia-noite UTC, mas as importações

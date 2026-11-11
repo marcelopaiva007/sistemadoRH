@@ -82,7 +82,19 @@ async function enviarPassoLembrete(cliente: Cliente, pesquisa: { id: string; tit
 
   const pendentes = await cliente.surveyToken.findMany({
     where: { pesquisaId: pesquisa.id, status: "SENT" },
-    select: { id: true, token: true, colaborador: { select: { nome: true, email: true, telegramChatId: true } } },
+    select: {
+      id: true,
+      token: true,
+      colaborador: {
+        select: {
+          nome: true,
+          email: true,
+          telegramChatId: true,
+          empresaId: true,
+          empresa: { select: { marca: { select: { nome: true } } } },
+        },
+      },
+    },
   });
 
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
@@ -96,11 +108,16 @@ async function enviarPassoLembrete(cliente: Cliente, pesquisa: { id: string; tit
       const r = await sendTelegramMessage(t.colaborador.telegramChatId, texto);
       ok = r.ok;
     } else if (t.colaborador.email) {
+      const marcaNome = t.colaborador.empresa?.marca?.nome;
       const r = await sendEmail({
         to: t.colaborador.email,
         subject: `[RH] ${assunto}`,
         text: texto,
         html: `<p>${texto}</p>`,
+        fromName: marcaNome ? `RH ${marcaNome}` : undefined,
+        origem: "REGUA_COBRANCA",
+        empresaId: t.colaborador.empresaId,
+        marcaNome: marcaNome ?? null,
         // Dedup real vem do bucket de dia (`diasDesde === diaRelativo` só é
         // verdade num único dia-calendário), não desta chave — mas a chave
         // ainda evita duplicar se o cron rodar duas vezes no mesmo dia.

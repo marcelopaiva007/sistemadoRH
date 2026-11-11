@@ -7,6 +7,7 @@ import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { registrarAuditoria } from "@/lib/audit";
 import { dataDoFormulario } from "@/lib/datas";
 import { violouUnique } from "@/lib/prisma-erros";
+import { validarEmailColaboradorLivre } from "@/lib/colaborador-email";
 import type { ActionResult } from "@/lib/constants";
 
 /**
@@ -69,6 +70,15 @@ export async function admitirCandidato(
         error: `Já existe um colaborador com este CPF (${jaExiste.nome}). Se for recontratação, edite a ficha existente em vez de criar outra.`,
       };
     }
+  }
+
+  if (candidatura.candidato.email) {
+    const erroEmail = await validarEmailColaboradorLivre(prisma, {
+      empresaId,
+      email: candidatura.candidato.email,
+      cpfProprio: cpf,
+    });
+    if (erroEmail) return { ok: false, error: erroEmail };
   }
 
   try {

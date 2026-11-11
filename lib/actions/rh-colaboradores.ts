@@ -17,6 +17,7 @@ import { enviarParaBlob } from "@/lib/blob";
 import { MOTIVOS_DESLIGAMENTO, TIPOS_CONTRATO, CONTRATOS_POR_PRAZO } from "@/lib/constants-dp";
 import type { ActionResult } from "@/lib/constants";
 import { MSG_PROVA_DE_RECEBIMENTO, recibosConfirmadosTravando } from "@/lib/contracheques/protecao";
+import { validarEmailColaboradorLivre } from "@/lib/colaborador-email";
 
 const colaboradorSchema = z.object({
   nome: z.string().trim().min(2, "Informe o nome do colaborador"),
@@ -162,6 +163,15 @@ export async function createColaborador(
     if (erroSupervisor) return { ok: false, error: erroSupervisor };
   }
 
+  if (parsed.data.email) {
+    const erroEmail = await validarEmailColaboradorLivre(prisma, {
+      empresaId,
+      email: parsed.data.email,
+      cpfProprio: parsed.data.cpf,
+    });
+    if (erroEmail) return { ok: false, error: erroEmail };
+  }
+
   let novoId: string;
   try {
     const criado = await prisma.colaborador.create({
@@ -233,9 +243,11 @@ export async function updateColaborador(
     if (erroSupervisor) return { ok: false, error: erroSupervisor };
   }
 
-  const atual = await prisma.colaborador.findFirst({
-    where: { id, empresaId },
+  const atual = await prisma.colaborador.findUnique({
+    where: { id },
     select: {
+      id: true,
+      empresaId: true,
       nome: true,
       cpf: true,
       email: true,
@@ -248,6 +260,17 @@ export async function updateColaborador(
     },
   });
   if (!atual) return { ok: false, error: "Colaborador não encontrado." };
+  await requireEmpresaAccess(atual.empresaId);
+
+  if (parsed.data.email) {
+    const erroEmail = await validarEmailColaboradorLivre(prisma, {
+      empresaId: atual.empresaId,
+      email: parsed.data.email,
+      colaboradorIdExcluir: id,
+      cpfProprio: parsed.data.cpf,
+    });
+    if (erroEmail) return { ok: false, error: erroEmail };
+  }
 
   const novosDados = {
     nome: parsed.data.nome,
@@ -264,7 +287,7 @@ export async function updateColaborador(
   try {
     await prisma.$transaction(async (tx) => {
       await tx.colaborador.update({
-        where: { id, empresaId },
+        where: { id },
         data: novosDados,
       });
       // RD-001: transição true→false é o momento do desligamento — expira os
@@ -272,7 +295,7 @@ export async function updateColaborador(
       // convida pra pesquisa de desligamento (fase 4, P09-OFF).
       if (atual.ativo && !parsed.data.ativo) {
         await invalidarConvitesDeDesligados(tx, id);
-        await convidarParaPesquisaDesligamento(tx, id, empresaId, await marcaDaEmpresa(empresaId));
+        await convidarParaPesquisaDesligamento(tx, id, atual.empresaId, await marcaDaEmpresa(atual.empresaId));
       }
     });
   } catch {
@@ -282,7 +305,7 @@ export async function updateColaborador(
   const mudancas = diffCampos(atual as unknown as Record<string, unknown>, novosDados);
   if (Object.keys(mudancas).length > 0) {
     await registrarAuditoria({
-      empresaId,
+      empresaId: atual.empresaId,
       acao: "ATUALIZAR",
       entidade: "Colaborador",
       entidadeId: id,

@@ -9,14 +9,26 @@ import {
   Camera,
   Download,
   FileCheck,
+  History,
   Inbox,
   Lock,
   Mail,
+  RotateCcw,
   Send,
+  ShieldAlert,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Indicador } from "@/components/indicador";
 import { CabecalhoDePagina } from "@/components/padroes/cabecalho-de-pagina";
@@ -25,11 +37,28 @@ import { cn } from "@/lib/utils";
 import {
   cobrarPendentesTelegramAction,
   enviarContrachequesAction,
+  invalidarAssinaturaContrachequeAction,
   reenviarEmailContrachequeAction,
 } from "@/lib/actions/rh-contracheques";
 import { SITUACAO_LABEL, type Situacao } from "@/lib/contracheques/situacao";
+import {
+  TAMANHO_MINIMO_MOTIVO_INVALIDACAO,
+  acoesDisponiveisParaRecibo,
+  rotuloAcaoReenvio,
+} from "@/lib/contracheques/invalidacao";
 import { montarCsvContracheques } from "@/lib/contracheques/exportar";
 import { classeSelect } from "../colaboradores/[colaboradorId]/campos";
+
+export type ItemInvalidacao = {
+  id: string;
+  motivo: string;
+  invalidadoPorNome: string;
+  invalidadoEm: string;
+  confirmadoEmOriginal: string;
+  confirmadoIp: string | null;
+  fotoArquivoId: string | null;
+  comprovanteArquivoId: string | null;
+};
 
 export type LinhaContracheque = {
   documentoId: string;
@@ -60,6 +89,7 @@ export type LinhaContracheque = {
   comprovanteArquivoId: string | null;
   lembretesEnviados: number;
   bloqueado: boolean;
+  invalidacoes: ItemInvalidacao[];
 };
 
 const COR: Record<Situacao, string> = {
@@ -104,6 +134,12 @@ export function ContrachequesView({
   const [setorFiltro, setSetorFiltro] = useState("TODOS");
   const [enviando, iniciar] = useTransition();
   const [emEnvio, setEmEnvio] = useState<string | null>(null);
+
+  const [historicoInvalidacao, setHistoricoInvalidacao] = useState<LinhaContracheque | null>(null);
+  const [linhaParaInvalidar, setLinhaParaInvalidar] = useState<LinhaContracheque | null>(null);
+  const [motivoInvalidacao, setMotivoInvalidacao] = useState("");
+  const [reenviarAposInvalidar, setReenviarAposInvalidar] = useState(true);
+  const [salvandoInvalidacao, setSalvandoInvalidacao] = useState(false);
 
   // Setores únicos
   const setores = useMemo(() => {
@@ -220,6 +256,48 @@ export function ContrachequesView({
         toast.error(r.error);
       }
     });
+  };
+
+  // Invalidação de assinatura
+  const confirmarInvalidacao = async () => {
+    if (!linhaParaInvalidar) return;
+    const motivoLimpo = motivoInvalidacao.trim();
+    if (motivoLimpo.length < TAMANHO_MINIMO_MOTIVO_INVALIDACAO) {
+      toast.error(`O motivo deve ter pelo menos ${TAMANHO_MINIMO_MOTIVO_INVALIDACAO} caracteres.`);
+      return;
+    }
+
+    setSalvandoInvalidacao(true);
+    try {
+      const r = await invalidarAssinaturaContrachequeAction(
+        empresaId,
+        linhaParaInvalidar.documentoId,
+        {
+          motivo: motivoLimpo,
+          reenviarAgora: reenviarAposInvalidar,
+        }
+      );
+
+      if (!r.ok) {
+        toast.error(r.error);
+        return;
+      }
+
+      toast.success("Assinatura invalidada com sucesso.");
+      if (r.reenviado) {
+        toast.info("Novo link de assinatura enviado ao colaborador.");
+      } else if (r.erroReenvio) {
+        toast.warning(`Assinatura invalidada, mas não foi possível reenviar: ${r.erroReenvio}`);
+      }
+
+      setLinhaParaInvalidar(null);
+      setMotivoInvalidacao("");
+      router.refresh();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Erro ao invalidar assinatura.");
+    } finally {
+      setSalvandoInvalidacao(false);
+    }
   };
 
   // Cobrar individual no Telegram
@@ -476,7 +554,14 @@ export function ContrachequesView({
                     </TableCell>
                   </TableRow>
                 )}
-                {visiveis.map((l) => (
+                {visiveis.map((l) => {
+                  const { podeInvalidar, podeReenviar } = acoesDisponiveisParaRecibo({
+                    situacao: l.situacao,
+                    temEmail: l.temEmail,
+                  });
+                  const rotuloEnvio = rotuloAcaoReenvio(Boolean(l.enviadoEm));
+
+                  return (
                   <TableRow key={l.documentoId}>
                     {/* Colaborador */}
                     <TableCell className="text-sm">
@@ -524,6 +609,17 @@ export function ContrachequesView({
                       {l.envioErro && l.situacao !== "CONFIRMADO" && (
                         <span className="mt-1 block text-[11px] text-destructive">{l.envioErro}</span>
                       )}
+                      {l.invalidacoes && l.invalidacoes.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setHistoricoInvalidacao(l)}
+                          className="mt-1 flex items-center gap-1 text-[11px] font-medium text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-1.5 py-0.5 rounded cursor-pointer transition-colors"
+                          title="Ver histórico de assinaturas invalidadas"
+                        >
+                          <History className="size-3 text-amber-600" />
+                          Invalidado ({l.invalidacoes.length})
+                        </button>
+                      )}
                     </TableCell>
 
                     {/* Trilha de Datas */}
@@ -553,7 +649,7 @@ export function ContrachequesView({
                     {/* Ações */}
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1.5">
-                        {l.confirmadoEm ? (
+                        {podeInvalidar ? (
                           <>
                             {l.comprovanteArquivoId ? (
                               <a
@@ -574,6 +670,21 @@ export function ContrachequesView({
                                 <Camera className="size-3.5" /> Ver foto
                               </a>
                             ) : null}
+
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={enviando || salvandoInvalidacao}
+                              onClick={() => {
+                                setLinhaParaInvalidar(l);
+                                setMotivoInvalidacao("");
+                                setReenviarAposInvalidar(true);
+                              }}
+                              className="text-xs h-8 px-2 text-rose-700 hover:text-rose-800 hover:bg-rose-50 border-rose-200"
+                              title="Invalidar recibo e reenviar ao e-mail atual"
+                            >
+                              <RotateCcw className="size-3.5 mr-1" /> Invalidar recibo
+                            </Button>
                           </>
                         ) : (
                           <>
@@ -581,7 +692,7 @@ export function ContrachequesView({
                               <Button
                                 size="sm"
                                 variant="outline"
-                                disabled={enviando}
+                                disabled={enviando || salvandoInvalidacao}
                                 onClick={() => cobrarIndividual(l.documentoId)}
                                 className="text-xs h-8 px-2"
                                 title="Enviar lembrete pelo Telegram agora"
@@ -590,35 +701,223 @@ export function ContrachequesView({
                               </Button>
                             )}
 
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={enviando}
-                              onClick={() => reenviarIndividual(l.documentoId)}
-                              className="text-xs h-8 px-2"
-                              title={l.bloqueado ? "Desbloquear e reenviar link" : "Reenviar e-mail"}
-                            >
-                              {l.bloqueado ? (
-                                <span className="text-red-700 flex items-center gap-1">
-                                  <Lock className="size-3" /> Desbloquear
-                                </span>
-                              ) : (
-                                <>
-                                  <Send className="size-3 mr-1" /> Reenviar
-                                </>
-                              )}
-                            </Button>
+                            {podeReenviar && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={enviando || salvandoInvalidacao}
+                                onClick={() => reenviarIndividual(l.documentoId)}
+                                className="text-xs h-8 px-2 font-medium"
+                                title={l.bloqueado ? "Desbloquear e reenviar link" : `${rotuloEnvio} e-mail`}
+                              >
+                                {l.bloqueado ? (
+                                  <span className="text-red-700 flex items-center gap-1">
+                                    <Lock className="size-3" /> Desbloquear
+                                  </span>
+                                ) : (
+                                  <>
+                                    <Send className="size-3 mr-1" /> {rotuloEnvio}
+                                  </>
+                                )}
+                              </Button>
+                            )}
                           </>
                         )}
                       </div>
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
         </>
       )}
+
+      {/* Modal de Histórico Forense de Invalidações */}
+      <Dialog
+        open={!!historicoInvalidacao}
+        onOpenChange={(open) => !open && setHistoricoInvalidacao(null)}
+      >
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <History className="size-5 text-amber-600" />
+              Histórico Forense de Invalidações
+            </DialogTitle>
+            <DialogDescription>
+              Assinaturas anteriores de <b>{historicoInvalidacao?.pessoa}</b> ({historicoInvalidacao?.folha})
+              que foram invalidadas pela gestão do RH. Evidências originais mantidas imutáveis.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3.5 max-h-[60vh] overflow-y-auto pr-1 py-1">
+            {historicoInvalidacao?.invalidacoes.map((inv, idx) => (
+              <div key={inv.id} className="rounded-lg border bg-slate-50/80 p-3.5 space-y-2 text-xs">
+                <div className="flex items-center justify-between text-muted-foreground border-b pb-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-slate-800">
+                      Registro #{historicoInvalidacao.invalidacoes.length - idx}
+                    </span>
+                    <Badge variant="destructive" className="text-[10px] uppercase">
+                      Invalidado
+                    </Badge>
+                  </div>
+                  <span>Invalidado em: {inv.invalidadoEm}</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-700">
+                  <div>
+                    <span className="text-muted-foreground">Responsável RH:</span>{" "}
+                    <span className="font-medium text-slate-900">{inv.invalidadoPorNome}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Assinatura original:</span>{" "}
+                    <span className="font-medium text-slate-900">{inv.confirmadoEmOriginal}</span>
+                  </div>
+                  {inv.confirmadoIp && (
+                    <div className="sm:col-span-2">
+                      <span className="text-muted-foreground">IP da confirmação original:</span>{" "}
+                      <span className="font-mono text-[11px] text-slate-800">{inv.confirmadoIp}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-1">
+                  <span className="text-muted-foreground font-medium">Motivo informado:</span>
+                  <p className="bg-white p-2.5 rounded border text-slate-800 text-xs whitespace-pre-wrap break-words font-mono">
+                    {inv.motivo}
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 pt-1 border-t">
+                  {inv.comprovanteArquivoId ? (
+                    <a
+                      href={`/api/rh/${historicoInvalidacao.empresaId}/arquivos/${inv.comprovanteArquivoId}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded border border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 font-medium"
+                    >
+                      <FileCheck className="size-3.5 text-emerald-600" /> Ver comprovante PDF preservado (invalidado)
+                    </a>
+                  ) : null}
+                  {inv.fotoArquivoId ? (
+                    <a
+                      href={`/api/rh/${historicoInvalidacao.empresaId}/arquivos/${inv.fotoArquivoId}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded border text-slate-700 bg-white hover:bg-slate-50"
+                    >
+                      <Camera className="size-3.5" /> Ver selfie preservada
+                    </a>
+                  ) : null}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setHistoricoInvalidacao(null)}>
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Invalidação de Assinatura */}
+      <Dialog
+        open={!!linhaParaInvalidar}
+        onOpenChange={(open) => {
+          if (!open && !salvandoInvalidacao) {
+            setLinhaParaInvalidar(null);
+            setMotivoInvalidacao("");
+          }
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-rose-700">
+              <RotateCcw className="size-5" />
+              Invalidar Recibo e Reenviar
+            </DialogTitle>
+            <DialogDescription>
+              Você está invalidando a assinatura de <b>{linhaParaInvalidar?.pessoa}</b> ({linhaParaInvalidar?.folha}).
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 space-y-1">
+              <p className="font-semibold flex items-center gap-1.5">
+                <ShieldAlert className="size-4 text-amber-700" />
+                Evidência preservada para auditoria
+              </p>
+              <p>
+                A foto da selfie, dados do dispositivo e comprovante PDF anteriores serão mantidos no histórico
+                forense do contracheque e registrados na trilha LGPD. O recibo voltará ao status pendente com um novo token seguro.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label htmlFor="motivoInvalidacao" className="block text-xs font-semibold text-slate-700">
+                Motivo da invalidação <span className="text-destructive">*</span>
+                <span className="font-normal text-muted-foreground ml-1">
+                  (mínimo {TAMANHO_MINIMO_MOTIVO_INVALIDACAO} caracteres)
+                </span>
+              </label>
+              <Textarea
+                id="motivoInvalidacao"
+                rows={3}
+                value={motivoInvalidacao}
+                onChange={(e) => setMotivoInvalidacao(e.target.value)}
+                placeholder="Ex: Foto ilegível / assinatura em aparelho de terceiro sem identificação do colaborador..."
+                className="text-xs resize-none"
+                disabled={salvandoInvalidacao}
+              />
+              <div className="flex justify-between text-[11px] text-muted-foreground">
+                <span>{motivoInvalidacao.trim().length}/{TAMANHO_MINIMO_MOTIVO_INVALIDACAO} caracteres mínimos</span>
+                {motivoInvalidacao.trim().length < TAMANHO_MINIMO_MOTIVO_INVALIDACAO && (
+                  <span className="text-amber-700">Preencha o motivo com detalhes</span>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 pt-1">
+              <Checkbox
+                id="reenviarAposInvalidar"
+                checked={reenviarAposInvalidar}
+                onCheckedChange={(c) => setReenviarAposInvalidar(c === true)}
+                disabled={salvandoInvalidacao}
+              />
+              <label
+                htmlFor="reenviarAposInvalidar"
+                className="text-xs font-medium cursor-pointer text-slate-800"
+              >
+                Reenviar notificação com novo link de assinatura agora
+              </label>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setLinhaParaInvalidar(null);
+                setMotivoInvalidacao("");
+              }}
+              disabled={salvandoInvalidacao}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmarInvalidacao}
+              disabled={salvandoInvalidacao || motivoInvalidacao.trim().length < TAMANHO_MINIMO_MOTIVO_INVALIDACAO}
+            >
+              {salvandoInvalidacao ? "Invalidando..." : "Confirmar Invalidação"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -321,6 +321,7 @@ model Empresa {
   catalogoItens            CatalogoItem[]
   ocorrenciasDisciplinares OcorrenciaDisciplinar[]
   configuracaoPonto        ConfiguracaoPontoEmpresa?
+  recibosContrachequeInvalidados ReciboContrachequeInvalidado[]
 
   @@index([marcaId])
   @@schema("rh")
@@ -585,7 +586,8 @@ model Colaborador {
   dependentes              Dependente[]
   documentos               DocumentoColaborador[]
   itensCaixaDocumentos     ItemDocumentoRecebido[]
-  recibosContracheque      ReciboContracheque[]
+  recibosContracheque            ReciboContracheque[]
+  recibosContrachequeInvalidados ReciboContrachequeInvalidado[]
   ferias                   SolicitacaoFerias[]
   ausencias                Ausencia[]
   acessosPortal            PortalAcesso[]
@@ -705,7 +707,9 @@ model Arquivo {
   // Selfie com que o colaborador confirmou o recebimento de um contracheque.
   reciboContracheque      ReciboContracheque?      @relation("FotoReciboContracheque")
   // PDF assinado final com folha de evidências de assinatura de contracheque
-  comprovanteContracheque ReciboContracheque?      @relation("ComprovanteReciboContracheque")
+  comprovanteContracheque             ReciboContracheque?            @relation("ComprovanteReciboContracheque")
+  contrachequesInvalidadosFoto        ReciboContrachequeInvalidado[] @relation("ContrachequeInvalidadoFoto")
+  contrachequesInvalidadosComprovante ReciboContrachequeInvalidado[] @relation("ContrachequeInvalidadoComprovante")
 
   @@index([empresaId])
   @@schema("rh")
@@ -743,7 +747,8 @@ model DocumentoColaborador {
   // "INFORME:2025", "TRCT"... Reenviar a mesma folha não duplica nada.
   chaveDedupe String?
   // Contracheque enviado ao colaborador para confirmar recebimento com foto.
-  recibo      ReciboContracheque?
+  recibo                         ReciboContracheque?
+  recibosContrachequeInvalidados ReciboContrachequeInvalidado[]
 
   @@index([colaboradorId])
   @@index([empresaId, validoAte])
@@ -813,12 +818,53 @@ model ReciboContracheque {
   comprovanteArquivoId String?  @unique
   comprovanteArquivo   Arquivo? @relation("ComprovanteReciboContracheque", fields: [comprovanteArquivoId], references: [id], onDelete: SetNull)
 
+  invalidacoes ReciboContrachequeInvalidado[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([empresaId, competencia])
   @@index([tokenAssinatura])
   @@index([colaboradorId, confirmadoEm])
+  @@schema("rh")
+}
+
+model ReciboContrachequeInvalidado {
+  id                    String    @id @default(cuid())
+  reciboId              String
+  documentoId           String
+  empresaId             String
+  colaboradorId         String
+  motivo                String
+  invalidadoPorId       String
+  invalidadoPorNome     String
+  invalidadoEm          DateTime  @default(now())
+  canalOriginal         String?
+  enviadoEmOriginal     DateTime?
+  cienciaTelegramEm     DateTime?
+  vistoEmOriginal       DateTime?
+  codigoValidadoEm      DateTime?
+  canalCodigo           String?
+  confirmadoEmOriginal  DateTime
+  confirmadoIp          String?
+  confirmadoDispositivo String?
+  confirmadoLocalizacao String?
+  hashDocumento         String?
+  textoAceite           String?
+  fotoArquivoId         String?
+  comprovanteArquivoId  String?
+
+  recibo             ReciboContracheque   @relation(fields: [reciboId], references: [id], onDelete: Restrict)
+  documento          DocumentoColaborador @relation(fields: [documentoId], references: [id], onDelete: Restrict)
+  empresa            Empresa              @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  colaborador        Colaborador          @relation(fields: [colaboradorId], references: [id], onDelete: Restrict)
+  fotoArquivo        Arquivo?             @relation("ContrachequeInvalidadoFoto", fields: [fotoArquivoId], references: [id], onDelete: SetNull)
+  comprovanteArquivo Arquivo?             @relation("ContrachequeInvalidadoComprovante", fields: [comprovanteArquivoId], references: [id], onDelete: SetNull)
+
+  @@index([reciboId, invalidadoEm])
+  @@index([documentoId, invalidadoEm])
+  @@index([colaboradorId, invalidadoEm])
+  @@index([empresaId, invalidadoEm])
   @@schema("rh")
 }
 
@@ -2380,8 +2426,16 @@ model EmailEnviado {
   erro      String?
   enviadoEm DateTime @default(now())
 
+  origem    String?
+  empresaId String?
+  marcaNome String?
+  status    String   @default("ENVIADO")
+
   @@index([enviadoEm])
   @@index([chave, enviadoEm])
+  @@index([status, enviadoEm])
+  @@index([origem, enviadoEm])
+  @@index([empresaId, enviadoEm])
   @@schema("rh")
 }
 

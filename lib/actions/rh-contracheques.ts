@@ -8,7 +8,13 @@ import { prisma } from "@/lib/prisma";
 import { empresasVisiveis, podeOperarEmpresaRH, requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { registrarAuditoria } from "@/lib/audit";
 import { avisarColaborador, enviarContracheques } from "@/lib/contracheques/envio";
-import { competenciaDoTexto, rotuloDoContracheque } from "@/lib/contracheques/situacao";
+import {
+  camposResetAposInvalidacao,
+  montarSnapshotInvalidacao,
+  podeInvalidarRecibo,
+  validarMotivoInvalidacao,
+} from "@/lib/contracheques/invalidacao";
+import { competenciaDoTexto, rotuloDoContracheque, tipoFolhaDaChave } from "@/lib/contracheques/situacao";
 import { gerarTokenAssinatura } from "@/lib/contracheques/token-auth";
 import { montarMensagemLembreteTelegram } from "@/lib/contracheques/lembretes";
 import { sendTelegramMessage } from "@/lib/telegram";
@@ -88,6 +94,9 @@ export async function reenviarEmailContrachequeAction(
     select: {
       id: true,
       empresaId: true,
+      colaboradorId: true,
+      competencia: true,
+      chaveDedupe: true,
       colaborador: {
         select: {
           nome: true,
@@ -111,23 +120,52 @@ export async function reenviarEmailContrachequeAction(
   if (!(await podeOperarEmpresaRH(user, doc.empresaId))) {
     return { ok: false, error: "Sem permissão para alterar contracheques desta empresa." };
   }
-  if (!doc.recibo) return { ok: false, error: "Recibo ainda não criado para este documento." };
-  if (doc.recibo.confirmadoEm) return { ok: false, error: "Este contracheque já foi confirmado." };
+
+  let recibo = doc.recibo;
+  if (!recibo) {
+    if (!doc.competencia) {
+      return { ok: false, error: "Contracheque sem competência preenchida." };
+    }
+    const tokenNovo = gerarTokenAssinatura();
+    recibo = await prisma.reciboContracheque.create({
+      data: {
+        documentoId: doc.id,
+        empresaId: doc.empresaId,
+        colaboradorId: doc.colaboradorId,
+        competencia: doc.competencia,
+        tipoFolha: tipoFolhaDaChave(doc.chaveDedupe),
+        tokenAssinatura: tokenNovo,
+      },
+      select: {
+        id: true,
+        competencia: true,
+        tipoFolha: true,
+        confirmadoEm: true,
+      },
+    });
+  }
+  if (recibo.confirmadoEm) return { ok: false, error: "Este contracheque já foi confirmado." };
 
   const novoToken = gerarTokenAssinatura();
   const aviso = await avisarColaborador(
     {
-      id: doc.recibo.id,
+      id: recibo.id,
       tokenAssinatura: novoToken,
-      competencia: doc.recibo.competencia,
-      tipoFolha: doc.recibo.tipoFolha,
+      competencia: recibo.competencia,
+      tipoFolha: recibo.tipoFolha,
+      empresaId: doc.empresaId,
       colaborador: doc.colaborador,
     },
-    novoToken
+    novoToken,
+    {
+      ehReenvio: true,
+      empresaId: doc.empresaId,
+      marcaNome: doc.colaborador.empresa.marca.nome,
+    }
   );
 
   await prisma.reciboContracheque.update({
-    where: { id: doc.recibo.id },
+    where: { id: recibo.id },
     data: {
       tokenAssinatura: novoToken,
       bloqueadoEm: null,
@@ -223,3 +261,210 @@ export async function cobrarPendentesTelegramAction(
   revalidatePath(`/rh/${empresaId}/contracheques`);
   return { ok: true, cobrados, falhas, semTelegram };
 }
+
+/**
+ * Invalida a assinatura eletrônica de um contracheque já confirmado.
+ * Preserva o snapshot forense (evidência, foto e PDF original) em ReciboContrachequeInvalidado,
+ * reseta o recibo para pendente gerando novo token, e opcionalmente dispara reenvio imediato.
+ */
+export async function invalidarAssinaturaContrachequeAction(
+  empresaId: string,
+  documentoId: string,
+  entrada: { motivo: string; reenviarAgora?: boolean }
+): Promise<{ ok: true; reenviado: boolean; erroReenvio?: string | null } | { ok: false; error: string }> {
+  const user = await requireEmpresaAccess(empresaId);
+
+  const validacao = validarMotivoInvalidacao(entrada.motivo);
+  if (!validacao.ok) {
+    return { ok: false, error: validacao.error };
+  }
+  const motivoLimpo = validacao.motivo;
+
+  const doc = await prisma.documentoColaborador.findUnique({
+    where: { id: documentoId },
+    select: {
+      id: true,
+      empresaId: true,
+      colaborador: {
+        select: {
+          id: true,
+          nome: true,
+          email: true,
+          cpf: true,
+          telegramChatId: true,
+          empresa: {
+            select: {
+              id: true,
+              nome: true,
+              marca: { select: { nome: true } },
+            },
+          },
+        },
+      },
+      recibo: {
+        select: {
+          id: true,
+          empresaId: true,
+          colaboradorId: true,
+          documentoId: true,
+          competencia: true,
+          tipoFolha: true,
+          enviadoEm: true,
+          canal: true,
+          cienciaTelegramEm: true,
+          vistoEm: true,
+          codigoValidadoEm: true,
+          canalCodigo: true,
+          confirmadoEm: true,
+          confirmadoIp: true,
+          confirmadoDispositivo: true,
+          confirmadoLocalizacao: true,
+          hashDocumento: true,
+          textoAceite: true,
+          fotoArquivoId: true,
+          comprovanteArquivoId: true,
+        },
+      },
+    },
+  });
+
+  if (!doc) return { ok: false, error: "Contracheque não encontrado." };
+  if (!(await podeOperarEmpresaRH(user, doc.empresaId))) {
+    return { ok: false, error: "Sem permissão para alterar contracheques desta empresa." };
+  }
+
+  const elegibilidade = podeInvalidarRecibo(doc.recibo);
+  if (!elegibilidade.ok) {
+    return { ok: false, error: elegibilidade.error };
+  }
+  const recibo = doc.recibo!;
+  if (!recibo.confirmadoEm) {
+    return { ok: false, error: "Contracheque não possui assinatura confirmada." };
+  }
+
+  const novoToken = gerarTokenAssinatura();
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      // Bloqueio pessimista para evitar invalidação concorrente simultânea
+      const [reciboLock] = await tx.$queryRaw<{ id: string; confirmadoEm: Date | null }[]>`
+        SELECT "id", "confirmadoEm"
+        FROM rh."ReciboContracheque"
+        WHERE "id" = ${recibo.id}
+        FOR UPDATE
+      `;
+
+      if (!reciboLock || !reciboLock.confirmadoEm) {
+        throw new Error("Este contracheque não possui assinatura confirmada para invalidar.");
+      }
+
+      // 1. Snapshot forense completo em ReciboContrachequeInvalidado
+      const snapshot = montarSnapshotInvalidacao(
+        {
+          ...recibo,
+          confirmadoEm: reciboLock.confirmadoEm,
+        },
+        motivoLimpo,
+        {
+          id: user.id,
+          nome: user.name ?? "RH",
+        }
+      );
+
+      await tx.reciboContrachequeInvalidado.create({
+        data: snapshot,
+      });
+
+      // 2. Zerar carimbos de assinatura e rotacionar token
+      await tx.reciboContracheque.update({
+        where: { id: recibo.id },
+        data: camposResetAposInvalidacao(novoToken),
+      });
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Falha ao invalidar assinatura.";
+    return { ok: false, error: msg };
+  }
+
+  await registrarAuditoria({
+    empresaId: doc.empresaId,
+    ator: {
+      id: user.id,
+      nome: user.name ?? "RH",
+      papel: user.role ?? "RH",
+    },
+    acao: "ATUALIZAR",
+    entidade: "ReciboContracheque",
+    entidadeId: recibo.id,
+    resumo: `Invalidou assinatura do contracheque de ${doc.colaborador.nome}: ${motivoLimpo}`,
+    detalhes: {
+      motivo: motivoLimpo,
+      documentoId,
+      fotoArquivoId: recibo.fotoArquivoId,
+      comprovanteArquivoId: recibo.comprovanteArquivoId,
+    },
+  });
+
+  let reenviado = false;
+  let erroReenvio: string | null = null;
+
+  if (entrada.reenviarAgora) {
+    if (doc.colaborador.email || doc.colaborador.telegramChatId) {
+      try {
+        const marcaNome = doc.colaborador.empresa.marca?.nome || "RH";
+        const aviso = await avisarColaborador(
+          {
+            id: recibo.id,
+            tokenAssinatura: novoToken,
+            competencia: recibo.competencia,
+            tipoFolha: recibo.tipoFolha,
+            empresaId: doc.empresaId,
+            colaborador: {
+              nome: doc.colaborador.nome,
+              email: doc.colaborador.email,
+              telegramChatId: doc.colaborador.telegramChatId,
+              empresa: {
+                marca: {
+                  nome: marcaNome,
+                },
+              },
+            },
+          },
+          novoToken,
+          {
+            ehReenvio: true,
+            empresaId: doc.empresaId,
+            marcaNome,
+          }
+        );
+
+        await prisma.reciboContracheque.update({
+          where: { id: recibo.id },
+          data: {
+            enviadoEm: new Date(),
+            enviadoPorNome: user.name ?? "RH",
+            canal: aviso.canal,
+            envioErro: aviso.erro,
+            envios: { increment: 1 },
+          },
+        });
+
+        if (aviso.canal) {
+          reenviado = true;
+        } else {
+          erroReenvio = aviso.erro ?? "Colaborador sem canal de contato.";
+        }
+      } catch (err: unknown) {
+        erroReenvio = err instanceof Error ? err.message : "Erro no envio de notificação.";
+      }
+    } else {
+      erroReenvio = "Colaborador sem e-mail nem Telegram cadastrado para reenvio.";
+    }
+  }
+
+  revalidatePath(`/rh/${empresaId}/contracheques`);
+  revalidatePath("/portal");
+
+  return { ok: true, reenviado, erroReenvio };
+}
+

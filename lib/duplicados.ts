@@ -19,19 +19,29 @@
 // tela de Colaboradores já carregou — nenhuma consulta a mais ao banco.
 
 import { sufixoTelefone } from "@/lib/telefone";
+import {
+  normalizarEmailColaborador,
+  ehConflitoDeEmailEntrePessoas,
+} from "@/lib/colaborador-email";
 
 export type PessoaParaComparar = {
   id: string;
   nome: string;
   telefone: string | null;
   cpf: string | null;
+  email?: string | null;
+  empresaMarca?: string;
   setorNome: string;
   ativo: boolean;
   /** Esta ficha segura um chat do Telegram. */
   temTelegram: boolean;
 };
 
-export type MotivoDuplicado = "Mesmo CPF" | "Mesmo telefone" | "Nome muito parecido";
+export type MotivoDuplicado =
+  | "Mesmo CPF"
+  | "Mesmo telefone"
+  | "Mesmo e-mail"
+  | "Nome muito parecido";
 
 /**
  * O quanto o grupo pede ação AGORA — e é isto que separa varredura útil de
@@ -64,16 +74,18 @@ function gravidadeDo(pessoas: PessoaParaComparar[], motivo: MotivoDuplicado): Gr
   if (pessoas.some((p) => !p.ativo && p.temTelegram)) return "alta";
   const ativos = pessoas.filter((p) => p.ativo).length;
   if (ativos >= 2) return motivo === "Nome muito parecido" ? "media" : "alta";
+  if (motivo === "Mesmo e-mail") return "media";
   // Um ativo e um desligado, sem Telegram preso: quase sempre recontratação.
   return "baixa";
 }
 
 const ORDEM_GRAVIDADE: Record<Gravidade, number> = { alta: 0, media: 1, baixa: 2 };
-// CPF igual é prova; telefone é indício forte; nome parecido é palpite.
+// CPF igual é prova; telefone é indício forte; e-mail é único no grupo; nome parecido é palpite.
 const ORDEM_MOTIVO: Record<MotivoDuplicado, number> = {
   "Mesmo CPF": 0,
   "Mesmo telefone": 1,
-  "Nome muito parecido": 2,
+  "Mesmo e-mail": 2,
+  "Nome muito parecido": 3,
 };
 
 function normalizarNome(nome: string): string {
@@ -156,7 +168,26 @@ export function encontrarDuplicados(pessoas: PessoaParaComparar[]): GrupoDuplica
     grupo.forEach((p) => jaAgrupado.add(p.id));
   }
 
-  // 3) Nome muito parecido — O(n²), mas n é "colaboradores de uma empresa"
+  // 3) Mesmo e-mail — dois colaboradores com e-mails iguais e CPFs divergentes
+  // ou não informados. Quem o CPF já juntou não reavalia aqui.
+  for (const grupo of agruparPor(
+    pessoas.filter((p) => !jaAgrupado.has(p.id)),
+    (p) => normalizarEmailColaborador(p.email),
+  )) {
+    const temConflito = grupo.some((p1, idx) =>
+      grupo.slice(idx + 1).some((p2) => ehConflitoDeEmailEntrePessoas(p1, p2)),
+    );
+    if (temConflito) {
+      grupos.push({
+        motivo: "Mesmo e-mail",
+        gravidade: gravidadeDo(grupo, "Mesmo e-mail"),
+        pessoas: grupo,
+      });
+      grupo.forEach((p) => jaAgrupado.add(p.id));
+    }
+  }
+
+  // 4) Nome muito parecido — O(n²), mas n é "colaboradores de uma empresa"
   // (algumas centenas), então continua instantâneo. Bucket pelas duas
   // primeiras letras do nome normalizado corta a maior parte das comparações.
   const normalizados = pessoas

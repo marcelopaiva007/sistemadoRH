@@ -31,6 +31,9 @@ const nextConfig: NextConfig = {
     // tela e as rotas de API dela.
     "/**/caixa-documentos": ["./node_modules/@img/sharp-libvips-linux-x64/lib/**/*"],
     "/**/caixa-documentos/**": ["./node_modules/@img/sharp-libvips-linux-x64/lib/**/*"],
+    "/assinar/**": ["./node_modules/@img/sharp-libvips-linux-x64/lib/**/*"],
+    "/portal/**": ["./node_modules/@img/sharp-libvips-linux-x64/lib/**/*"],
+    "/api/portal/**": ["./node_modules/@img/sharp-libvips-linux-x64/lib/**/*"],
   },
   images: {
     // O projeto não otimiza imagem nenhuma: os três usos de next/image (o

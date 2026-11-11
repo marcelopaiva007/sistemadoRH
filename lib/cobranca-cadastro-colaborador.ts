@@ -303,6 +303,9 @@ async function entregar(
         text: texto,
         html,
         fromName: `RH ${pessoa.empresa.marca.nome}`,
+        origem: "COBRANCA_CADASTRO",
+        empresaId: pessoa.empresaId,
+        marcaNome: pessoa.empresa.marca.nome,
         // Uma cobrança por pessoa por dia POR ORIGEM: sem separar cron de
         // clique, o botão da tela seria engolido pelo dedupe do e-mail que o
         // cron mandou de manhã — e quem clicou juraria que o sistema não faz

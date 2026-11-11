@@ -100,7 +100,12 @@ export async function avisarDemandaEnviadaPorEmail(demandaId: string): Promise<R
         select: {
           nome: true,
           email: true,
-          colaborador: { select: { empresa: { select: { marca: { select: { nome: true } } } } } },
+          colaborador: {
+            select: {
+              empresaId: true,
+              empresa: { select: { marca: { select: { nome: true } } } },
+            },
+          },
         },
       },
     },
@@ -122,6 +127,9 @@ export async function avisarDemandaEnviadaPorEmail(demandaId: string): Promise<R
     text: textoDaDemandaNova(demanda, linkDemanda),
     html: htmlDaDemandaNova(demanda, linkDemanda),
     fromName,
+    origem: "DELEGACOES",
+    empresaId: demanda.responsavel.colaborador?.empresaId,
+    marcaNome: demanda.responsavel.colaborador?.empresa.marca.nome,
     chave: `delegacoes-nova:${demanda.id}`,
   });
   if (!envio.ok) return { ok: false, motivo: envio.error };
@@ -185,7 +193,12 @@ export async function avisarDemandaEntreguePorEmail(demandaId: string): Promise<
         select: {
           nome: true,
           email: true,
-          colaborador: { select: { empresa: { select: { marca: { select: { nome: true } } } } } },
+          colaborador: {
+            select: {
+              empresaId: true,
+              empresa: { select: { marca: { select: { nome: true } } } },
+            },
+          },
         },
       },
     },
@@ -207,6 +220,9 @@ export async function avisarDemandaEntreguePorEmail(demandaId: string): Promise<
     text: textoDaEntrega(demanda, linkDemanda),
     html: htmlDaEntrega(demanda, linkDemanda),
     fromName,
+    origem: "DELEGACOES",
+    empresaId: demanda.solicitante.colaborador?.empresaId,
+    marcaNome: demanda.solicitante.colaborador?.empresa.marca.nome,
     chave: `delegacoes-entrega:${demanda.id}`,
   });
   if (!envio.ok) return { ok: false, motivo: envio.error };
@@ -245,7 +261,12 @@ export async function avisarDemandaConcluidaDiretoPorEmail(
         select: {
           nome: true,
           email: true,
-          colaborador: { select: { empresa: { select: { marca: { select: { nome: true } } } } } },
+          colaborador: {
+            select: {
+              empresaId: true,
+              empresa: { select: { marca: { select: { nome: true } } } },
+            },
+          },
         },
       },
     },
@@ -272,6 +293,9 @@ export async function avisarDemandaConcluidaDiretoPorEmail(
       `<p><a href="${linkDemanda}">Abrir no sistema</a></p>`,
     ].join(""),
     fromName,
+    origem: "DELEGACOES",
+    empresaId: demanda.responsavel.colaborador?.empresaId,
+    marcaNome: demanda.responsavel.colaborador?.empresa.marca.nome,
     chave: `delegacoes-baixa:${demanda.id}`,
   });
   if (!envio.ok) return { ok: false, motivo: envio.error };

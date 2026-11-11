@@ -24,7 +24,13 @@ export { LIMITE_DIARIO_ENVIOS, inicioDoDiaSaoPaulo };
 export type TokenParaEnvio = {
   id: string;
   token: string;
-  colaborador: { nome: string; telegramChatId: string | null; email: string | null };
+  colaborador: {
+    nome: string;
+    telegramChatId: string | null;
+    email: string | null;
+    empresaId?: string | null;
+    empresa?: { marca?: { nome?: string } };
+  };
   pesquisa: { titulo: string; anonima: boolean };
 };
 
@@ -57,9 +63,15 @@ export async function enviarUmConvite(token: TokenParaEnvio): Promise<ResultadoC
     resultado = await sendTelegramMessage(token.colaborador.telegramChatId, texto);
   } else if (token.colaborador.email) {
     canal = "EMAIL";
+    const marca = token.colaborador.empresa?.marca?.nome;
+    const empresaId = token.colaborador.empresaId ?? null;
     resultado = await sendEmail({
       to: token.colaborador.email,
       subject: `Pesquisa: ${token.pesquisa.titulo}`,
+      ...(marca ? { fromName: `RH ${marca}` } : {}),
+      origem: "CONVITE_PESQUISA",
+      empresaId,
+      marcaNome: marca ?? null,
       html:
         `<p>Olá, <strong>${primeiroNome}</strong>!</p>` +
         `<p>Você foi convidado a responder a pesquisa <strong>${token.pesquisa.titulo}</strong>.</p>` +
@@ -158,6 +170,8 @@ export async function rodadaEnvioAutomatico(): Promise<{
             nome: true,
             telegramChatId: true,
             email: true,
+            empresaId: true,
+            empresa: { select: { marca: { select: { nome: true } } } },
             setor: { select: { nome: true } },
           },
         },
