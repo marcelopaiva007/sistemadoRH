@@ -127,9 +127,15 @@ export async function reenviarEmailContrachequeAction(
       tokenAssinatura: novoToken,
       competencia: doc.recibo.competencia,
       tipoFolha: doc.recibo.tipoFolha,
+      empresaId: doc.empresaId,
       colaborador: doc.colaborador,
     },
-    novoToken
+    novoToken,
+    {
+      ehReenvio: true,
+      empresaId: doc.empresaId,
+      marcaNome: doc.colaborador.empresa.marca.nome,
+    }
   );
 
   await prisma.reciboContracheque.update({
@@ -379,24 +385,31 @@ export async function invalidarAssinaturaContrachequeAction(
   if (entrada.reenviarAgora) {
     if (doc.colaborador.email || doc.colaborador.telegramChatId) {
       try {
+        const marcaNome = doc.colaborador.empresa.marca?.nome || "RH";
         const aviso = await avisarColaborador(
           {
             id: recibo.id,
             tokenAssinatura: novoToken,
             competencia: recibo.competencia,
             tipoFolha: recibo.tipoFolha,
+            empresaId: doc.empresaId,
             colaborador: {
               nome: doc.colaborador.nome,
               email: doc.colaborador.email,
               telegramChatId: doc.colaborador.telegramChatId,
               empresa: {
                 marca: {
-                  nome: doc.colaborador.empresa.marca?.nome || "RH",
+                  nome: marcaNome,
                 },
               },
             },
           },
-          novoToken
+          novoToken,
+          {
+            ehReenvio: true,
+            empresaId: doc.empresaId,
+            marcaNome,
+          }
         );
 
         await prisma.reciboContracheque.update({

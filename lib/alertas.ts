@@ -63,6 +63,8 @@ async function enviarAlerta(opts: {
   assunto: string;
   mensagem: string;
   destinatarios: { email: string | null; nome: string }[];
+  empresaId?: string | null;
+  marcaNome?: string | null;
 }): Promise<{ disparados: number; erros: number }> {
   let disparados = 0;
   let erros = 0;
@@ -75,6 +77,9 @@ async function enviarAlerta(opts: {
       subject: opts.assunto,
       text: opts.mensagem,
       html: `<p>${opts.mensagem}</p>`,
+      origem: "ALERTA_RH",
+      empresaId: opts.empresaId,
+      marcaNome: opts.marcaNome,
       chave: `${opts.chave}:${d.email}`,
     });
     if (resultado.ok) disparados++;
@@ -144,6 +149,7 @@ export async function verificarPlanosDeAcaoVencidos(
       chave: `alerta:AL09:${plano.id}`,
       assunto: "[RH] Alerta: plano de ação vencido",
       mensagem,
+      empresaId: plano.empresaId,
       destinatarios: [...diretoria, ...gestor],
     });
     disparados += resultado.disparados;
@@ -202,6 +208,7 @@ export async function verificarDesligamentosConcentrados(
       chave: `alerta:AL10:${setor.setorId}`,
       assunto: "[RH] Alerta: desligamentos concentrados numa área",
       mensagem,
+      empresaId: setor.empresaId,
       destinatarios: diretoria,
     });
     disparados += resultado.disparados;
@@ -270,6 +277,7 @@ export async function verificarTaxaRespostaBaixa(cliente: Cliente = prisma): Pro
         chave: `alerta:AL08:${pesquisa.id}:${setorId}`,
         assunto: "[RH] Alerta: taxa de resposta baixa",
         mensagem,
+        empresaId: pesquisa.empresaId,
         destinatarios: [...diretoria, ...gestor],
       });
       disparados += resultado.disparados;

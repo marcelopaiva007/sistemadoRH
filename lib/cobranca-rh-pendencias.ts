@@ -180,6 +180,8 @@ export async function executarCobrancaPendenciasRH(
         subject: `[RH] ${total} pendência(s) aguardando você`,
         text: texto,
         html,
+        origem: "COBRANCA_RH",
+        empresaId: dados.empresaIds.size === 1 ? [...dados.empresaIds][0] : null,
         chave: `cobranca-rh:${userId}:${diaChave}`,
       });
       if (r.ok) {

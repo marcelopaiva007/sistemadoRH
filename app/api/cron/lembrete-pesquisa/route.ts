@@ -7,7 +7,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendTelegramMessage } from "@/lib/telegram";
 import { sendEmail } from "@/lib/email";
-import { CONVITES_NA_PESQUISA } from "@/lib/pesquisa-numeros";
 import { idsComAfastamentoVigente } from "@/lib/pesquisa-vinculo";
 import { MODELOS_COM_REGUA_NOVA } from "@/lib/regua-cobranca";
 import { deveRodarAgora, origemAutorizacao } from "@/lib/cron-horario";
@@ -61,6 +60,8 @@ export async function GET(req: NextRequest) {
           nome: true,
           email: true,
           telegramChatId: true,
+          empresaId: true,
+          empresa: { select: { marca: { select: { nome: true } } } },
         },
       },
     },
@@ -110,11 +111,16 @@ export async function GET(req: NextRequest) {
       const r = await sendTelegramMessage(token.colaborador.telegramChatId, msg);
       ok = r.ok;
     } else if (token.colaborador.email) {
+      const marcaNome = token.colaborador.empresa?.marca?.nome;
       const r = await sendEmail({
         to: token.colaborador.email,
         subject: `Lembrete: pesquisa de clima`,
         text: msg,
         html: `<p>${msg}</p>`,
+        fromName: marcaNome ? `RH ${marcaNome}` : undefined,
+        origem: "LEMBRETE_PESQUISA",
+        empresaId: token.colaborador.empresaId,
+        marcaNome: marcaNome ?? null,
         // Este cron roda duas vezes por dia (13h e 19h UTC). Sem a chave, quem
         // não respondeu levava o mesmo lembrete duas vezes e pagava dobrado na
         // cota — e ainda contava como 2 dos 3 lembretes a que tem direito.

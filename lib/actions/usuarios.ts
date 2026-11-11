@@ -687,6 +687,7 @@ export async function enviarLinkSenhaPorEmail(id: string): Promise<ActionResult>
     text: `O administrador do sistema de RH pediu para você criar uma senha nova. Seu usuário de login é ${user.username}${
       grupo ? ` (${grupo.nome})` : ""
     }. Acesse ${link} para criar a senha. O link vale por ${LINK_ADMIN_EXPIRA_EM_HORAS} horas.`,
+    origem: "REDEFINIR_SENHA_ADMIN",
     chave: `senha-admin:${tokenHash}`,
   });
 

@@ -456,6 +456,9 @@ export async function assinarContrachequeAction(
       html,
       text,
       fromName: `RH ${marca}`,
+      origem: "CONTRACHEQUE_COMPROVANTE",
+      empresaId: recibo.empresaId,
+      marcaNome: marca,
       attachments: [
         {
           filename: nomePdfAssinado,

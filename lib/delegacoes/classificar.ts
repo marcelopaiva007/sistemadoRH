@@ -210,6 +210,7 @@ async function notificarSolicitante(
         subject: `[Delegações] Precisa da sua decisão — ${demanda.titulo}`,
         text: texto,
         html: `<p>${esc(texto).replace(/\n/g, "<br/>")}</p>`,
+        origem: "DELEGACOES",
         chave: `delegacoes-decisao:${interacaoId}`,
       }),
     );

@@ -28,6 +28,7 @@ const SELECT = {
       colaborador: {
         select: {
           telegramChatId: true,
+          empresaId: true,
           empresa: { select: { marca: { select: { nome: true } } } },
         },
       },
@@ -118,6 +119,9 @@ export async function cobrarAceite(demandaId: string): Promise<ResultadoAceite> 
         subject: `[Delegações] Ainda esperando seu aceite — ${d.titulo}`,
         text: texto,
         html: `<p>${esc(texto).replace(/\n/g, "<br/>")}</p>`,
+        origem: "DELEGACOES",
+        empresaId: d.responsavel.colaborador?.empresaId,
+        marcaNome: d.responsavel.colaborador?.empresa.marca.nome,
         chave: `delegacoes-aceite:${d.id}`,
       }).then((r) =>
         r.ok && !r.deduplicado

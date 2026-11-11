@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { Building2, ChevronDown, History, KeyRound, LogOut, ShieldCheck, UserCog } from "lucide-react";
+import { Building2, ChevronDown, History, KeyRound, LogOut, Mail, ShieldCheck, UserCog } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FastmaiLogo } from "@/components/logo-fastmai";
 import {
@@ -23,6 +23,7 @@ const ABAS = [
   { href: "/admin/clientes", rotulo: "Clientes", icon: Building2 },
   { href: "/admin/usuarios", rotulo: "Usuários", icon: UserCog },
   { href: "/admin/perfis", rotulo: "Perfis de acesso", icon: ShieldCheck },
+  { href: "/admin/logs-email", rotulo: "Logs SMTP", icon: Mail },
   // v1.200.0: o histórico de versões e o que vem a seguir, também na Gestão.
   { href: "/admin/atualizacoes", rotulo: "Atualizações", icon: History },
 ];

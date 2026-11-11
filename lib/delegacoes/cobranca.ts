@@ -47,6 +47,7 @@ const SELECT_COBRANCA = {
       colaborador: {
         select: {
           telegramChatId: true,
+          empresaId: true,
           empresa: { select: { marca: { select: { nome: true } } } },
         },
       },
@@ -203,6 +204,9 @@ async function enviarPorEmail(d: DemandaCobranca, degrau: DegrauComMomento) {
     to: d.responsavel.email,
     cc,
     fromName,
+    origem: "DELEGACOES",
+    empresaId: d.responsavel.colaborador?.empresaId,
+    marcaNome: d.responsavel.colaborador?.empresa.marca.nome,
     subject: degrau.antesDoPrazo ? `[Delegações] Lembrete — ${d.titulo}` : `[Delegações] Atrasada — ${d.titulo}`,
     text: textoCobranca(d, degrau) + `\n\nAbrir: ${linkDemanda}`,
     html: `<p>${esc(textoCobranca(d, degrau)).replace(/\n/g, "<br/>")}</p><p><a href="${linkDemanda}">Abrir no sistema</a></p>`,
@@ -270,6 +274,9 @@ async function notificarDirecao(d: DemandaCobranca, degrau: DegrauComMomento) {
           subject: `[Delegações] 🔴 Atrasada — ${d.titulo}`,
           text: texto,
           html: `<p>${esc(texto).replace(/\n/g, "<br/>")}</p>`,
+          origem: "DELEGACOES",
+          empresaId: d.responsavel.colaborador?.empresaId,
+          marcaNome: d.responsavel.colaborador?.empresa.marca.nome,
           chave: `delegacoes-notifica-direcao:${d.id}:${degrau.chave}:${pessoa.email}`,
         });
       }

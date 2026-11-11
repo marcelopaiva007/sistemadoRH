@@ -114,6 +114,7 @@ export async function enviarRelatorioSemanal(agora = new Date()): Promise<Result
         subject: assunto,
         text: texto,
         html,
+        origem: "DELEGACOES",
         chave: `delegacoes-relatorio-semanal:${destinatario.id}:${diaDoEnvio}`,
       });
       if (envio.ok && envio.deduplicado) resultado.deduplicados++;

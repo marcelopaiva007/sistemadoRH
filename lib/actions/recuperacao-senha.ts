@@ -221,6 +221,7 @@ async function enviarLinkDeSenha(digitado: string, baseUrl: string, onde: OndePr
     text: `Pedido para redefinir a senha do usuário ${user.username}${deQualConta}. No login, digite o usuário ${user.username} (o acesso é pelo nome de usuário, não pelo e-mail).${
       ehContaAdmin ? ` Esta é a conta de administrador da FASTMAI: depois de criar a senha, entre por ${baseUrl}/admin/login.` : ""
     } Acesse ${link} para redefinir sua senha. O link expira em ${RECUPERACAO_EXPIRA_EM_HORAS} hora.`,
+    origem: "RECUPERACAO_SENHA",
     chave: `recuperacao-senha:${tokenHash}`,
   });
 
@@ -313,6 +314,7 @@ async function enviarLembreteDeUsuario(email: string, baseUrl: string, onde: Ond
     subject: varios ? "Seus usuários de acesso — Sistema de RH" : "Seu usuário de acesso — Sistema de RH",
     html,
     text: `${varios ? "Seus usuários de acesso" : "Seu usuário de acesso"}: ${itens.map((i) => i.texto).join("; ")}. No login, digite o usuário (não o e-mail): ${baseUrl}/login.`,
+    origem: "LEMBRAR_USUARIO",
   });
   if (!envio.ok) {
     console.error(`[lembrete-usuario] envio falhou (${contas.length} conta(s)): ${envio.error}`);
