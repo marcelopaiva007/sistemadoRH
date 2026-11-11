@@ -14,7 +14,7 @@ import {
   podeInvalidarRecibo,
   validarMotivoInvalidacao,
 } from "@/lib/contracheques/invalidacao";
-import { competenciaDoTexto, rotuloDoContracheque } from "@/lib/contracheques/situacao";
+import { competenciaDoTexto, rotuloDoContracheque, tipoFolhaDaChave } from "@/lib/contracheques/situacao";
 import { gerarTokenAssinatura } from "@/lib/contracheques/token-auth";
 import { montarMensagemLembreteTelegram } from "@/lib/contracheques/lembretes";
 import { sendTelegramMessage } from "@/lib/telegram";
@@ -94,6 +94,9 @@ export async function reenviarEmailContrachequeAction(
     select: {
       id: true,
       empresaId: true,
+      colaboradorId: true,
+      competencia: true,
+      chaveDedupe: true,
       colaborador: {
         select: {
           nome: true,
@@ -117,16 +120,39 @@ export async function reenviarEmailContrachequeAction(
   if (!(await podeOperarEmpresaRH(user, doc.empresaId))) {
     return { ok: false, error: "Sem permissão para alterar contracheques desta empresa." };
   }
-  if (!doc.recibo) return { ok: false, error: "Recibo ainda não criado para este documento." };
-  if (doc.recibo.confirmadoEm) return { ok: false, error: "Este contracheque já foi confirmado." };
+
+  let recibo = doc.recibo;
+  if (!recibo) {
+    if (!doc.competencia) {
+      return { ok: false, error: "Contracheque sem competência preenchida." };
+    }
+    const tokenNovo = gerarTokenAssinatura();
+    recibo = await prisma.reciboContracheque.create({
+      data: {
+        documentoId: doc.id,
+        empresaId: doc.empresaId,
+        colaboradorId: doc.colaboradorId,
+        competencia: doc.competencia,
+        tipoFolha: tipoFolhaDaChave(doc.chaveDedupe),
+        tokenAssinatura: tokenNovo,
+      },
+      select: {
+        id: true,
+        competencia: true,
+        tipoFolha: true,
+        confirmadoEm: true,
+      },
+    });
+  }
+  if (recibo.confirmadoEm) return { ok: false, error: "Este contracheque já foi confirmado." };
 
   const novoToken = gerarTokenAssinatura();
   const aviso = await avisarColaborador(
     {
-      id: doc.recibo.id,
+      id: recibo.id,
       tokenAssinatura: novoToken,
-      competencia: doc.recibo.competencia,
-      tipoFolha: doc.recibo.tipoFolha,
+      competencia: recibo.competencia,
+      tipoFolha: recibo.tipoFolha,
       empresaId: doc.empresaId,
       colaborador: doc.colaborador,
     },
@@ -139,7 +165,7 @@ export async function reenviarEmailContrachequeAction(
   );
 
   await prisma.reciboContracheque.update({
-    where: { id: doc.recibo.id },
+    where: { id: recibo.id },
     data: {
       tokenAssinatura: novoToken,
       bloqueadoEm: null,

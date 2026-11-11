@@ -53,6 +53,9 @@ export async function criarDocumento(
     if (!anexo) {
       return { ok: false, error: "Anexe o arquivo PDF do contracheque." };
     }
+    if (anexo.mimeType !== "application/pdf") {
+      return { ok: false, error: "O contracheque deve ser obrigatoriamente um arquivo PDF." };
+    }
     const competenciaParam = String(formData.get("competencia") ?? "").trim() || null;
     const tipoFolhaParam = String(formData.get("tipoFolha") ?? "").trim() || null;
     const metadados = resolverMetadadosContrachequeManual({
