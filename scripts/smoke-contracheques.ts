@@ -4,6 +4,7 @@
 //
 //   npx tsx scripts/smoke-contracheques.ts
 import "dotenv/config";
+process.env.TESTE_SELFIE_SEM_IA = "1";
 import { createHash } from "node:crypto";
 import sharp from "sharp";
 import { prisma } from "../lib/prisma";
@@ -18,6 +19,24 @@ function ok(cond: boolean, msg: string) {
     falhas++;
     console.error(`  ✗ FALHOU: ${msg}`);
   }
+}
+
+async function gerarSelfieTexturizadaMock(): Promise<string> {
+  const svg = `<svg width="160" height="160">
+    <defs>
+      <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#111" />
+        <stop offset="100%" stop-color="#eee" />
+      </linearGradient>
+    </defs>
+    <rect width="160" height="160" fill="url(#g)" />
+    <circle cx="80" cy="80" r="50" fill="#f5deb3" />
+    <circle cx="65" cy="70" r="8" fill="#000" />
+    <circle cx="95" cy="70" r="8" fill="#000" />
+    <rect x="60" y="105" width="40" height="10" fill="#b22222" />
+  </svg>`;
+  const buf = await sharp(Buffer.from(svg)).jpeg({ quality: 85 }).toBuffer();
+  return `data:image/jpeg;base64,${buf.toString("base64")}`;
 }
 
 const SUFIXO = Date.now().toString(36);
@@ -80,8 +99,11 @@ async function main() {
     console.log("\n3. Confirmar com foto:");
     const semFoto = await confirmarRecebimento({ reciboId: reciboAna.id, colaboradorId: ana.id, fotoDataUrl: "data:image/jpeg;base64,AA==", ip: "1.2.3.4", dispositivo: null });
     ok(!semFoto.ok, "foto inválida é recusada");
-    const jpeg = await sharp({ create: { width: 16, height: 16, channels: 3, background: "#888" } }).jpeg().toBuffer();
-    const foto = `data:image/jpeg;base64,${jpeg.toString("base64")}`;
+    const jpegPlano = await sharp({ create: { width: 16, height: 16, channels: 3, background: "#888" } }).jpeg().toBuffer();
+    const fotoPlana = `data:image/jpeg;base64,${jpegPlano.toString("base64")}`;
+    const recusadoPlano = await confirmarRecebimento({ reciboId: reciboAna.id, colaboradorId: ana.id, fotoDataUrl: fotoPlana, ip: "1.2.3.4", dispositivo: null });
+    ok(!recusadoPlano.ok, "foto plana 16x16 sem variação é recusada");
+    const foto = await gerarSelfieTexturizadaMock();
     const outro = await confirmarRecebimento({ reciboId: reciboAna.id, colaboradorId: bruno.id, fotoDataUrl: foto, ip: "1.2.3.4", dispositivo: null });
     ok(!outro.ok, "o Bruno não confirma pela Ana");
     const certo = await confirmarRecebimento({ reciboId: reciboAna.id, colaboradorId: ana.id, fotoDataUrl: foto, ip: "1.2.3.4", dispositivo: "Teste/1.0" });

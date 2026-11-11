@@ -84,6 +84,31 @@ async function test() {
   if (r3.ok) throw new Error("Assinatura sem aceite e sem sessão deve falhar");
   console.log("  ✓ Assinatura rejeitada com sucesso para parâmetros inválidos");
 
+  console.log("\n5.1. Testando assinar com selfie sólida azul em sessão autenticada:");
+  const sharp = (await import("sharp")).default;
+  const azulBuf = await sharp({
+    create: {
+      width: 120,
+      height: 120,
+      channels: 3,
+      background: { r: 60, g: 120, b: 200 },
+    },
+  })
+    .jpeg()
+    .toBuffer();
+  const selfieAzul = `data:image/jpeg;base64,${azulBuf.toString("base64")}`;
+
+  const rAzul = await assinarContrachequeAction("token-valido", {
+    fotoDataUrl: selfieAzul,
+    aceite: true,
+    localizacao: null,
+  });
+  if (rAzul.ok) throw new Error("Assinatura com selfie sólida azul não pode ser aceita");
+  if (!rAzul.error.includes("câmera coberta") && !rAzul.error.includes("branco, escura ou sem nitidez")) {
+    throw new Error(`Mensagem de erro esperada sobre imagem sem nitidez, veio: ${rAzul.error}`);
+  }
+  console.log("  ✓ Selfie sólida azul recusada na action com orientação amigável");
+
   console.log("\nTodos os testes de guarda de assinatura-contracheque passaram.");
 }
 

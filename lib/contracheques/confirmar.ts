@@ -11,7 +11,7 @@ import { createHash } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { registrarAuditoria } from "@/lib/audit";
 import { baixarDoBlob, blobConfigurado, enviarParaBlob, removerDoBlob } from "@/lib/blob";
-import { fotoDeBatidaValida, REGEX_FOTO_DATA_URL } from "@/lib/ponto-foto";
+import { validarSelfieContracheque } from "./validar-selfie";
 import { rotuloDoContracheque } from "./situacao";
 
 const ator = (id: string, nome: string) => ({ id, nome, papel: "COLABORADOR" as const });
@@ -85,13 +85,11 @@ export async function confirmarRecebimento(params: {
   if (!recibo) return { ok: false, error: "Contracheque não encontrado." };
   if (recibo.confirmadoEm) return { ok: true };
   if (!recibo.vistoEm) return { ok: false, error: "Abra o contracheque antes de confirmar o recebimento." };
-  // A mesma régua da batida de ponto: formato, teto e assinatura do arquivo.
-  if (!fotoDeBatidaValida(params.fotoDataUrl)) {
-    return { ok: false, error: "A foto é obrigatória para confirmar. Toque em “Tirar a foto” e tente de novo." };
-  }
-  const casado = REGEX_FOTO_DATA_URL.exec(params.fotoDataUrl)!;
-  const ehPng = casado[1] === "png";
-  const foto = new Uint8Array(Buffer.from(casado[2], "base64"));
+  // Validação híbrida da selfie (dimensões, variação determinística e biometria facial)
+  const checkFoto = await validarSelfieContracheque(params.fotoDataUrl);
+  if (!checkFoto.ok) return { ok: false, error: checkFoto.error };
+  const ehPng = checkFoto.ehPng;
+  const foto = new Uint8Array(checkFoto.bytes);
 
   const arquivoDoc = recibo.documento.arquivo;
   const doc = arquivoDoc ? await bytesDo(arquivoDoc) : null;
