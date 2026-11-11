@@ -137,6 +137,17 @@ export async function conferirPlanilha(
   const resultado = validarPlanilhaColaboradores(bytes, empresa?.cnpj ?? null);
   if (resultado.erroGeral) return { ok: false, error: resultado.erroGeral };
 
+  // Cruza com o banco previamente para obter existenteId (por CPF ou matrícula)
+  // permitindo que colaborador sem CPF consiga atualizar seu próprio cadastro
+  // via matrícula sem acusar falso conflito consigo mesmo no e-mail.
+  const { plano: planoInicial, setorPorNome, cargoPorNome } = await planejar(
+    empresaId,
+    resultado.validas,
+  );
+  const existenteIdPorLinha = new Map(
+    planoInicial.map((p) => [p.linha.numeroDaLinha, p.existenteId]),
+  );
+
   const problemasAdicionais = new Map<number, { numeroDaLinha: number; nome: string; mensagens: string[] }>();
   const adicionarProblema = (linha: LinhaValidada, mensagem: string) => {
     const p = problemasAdicionais.get(linha.numeroDaLinha) ?? {
@@ -156,8 +167,11 @@ export async function conferirPlanilha(
     const anterior = emailsVistosNaPlanilha.get(emailNorm);
     if (anterior) {
       const conflito = ehConflitoDeEmailEntrePessoas(
-        { cpf: linha.cpf },
-        { id: String(anterior.numeroDaLinha), cpf: anterior.cpf },
+        { id: existenteIdPorLinha.get(linha.numeroDaLinha) ?? undefined, cpf: linha.cpf },
+        {
+          id: existenteIdPorLinha.get(anterior.numeroDaLinha) ?? String(anterior.numeroDaLinha),
+          cpf: anterior.cpf,
+        },
       );
       if (conflito) {
         adicionarProblema(
@@ -217,8 +231,12 @@ export async function conferirPlanilha(
       const cadastrados = existentesPorEmail.get(emailNorm);
       if (!cadastrados) continue;
 
+      const existenteId = existenteIdPorLinha.get(linha.numeroDaLinha) ?? undefined;
       for (const outro of cadastrados) {
-        const conflito = ehConflitoDeEmailEntrePessoas({ cpf: linha.cpf }, outro);
+        const conflito = ehConflitoDeEmailEntrePessoas(
+          { id: existenteId, cpf: linha.cpf },
+          outro,
+        );
         if (conflito) {
           const marcaNome = outro.empresa?.marca?.nome ?? "Marca";
           const empresaNome = outro.empresa?.nome ?? "Empresa";
@@ -238,7 +256,17 @@ export async function conferirPlanilha(
     (a, b) => a.numeroDaLinha - b.numeroDaLinha,
   );
 
-  const { plano, setoresNovos, cargosNovos } = await planejar(empresaId, validasFinais);
+  const plano = planoInicial.filter((p) => !problemasAdicionais.has(p.linha.numeroDaLinha));
+  const setoresNovos = [
+    ...new Set(
+      validasFinais.map((l) => l.setor).filter((s) => !setorPorNome.has(normalizar(s))),
+    ),
+  ];
+  const cargosNovos = [
+    ...new Set(
+      validasFinais.map((l) => l.cargo).filter((c) => !cargoPorNome.has(normalizar(c))),
+    ),
+  ];
 
   return {
     ok: true,
@@ -347,6 +375,8 @@ export async function confirmarImportacao(
           cargoPorNome.set(normalizar(nome), p.id);
         }
 
+        const empresaIdsGrupo = await empresaIdsDoGrupoDaEmpresa(tx, empresaId);
+
         for (const { linha, existenteId } of plano) {
           const setorId = setorPorNome.get(normalizar(linha.setor))!;
           const posicaoId = cargoPorNome.get(normalizar(linha.cargo))!;
@@ -357,6 +387,7 @@ export async function confirmarImportacao(
               email: linha.email,
               colaboradorIdExcluir: existenteId ?? undefined,
               cpfProprio: linha.cpf,
+              empresaIdsGrupo,
             });
             if (erroEmail) {
               throw new Error(`Linha ${linha.numeroDaLinha} (${linha.nome}): ${erroEmail}`);

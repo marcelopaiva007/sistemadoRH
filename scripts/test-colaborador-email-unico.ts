@@ -82,6 +82,13 @@ async function run() {
     ),
     "CPF inválido (< 11 dígitos) não é aceito como prova de mesma pessoa -> conflito",
   );
+  ok(
+    !ehConflitoDeEmailEntrePessoas(
+      { id: "colab-sem-cpf", cpf: null },
+      { id: "colab-sem-cpf", cpf: null },
+    ),
+    "mesmo id sem CPF (ex: atualização de legado via matrícula) NÃO conflita consigo mesmo",
+  );
 
   console.log("\n3. Resolução de empresas do grupo (empresaIdsDoGrupoDaEmpresa)\n");
   const mockDbGrupo = {
@@ -140,6 +147,18 @@ async function run() {
       empresa: {
         nome: "Empresa 2",
         marca: { nome: "Marca Beta" },
+      },
+    },
+    {
+      id: "colab-sem-cpf",
+      empresaId: "emp-1",
+      nome: "Legado Silva",
+      cpf: null,
+      email: "legado@grupo.com",
+      ativo: true,
+      empresa: {
+        nome: "Empresa 1",
+        marca: { nome: "Marca Alpha" },
       },
     },
   ];
@@ -204,6 +223,60 @@ async function run() {
   });
   ok(erroPropriaFicha === null, "editar a própria ficha mantendo o e-mail não gera conflito");
 
+  // Novo: Suporte a empresaIdsGrupo pré-resolvido (elimina N+1 em lote/transação)
+  let findUniqueChamado = false;
+  const mockDbSemConsultaEmpresa = {
+    empresa: {
+      findUnique: async () => {
+        findUniqueChamado = true;
+        throw new Error("Não deveria consultar empresa quando empresaIdsGrupo é fornecido");
+      },
+      findMany: async () => [],
+    },
+    colaborador: mockDbColaborador.colaborador,
+  };
+
+  const validacaoComGrupoPreResolvido = await validarEmailColaboradorLivre(
+    mockDbSemConsultaEmpresa as unknown as DbClient,
+    {
+      empresaId: "emp-1",
+      email: "novo@grupo.com",
+      cpfProprio: "44444444444",
+      empresaIdsGrupo: ["emp-1", "emp-2"],
+    },
+  );
+  ok(
+    validacaoComGrupoPreResolvido === null && !findUniqueChamado,
+    "empresaIdsGrupo pré-resolvido pula empresaIdsDoGrupoDaEmpresa (elimina N+1)",
+  );
+
+  const erroLegadoSemCpfComExclusao = await validarEmailColaboradorLivre(
+    mockDbColaborador as unknown as DbClient,
+    {
+      empresaId: "emp-1",
+      email: "legado@grupo.com",
+      colaboradorIdExcluir: "colab-sem-cpf",
+      cpfProprio: null,
+    },
+  );
+  ok(
+    erroLegadoSemCpfComExclusao === null,
+    "colaborador legado sem CPF atualizando própria ficha (via matrícula/id) não conflita",
+  );
+
+  const erroLegadoSemCpfSemExclusao = await validarEmailColaboradorLivre(
+    mockDbColaborador as unknown as DbClient,
+    {
+      empresaId: "emp-1",
+      email: "legado@grupo.com",
+      cpfProprio: null,
+    },
+  );
+  ok(
+    erroLegadoSemCpfSemExclusao !== null && erroLegadoSemCpfSemExclusao.includes("Legado Silva"),
+    "novo cadastro sem CPF usando e-mail de legado sem CPF bloqueia com conflito",
+  );
+
   const erroConflitoAtivo = await validarEmailColaboradorLivre(mockDbColaborador as unknown as DbClient, {
     empresaId: "emp-2",
     email: "carlos@grupo.com",
@@ -233,6 +306,13 @@ async function run() {
   );
 
   console.log("\n5. Busca de conflitos fora da tela (buscarConflitosDeEmailNoGrupo)\n");
+  const conflitoVazio = await buscarConflitosDeEmailNoGrupo(
+    mockDbColaborador as unknown as DbClient,
+    [],
+    [{ id: "c1", cpf: "123", email: "a@b.com" }],
+  );
+  ok(conflitoVazio.length === 0, "empresaIdsNaTela vazio retorna lista vazia sem erro");
+
   const conflitosExternos = await buscarConflitosDeEmailNoGrupo(
     mockDbColaborador as unknown as DbClient,
     ["emp-1"], // tela exibe apenas emp-1
@@ -248,6 +328,34 @@ async function run() {
       conflitosExternos[0]?.outroColaborador.nome === "Renata Dias" &&
       conflitosExternos[0]?.outroColaborador.empresaNome === "Empresa 2",
     "detalha o colaborador externo causador do conflito",
+  );
+
+  // Cenário Admin Multi-Marca: visiveis vs escopo
+  // Admin enxerga emp-1 e emp-2 (visiveis), mas a tela filtra apenas a Marca Alpha (escopo = ['emp-1']).
+  // Se passar visiveis, foraDaTela fica vazio e oculta o conflito cross-marca com Renata (emp-2).
+  // Passando escopo, o conflito com a outra marca é corretamente identificado!
+  const escopoNaTela = ["emp-1"];
+  const visiveisMultiMarca = ["emp-1", "emp-2"];
+  const candidatosNaTela = [{ id: "colab-tela-1", cpf: "88888888888", email: "renata@grupo.com" }];
+
+  const conflitoComEscopo = await buscarConflitosDeEmailNoGrupo(
+    mockDbColaborador as unknown as DbClient,
+    escopoNaTela,
+    candidatosNaTela,
+  );
+  ok(
+    conflitoComEscopo.length === 1 && conflitoComEscopo[0]?.outroColaborador.id === "colab-20",
+    "com escopo da tela: detecta conflito cross-marca com emp-2 fora da tela",
+  );
+
+  const conflitoComVisiveisOculto = await buscarConflitosDeEmailNoGrupo(
+    mockDbColaborador as unknown as DbClient,
+    visiveisMultiMarca,
+    candidatosNaTela,
+  );
+  ok(
+    conflitoComVisiveisOculto.length === 0,
+    "com visiveis (blind spot): emp-2 estaria 'na tela' para o helper e ocultaria o alerta",
   );
 
   console.log("\n6. Integração com encontrarDuplicados (lib/duplicados.ts)\n");

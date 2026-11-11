@@ -107,12 +107,16 @@ export async function validarEmailColaboradorLivre(
     email: string | null | undefined;
     colaboradorIdExcluir?: string;
     cpfProprio?: string | null;
+    empresaIdsGrupo?: string[];
   },
 ): Promise<string | null> {
   const emailNormalizado = normalizarEmailColaborador(params.email);
   if (!emailNormalizado) return null;
 
-  const empresaIds = await empresaIdsDoGrupoDaEmpresa(db, params.empresaId);
+  const empresaIds =
+    params.empresaIdsGrupo && params.empresaIdsGrupo.length > 0
+      ? params.empresaIdsGrupo
+      : await empresaIdsDoGrupoDaEmpresa(db, params.empresaId);
 
   const where: Prisma.ColaboradorWhereInput = {
     empresaId: { in: empresaIds },
@@ -167,7 +171,7 @@ export async function buscarConflitosDeEmailNoGrupo(
   empresaIdsNaTela: string[],
   candidatos: Array<{ id: string; cpf: string | null; email: string | null }>,
 ): Promise<ConflitoEmailExterno[]> {
-  if (!empresaIdsNaTela.length || !candidatos.length) return [];
+  if (!empresaIdsNaTela || !empresaIdsNaTela.length || !candidatos || !candidatos.length) return [];
 
   const comEmail = candidatos
     .map((c) => ({ ...c, emailNorm: normalizarEmailColaborador(c.email) }))

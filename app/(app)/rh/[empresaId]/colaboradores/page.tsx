@@ -160,7 +160,7 @@ export default async function ColaboradoresPage({
     .map((c) => ({ id: c.id, cpf: c.cpf, email: c.email }));
   const conflitosEmailExternos = await buscarConflitosDeEmailNoGrupo(
     prisma,
-    visiveis,
+    escopo,
     candidatosConflito,
   );
 
