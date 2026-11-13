@@ -3,7 +3,7 @@
 import { whereUsuariosDoGrupoDaEmpresa } from "@/lib/grupo";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireProcessosEmpresa } from "@/lib/processos-auth-guard";
+import { requireContratosEmpresa } from "@/lib/processos-auth-guard";
 import { empresasVisiveis } from "@/lib/rh-auth-guard";
 import { registrarAuditoria } from "@/lib/audit";
 import { dataDoFormulario } from "@/lib/datas";
@@ -88,7 +88,7 @@ export async function salvarContraparte(input: {
   endereco?: string | null;
   observacoes?: string | null;
 }): Promise<ActionResult & { id?: string }> {
-  const usuario = await requireProcessosEmpresa(input.empresaId);
+  const usuario = await requireContratosEmpresa(input.empresaId);
 
   const razaoSocial = limpo(input.razaoSocial);
   if (!razaoSocial) return { ok: false, error: "Informe a razão social ou o nome." };
@@ -222,7 +222,7 @@ export async function salvarContrato(input: {
   pontosFixacaoOcupados?: number | null;
   observacoes?: string | null;
 }): Promise<ActionResult & { id?: string }> {
-  const usuario = await requireProcessosEmpresa(input.empresaId);
+  const usuario = await requireContratosEmpresa(input.empresaId);
   const visiveis = await empresasVisiveis(usuario);
 
   // O CNPJ que assina vem do FORMULÁRIO e é sempre validado contra o que a
@@ -486,7 +486,7 @@ export async function registrarReajusteAplicado(input: {
   aplicadoEm: string;
   novoValorMensal?: number | null;
 }): Promise<ActionResult> {
-  const usuario = await requireProcessosEmpresa(input.empresaId);
+  const usuario = await requireContratosEmpresa(input.empresaId);
   const visiveis = await empresasVisiveis(usuario);
 
   const contrato = await prisma.contrato.findFirst({

@@ -51,6 +51,7 @@ const ABA_INATIVA = "border-transparent font-semibold text-muted-foreground hove
 
 export function SeletorModulo({
   sistemasPermitidos,
+  areasProcessos = ["frota", "contratos"],
   empresaIds,
   role,
 }: {
@@ -59,6 +60,8 @@ export function SeletorModulo({
    *  perfil. Substitui `modulosDoPapel`: a barra mostra o que a pessoa
    *  RECEBEU, e a guarda de módulo bloqueia o resto. */
   sistemasPermitidos: string[];
+  /** As abas do módulo `processos` que esta conta vê (lib/telas.ts, v1.207.0). */
+  areasProcessos?: AreaProcessos[];
   /** Ids que este usuário enxerga — a mesma lista que alimenta o seletor de
    *  marca/CNPJ. Serve para reconhecer o CNPJ no caminho SEM adivinhar pelo
    *  formato do segmento: `/rh/meu-setor` e `/rh/empresas` também casam com
@@ -137,7 +140,7 @@ export function SeletorModulo({
   // As abas da barra: um módulo vira uma aba, menos `processos`, que vira duas.
   const abas = modulos.flatMap((modulo) =>
     modulo.slug === "processos"
-      ? ABAS_PROCESSOS.map((a) => ({
+      ? ABAS_PROCESSOS.filter((a) => areasProcessos.includes(a.area)).map((a) => ({
           chave: `processos:${a.area}`,
           nome: a.nome,
           icone: a.icone,

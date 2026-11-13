@@ -26,6 +26,18 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.207.0",
+    data: "13/11/2026",
+    horario: "11:30",
+    titulo: "Cadastro de usuário com e-mail e escolha de telas",
+    itens: [
+      "O e-mail agora fica no próprio cadastro do usuário, logo abaixo do nome, e é obrigatório ao criar. Continua sem servir para entrar: recebe os avisos e os links de \"Esqueci minha senha\".",
+      "Nova seção \"Telas que a pessoa vê\": marque Pessoas (RH), Frota e/ou Contratos. Dá para liberar uma só, duas ou todas, no cadastro ou depois, em Editar.",
+      "A tela desmarcada some do topo e não abre nem pelo endereço. Delegações continua aberta a todos.",
+      "Quem já tinha usuário continua vendo tudo o que via antes.",
+    ],
+  },
+  {
     versao: "1.206.0",
     data: "13/11/2026",
     horario: "09:40",

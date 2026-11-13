@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireProcessosEmpresa } from "@/lib/processos-auth-guard";
+import { requireContratosEmpresa } from "@/lib/processos-auth-guard";
 import { escopoDeEmpresas } from "@/lib/rh-auth-guard";
 import { ContrapartesView, type ContraparteNaTela } from "./contrapartes-view";
 
@@ -21,7 +21,7 @@ export default async function ContrapartesPage({
 }) {
   const { empresaId } = await params;
   const { empresas: empresasParam } = await searchParams;
-  const usuario = await requireProcessosEmpresa(empresaId);
+  const usuario = await requireContratosEmpresa(empresaId);
   const escopo = await escopoDeEmpresas(usuario, empresasParam);
 
   const [empresa, contrapartes] = await Promise.all([

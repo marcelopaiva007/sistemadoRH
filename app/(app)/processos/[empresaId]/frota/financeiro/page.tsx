@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireProcessosEmpresa } from "@/lib/processos-auth-guard";
+import { requireFrotaEmpresa } from "@/lib/processos-auth-guard";
 import { escopoDeEmpresas } from "@/lib/rh-auth-guard";
 import { formatarData, hojeUTC, paraInputDate } from "@/lib/datas";
 import { retratoFinanceiro } from "@/lib/processos/frota-financeiro";
@@ -19,7 +19,7 @@ export default async function FinanceiroFrotaPage({
 }) {
   const { empresaId } = await params;
   const { empresas: empresasParam } = await searchParams;
-  const usuario = await requireProcessosEmpresa(empresaId);
+  const usuario = await requireFrotaEmpresa(empresaId);
   const escopo = await escopoDeEmpresas(usuario, empresasParam);
 
   const [empresa, veiculos, empresas] = await Promise.all([

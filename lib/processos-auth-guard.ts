@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth-guard";
 import { usuarioAlcancaEmpresa } from "@/lib/rh-auth-guard";
 import { sistemasPermitidos } from "@/lib/permissoes/efetivas";
+import { areasProcessosPermitidas } from "@/lib/telas";
+import type { AreaProcessos } from "@/lib/processos/areas";
 
 /**
  * Guarda do módulo Processos & Ativos.
@@ -50,3 +52,22 @@ export async function requireProcessosEmpresa(empresaId: string) {
   if (await usuarioAlcancaEmpresa(user, empresaId)) return user;
   redirect("/");
 }
+
+/**
+ * Guarda por ÁREA — Frota ou Contratos (v1.207.0). O módulo é um só
+ * (`processos`), mas o admin pode deixar a pessoa ver só uma das duas abas
+ * (lib/telas.ts). Quem não vê a área pedida vai para a outra, se a vê; senão
+ * para a tela inicial.
+ */
+export async function requireProcessosArea(empresaId: string, area: AreaProcessos) {
+  const user = await requireProcessosEmpresa(empresaId);
+  const areas = await areasProcessosPermitidas(user.id);
+  if (areas.includes(area)) return user;
+  if (areas.includes("contratos")) redirect(`/processos/${empresaId}/contratos/pendencias`);
+  if (areas.includes("frota")) redirect(`/processos/${empresaId}`);
+  redirect("/");
+}
+
+/** Atalhos para as server actions de cada área. */
+export const requireFrotaEmpresa = (empresaId: string) => requireProcessosArea(empresaId, "frota");
+export const requireContratosEmpresa = (empresaId: string) => requireProcessosArea(empresaId, "contratos");

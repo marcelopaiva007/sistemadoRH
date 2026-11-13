@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireProcessosEmpresa } from "@/lib/processos-auth-guard";
+import { requireFrotaEmpresa } from "@/lib/processos-auth-guard";
 import { escopoDeEmpresas } from "@/lib/rh-auth-guard";
 import { formatarData } from "@/lib/datas";
 import { ConsumoView, type ConsumoNaTela, type VeiculoParaConsumo } from "./consumo-view";
@@ -19,7 +19,7 @@ export default async function ConsumoPage({
 }) {
   const { empresaId } = await params;
   const { empresas: empresasParam } = await searchParams;
-  const usuario = await requireProcessosEmpresa(empresaId);
+  const usuario = await requireFrotaEmpresa(empresaId);
   const escopo = await escopoDeEmpresas(usuario, empresasParam);
 
   const [empresa, consumos, veiculos] = await Promise.all([

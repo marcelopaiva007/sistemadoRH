@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireProcessosEmpresa } from "@/lib/processos-auth-guard";
+import { requireContratosEmpresa } from "@/lib/processos-auth-guard";
 import { escopoDeEmpresas } from "@/lib/rh-auth-guard";
 import { formatarData, hojeUTC, paraInputDate } from "@/lib/datas";
 import { rotuloCompetencia } from "@/lib/processos/alugueis";
@@ -22,7 +22,7 @@ export default async function AlugueisPage({
 }) {
   const { empresaId } = await params;
   const { empresas: empresasParam } = await searchParams;
-  const usuario = await requireProcessosEmpresa(empresaId);
+  const usuario = await requireContratosEmpresa(empresaId);
   const escopo = await escopoDeEmpresas(usuario, empresasParam);
 
   const [empresa, contratos, empresas, contrapartes] = await Promise.all([

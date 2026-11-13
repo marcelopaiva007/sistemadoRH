@@ -2,6 +2,7 @@ import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import { algumGrantCobre, sistemasDosGrants } from "@/lib/permissoes/catalogo";
 import { modulosDoPapel, SLUGS_ABERTOS_A_TODOS } from "@/components/modulos";
+import { recortarSistemas, telasDoUsuario, telasEfetivas } from "@/lib/telas";
 
 // O conjunto EFETIVO de permissões de um usuário, e a pergunta "ele pode?".
 //
@@ -88,9 +89,12 @@ export async function sistemasPermitidos(user: { id?: string; role: string }): P
 
   const porPapel = () => modulosDoPapel(user.role).map((m) => m.slug);
   if (!user.id) return comAbertos(porPapel());
+  // Recorte das TELAS que o admin marcou para esta conta (v1.207.0,
+  // lib/telas.ts). Vem DEPOIS do perfil/papel: só tira, nunca concede.
+  const telas = await telasDoUsuario(user.id);
   const grants = await grantsDoUsuario(user.id);
-  if (grants.length === 0) return comAbertos(porPapel());
-  return comAbertos(sistemasDosGrants(grants));
+  if (grants.length === 0) return comAbertos(recortarSistemas(porPapel(), telas));
+  return comAbertos(recortarSistemas(sistemasDosGrants(grants), telas));
 }
 
 /**
@@ -126,6 +130,15 @@ export async function quemAlcancaSistema(
     where: { userId: { in: usuarios.map((u) => u.id) }, perfil: { ativo: true } },
     select: { userId: true, perfil: { select: { grants: true } } },
   });
+  // O mesmo recorte de telas de `sistemasPermitidos` — senão a lista e a guarda discordam.
+  const telasPorUsuario = new Map(
+    (
+      await prisma.user.findMany({
+        where: { id: { in: usuarios.map((u) => u.id) } },
+        select: { id: true, telas: true },
+      })
+    ).map((u) => [u.id, telasEfetivas(u.telas)]),
+  );
 
   const grantsPorUsuario = new Map<string, string[]>();
   for (const v of vinculos) {
@@ -138,8 +151,10 @@ export async function quemAlcancaSistema(
 
   for (const u of usuarios) {
     const grants = grantsPorUsuario.get(u.id) ?? [];
-    const slugs =
-      grants.length === 0 ? modulosDoPapel(u.role).map((m) => m.slug) : sistemasDosGrants(grants);
+    const slugs = recortarSistemas(
+      grants.length === 0 ? modulosDoPapel(u.role).map((m) => m.slug) : sistemasDosGrants(grants),
+      telasPorUsuario.get(u.id) ?? telasEfetivas([]),
+    );
     if (slugs.includes(slug)) alcancam.add(u.id);
   }
   return alcancam;

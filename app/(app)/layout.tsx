@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth-guard";
 import { empresasVisiveis } from "@/lib/rh-auth-guard";
 import { direcaoRestrita } from "@/lib/grupo";
 import { sistemasPermitidos } from "@/lib/permissoes/efetivas";
+import { areasProcessosPermitidas } from "@/lib/telas";
 import { prisma } from "@/lib/prisma";
 import { AppTopbar } from "@/components/app-topbar";
 import { Providers } from "@/app/providers";
@@ -21,6 +22,8 @@ export default async function AppLayout({
   // desde a v1.188.0 o lugar dele é a área de administração, fora do sistema.
   if (user.role === "MASTER") redirect("/admin");
   const sistemas = await sistemasPermitidos(user);
+  // Frota e Contratos são abas do mesmo módulo; o admin pode liberar só uma (lib/telas.ts).
+  const areasProcessos = await areasProcessosPermitidas(user.id);
 
   // GESTOR_SETOR não navega em /rh/[empresaId] (vai direto para
   // /rh/meu-setor, sem escopo de empresa) — poupa a consulta e o seletor do
@@ -54,6 +57,7 @@ export default async function AppLayout({
           marcas={marcas}
           empresas={empresas}
           sistemasPermitidos={sistemas}
+          areasProcessos={areasProcessos}
           direcaoRestrita={await direcaoRestrita(user)}
           enderecoAdmin={
             user.role === "ADMIN" || user.role === "DIRETORIA" ? enderecoDaAreaAdmin() : null

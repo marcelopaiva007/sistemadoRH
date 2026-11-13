@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireProcessosEmpresa } from "@/lib/processos-auth-guard";
+import { requireContratosEmpresa } from "@/lib/processos-auth-guard";
 import { empresasVisiveis } from "@/lib/rh-auth-guard";
 import { registrarAuditoria } from "@/lib/audit";
 import { dataDoFormulario, hojeUTC, somarMesesUTC } from "@/lib/datas";
@@ -40,7 +40,7 @@ export async function gerarParcelas(input: {
   contratoId: string;
   diaVencimento: number;
 }): Promise<ActionResult & { criadas?: number }> {
-  const usuario = await requireProcessosEmpresa(input.empresaId);
+  const usuario = await requireContratosEmpresa(input.empresaId);
   const visiveis = await empresasVisiveis(usuario);
 
   const contrato = await prisma.contrato.findFirst({
@@ -102,7 +102,7 @@ export async function registrarRecebimento(input: {
   recebidoEm: string;
   valorRecebido?: number | null;
 }): Promise<ActionResult> {
-  const usuario = await requireProcessosEmpresa(input.empresaId);
+  const usuario = await requireContratosEmpresa(input.empresaId);
   const visiveis = await empresasVisiveis(usuario);
 
   const parcela = await prisma.recebimentoAluguel.findFirst({
@@ -137,7 +137,7 @@ export async function registrarRecebimento(input: {
 
 /** Desfaz o recebimento — para o caso de ter marcado a parcela errada. */
 export async function desfazerRecebimento(input: { empresaId: string; id: string }): Promise<ActionResult> {
-  const usuario = await requireProcessosEmpresa(input.empresaId);
+  const usuario = await requireContratosEmpresa(input.empresaId);
   const visiveis = await empresasVisiveis(usuario);
 
   const parcela = await prisma.recebimentoAluguel.findFirst({

@@ -1,5 +1,6 @@
 "use client";
 
+import { TELAS, telasEfetivas } from "@/lib/telas-catalogo";
 import { Fragment, useActionState, useOptimistic, useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
 import {
@@ -135,6 +136,8 @@ export type Usuario = {
   nome: string;
   username: string;
   email: string | null;
+  /** Telas que a pessoa vê (lib/telas.ts). Vazio = todas. */
+  telas: string[];
   telefone: string | null;
   role: string;
   ativo: boolean;
@@ -539,6 +542,11 @@ function UsuarioForm({
   );
   const [setorId, setSetorId] = useState<string>("");
   const [senha, setSenha] = useState("");
+  // Telas que a pessoa vê (v1.207.0). Começa com todas marcadas.
+  const [telas, setTelas] = useState<string[]>(telasEfetivas(defaultValues?.telas));
+  function alternarTela(slug: string) {
+    setTelas((atual) => (atual.includes(slug) ? atual.filter((x) => x !== slug) : [...atual, slug]));
+  }
   const [verSenha, setVerSenha] = useState(false);
 
   // Só na criação. `updateUsuario` não lê marca/empresa/setor — quem altera
@@ -591,10 +599,10 @@ function UsuarioForm({
           opcional ou define o que a pessoa vê. */}
       {!isEdit && (
         <div className="rounded-md border border-border bg-muted/40 p-3 text-sm">
-          <p className="font-medium">Para entrar, a pessoa só precisa de usuário e senha.</p>
+          <p className="font-medium">Para entrar, a pessoa usa usuário e senha.</p>
           <p className="mt-1 text-muted-foreground">
-            Não precisa de e-mail nem de conta Google. Crie os dois aqui, passe para a pessoa e ela
-            entra em rh.assinelm.com. Depois ela pode trocar a senha em Minha conta.
+            Crie os dois aqui, informe o e-mail dela e escolha as telas que ela vai ver. Ela entra
+            em rh.assinelm.com e depois pode trocar a senha em Minha conta.
           </p>
         </div>
       )}
@@ -678,10 +686,78 @@ function UsuarioForm({
             placeholder={isEdit ? undefined : "Só para reconhecer na lista. Sem nome, aparece o usuário."}
           />
         </div>
+        {/* E-mail no próprio cadastro (v1.207.0, pedido do CEO em 13/11/2026):
+            antes ficava escondido em "Contato (opcional)". Continua sem servir
+            para entrar — recebe avisos e os links de "Esqueci minha senha". */}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="email">
+              E-mail
+              {isEdit && <span className="font-normal text-muted-foreground"> (opcional)</span>}
+            </Label>
+            <Input
+              id="email"
+              name="email"
+              type="email"
+              defaultValue={defaultValues?.email ?? ""}
+              autoComplete="off"
+              placeholder="nome@empresa.com.br"
+              aria-describedby="email-dica"
+              required={!isEdit}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="telefone">
+              Telefone <span className="font-normal text-muted-foreground">(opcional)</span>
+            </Label>
+            <Input
+              id="telefone"
+              name="telefone"
+              defaultValue={defaultValues?.telefone ?? ""}
+              autoComplete="off"
+            />
+          </div>
+        </div>
+        <p id="email-dica" className="-mt-1 text-xs text-muted-foreground">
+          O e-mail não serve para entrar. Ele recebe os avisos do sistema e os links de “Esqueci
+          minha senha” e “Esqueci meu usuário”.
+        </p>
+      </fieldset>
+
+      <fieldset className="space-y-2">
+        <legend className="mb-1 text-sm font-semibold">2. Telas que a pessoa vê</legend>
+        <p className="text-xs text-muted-foreground">
+          Marque uma, duas ou todas. A tela desmarcada some do topo e não abre nem pelo endereço.
+          Delegações aparece para todos.
+        </p>
+        <div className="grid gap-2 sm:grid-cols-3">
+          {TELAS.map((t) => (
+            <label
+              key={t.slug}
+              className="flex cursor-pointer items-start gap-2 rounded-md border border-border p-2 text-sm has-[:checked]:border-primary has-[:checked]:bg-primary/5"
+            >
+              <input
+                type="checkbox"
+                name="tela"
+                value={t.slug}
+                checked={telas.includes(t.slug)}
+                onChange={() => alternarTela(t.slug)}
+                className="mt-0.5 size-4"
+              />
+              <span>
+                <span className="font-medium">{t.nome}</span>
+                <span className="block text-xs text-muted-foreground">{t.descricao}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+        {telas.length === 0 && (
+          <p className="text-xs text-destructive">Marque pelo menos uma tela.</p>
+        )}
       </fieldset>
 
       <fieldset className="space-y-3">
-        <legend className="mb-1 text-sm font-semibold">2. O que a pessoa pode fazer</legend>
+        <legend className="mb-1 text-sm font-semibold">3. O que a pessoa pode fazer</legend>
         <div className="space-y-2">
           <Label>Papel</Label>
           <Select
@@ -883,41 +959,6 @@ function UsuarioForm({
       )}
       </fieldset>
 
-      <details
-        className="rounded-md border border-border p-2 [&_summary]:cursor-pointer"
-        open={Boolean(defaultValues?.email || defaultValues?.telefone)}
-      >
-        <summary className="text-sm">
-          3. Contato <span className="text-muted-foreground">(opcional)</span>
-        </summary>
-        <div className="mt-2 grid grid-cols-2 gap-3">
-          <div className="space-y-2">
-            <Label htmlFor="email">E-mail</Label>
-            <Input
-              id="email"
-              name="email"
-              type="email"
-              defaultValue={defaultValues?.email ?? ""}
-              autoComplete="off"
-              aria-describedby="email-dica"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="telefone">Telefone</Label>
-            <Input
-              id="telefone"
-              name="telefone"
-              defaultValue={defaultValues?.telefone ?? ""}
-              autoComplete="off"
-            />
-          </div>
-          <p id="email-dica" className="col-span-2 -mt-1 text-xs text-muted-foreground">
-            O e-mail não serve para entrar. Ele só recebe os avisos e os links de “Esqueci minha
-            senha” e “Esqueci meu usuário”. Sem e-mail, quem esquecer a senha pede ao administrador
-            para trocar.
-          </p>
-        </div>
-      </details>
       {isEdit && (
         <div className="flex items-center gap-2">
           <Checkbox id="ativo" name="ativo" defaultChecked={defaultValues?.ativo ?? true} />
@@ -930,7 +971,7 @@ function UsuarioForm({
         </Alert>
       )}
       <DialogFooter>
-        <Button type="submit" disabled={isPending}>
+        <Button type="submit" disabled={isPending || telas.length === 0}>
           {isPending ? "Salvando..." : isEdit ? "Salvar" : "Criar usuário"}
         </Button>
       </DialogFooter>

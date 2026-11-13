@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { escopoDeEmpresas, usuarioAlcancaEmpresa } from "@/lib/rh-auth-guard";
 import { sistemasPermitidos } from "@/lib/permissoes/efetivas";
+import { areasProcessosPermitidas } from "@/lib/telas";
 import { prisma } from "@/lib/prisma";
 import { gerarCsv } from "@/lib/csv";
 import { formatarCpf } from "@/lib/cpf";
@@ -43,6 +44,9 @@ export async function GET(
   }
   if (!(await sistemasPermitidos(user)).includes("processos")) {
     return NextResponse.json({ error: "Sem acesso ao módulo Processos & Ativos." }, { status: 403 });
+  }
+  if (!(await areasProcessosPermitidas(user.id)).includes("frota")) {
+    return NextResponse.json({ error: "Sem acesso à Frota." }, { status: 403 });
   }
 
   const empresasParam = new URL(req.url).searchParams.get("empresas") ?? undefined;

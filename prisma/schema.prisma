@@ -70,6 +70,14 @@ model User {
   ultimoAcessoEm            DateTime?
   createdAt                 DateTime  @default(now())
 
+  // TELAS QUE A PESSOA VÊ (v1.207.0, pedido do CEO em 13/11/2026): o admin
+  // marca, no cadastro ou na edição, quais abas do topo a conta enxerga —
+  // "rh" (Pessoas), "frota", "contratos". É um RECORTE em cima do que os
+  // perfis concedem, nunca uma concessão: vazio = sem recorte (todas as telas
+  // que o perfil der), que é o estado de toda conta criada antes disto.
+  // Delegações segue aberta a todos (decisão de 09/09/2026). Ver lib/telas.ts.
+  telas                     String[]  @default([])
+
   // Escopo do módulo de RH: preenchido apenas para RH_MANAGER (empresaId) e
   // GESTOR_SETOR (empresaId + setorId). ADMIN/DIRETORIA ficam nulos.
   // Colunas legadas mantidas durante a transição para o pivô UserEmpresa —

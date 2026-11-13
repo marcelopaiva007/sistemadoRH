@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AlertTriangle, Car, FileWarning, IdCard, Wrench } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { requireProcessosEmpresa } from "@/lib/processos-auth-guard";
+import { requireFrotaEmpresa } from "@/lib/processos-auth-guard";
 import { escopoDeEmpresas } from "@/lib/rh-auth-guard";
 import { hojeUTC, somarDiasUTC } from "@/lib/datas";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,7 +32,7 @@ export default async function PainelProcessosPage({
 }) {
   const { empresaId } = await params;
   const { empresas: empresasParam } = await searchParams;
-  const usuario = await requireProcessosEmpresa(empresaId);
+  const usuario = await requireFrotaEmpresa(empresaId);
   const escopo = await escopoDeEmpresas(usuario, empresasParam);
 
   const hoje = hojeUTC();
