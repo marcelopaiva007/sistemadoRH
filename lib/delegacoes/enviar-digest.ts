@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/email";
+import { emailDe } from "@/lib/delegacoes/destino-email";
 import { diaBrasilia } from "@/lib/datas";
 import { diasAtePrazo, prazoEmTexto } from "@/lib/delegacoes/consultas";
 import { semaforoDaDemanda, rotuloCriticidade, type Semaforo } from "@/lib/constants-delegacoes";
@@ -28,7 +29,7 @@ const SELECT_DIGEST = {
   criticidade: true,
   periodicidadeRetorno: true,
   emRisco: true,
-  solicitante: { select: { id: true, nome: true, email: true } },
+  solicitante: { select: { id: true, nome: true, email: true, colaborador: { select: { email: true } } } },
   responsavel: { select: { nome: true } },
   _count: { select: { repactuacoes: true } },
   // A classificação mais recente — o que decide se este item entra
@@ -124,7 +125,7 @@ export async function enviarDigests(agora = new Date()): Promise<ResultadoDigest
     }
     let grupo = porSolicitante.get(d.solicitante.id);
     if (!grupo) {
-      grupo = { nome: d.solicitante.nome, email: d.solicitante.email, itens: [] };
+      grupo = { nome: d.solicitante.nome, email: emailDe(d.solicitante), itens: [] };
       porSolicitante.set(d.solicitante.id, grupo);
     }
     grupo.itens.push({

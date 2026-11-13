@@ -45,6 +45,7 @@ type UsuarioOpcao = {
   id: string;
   nome: string;
   temTelegram: boolean;
+  temEmail: boolean;
   favorito: boolean;
   /** Cargo do colaborador (Posicao.nome) — null quando não há ficha ligada. */
   cargo: string | null;
@@ -419,13 +420,7 @@ export function DelegadasView({
                   </option>
                 ))}
               </select>
-              {responsavelEscolhido && !responsavelEscolhido.temTelegram && (
-                <span className="mt-1 block text-xs text-muted-foreground">
-                  {responsavelEscolhido.tipo === "COLABORADOR"
-                    ? "Sem Telegram vinculado — e é por ele que essa pessoa entra no portal. Ela precisa enviar /start ao bot do RH antes de conseguir responder."
-                    : "Sem Telegram vinculado — quando a cobrança automática entrar no ar, ela não vai alcançar essa pessoa por lá."}
-                </span>
-              )}
+              {responsavelEscolhido && <CanaisDaPessoa pessoa={responsavelEscolhido} />}
             </div>
 
             <label className="block">
@@ -522,12 +517,7 @@ export function DelegadasView({
               </select>
               {/* O aviso da decisão da Direção: delegar para quem não tem
                   Telegram é PERMITIDO, e a pessoa precisa saber o que muda. */}
-              {responsavelEscolhido && !responsavelEscolhido.temTelegram && (
-                <span className="mt-1 block text-xs text-muted-foreground">
-                  Sem Telegram vinculado — quando a cobrança automática entrar no ar, ela não
-                  vai alcançar essa pessoa por lá.
-                </span>
-              )}
+              {responsavelEscolhido && <CanaisDaPessoa pessoa={responsavelEscolhido} />}
             </label>
 
             <label>
@@ -709,5 +699,38 @@ export function DelegadasView({
         </Card>
       )}
     </div>
+  );
+}
+
+/**
+ * Por onde a demanda vai chegar — pedido da Direção em 13/11/2026 ("envio
+ * pelo Telegram e pelo e-mail também"). Os dois canais saem SEMPRE juntos ao
+ * delegar (não é um ou outro); aqui quem delega vê, antes de enviar, quais
+ * deles alcançam essa pessoa e o que fazer quando um falta. Avisa, não
+ * bloqueia — decisão da Direção de 28/08/2026.
+ */
+function CanaisDaPessoa({ pessoa }: { pessoa: UsuarioOpcao }) {
+  const nenhum = !pessoa.temTelegram && !pessoa.temEmail;
+  return (
+    <span
+      className={
+        "mt-1 block text-xs " + (nenhum ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground")
+      }
+    >
+      Vai chegar por:{" "}
+      <b>{pessoa.temTelegram ? "✓ Telegram" : "✗ Telegram"}</b>
+      {" · "}
+      <b>{pessoa.temEmail ? "✓ E-mail" : "✗ E-mail"}</b>
+      {!pessoa.temTelegram && (
+        <span className="block">
+          Telegram não vinculado — a pessoa precisa enviar /start ao bot do RH
+          {pessoa.tipo === "COLABORADOR" ? " (é também por ele que ela entra no portal para responder)." : "."}
+        </span>
+      )}
+      {!pessoa.temEmail && (
+        <span className="block">Sem e-mail no cadastro — o RH completa na ficha do colaborador.</span>
+      )}
+      {nenhum && <span className="block">Do jeito que está, ninguém avisa essa pessoa: a demanda fica só no sistema.</span>}
+    </span>
   );
 }

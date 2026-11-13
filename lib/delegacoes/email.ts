@@ -2,12 +2,14 @@ import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/email";
 import { prazoEmTexto, diasAtePrazo } from "@/lib/delegacoes/consultas";
 import { rotuloEvidencia, rotuloCriticidade } from "@/lib/constants-delegacoes";
+import { emailDe, comoAbrir } from "@/lib/delegacoes/destino-email";
 
 // O módulo Delegações no E-MAIL — irmão de lib/delegacoes/telegram.ts.
 //
 // Pedido da Direção em 29/08/2026: a demanda tem que chegar por e-mail
 // TAMBÉM, não só pelo Telegram — sempre que o responsável tiver e-mail
-// cadastrado (`User.email`), incondicional a ter ou não Telegram vinculado.
+// (login ou ficha de colaborador — ver destino-email.ts), incondicional a ter
+// ou não Telegram vinculado.
 // É o mesmo espírito de `lib/cobranca-rh-pendencias.ts` e
 // `lib/convite-portal.ts`: SMTP existente, `chave` de dedupe, `fromName`
 // pela marca de quem recebe.
@@ -29,7 +31,7 @@ function assuntoDaDemandaNova(d: DemandaParaEmail): string {
   return `[Delegações] ${d.titulo}`;
 }
 
-function textoDaDemandaNova(d: DemandaParaEmail, linkDemanda: string): string {
+function textoDaDemandaNova(d: DemandaParaEmail, abrir: string): string {
   const dias = diasAtePrazo(d.prazo);
   const quando =
     dias === 0 ? "hoje" : dias === 1 ? "amanhã" : dias > 0 ? `em ${dias} dias` : "prazo já vencido";
@@ -45,13 +47,13 @@ function textoDaDemandaNova(d: DemandaParaEmail, linkDemanda: string): string {
     "",
     `Na entrega vou pedir: ${rotuloEvidencia(d.evidenciaExigida).toLowerCase()}.`,
     "",
-    `Abrir: ${linkDemanda}`,
+    abrir,
   ]
     .filter((l): l is string => l !== null && l !== "")
     .join("\n");
 }
 
-function htmlDaDemandaNova(d: DemandaParaEmail, linkDemanda: string): string {
+function htmlDaDemandaNova(d: DemandaParaEmail, abrir: string): string {
   const dias = diasAtePrazo(d.prazo);
   const quando =
     dias === 0 ? "hoje" : dias === 1 ? "amanhã" : dias > 0 ? `em ${dias} dias` : "prazo já vencido";
@@ -62,7 +64,7 @@ function htmlDaDemandaNova(d: DemandaParaEmail, linkDemanda: string): string {
     d.descricao ? `<p>${esc(d.descricao)}</p>` : "",
     `<p>Fica pronto quando: ${esc(d.criterioAceite)}</p>`,
     `<p>Na entrega vou pedir: ${rotuloEvidencia(d.evidenciaExigida).toLowerCase()}.</p>`,
-    `<p><a href="${linkDemanda}">Abrir no sistema</a></p>`,
+    abrir,
   ]
     .filter(Boolean)
     .join("");
@@ -100,8 +102,10 @@ export async function avisarDemandaEnviadaPorEmail(demandaId: string): Promise<R
         select: {
           nome: true,
           email: true,
+          role: true,
           colaborador: {
             select: {
+              email: true,
               empresaId: true,
               empresa: { select: { marca: { select: { nome: true } } } },
             },
@@ -112,20 +116,25 @@ export async function avisarDemandaEnviadaPorEmail(demandaId: string): Promise<R
   });
   if (!demanda) return { ok: false, motivo: "Demanda não encontrada." };
 
-  if (!demanda.responsavel.email) {
-    return { ok: false, motivo: `${demanda.responsavel.nome} não tem e-mail cadastrado.` };
+  const para = emailDe(demanda.responsavel);
+  if (!para) {
+    return {
+      ok: false,
+      motivo: `${demanda.responsavel.nome} não tem e-mail no cadastro de colaborador`,
+    };
   }
 
   const linkDemanda = `${APP_URL}/delegacoes/${demanda.id}`;
+  const abrir = comoAbrir(demanda.responsavel, linkDemanda);
   const fromName = demanda.responsavel.colaborador?.empresa.marca.nome
     ? `RH ${demanda.responsavel.colaborador.empresa.marca.nome}`
     : "Delegações";
 
   const envio = await sendEmail({
-    to: demanda.responsavel.email,
+    to: para,
     subject: assuntoDaDemandaNova(demanda),
-    text: textoDaDemandaNova(demanda, linkDemanda),
-    html: htmlDaDemandaNova(demanda, linkDemanda),
+    text: textoDaDemandaNova(demanda, abrir.texto),
+    html: htmlDaDemandaNova(demanda, abrir.html),
     fromName,
     origem: "DELEGACOES",
     empresaId: demanda.responsavel.colaborador?.empresaId,
@@ -193,8 +202,10 @@ export async function avisarDemandaEntreguePorEmail(demandaId: string): Promise<
         select: {
           nome: true,
           email: true,
+          role: true,
           colaborador: {
             select: {
+              email: true,
               empresaId: true,
               empresa: { select: { marca: { select: { nome: true } } } },
             },
@@ -205,8 +216,9 @@ export async function avisarDemandaEntreguePorEmail(demandaId: string): Promise<
   });
   if (!demanda) return { ok: false, motivo: "Demanda não encontrada." };
 
-  if (!demanda.solicitante.email) {
-    return { ok: false, motivo: `${demanda.solicitante.nome} não tem e-mail cadastrado.` };
+  const para = emailDe(demanda.solicitante);
+  if (!para) {
+    return { ok: false, motivo: `${demanda.solicitante.nome} não tem e-mail cadastrado` };
   }
 
   const linkDemanda = `${APP_URL}/delegacoes/${demanda.id}`;
@@ -215,7 +227,7 @@ export async function avisarDemandaEntreguePorEmail(demandaId: string): Promise<
     : "Delegações";
 
   const envio = await sendEmail({
-    to: demanda.solicitante.email,
+    to: para,
     subject: assuntoDaEntrega(demanda),
     text: textoDaEntrega(demanda, linkDemanda),
     html: htmlDaEntrega(demanda, linkDemanda),
@@ -261,8 +273,10 @@ export async function avisarDemandaConcluidaDiretoPorEmail(
         select: {
           nome: true,
           email: true,
+          role: true,
           colaborador: {
             select: {
+              email: true,
               empresaId: true,
               empresa: { select: { marca: { select: { nome: true } } } },
             },
@@ -273,25 +287,26 @@ export async function avisarDemandaConcluidaDiretoPorEmail(
   });
   if (!demanda) return { ok: false, motivo: "Demanda não encontrada." };
 
-  if (!demanda.responsavel.email) {
-    return { ok: false, motivo: `${demanda.responsavel.nome} não tem e-mail cadastrado.` };
+  const para = emailDe(demanda.responsavel);
+  if (!para) {
+    return {
+      ok: false,
+      motivo: `${demanda.responsavel.nome} não tem e-mail no cadastro de colaborador`,
+    };
   }
 
   const linkDemanda = `${APP_URL}/delegacoes/${demanda.id}`;
+  const abrir = comoAbrir(demanda.responsavel, linkDemanda);
   const fromName = demanda.responsavel.colaborador?.empresa.marca.nome
     ? `RH ${demanda.responsavel.colaborador.empresa.marca.nome}`
     : "Delegações";
 
   const frase = `${demanda.solicitante.nome} deu baixa nesta demanda como concluída — você não precisa mais entregar nada nela.`;
   const envio = await sendEmail({
-    to: demanda.responsavel.email,
+    to: para,
     subject: `[Delegações] Concluída: ${demanda.titulo}`,
-    text: [`${demanda.titulo}`, "", frase, "", `Abrir: ${linkDemanda}`].join("\n"),
-    html: [
-      `<p><b>${esc(demanda.titulo)}</b></p>`,
-      `<p>${esc(frase)}</p>`,
-      `<p><a href="${linkDemanda}">Abrir no sistema</a></p>`,
-    ].join(""),
+    text: [`${demanda.titulo}`, "", frase, "", abrir.texto].join("\n"),
+    html: [`<p><b>${esc(demanda.titulo)}</b></p>`, `<p>${esc(frase)}</p>`, abrir.html].join(""),
     fromName,
     origem: "DELEGACOES",
     empresaId: demanda.responsavel.colaborador?.empresaId,

@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { sendTelegramMessage } from "@/lib/telegram";
 import { sendEmail } from "@/lib/email";
+import { emailDe, comoAbrir } from "@/lib/delegacoes/destino-email";
 import { prazoLimiteAceite } from "@/lib/delegacoes/estados";
 import { prazoEmTexto } from "@/lib/delegacoes/consultas";
 import { rotuloCriticidade } from "@/lib/constants-delegacoes";
@@ -25,8 +26,10 @@ const SELECT = {
     select: {
       nome: true,
       email: true,
+      role: true,
       colaborador: {
         select: {
+          email: true,
           telegramChatId: true,
           empresaId: true,
           empresa: { select: { marca: { select: { nome: true } } } },
@@ -92,6 +95,11 @@ export async function cobrarAceite(demandaId: string): Promise<ResultadoAceite> 
     "",
     "Toque em Aceito para confirmar o compromisso com o prazo.",
   ].join("\n");
+  const para = emailDe(d.responsavel);
+  const abrir = comoAbrir(
+    d.responsavel,
+    `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/delegacoes/${d.id}`,
+  );
 
   const chatId = d.responsavel.colaborador?.telegramChatId;
   const promessas: Promise<unknown>[] = [];
@@ -108,17 +116,18 @@ export async function cobrarAceite(demandaId: string): Promise<ResultadoAceite> 
       ),
     );
   }
-  if (d.responsavel.email) {
+  if (para) {
     const fromName = d.responsavel.colaborador?.empresa.marca.nome
       ? `RH ${d.responsavel.colaborador.empresa.marca.nome}`
       : "Delegações";
     promessas.push(
       sendEmail({
-        to: d.responsavel.email,
+        to: para,
         fromName,
         subject: `[Delegações] Ainda esperando seu aceite — ${d.titulo}`,
-        text: texto,
-        html: `<p>${esc(texto).replace(/\n/g, "<br/>")}</p>`,
+        // "Toque em Aceito" é o botão do Telegram; no e-mail vai o caminho.
+        text: `${texto}\n\n${abrir.texto}`,
+        html: `<p>${esc(texto).replace(/\n/g, "<br/>")}</p>${abrir.html}`,
         origem: "DELEGACOES",
         empresaId: d.responsavel.colaborador?.empresaId,
         marcaNome: d.responsavel.colaborador?.empresa.marca.nome,
