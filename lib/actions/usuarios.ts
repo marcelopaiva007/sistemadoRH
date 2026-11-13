@@ -1,6 +1,7 @@
 "use server";
 
 import { z } from "zod";
+import { normalizarTelas } from "@/lib/telas-catalogo";
 import bcrypt from "bcryptjs";
 import { randomBytes, createHash } from "node:crypto";
 import { sendEmail } from "@/lib/email";
@@ -47,7 +48,8 @@ const criarSchema = z
     // O formato (minúsculas, sem "@", sem espaço) e o "não repete" são
     // conferidos na action — lib/login-usuario.ts.
     username: z.string().trim().min(1, "Informe o usuário de login"),
-    email: emailSchema,
+    // Obrigatório no cadastro desde a v1.207.0 (pedido do CEO, 13/11/2026).
+    email: z.string().trim().min(1, "Informe o e-mail da pessoa").email("E-mail inválido"),
     telefone: z.string().trim().optional(),
     role: z.enum(ROLES),
     // O acesso vem por UM dos dois: a marca inteira ou um CNPJ. Marca dá acesso
@@ -279,6 +281,11 @@ export async function createUsuario(
 
   const { email, telefone, role, marcaId, empresaId, setorId } = parsed.data;
 
+  // Telas que a pessoa vê (v1.207.0). Todas marcadas = [] (sem recorte).
+  const telasMarcadas = formData.getAll("tela").map(String);
+  if (telasMarcadas.length === 0) return { ok: false, error: "Marque pelo menos uma tela." };
+  const telas = normalizarTelas(telasMarcadas);
+
   // Usuário novo nasce no padrão: minúsculas, sem "@" e sem espaço.
   const username = normalizarLogin(parsed.data.username);
   const problemaLogin = problemaNoLogin(username);
@@ -334,6 +341,7 @@ export async function createUsuario(
           username,
           email: email ?? null,
           telefone: telefone ?? null,
+          telas,
           passwordHash,
           role,
           grupoId,
@@ -373,7 +381,7 @@ export async function createUsuario(
       entidade: "User",
       entidadeId: result.id,
       resumo: `Criou usuário ${result.username} (${result.role})`,
-      detalhes: { nome: result.nome, email: result.email, role: result.role, marcaId, empresaId, setorId, perfis: perfisValidos },
+      detalhes: { nome: result.nome, email: result.email, role: result.role, telas, marcaId, empresaId, setorId, perfis: perfisValidos },
     });
 
     revalidatePath("/admin/usuarios");
@@ -412,6 +420,10 @@ export async function updateUsuario(
   // existia na tela e a action nem o lia: o admin via "Usuário atualizado." e a
   // senha continuava a mesma (achado da revisão da v1.191.0). Em branco, a
   // senha fica como está.
+  const telasMarcadas = formData.getAll("tela").map(String);
+  if (telasMarcadas.length === 0) return { ok: false, error: "Marque pelo menos uma tela." };
+  const telas = normalizarTelas(telasMarcadas);
+
   const novaSenha = String(formData.get("senha") ?? "");
   if (novaSenha && novaSenha.length < 8) {
     return { ok: false, error: "A senha nova deve ter pelo menos 8 caracteres." };
@@ -424,6 +436,7 @@ export async function updateUsuario(
       username: true,
       email: true,
       telefone: true,
+      telas: true,
       role: true,
       ativo: true,
       empresas: { select: { ativo: true, setorId: true } },
@@ -519,6 +532,7 @@ export async function updateUsuario(
           username,
           email: parsed.data.email ?? null,
           telefone: parsed.data.telefone ?? null,
+          telas,
           role: parsed.data.role,
           ativo: parsed.data.ativo,
           ...(passwordHash ? { passwordHash } : {}),
@@ -556,6 +570,7 @@ export async function updateUsuario(
         username: depois.username,
         email: depois.email,
         telefone: depois.telefone,
+        telas: depois.telas,
         role: depois.role,
         ativo: depois.ativo,
       }),

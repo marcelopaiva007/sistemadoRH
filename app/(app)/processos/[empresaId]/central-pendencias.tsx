@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Car, CheckCircle2, Compass, FileText } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { requireProcessosEmpresa } from "@/lib/processos-auth-guard";
+import { requireProcessosArea } from "@/lib/processos-auth-guard";
 import { escopoDeEmpresas } from "@/lib/rh-auth-guard";
 import { diferencaEmDiasUTC, formatarData, hojeUTC } from "@/lib/datas";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -83,7 +83,7 @@ export async function CentralPendencias({
   empresasParam: string | undefined;
   area: AreaProcessos;
 }) {
-  const usuario = await requireProcessosEmpresa(empresaId);
+  const usuario = await requireProcessosArea(empresaId, area);
   const escopo = await escopoDeEmpresas(usuario, empresasParam);
 
   const [empresa, pendencias, usuarios, totalVeiculos, totalContratos, empresas] = await Promise.all([

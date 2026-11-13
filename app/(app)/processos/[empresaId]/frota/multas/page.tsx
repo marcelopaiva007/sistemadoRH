@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireProcessosEmpresa } from "@/lib/processos-auth-guard";
+import { requireFrotaEmpresa } from "@/lib/processos-auth-guard";
 import { escopoDeEmpresas } from "@/lib/rh-auth-guard";
 import { diferencaEmDiasUTC, formatarData, formatarDataHoraBrasilia, hojeUTC } from "@/lib/datas";
 import { MultasView, type MultaNaTela } from "./multas-view";
@@ -22,7 +22,7 @@ export default async function MultasPage({
 }) {
   const { empresaId } = await params;
   const { empresas: empresasParam, foco } = await searchParams;
-  const usuario = await requireProcessosEmpresa(empresaId);
+  const usuario = await requireFrotaEmpresa(empresaId);
   const escopo = await escopoDeEmpresas(usuario, empresasParam);
 
   const [empresa, multas, veiculos, condutores, empresas] = await Promise.all([

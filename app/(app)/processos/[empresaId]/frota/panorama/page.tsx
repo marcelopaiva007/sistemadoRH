@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AlertTriangle, BarChart3, Car, LayoutDashboard } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { requireProcessosEmpresa } from "@/lib/processos-auth-guard";
+import { requireFrotaEmpresa } from "@/lib/processos-auth-guard";
 import { escopoDeEmpresas } from "@/lib/rh-auth-guard";
 import { hojeUTC } from "@/lib/datas";
 import { MOTORIZACAO_VEICULO, PROPRIEDADE_VEICULO, camposFaltandoNoVeiculo } from "@/lib/processos/ctb";
@@ -93,7 +93,7 @@ export default async function PanoramaFrotaPage({
 }) {
   const { empresaId } = await params;
   const { empresas: empresasParam } = await searchParams;
-  const usuario = await requireProcessosEmpresa(empresaId);
+  const usuario = await requireFrotaEmpresa(empresaId);
   const escopo = await escopoDeEmpresas(usuario, empresasParam);
 
   const hoje = hojeUTC();

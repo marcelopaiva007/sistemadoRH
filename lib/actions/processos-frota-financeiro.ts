@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireProcessosEmpresa } from "@/lib/processos-auth-guard";
+import { requireFrotaEmpresa } from "@/lib/processos-auth-guard";
 import { empresasVisiveis } from "@/lib/rh-auth-guard";
 import { registrarAuditoria } from "@/lib/audit";
 import { dataDoFormulario } from "@/lib/datas";
@@ -50,7 +50,7 @@ export type FinanceiroInput = {
 
 /** Cria ou atualiza o financeiro do veículo — upsert pela relação 1:1. */
 export async function salvarFinanceiroVeiculo(input: FinanceiroInput): Promise<ActionResult> {
-  const usuario = await requireProcessosEmpresa(input.empresaId);
+  const usuario = await requireFrotaEmpresa(input.empresaId);
   const veiculo = await veiculoNoAlcance(input.veiculoId, usuario);
   if (!veiculo) return { ok: false, error: "Veículo não encontrado no seu acesso." };
 
@@ -121,7 +121,7 @@ export async function registrarParcelaPaga(input: {
   empresaId: string;
   veiculoId: string;
 }): Promise<ActionResult & { quitado?: boolean }> {
-  const usuario = await requireProcessosEmpresa(input.empresaId);
+  const usuario = await requireFrotaEmpresa(input.empresaId);
   const veiculo = await veiculoNoAlcance(input.veiculoId, usuario);
   if (!veiculo) return { ok: false, error: "Veículo não encontrado no seu acesso." };
 
@@ -171,7 +171,7 @@ export async function excluirFinanceiroVeiculo(input: {
   empresaId: string;
   veiculoId: string;
 }): Promise<ActionResult> {
-  const usuario = await requireProcessosEmpresa(input.empresaId);
+  const usuario = await requireFrotaEmpresa(input.empresaId);
   const veiculo = await veiculoNoAlcance(input.veiculoId, usuario);
   if (!veiculo) return { ok: false, error: "Veículo não encontrado no seu acesso." };
 

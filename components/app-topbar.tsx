@@ -1,5 +1,6 @@
 "use client";
 
+import type { AreaProcessos } from "@/lib/processos/areas";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
@@ -67,6 +68,7 @@ export function AppTopbar({
   marcas,
   empresas,
   sistemasPermitidos,
+  areasProcessos,
   direcaoRestrita = false,
   enderecoAdmin = null,
 }: {
@@ -85,6 +87,8 @@ export function AppTopbar({
   empresas: { id: string; nome: string; marcaId: string }[];
   /** Os sistemas que este usuário alcança — decide o que a barra mostra. */
   sistemasPermitidos: string[];
+  /** Quais abas do módulo de processos (Frota, Contratos) esta conta vê. */
+  areasProcessos: AreaProcessos[];
   /** ADMIN/DIRETORIA preso a algumas marcas pela área de admin: sem painel do
    *  grupo inteiro (ver `direcaoRestrita`, lib/grupo.ts). */
   direcaoRestrita?: boolean;
@@ -119,6 +123,7 @@ export function AppTopbar({
 
         <SeletorModulo
           sistemasPermitidos={sistemasPermitidos}
+          areasProcessos={areasProcessos}
           empresaIds={empresas.map((e) => e.id)}
           role={role}
         />

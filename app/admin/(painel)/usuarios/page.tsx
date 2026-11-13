@@ -225,6 +225,7 @@ export default async function UsuariosPage({
           nome: u.nome,
           username: u.username,
           email: u.email,
+          telas: u.telas,
           telefone: u.telefone,
           role: u.role,
           ativo: u.ativo,

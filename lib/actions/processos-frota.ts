@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireProcessosEmpresa } from "@/lib/processos-auth-guard";
+import { requireFrotaEmpresa } from "@/lib/processos-auth-guard";
 import { empresasVisiveis } from "@/lib/rh-auth-guard";
 import { registrarAuditoria } from "@/lib/audit";
 import { lerAnexo } from "@/lib/anexos";
@@ -90,7 +90,7 @@ export async function salvarVeiculo(input: {
    *  que antes caía sempre no CNPJ da URL. */
   empresaDestinoId?: string | null;
 }): Promise<ActionResult & { id?: string }> {
-  const usuario = await requireProcessosEmpresa(input.empresaId);
+  const usuario = await requireFrotaEmpresa(input.empresaId);
 
   // EDITANDO: o alvo tem que estar no alcance do usuário — o `update` por id
   // puro aceitaria o id de um veículo de empresa que ele nem enxerga (IDOR).
@@ -275,7 +275,7 @@ export async function salvarDocumentoVeiculo(
   const veiculoId = String(formData.get("veiculoId") ?? "");
   const id = String(formData.get("id") ?? "") || null;
 
-  const usuario = await requireProcessosEmpresa(empresaId);
+  const usuario = await requireFrotaEmpresa(empresaId);
 
   // O id vem do cliente e a tela é consolidada: o veículo pode ser de OUTRO
   // CNPJ visível — o que não pode é ser de um CNPJ fora do alcance.
@@ -416,7 +416,7 @@ export async function excluirDocumentoVeiculo(input: {
   empresaId: string;
   id: string;
 }): Promise<ActionResult> {
-  const usuario = await requireProcessosEmpresa(input.empresaId);
+  const usuario = await requireFrotaEmpresa(input.empresaId);
   const visiveis = await empresasVisiveis(usuario);
 
   // Pelo VEÍCULO do documento, não pela empresa da URL: a tela é consolidada e
@@ -472,7 +472,7 @@ export async function marcarLicenciamentoEmDia(input: {
   veiculoId: string;
   exercicio: number;
 }): Promise<ActionResult> {
-  const usuario = await requireProcessosEmpresa(input.empresaId);
+  const usuario = await requireFrotaEmpresa(input.empresaId);
 
   if (!Number.isInteger(input.exercicio) || input.exercicio < 2020 || input.exercicio > 2100) {
     return { ok: false, error: "Exercício inválido." };
@@ -554,7 +554,7 @@ export async function desfazerLicenciamentoEmDia(input: {
   veiculoId: string;
   exercicio: number;
 }): Promise<ActionResult> {
-  const usuario = await requireProcessosEmpresa(input.empresaId);
+  const usuario = await requireFrotaEmpresa(input.empresaId);
   const visiveis = await empresasVisiveis(usuario);
 
   const documento = await prisma.documentoVeiculo.findFirst({
@@ -616,7 +616,7 @@ export async function excluirVeiculo(input: {
   empresaId: string;
   id: string;
 }): Promise<ActionResult> {
-  const usuario = await requireProcessosEmpresa(input.empresaId);
+  const usuario = await requireFrotaEmpresa(input.empresaId);
   const visiveis = await empresasVisiveis(usuario);
 
   // Pelo alcance do usuário, não pela empresa da URL: a tela é consolidada e a
@@ -717,7 +717,7 @@ export async function salvarCondutor(input: {
   statusHabilitacao?: string | null;
   condutorExterno?: boolean;
 }): Promise<ActionResult> {
-  const usuario = await requireProcessosEmpresa(input.empresaId);
+  const usuario = await requireFrotaEmpresa(input.empresaId);
 
   const visiveis = await empresasVisiveis(usuario);
   const colaborador = await prisma.colaborador.findFirst({
@@ -803,7 +803,7 @@ export async function registrarConsumo(input: {
   condutorId?: string | null;
   posto?: string | null;
 }): Promise<ActionResult> {
-  const usuario = await requireProcessosEmpresa(input.empresaId);
+  const usuario = await requireFrotaEmpresa(input.empresaId);
 
   const visiveis = await empresasVisiveis(usuario);
   const veiculo = await prisma.veiculo.findFirst({
@@ -884,7 +884,7 @@ export async function registrarManutencao(input: {
   proximaRevisaoData?: string | null;
   proximaRevisaoKm?: number | null;
 }): Promise<ActionResult> {
-  const usuario = await requireProcessosEmpresa(input.empresaId);
+  const usuario = await requireFrotaEmpresa(input.empresaId);
 
   const visiveis = await empresasVisiveis(usuario);
   const veiculo = await prisma.veiculo.findFirst({
@@ -951,7 +951,7 @@ export async function registrarManutencao(input: {
 export async function importarCondutoresDoCadastro(input: {
   empresaId: string;
 }): Promise<ActionResult & { criados?: number; comValidade?: number }> {
-  const usuario = await requireProcessosEmpresa(input.empresaId);
+  const usuario = await requireFrotaEmpresa(input.empresaId);
   const visiveis = await empresasVisiveis(usuario);
 
   // Colaboradores ativos, com documento de CNH, ainda sem condutor.
@@ -1023,7 +1023,7 @@ export async function abrirAlocacao(input: {
   kmEntrega?: number | null;
   observacoes?: string | null;
 }): Promise<ActionResult> {
-  const usuario = await requireProcessosEmpresa(input.empresaId);
+  const usuario = await requireFrotaEmpresa(input.empresaId);
 
   const visiveis = await empresasVisiveis(usuario);
   const [veiculo, condutor] = await Promise.all([
@@ -1084,7 +1084,7 @@ export async function encerrarAlocacao(input: {
   dataFim: string;
   kmDevolucao?: number | null;
 }): Promise<ActionResult> {
-  const usuario = await requireProcessosEmpresa(input.empresaId);
+  const usuario = await requireFrotaEmpresa(input.empresaId);
 
   const visiveis = await empresasVisiveis(usuario);
   const alocacao = await prisma.alocacaoVeiculo.findFirst({
@@ -1143,7 +1143,7 @@ export async function registrarInfracao(input: {
   recebidaViaSne?: boolean;
   prazoDefesaAutuacao?: string | null;
 }): Promise<ActionResult & { id?: string }> {
-  const usuario = await requireProcessosEmpresa(input.empresaId);
+  const usuario = await requireFrotaEmpresa(input.empresaId);
 
   const visiveis = await empresasVisiveis(usuario);
   const veiculo = await prisma.veiculo.findFirst({
@@ -1249,7 +1249,7 @@ export async function sugerirCondutor(input: {
   | { ok: true; condutorId: string | null; nome: string | null; origem: "alocacao" | "cadastro" | null }
   | { ok: false; error: string }
 > {
-  const usuario = await requireProcessosEmpresa(input.empresaId);
+  const usuario = await requireFrotaEmpresa(input.empresaId);
   const quando = new Date(input.quando);
   if (Number.isNaN(quando.getTime())) return { ok: false, error: "Data inválida." };
 
@@ -1326,7 +1326,7 @@ export async function indicarCondutor(input: {
   condutorId: string;
   formaIndicacao: string;
 }): Promise<ActionResult & { aviso?: string }> {
-  const usuario = await requireProcessosEmpresa(input.empresaId);
+  const usuario = await requireFrotaEmpresa(input.empresaId);
 
   const visiveis = await empresasVisiveis(usuario);
   const [infracao, condutor] = await Promise.all([
@@ -1400,7 +1400,7 @@ export async function registrarTransferencia(input: {
   dataNegocio: string;
   modalidadeAtpv?: string | null;
 }): Promise<ActionResult> {
-  const usuario = await requireProcessosEmpresa(input.empresaId);
+  const usuario = await requireFrotaEmpresa(input.empresaId);
 
   const visiveis = await empresasVisiveis(usuario);
   const veiculo = await prisma.veiculo.findFirst({
