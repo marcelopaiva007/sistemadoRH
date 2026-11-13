@@ -2,6 +2,7 @@ import { noGrupo } from "@/lib/grupo";
 import { prisma } from "@/lib/prisma";
 import { sendTelegramMessage } from "@/lib/telegram";
 import { sendEmail } from "@/lib/email";
+import { emailDe, comoAbrir } from "@/lib/delegacoes/destino-email";
 import { botoesDaCobranca } from "@/lib/delegacoes/telegram";
 import { prazoEmTexto, diasAtePrazo } from "@/lib/delegacoes/consultas";
 import { rotuloCriticidade, rotuloEvidencia } from "@/lib/constants-delegacoes";
@@ -44,8 +45,10 @@ const SELECT_COBRANCA = {
     select: {
       nome: true,
       email: true,
+      role: true,
       colaborador: {
         select: {
+          email: true,
           telegramChatId: true,
           empresaId: true,
           empresa: { select: { marca: { select: { nome: true } } } },
@@ -190,8 +193,10 @@ function esc(s: string): string {
 }
 
 async function enviarPorEmail(d: DemandaCobranca, degrau: DegrauComMomento) {
-  if (!d.responsavel.email) return;
+  const para = emailDe(d.responsavel);
+  if (!para) return;
   const linkDemanda = `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/delegacoes/${d.id}`;
+  const abrir = comoAbrir(d.responsavel, linkDemanda);
   const fromName = d.responsavel.colaborador?.empresa.marca.nome
     ? `RH ${d.responsavel.colaborador.empresa.marca.nome}`
     : "Delegações";
@@ -201,15 +206,15 @@ async function enviarPorEmail(d: DemandaCobranca, degrau: DegrauComMomento) {
     : undefined;
 
   const envio = await sendEmail({
-    to: d.responsavel.email,
+    to: para,
     cc,
     fromName,
     origem: "DELEGACOES",
     empresaId: d.responsavel.colaborador?.empresaId,
     marcaNome: d.responsavel.colaborador?.empresa.marca.nome,
     subject: degrau.antesDoPrazo ? `[Delegações] Lembrete — ${d.titulo}` : `[Delegações] Atrasada — ${d.titulo}`,
-    text: textoCobranca(d, degrau) + `\n\nAbrir: ${linkDemanda}`,
-    html: `<p>${esc(textoCobranca(d, degrau)).replace(/\n/g, "<br/>")}</p><p><a href="${linkDemanda}">Abrir no sistema</a></p>`,
+    text: textoCobranca(d, degrau) + `\n\n${abrir.texto}`,
+    html: `<p>${esc(textoCobranca(d, degrau)).replace(/\n/g, "<br/>")}</p>${abrir.html}`,
     // Cada degrau só cobra uma vez na vida da demanda — a chave é o par.
     chave: `delegacoes-regua:${d.id}:${degrau.chave}`,
   });

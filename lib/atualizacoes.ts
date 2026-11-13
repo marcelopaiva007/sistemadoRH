@@ -26,6 +26,18 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.206.0",
+    data: "13/11/2026",
+    horario: "09:40",
+    titulo: "Delegações chegam pelo Telegram e pelo e-mail",
+    itens: [
+      "Ao delegar, a demanda vai pelo Telegram e por e-mail ao mesmo tempo. O e-mail agora usa o e-mail do cadastro do colaborador; antes dependia do e-mail do login, que quase ninguém tem, e por isso não chegava.",
+      "Vale também para as cobranças automáticas, para a cobrança de aceite e para o aviso de baixa direta.",
+      "Ao escolher a pessoa, a tela mostra por onde ela vai receber (✓ Telegram · ✓ E-mail) e o que falta quando um canal não alcança.",
+      "Para quem responde pelo portal, o e-mail explica o caminho: abrir o bot do RH no Telegram e enviar /portal.",
+    ],
+  },
+  {
     versao: "1.205.0",
     data: "11/11/2026",
     horario: "16:10",

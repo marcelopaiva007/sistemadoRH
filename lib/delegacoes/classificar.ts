@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { CHAVE_ANTHROPIC, segredo } from "@/lib/segredos";
 import { sendTelegramMessage } from "@/lib/telegram";
 import { sendEmail } from "@/lib/email";
+import { emailDe } from "@/lib/delegacoes/destino-email";
 import { diasAtePrazo, prazoEmTexto } from "@/lib/delegacoes/consultas";
 import {
   ESQUEMA_CLASSIFICACAO,
@@ -47,7 +48,7 @@ export async function classificarInteracao(demandaId: string, interacaoId: strin
           criterioAceite: true,
           prazo: true,
           solicitante: {
-            select: { nome: true, email: true, colaborador: { select: { telegramChatId: true } } },
+            select: { nome: true, email: true, colaborador: { select: { telegramChatId: true, email: true } } },
           },
           responsavel: {
             select: { nome: true, colaborador: { select: { telegramChatId: true } } },
@@ -158,7 +159,7 @@ async function registrarEscalada(
 type PartesPessoa = {
   nome: string;
   email?: string | null;
-  colaborador: { telegramChatId: string | null } | null;
+  colaborador: { telegramChatId: string | null; email?: string | null } | null;
 };
 
 /**
@@ -202,10 +203,11 @@ async function notificarSolicitante(
   const chatId = demanda.solicitante.colaborador?.telegramChatId;
   const promessas: Promise<unknown>[] = [];
   if (chatId) promessas.push(sendTelegramMessage(chatId, texto));
-  if (demanda.solicitante.email) {
+  const para = emailDe({ email: demanda.solicitante.email ?? null, colaborador: demanda.solicitante.colaborador });
+  if (para) {
     promessas.push(
       sendEmail({
-        to: demanda.solicitante.email,
+        to: para,
         fromName: "Delegações",
         subject: `[Delegações] Precisa da sua decisão — ${demanda.titulo}`,
         text: texto,

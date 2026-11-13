@@ -269,9 +269,11 @@ export function ReunioesView({
                       {p.nome}
                       {p.cargo ? ` — ${p.cargo}` : ""}
                     </span>
-                    {!p.temTelegram && (
+                    {(!p.temTelegram || !p.temEmail) && (
                       <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">
-                        sem Telegram
+                        {[!p.temTelegram && "sem Telegram", !p.temEmail && "sem e-mail"]
+                          .filter(Boolean)
+                          .join(" · ")}
                       </span>
                     )}
                   </label>

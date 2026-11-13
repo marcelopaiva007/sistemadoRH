@@ -4,6 +4,7 @@ import {
 } from "@/lib/grupo";
 import { prisma } from "@/lib/prisma";
 import { PAPEL_PORTAL } from "@/lib/delegacoes/acesso-colaborador";
+import { emailDe } from "@/lib/delegacoes/destino-email";
 
 // A LISTA DE QUEM PODE RECEBER DEMANDA — extraída de delegadas/page.tsx em
 // 31/08/2026, quando a tela de Reuniões passou a precisar da mesma lista.
@@ -27,6 +28,8 @@ export type PessoaParaDelegar = {
   id: string;
   nome: string;
   temTelegram: boolean;
+  /** Tem para onde mandar e-mail (login ou ficha — lib/delegacoes/destino-email.ts). */
+  temEmail: boolean;
   favorito: boolean;
   cargo: string | null;
   marcaNome: string | null;
@@ -50,9 +53,11 @@ export async function listarPessoasParaDelegar(userId: string): Promise<PessoaPa
       select: {
         id: true,
         nome: true,
+        email: true,
         colaborador: {
           select: {
             telegramChatId: true,
+            email: true,
             posicao: { select: { nome: true } },
             empresa: { select: { marca: { select: { nome: true } } } },
           },
@@ -69,6 +74,7 @@ export async function listarPessoasParaDelegar(userId: string): Promise<PessoaPa
         id: true,
         nome: true,
         telegramChatId: true,
+        email: true,
         usuario: { select: { id: true } },
         posicao: { select: { nome: true } },
         empresa: { select: { marca: { select: { nome: true } } } },
@@ -92,6 +98,7 @@ export async function listarPessoasParaDelegar(userId: string): Promise<PessoaPa
       id: u.id,
       nome: u.nome,
       temTelegram: !!u.colaborador?.telegramChatId,
+      temEmail: !!emailDe(u),
       favorito: favoritoIds.has(u.id),
       cargo: u.colaborador?.posicao?.nome ?? null,
       marcaNome: u.colaborador?.empresa.marca.nome ?? null,
@@ -106,6 +113,7 @@ export async function listarPessoasParaDelegar(userId: string): Promise<PessoaPa
         id: c.id,
         nome: c.nome,
         temTelegram: !!c.telegramChatId,
+        temEmail: !!emailDe({ email: c.email }),
         favorito: false,
         cargo: c.posicao.nome,
         marcaNome: c.empresa.marca.nome,
