@@ -3163,6 +3163,45 @@ model Condutor {
   @@schema("rh")
 }
 
+/// Acesso de cada motorista ao app de recarga Mobility (v1.208.0).
+///
+/// Pedido do CEO em 19/11/2026: os motoristas da frota elétrica entram no app
+/// Mobility com e-mail e senha, e isso vivia numa planilha solta. Aqui fica ao
+/// lado da frota, com a placa ligando o acesso ao veículo.
+///
+/// A senha é CIFRADA (lib/cripto.ts, a mesma de SegredoApp): quem levar um dump
+/// do banco não lê senha nenhuma. A tela nunca recebe a senha na carga — ela só
+/// aparece quando alguém clica em "Mostrar", e cada clique fica na auditoria.
+model AcessoMobility {
+  id        String @id @default(cuid())
+  empresaId String
+
+  nome   String
+  cpf    String?
+  // O login do app. Único por empresa: o mesmo e-mail duas vezes seria o
+  // mesmo acesso, e a importação da planilha atualiza em vez de duplicar.
+  email  String
+  senhaCifrada String?
+  // Só o fim da senha ("…a1b2"), para a tela dizer qual está gravada.
+  senhaDica    String?
+
+  // Placa como texto (sem hífen), porque a planilha traz "A DEFINIR" para quem
+  // ainda não tem carro. Quando a placa existe na frota, veiculoId liga os dois.
+  placa     String?
+  modelo    String?
+  veiculoId String?
+
+  observacao String?
+  ativo      Boolean @default(true)
+
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  @@unique([empresaId, email])
+  @@index([empresaId, ativo])
+  @@schema("rh")
+}
+
 /// Quem estava com qual veículo, e em que período.
 ///
 /// É a tabela mais importante do módulo inteiro, e não parece. Ela responde

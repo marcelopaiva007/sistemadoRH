@@ -26,6 +26,18 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.208.0",
+    data: "19/11/2026",
+    horario: "19:00",
+    titulo: "Frota ganha a aba Acessos Mobility",
+    itens: [
+      "Nova aba Acessos Mobility no menu da Frota, logo abaixo de Condutores: usuário (e-mail) e senha de cada motorista no app de recarga, com CPF, placa e modelo.",
+      "A senha fica guardada cifrada e aparece só ao clicar em Mostrar; dá para copiar e-mail e senha com um clique. Cada visualização fica registrada na auditoria.",
+      "Importar planilha: cole as linhas do Google Sheets ou escolha o CSV. E-mail que já existe é atualizado, não duplicado; \"A DEFINIR\" na placa fica como sem veículo.",
+      "Cadastrar, editar (senha em branco mantém a atual) e desativar sem apagar o histórico.",
+    ],
+  },
+  {
     versao: "1.207.0",
     data: "13/11/2026",
     horario: "11:30",

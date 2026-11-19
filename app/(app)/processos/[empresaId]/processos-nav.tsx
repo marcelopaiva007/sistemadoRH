@@ -31,6 +31,8 @@ const AREAS = {
         { slug: "frota/emplacamento", label: "Emplacamento" },
         { slug: "frota/multas", label: "Multas" },
         { slug: "frota/condutores", label: "Condutores" },
+        // Login e senha de cada motorista no app de recarga (v1.208.0).
+        { slug: "frota/mobility", label: "Acessos Mobility" },
         { slug: "frota/consumo", label: "Consumo" },
         { slug: "frota/manutencoes", label: "Manutenções" },
         { slug: "frota/analise", label: "Análise" },
