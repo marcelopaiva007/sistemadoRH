@@ -1543,7 +1543,7 @@ export async function vincularMotoristasEmLote(input: {
   empresaId: string;
   vinculos: { veiculoId: string; colaboradorId: string }[];
 }): Promise<ActionResult & { vinculados?: number }> {
-  const usuario = await requireProcessosEmpresa(input.empresaId);
+  const usuario = await requireFrotaEmpresa(input.empresaId);
   const pares = input.vinculos.filter((v) => v.veiculoId && v.colaboradorId).slice(0, 300);
   if (pares.length === 0) return { ok: false, error: "Escolha o motorista de pelo menos um veículo." };
 

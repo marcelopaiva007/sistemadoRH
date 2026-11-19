@@ -23,7 +23,7 @@ import { sendTelegramMessage } from "@/lib/telegram";
 const MAXIMO_POR_ENVIO = 400;
 
 export type ResultadoEnvio =
-  | { ok: true; avisados: number; semCanal: number; jaConfirmados: number; falhas: number; naFila: number }
+  | { ok: true; avisados: number; semCanal: number; jaConfirmados: number; falhas: number; naFila: number; jaEnviados: number }
   | { ok: false; error: string };
 
 /**
@@ -87,6 +87,7 @@ export async function enviarContrachequesAction(
     jaConfirmados: r.jaConfirmados,
     falhas: r.falhas,
     naFila: r.naFila,
+    jaEnviados: r.jaEnviados,
   };
 }
 

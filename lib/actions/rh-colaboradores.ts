@@ -11,7 +11,7 @@ import { empresasDaMesmaMarca, marcaDaEmpresa } from "@/lib/escopo-marca";
 import { invalidarConvitesDeDesligados } from "@/lib/pesquisa-vinculo";
 import { convidarParaPesquisaDesligamento } from "@/lib/pesquisa-desligamento";
 import { hojeUTC } from "@/lib/datas";
-import { destinoDaTransferencia, ehTransferencia } from "@/lib/transferencia";
+import { destinoDaTransferencia, ehTransferencia, empresasDoGrupoDoUsuario } from "@/lib/transferencia";
 import { lerAnexo } from "@/lib/anexos";
 import { enviarParaBlob } from "@/lib/blob";
 import { MOTIVOS_DESLIGAMENTO, TIPOS_CONTRATO, CONTRATOS_POR_PRAZO, ehCausaDesligamento } from "@/lib/constants-dp";
@@ -379,7 +379,7 @@ export async function toggleColaboradorAtivo(
   }
   let destino: { empresaId: string; empresaNome: string } | null = null;
   if (transferindo) {
-    const r = await destinoDaTransferencia(prisma, colaborador, await empresasVisiveis(usuario));
+    const r = await destinoDaTransferencia(prisma, colaborador, await empresasDoGrupoDoUsuario(usuario.id));
     if (!r.ok) return { ok: false, error: r.error };
     destino = r;
   }

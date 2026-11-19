@@ -3,7 +3,14 @@
 // O contracheque NÃO vai anexado no e-mail inicial nem pelo Telegram:
 // 1. O e-mail leva um link único (/assinar/[token]) para a página guiada de assinatura.
 // 2. O Telegram notifica que o contracheque chegou no e-mail e traz o botão "Estou ciente".
-// 3. Quem não tem Telegram recebe o aviso e o código 2FA exclusivamente por e-mail.
+// 3. Quem não tem Telegram recebe só o e-mail do link.
+//
+// Regra (OS 11/11/2026, item 12, atualizada em 19/11): Telegram que FALHA
+// (bot bloqueado, chat inexistente) NUNCA vira e-mail. Não existe "aviso por
+// e-mail" de reserva — o único e-mail do envio é o do link, que sai de
+// qualquer jeito. A falha só marca o colaborador como "Telegram bloqueado"
+// (lib/telegram.ts) para o RH cobrar o novo vínculo. O mesmo vale para as
+// cobranças diárias (lib/contracheques/lembretes.ts), que são só Telegram.
 
 import { prisma } from "@/lib/prisma";
 import { sendTelegramMessage } from "@/lib/telegram";
@@ -190,7 +197,16 @@ export async function avisarColaborador(
   }
 
   if (emailOk && telegramOk) return { canal: "AMBOS", erro: null, emailNaFila };
-  if (emailOk) return { canal: "EMAIL", erro: erroTelegram ? `Aviso enviado por e-mail (${erroTelegram})` : null, emailNaFila };
+  // O texto antigo ("Aviso enviado por e-mail (Telegram: …)") dava a entender
+  // que um segundo e-mail de aviso tinha saído. Não saiu: foi só o do link.
+  if (emailOk)
+    return {
+      canal: "EMAIL",
+      erro: erroTelegram
+        ? `Telegram não entregou — só o e-mail do link foi enviado; cobrar novo vínculo com o bot (${erroTelegram})`
+        : null,
+      emailNaFila,
+    };
   if (telegramOk) return { canal: "TELEGRAM", erro: erroEmail ? `Avisado pelo Telegram (${erroEmail})` : null, emailNaFila };
 
   return {
@@ -213,6 +229,8 @@ export async function enviarContracheques(
   falhas: number;
   /** Quantos ficaram com o e-mail na fila do teto diário. */
   naFila: number;
+  /** Já avisados antes — o envio geral não manda de novo (só o "Reenviar" da linha). */
+  jaEnviados: number;
   porEmpresa: Record<string, { avisados: number; semCanal: number }>;
 }> {
   const docs = await prisma.documentoColaborador.findMany({
@@ -225,6 +243,7 @@ export async function enviarContracheques(
   let jaConfirmados = 0;
   let falhas = 0;
   let naFila = 0;
+  let jaEnviados = 0;
   const porEmpresa: Record<string, { avisados: number; semCanal: number }> = {};
 
   for (const d of docs) {
@@ -237,6 +256,9 @@ export async function enviarContracheques(
           competencia: true,
           tipoFolha: true,
           confirmadoEm: true,
+          enviadoEm: true,
+          canal: true,
+          emailNaFilaDesde: true,
           colaborador: {
             select: {
               nome: true,
@@ -248,6 +270,16 @@ export async function enviarContracheques(
           },
         },
       });
+
+      // Já avisado (ou com o e-mail na fila): o envio GERAL não manda de novo.
+      // Clique duplo, dois lotes seguidos ou uma marcação velha viravam um
+      // segundo e-mail igual para a mesma pessoa — e gastavam o teto (OS
+      // 11/11/2026, item 12). Mandar de novo de propósito é o "Reenviar" da
+      // linha, que gera link novo.
+      if (recibo && !recibo.confirmadoEm && recibo.enviadoEm && (recibo.canal || recibo.emailNaFilaDesde)) {
+        jaEnviados++;
+        continue;
+      }
 
       if (!recibo) {
         const tokenNovo = gerarTokenAssinatura();
@@ -266,6 +298,9 @@ export async function enviarContracheques(
             competencia: true,
             tipoFolha: true,
             confirmadoEm: true,
+            enviadoEm: true,
+            canal: true,
+            emailNaFilaDesde: true,
             colaborador: {
               select: {
                 nome: true,
@@ -327,5 +362,5 @@ export async function enviarContracheques(
     }
   }
 
-  return { avisados, semCanal, jaConfirmados, falhas, naFila, porEmpresa };
+  return { avisados, semCanal, jaConfirmados, falhas, naFila, jaEnviados, porEmpresa };
 }

@@ -11,12 +11,19 @@
 //
 // O destino NÃO é escolhido numa lista: é o CNPJ onde existe a ficha ATIVA com
 // o mesmo CPF. Isso amarra o registro ao fato (a ficha nova tem de existir) e
-// evita um destino digitado errado. Busca só entre as empresas que o usuário
-// enxerga — sem isso, marcar transferência viraria um jeito de descobrir em
-// qual CNPJ de outra marca um CPF trabalha.
+// evita um destino digitado errado.
+//
+// Onde procura (mudou em 19/11/2026, OS de 11/11, item 6): em TODO o grupo de
+// quem registra, e não só nas empresas que o login enxerga. Antes, a busca
+// presa ao login recusava o caso real — Angela e Gracielly, ativas na VAPT e
+// ainda ativas na LM, que fica em outro login ("Não há ficha ATIVA com este
+// CPF em outro CNPJ"). A parede de GRUPO continua: nunca procura fora dele. O
+// que se revela é só o nome do CNPJ de destino dentro do próprio grupo, para
+// quem já pode encerrar a ficha de origem.
 
 import type { Cliente } from "@/lib/prisma";
 import { somarDiasUTC } from "@/lib/datas";
+import { empresasDoGrupo, grupoDoUsuario } from "@/lib/grupo";
 
 export const MOTIVO_TRANSFERENCIA = "TRANSFERENCIA_GRUPO";
 
@@ -35,6 +42,7 @@ export type DestinoTransferencia =
 export async function destinoDaTransferencia(
   cliente: Cliente,
   colaborador: { id: string; empresaId: string; cpf: string | null },
+  /** Empresas do GRUPO de quem registra (empresasDoGrupoDoUsuario). */
   empresasDoUsuario: string[],
 ): Promise<DestinoTransferencia> {
   if (!colaborador.cpf) {
@@ -210,4 +218,13 @@ export function marcarTransferencias<T extends FichaParaTransferencia>(
       inicioNoGrupo,
     };
   });
+}
+
+/**
+ * As empresas onde procurar a ficha de destino: o grupo inteiro de quem
+ * registra. Mantido aqui para os três chamadores (ficha, desligamento e
+ * offboarding) usarem a mesma régua.
+ */
+export async function empresasDoGrupoDoUsuario(usuarioId: string | undefined): Promise<string[]> {
+  return empresasDoGrupo(await grupoDoUsuario(usuarioId));
 }

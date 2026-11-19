@@ -119,6 +119,9 @@ const FILTROS: { valor: Filtro; rotulo: string }[] = [
   { valor: "ABERTO", rotulo: "Abertos na tela" },
   { valor: "CONFIRMADO", rotulo: "Assinados" },
   { valor: "ATRASADO", rotulo: "Atrasados (>5 dias)" },
+  // "Bloqueados" junta o link travado por 5 erros E o Telegram bloqueado —
+  // pedido da OS (item 4, reforçado em 19/11): é a lista de quem o RH precisa
+  // cobrar. O chip "Telegram bloqueado" separa só o segundo caso.
   { valor: "BLOQUEADO", rotulo: "Bloqueados" },
   { valor: "SEM_CANAL", rotulo: "Sem contato" },
   { valor: "NA_FILA", rotulo: "Na fila do e-mail" },
@@ -198,6 +201,8 @@ export function ContrachequesView({
       if (soPendentes && l.situacao === "CONFIRMADO") return false;
       if (filtro === "TELEGRAM_BLOQUEADO") {
         if (!l.telegramBloqueado) return false;
+      } else if (filtro === "BLOQUEADO") {
+        if (l.situacao !== "BLOQUEADO" && !l.telegramBloqueado) return false;
       } else if (filtro !== "TODOS" && l.situacao !== filtro) return false;
       if (setorFiltro !== "TODOS" && l.setor !== setorFiltro) return false;
       return true;
@@ -236,6 +241,7 @@ export function ContrachequesView({
         return;
       }
       const partes = [`${r.avisados} avisado(s)`];
+      if (r.jaEnviados) partes.push(`${r.jaEnviados} já tinham sido avisados (não foram de novo)`);
       if (r.naFila) partes.push(`${r.naFila} e-mail(s) na fila do teto diário — saem sozinhos`);
       if (r.semCanal) partes.push(`${r.semCanal} sem e-mail`);
       if (r.jaConfirmados) partes.push(`${r.jaConfirmados} já tinham assinado`);
@@ -571,6 +577,8 @@ export function ContrachequesView({
                     ? linhas.filter((l) => !l.temEmail || !l.temTelegram).length
                     : f.valor === "TELEGRAM_BLOQUEADO"
                     ? linhas.filter((l) => l.telegramBloqueado).length
+                    : f.valor === "BLOQUEADO"
+                    ? linhas.filter((l) => l.situacao === "BLOQUEADO" || l.telegramBloqueado).length
                     : conta(f.valor);
 
                 return (

@@ -99,7 +99,20 @@ export function CampoSelect({
 }) {
   return (
     <Campo label={label} className={className} required={required}>
-      <select name={name} defaultValue={defaultValue ?? ""} required={required} className={classeSelect}>
+      {/* `key` = valor salvo (OS 11/11/2026, item 11). Depois de salvar, o
+          React 19 reseta o formulário, e o <select> volta ao defaultValue da
+          MONTAGEM — o React não atualiza o default de um select já montado,
+          ao contrário do <input>. Na ficha, isso fazia "Estágio → CLT" voltar
+          a mostrar "Estágio" após o salvar, e o próximo salvar do bloco
+          (mexendo em outro campo) regravava "Estágio" por cima. Com a key,
+          o select remonta com o valor novo. */}
+      <select
+        key={defaultValue ?? ""}
+        name={name}
+        defaultValue={defaultValue ?? ""}
+        required={required}
+        className={classeSelect}
+      >
         <option value="">{placeholder}</option>
         {opcoes.map((o) => (
           <option key={o.value} value={o.value}>
