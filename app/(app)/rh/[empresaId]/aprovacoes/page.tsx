@@ -123,6 +123,8 @@ export default async function AprovacoesPage({
         tipoMarcacao: true,
         horaSolicitada: true,
         createdAt: true,
+        // Evidência do pedido (OS de 23/11/2026) — abrir antes de decidir.
+        arquivo: { select: { id: true, nome: true, tamanhoBytes: true } },
         colaborador: {
           select: { nome: true, setor: { select: { nome: true } }, empresa: { select: { nome: true } } },
         },

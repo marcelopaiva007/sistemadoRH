@@ -32,6 +32,8 @@ export async function GET(
       OR: [
         { documento: { colaboradorId: sessao.colaboradorId } },
         { ausencia: { colaboradorId: sessao.colaboradorId } },
+        // Evidência do próprio pedido de ajuste de ponto (OS de 23/11/2026).
+        { tratamentoPonto: { colaboradorId: sessao.colaboradorId } },
       ],
     },
     select: {
@@ -42,6 +44,7 @@ export async function GET(
       empresaId: true,
       documento: { select: { id: true } },
       ausencia: { select: { id: true } },
+      tratamentoPonto: { select: { id: true } },
     },
   });
   if (!arquivo) return NextResponse.json({ error: "Arquivo não encontrado." }, { status: 404 });
@@ -53,8 +56,8 @@ export async function GET(
   await registrarAuditoria({
     empresaId: arquivo.empresaId,
     acao: "BAIXAR_DOCUMENTO",
-    entidade: arquivo.documento ? "DocumentoColaborador" : "Ausencia",
-    entidadeId: arquivo.documento?.id ?? arquivo.ausencia?.id ?? null,
+    entidade: arquivo.documento ? "DocumentoColaborador" : arquivo.tratamentoPonto ? "TratamentoPonto" : "Ausencia",
+    entidadeId: arquivo.documento?.id ?? arquivo.ausencia?.id ?? arquivo.tratamentoPonto?.id ?? null,
     resumo: `Baixou o próprio anexo "${arquivo.nome}" pelo portal.`,
     ator: {
       id: sessao.colaboradorId,

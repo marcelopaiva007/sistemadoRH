@@ -73,7 +73,7 @@ export async function lerAnexo(formData: FormData, campo = "arquivo"): Promise<L
     return { ok: false, error: `O arquivo passa de ${mb} MB. Comprima o PDF ou reduza a foto.` };
   }
   if (!MIMES_VALIDOS.has(valor.type)) {
-    return { ok: false, error: "Formato não aceito. Envie PDF, JPG, PNG ou WEBP." };
+    return { ok: false, error: "Formato não aceito. Envie PDF, JPG, PNG, WEBP ou HEIC." };
   }
 
   const bytes = new Uint8Array(await valor.arrayBuffer());

@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { CheckCircle2, Clock3, FileEdit, XCircle } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { CheckCircle2, Clock3, FileEdit, Paperclip, XCircle } from "lucide-react";
 import {
   minhasSolicitacoesPonto,
   solicitarAbonoFolga,
@@ -23,6 +23,12 @@ import {
 
 type TipoPedido = "AJUSTE" | "ABONO_FOLGA";
 
+// Mesmo teto do servidor (TAMANHO_MAXIMO_ANEXO, 4 MB — limite de corpo da
+// Vercel). Conferir aqui antes evita subir 10 MB pelo 4G só para ouvir "não".
+// O servidor confere de novo, e confere também o formato pelos bytes.
+const TAMANHO_MAXIMO_ANEXO = 4 * 1024 * 1024;
+const FORMATOS_ANEXO = ["image/jpeg", "image/png", "image/webp", "image/heic", "application/pdf"];
+
 // dataFato é meia-noite UTC — formatar em UTC, senão o fuso do Brasil mostra
 // o dia anterior. Mesma regra de formatarData em lib/datas.ts.
 function formatarDataUTC(iso: string) {
@@ -32,13 +38,22 @@ function formatarDataUTC(iso: string) {
   return `${dia}/${mes}/${d.getUTCFullYear()}`;
 }
 
-export function SolicitacoesPontoCard() {
+/**
+ * `podeAbrirAnexo`: o link do anexo só funciona com a sessão do PORTAL (a rota
+ * /api/portal/arquivos confere o dono). No app /ponto (sessão por PIN) a lista
+ * mostra só o nome do arquivo.
+ */
+export function SolicitacoesPontoCard({ podeAbrirAnexo = false }: { podeAbrirAnexo?: boolean } = {}) {
   const [aberto, setAberto] = useState(false);
   const [tipoPedido, setTipoPedido] = useState<TipoPedido>("AJUSTE");
   const [data, setData] = useState("");
   const [tipoMarcacao, setTipoMarcacao] = useState("ENTRADA_1");
   const [hora, setHora] = useState("");
   const [motivo, setMotivo] = useState("");
+  // Evidência opcional (OS de 23/11/2026): foto da câmera, imagem da galeria
+  // ou PDF. Um arquivo por pedido.
+  const [anexo, setAnexo] = useState<File | null>(null);
+  const campoAnexo = useRef<HTMLInputElement>(null);
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [sucesso, setSucesso] = useState<string | null>(null);
@@ -72,16 +87,33 @@ export function SolicitacoesPontoCard() {
     setEnviando(true);
     setErro(null);
     setSucesso(null);
+    if (anexo && anexo.size > TAMANHO_MAXIMO_ANEXO) {
+      setErro("O anexo passa de 4 MB. Tire a foto de novo com menos qualidade ou envie um PDF menor.");
+      setEnviando(false);
+      return;
+    }
+    if (anexo && anexo.type && !FORMATOS_ANEXO.includes(anexo.type)) {
+      setErro("Formato não aceito. Envie foto (JPG, PNG, WEBP, HEIC) ou PDF.");
+      setEnviando(false);
+      return;
+    }
+    let fd: FormData | undefined;
+    if (anexo) {
+      fd = new FormData();
+      fd.set("anexo", anexo);
+    }
     try {
       const res =
         tipoPedido === "AJUSTE"
-          ? await solicitarAjustePonto({ data, tipoMarcacao, hora, motivo })
-          : await solicitarAbonoFolga({ data, motivo });
+          ? await solicitarAjustePonto({ data, tipoMarcacao, hora, motivo }, fd)
+          : await solicitarAbonoFolga({ data, motivo }, fd);
       if (res.ok) {
         setSucesso("Pedido enviado! Ele fica aguardando a análise do RH — acompanhe o status aqui embaixo.");
         setData("");
         setHora("");
         setMotivo("");
+        setAnexo(null);
+        if (campoAnexo.current) campoAnexo.current.value = "";
         setAberto(false);
         await carregar();
       } else {
@@ -216,6 +248,26 @@ export function SolicitacoesPontoCard() {
             </p>
           </div>
 
+          <div className="space-y-1">
+            <label className="text-xs font-medium" htmlFor="anexoPedido">
+              Anexar documento <span className="font-normal text-muted-foreground">(opcional)</span>
+            </label>
+            {/* image/* abre câmera E galeria no celular; sem `capture`, que
+                forçaria só a câmera. O servidor confere o formato pelos bytes. */}
+            <input
+              id="anexoPedido"
+              ref={campoAnexo}
+              type="file"
+              accept="image/*,application/pdf,.heic"
+              onChange={(e) => setAnexo(e.target.files?.[0] ?? null)}
+              className="w-full text-xs file:mr-2 file:rounded-md file:border file:bg-background file:px-2 file:py-1"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Print do erro, foto do comprovante, declaração… Foto ou PDF, até 4 MB. Depois de enviado, o anexo
+              não pode ser trocado. Só você e o RH conseguem abrir.
+            </p>
+          </div>
+
           <div className="flex gap-2">
             <button
               type="submit"
@@ -270,6 +322,21 @@ export function SolicitacoesPontoCard() {
                   )}
                 </div>
                 <p className="text-muted-foreground italic">&ldquo;{s.motivo}&rdquo;</p>
+                {s.anexo &&
+                  (podeAbrirAnexo ? (
+                    <a
+                      href={`/api/portal/arquivos/${s.anexo.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-primary underline-offset-2 hover:underline"
+                    >
+                      <Paperclip className="w-3.5 h-3.5" /> {s.anexo.nome}
+                    </a>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-muted-foreground">
+                      <Paperclip className="w-3.5 h-3.5" /> {s.anexo.nome}
+                    </span>
+                  ))}
                 {s.status === "REJEITADO" && s.motivoDecisao && (
                   <p className="border-l-2 border-muted pl-2 text-muted-foreground">
                     <span className="font-medium">Resposta do RH:</span> {s.motivoDecisao}
