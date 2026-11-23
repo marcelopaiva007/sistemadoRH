@@ -107,10 +107,7 @@ export function extratorClaude(chave: string): Extrator {
       if (e instanceof Anthropic.APIUserAbortError || (e instanceof Error && e.name === "TimeoutError")) {
         return { ok: false, erro: "A leitura demorou demais — vou ler menos páginas por vez.", reduzirBloco: true, definitivo: false, ...zero };
       }
-      const semCredito =
-        e instanceof Anthropic.APIError &&
-        (e.status === 402 || (e.status === 400 && /credit|billing|saldo/i.test(e.message)));
-      if (e instanceof Anthropic.AuthenticationError || e instanceof Anthropic.PermissionDeniedError || semCredito) {
+      if (contaRecusou(e)) {
         return {
           ok: false,
           erro: "A leitura automática parou: a conta da IA recusou o acesso (chave ou crédito). Nada foi perdido — avise o administrador.",
@@ -131,6 +128,23 @@ export function extratorClaude(chave: string): Extrator {
       return { ok: false, erro: "Falha ao falar com a IA — tento de novo.", reduzirBloco: false, definitivo: false, ...zero };
     }
   };
+}
+
+/**
+ * A conta da IA recusou (chave, permissão, crédito, teto de gasto)? Olha o
+ * status E o corpo do erro: quando a recusa chega DENTRO do stream (evento
+ * "error" do SSE), o SDK lança APIError com status undefined — foi assim em
+ * 23/11/2026 ("credit balance is too low"), e o arquivo ficou em "tento de
+ * novo" em vez de pausar a fila.
+ */
+function contaRecusou(e: unknown): boolean {
+  if (e instanceof Anthropic.AuthenticationError || e instanceof Anthropic.PermissionDeniedError) return true;
+  if (!(e instanceof Anthropic.APIError)) return false;
+  if (e.status === 401 || e.status === 402 || e.status === 403) return true;
+  const corpo = e.error as { error?: { type?: string }; type?: string } | undefined;
+  const tipo = corpo?.error?.type ?? corpo?.type;
+  if (tipo === "authentication_error" || tipo === "permission_error" || tipo === "billing_error") return true;
+  return /credit balance|billing|usage limits?|spend limit|saldo/i.test(e.message);
 }
 
 type Uso = {

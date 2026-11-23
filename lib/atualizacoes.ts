@@ -26,6 +26,16 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.207.1",
+    data: "23/11/2026",
+    horario: "11:00",
+    titulo: "Caixa de documentos: falta de crédito da IA para a fila com aviso claro",
+    itens: [
+      "Quando a conta da IA fica sem crédito ou recusa a chave, todos os arquivos param com o mesmo aviso (\"a conta da IA recusou o acesso\") em vez de alguns ficarem em \"Falha ao falar com a IA — tento de novo\" sem sair do lugar.",
+      "Nada é perdido: depois de repor o crédito, basta abrir a Caixa de documentos e a leitura continua de onde parou.",
+    ],
+  },
+  {
     versao: "1.207.0",
     data: "13/11/2026",
     horario: "11:30",
