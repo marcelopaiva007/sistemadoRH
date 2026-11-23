@@ -27,6 +27,9 @@ export function AbasDaPesquisa({
     { href: `${base}/perguntas`, rotulo: "Perguntas", contagem: perguntas },
     { href: `${base}/convites`, rotulo: "Convites", contagem: convites },
     { href: `${base}/resultados`, rotulo: "Resultados", contagem: respostas },
+    // Toda pesquisa tem dashboard de análise gerencial (v1.208). Clima e NR-01
+    // seguem para o painel próprio deles — a rota /dashboard redireciona.
+    { href: `${base}/dashboard`, rotulo: "Dashboard" },
   ];
 
   return (
