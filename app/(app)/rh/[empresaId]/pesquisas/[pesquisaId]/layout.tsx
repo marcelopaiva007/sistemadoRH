@@ -130,6 +130,44 @@ export default async function PesquisaLayout({
         </Alert>
       )}
 
+      {/* Demais tipos (eNPS, Onboarding, Desligamento…): até a v1.207 não
+          tinham dashboard nem relatório — a leitura parava na aba Resultados.
+          Agora toda pesquisa gera os dois (lib/pesquisa-analise.ts). */}
+      {pesquisa.modelo !== "NR01" && pesquisa.modelo !== "CLIMA" && (
+        <Alert>
+          <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+            <span>
+              Análise gerencial desta pesquisa: indicador, setores, assuntos dos comentários e
+              recomendações para a gestão.
+            </span>
+            <span className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                render={<Link href={`/rh/${empresaId}/pesquisas/${pesquisa.id}/dashboard`} />}
+              >
+                <BarChart3 className="size-4" />
+                Dashboard
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                render={
+                  <a
+                    href={`/api/rh/${empresaId}/pesquisas/${pesquisa.id}/relatorio-pdf`}
+                    target="_blank"
+                    rel="noreferrer"
+                  />
+                }
+              >
+                <FileDown className="size-4" />
+                Relatório de análise
+              </Button>
+            </span>
+          </AlertDescription>
+        </Alert>
+      )}
+
       <AbasDaPesquisa
         base={`/rh/${empresaId}/pesquisas/${pesquisa.id}`}
         perguntas={pesquisa._count.perguntas}

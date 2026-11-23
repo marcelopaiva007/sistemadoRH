@@ -11,6 +11,7 @@ import { calcularNR01 } from "@/lib/nr01";
 import { CONVITES_NA_PESQUISA } from "@/lib/pesquisa-numeros";
 import { gerarHtmlRelatorioNR01 } from "@/lib/nr01-relatorio";
 import { gerarHtmlRelatorioGeralPesquisa } from "@/lib/pesquisa-relatorio";
+import { carregarAnalisePesquisa } from "@/lib/pesquisa-analise-dados";
 import { responderComHtmlRelatorio } from "@/lib/pdf-browser";
 
 export const runtime = "nodejs";
@@ -56,51 +57,48 @@ export async function GET(
     );
   }
 
+  // Demais tipos (eNPS, Onboarding, Desligamento…): relatório de análise
+  // gerencial, do mesmo motor do Dashboard (lib/pesquisa-analise.ts).
+  if (pesquisa.modelo !== "NR01") {
+    const dados = await carregarAnalisePesquisa(pesquisaId, pesquisa.marcaId);
+    if (!dados) {
+      return NextResponse.json({ error: "Pesquisa não encontrada nesta empresa." }, { status: 404 });
+    }
+    const html = gerarHtmlRelatorioGeralPesquisa({
+      empresaNome: dados.pesquisa.empresaNome,
+      pesquisaTitulo: dados.pesquisa.titulo,
+      pesquisaStatus: dados.pesquisa.status,
+      iniciadaEm: dados.pesquisa.iniciadaEm,
+      encerradaEm: dados.pesquisa.encerradaEm,
+      anonima: dados.pesquisa.anonima,
+      analise: dados.analise,
+    });
+    return responderComHtmlRelatorio(html, `Análise gerencial - ${dados.pesquisa.titulo}`);
+  }
+
   const [convites, respostas] = await Promise.all([
     prisma.surveyToken.count({ where: { pesquisaId, ...CONVITES_NA_PESQUISA } }),
     prisma.resposta.findMany({
       where: { pesquisaId },
-      include: {
-        itens: {
-          include: {
-            pergunta: {
-              select: { id: true, enunciado: true, tipo: true, dimensao: true, dimensaoGPTW: true },
-            },
-          },
-        },
-      },
+      include: { itens: { select: { perguntaId: true, valorNumerico: true } } },
     }),
   ]);
 
-  let html = "";
-  if (pesquisa.modelo === "NR01") {
-    const respostasCalc = respostas.map((r) => ({
-      setorNomeSnapshot: r.setorNomeSnapshot,
-      posicaoNomeSnapshot: r.posicaoNomeSnapshot,
-      itens: r.itens.map((i) => ({ perguntaId: i.perguntaId, valorNumerico: i.valorNumerico })),
-    }));
-    const resultado = calcularNR01(pesquisa.perguntas, respostasCalc);
-    html = gerarHtmlRelatorioNR01({
-      empresaNome: pesquisa.empresa.nome,
-      pesquisaTitulo: pesquisa.titulo,
-      pesquisaStatus: pesquisa.status,
-      iniciadaEm: pesquisa.iniciadaEm,
-      encerradaEm: pesquisa.encerradaEm,
-      convites,
-      resultado,
-    });
-  } else {
-    html = gerarHtmlRelatorioGeralPesquisa({
-      empresaNome: pesquisa.empresa.nome,
-      pesquisaTitulo: pesquisa.titulo,
-      pesquisaModelo: pesquisa.modelo,
-      pesquisaStatus: pesquisa.status,
-      iniciadaEm: pesquisa.iniciadaEm,
-      encerradaEm: pesquisa.encerradaEm,
-      convites,
-      respostas,
-    });
-  }
+  const respostasCalc = respostas.map((r) => ({
+    setorNomeSnapshot: r.setorNomeSnapshot,
+    posicaoNomeSnapshot: r.posicaoNomeSnapshot,
+    itens: r.itens.map((i) => ({ perguntaId: i.perguntaId, valorNumerico: i.valorNumerico })),
+  }));
+  const resultado = calcularNR01(pesquisa.perguntas, respostasCalc);
+  const html = gerarHtmlRelatorioNR01({
+    empresaNome: pesquisa.empresa.nome,
+    pesquisaTitulo: pesquisa.titulo,
+    pesquisaStatus: pesquisa.status,
+    iniciadaEm: pesquisa.iniciadaEm,
+    encerradaEm: pesquisa.encerradaEm,
+    convites,
+    resultado,
+  });
 
   return responderComHtmlRelatorio(html, `Relatório - ${pesquisa.empresa.nome}`);
 }

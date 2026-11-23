@@ -26,6 +26,20 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.208.0",
+    data: "23/11/2026",
+    horario: "12:30",
+    titulo: "Toda pesquisa agora tem Dashboard e Relatório de análise gerencial",
+    itens: [
+      "eNPS, Onboarding, Desligamento e as demais pesquisas ganharam a aba Dashboard e o botão \"Relatório de análise\" (para imprimir ou salvar em PDF). Antes só Clima e NR-01 tinham.",
+      "O dashboard mostra participação, o indicador principal (eNPS ou favorabilidade) com a zona, a comparação com o ciclo anterior e a evolução entre ciclos.",
+      "Resultado por setor, com proteção do anonimato: setor com menos de 3 respostas aparece sem número.",
+      "Os comentários abertos são agrupados por assunto (frota, ferramentas, salário, liderança, ambiente, escala…), com o tom de cada um e exemplos, e, no eNPS, quantos vieram de promotores, neutros e detratores.",
+      "Resumo executivo, pontos fortes, pontos de atenção e recomendações para a gestão, com prioridade e responsável sugerido.",
+      "Clima e NR-01 continuam com o dashboard e o relatório próprios deles. A aba Dashboard leva até eles.",
+    ],
+  },
+  {
     versao: "1.207.1",
     data: "23/11/2026",
     horario: "11:00",
