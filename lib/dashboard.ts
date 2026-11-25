@@ -1,7 +1,9 @@
 import { prisma } from "@/lib/prisma";
-import { hojeCalendarioBrasilia, hojeUTC, somarMesesUTC, somarAnosUTC } from "@/lib/datas";
-import { diasDeFaltaNaJanela, filtroAusenciasDaJanela } from "@/lib/bi";
+import { hojeCalendarioBrasilia, hojeUTC, somarAnosUTC } from "@/lib/datas";
+import { calcularTurnover, diasDeFaltaNaJanela, filtroAusenciasDaJanela } from "@/lib/bi";
 import { BALDES_SEM_ESTRUTURA } from "@/lib/estrutura-pendente";
+import { marcarTransferencias } from "@/lib/transferencia";
+import { saidasPorTransferenciaDoGrupo } from "@/lib/transferencia-grupo";
 
 export type ResumoDashboard = {
   ativos: number;
@@ -18,29 +20,37 @@ export type ResumoDashboard = {
 /**
  * Números de cabeçalho da empresa para a tela inicial.
  *
- * Tudo aqui é `count`/`aggregate` — nada de `findMany`. A tela de Indicadores
- * carrega as linhas todas porque precisa quebrar por setor e desenhar
- * gráfico; a inicial precisa só do total, e é a tela que abre a cada login.
- * Trocar isso por findMany traria de volta a lentidão que acabamos de tirar.
+ * Quase tudo aqui é `count`/`aggregate`: a tela inicial abre a cada login e
+ * precisa só de totais. A exceção é o turnover (v1.214.0): ele passou a vir da
+ * MESMA função das outras telas (`calcularTurnover`), que tira a transferência
+ * no grupo da conta — e reconhecer a chegada por transferência pede o CPF de
+ * cada ficha, coisa que um `count` não entrega. A consulta traz seis colunas
+ * escalares por ficha, sem relação nenhuma; antes, a fórmula era copiada aqui
+ * à mão e já discordava das outras telas.
  */
 // Recebe os CNPJs da marca (ver lib/escopo-marca.ts), não um só: a tela
 // inicial é da marca inteira.
 export async function resumoDaEmpresa(empresaIds: string[]): Promise<ResumoDashboard> {
   const empresaId = { in: empresaIds };
   const hoje = hojeUTC();
-  const inicio12m = somarMesesUTC(hoje, -12);
   // Dia de Brasília: "até hoje" não pode incluir o amanhã UTC das 21h.
   const hojeAbsenteismo = hojeCalendarioBrasilia();
 
-  const [ativos, admissoes12m, desligamentos12m, faltas, folha, beneficios, semSalario] =
+  const [ativos, vinculosDoCadastro, saidasPorTransferencia, faltas, folha, beneficios, semSalario] =
     await Promise.all([
       prisma.colaborador.count({ where: { empresaId, ativo: true } }),
-      prisma.colaborador.count({
-        where: { empresaId, dataAdmissao: { gte: inicio12m, lte: hoje } },
+      prisma.colaborador.findMany({
+        where: { empresaId },
+        select: {
+          id: true,
+          empresaId: true,
+          cpf: true,
+          dataAdmissao: true,
+          dataDesligamento: true,
+          motivoDesligamento: true,
+        },
       }),
-      prisma.colaborador.count({
-        where: { empresaId, dataDesligamento: { gte: inicio12m, lte: hoje } },
-      }),
+      saidasPorTransferenciaDoGrupo(empresaIds),
       // A exceção ao "só count/aggregate" (26/11/2026): somar `dias` no banco
       // contava o afastamento inteiro que começou na janela — inclusive os dias
       // que ainda não aconteceram — e ignorava o que começou antes e segue
@@ -69,11 +79,17 @@ export async function resumoDaEmpresa(empresaIds: string[]): Promise<ResumoDashb
       prisma.colaborador.count({ where: { empresaId, ativo: true, salarioBase: null } }),
     ]);
 
-  // Mesma fórmula de lib/bi.ts: sem foto histórica de headcount, o início do
-  // período é reconstruído a partir de hoje.
-  const headcountInicio = Math.max(0, ativos - admissoes12m + desligamentos12m);
-  const headcountMedio = (headcountInicio + ativos) / 2;
-  const turnoverPct = headcountMedio > 0 ? (desligamentos12m / headcountMedio) * 100 : 0;
+  // A mesma conta do Painel executivo e do Placar, 12 meses: transferência no
+  // grupo não é admissão nem desligamento.
+  const turnover = calcularTurnover(
+    marcarTransferencias(vinculosDoCadastro, saidasPorTransferencia),
+    ativos,
+    hoje,
+    12,
+  );
+  const admissoes12m = turnover.admissoes;
+  const desligamentos12m = turnover.desligados;
+  const turnoverPct = turnover.taxaPct;
 
   const diasFalta30d = faltas.reduce((t, a) => t + diasDeFaltaNaJanela(a, hojeAbsenteismo), 0);
   // 30 dias úteis aproximados por pessoa no período — mesma simplificação da

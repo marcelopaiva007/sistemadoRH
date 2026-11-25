@@ -8,6 +8,7 @@ import { prisma, type Cliente } from "@/lib/prisma";
 import { hojeUTC } from "@/lib/datas";
 import { analisarDesligamentos, ID_GRUPO, type VinculoParaAnomalia } from "@/lib/anomalias";
 import { decidirRegistro, type CandidatoSinal, type NivelUnidadeSinal } from "@/lib/sinais";
+import { ehTransferencia } from "@/lib/transferencia";
 
 /**
  * lib/anomalias.ts tem seu próprio NivelUnidade (5 valores, minúsculo, usado
@@ -154,6 +155,8 @@ export async function coletarCandidatosDeAnomalias(
     select: {
       ativo: true,
       dataDesligamento: true,
+      // Só para tirar a transferência no grupo da série (não é desligamento).
+      motivoDesligamento: true,
       empresa: {
         select: {
           id: true,
@@ -178,6 +181,7 @@ export async function coletarCandidatosDeAnomalias(
       marcaNome: v.empresa.marca.nome,
       ativo: v.ativo,
       dataDesligamento: v.dataDesligamento,
+      saidaPorTransferencia: ehTransferencia(v.motivoDesligamento),
     });
     porGrupo.set(g.id, balde);
   }

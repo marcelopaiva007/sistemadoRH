@@ -12,6 +12,37 @@
 
 import type { Cliente } from "@/lib/prisma";
 
+/**
+ * Setores que não são setor: o balde de quem a importação não conseguiu
+ * atribuir ("Não definido") e o arquivo oculto dos desligados históricos
+ * ("Demitidos", 27/08/2026). Mesma lista que lib/painel-setor.ts usa nos avisos.
+ */
+const SETORES_SEM_SETOR = ["não definido", "nao definido", "demitidos"];
+
+export function ehSetorSemSetor(nome: string): boolean {
+  return SETORES_SEM_SETOR.includes(nome.trim().toLowerCase());
+}
+
+/**
+ * O setor em que a ficha CONTA nas análises de desligamento.
+ *
+ * - Ativo: o setor atual.
+ * - Desligado com retrato: o setor do dia da saída — é para isso que o retrato
+ *   existe. Exceção: retrato em "Não definido"/"Demitidos" cede ao setor atual,
+ *   senão o RH corrigir o setor da ficha depois não consertaria a conta.
+ * - Desligado sem retrato (todo desligamento anterior à v1.213.0): o setor
+ *   atual da ficha, como sempre foi — a tela avisa.
+ */
+export function setorParaContas(f: {
+  ativo: boolean;
+  setor: { nome: string };
+  retratoDesligamento?: { setorNome: string } | null;
+}): string {
+  const retrato = f.retratoDesligamento;
+  if (!f.ativo && retrato && !ehSetorSemSetor(retrato.setorNome)) return retrato.setorNome;
+  return f.setor.nome;
+}
+
 export async function gravarRetratoDesligamento(
   cliente: Cliente,
   colaboradorId: string,

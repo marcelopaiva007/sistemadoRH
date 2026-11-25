@@ -468,6 +468,12 @@ export type VinculoParaAnomalia = {
   marcaNome: string;
   ativo: boolean;
   dataDesligamento: Date | null;
+  /**
+   * Saída por transferência para outro CNPJ do grupo (lib/transferencia.ts):
+   * não é desligamento e não entra em série nenhuma do radar — um "pico" feito
+   * de transferências seria uma reorganização lida como evasão.
+   */
+  saidaPorTransferencia?: boolean;
 };
 
 export const ID_GRUPO = "grupo";
@@ -537,6 +543,8 @@ export function montarUnidadesDeDesligamento(
       empresa.ativos++;
       continue;
     }
+
+    if (v.saidaPorTransferencia) continue;
 
     if (!v.dataDesligamento) {
       desligamentosSemData++;

@@ -25,6 +25,8 @@ import {
 } from "@/lib/tempo-de-casa";
 import { formatarReais } from "@/lib/constants-beneficios";
 import { normalizarTexto } from "@/lib/text";
+import { marcarTransferencias } from "@/lib/transferencia";
+import { saidasPorTransferenciaDoGrupo } from "@/lib/transferencia-grupo";
 
 // Ferramentas de LEITURA que o assistente pode chamar.
 //
@@ -611,16 +613,24 @@ export async function executarFerramenta(
       const meses = inteiroEntre(entrada.meses, 3, MESES_ANOMALIA, 12);
       const hoje = hojeUTC();
 
-      const vinculos = await prisma.colaborador.findMany({
-        where: { empresaId: { in: empresaIds } },
-        select: {
-          ativo: true,
-          dataAdmissao: true,
-          dataDesligamento: true,
-          empresaId: true,
-          empresa: { select: { nome: true, marcaId: true, marca: { select: { nome: true } } } },
-        },
-      });
+      const [vinculosDoCadastro, saidasPorTransferencia] = await Promise.all([
+        prisma.colaborador.findMany({
+          where: { empresaId: { in: empresaIds } },
+          select: {
+            id: true,
+            cpf: true,
+            motivoDesligamento: true,
+            ativo: true,
+            dataAdmissao: true,
+            dataDesligamento: true,
+            empresaId: true,
+            empresa: { select: { nome: true, marcaId: true, marca: { select: { nome: true } } } },
+          },
+        }),
+        saidasPorTransferenciaDoGrupo(empresaIds),
+      ]);
+      // Transferência no grupo não é admissão nem desligamento (25/11/2026).
+      const vinculos = marcarTransferencias(vinculosDoCadastro, saidasPorTransferencia);
 
       const serie = movimentoMensal(vinculos, hoje, meses);
       // O teste de anomalia usa a janela cheia mesmo quando a série pedida é
@@ -635,6 +645,7 @@ export async function executarFerramenta(
           marcaNome: v.empresa.marca.nome,
           ativo: v.ativo,
           dataDesligamento: v.dataDesligamento,
+          saidaPorTransferencia: v.saidaPorTransferencia,
         })),
         hoje,
         MESES_ANOMALIA
@@ -644,6 +655,15 @@ export async function executarFerramenta(
       const desligadosSemAdmissao = desligados.filter(v => !v.dataAdmissao).length;
 
       const avisos = [...analise.avisos];
+      const transferenciasNaSerie = serie.reduce(
+        (t, m) => t + m.saidasPorTransferencia + m.entradasPorTransferencia,
+        0,
+      );
+      if (transferenciasNaSerie > 0) {
+        avisos.push(
+          `${transferenciasNaSerie} transferência(s) entre CNPJs do grupo no período ficaram FORA de admissões e desligamentos (regra da empresa: a pessoa não saiu do grupo). Elas aparecem à parte em cada mês da série.`
+        );
+      }
       if (desligadosSemAdmissao > 0) {
         avisos.push(
           `${desligadosSemAdmissao} dos ${desligados.length} desligados não têm data de admissão. A linha de admissões da série conta quase só quem AINDA está na casa — ela subestima a contratação real de cada mês e não pode ser lida como "contratamos X".`
@@ -690,10 +710,14 @@ export async function executarFerramenta(
       const agruparPor = umDe(entrada.agruparPor, ["empresa", "setor"] as const, "empresa");
       const hoje = hojeUTC();
 
-      const [vinculos, ausencias] = await Promise.all([
+      const [vinculosDoCadastro, ausencias, saidasPorTransferencia] = await Promise.all([
         prisma.colaborador.findMany({
           where: { empresaId: { in: empresaIds } },
           select: {
+            id: true,
+            empresaId: true,
+            cpf: true,
+            motivoDesligamento: true,
             ativo: true,
             dataAdmissao: true,
             dataDesligamento: true,
@@ -703,7 +727,10 @@ export async function executarFerramenta(
         }),
         // Contagem, não conteúdo: o que interessa é saber SE existe medição.
         prisma.ausencia.count({ where: { empresaId: { in: empresaIds } } }),
+        saidasPorTransferenciaDoGrupo(empresaIds),
       ]);
+      // Transferência no grupo não é admissão nem desligamento (25/11/2026).
+      const vinculos = marcarTransferencias(vinculosDoCadastro, saidasPorTransferencia);
 
       const rotulo = rotulosCanonicos(vinculos.map(v => v.setor.nome));
       const chave = (v: (typeof vinculos)[number]) =>
@@ -769,6 +796,11 @@ export async function executarFerramenta(
       if (desligadosSemData > 0) {
         avisos.push(
           `${desligadosSemData} dos ${desligados.length} desligados não têm data de desligamento e ficaram fora da janela de ${janelaMeses} meses. A taxa calculada é piso, não total.`
+        );
+      }
+      if (total.saidasPorTransferencia + total.entradasPorTransferencia > 0) {
+        avisos.push(
+          `${total.saidasPorTransferencia} saída(s) e ${total.entradasPorTransferencia} chegada(s) por transferência entre CNPJs do grupo na janela NÃO contam como desligamento nem admissão (regra da empresa). Por CNPJ, elas mudam o quadro de cada um, mas ficam fora da taxa.`
         );
       }
       if (foraDoRanking.length > 0) {

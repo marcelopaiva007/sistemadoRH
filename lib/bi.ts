@@ -24,16 +24,44 @@ export function headcountPorSetor(colaboradoresAtivos: { setorNome: string }[]):
 // Turnover
 // ---------------------------------------------------------------
 
-export type VinculoParaTurnover = { dataAdmissao: Date | null; dataDesligamento: Date | null };
+export type VinculoParaTurnover = {
+  dataAdmissao: Date | null;
+  dataDesligamento: Date | null;
+  /**
+   * A saída é transferência para outro CNPJ do grupo (lib/transferencia.ts,
+   * `marcarTransferencias`): mexe no QUADRO do recorte, mas não é
+   * desligamento. Ausente = não é transferência (o comportamento de antes).
+   */
+  saidaPorTransferencia?: boolean;
+  /** A admissão é chegada por transferência: mexe no quadro, não é contratação. */
+  entradaPorTransferencia?: boolean;
+  /**
+   * Admissão ajustada para o quadro (lib/transferencia.ts): na chegada por
+   * transferência que herdou a admissão original, a data da transferência.
+   * Ausente = vale `dataAdmissao`.
+   */
+  dataAdmissaoNoQuadro?: Date | null;
+};
+
+/** A admissão que move o quadro: a ajustada, quando a ficha foi marcada. */
+const admissaoNoQuadro = (v: VinculoParaTurnover): Date | null =>
+  v.dataAdmissaoNoQuadro === undefined ? v.dataAdmissao : v.dataAdmissaoNoQuadro;
 
 export type ResultadoTurnover = {
+  /** Desligamentos de verdade — sem as saídas por transferência. */
   desligados: number;
+  /** Contratações de verdade — sem as chegadas por transferência. */
   admissoes: number;
+  /** Saídas e chegadas por transferência na janela: mexem no quadro, ficam fora da taxa. */
+  saidasPorTransferencia: number;
+  entradasPorTransferencia: number;
   headcountInicio: number;
   headcountFim: number;
   headcountMedio: number;
   taxaPct: number;
 };
+
+const naJanela = (d: Date | null, inicio: Date, fim: Date): boolean => d !== null && d >= inicio && d <= fim;
 
 /**
  * Taxa de turnover dos últimos `janelaMeses` (padrão 12), fórmula clássica de
@@ -53,42 +81,70 @@ export function calcularTurnover(
 ): ResultadoTurnover {
   const inicio = somarMesesUTC(hoje, -janelaMeses);
 
-  const desligados = vinculos.filter(
-    (v) => v.dataDesligamento && v.dataDesligamento >= inicio && v.dataDesligamento <= hoje,
-  ).length;
-  const admissoes = vinculos.filter(
-    (v) => v.dataAdmissao && v.dataAdmissao >= inicio && v.dataAdmissao <= hoje,
-  ).length;
+  const saidas = vinculos.filter((v) => naJanela(v.dataDesligamento, inicio, hoje));
+  const entradas = vinculos.filter((v) => naJanela(admissaoNoQuadro(v), inicio, hoje));
+  const saidasPorTransferencia = saidas.filter((v) => v.saidaPorTransferencia).length;
+  const entradasPorTransferencia = entradas.filter((v) => v.entradaPorTransferencia).length;
+  const desligados = saidas.length - saidasPorTransferencia;
+  const admissoes = entradas.length - entradasPorTransferencia;
 
+  // O quadro do início desfaz TODO movimento da janela, transferência
+  // inclusive: quem chegou transferido não estava aqui no começo, e quem saiu
+  // transferido estava. Só a TAXA ignora as transferências.
   const headcountFim = headcountAtual;
-  const headcountInicio = Math.max(0, headcountFim - admissoes + desligados);
+  const headcountInicio = Math.max(0, headcountFim - entradas.length + saidas.length);
   const headcountMedio = (headcountInicio + headcountFim) / 2;
   const taxaPct = headcountMedio > 0 ? (desligados / headcountMedio) * 100 : 0;
 
-  return { desligados, admissoes, headcountInicio, headcountFim, headcountMedio, taxaPct };
+  return {
+    desligados,
+    admissoes,
+    saidasPorTransferencia,
+    entradasPorTransferencia,
+    headcountInicio,
+    headcountFim,
+    headcountMedio,
+    taxaPct,
+  };
 }
 
-/** Admissões e desligamentos mês a mês, do mais antigo ao mais recente. */
+/** Um mês da série: contratações e desligamentos de verdade, e as transferências à parte. */
+export type MesDoMovimento = {
+  mes: string;
+  admissoes: number;
+  desligamentos: number;
+  entradasPorTransferencia: number;
+  saidasPorTransferencia: number;
+};
+
+/**
+ * Admissões e desligamentos mês a mês, do mais antigo ao mais recente. As
+ * transferências no grupo saem de `admissoes`/`desligamentos` e vêm contadas à
+ * parte — quem desenha o quadro do mês (headcountMensal) soma as duas.
+ */
 export function movimentoMensal(
   vinculos: VinculoParaTurnover[],
   hoje: Date = hojeUTC(),
   meses = 12,
-): { mes: string; admissoes: number; desligamentos: number }[] {
-  const linhas: { mes: string; admissoes: number; desligamentos: number }[] = [];
+): MesDoMovimento[] {
+  const linhas: MesDoMovimento[] = [];
+  const doMes = (d: Date | null, ano: number, mesNum: number) =>
+    d !== null && d.getUTCFullYear() === ano && d.getUTCMonth() === mesNum;
   for (let i = meses - 1; i >= 0; i--) {
     const referencia = somarMesesUTC(hoje, -i);
     const ano = referencia.getUTCFullYear();
     const mesNum = referencia.getUTCMonth();
-    const admissoes = vinculos.filter(
-      (v) => v.dataAdmissao && v.dataAdmissao.getUTCFullYear() === ano && v.dataAdmissao.getUTCMonth() === mesNum,
-    ).length;
-    const desligamentos = vinculos.filter(
-      (v) =>
-        v.dataDesligamento &&
-        v.dataDesligamento.getUTCFullYear() === ano &&
-        v.dataDesligamento.getUTCMonth() === mesNum,
-    ).length;
-    linhas.push({ mes: `${String(mesNum + 1).padStart(2, "0")}/${ano}`, admissoes, desligamentos });
+    const entradas = vinculos.filter((v) => doMes(admissaoNoQuadro(v), ano, mesNum));
+    const saidas = vinculos.filter((v) => doMes(v.dataDesligamento, ano, mesNum));
+    const entradasPorTransferencia = entradas.filter((v) => v.entradaPorTransferencia).length;
+    const saidasPorTransferencia = saidas.filter((v) => v.saidaPorTransferencia).length;
+    linhas.push({
+      mes: `${String(mesNum + 1).padStart(2, "0")}/${ano}`,
+      admissoes: entradas.length - entradasPorTransferencia,
+      desligamentos: saidas.length - saidasPorTransferencia,
+      entradasPorTransferencia,
+      saidasPorTransferencia,
+    });
   }
   return linhas;
 }
@@ -108,12 +164,17 @@ export function headcountMensal(
 ): { mes: string; total: number }[] {
   const movimento = movimentoMensal(vinculos, hoje, meses);
   // Do mês mais recente para trás: o total no fim do mês anterior é o total
-  // atual sem o saldo (admissões - desligamentos) do mês seguinte.
+  // atual sem o saldo do mês seguinte — saldo de TODO movimento, transferência
+  // inclusive (ela muda quem está no recorte, só não é contratação nem saída).
   const totais: number[] = new Array(movimento.length);
   let total = headcountAtual;
   for (let i = movimento.length - 1; i >= 0; i--) {
     totais[i] = total;
-    total = Math.max(0, total - movimento[i].admissoes + movimento[i].desligamentos);
+    const m = movimento[i];
+    total = Math.max(
+      0,
+      total - (m.admissoes + m.entradasPorTransferencia) + (m.desligamentos + m.saidasPorTransferencia),
+    );
   }
   return movimento.map((m, i) => ({ mes: m.mes, total: totais[i] }));
 }

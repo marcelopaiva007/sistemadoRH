@@ -7,9 +7,12 @@
 //   (@@unique[empresaId, nome]), e "Área Técnica" da LM e da BR Sistemas são o
 //   mesmo setor aos olhos de quem gere. Os nomes foram canonizados em 08/2026,
 //   então o casamento por nome é confiável.
-// - Turnover de setor usa o setor ATUAL do desligado (o cadastro não guarda o
-//   setor da época) — é o recorte menos confiável da base, e o aviso diz isso
-//   em vez de fingir precisão. Mesma honestidade das ferramentas do assistente.
+// - Turnover de setor usa o setor da ÉPOCA do desligado quando ele existe (o
+//   retrato gravado no desligamento desde a v1.213.0) e, no histórico anterior,
+//   o setor ATUAL da ficha — ainda o recorte menos confiável da base, e o aviso
+//   diz quantos desligamentos estão nessa situação em vez de fingir precisão.
+// - Transferência para outro CNPJ do grupo não é desligamento nem admissão
+//   (v1.214.0): muda o quadro do setor, fica fora do turnover.
 // - Salário NÃO entra aqui, em nenhum número. A porta do gestor não pode ver
 //   folha (dado de Diretoria/RH), e a diretoria já tem folha por setor no
 //   Painel executivo. Um motor sem salário serve às duas portas sem vazamento.
@@ -21,6 +24,24 @@ import { prisma } from "@/lib/prisma";
 import { hojeUTC } from "@/lib/datas";
 import { calcularTurnover, headcountMensal, movimentoMensal, tempoMedioDeCasaAnos } from "@/lib/bi";
 import { montarMeuTime, type ColaboradorParaTime, type MeuTime } from "@/lib/meu-time";
+import { marcarTransferencias } from "@/lib/transferencia";
+import { saidasPorTransferenciaDoGrupo } from "@/lib/transferencia-grupo";
+import { ehSetorSemSetor, setorParaContas } from "@/lib/retrato-desligamento";
+
+// Ficha para as contas de turnover do setor: o setor em que ela CONTA vem de
+// `setorParaContas` (retrato da época quando existe), e as marcas de
+// transferência tiram a transferência no grupo das contagens (v1.214.0).
+const SELECT_VINCULO = {
+  id: true,
+  empresaId: true,
+  cpf: true,
+  ativo: true,
+  dataAdmissao: true,
+  dataDesligamento: true,
+  motivoDesligamento: true,
+  setor: { select: { nome: true } },
+  retratoDesligamento: { select: { setorNome: true } },
+} as const;
 
 export type MesDoSetor = {
   /** "MM/AAAA", do mais antigo ao mais recente. */
@@ -83,17 +104,29 @@ function competenciaDoMes(mes: string): string {
  * existe para evitar.
  */
 export function mesclarSerieComFotos(
-  serie: { mes: string; total: number; admissoes: number; desligamentos: number }[],
+  serie: {
+    mes: string;
+    total: number;
+    admissoes: number;
+    desligamentos: number;
+    entradasPorTransferencia?: number;
+    saidasPorTransferencia?: number;
+  }[],
   fotos: Map<string, { headcount: number; admissoes: number; desligamentos: number }>,
 ): MesDoSetor[] {
   return serie.map((m) => {
     const foto = fotos.get(competenciaDoMes(m.mes));
-    if (!foto) return { ...m, fotografado: false };
+    if (!foto) return { mes: m.mes, total: m.total, admissoes: m.admissoes, desligamentos: m.desligamentos, fotografado: false };
+    // A foto mediu o cadastro como ele era — transferência no grupo inclusive,
+    // porque a regra de não contá-la é de 25/11/2026. O QUADRO da foto vale
+    // como está (a transferência mudou mesmo quem estava no setor); só as
+    // contagens de admissão e desligamento descontam as transferências do mês,
+    // para a série falar a mesma língua do turnover ao lado.
     return {
       mes: m.mes,
       total: foto.headcount,
-      admissoes: foto.admissoes,
-      desligamentos: foto.desligamentos,
+      admissoes: Math.max(0, foto.admissoes - (m.entradasPorTransferencia ?? 0)),
+      desligamentos: Math.max(0, foto.desligamentos - (m.saidasPorTransferencia ?? 0)),
       fotografado: true,
     };
   });
@@ -108,7 +141,7 @@ export async function montarPainelDoSetor(opts: {
   const janelaMeses = opts.janelaMeses ?? 12;
   const hoje = hojeUTC();
 
-  const [ativosDoSetor, vinculosSetor, vinculosEscopo, fotos] = await Promise.all([
+  const [ativosDoSetor, vinculosDoCadastro, fotos, saidasPorTransferencia] = await Promise.all([
     // As pessoas do setor, com o necessário para o motor do Meu time.
     // `select` explícito, nunca `include`: cpf/salarioBase/telegramChatId
     // entram só para virar booleanos de lacuna — os valores não saem daqui.
@@ -142,21 +175,25 @@ export async function montarPainelDoSetor(opts: {
         checklistIntegracao: { select: { item: true, concluido: true, prazo: true } },
       },
     }),
-    // Ativos E desligados do setor — a matéria-prima do turnover e da série.
-    prisma.colaborador.findMany({
-      where: { empresaId: { in: empresaIds }, setor: { nome: { equals: setorNome, mode: "insensitive" } } },
-      select: { ativo: true, dataAdmissao: true, dataDesligamento: true },
-    }),
-    // O escopo inteiro, para o setor ter contra o que se comparar.
-    prisma.colaborador.findMany({
-      where: { empresaId: { in: empresaIds } },
-      select: { ativo: true, dataAdmissao: true, dataDesligamento: true, setor: { select: { nome: true } } },
-    }),
+    // O escopo inteiro, ativos E desligados: é a matéria-prima do turnover do
+    // setor e do escopo (para o setor ter contra o que se comparar). O recorte
+    // do setor sai daqui em memória, pelo setor em que cada ficha CONTA — o da
+    // época para quem tem retrato (ver `setorParaContas`) —, e não mais por um
+    // filtro de banco no setor atual da ficha.
+    prisma.colaborador.findMany({ where: { empresaId: { in: empresaIds } }, select: SELECT_VINCULO }),
     prisma.fotoMensal.findMany({
       where: { empresaId: { in: empresaIds }, setorNome: { equals: setorNome, mode: "insensitive" } },
       select: { competencia: true, headcount: true, admissoes: true, desligamentos: true },
     }),
+    saidasPorTransferenciaDoGrupo(empresaIds),
   ]);
+
+  const vinculosEscopo = marcarTransferencias(vinculosDoCadastro, saidasPorTransferencia).map((v) => ({
+    ...v,
+    setorDasContas: setorParaContas(v),
+  }));
+  const chaveDoSetor = chaveDeSetor(setorNome);
+  const vinculosSetor = vinculosEscopo.filter((v) => chaveDeSetor(v.setorDasContas) === chaveDoSetor);
 
   const ciclosAbertos = await prisma.cicloAvaliacao.findMany({
     where: { empresaId: { in: [...new Set(ativosDoSetor.map((c) => c.empresaId))] }, encerrado: false },
@@ -208,6 +245,8 @@ export async function montarPainelDoSetor(opts: {
     total: m.total,
     admissoes: movimento[i]?.admissoes ?? 0,
     desligamentos: movimento[i]?.desligamentos ?? 0,
+    entradasPorTransferencia: movimento[i]?.entradasPorTransferencia ?? 0,
+    saidasPorTransferencia: movimento[i]?.saidasPorTransferencia ?? 0,
   }));
   // O mês CORRENTE nunca usa foto: a competência só é fotografada depois de
   // fechada, e uma foto do mês em curso seria de outro sistema. (Hoje o cron
@@ -230,19 +269,29 @@ export async function montarPainelDoSetor(opts: {
   const avisos = [...time.avisos];
   // "Demitidos" (27/08/2026) é o arquivo oculto dos desligados históricos —
   // conta como "fora de qualquer setor real" igual ao "Não definido".
-  const naoDefinido = (nome: string) => ["não definido", "demitidos"].includes(nome.trim().toLowerCase());
   const inicioJanela = new Date(Date.UTC(hoje.getUTCFullYear(), hoje.getUTCMonth() - janelaMeses, hoje.getUTCDate()));
-  const desligadosSemSetor = vinculosEscopo.filter(
-    (v) => !v.ativo && v.dataDesligamento && v.dataDesligamento >= inicioJanela && naoDefinido(v.setor.nome),
-  ).length;
+  const desligadosDaJanela = vinculosEscopo.filter(
+    (v) =>
+      !v.ativo && !v.saidaPorTransferencia && v.dataDesligamento && v.dataDesligamento >= inicioJanela,
+  );
+  const desligadosSemSetor = desligadosDaJanela.filter((v) => ehSetorSemSetor(v.setorDasContas)).length;
   if (desligadosSemSetor > 0) {
     avisos.push(
       `${desligadosSemSetor} desligamento(s) da janela estão com setor "Não definido" e não aparecem em nenhum setor — o turnover por setor é o recorte menos confiável da base.`,
     );
   }
-  avisos.push(
-    "O desligado conta no setor ATUAL da ficha (o cadastro não guarda o setor da época do desligamento).",
-  );
+  const desligadosSemRetrato = desligadosDaJanela.filter((v) => !v.retratoDesligamento).length;
+  if (desligadosSemRetrato > 0) {
+    avisos.push(
+      `${desligadosSemRetrato} desligamento(s) da janela são anteriores ao registro do setor da época (v1.213.0) e contam no setor ATUAL da ficha. Os registrados depois disso contam no setor em que a pessoa estava quando saiu.`,
+    );
+  }
+  const transferenciasDaJanela = turnoverSetor.saidasPorTransferencia + turnoverSetor.entradasPorTransferencia;
+  if (transferenciasDaJanela > 0) {
+    avisos.push(
+      `${transferenciasDaJanela} transferência(s) entre CNPJs do grupo na janela (${turnoverSetor.saidasPorTransferencia} saída(s), ${turnoverSetor.entradasPorTransferencia} chegada(s)): mudam o quadro do setor, mas não contam como desligamento nem como admissão.`,
+    );
+  }
   if (mesesFotografados.length === 0) {
     avisos.push(
       "Nenhum mês desta janela tem foto mensal ainda — toda a série é reconstituída do cadastro e muda se o RH corrigir datas. As fotos começam a valer de jul/2026 em diante.",
@@ -300,7 +349,7 @@ export async function montarPlacarDosSetores(opts: {
   const janelaMeses = opts.janelaMeses ?? 12;
   const hoje = hojeUTC();
 
-  const [ativos, vinculos, ciclosAbertos] = await Promise.all([
+  const [ativos, vinculosDoCadastro, ciclosAbertos, saidasPorTransferencia] = await Promise.all([
     prisma.colaborador.findMany({
       where: { empresaId: { in: empresaIds }, ativo: true },
       select: {
@@ -326,16 +375,19 @@ export async function montarPlacarDosSetores(opts: {
         checklistIntegracao: { select: { item: true, concluido: true, prazo: true } },
       },
     }),
-    prisma.colaborador.findMany({
-      where: { empresaId: { in: empresaIds } },
-      select: { ativo: true, dataAdmissao: true, dataDesligamento: true, setor: { select: { nome: true } } },
-    }),
+    prisma.colaborador.findMany({ where: { empresaId: { in: empresaIds } }, select: SELECT_VINCULO }),
     prisma.cicloAvaliacao.findMany({
       where: { empresaId: { in: empresaIds }, encerrado: false },
       select: { empresaId: true },
     }),
+    saidasPorTransferenciaDoGrupo(empresaIds),
   ]);
   const empresasComCiclo = new Set(ciclosAbertos.map((c) => c.empresaId));
+  // Mesma régua do painel individual: setor da época e transferência fora.
+  const vinculos = marcarTransferencias(vinculosDoCadastro, saidasPorTransferencia).map((v) => ({
+    ...v,
+    setorDasContas: setorParaContas(v),
+  }));
 
   const paraTime = (c: (typeof ativos)[number]): ColaboradorParaTime => ({
     id: c.id,
@@ -361,7 +413,7 @@ export async function montarPlacarDosSetores(opts: {
   const linhaDe = (
     nome: string,
     ativosDoRecorte: typeof ativos,
-    vinculosDoRecorte: { ativo: boolean; dataAdmissao: Date | null; dataDesligamento: Date | null }[],
+    vinculosDoRecorte: typeof vinculos,
   ): LinhaPlacarSetor => {
     const time = montarMeuTime(ativosDoRecorte.map(paraTime), hoje);
     const turnover = calcularTurnover(vinculosDoRecorte, ativosDoRecorte.length, hoje, janelaMeses);
@@ -395,7 +447,7 @@ export async function montarPlacarDosSetores(opts: {
       return linhaDe(
         nome,
         ativos.filter((c) => chaveDeSetor(c.setor.nome) === chave),
-        vinculos.filter((v) => chaveDeSetor(v.setor.nome) === chave),
+        vinculos.filter((v) => chaveDeSetor(v.setorDasContas) === chave),
       );
     })
     .sort((a, b) => b.ativos - a.ativos || a.nome.localeCompare(b.nome, "pt-BR"));
