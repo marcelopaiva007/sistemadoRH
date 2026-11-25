@@ -15,10 +15,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { spawn } from "node:child_process";
 import { timingSafeEqual } from "node:crypto";
-import { promises as fs } from "node:fs";
 import { createGzip } from "node:zlib";
-import { pipeline } from "node:stream/promises";
-import * as path from "node:path";
 import { Readable } from "node:stream";
 
 export const runtime = "nodejs";
