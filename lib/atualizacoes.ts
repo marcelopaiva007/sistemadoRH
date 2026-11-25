@@ -43,6 +43,24 @@ export const ATUALIZACOES: Atualizacao[] = [
     ],
   },
   {
+    versao: "1.209.2",
+    data: "25/11/2026",
+    horario: "20:00",
+    titulo: "Preparação do banco para as correções de segurança",
+    itens: [
+      "O banco ganhou dois campos usados pela próxima atualização: o instante a partir do qual as sessões de uma conta valem, e o cliente dono de cada fornecedor dos Contratos. Nada muda nas telas ainda.",
+    ],
+  },
+  {
+    versao: "1.209.1",
+    data: "25/11/2026",
+    horario: "19:00",
+    titulo: "Atualização de segurança da base do sistema",
+    itens: [
+      "A base do sistema (Next.js) foi atualizada para corrigir falhas de segurança conhecidas. Nada muda nas telas.",
+    ],
+  },
+  {
     versao: "1.209.0",
     data: "25/11/2026",
     horario: "18:00",
