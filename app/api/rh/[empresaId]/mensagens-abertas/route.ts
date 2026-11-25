@@ -13,7 +13,7 @@
 // aqui também.
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { usuarioAlcancaEmpresa, empresasVisiveis } from "@/lib/rh-auth-guard";
+import { podeOperarEmpresaRH, empresasVisiveis } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -29,8 +29,10 @@ export async function GET(
   const session = await auth();
   const user = session?.user;
   if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-  // A mesma regra que decide o acesso às páginas — ver lib/rh-auth-guard.ts.
-  if (!(await usuarioAlcancaEmpresa(user, empresaId))) {
+  // A mesma regra que decide o acesso às páginas de /rh/<empresa> — ver
+  // lib/rh-auth-guard.ts. `podeOperarEmpresaRH` desde 25/11/2026: o badge só
+  // existe no menu dessas páginas, onde o GESTOR_SETOR não entra.
+  if (!(await podeOperarEmpresaRH(user, empresaId))) {
     return NextResponse.json({ error: "Sem acesso a esta empresa." }, { status: 403 });
   }
 

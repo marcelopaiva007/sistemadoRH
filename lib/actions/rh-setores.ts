@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import {
   requireEmpresaAccess,
   requireRHAccess,
-  usuarioAlcancaEmpresa,
+  podeOperarEmpresaRH,
   empresasVisiveis,
 } from "@/lib/rh-auth-guard";
 import { violouUnique, registroNaoEncontrado } from "@/lib/prisma-erros";
@@ -29,13 +29,19 @@ const setorSchema = z.object({
  *
  * Setor fora do alcance responde igual a inexistente: um id chutado na chamada
  * não pode virar sonda de existência.
+ *
+ * O alcance é `podeOperarEmpresaRH` — a mesma pergunta de `requireEmpresaAccess`,
+ * que guarda a tela e o `createSetor`. Até 25/11/2026 era `usuarioAlcancaEmpresa`,
+ * que deixa passar o GESTOR_SETOR com vínculo no CNPJ: ele não abre a tela de
+ * Setores, mas um POST direto na action renomeava, desativava ou excluía setor
+ * da empresa inteira. Achado da auditoria de permissões de 25/11/2026.
  */
 async function resolverSetorAlcancavel(
   id: string,
 ): Promise<{ ok: true; setorEmpresaId: string } | { ok: false; error: string }> {
   const usuario = await requireRHAccess();
   const setor = await prisma.setor.findUnique({ where: { id }, select: { empresaId: true } });
-  if (!setor || !(await usuarioAlcancaEmpresa(usuario, setor.empresaId))) {
+  if (!setor || !(await podeOperarEmpresaRH(usuario, setor.empresaId))) {
     return { ok: false, error: "Setor não encontrado." };
   }
   return { ok: true, setorEmpresaId: setor.empresaId };
