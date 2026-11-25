@@ -14,6 +14,7 @@ import {
   rubricaUnidade,
 } from "@/lib/constants-folha";
 import type { ActionResult } from "@/lib/constants";
+import { faltasPorColaboradorNaCompetencia } from "@/lib/folha-ausencias";
 
 const RUBRICAS_VALIDAS = new Set<string>(RUBRICAS.map((r) => r.value));
 
@@ -92,7 +93,8 @@ export async function importarEventosDerivados(
         dataInicio: { lte: fim },
         dataFim: { gte: inicio },
       },
-      select: { colaboradorId: true, dias: true },
+      // dataInicio/dataFim para o recorte ao mês (ver abaixo).
+      select: { colaboradorId: true, dias: true, dataInicio: true, dataFim: true },
     }),
     prisma.beneficioColaborador.findMany({
       where: {
@@ -105,10 +107,11 @@ export async function importarEventosDerivados(
   ]);
 
   const porColaborador = new Map<string, { faltas: number; desconto: number }>();
-  for (const f of faltas) {
-    const a = porColaborador.get(f.colaboradorId) ?? { faltas: 0, desconto: 0 };
-    a.faltas += f.dias;
-    porColaborador.set(f.colaboradorId, a);
+  // Só os dias DENTRO do mês (26/11/2026). A busca acima traz toda ausência
+  // que toca a competência; somar o `dias` inteiro lançava uma falta de 28/01
+  // a 05/02 como 9 faltas em janeiro e mais 9 em fevereiro.
+  for (const [colaboradorId, dias] of faltasPorColaboradorNaCompetencia(faltas, inicio)) {
+    porColaborador.set(colaboradorId, { faltas: dias, desconto: 0 });
   }
   for (const b of beneficios) {
     if (!b.valorColaborador) continue;

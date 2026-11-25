@@ -41,11 +41,12 @@ import { AjudaDaTela } from "@/components/ajuda-da-tela";
 
 const FILTROS = [
   { chave: "TODOS", rotulo: "Todos" },
-  // A MESMA conta do cartão "Férias vencidas" da tela de Pendências: 12+
-  // meses de casa sem férias aprovada no último ano. O cartão navega pra cá
-  // com filtro=RISCO_DOBRA e a lista bate pessoa a pessoa com o número dele —
-  // é a soma de "vencidas confirmadas" + "sem histórico a conferir" + quem tem
-  // histórico antigo mas está há 1 ano+ sem gozar.
+  // A MESMA conta do cartão "Férias vencidas" da tela de Pendências
+  // (`emRiscoDeDobra`, lib/ferias.ts): período aquisitivo fechado sem os 30
+  // dias marcados dentro do concessivo, já vencido ou a 60 dias ou menos de
+  // vencer. O cartão navega pra cá com filtro=RISCO_DOBRA e a lista bate
+  // pessoa a pessoa com o número dele. Desde 26/11/2026 quem gozou há 13
+  // meses e ainda tem prazo não aparece mais aqui.
   { chave: "RISCO_DOBRA", rotulo: "Risco de dobra" },
   { chave: "VENCIDO", rotulo: "Vencidas" },
   { chave: "VENCENDO", rotulo: "Vencendo" },

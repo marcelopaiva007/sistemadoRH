@@ -256,3 +256,91 @@ export const STATUS_PERIODO_BADGE: StatusBadgeMap<StatusPeriodo> = {
   VENCIDO: { label: STATUS_PERIODO_LABEL.VENCIDO, variant: "destructive" },
   CONCLUIDO: { label: STATUS_PERIODO_LABEL.CONCLUIDO, variant: "outline" },
 };
+
+// ---------------------------------------------------------------
+// Risco de pagar em dobro (CLT art. 134 e 137) — 26/11/2026
+// ---------------------------------------------------------------
+
+/**
+ * A partir de quantos dias do fim do período concessivo um período ainda não
+ * coberto entra em "risco de dobra". 60 e não os 90 de DIAS_ALERTA_FERIAS: o
+ * "Vencendo" de 90 é aviso de planejamento; o risco é a hora de agir — o aviso
+ * de férias pede 30 dias de antecedência (art. 135), e com menos de 60 sobra
+ * pouca margem para programar, comunicar e pagar até 2 dias antes (art. 145).
+ */
+export const DIAS_ALERTA_RISCO_DOBRA = 60;
+
+/** Solicitação com as datas de gozo — o risco depende de QUANDO ela cai, não só de existir. */
+export type SolicitacaoParaRiscoDobra = SolicitacaoParaCalculo & { dataInicio: Date; dataFim: Date };
+
+export type PeriodoEmRiscoDeDobra = {
+  periodo: PeriodoAquisitivo;
+  /** Dias do direito (30) ainda sem gozo/abono marcado DENTRO do concessivo. */
+  diasDescobertos: number;
+  /** true = o concessivo já acabou: a dobra está caracterizada, não é mais risco. */
+  vencido: boolean;
+};
+
+/**
+ * Quantos dias de uma solicitação caem até o fim do concessivo. Gozo depois do
+ * limite é gozo em dobro (art. 137) — não cobre o período. O abono (venda) é
+ * pago junto com as férias e acompanha a fração: só cobre se ela começa no prazo.
+ */
+function diasCobertosAteOLimite(s: SolicitacaoParaRiscoDobra, limiteConcessivo: Date): number {
+  const inicio = inicioDoDiaUTC(s.dataInicio);
+  const fim = inicioDoDiaUTC(s.dataFim);
+  const limite = inicioDoDiaUTC(limiteConcessivo);
+  if (inicio > limite) return 0;
+  const gozoNoPrazo = fim <= limite ? s.dias : Math.min(s.dias, contarDiasCorridos(inicio, limite));
+  return gozoNoPrazo + s.diasAbono;
+}
+
+/**
+ * Os períodos aquisitivos em risco de dobra — a regra ÚNICA usada pela tela de
+ * Férias (filtro "Risco de dobra") e pelo cartão "Férias vencidas" de
+ * Pendências (lib/pendencias.ts). Até 26/11/2026 as duas usavam "12+ meses de
+ * casa e nenhuma férias APROVADA começando no último ano", que acusava quem
+ * gozou o período anterior há 13 meses e ainda tem meses de concessivo pela
+ * frente — falso positivo, cobrança sem motivo.
+ *
+ * Regra (art. 134 e 137): período aquisitivo FECHADO cujos 30 dias não estão
+ * todos marcados (APROVADA ou PENDENTE — pedido vivo é programação) dentro do
+ * período concessivo, e
+ *   - o concessivo já acabou (dobra caracterizada), ou
+ *   - faltam `janelaDias` (padrão 60) ou menos para ele acabar.
+ *
+ * Reaproveita `calcularFerias` para os períodos — não existe segunda definição
+ * de período aquisitivo no sistema.
+ */
+export function periodosEmRiscoDeDobra(
+  dataAdmissao: Date,
+  solicitacoes: readonly SolicitacaoParaRiscoDobra[],
+  hoje: Date = hojeUTC(),
+  janelaDias: number = DIAS_ALERTA_RISCO_DOBRA,
+): PeriodoEmRiscoDeDobra[] {
+  const vivas = solicitacoes.filter((s) => s.status === "APROVADA" || s.status === "PENDENTE");
+  const { periodos } = calcularFerias(dataAdmissao, vivas, hoje);
+  const emRisco: PeriodoEmRiscoDeDobra[] = [];
+
+  for (const periodo of periodos) {
+    if (periodo.status === "EM_CURSO") continue;
+    if (periodo.diasAteLimite > janelaDias) continue;
+    const cobertos = vivas
+      .filter((s) => mesmoDiaUTC(s.periodoAquisitivoInicio, periodo.inicio))
+      .reduce((total, s) => total + diasCobertosAteOLimite(s, periodo.limiteConcessivo), 0);
+    const diasDescobertos = Math.max(0, DIAS_FERIAS_POR_PERIODO - cobertos);
+    if (diasDescobertos === 0) continue;
+    emRisco.push({ periodo, diasDescobertos, vencido: periodo.diasAteLimite < 0 });
+  }
+  return emRisco;
+}
+
+/** Atalho booleano de `periodosEmRiscoDeDobra` — o que tela e Pendências contam por pessoa. */
+export function emRiscoDeDobra(
+  dataAdmissao: Date,
+  solicitacoes: readonly SolicitacaoParaRiscoDobra[],
+  hoje: Date = hojeUTC(),
+  janelaDias: number = DIAS_ALERTA_RISCO_DOBRA,
+): boolean {
+  return periodosEmRiscoDeDobra(dataAdmissao, solicitacoes, hoje, janelaDias).length > 0;
+}

@@ -58,6 +58,10 @@ jobs:
       # nome do passo que fica vermelho já diz o que quebrou.
       - name: Regras de férias (CLT art. 130, 134, 137, 143)
         run: npx tsx scripts/test-ferias.ts
+      - name: Risco de férias em dobro (CLT art. 134 e 137)
+        run: npx tsx scripts/test-ferias-risco-dobra.ts
+      - name: Faltas da folha recortadas ao mês da competência
+        run: npx tsx scripts/test-folha-ausencia-competencia.ts
       - name: Regras de ponto (CLT art. 58, 59, 73 e Portaria MTP 671)
         run: npx tsx scripts/test-ponto.ts
       - name: Risco psicossocial (NR-01)

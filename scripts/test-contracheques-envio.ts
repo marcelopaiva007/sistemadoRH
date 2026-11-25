@@ -2,6 +2,7 @@ import {
   mascararEmail,
   montarAvisoTelegram,
   montarCorpoEmailContracheque,
+  paraAvisoDeContracheque,
 } from "../lib/contracheques/envio";
 
 async function test() {
@@ -39,6 +40,23 @@ async function test() {
     throw new Error(`Botão do Telegram inválido: ${JSON.stringify(botao)}`);
   }
   console.log("  ✓ Template e botão inline do Telegram aprovados");
+
+  // 26/11/2026: desligado entra no envio (contracheque da rescisão), mas só
+  // por e-mail — o link /assinar/<token> não depende do portal nem do Telegram.
+  console.log("\n4. Testando canais do aviso para desligado:");
+  const ativo = paraAvisoDeContracheque({ ativo: true, telegramChatId: "123", email: "a@b.com" });
+  if (ativo.telegramChatId !== "123" || ativo.email !== "a@b.com") {
+    throw new Error("Ativo deve manter Telegram e e-mail");
+  }
+  const desligado = paraAvisoDeContracheque({ ativo: false, telegramChatId: "123", email: "a@b.com" });
+  if (desligado.telegramChatId !== null || desligado.email !== "a@b.com") {
+    throw new Error(`Desligado deve ficar só com e-mail: ${JSON.stringify(desligado)}`);
+  }
+  const desligadoSemEmail = paraAvisoDeContracheque({ ativo: false, telegramChatId: "123", email: null });
+  if (desligadoSemEmail.telegramChatId !== null || desligadoSemEmail.email !== null) {
+    throw new Error("Desligado sem e-mail fica sem canal");
+  }
+  console.log("  ✓ Desligado recebe só por e-mail");
 
   console.log("\nTodos os testes de envio passaram.");
 }

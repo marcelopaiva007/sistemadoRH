@@ -102,6 +102,20 @@ export function montarAvisoTelegram(
   return { text, replyMarkup };
 }
 
+/**
+ * Os canais de aviso de contracheque para esta pessoa. Desligado (26/11/2026)
+ * recebe SÓ por e-mail: o link /assinar/<token> é validado por CPF e não
+ * depende do portal (que recusa quem saiu) nem do vínculo de Telegram — que
+ * pode ter migrado para outra ficha na transferência de CNPJ, e que a cobrança
+ * automática (lembretes.ts) já não usa para desligados. Sem e-mail, o desligado
+ * fica "sem canal" e o RH entrega o contracheque da rescisão por outro meio.
+ */
+export function paraAvisoDeContracheque<
+  C extends { ativo: boolean; telegramChatId: string | null; email: string | null },
+>(colaborador: C): C {
+  return colaborador.ativo ? colaborador : { ...colaborador, telegramChatId: null };
+}
+
 export function obterUrlBase(): string {
   const url = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL;
   if (!url) return "https://rh.assinelm.com.br";
@@ -209,6 +223,7 @@ export async function enviarContracheques(
           colaborador: {
             select: {
               nome: true,
+              ativo: true,
               telegramChatId: true,
               email: true,
               empresa: { select: { marca: { select: { nome: true } } } },
@@ -237,6 +252,7 @@ export async function enviarContracheques(
             colaborador: {
               select: {
                 nome: true,
+                ativo: true,
                 telegramChatId: true,
                 email: true,
                 empresa: { select: { marca: { select: { nome: true } } } },
@@ -254,11 +270,15 @@ export async function enviarContracheques(
       // Se não tiver token ou estiver reenviando, garante token ativo
       const tokenAssinatura = recibo.tokenAssinatura ?? gerarTokenAssinatura();
 
-      const aviso = await avisarColaborador(recibo, tokenAssinatura, {
-        ehReenvio: false,
-        empresaId: d.empresaId,
-        marcaNome: recibo.colaborador.empresa.marca.nome,
-      });
+      const aviso = await avisarColaborador(
+        { ...recibo, colaborador: paraAvisoDeContracheque(recibo.colaborador) },
+        tokenAssinatura,
+        {
+          ehReenvio: false,
+          empresaId: d.empresaId,
+          marcaNome: recibo.colaborador.empresa.marca.nome,
+        },
+      );
       await prisma.reciboContracheque.update({
         where: { id: recibo.id },
         data: {
