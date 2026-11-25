@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronRight, FileText, BarChart3 } from "lucide-react";
+import { FileText, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default async function RelatoriosLayout({

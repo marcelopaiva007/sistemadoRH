@@ -6,6 +6,14 @@ import { PERFIS_SEMENTE } from "@/lib/permissoes/catalogo";
 import { PAPEL_PORTAL } from "@/lib/delegacoes/acesso-colaborador";
 import { UsuariosTable } from "./usuarios-table";
 import { cn } from "@/lib/utils";
+import { avisoDeLimite } from "@/lib/paginacao-servidor";
+
+// Teto da lista de contas de UM cliente (26/11/2026). Contas de sistema por
+// cliente ficam na casa das dezenas — portal de colaborador já está fora —,
+// então a tela segue filtrando no navegador; o teto só impede que um cliente
+// fora da curva serialize milhares de contas de uma vez. Passou disso, a tela
+// avisa "mostrando N de M" (ativas primeiro).
+const LIMITE_CONTAS = 500;
 
 // Usuários — a tela que deu origem à área de administração (v1.188.0). Até a
 // v1.187.0 morava dentro do sistema (/cadastros/usuarios) e ADMIN e DIRETORIA
@@ -73,10 +81,22 @@ export default async function UsuariosPage({
       // módulo Delegações) ficam FORA desta lista: eles não operam o sistema,
       // e com algumas centenas deles a tela viraria uma lista de gente que
       // nunca vai entrar aqui. Ver lib/delegacoes/acesso-colaborador.ts.
+    // `select` (era `include`, 26/11/2026): a linha inteira do User ia junto —
+    // hash de senha, segredos de login — só para a tela usar dez campos.
     prisma.user.findMany({
       where: { role: { notIn: [PAPEL_PORTAL, "MASTER"] }, grupoId: doGrupo },
-      orderBy: [{ role: "asc" }, { nome: "asc" }],
-      include: {
+      // Ativas primeiro: se o teto cortar, corta conta desativada.
+      orderBy: [{ ativo: "desc" }, { role: "asc" }, { nome: "asc" }],
+      take: LIMITE_CONTAS,
+      select: {
+        id: true,
+        nome: true,
+        username: true,
+        email: true,
+        telas: true,
+        telefone: true,
+        role: true,
+        ativo: true,
         empresas: {
           orderBy: [{ papelPrincipal: "desc" }, { createdAt: "asc" }],
           include: {
@@ -144,6 +164,10 @@ export default async function UsuariosPage({
       select: { id: true, nome: true, sistema: true },
     }),
   ]);
+
+  const avisoLimiteContas = grupoId
+    ? avisoDeLimite(usuarios.length, contasDoGrupo(grupoId), "contas deste cliente (as ativas primeiro)")
+    : null;
 
   return (
     <div className="space-y-6">
@@ -218,6 +242,9 @@ export default async function UsuariosPage({
           )}
         </p>
       </div>
+      {avisoLimiteContas && (
+        <p className="text-xs font-semibold text-amber-800 dark:text-amber-300">{avisoLimiteContas}</p>
+      )}
       <UsuariosTable
         usuarios={usuarios.map((u) => ({
           id: u.id,

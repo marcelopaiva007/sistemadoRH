@@ -57,6 +57,7 @@ export const ORIGENS_EMAIL = [
   "LEMBRAR_USUARIO",
   "COBRANCA_CADASTRO",
   "DELEGACOES",
+  "RESPOSTA_PORTAL",
   "OUTRO",
 ] as const;
 
@@ -91,6 +92,7 @@ export const ROTULO_ORIGEM_EMAIL: Record<OrigemEmail, string> = {
   LEMBRAR_USUARIO: "Lembrar Usuário",
   COBRANCA_CADASTRO: "Cobrança de Cadastro",
   DELEGACOES: "Delegações",
+  RESPOSTA_PORTAL: "Resposta do Fale com o RH",
   OUTRO: "Outro",
 };
 

@@ -1439,6 +1439,35 @@ model AcidenteTrabalho {
   @@schema("rh")
 }
 
+// "Enviado ao escritório" de um evento do eSocial (26/11/2026). O sistema não
+// transmite nada — quem transmite é o escritório contábil de cada empresa. O
+// que mora aqui é a marcação do RH de que os dados do evento JÁ FORAM para o
+// escritório: é ela que tira o prazo da tela de Pendências (lib/esocial.ts).
+//
+// `tipo` = S2200 | S2299 | S2210 | S2230 (TIPOS_EVENTO_ESOCIAL em
+// lib/prazos-legais.ts). `referenciaId` aponta para o fato: o id do acidente
+// ou da ausência, ou "colaboradorId@aaaa-mm-dd" na admissão e no desligamento
+// — a data entra na chave para que corrigi-la depois reabra a pendência (o
+// escritório tem de retificar). Referências SOFT, sem @relation, como as
+// demais trilhas: a marcação é histórico e não deve sumir junto com o fato.
+model EventoEsocialEnvio {
+  id             String   @id @default(cuid())
+  // Sempre o CNPJ do FATO (da ficha, do acidente, da ausência) — nunca o da
+  // tela de onde o RH marcou. É por ele que a tela e o contador escopam.
+  empresaId      String
+  colaboradorId  String
+  tipo           String
+  referenciaId   String
+  enviadoEm      DateTime @default(now())
+  enviadoPorId   String?
+  enviadoPorNome String?
+  observacao     String?
+
+  @@unique([tipo, referenciaId])
+  @@index([empresaId])
+  @@schema("rh")
+}
+
 // Escala de turno do campo — quem está de plantão em cada dia, sem entrar em
 // cálculo de hora extra ou banco de horas (isso fica para um módulo futuro de
 // ponto/folha). Uma linha por (colaborador, dia): reatribuir o turno de

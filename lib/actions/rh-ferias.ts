@@ -5,7 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { registrarAuditoria } from "@/lib/audit";
 import { dataDoFormulario, formatarData, somarDiasUTC } from "@/lib/datas";
-import { calcularFerias, validarSolicitacaoFerias, DIAS_FERIAS_POR_PERIODO } from "@/lib/ferias";
+import { calcularFerias, validarSolicitacaoFerias } from "@/lib/ferias";
+import { SELECT_AUSENCIAS_PARA_FERIAS, WHERE_AUSENCIAS_PARA_FERIAS } from "@/lib/ferias-clt";
 import type { ActionResult } from "@/lib/constants";
 
 async function carregarContexto(empresaId: string, colaboradorId: string) {
@@ -15,11 +16,20 @@ async function carregarContexto(empresaId: string, colaboradorId: string) {
   });
   if (!colaborador) return null;
 
-  const solicitacoes = await prisma.solicitacaoFerias.findMany({
-    where: { colaboradorId, status: { in: ["APROVADA", "PENDENTE"] } },
-    select: { id: true, periodoAquisitivoInicio: true, dias: true, diasAbono: true, status: true },
-  });
-  return { colaborador, solicitacoes };
+  const [solicitacoes, ausencias] = await Promise.all([
+    prisma.solicitacaoFerias.findMany({
+      where: { colaboradorId, status: { in: ["APROVADA", "PENDENTE"] } },
+      select: { id: true, periodoAquisitivoInicio: true, dias: true, diasAbono: true, status: true },
+    }),
+    // Faltas injustificadas (art. 130) e afastamentos do INSS (art. 133) mudam
+    // o direito do período — 26/11/2026. Mesma busca da tela, para o saldo que
+    // o RH vê ser o saldo que a validação usa.
+    prisma.ausencia.findMany({
+      where: { colaboradorId, ...WHERE_AUSENCIAS_PARA_FERIAS },
+      select: SELECT_AUSENCIAS_PARA_FERIAS,
+    }),
+  ]);
+  return { colaborador, solicitacoes, ausencias };
 }
 
 export async function solicitarFerias(
@@ -49,7 +59,7 @@ export async function solicitarFerias(
   const decimoAntecipado = formData.get("decimoAntecipado") === "true";
   const observacoes = String(formData.get("observacoes") ?? "").trim() || null;
 
-  const resumo = calcularFerias(ctx.colaborador.dataAdmissao, ctx.solicitacoes);
+  const resumo = calcularFerias(ctx.colaborador.dataAdmissao, ctx.solicitacoes, undefined, ctx.ausencias);
   const validacao = validarSolicitacaoFerias({
     resumo,
     periodoAquisitivoInicio,
@@ -142,17 +152,26 @@ export async function decidirFerias(
   }
 
   // Entre o pedido e a aprovação outras férias podem ter consumido o saldo —
-  // revalida contra o estado atual antes de aprovar.
+  // revalida contra o estado atual antes de aprovar. Desde 26/11/2026 com as
+  // MESMAS regras do pedido (direito pelo art. 130/133, fracionamento e dia de
+  // início do art. 134): um pedido anterior a elas, ou uma falta lançada
+  // depois do pedido, não passa na aprovação sem o RH ver o motivo.
   if (decisao === "APROVADA" && solicitacao.colaborador.dataAdmissao) {
-    const outras = await prisma.solicitacaoFerias.findMany({
-      where: {
-        colaboradorId: solicitacao.colaboradorId,
-        status: { in: ["APROVADA", "PENDENTE"] },
-        id: { not: id },
-      },
-      select: { periodoAquisitivoInicio: true, dias: true, diasAbono: true, status: true },
-    });
-    const resumo = calcularFerias(solicitacao.colaborador.dataAdmissao, outras);
+    const [outras, ausencias] = await Promise.all([
+      prisma.solicitacaoFerias.findMany({
+        where: {
+          colaboradorId: solicitacao.colaboradorId,
+          status: { in: ["APROVADA", "PENDENTE"] },
+          id: { not: id },
+        },
+        select: { periodoAquisitivoInicio: true, dias: true, diasAbono: true, status: true },
+      }),
+      prisma.ausencia.findMany({
+        where: { colaboradorId: solicitacao.colaboradorId, ...WHERE_AUSENCIAS_PARA_FERIAS },
+        select: SELECT_AUSENCIAS_PARA_FERIAS,
+      }),
+    ]);
+    const resumo = calcularFerias(solicitacao.colaborador.dataAdmissao, outras, undefined, ausencias);
     const periodo = resumo.periodos.find(
       (p) => p.inicio.getTime() === solicitacao.periodoAquisitivoInicio.getTime(),
     );
@@ -162,6 +181,17 @@ export async function decidirFerias(
         error: `Não há mais saldo neste período aquisitivo (restam ${periodo?.saldo ?? 0} dia(s)). Reprove ou peça um novo período.`,
       };
     }
+    const validacao = validarSolicitacaoFerias({
+      resumo,
+      periodoAquisitivoInicio: solicitacao.periodoAquisitivoInicio,
+      dataInicio: solicitacao.dataInicio,
+      dataFim: solicitacao.dataFim,
+      diasAbono: solicitacao.diasAbono,
+      fracoesExistentes: outras.filter(
+        (o) => o.periodoAquisitivoInicio.getTime() === solicitacao.periodoAquisitivoInicio.getTime(),
+      ),
+    });
+    if (!validacao.ok) return { ok: false, error: `Não dá para aprovar: ${validacao.error}` };
   }
 
   await prisma.solicitacaoFerias.update({
@@ -229,7 +259,7 @@ export async function registrarFeriasGozadas(
   const diasAbono = Number.parseInt(String(formData.get("diasAbono") ?? "0"), 10) || 0;
   const observacoes = String(formData.get("observacoes") ?? "").trim() || null;
 
-  const resumo = calcularFerias(ctx.colaborador.dataAdmissao, ctx.solicitacoes);
+  const resumo = calcularFerias(ctx.colaborador.dataAdmissao, ctx.solicitacoes, undefined, ctx.ausencias);
   const validacao = validarSolicitacaoFerias({
     resumo,
     periodoAquisitivoInicio,
@@ -239,6 +269,9 @@ export async function registrarFeriasGozadas(
     fracoesExistentes: ctx.solicitacoes.filter(
       (s) => s.periodoAquisitivoInicio.getTime() === periodoAquisitivoInicio.getTime(),
     ),
+    // Férias que JÁ aconteceram: o dia de início (art. 134 §3º) não é
+    // conferido — o registro tem de refletir o que houve.
+    retroativo: true,
   });
   if (!validacao.ok) return { ok: false, error: validacao.error };
 
@@ -341,9 +374,11 @@ export async function conciliarSaldoFerias(
     return { ok: false, error: "Informe o saldo atual em dias (número inteiro, 0 ou mais)." };
   }
 
-  const resumo = calcularFerias(ctx.colaborador.dataAdmissao, []);
-  const adquiridos = resumo.periodos.filter((p) => p.status !== "EM_CURSO");
-  const totalAcumulado = adquiridos.length * DIAS_FERIAS_POR_PERIODO;
+  // Direito de cada período já considerando faltas (art. 130) e afastamento
+  // (art. 133) — 26/11/2026. Período sem direito não acumula nem é consumido.
+  const resumo = calcularFerias(ctx.colaborador.dataAdmissao, [], undefined, ctx.ausencias);
+  const adquiridos = resumo.periodos.filter((p) => p.status !== "EM_CURSO" && p.direito > 0);
+  const totalAcumulado = adquiridos.reduce((total, p) => total + p.direito, 0);
 
   if (adquiridos.length === 0) {
     return {
@@ -369,7 +404,7 @@ export async function conciliarSaldoFerias(
 
   for (const periodo of adquiridos) {
     if (aUsar <= 0) break;
-    const consumido = Math.min(DIAS_FERIAS_POR_PERIODO, aUsar);
+    const consumido = Math.min(periodo.direito, aUsar);
     registros.push({
       periodoAquisitivoInicio: periodo.inicio,
       dataInicio: periodo.inicio,

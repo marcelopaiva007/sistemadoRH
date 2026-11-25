@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireRHAccess } from "@/lib/rh-auth-guard";
 import {
   empresaDoGrupo,
   marcaDoGrupo,

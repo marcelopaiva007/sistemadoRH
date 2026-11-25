@@ -18,10 +18,15 @@ export default async function ColaboradoresPage({
   searchParams,
 }: {
   params: Promise<{ empresaId: string }>;
-  searchParams: Promise<{ empresas?: string }>;
+  searchParams: Promise<{ empresas?: string; status?: string; lacuna?: string; desligados?: string }>;
 }) {
   const { empresaId } = await params;
-  const { empresas: empresasParam } = await searchParams;
+  const {
+    empresas: empresasParam,
+    status: statusParam,
+    lacuna: lacunaParam,
+    desligados: desligadosParam,
+  } = await searchParams;
   const usuario = await requireEmpresaAccess(empresaId);
 
   // Mesma regra da tela inicial da empresa: o padrão é a MARCA do caminho, e o
@@ -50,7 +55,30 @@ export default async function ColaboradoresPage({
   // do caminho e as que entraram pelo filtro explícito.
   const escopoCatalogo = [...new Set([...daMarcaVisiveis, ...escopo])];
 
-  const [linhas, setores, posicoes] = await Promise.all([
+  // 26/11/2026: desligado há mais de um ano não vem mais por padrão. A lista
+  // inteira (todos os anos de desligamento) era serializada para o navegador a
+  // cada abertura, e o padrão da tela é "Ativos" — quem procura alguém antigo
+  // pede com ?desligados=todos (o aviso na tela tem o link). Três casos trazem
+  // tudo sem pedir, para os números de fora continuarem batendo com a lista:
+  // ?status=inativos e ?lacuna= (blocos "Lacunas dos desligados" e
+  // "Preenchimento da base", que contam a base inteira) e o próprio
+  // ?desligados=todos. Desligado SEM data de desligamento sempre vem — é
+  // lacuna a corrigir, não histórico. O recorte de empresas é o mesmo `escopo`
+  // de antes: isto só tira linhas de dentro dele.
+  const trazTodosDesligados =
+    desligadosParam === "todos" || statusParam === "inativos" || Boolean(lacunaParam);
+  const corteDesligados = somarAnosUTC(hojeUTC(), -1);
+  const filtroDesligadosAntigos = trazTodosDesligados
+    ? {}
+    : {
+        OR: [
+          { ativo: true },
+          { dataDesligamento: null },
+          { dataDesligamento: { gte: corteDesligados } },
+        ],
+      };
+
+  const [linhas, setores, posicoes, desligadosAntigosOcultos] = await Promise.all([
     // `select` explícito, não `include`: esta lista vai inteira para um Client
     // Component, e tudo que entra aqui é serializado no HTML enviado ao
     // navegador. Com `include` iam junto salarioBase, bancoConta, bancoAgencia,
@@ -58,7 +86,7 @@ export default async function ColaboradoresPage({
     // a tela mostrar nada disso. São os mesmos campos que lib/audit.ts trata
     // como sensíveis.
     prisma.colaborador.findMany({
-      where: { empresaId: { in: escopo } },
+      where: { empresaId: { in: escopo }, ...filtroDesligadosAntigos },
       orderBy: [{ ativo: "desc" }, { empresaId: "asc" }, { nome: "asc" }],
       select: {
         id: true,
@@ -108,6 +136,11 @@ export default async function ColaboradoresPage({
     // aqueles que existem em irmãos da mesma marca (catálogo unificado).
     prisma.setor.findMany({ where: { empresaId: { in: escopoCatalogo }, ativo: true }, orderBy: { nome: "asc" } }),
     prisma.posicao.findMany({ where: { empresaId: { in: escopoCatalogo }, ativo: true }, orderBy: { nome: "asc" } }),
+    trazTodosDesligados
+      ? Promise.resolve(0)
+      : prisma.colaborador.count({
+          where: { empresaId: { in: escopo }, ativo: false, dataDesligamento: { lt: corteDesligados } },
+        }),
   ]);
 
   // empresaId → marcaId, para o formulário de novo/editar colaborador oferecer
@@ -173,6 +206,7 @@ export default async function ColaboradoresPage({
       setores={setores}
       posicoes={posicoes}
       marcaPorEmpresa={marcaPorEmpresa}
+      desligadosAntigosOcultos={desligadosAntigosOcultos}
     />
   );
 }

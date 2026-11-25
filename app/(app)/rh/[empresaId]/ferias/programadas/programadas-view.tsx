@@ -244,6 +244,7 @@ export function ProgramadasView({
                     <TableHead>Início</TableHead>
                     <TableHead>Fim</TableHead>
                     <TableHead className="text-right">Dias</TableHead>
+                    <TableHead>Pagar até</TableHead>
                     <TableHead>Situação</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="w-10" />
@@ -252,7 +253,7 @@ export function ProgramadasView({
                 <TableBody>
                   {visiveisNaPagina.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={9} className="py-8 text-center text-muted-foreground">
+                      <TableCell colSpan={10} className="py-8 text-center text-muted-foreground">
                         {linhas.length === 0
                           ? "Nenhuma férias programada."
                           : "Nenhuma férias programada neste filtro."}
@@ -284,6 +285,17 @@ export function ProgramadasView({
                           <span className="text-xs text-muted-foreground"> +{l.diasAbono} abono</span>
                         )}
                       </TableCell>
+                      <TableCell className="tabular-nums whitespace-nowrap">
+                        {/* Art. 145: férias + abono pagos até 2 dias antes do início. */}
+                        <span
+                          className={
+                            !l.emGozo && l.comecaEmDias <= 2 ? "font-medium text-destructive" : undefined
+                          }
+                          title="CLT art. 145: o pagamento das férias vence 2 dias antes do início"
+                        >
+                          {formatarData(l.pagarAte)}
+                        </span>
+                      </TableCell>
                       <TableCell className="whitespace-nowrap text-muted-foreground">
                         {l.emGozo
                           ? l.terminaEmDias === 0
@@ -292,6 +304,15 @@ export function ProgramadasView({
                           : l.comecaEmDias === 0
                             ? "começa hoje"
                             : `começa em ${l.comecaEmDias} d`}
+                        {l.avisoCurtoDias !== null && (
+                          <Badge
+                            variant="secondary"
+                            className="ml-2"
+                            title="CLT art. 135: o empregado deve ser avisado por escrito com 30 dias de antecedência"
+                          >
+                            aviso com {l.avisoCurtoDias} d
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell>
                         {/* Só PENDENTE e APROVADA chegam aqui (STATUS_DE_AGENDA filtra no servidor). */}

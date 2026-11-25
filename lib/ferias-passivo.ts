@@ -18,7 +18,12 @@
 // dias × salário/30 × 4/3 é reversível — na prática é o salário. Quem montar a
 // tela decide se isso desce para o Client Component; a matriz de permissão
 // trata salário como dado de Diretoria/RH.
-import { calcularFerias, type PeriodoAquisitivo, type SolicitacaoParaCalculo } from "@/lib/ferias";
+import {
+  calcularFerias,
+  type AusenciaParaFerias,
+  type PeriodoAquisitivo,
+  type SolicitacaoParaCalculo,
+} from "@/lib/ferias";
 import { hojeUTC, inicioDoDiaUTC, somarMesesUTC } from "@/lib/datas";
 // Formatador único do projeto — os avisos saem prontos para leitura humana, e
 // "R$ 80.033,89" numa frase de alerta não pode divergir da tabela ao lado.
@@ -62,6 +67,12 @@ export type ColaboradorParaPassivo = {
   salarioBase: number | null;
   /** As mesmas solicitações que a tela de Férias carrega: status APROVADA ou PENDENTE. */
   solicitacoes: SolicitacaoParaCalculo[];
+  /**
+   * Faltas injustificadas e afastamentos do INSS (26/11/2026): reduzem ou zeram
+   * o direito do período (CLT art. 130 e 133), e com ele o saldo e o passivo.
+   * Opcional — sem elas o direito é 30 cheio, como antes.
+   */
+  ausencias?: readonly AusenciaParaFerias[];
 };
 
 // ---------------------------------------------------------------
@@ -306,7 +317,7 @@ export function calcularPassivoFerias(
       continue;
     }
 
-    const resumo = calcularFerias(c.dataAdmissao, c.solicitacoes, referencia);
+    const resumo = calcularFerias(c.dataAdmissao, c.solicitacoes, referencia, c.ausencias);
     const saldo = resumo.saldoDisponivel;
     const indeterminado = semHistoricoDeFerias(c.solicitacoes, resumo.periodos);
 

@@ -60,6 +60,8 @@ jobs:
         run: npx tsx scripts/test-ferias.ts
       - name: Risco de férias em dobro (CLT art. 134 e 137)
         run: npx tsx scripts/test-ferias-risco-dobra.ts
+      - name: Regras da CLT de férias (art. 130, 133, 134, 135 e 145)
+        run: npx tsx scripts/test-ferias-clt.ts
       - name: Faltas da folha recortadas ao mês da competência
         run: npx tsx scripts/test-folha-ausencia-competencia.ts
       - name: Regras de ponto (CLT art. 58, 59, 73 e Portaria MTP 671)
@@ -70,12 +72,22 @@ jobs:
         run: npx tsx scripts/test-conformidade.ts
       - name: Escala de trabalho
         run: npx tsx scripts/test-escala.ts
+      - name: Escala x CLT (interjornada, DSR e domingo)
+        run: npx tsx scripts/test-escala-clt.ts
+      - name: ASO periódico pela NR-7
+        run: npx tsx scripts/test-aso-periodicidade.ts
       - name: Admissão
         run: npx tsx scripts/test-admissao.ts
       - name: Indicadores (BI)
         run: npx tsx scripts/test-bi.ts
+      - name: Absenteísmo recortado à janela dos últimos 30 dias
+        run: npx tsx scripts/test-absenteismo-janela.ts
+      - name: Aviso ao colaborador da resposta do Fale com o RH
+        run: npx tsx scripts/test-aviso-resposta-portal.ts
       - name: Produtividade
         run: npx tsx scripts/test-produtividade.ts
+      - name: Paginação no servidor (listas grandes)
+        run: npx tsx scripts/test-paginacao.ts
       - name: Bloqueio por tentativas de login
         run: npx tsx scripts/test-login-tentativas.ts
       - name: Sessão revalidada a cada requisição (conta desativada, senha trocada)
@@ -88,6 +100,8 @@ jobs:
         run: npx tsx scripts/test-pesquisa-enps-resultado.ts
       - name: Pendências por natureza e saudação
         run: npx tsx scripts/test-pendencias-natureza.ts
+      - name: Prazos eSocial (S-2200, S-2299, S-2210, S-2230) e aviso prévio proporcional
+        run: npx tsx scripts/test-prazos-legais.ts
       - name: Telefone, CPF e varredura de duplicados
         run: npx tsx scripts/test-telefone.ts
       - name: Marcação de ponto repetida no mesmo dia (fuso de Brasília)

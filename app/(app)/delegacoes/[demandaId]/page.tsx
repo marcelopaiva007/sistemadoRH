@@ -104,18 +104,24 @@ export default async function DemandaPage({
   const usuariosParaTransferir = podeTransferir
     ? await (async () => {
         const [usuarios, colaboradores] = await Promise.all([
+          // 26/11/2026: os dois filtros que eram feitos em memória (papel de
+          // portal; ficha sem login) foram para o `where`, com select mínimo.
+          // Antes vinham TODAS as contas ativas e TODAS as fichas ativas do
+          // grupo para sobrar uma fração delas no seletor. O recorte de grupo
+          // é o mesmo (whereUsuariosDoGrupoDe / whereColaboradoresDoGrupoDe).
           prisma.user.findMany({
             where: {
               ativo: true,
+              role: PAPEL_PORTAL,
               NOT: { id: demanda.responsavelId },
               ...whereUsuariosDoGrupoDe(usuario.id!),
             },
-            select: { id: true, nome: true, role: true },
+            select: { id: true, nome: true },
             orderBy: { nome: "asc" },
           }),
           prisma.colaborador.findMany({
-            where: { ativo: true, ...whereColaboradoresDoGrupoDe(usuario.id!) },
-            select: { id: true, nome: true, usuario: { select: { id: true } } },
+            where: { ativo: true, usuario: { is: null }, ...whereColaboradoresDoGrupoDe(usuario.id!) },
+            select: { id: true, nome: true },
             orderBy: { nome: "asc" },
           }),
         ]);
@@ -123,12 +129,8 @@ export default async function DemandaPage({
         // 31/08/2026): os usuários do sistema saíram do seletor porque o
         // Telegram — o canal de cobrança — é vinculado à ficha de colaborador.
         return [
-          ...usuarios
-            .filter((u) => u.role === PAPEL_PORTAL)
-            .map((u) => ({ tipo: "COLABORADOR" as const, idEhFicha: false, id: u.id, nome: u.nome })),
-          ...colaboradores
-            .filter((c) => !c.usuario)
-            .map((c) => ({ tipo: "COLABORADOR" as const, idEhFicha: true, id: c.id, nome: c.nome })),
+          ...usuarios.map((u) => ({ tipo: "COLABORADOR" as const, idEhFicha: false, id: u.id, nome: u.nome })),
+          ...colaboradores.map((c) => ({ tipo: "COLABORADOR" as const, idEhFicha: true, id: c.id, nome: c.nome })),
         ].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
       })()
     : [];

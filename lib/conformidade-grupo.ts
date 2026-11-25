@@ -46,6 +46,7 @@ export async function exposicaoSstPorEmpresa(empresaIds: string[]): Promise<Expo
           where: { empresaId: empresa.id, ativo: true },
           select: {
             posicaoId: true,
+            dataNascimento: true,
             certificados: { select: { norma: true, realizadoEm: true, validoAte: true } },
             exames: {
               select: { tipo: true, realizadoEm: true, validoAte: true, resultado: true, restricoes: true },
@@ -65,7 +66,8 @@ export async function exposicaoSstPorEmpresa(empresaIds: string[]): Promise<Expo
           comRequisitoNR++;
           if (conformidadeDoColaborador(requisitos, c.certificados).regular) regularesNR++;
         }
-        const exame = situacaoDoExame(c.exames);
+        // Vencimento do ASO pela NR-7 (26/11/2026) — ver lib/aso-periodicidade.ts.
+        const exame = situacaoDoExame(c.exames, undefined, { dataNascimento: c.dataNascimento });
         if (exame.situacao === "EM_DIA" || exame.situacao === "VENCENDO") examesEmDia++;
       }
 

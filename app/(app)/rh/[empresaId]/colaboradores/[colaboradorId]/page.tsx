@@ -306,11 +306,17 @@ export default async function ColaboradorPage({
     ? calcularFerias(
         colaborador.dataAdmissao,
         ferias.filter((f) => f.status === "APROVADA" || f.status === "PENDENTE"),
+        undefined,
+        // Faltas injustificadas (art. 130) e afastamentos do INSS (art. 133)
+        // mudam o direito — 26/11/2026. `calcularFerias` só considera as
+        // APROVADAS; a lista já vem completa para a aba de ausências.
+        ausencias,
       )
     : null;
 
   const conformidade = conformidadeDoColaborador(requisitos, certificados);
-  const situacaoExame = situacaoDoExame(exames);
+  // Vencimento do ASO pela NR-7 (26/11/2026) — ver lib/aso-periodicidade.ts.
+  const situacaoExame = situacaoDoExame(exames, undefined, { dataNascimento: colaborador.dataNascimento });
 
   // Fora do Promise.all de cima de propósito: aquele array já tem 24
   // posições — inserir no meio dele para uma busca nova é o tipo de mudança

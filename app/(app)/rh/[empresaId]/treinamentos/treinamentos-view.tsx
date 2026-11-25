@@ -18,7 +18,6 @@ import type { OpcaoCatalogo } from "@/lib/catalogos";
 import type { ActionResult } from "@/lib/constants";
 import { Paginacao } from "@/components/paginacao";
 import { usePaginacao } from "@/lib/use-paginacao";
-import { cn } from "@/lib/utils";
 
 const initialState: ActionResult = { ok: true };
 

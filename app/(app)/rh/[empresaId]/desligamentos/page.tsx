@@ -1,6 +1,7 @@
 import { empresasVisiveis, requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
-import { hojeUTC } from "@/lib/datas";
+import { anosCompletos, hojeUTC } from "@/lib/datas";
+import { avisoPrevioDevido, prazoRescisao } from "@/lib/prazos-legais";
 import { PRIMEIRO_DESLIGAMENTO_COBRADO } from "@/lib/constants-dp";
 import { DesligamentosView } from "./desligamentos-view";
 
@@ -34,6 +35,7 @@ export default async function DesligamentosPage({
       nome: true,
       empresaId: true,
       empresa: { select: { nome: true } },
+      dataAdmissao: true,
       dataDesligamento: true,
       motivoDesligamento: true,
       checklistDispensado: true,
@@ -44,6 +46,16 @@ export default async function DesligamentosPage({
   });
 
   const desligamentos = colaboradores.map((c) => ({
+    // Aviso prévio e prazo da rescisão (26/11/2026), das regras puras de
+    // lib/prazos-legais.ts — as mesmas do evento S-2299 em Prazos eSocial.
+    // Sem data de admissão não há como contar os anos de serviço: o aviso
+    // fica nulo e a tela diz o que falta. Transferência no grupo não é
+    // rescisão (a pessoa segue no grupo), então não tem prazo de pagamento.
+    avisoPrevio: c.dataAdmissao
+      ? avisoPrevioDevido(c.motivoDesligamento, anosCompletos(c.dataAdmissao, c.dataDesligamento!))
+      : { dias: null, texto: "Sem data de admissão na ficha" },
+    prazoRescisao:
+      c.motivoDesligamento === "TRANSFERENCIA_GRUPO" ? null : prazoRescisao(c.dataDesligamento!),
     id: c.id,
     nome: c.nome,
     empresaId: c.empresaId,

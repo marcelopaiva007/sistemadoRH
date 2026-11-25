@@ -362,6 +362,7 @@ export function ColaboradoresTable({
   setores,
   posicoes,
   marcaPorEmpresa,
+  desligadosAntigosOcultos = 0,
 }: {
   empresaId: string;
   // Era `empresasDoUsuario` (tudo que a pessoa enxerga) até 10/08/2026; o
@@ -372,6 +373,10 @@ export function ColaboradoresTable({
   setores: Setor[];
   posicoes: Posicao[];
   marcaPorEmpresa: Record<string, string>;
+  // Desligados há mais de um ano que o servidor deixou de fora (26/11/2026).
+  // Zero quando a lista veio inteira (?desligados=todos, ?status=inativos ou
+  // ?lacuna=).
+  desligadosAntigosOcultos?: number;
 }) {
   // Aplicar filtro de marcas/empresas selecionadas
   const empresasSelecionadas = useFiltroEmpresas(empresasDoEscopo);
@@ -424,6 +429,13 @@ export function ColaboradoresTable({
   // bloco apontava o problema e escondia quem era.
   const lacuna = useSearchParams().get("lacuna");
   const empresasNaUrl = useSearchParams().get("empresas");
+  // Mesmo recorte de CNPJ, só pedindo os desligados antigos de volta — e, se
+  // a pessoa já estava em "Inativos", volta nele (o ?status= é lido acima).
+  const hrefComDesligadosAntigos = `/rh/${empresaId}/colaboradores?${new URLSearchParams({
+    ...(empresasNaUrl ? { empresas: empresasNaUrl } : {}),
+    ...(filtroStatus === "inativos" ? { status: "inativos" } : {}),
+    desligados: "todos",
+  }).toString()}`;
   const [ordem, setOrdem] = useState<{ campo: CampoOrdenavel; desc: boolean }>({
     campo: "nome",
     desc: false,
@@ -727,20 +739,34 @@ export function ColaboradoresTable({
         }
         contagem={`${filtrados.length} ${filtrados.length === 1 ? "resultado" : "resultados"}`}
         abaixo={
-          escondidosPeloStatus > 0 && (
-            <p className="text-xs text-muted-foreground">
-              Mais {escondidosPeloStatus} ficha{escondidosPeloStatus > 1 ? "s" : ""} casa
-              {escondidosPeloStatus > 1 ? "m" : ""} com essa busca em{" "}
-              {filtroStatus === "ativos" ? "desligados" : "ativos"}.{" "}
-              <button
-                type="button"
-                onClick={() => aoFiltrar(setFiltroStatus)("todos")}
-                className="underline underline-offset-2 hover:text-foreground"
-              >
-                Mostrar ativos e inativos
-              </button>
-            </p>
-          )
+          <>
+            {desligadosAntigosOcultos > 0 && (filtroStatus !== "ativos" || busca.trim() !== "") && (
+              <p className="text-xs text-muted-foreground">
+                {desligadosAntigosOcultos} desligado{desligadosAntigosOcultos > 1 ? "s" : ""} há mais
+                de um ano não {desligadosAntigosOcultos > 1 ? "foram carregados" : "foi carregado"}.{" "}
+                <Link
+                  href={hrefComDesligadosAntigos}
+                  className="underline underline-offset-2 hover:text-foreground"
+                >
+                  Carregar também
+                </Link>
+              </p>
+            )}
+            {escondidosPeloStatus > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Mais {escondidosPeloStatus} ficha{escondidosPeloStatus > 1 ? "s" : ""} casa
+                {escondidosPeloStatus > 1 ? "m" : ""} com essa busca em{" "}
+                {filtroStatus === "ativos" ? "desligados" : "ativos"}.{" "}
+                <button
+                  type="button"
+                  onClick={() => aoFiltrar(setFiltroStatus)("todos")}
+                  className="underline underline-offset-2 hover:text-foreground"
+                >
+                  Mostrar ativos e inativos
+                </button>
+              </p>
+            )}
+          </>
         }
       />
 

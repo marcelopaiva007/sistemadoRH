@@ -20,7 +20,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Indicador } from "@/components/indicador";
 import { Paginacao } from "@/components/paginacao";
 import { usePaginacao } from "@/lib/use-paginacao";
-import { STATUS_PERIODO_BADGE, type StatusPeriodo } from "@/lib/ferias";
+import { DIAS_FERIAS_POR_PERIODO, STATUS_PERIODO_BADGE, type StatusPeriodo } from "@/lib/ferias";
 import type { OrigemHistorico, ProgramacaoFerias, ValorEmReais } from "@/lib/ferias-passivo";
 import { formatarReais } from "@/lib/constants-beneficios";
 import { formatarData } from "@/lib/datas";
@@ -42,8 +42,8 @@ import { AjudaDaTela } from "@/components/ajuda-da-tela";
 const FILTROS = [
   { chave: "TODOS", rotulo: "Todos" },
   // A MESMA conta do cartão "Férias vencidas" da tela de Pendências
-  // (`emRiscoDeDobra`, lib/ferias.ts): período aquisitivo fechado sem os 30
-  // dias marcados dentro do concessivo, já vencido ou a 60 dias ou menos de
+  // (`emRiscoDeDobra`, lib/ferias.ts): período aquisitivo fechado sem os dias
+  // de direito (30, ou menos pelo art. 130 desde 26/11/2026) marcados dentro do concessivo, já vencido ou a 60 dias ou menos de
   // vencer. O cartão navega pra cá com filtro=RISCO_DOBRA e a lista bate
   // pessoa a pessoa com o número dele. Desde 26/11/2026 quem gozou há 13
   // meses e ainda tem prazo não aparece mais aqui.
@@ -233,7 +233,9 @@ export function FeriasView({
         </div>
         <p className="text-sm text-muted-foreground">
           Quem tem férias a vencer, vencidas ou saldo disponível. O prazo de gozo é de 12 meses após o
-          fim do período aquisitivo — passando disso o pagamento é em dobro (CLT art. 137).
+          fim do período aquisitivo — passando disso o pagamento é em dobro (CLT art. 137). O saldo
+          já desconta as faltas injustificadas (art. 130) e o afastamento pelo INSS acima de 6 meses
+          (art. 133).
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
           Recorte: {plural(escopo.cnpjs, "CNPJ", "CNPJs")}
@@ -444,6 +446,15 @@ export function FeriasView({
                             {l.periodo
                               ? `${formatarData(l.periodo.inicio)} — ${formatarData(l.periodo.fim)}`
                               : "—"}
+                            {/* Direito reduzido por faltas (art. 130) — 26/11/2026. */}
+                            {l.periodo && l.periodo.direito < DIAS_FERIAS_POR_PERIODO && (
+                              <span
+                                className="block text-xs text-muted-foreground"
+                                title="CLT art. 130: faltas injustificadas no período aquisitivo reduzem os dias de férias"
+                              >
+                                direito de {l.periodo.direito} d ({l.periodo.faltasInjustificadas} faltas)
+                              </span>
+                            )}
                           </TableCell>
                           <TableCell className="tabular-nums">
                             {l.periodo ? formatarData(l.periodo.limiteConcessivo) : "—"}
