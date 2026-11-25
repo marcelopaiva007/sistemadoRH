@@ -68,6 +68,13 @@ model User {
   recuperacaoSenhaExpiraEm  DateTime?
   recuperacaoSenhaTokenHash String?
   ultimoAcessoEm            DateTime?
+  // SESSÕES VÁLIDAS DESDE (25/11/2026): sessão aberta ANTES deste instante
+  // deixa de valer na requisição seguinte (callback `jwt` em auth.ts, regra em
+  // lib/sessao-revalidada.ts). Gravado ao desativar a conta e ao trocar ou
+  // redefinir a senha — até então o JWT guardava papel, ativo e vínculos do
+  // login e valia por 30 dias, e quem já estava logado não caía. Nulo = nada
+  // a derrubar, o estado de toda conta antes desta coluna.
+  sessoesValidasDesde       DateTime?
   createdAt                 DateTime  @default(now())
 
   // TELAS QUE A PESSOA VÊ (v1.207.0, pedido do CEO em 13/11/2026): o admin
