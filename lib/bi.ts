@@ -3,7 +3,8 @@
 // Funções puras — recebem os dados já buscados do banco (com os relations que
 // precisam já resolvidos pelo caller) e devolvem números prontos para a tela.
 // Nada aqui toca o Prisma, para dar para testar sem banco.
-import { diferencaEmDiasUTC, hojeUTC, somarMesesUTC } from "@/lib/datas";
+import { hojeUTC, somarDiasUTC, somarMesesUTC } from "@/lib/datas";
+import { diasDaAusenciaNoIntervalo } from "@/lib/folha-ausencias";
 
 // ---------------------------------------------------------------
 // Headcount
@@ -173,13 +174,60 @@ export function tempoMedioDeCasaAnos(
 // Absenteísmo
 // ---------------------------------------------------------------
 
-export type AusenciaParaAbsenteismo = { setorNome: string; dias: number; abonada: boolean; dataInicio: Date };
+export type AusenciaParaAbsenteismo = {
+  setorNome: string;
+  dias: number;
+  abonada: boolean;
+  dataInicio: Date;
+  dataFim: Date;
+};
+
+/**
+ * A janela do absenteísmo: [hoje − `janelaDias`, hoje], as duas pontas
+ * contando — o mesmo corte que as telas já usavam para dizer quais registros
+ * "caem nos últimos 30 dias". Quem consulta o banco usa estas datas para
+ * buscar toda ausência que TOCA a janela (dataInicio ≤ fim e dataFim ≥ início).
+ */
+export function janelaDoAbsenteismo(hoje: Date = hojeUTC(), janelaDias = 30): { inicio: Date; fim: Date } {
+  return { inicio: somarDiasUTC(hoje, -janelaDias), fim: hoje };
+}
+
+/**
+ * O filtro do Prisma para buscar as ausências que TOCAM a janela — inclusive a
+ * que começou antes dela e segue dentro. Antes cada tela buscava "dataInicio
+ * nos últimos 40 dias" e perdia esse caso. Um só lugar para painel, CSV, PDF e
+ * tela inicial buscarem a mesma coisa.
+ */
+export function filtroAusenciasDaJanela(
+  hoje: Date = hojeUTC(),
+  janelaDias = 30,
+): { dataInicio: { lte: Date }; dataFim: { gte: Date } } {
+  const { inicio, fim } = janelaDoAbsenteismo(hoje, janelaDias);
+  return { dataInicio: { lte: fim }, dataFim: { gte: inicio } };
+}
+
+/**
+ * Dias de falta da ausência que caem DENTRO da janela (26/11/2026). Antes, a
+ * ausência que começou na janela somava o `dias` inteiro: um afastamento de 15
+ * dias iniciado anteontem contava 15 faltas, 13 delas ainda no futuro; e a que
+ * começou antes da janela e seguia dentro dela não contava nada. O recorte é o
+ * mesmo da folha (lib/folha-ausencias.ts).
+ */
+export function diasDeFaltaNaJanela(
+  a: { dataInicio: Date; dataFim: Date; dias: number },
+  hoje: Date = hojeUTC(),
+  janelaDias = 30,
+): number {
+  const { inicio, fim } = janelaDoAbsenteismo(hoje, janelaDias);
+  return diasDaAusenciaNoIntervalo(a, inicio, fim);
+}
 
 export type LinhaAbsenteismo = { setor: string; diasFalta: number; taxaPct: number };
 
 /**
  * % de dias úteis perdidos por falta NÃO abonada, nos últimos `janelaDias`
- * (padrão 30), por setor. Ausência abonada (atestado aceito, licença) não
+ * (padrão 30), por setor. Cada ausência conta só os dias que caem dentro da
+ * janela (26/11/2026). Ausência abonada (atestado aceito, licença) não
  * entra — é o que a Fase 1 já define como "não conta como falta".
  *
  * `diasUteisPorJanela` é uma aproximação (≈22 dias úteis por mês corrido) —
@@ -196,9 +244,10 @@ export function absenteismoPorSetor(
   const faltasPorSetor = new Map<string, number>();
   for (const a of ausencias) {
     if (a.abonada) continue;
-    if (diferencaEmDiasUTC(hoje, a.dataInicio) > janelaDias) continue;
-    if (a.dataInicio > hoje) continue;
-    faltasPorSetor.set(a.setorNome, (faltasPorSetor.get(a.setorNome) ?? 0) + a.dias);
+    // Só os dias dentro de [hoje − janela, hoje] — ver `diasDeFaltaNaJanela`.
+    const dias = diasDeFaltaNaJanela(a, hoje, janelaDias);
+    if (dias <= 0) continue;
+    faltasPorSetor.set(a.setorNome, (faltasPorSetor.get(a.setorNome) ?? 0) + dias);
   }
 
   return headcount

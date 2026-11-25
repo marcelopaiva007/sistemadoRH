@@ -5,7 +5,14 @@
 import "dotenv/config";
 import { prisma } from "@/lib/prisma";
 import { hojeUTC } from "@/lib/datas";
-import { absenteismoPorSetor, calcularTurnover, custoPessoalPorSetor, headcountPorSetor, movimentoMensal } from "@/lib/bi";
+import {
+  absenteismoPorSetor,
+  calcularTurnover,
+  custoPessoalPorSetor,
+  filtroAusenciasDaJanela,
+  headcountPorSetor,
+  movimentoMensal,
+} from "@/lib/bi";
 import { empresaDeTeste } from "./_empresa-de-teste";
 
 async function main() {
@@ -24,8 +31,8 @@ async function main() {
       select: { dataAdmissao: true, dataDesligamento: true },
     }),
     prisma.ausencia.findMany({
-      where: { empresaId: empresa.id, dataInicio: { gte: new Date(hoje.getTime() - 40 * 86_400_000) } },
-      select: { dias: true, abonada: true, dataInicio: true, colaborador: { select: { setor: { select: { nome: true } } } } },
+      where: { empresaId: empresa.id, ...filtroAusenciasDaJanela(hoje) },
+      select: { dias: true, abonada: true, dataInicio: true, dataFim: true, colaborador: { select: { setor: { select: { nome: true } } } } },
     }),
     prisma.beneficioColaborador.findMany({
       where: { empresaId: empresa.id, OR: [{ dataFim: null }, { dataFim: { gte: hoje } }], colaborador: { ativo: true } },
@@ -43,7 +50,13 @@ async function main() {
   console.log("\nMovimento mensal (últimos 3 meses):", movimento.slice(-3));
 
   const absenteismo = absenteismoPorSetor(
-    ausenciasRecentes.map((a) => ({ setorNome: a.colaborador.setor.nome, dias: a.dias, abonada: a.abonada, dataInicio: a.dataInicio })),
+    ausenciasRecentes.map((a) => ({
+      setorNome: a.colaborador.setor.nome,
+      dias: a.dias,
+      abonada: a.abonada,
+      dataInicio: a.dataInicio,
+      dataFim: a.dataFim,
+    })),
     headcount,
     hoje,
   );

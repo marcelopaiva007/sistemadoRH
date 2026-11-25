@@ -2,7 +2,8 @@
 // Mesmo padrão do relatorio-pdf de NR-01.
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { podeOperarEmpresaRH } from "@/lib/rh-auth-guard";
+import { empresasVisiveis, podeOperarEmpresaRH } from "@/lib/rh-auth-guard";
+import { cnpjsVisiveisDaMarca, marcaDaEmpresa } from "@/lib/escopo-marca";
 import { prisma } from "@/lib/prisma";
 import { CONVITES_NA_PESQUISA } from "@/lib/pesquisa-numeros";
 import { gerarHtmlRelatorioClima } from "@/lib/clima-relatorio";
@@ -35,8 +36,19 @@ export async function GET(
     return NextResponse.json({ error: "Sem acesso a esta empresa." }, { status: 403 });
   }
 
+  // Pesquisa é da MARCA (26/11/2026) — o mesmo recorte do dashboard de clima
+  // (dashboard-clima/page.tsx): marca do CNPJ do caminho, criada em CNPJ que o
+  // usuário enxerga. Antes esta busca e as do ciclo anterior/histórico iam
+  // pelo CNPJ do caminho: a pesquisa criada no CNPJ irmão abria no dashboard
+  // mas o PDF dava 404, e o comparativo perdia os ciclos do irmão.
+  const [marcaId, cnpjsDaMarca] = await Promise.all([
+    marcaDaEmpresa(empresaId),
+    empresasVisiveis(user).then((visiveis) => cnpjsVisiveisDaMarca(empresaId, visiveis)),
+  ]);
+  const daMarcaVisivel = { marcaId, empresaId: { in: cnpjsDaMarca } };
+
   const pesquisa = await prisma.pesquisa.findFirst({
-    where: { id: pesquisaId, empresaId, modelo: "CLIMA" },
+    where: { id: pesquisaId, ...daMarcaVisivel, modelo: "CLIMA" },
     include: { empresa: { select: { nome: true } } },
   });
   if (!pesquisa) {
@@ -79,7 +91,7 @@ export async function GET(
 
   // Ciclo anterior
   const cicloAnterior = await prisma.pesquisa.findFirst({
-    where: { empresaId, modelo: "CLIMA", encerradaEm: { not: null }, id: { not: pesquisaId } },
+    where: { ...daMarcaVisivel, modelo: "CLIMA", encerradaEm: { not: null }, id: { not: pesquisaId } },
     orderBy: { encerradaEm: "desc" },
     include: { respostas: { include: { itens: { include: { pergunta: true } } } } },
   });
@@ -115,7 +127,7 @@ export async function GET(
 
   // Evolução histórica
   const ciclosHistorico = await prisma.pesquisa.findMany({
-    where: { empresaId, modelo: "CLIMA", encerradaEm: { not: null } },
+    where: { ...daMarcaVisivel, modelo: "CLIMA", encerradaEm: { not: null } },
     orderBy: { encerradaEm: "desc" },
     take: 5,
     include: { respostas: { include: { itens: { include: { pergunta: true } } } } },

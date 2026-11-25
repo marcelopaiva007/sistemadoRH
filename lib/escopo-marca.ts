@@ -47,6 +47,28 @@ export async function empresasDaMesmaMarca(empresaId: string, cliente: Cliente =
 }
 
 /**
+ * Os CNPJs da marca de `empresaId` que o usuário enxerga — a interseção de
+ * `empresasDaMesmaMarca` com `empresasVisiveis` (lib/rh-auth-guard.ts), que
+ * quem chama já calculou.
+ *
+ * Criado em 26/11/2026 para o clima: a pesquisa é da MARCA, e o ciclo
+ * anterior, o histórico e o Meu Setor buscavam só pelo CNPJ do caminho — a
+ * pesquisa de 2025 criada na RSM sumia do comparativo de quem abriu a de 2026
+ * pela BRNET, e o dashboard mostrava "primeiro ciclo" sem dizer nada. A
+ * interseção com o visível é regra de escopo, não enfeite: a lista de pesquisas
+ * só mostra as criadas em CNPJ visível, e o comparativo não pode trazer o que a
+ * lista esconde.
+ */
+export async function cnpjsVisiveisDaMarca(
+  empresaId: string,
+  visiveis: readonly string[],
+  cliente: Cliente = prisma,
+): Promise<string[]> {
+  const daMarca = await empresasDaMesmaMarca(empresaId, cliente);
+  return daMarca.filter((id) => visiveis.includes(id));
+}
+
+/**
  * O nome que descreve um conjunto de CNPJs — para título de relatório e nome
  * de arquivo exportado, não para tela (a tela usa o seletor do topo, que já
  * sabe o rótulo certo sem ir ao banco de novo).

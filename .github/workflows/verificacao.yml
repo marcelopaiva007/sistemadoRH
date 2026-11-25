@@ -74,6 +74,10 @@ jobs:
         run: npx tsx scripts/test-admissao.ts
       - name: Indicadores (BI)
         run: npx tsx scripts/test-bi.ts
+      - name: Absenteísmo recortado à janela dos últimos 30 dias
+        run: npx tsx scripts/test-absenteismo-janela.ts
+      - name: Aviso ao colaborador da resposta do Fale com o RH
+        run: npx tsx scripts/test-aviso-resposta-portal.ts
       - name: Produtividade
         run: npx tsx scripts/test-produtividade.ts
       - name: Bloqueio por tentativas de login

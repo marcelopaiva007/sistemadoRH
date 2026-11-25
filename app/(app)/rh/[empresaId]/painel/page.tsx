@@ -1,9 +1,11 @@
 import { empresasVisiveis, requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
-import { formatarData, hojeUTC } from "@/lib/datas";
+import { formatarData, hojeCalendarioBrasilia, hojeUTC } from "@/lib/datas";
 import {
   absenteismoPorSetor,
   calcularTurnover,
+  diasDeFaltaNaJanela,
+  filtroAusenciasDaJanela,
   custoPessoalPorSetor,
   distribuicaoFaixaEtaria,
   headcountMensal,
@@ -94,6 +96,9 @@ export default async function PainelPage({
 
   const janela = JANELAS.includes(Number(janelaParam)) ? Number(janelaParam) : JANELA_PADRAO;
   const hoje = hojeUTC();
+  // O absenteísmo recorta "até hoje": o dia de Brasília, não o UTC — às 21h o
+  // dia UTC já é amanhã e contaria uma falta que ainda não aconteceu.
+  const hojeAbsenteismo = hojeCalendarioBrasilia();
 
   const [
     empresas,
@@ -147,15 +152,18 @@ export default async function PainelPage({
       where: { empresaId: { in: escopo } },
       select: { id: true, nome: true },
     }),
+    // Toda ausência que TOCA a janela (26/11/2026) — antes, só as que
+    // começaram nos últimos 40 dias, e o `dias` inteiro delas entrava na conta.
     prisma.ausencia.findMany({
       where: {
         empresaId: { in: escopo },
-        dataInicio: { gte: new Date(hoje.getTime() - 40 * 86_400_000) },
+        ...filtroAusenciasDaJanela(hojeAbsenteismo, JANELA_ABSENTEISMO_DIAS),
       },
       select: {
         dias: true,
         abonada: true,
         dataInicio: true,
+        dataFim: true,
         colaborador: { select: { setor: { select: { nome: true } } } },
       },
     }),
@@ -332,10 +340,10 @@ export default async function PainelPage({
   // --- Absenteísmo: três estados, decididos pela contagem crua -------------
   const absenteismo: AbsenteismoNaTela = {
     registrosNoEscopo: ausenciasNoEscopo,
+    // Registro "na janela" = tem pelo menos um dia dentro dela, já
+    // acontecido — o mesmo recorte que a taxa abaixo usa.
     registrosNaJanela: ausenciasRecentes.filter(
-      a =>
-        a.dataInicio <= hoje &&
-        hoje.getTime() - a.dataInicio.getTime() <= JANELA_ABSENTEISMO_DIAS * 86_400_000
+      a => diasDeFaltaNaJanela(a, hojeAbsenteismo, JANELA_ABSENTEISMO_DIAS) > 0
     ).length,
     linhas: absenteismoPorSetor(
       ausenciasRecentes.map(a => ({
@@ -343,9 +351,11 @@ export default async function PainelPage({
         dias: a.dias,
         abonada: a.abonada,
         dataInicio: a.dataInicio,
+        dataFim: a.dataFim,
       })),
       headcount,
-      hoje
+      hojeAbsenteismo,
+      JANELA_ABSENTEISMO_DIAS
     ),
   };
 
