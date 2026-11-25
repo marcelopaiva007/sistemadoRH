@@ -26,6 +26,24 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.212.0",
+    data: "26/11/2026",
+    horario: "14:30",
+    titulo: "Prazos eSocial, regras da CLT em férias e escalas, ASO pela NR-7 e telas mais leves",
+    itens: [
+      "Nova tela Prazos eSocial: data-limite de cada admissão, desligamento, acidente (CAT) e afastamento que o escritório contábil precisa enviar, com planilha para exportar e botão \"Marcar enviado\". Os pendentes aparecem em Pendências.",
+      "Desligamentos mostram o aviso prévio devido (30 dias + 3 por ano de casa, até 90) e até quando pagar a rescisão.",
+      "Férias seguem a CLT: o saldo desconta faltas injustificadas (art. 130) e zera após mais de 6 meses de afastamento pelo INSS (art. 133); a divisão em até 3 partes é conferida; o sistema avisa início na sexta ou no sábado e aviso com menos de 30 dias, e mostra a data-limite do pagamento.",
+      "Escalas avisam quando falta descanso: menos de 11h entre turnos, semana sem 24h de folga ou 7 domingos seguidos. \"Copiar semana\" não traz mais quem foi desligado.",
+      "Folha: ao importar os derivados, aparece o DSR perdido de cada pessoa (uma semana por semana com falta injustificada), para o escritório calcular.",
+      "ASO periódico pela NR-7: anual para menores de 18, maiores de 45 e quem tem risco; como o risco do PGR ainda não está no cadastro, continua anual com o lembrete \"confirme no PCMSO\".",
+      "O colaborador recebe aviso no Telegram (ou por e-mail) quando o RH responde a mensagem dele no portal.",
+      "Absenteísmo conta só os dias de falta que já aconteceram nos últimos 30 dias. O clima compara com os ciclos anteriores da marca inteira.",
+      "Telas mais leves: Produtividade, Colaboradores (desligados há mais de um ano ficam escondidos até você pedir), logs de e-mail, multas tratadas, Delegações e usuários do admin.",
+      "Componentes internos atualizados com correções de segurança.",
+    ],
+  },
+  {
     versao: "1.211.0",
     data: "26/11/2026",
     horario: "10:00",
