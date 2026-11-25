@@ -29,7 +29,6 @@ import type { StatusBadgeMap } from "@/components/status-badge";
 import {
   diasDeDireitoPorFaltas,
   erroDeFracionamento,
-  erroDeInicioAntesDoDsr,
   faltasInjustificadasNoPeriodo,
   MAXIMO_FRACOES_CLT,
   MINIMO_DIAS_FRACAO_CLT,
@@ -312,10 +311,11 @@ export function validarSolicitacaoFerias(params: {
   const erroFracao = erroDeFracionamento(fracoes, Math.max(0, restante));
   if (erroFracao) return { ok: false, error: erroFracao };
 
-  if (!params.retroativo) {
-    const erroInicio = erroDeInicioAntesDoDsr(dataInicio);
-    if (erroInicio) return { ok: false, error: erroInicio };
-  }
+  // Início nos 2 dias antes do DSR (art. 134 §3º) NÃO bloqueia — decisão de
+  // 26/11/2026 na revisão: o sistema não guarda o dia de repouso de cada
+  // pessoa e presume domingo, mas quem trabalha em escala folga em outro dia,
+  // e para essa pessoa a sexta pode ser um início perfeitamente legal. A tela
+  // mostra o aviso (`erroDeInicioAntesDoDsr`) e o RH decide.
 
   return { ok: true, dias, periodo };
 }

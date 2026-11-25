@@ -11,10 +11,14 @@
 //   - a cada 2 ANOS para os demais.
 //
 // O sistema NÃO sabe o risco do cargo: Posicao não tem campo de risco do PGR
-// (nem Colaborador de doença crônica). Quem não tem risco informado cai em 2
-// anos, com o aviso "confirme no PCMSO" — o PCMSO é quem manda, e para quem
-// tem risco o periódico é anual. Sem data de nascimento não dá para saber a
-// faixa etária: fica anual (o lado seguro), também com o aviso.
+// (nem Colaborador de doença crônica). Quem não tem risco informado fica
+// ANUAL, com o aviso "confirme no PCMSO" — decisão de 26/11/2026 na revisão:
+// as empresas do grupo são de telecom, com técnico de campo em eletricidade
+// (NR-10) e altura (NR-35), e presumir "sem risco" marcaria como em dia, por
+// um ano a mais, quem o PCMSO manda examinar todo ano. Os 2 anos só valem
+// quando o risco vier informado como AUSENTE (riscoOcupacional === false) —
+// o campo ainda não existe no cadastro; quando existir, a regra já está aqui.
+// Sem data de nascimento também fica anual.
 //
 // Idade em anos completos: "maior de 45" = 46 anos ou mais; "menor de 18" =
 // até 17. Quem está em 2 anos mas faz 46 antes disso passa para o regime anual
@@ -54,12 +58,11 @@ export function periodicidadeAso(perfil: PerfilAso, referencia: Date): Periodici
   const idade = anosCompletos(perfil.dataNascimento, referencia);
   if (idade < 18) return { meses: 12, motivo: "anual — menor de 18 anos", confirmarNoPcmso: false };
   if (idade > 45) return { meses: 12, motivo: "anual — maior de 45 anos", confirmarNoPcmso: false };
-  const semRisco = perfil.riscoOcupacional === false;
-  return {
-    meses: 24,
-    motivo: semRisco ? "a cada 2 anos" : "a cada 2 anos (sem risco informado)",
-    confirmarNoPcmso: !semRisco,
-  };
+  // Risco não informado: anual (o lado seguro — ver o topo do arquivo).
+  if (perfil.riscoOcupacional !== false) {
+    return { meses: 12, motivo: "anual — risco do PGR não informado", confirmarNoPcmso: true };
+  }
+  return { meses: 24, motivo: "a cada 2 anos", confirmarNoPcmso: false };
 }
 
 /**

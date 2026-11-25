@@ -214,8 +214,8 @@ const pedido133 = validarSolicitacaoFerias({
 ok(!pedido133.ok && pedido133.error.includes("art. 133"), "pedido no período perdido é bloqueado citando o art. 133");
 
 console.log("5. Art. 134 §3º — início nos 2 dias antes do DSR (domingo)");
-ok(erroDeInicioAntesDoDsr(dataUTC(2026, 11, 27)) !== null, "sexta-feira (27/11) é vedada");
-ok(erroDeInicioAntesDoDsr(dataUTC(2026, 11, 28)) !== null, "sábado (28/11) é vedado");
+ok(erroDeInicioAntesDoDsr(dataUTC(2026, 11, 27)) !== null, "sexta-feira (27/11) gera aviso");
+ok(erroDeInicioAntesDoDsr(dataUTC(2026, 11, 28)) !== null, "sábado (28/11) gera aviso");
 ok(erroDeInicioAntesDoDsr(dataUTC(2026, 11, 26)) === null, "quinta-feira (26/11) pode");
 ok(erroDeInicioAntesDoDsr(dataUTC(2026, 11, 30)) === null, "segunda-feira (30/11) pode");
 const r30 = calcularFerias(ADM, [], HOJE);
@@ -227,7 +227,7 @@ const naSexta = validarSolicitacaoFerias({
   diasAbono: 0,
   fracoesExistentes: [],
 });
-ok(!naSexta.ok && naSexta.error.includes("art. 134 §3º"), "programação começando na sexta é bloqueada");
+ok(naSexta.ok, "programação começando na sexta NÃO é bloqueada — só avisa (repouso de cada pessoa não está no cadastro)");
 const retroativaNaSexta = validarSolicitacaoFerias({
   resumo: r30,
   periodoAquisitivoInicio: ADM,

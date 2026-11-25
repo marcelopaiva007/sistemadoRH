@@ -231,14 +231,15 @@ const NOMES_DIA = ["domingo", "segunda-feira", "terça-feira", "quarta-feira", "
 
 /**
  * Art. 134 §3º: férias não começam nos 2 dias que antecedem feriado ou o DSR.
- * Com DSR no domingo, início na sexta ou no sábado é vedado. Feriados NÃO são
+ * Com DSR no domingo, início na sexta ou no sábado é vedado. É AVISO, não
+ * bloqueio (26/11/2026): o repouso de cada pessoa não está no cadastro. Feriados NÃO são
  * conferidos (o sistema não tem a tabela) — a tela avisa isso.
  */
 export function erroDeInicioAntesDoDsr(dataInicio: Date): string | null {
   const dia = inicioDoDiaUTC(dataInicio).getUTCDay();
   const diasAteDsr = (DIA_DSR_PADRAO - dia + 7) % 7;
   if (diasAteDsr === 1 || diasAteDsr === 2) {
-    return `As férias não podem começar na ${NOMES_DIA[dia]}: é um dos 2 dias antes do repouso semanal (domingo) — CLT art. 134 §3º. Escolha um início de segunda a quinta.`;
+    return `Atenção: início na ${NOMES_DIA[dia]} cai nos 2 dias antes do repouso semanal, se o repouso desta pessoa for no domingo (CLT art. 134 §3º). Para quem folga aos domingos, prefira começar de segunda a quinta; quem trabalha em escala com folga em outro dia pode começar na ${NOMES_DIA[dia]}.`;
   }
   return null;
 }

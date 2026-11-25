@@ -19,23 +19,23 @@ const EXAME = dataUTC(2026, 11, 26);
 
 console.log("Faixa etária na data do exame (17 / 18 / 45 / 46 anos)");
 {
-  const p17 = periodicidadeAso({ dataNascimento: dataUTC(2008, 11, 27) }, EXAME);
+  const p17 = periodicidadeAso({ dataNascimento: dataUTC(2008, 11, 27), riscoOcupacional: false }, EXAME);
   ok(p17.meses === 12, "17 anos (faz 18 amanhã): anual");
   ok(p17.motivo.includes("menor de 18"), "motivo: menor de 18");
 
-  const p18 = periodicidadeAso({ dataNascimento: dataUTC(2008, 11, 26) }, EXAME);
+  const p18 = periodicidadeAso({ dataNascimento: dataUTC(2008, 11, 26), riscoOcupacional: false }, EXAME);
   ok(p18.meses === 24, "18 anos completos no dia do exame: a cada 2 anos");
-  ok(p18.confirmarNoPcmso, "sem risco informado: pede para confirmar no PCMSO");
+  ok(!p18.confirmarNoPcmso, "risco informado como ausente: não pede confirmação");
 
-  const p45 = periodicidadeAso({ dataNascimento: dataUTC(1981, 1, 10) }, EXAME);
+  const p45 = periodicidadeAso({ dataNascimento: dataUTC(1981, 1, 10), riscoOcupacional: false }, EXAME);
   ok(p45.meses === 24, "45 anos: ainda a cada 2 anos (\"maior de 45\" = 46+)");
 
-  const p46 = periodicidadeAso({ dataNascimento: dataUTC(1980, 11, 26) }, EXAME);
+  const p46 = periodicidadeAso({ dataNascimento: dataUTC(1980, 11, 26), riscoOcupacional: false }, EXAME);
   ok(p46.meses === 12, "46 anos completos no dia do exame: anual");
   ok(p46.motivo.includes("maior de 45"), "motivo: maior de 45");
   ok(!p46.confirmarNoPcmso, "faixa etária basta — não depende do PGR");
 
-  const p45v = periodicidadeAso({ dataNascimento: dataUTC(1980, 11, 27) }, EXAME);
+  const p45v = periodicidadeAso({ dataNascimento: dataUTC(1980, 11, 27), riscoOcupacional: false }, EXAME);
   ok(p45v.meses === 24, "45 anos na véspera dos 46: ainda 2 anos na data do exame");
 }
 
@@ -46,37 +46,41 @@ console.log("Risco, doença crônica e falta de dado");
   ok(periodicidadeAso({ dataNascimento: nasc30, doencaCronica: true }, EXAME).meses === 12, "doença crônica: anual");
   const semRisco = periodicidadeAso({ dataNascimento: nasc30, riscoOcupacional: false }, EXAME);
   ok(semRisco.meses === 24 && !semRisco.confirmarNoPcmso, "risco informado como ausente: 2 anos, sem aviso");
+  // Risco do PGR não informado (o cadastro ainda não tem o campo): ANUAL, o
+  // lado seguro — decisão de 26/11/2026, ver o topo de lib/aso-periodicidade.ts.
+  const naoInformado = periodicidadeAso({ dataNascimento: nasc30 }, EXAME);
+  ok(naoInformado.meses === 12 && naoInformado.confirmarNoPcmso, "risco não informado aos 30: anual, com 'confirme no PCMSO'");
   const semNasc = periodicidadeAso({ dataNascimento: null }, EXAME);
   ok(semNasc.meses === 12 && semNasc.confirmarNoPcmso, "sem data de nascimento: anual (lado seguro) e confirme no PCMSO");
 }
 
 console.log("Vencimento pela NR-7");
 {
-  const v30 = vencimentoAsoNr7(EXAME, { dataNascimento: dataUTC(1996, 5, 5) });
+  const v30 = vencimentoAsoNr7(EXAME, { dataNascimento: dataUTC(1996, 5, 5), riscoOcupacional: false });
   ok(mesmaData(v30.vencimento, dataUTC(2028, 11, 26)), "30 anos sem risco: vence em 2 anos (26/11/2028)");
 
-  const v46 = vencimentoAsoNr7(EXAME, { dataNascimento: dataUTC(1970, 1, 1) });
+  const v46 = vencimentoAsoNr7(EXAME, { dataNascimento: dataUTC(1970, 1, 1), riscoOcupacional: false });
   ok(mesmaData(v46.vencimento, dataUTC(2027, 11, 26)), "56 anos: vence em 1 ano");
 
-  const v17 = vencimentoAsoNr7(EXAME, { dataNascimento: dataUTC(2009, 3, 3) });
+  const v17 = vencimentoAsoNr7(EXAME, { dataNascimento: dataUTC(2009, 3, 3), riscoOcupacional: false });
   ok(mesmaData(v17.vencimento, dataUTC(2027, 11, 26)), "17 anos: vence em 1 ano");
 
   // 45 anos, faz 46 em 10/01/2027 — antes dos 12 meses: vence em 1 ano.
-  const v45 = vencimentoAsoNr7(EXAME, { dataNascimento: dataUTC(1981, 1, 10) });
+  const v45 = vencimentoAsoNr7(EXAME, { dataNascimento: dataUTC(1981, 1, 10), riscoOcupacional: false });
   ok(mesmaData(v45.vencimento, dataUTC(2027, 11, 26)), "45 anos que faz 46 em 2 meses: vence em 1 ano");
   ok(v45.periodicidade.meses === 12, "e a periodicidade mostrada já é anual");
 
   // 44 anos, faz 46 em 01/06/2028 — entre 12 e 24 meses: vence no aniversário.
-  const v44 = vencimentoAsoNr7(EXAME, { dataNascimento: dataUTC(1982, 6, 1) });
+  const v44 = vencimentoAsoNr7(EXAME, { dataNascimento: dataUTC(1982, 6, 1), riscoOcupacional: false });
   ok(mesmaData(v44.vencimento, dataUTC(2028, 6, 1)), "44 anos que faz 46 antes dos 2 anos: vence no aniversário de 46");
 
-  const bissexto = vencimentoAsoNr7(dataUTC(2024, 2, 29), { dataNascimento: dataUTC(1996, 5, 5) });
+  const bissexto = vencimentoAsoNr7(dataUTC(2024, 2, 29), { dataNascimento: dataUTC(1996, 5, 5), riscoOcupacional: false });
   ok(mesmaData(bissexto.vencimento, dataUTC(2026, 2, 28)), "exame em 29/02: 2 anos caem em 28/02");
 }
 
 console.log("Vencimento efetivo (data gravada x NR-7)");
 {
-  const perfil30 = { dataNascimento: dataUTC(1996, 5, 5) };
+  const perfil30 = { dataNascimento: dataUTC(1996, 5, 5), riscoOcupacional: false };
   const padraoAntigo = vencimentoAsoEfetivo(
     { tipo: "PERIODICO", realizadoEm: EXAME, validoAte: dataUTC(2027, 11, 26) },
     perfil30,
@@ -112,11 +116,11 @@ console.log("situacaoDoExame com perfil (ficha e conformidade)");
   const hoje = dataUTC(2026, 11, 26);
   ok(situacaoDoExame(exames, hoje).situacao === "VENCIDO", "sem perfil: vale o gravado (vencido em 01/06/2026)");
   ok(
-    situacaoDoExame(exames, hoje, { dataNascimento: dataUTC(1996, 5, 5) }).situacao === "EM_DIA",
+    situacaoDoExame(exames, hoje, { dataNascimento: dataUTC(1996, 5, 5), riscoOcupacional: false }).situacao === "EM_DIA",
     "30 anos pela NR-7: em dia até 01/06/2027",
   );
   ok(
-    situacaoDoExame(exames, hoje, { dataNascimento: dataUTC(1970, 5, 5) }).situacao === "VENCIDO",
+    situacaoDoExame(exames, hoje, { dataNascimento: dataUTC(1970, 5, 5), riscoOcupacional: false }).situacao === "VENCIDO",
     "56 anos pela NR-7: continua vencido",
   );
 }
