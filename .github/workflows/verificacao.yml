@@ -60,6 +60,8 @@ jobs:
         run: npx tsx scripts/test-ferias.ts
       - name: Risco de férias em dobro (CLT art. 134 e 137)
         run: npx tsx scripts/test-ferias-risco-dobra.ts
+      - name: Regras da CLT de férias (art. 130, 133, 134, 135 e 145)
+        run: npx tsx scripts/test-ferias-clt.ts
       - name: Faltas da folha recortadas ao mês da competência
         run: npx tsx scripts/test-folha-ausencia-competencia.ts
       - name: Regras de ponto (CLT art. 58, 59, 73 e Portaria MTP 671)

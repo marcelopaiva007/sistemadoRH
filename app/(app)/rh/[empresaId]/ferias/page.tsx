@@ -2,6 +2,10 @@ import { empresasVisiveis, requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
 import { calcularFerias, emRiscoDeDobra, type PeriodoAquisitivo } from "@/lib/ferias";
 import {
+  SELECT_AUSENCIAS_PARA_FERIAS,
+  WHERE_AUSENCIAS_PARA_FERIAS,
+} from "@/lib/ferias-clt";
+import {
   calcularPassivoFerias,
   resumirOrigemDoHistorico,
   resumirProgramacaoFerias,
@@ -124,6 +128,11 @@ export default async function FeriasPage({
             dataFim: true,
           },
         },
+        // Faltas injustificadas (art. 130) e afastamentos do INSS (art. 133)
+        // mudam o direito do período — 26/11/2026. Saldo, passivo e risco de
+        // dobra usam as MESMAS ausências; Pendências também (lib/pendencias.ts).
+        // Ficam no servidor: o que desce é só o período já calculado.
+        ausencias: { where: WHERE_AUSENCIAS_PARA_FERIAS, select: SELECT_AUSENCIAS_PARA_FERIAS },
       },
     }),
     // Sem filtro de status nem de colaborador ativo: aqui a pergunta não é
@@ -150,6 +159,7 @@ export default async function FeriasPage({
     dataAdmissao: c.dataAdmissao,
     salarioBase: c.salarioBase,
     solicitacoes: c.ferias,
+    ausencias: c.ausencias,
   }));
 
   const passivo = calcularPassivoFerias(paraPassivo, hoje);
@@ -163,7 +173,7 @@ export default async function FeriasPage({
   const linhas: LinhaFerias[] = [];
   for (const c of colaboradores) {
     if (!c.dataAdmissao) continue;
-    const resumo = calcularFerias(c.dataAdmissao, c.ferias, hoje);
+    const resumo = calcularFerias(c.dataAdmissao, c.ferias, hoje, c.ausencias);
     // O período que o RH precisa resolver primeiro: o mais perto do limite
     // entre os que ainda têm saldo.
     const critico = resumo.periodos
@@ -186,7 +196,7 @@ export default async function FeriasPage({
       // "vencidas" não nascer inflado. A regra mora em lib/ferias-passivo.ts
       // para tela e consolidado nunca discordarem sobre quem é "sem histórico".
       semHistorico: semHistoricoDeFerias(c.ferias, resumo.periodos),
-      riscoDobra: emRiscoDeDobra(c.dataAdmissao, c.ferias, hoje),
+      riscoDobra: emRiscoDeDobra(c.dataAdmissao, c.ferias, hoje, undefined, c.ausencias),
     });
   }
 

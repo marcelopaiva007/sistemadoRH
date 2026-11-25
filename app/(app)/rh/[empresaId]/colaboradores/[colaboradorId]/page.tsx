@@ -306,6 +306,11 @@ export default async function ColaboradorPage({
     ? calcularFerias(
         colaborador.dataAdmissao,
         ferias.filter((f) => f.status === "APROVADA" || f.status === "PENDENTE"),
+        undefined,
+        // Faltas injustificadas (art. 130) e afastamentos do INSS (art. 133)
+        // mudam o direito — 26/11/2026. `calcularFerias` só considera as
+        // APROVADAS; a lista já vem completa para a aba de ausências.
+        ausencias,
       )
     : null;
 
