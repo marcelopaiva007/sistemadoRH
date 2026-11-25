@@ -190,6 +190,8 @@ jobs:
         run: npx tsx scripts/test-frota-financeiro.ts
       - name: Pesquisa — análise gerencial
         run: npx tsx scripts/test-pesquisa-analise.ts
+      - name: Clima — anonimato por pessoas, NPS fora da média, validação do envio
+        run: npx tsx scripts/test-clima-anonimato.ts
 
   # Os 31 smokes contra Postgres de verdade. O banco nasce vazio a cada
   # execução: schema gerado do prisma/schema.prisma via `migrate diff` (o

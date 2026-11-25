@@ -1,6 +1,6 @@
 // Gera o HTML do Relatório de Clima Organizacional (GPTW).
 // Convertido em PDF pela rota /api/rh/[empresaId]/pesquisas/[pesquisaId]/relatorio-clima-pdf.
-import { DIMENSOES_GPTW } from "@/lib/constants-rh";
+import { AMOSTRA_MINIMA_ANONIMATO, DIMENSOES_GPTW } from "@/lib/constants-rh";
 import {
   type ResultadoClima,
   type ResultadoComparativo,
@@ -72,7 +72,8 @@ function heatmapHtml(heatmap: ResultadoClima["heatmap"]): string {
   }).join("");
   const cel = (setor: string, dim: string) => {
     const c = heatmap.find((h) => h.setor === setor && h.dimensao === dim);
-    if (!c) return `<td style="background:#f3f4f6;color:#9ca3af">—</td>`;
+    // Sem célula ou abaixo do piso de anonimato (26/11/2026): sem número.
+    if (!c || c.media100 === null || c.nivel === null) return `<td style="background:#f3f4f6;color:#9ca3af">—</td>`;
     return `<td style="background:${CORES_NIVEL[c.nivel]}1a;text-align:center;font-weight:600;color:${CORES_NIVEL[c.nivel]}">${c.media100}</td>`;
   };
   const linhas = setores.map((setor) => {
@@ -245,7 +246,8 @@ export function gerarHtmlRelatorioClima(dados: {
 </div>
 ${npsHtml}
 
-${alertas.length > 0 ? `
+${resultado.mostraAmostraInsuficiente ? `
+<div class="alerta"><strong>Amostra insuficiente:</strong> ${resultado.totalRespostas} resposta(s), abaixo do mínimo de ${AMOSTRA_MINIMA_ANONIMATO} pessoas que protege o anonimato. Nenhum resultado é exibido até atingir o mínimo.</div>` : alertas.length > 0 ? `
 <div class="alerta">
   <strong>⚠️ Atenção prioritária:</strong> ${alertas.length} dimensão${alertas.length === 1 ? "" : "es"} ${alertas.length === 1 ? "está" : "estão"} em nível Crítico ou Atenção — ${alertas.map((a) => `<strong>${esc(a.label)}</strong>`).join(", ")}. Ver recomendações na seção 6.
 </div>` : `<div class="alerta" style="background:#ecfdf5;border-color:#22c55e"><strong>✓ Sem alertas:</strong> todas as dimensões classificadas como Bom ou Excelente.</div>`}
@@ -270,10 +272,19 @@ ${perguntasCriticasHtml(resultado.perguntasCriticas)}
 <table>
   <thead><tr><th>#</th><th>Setor</th><th style="text-align:center">Respostas</th><th style="text-align:center">Score</th><th>Nível</th></tr></thead>
   <tbody>
-    ${resultado.porSetor.map((s) => `<tr>
+    ${resultado.porSetor.map((s) => s.media100 === null
+      // Abaixo do piso de anonimato (26/11/2026): pessoas, sem score nem posição.
+      ? `<tr>
+      <td style="text-align:center;font-weight:700">—</td>
+      <td>${esc(s.setor)}</td>
+      <td style="text-align:center">${s.respostas} <em style="color:#f59e0b">(amostra insuficiente — mín. ${AMOSTRA_MINIMA_ANONIMATO})</em></td>
+      <td style="text-align:center">—</td>
+      <td>—</td>
+    </tr>`
+      : `<tr>
       <td style="text-align:center;font-weight:700">${s.ranking}</td>
       <td>${esc(s.setor)}</td>
-      <td style="text-align:center">${s.respostas}${s.amostraInsuficiente ? " <em style='color:#f59e0b'>(amostra baixa)</em>" : ""}</td>
+      <td style="text-align:center">${s.respostas}</td>
       <td style="text-align:center;font-weight:700;color:${CORES_NIVEL[s.media100 < 40 ? "critico" : s.media100 < 60 ? "atencao" : s.media100 < 75 ? "bom" : "excelente"]}">${s.media100}</td>
       <td>${classificarScore(s.media100).label}</td>
     </tr>`).join("")}
