@@ -1,12 +1,18 @@
+import { cache } from "react";
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { direcaoRestrita, ehMaster } from "@/lib/grupo";
 
-export async function requireUser() {
+// Memorizado por requisição (`cache` do React): layout geral, layout do módulo
+// e página chamam isto na mesma navegação, e cada `auth()` refaz o callback
+// `jwt` inteiro (cookie + vínculos no banco). Uma vez por requisição basta — a
+// sessão não muda no meio de um render. Fora de render (rota de API) o cache
+// não memoriza e o comportamento é o de antes.
+export const requireUser = cache(async () => {
   const session = await auth();
   if (!session?.user) redirect("/login");
   return session.user;
-}
+});
 
 export async function requireAdmin() {
   const user = await requireUser();

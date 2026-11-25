@@ -21,29 +21,41 @@ export default async function AppLayout({
   // O MASTER administra contas e grupos e não abre dado de RH (lib/grupo.ts):
   // desde a v1.188.0 o lugar dele é a área de administração, fora do sistema.
   if (user.role === "MASTER") redirect("/admin");
-  const sistemas = await sistemasPermitidos(user);
-  // Frota e Contratos são abas do mesmo módulo; o admin pode liberar só uma (lib/telas.ts).
-  const areasProcessos = await areasProcessosPermitidas(user.id);
-
-  // GESTOR_SETOR não navega em /rh/[empresaId] (vai direto para
-  // /rh/meu-setor, sem escopo de empresa) — poupa a consulta e o seletor do
-  // topo nem aparece (SeletorMarcaEmpresa some sozinho com `marcas: []`).
-  let marcas: { id: string; nome: string; corPrimaria: string | null; logoUrl: string | null }[] = [];
-  let empresas: { id: string; nome: string; marcaId: string }[] = [];
-  if (user.role !== "GESTOR_SETOR") {
-    const empresasDoUsuario = await empresasVisiveis(user);
-    empresas = await prisma.empresa.findMany({
-      where: { id: { in: empresasDoUsuario }, ativo: true },
-      orderBy: { nome: "asc" },
-      select: { id: true, nome: true, marcaId: true },
-    });
-    const marcasIds = [...new Set(empresas.map((e) => e.marcaId))];
-    marcas = await prisma.marca.findMany({
-      where: { id: { in: marcasIds } },
-      orderBy: { nome: "asc" },
-      select: { id: true, nome: true, corPrimaria: true, logoUrl: true },
-    });
-  }
+  // As perguntas abaixo não dependem umas das outras: vão juntas ao banco. Em
+  // sequência eram 8 a 9 idas e voltas antes de a página começar a renderizar.
+  type MarcaDoTopo = { id: string; nome: string; corPrimaria: string | null; logoUrl: string | null };
+  type EmpresaDoTopo = { id: string; nome: string; marcaId: string };
+  const [sistemas, areasProcessos, restrita, seletor] = await Promise.all([
+    sistemasPermitidos(user),
+    // Frota e Contratos são abas do mesmo módulo; o admin pode liberar só uma (lib/telas.ts).
+    areasProcessosPermitidas(user.id),
+    direcaoRestrita(user),
+    // GESTOR_SETOR não navega em /rh/[empresaId] (vai direto para
+    // /rh/meu-setor, sem escopo de empresa) — poupa a consulta e o seletor do
+    // topo nem aparece (SeletorMarcaEmpresa some sozinho com `marcas: []`).
+    user.role === "GESTOR_SETOR"
+      ? Promise.resolve({ marcas: [] as MarcaDoTopo[], empresas: [] as EmpresaDoTopo[] })
+      : empresasVisiveis(user).then(async (empresasDoUsuario) => {
+          // Empresa e marca numa consulta só (antes eram duas em sequência).
+          const linhas = await prisma.empresa.findMany({
+            where: { id: { in: empresasDoUsuario }, ativo: true },
+            orderBy: { nome: "asc" },
+            select: {
+              id: true,
+              nome: true,
+              marcaId: true,
+              marca: { select: { id: true, nome: true, corPrimaria: true, logoUrl: true } },
+            },
+          });
+          const porMarca = new Map<string, MarcaDoTopo>();
+          for (const l of linhas) porMarca.set(l.marca.id, l.marca);
+          return {
+            empresas: linhas.map(({ id, nome, marcaId }) => ({ id, nome, marcaId })),
+            marcas: [...porMarca.values()].sort((a, b) => a.nome.localeCompare(b.nome)),
+          };
+        }),
+  ]);
+  const { marcas, empresas } = seletor;
 
   return (
     <Providers>
@@ -58,7 +70,7 @@ export default async function AppLayout({
           empresas={empresas}
           sistemasPermitidos={sistemas}
           areasProcessos={areasProcessos}
-          direcaoRestrita={await direcaoRestrita(user)}
+          direcaoRestrita={restrita}
           enderecoAdmin={
             user.role === "ADMIN" || user.role === "DIRETORIA" ? enderecoDaAreaAdmin() : null
           }

@@ -11,6 +11,7 @@
 // do middleware NÃO inclui este módulo — auth.config.ts não importa nada
 // daqui. Os callbacks de auth.config.ts são stubs; a versão completa está em
 // auth.ts (Node), onde Prisma está disponível.
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 
@@ -67,15 +68,29 @@ export async function escreverCookieSetorAtivo(setorId: string | null): Promise<
 //   2. UserEmpresa com papelPrincipal=true.
 //   3. Primeira UserEmpresa ativa.
 //   4. null (ADMIN/DIRETORIA sem empresa específica).
+//
+// A leitura dos vínculos é memorizada POR REQUISIÇÃO (`cache` do React). Este
+// resolver roda no callback `jwt`, que o NextAuth chama a CADA `auth()` — e
+// uma tela chama `auth()` três vezes ou mais (layout geral, layout do módulo,
+// página, rotas de auditoria). Sem o cache eram três ou mais consultas
+// idênticas por navegação, cada uma pagando a ida e volta até o banco. Com
+// ele, uma só, e a resposta continua vindo do banco de agora (vínculo
+// desativado deixa de valer na requisição seguinte, como antes).
+// Fora de um render do React (rota de API) o `cache` não memoriza e a
+// consulta roda como sempre rodou.
+const vinculosAtivos = cache((userId: string) =>
+  prisma.userEmpresa.findMany({
+    where: { userId, ativo: true },
+    orderBy: [{ papelPrincipal: "desc" }, { createdAt: "asc" }],
+    select: { empresaId: true, setorId: true, papelPrincipal: true },
+  }),
+);
+
 export async function resolverEmpresaAtiva(
   userId: string,
   cookie: CookieEmpresa | null,
 ): Promise<{ empresaId: string; setorId: string | null } | null> {
-  const vinculos = await prisma.userEmpresa.findMany({
-    where: { userId, ativo: true },
-    orderBy: [{ papelPrincipal: "desc" }, { createdAt: "asc" }],
-    select: { empresaId: true, setorId: true, papelPrincipal: true },
-  });
+  const vinculos = await vinculosAtivos(userId);
   if (vinculos.length === 0) return null;
 
   if (cookie) {

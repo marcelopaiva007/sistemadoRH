@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { escopoDeEmpresas, empresasVisiveis, requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
 import { blobConfigurado } from "@/lib/blob";
@@ -44,7 +45,13 @@ export default async function CaixaDocumentosPage({
   const visiveis = new Set(await empresasVisiveis(usuario));
   // Faxina é de melhor esforço: se falhar (duas telas abrindo juntas), a
   // lista abre do mesmo jeito e a próxima visita termina o serviço.
-  await limparCaixa(escopo).catch((e) => console.error("[caixa-documentos] faxina", e));
+  //
+  // Roda DEPOIS de a tela ser enviada (`after`), e não antes: são até 20
+  // originais apagados do Blob um a um, mais a recuperação de leituras
+  // travadas, e era isso que fazia desta a tela mais lenta do sistema (5,8 s no
+  // p95 em 18–25/11/2026). Efeito colateral aceito: um item travado em
+  // "gravando" que a faxina destrava só aparece destravado na visita seguinte.
+  after(() => limparCaixa(escopo).catch((e) => console.error("[caixa-documentos] faxina", e)));
 
   // Só aparece o arquivo de quem alcança TODO o escopo dele — senão veria
   // pessoas de um CNPJ que não acessa. Filtrado no banco, ANTES do limite:
