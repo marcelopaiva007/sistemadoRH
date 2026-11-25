@@ -8,6 +8,7 @@ import {
 } from "@/lib/constants-dp";
 import { RUBRICAS_HORA_EXTRA, LIMITE_HORAS_EXTRAS_MES } from "@/lib/constants-folha";
 import { hojeUTC, somarDiasUTC, diferencaEmDiasUTC } from "@/lib/datas";
+import { emRiscoDeDobra } from "@/lib/ferias";
 import { BALDES_SEM_ESTRUTURA } from "@/lib/estrutura-pendente";
 
 export type Pendencias = {
@@ -429,10 +430,19 @@ const ESCOPO = Prisma.sql`x."empresaId" IN (SELECT id FROM alvo)`;
 const COLABORADOR_ATIVO = Prisma.sql`EXISTS (SELECT 1 FROM rh."Colaborador" c WHERE c.id = x."colaboradorId" AND c.ativo)`;
 const ts = (d: Date) => Prisma.sql`${d.toISOString()}::timestamp`;
 
+/**
+ * As pendências contadas fora da SQL. Só uma: "Férias vencidas" depende do
+ * motor de períodos aquisitivos (lib/ferias.ts), que não tem tradução honesta
+ * em SQL — e a tela de Férias usa a mesma função para o filtro "Risco de
+ * dobra". Duas cópias da regra (uma em SQL, outra em TS) foi exatamente o que
+ * deixou o falso positivo de "gozou há 13 meses" passar até 26/11/2026.
+ */
+type PendenciaForaDaSql = "feriasVencidas";
+
 function subconsultasDePendencias(
   hoje: Date,
   visiveis: readonly string[] | null,
-): Record<keyof Pendencias, readonly Prisma.Sql[]> {
+): Record<Exclude<keyof Pendencias, PendenciaForaDaSql>, readonly Prisma.Sql[]> {
   // Caixa de documentos: só o arquivo cujo escopo INTEIRO a pessoa enxerga —
   // a regra de quem pode abri-lo (lib/caixa-documentos/acesso.ts). Sem saber
   // quem pergunta (lembrete por marca), conta todos do CNPJ.
@@ -440,7 +450,6 @@ function subconsultasDePendencias(
     visiveis ? Prisma.sql` AND ${coluna} <@ ${[...visiveis]}::text[]` : Prisma.empty;
   const hojeSql = ts(hoje);
   const limite = ts(somarDiasUTC(hoje, DIAS_ALERTA_VENCIMENTO));
-  const umAnoAtras = ts(somarDiasUTC(hoje, -365));
   const seisMesesAtras = ts(somarDiasUTC(hoje, -180));
   const corte = ts(PRIMEIRO_DESLIGAMENTO_COBRADO);
   const contratosPorPrazo = Prisma.join([...CONTRATOS_POR_PRAZO]);
@@ -470,12 +479,8 @@ function subconsultasDePendencias(
     epiVencido: [
       Prisma.sql`FROM rh."EntregaEPI" x WHERE ${ESCOPO} AND x."validoAte" IS NOT NULL AND x."validoAte" < ${hojeSql} AND ${COLABORADOR_ATIVO}`,
     ],
-    // Férias vencidas: 12+ meses de casa sem NENHUMA férias aprovada que
-    // tenha começado no último ano. Sem dataAdmissao a pessoa fica de fora —
-    // preenchê-la é lacuna da tela inicial, não pendência daqui.
-    feriasVencidas: [
-      Prisma.sql`FROM rh."Colaborador" x WHERE ${ESCOPO} AND x.ativo AND x."dataAdmissao" IS NOT NULL AND x."dataAdmissao" < ${umAnoAtras} AND NOT EXISTS (SELECT 1 FROM rh."SolicitacaoFerias" f WHERE f."colaboradorId" = x.id AND f.status = 'APROVADA' AND f."dataInicio" >= ${umAnoAtras})`,
-    ],
+    // Férias vencidas: NÃO mora aqui desde 26/11/2026 — ver
+    // `feriasEmRiscoPorEmpresa`, logo abaixo.
     // Aviso prévio: desligamento registrado para os próximos 7 dias e a
     // pessoa ainda ativa — a saída está marcada, o processo tem que andar.
     avisoPrevio: [
@@ -666,7 +671,11 @@ export async function pendenciasPorEmpresa(
   const mapa = new Map<string, Pendencias>(empresaIds.map((id) => [id, zeradas()]));
   if (empresaIds.length === 0) return mapa;
 
-  const linhas = await contarPorEmpresa(cliente, empresaIds, subconsultasDePendencias(hojeUTC(), visiveis));
+  const hoje = hojeUTC();
+  const [linhas, ferias] = await Promise.all([
+    contarPorEmpresa(cliente, empresaIds, subconsultasDePendencias(hoje, visiveis)),
+    feriasEmRiscoPorEmpresa(cliente, empresaIds, hoje),
+  ]);
 
   // `+=`, não `=`: `aprovacoes` chega em duas linhas por CNPJ (férias e
   // ausências somam no mesmo número). As demais chegam uma vez.
@@ -674,8 +683,59 @@ export async function pendenciasPorEmpresa(
     const p = mapa.get(linha.empresaId);
     if (p) p[linha.chave] += linha.n;
   }
+  for (const [empresaId, n] of ferias) {
+    const p = mapa.get(empresaId);
+    if (p) p.feriasVencidas += n;
+  }
 
   return mapa;
+}
+
+/**
+ * "Férias vencidas" por CNPJ: ativos com algum período aquisitivo em risco de
+ * dobra, pela regra de `emRiscoDeDobra` (lib/ferias.ts) — a MESMA que a tela
+ * de Férias usa no filtro "Risco de dobra", para o cartão e a lista baterem
+ * pessoa a pessoa.
+ *
+ * Sem dataAdmissao a pessoa fica de fora — preenchê-la é lacuna da tela
+ * inicial, não pendência daqui. O corte de 364 dias na admissão é só para não
+ * trazer quem ainda não fechou o primeiro período (nunca está em risco); a
+ * decisão continua sendo da função.
+ */
+async function feriasEmRiscoPorEmpresa(
+  cliente: Cliente,
+  empresaIds: string[],
+  hoje: Date,
+): Promise<Map<string, number>> {
+  const colaboradores = await cliente.colaborador.findMany({
+    where: {
+      empresaId: { in: empresaIds },
+      ativo: true,
+      dataAdmissao: { not: null, lte: somarDiasUTC(hoje, -364) },
+    },
+    select: {
+      empresaId: true,
+      dataAdmissao: true,
+      ferias: {
+        where: { status: { in: ["APROVADA", "PENDENTE"] } },
+        select: {
+          periodoAquisitivoInicio: true,
+          dias: true,
+          diasAbono: true,
+          status: true,
+          dataInicio: true,
+          dataFim: true,
+        },
+      },
+    },
+  });
+
+  const porEmpresa = new Map<string, number>();
+  for (const c of colaboradores) {
+    if (!c.dataAdmissao || !emRiscoDeDobra(c.dataAdmissao, c.ferias, hoje)) continue;
+    porEmpresa.set(c.empresaId, (porEmpresa.get(c.empresaId) ?? 0) + 1);
+  }
+  return porEmpresa;
 }
 
 /**

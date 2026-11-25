@@ -1,6 +1,6 @@
 import { empresasVisiveis, requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
-import { calcularFerias, type PeriodoAquisitivo } from "@/lib/ferias";
+import { calcularFerias, emRiscoDeDobra, type PeriodoAquisitivo } from "@/lib/ferias";
 import {
   calcularPassivoFerias,
   resumirOrigemDoHistorico,
@@ -10,7 +10,7 @@ import {
   type PassivoFerias,
   type PessoaVencida,
 } from "@/lib/ferias-passivo";
-import { hojeUTC, somarDiasUTC } from "@/lib/datas";
+import { hojeUTC } from "@/lib/datas";
 import { FeriasView } from "./ferias-view";
 
 // Tela de Férias do Departamento Pessoal.
@@ -48,9 +48,11 @@ export type LinhaFerias = {
   semHistorico: boolean;
   /**
    * MESMA regra do cartão "Férias vencidas" da tela de Pendências
-   * (lib/pendencias.ts): 12+ meses de casa e nenhuma férias APROVADA
-   * começando no último ano. O cartão navega para cá com filtro=RISCO_DOBRA,
-   * e a lista tem que bater com o número dele — pessoa a pessoa.
+   * (lib/pendencias.ts) — `emRiscoDeDobra` em lib/ferias.ts: período
+   * aquisitivo fechado sem os 30 dias marcados dentro do concessivo, já
+   * vencido ou a 60 dias ou menos de vencer. O cartão navega para cá com
+   * filtro=RISCO_DOBRA, e a lista tem que bater com o número dele — pessoa a
+   * pessoa.
    */
   riscoDobra: boolean;
 };
@@ -111,14 +113,15 @@ export default async function FeriasPage({
         setor: { select: { nome: true } },
         ferias: {
           where: { status: { in: ["APROVADA", "PENDENTE"] } },
-          // dataInicio existe para `riscoDobra` — a mesma pergunta do cartão
-          // de Pendências: houve férias APROVADA começando no último ano?
+          // dataInicio/dataFim existem para `riscoDobra`: gozo marcado depois
+          // do fim do concessivo não cobre o período (art. 137).
           select: {
             periodoAquisitivoInicio: true,
             dias: true,
             diasAbono: true,
             status: true,
             dataInicio: true,
+            dataFim: true,
           },
         },
       },
@@ -153,12 +156,10 @@ export default async function FeriasPage({
   const programacao = resumirProgramacaoFerias(solicitacoes, hoje);
   const origem = resumirOrigemDoHistorico(solicitacoes);
 
-  // Mesmo recorte de lib/pendencias.ts (feriasVencidas): o cartão de
-  // Pendências e o filtro "Risco de dobra" desta tela precisam contar as
-  // mesmas pessoas — se as janelas divergirem, o número do cartão volta a não
-  // bater com a lista que ele abre.
-  const umAnoAtras = somarDiasUTC(hoje, -365);
-
+  // `riscoDobra` usa `emRiscoDeDobra` (lib/ferias.ts), a MESMA função que o
+  // cartão "Férias vencidas" de Pendências (lib/pendencias.ts) chama: o
+  // número do cartão e a lista que ele abre contam as mesmas pessoas. Até
+  // 26/11/2026 eram duas cópias de "nenhuma férias aprovada no último ano".
   const linhas: LinhaFerias[] = [];
   for (const c of colaboradores) {
     if (!c.dataAdmissao) continue;
@@ -185,9 +186,7 @@ export default async function FeriasPage({
       // "vencidas" não nascer inflado. A regra mora em lib/ferias-passivo.ts
       // para tela e consolidado nunca discordarem sobre quem é "sem histórico".
       semHistorico: semHistoricoDeFerias(c.ferias, resumo.periodos),
-      riscoDobra:
-        c.dataAdmissao < umAnoAtras &&
-        !c.ferias.some((f) => f.status === "APROVADA" && f.dataInicio >= umAnoAtras),
+      riscoDobra: emRiscoDeDobra(c.dataAdmissao, c.ferias, hoje),
     });
   }
 

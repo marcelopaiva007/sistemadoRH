@@ -19,6 +19,9 @@ import { ContrachequesView, type LinhaContracheque } from "./contracheques-view"
 // motivo do teto das Entregas: sem isto, 200 avisos morrem no timeout padrão.
 export const maxDuration = 300;
 
+/** Quantos contracheques a tela lista de uma vez. Passou disso, avisa (não corta calado). */
+const LIMITE_DA_LISTA = 1000;
+
 export default async function ContrachequesPage({
   params,
   searchParams,
@@ -38,10 +41,13 @@ export default async function ContrachequesPage({
     tipo: "CONTRACHEQUE",
     empresaId: { in: escopo },
     arquivoId: { not: null },
-    // Só ficha ativa: desligado não entra no portal (lerSessaoPortal), e o
-    // aviso ficaria "não abriu" para sempre. A prova de quem saiu é a da
-    // rescisão, fora daqui.
-    colaborador: { ativo: true, empresa: { ativo: true } },
+    // Desligado ENTRA (26/11/2026). Antes só ficha ativa, e o contracheque do
+    // mês da rescisão sumia da tela e do envio — justo o que o ex-colaborador
+    // tem direito de receber. A assinatura não passa pelo portal: é o link
+    // /assinar/<token> do e-mail, validado por CPF, que funciona para quem
+    // saiu. O envio para desligado vai só por e-mail (ver
+    // lib/contracheques/envio.ts). Empresa inativa continua fora — é escopo.
+    colaborador: { empresa: { ativo: true } },
   } as const;
 
   // Competências com contracheque no Dossiê, da mais nova para a mais antiga.
@@ -59,11 +65,13 @@ export default async function ContrachequesPage({
 
   const escolhida = competenciaDoTexto(competenciaParam ?? "") ?? competenciaDoTexto(competencias[0]?.chave ?? "");
 
-  const docs = escolhida
+  // Teto da lista: um a mais que o limite para SABER que cortou — antes o
+  // `take: 1000` cortava calado e a tela parecia a competência inteira.
+  const docsBrutos = escolhida
     ? await prisma.documentoColaborador.findMany({
         where: { ...doEscopo, competencia: escolhida },
         orderBy: { colaborador: { nome: "asc" } },
-        take: 1000,
+        take: LIMITE_DA_LISTA + 1,
         select: {
           id: true,
           empresaId: true,
@@ -115,6 +123,15 @@ export default async function ContrachequesPage({
         },
       })
     : [];
+  const cortou = docsBrutos.length > LIMITE_DA_LISTA;
+  const docs = cortou ? docsBrutos.slice(0, LIMITE_DA_LISTA) : docsBrutos;
+  const limiteAtingido =
+    cortou && escolhida
+      ? {
+          mostrados: LIMITE_DA_LISTA,
+          total: await prisma.documentoColaborador.count({ where: { ...doEscopo, competencia: escolhida } }),
+        }
+      : null;
 
   const agora = new Date();
   const quando = (d: Date | null | undefined) => (d ? formatarDataHoraBrasilia(d) : null);
@@ -131,7 +148,9 @@ export default async function ContrachequesPage({
       empresa: d.colaborador.empresa.nome,
       cnpj: d.colaborador.empresa.cnpj ?? "—",
       setor: d.colaborador.setor?.nome ?? "—",
-      temTelegram: !!d.colaborador.telegramChatId,
+      // Desligado não é avisado nem cobrado no Telegram (envio.ts e a cobrança
+      // em lote filtram por ativo) — mostrar "Telegram ativo" mentiria.
+      temTelegram: d.colaborador.ativo && !!d.colaborador.telegramChatId,
       temEmail: !!d.colaborador.email,
       email: d.colaborador.email,
       folha: rotuloDoContracheque(escolhida!, tipoFolha),
@@ -168,6 +187,7 @@ export default async function ContrachequesPage({
       competencias={competencias}
       competencia={escolhida ? chaveDaCompetencia(escolhida) : null}
       linhas={linhas}
+      limiteAtingido={limiteAtingido}
     />
   );
 }

@@ -7,7 +7,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { empresasVisiveis, podeOperarEmpresaRH, requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { registrarAuditoria } from "@/lib/audit";
-import { avisarColaborador, enviarContracheques } from "@/lib/contracheques/envio";
+import { avisarColaborador, enviarContracheques, paraAvisoDeContracheque } from "@/lib/contracheques/envio";
 import {
   camposResetAposInvalidacao,
   montarSnapshotInvalidacao,
@@ -48,7 +48,10 @@ export async function enviarContrachequesAction(
       competencia,
       arquivoId: { not: null },
       empresaId: { in: visiveis },
-      colaborador: { ativo: true, empresa: { ativo: true } },
+      // Desligado entra desde 26/11/2026: o contracheque do mês da rescisão é
+      // direito dele. O aviso vai só por e-mail — ver `paraAvisoDeContracheque`
+      // em lib/contracheques/envio.ts.
+      colaborador: { empresa: { ativo: true } },
     },
     select: { id: true, empresaId: true },
   });
@@ -100,6 +103,7 @@ export async function reenviarEmailContrachequeAction(
       colaborador: {
         select: {
           nome: true,
+          ativo: true,
           email: true,
           telegramChatId: true,
           empresa: { select: { marca: { select: { nome: true } } } },
@@ -154,7 +158,8 @@ export async function reenviarEmailContrachequeAction(
       competencia: recibo.competencia,
       tipoFolha: recibo.tipoFolha,
       empresaId: doc.empresaId,
-      colaborador: doc.colaborador,
+      // Desligado: só e-mail (26/11/2026) — ver paraAvisoDeContracheque.
+      colaborador: paraAvisoDeContracheque(doc.colaborador),
     },
     novoToken,
     {
@@ -289,6 +294,7 @@ export async function invalidarAssinaturaContrachequeAction(
         select: {
           id: true,
           nome: true,
+          ativo: true,
           email: true,
           cpf: true,
           telegramChatId: true,
@@ -409,7 +415,9 @@ export async function invalidarAssinaturaContrachequeAction(
   let erroReenvio: string | null = null;
 
   if (entrada.reenviarAgora) {
-    if (doc.colaborador.email || doc.colaborador.telegramChatId) {
+    // Desligado: só e-mail (26/11/2026) — ver paraAvisoDeContracheque.
+    const canais = paraAvisoDeContracheque(doc.colaborador);
+    if (canais.email || canais.telegramChatId) {
       try {
         const marcaNome = doc.colaborador.empresa.marca?.nome || "RH";
         const aviso = await avisarColaborador(
@@ -421,8 +429,8 @@ export async function invalidarAssinaturaContrachequeAction(
             empresaId: doc.empresaId,
             colaborador: {
               nome: doc.colaborador.nome,
-              email: doc.colaborador.email,
-              telegramChatId: doc.colaborador.telegramChatId,
+              email: canais.email,
+              telegramChatId: canais.telegramChatId,
               empresa: {
                 marca: {
                   nome: marcaNome,
