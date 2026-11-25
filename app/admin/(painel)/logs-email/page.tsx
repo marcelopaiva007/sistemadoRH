@@ -24,8 +24,12 @@ import {
   ShieldAlert,
   XCircle,
 } from "lucide-react";
+import { PaginacaoPorLink } from "@/components/padroes/paginacao-por-link";
+import { fatiar, lerPagina, resumoDaFatia } from "@/lib/paginacao-servidor";
 
 export const dynamic = "force-dynamic";
+
+const POR_PAGINA_LOGS = 100;
 
 function badgeStatus(status: string) {
   switch (status) {
@@ -76,6 +80,7 @@ type Props = {
     origem?: string;
     marca?: string;
     q?: string;
+    pagina?: string;
   }>;
 };
 
@@ -99,8 +104,9 @@ export default async function LogsEmailPage({ searchParams }: Props) {
 
   const inicioHojeBrasilia = inicioDoDiaSaoPaulo();
 
-  // Consultas de agregação e listagem
-  const [enviadosHoje, bloqueadosHoje, totalNoFiltro, falhasNoFiltro, logs] = await Promise.all([
+  // Consultas de agregação. A listagem vem depois, já sabendo o total, para a
+  // página pedida poder ser presa na última que existe.
+  const [enviadosHoje, bloqueadosHoje, totalNoFiltro, falhasNoFiltro] = await Promise.all([
     prisma.emailEnviado.count({
       where: { ok: true, enviadoEm: { gte: inicioHojeBrasilia } },
     }),
@@ -111,12 +117,32 @@ export default async function LogsEmailPage({ searchParams }: Props) {
     prisma.emailEnviado.count({
       where: { ...where, ok: false },
     }),
-    prisma.emailEnviado.findMany({
-      where,
-      orderBy: { enviadoEm: "desc" },
-      take: 250,
-    }),
   ]);
+
+  // 26/11/2026: paginada no servidor (?pagina=). Até aqui a tela mostrava só os
+  // 250 mais recentes e mandava ao CSV quem precisasse do resto — agora dá
+  // para andar o histórico inteiro do filtro, 100 por vez. `select` só com o
+  // que a tabela desenha.
+  const fatia = fatiar(lerPagina(params.pagina), totalNoFiltro, POR_PAGINA_LOGS);
+  const logs = await prisma.emailEnviado.findMany({
+    where,
+    orderBy: [{ enviadoEm: "desc" }, { id: "desc" }],
+    skip: fatia.skip,
+    take: fatia.take,
+    select: {
+      id: true,
+      enviadoEm: true,
+      para: true,
+      origem: true,
+      assunto: true,
+      marcaNome: true,
+      empresaId: true,
+      status: true,
+      ok: true,
+      erro: true,
+      chave: true,
+    },
+  });
 
   const saldoHoje = Math.max(0, LIMITE_DIARIO_ENVIOS - enviadosHoje);
   const pctUsoHoje = Math.min(100, Math.round((enviadosHoje / LIMITE_DIARIO_ENVIOS) * 100));
@@ -454,11 +480,22 @@ export default async function LogsEmailPage({ searchParams }: Props) {
           </table>
         </div>
 
-        {/* Rodapé informativo de paginação/limite */}
-        {totalNoFiltro > 250 ? (
-          <div className="border-t border-slate-200 bg-slate-50 px-4 py-3 text-center text-xs text-slate-500">
-            Exibindo os primeiros <b>250 registros</b> mais recentes de um total de <b>{totalNoFiltro}</b>.
-            Para acessar a lista integral, utilize o botão <b>Exportar CSV</b> no canto superior direito.
+        {/* Paginação — os links mantêm os filtros do formulário. */}
+        {totalNoFiltro > 0 ? (
+          <div className="border-t border-slate-200 bg-slate-50 px-4 py-3">
+            <PaginacaoPorLink
+              pagina={fatia.pagina}
+              totalPaginas={fatia.totalPaginas}
+              resumo={resumoDaFatia(fatia)}
+              params={{
+                inicio: inicioYmd,
+                fim: fimYmd,
+                status: statusParam,
+                origem: origemParam,
+                marca: marcaParam,
+                q: qParam,
+              }}
+            />
           </div>
         ) : null}
       </div>

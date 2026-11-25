@@ -116,6 +116,78 @@ function categoriasZeradas(): Record<CategoriaProdutividade, number> {
   >;
 }
 
+// 26/11/2026: a tela passou a agregar no banco (groupBy por conta + entidade)
+// em vez de trazer cada linha do AuditLog de 30 dias para somar em memória —
+// eram dezenas de milhares de linhas por abertura. O banco devolve uma linha
+// por (conta, nome, papel, entidade) com a contagem e a ação mais recente; as
+// funções abaixo trabalham sobre esse formato. As versões por registro
+// continuam existindo (viram grupos de 1) para os testes e quem ainda tiver a
+// lista crua.
+export interface GrupoAuditoria {
+  usuarioId: string | null;
+  usuarioNome: string | null;
+  usuarioRole: string | null;
+  entidade: string;
+  quantidade: number;
+  ultimaEm: Date;
+}
+
+function registrosComoGrupos(registros: RegistroAuditoriaSimples[]): GrupoAuditoria[] {
+  return registros.map((r) => ({
+    usuarioId: r.usuarioId,
+    usuarioNome: r.usuarioNome,
+    usuarioRole: r.usuarioRole,
+    entidade: r.entidade,
+    quantidade: 1,
+    ultimaEm: r.createdAt,
+  }));
+}
+
+/**
+ * Uma linha por conta de sistema, da mais para a menos ativa no período, a
+ * partir dos grupos já contados pelo banco. Ignora grupo sem `usuarioId` (ator
+ * do portal/público). Se a mesma conta aparece com nomes ou papéis diferentes
+ * (renomeada, promovida), fica o nome/papel do grupo com a ação mais recente.
+ */
+export function produtividadeDeGruposPorUsuario(grupos: GrupoAuditoria[]): LinhaProdutividade[] {
+  const porUsuario = new Map<string, LinhaProdutividade>();
+
+  for (const g of grupos) {
+    if (!g.usuarioId) continue;
+    let linha = porUsuario.get(g.usuarioId);
+    if (!linha) {
+      linha = {
+        usuarioId: g.usuarioId,
+        usuarioNome: g.usuarioNome ?? "(sem nome)",
+        usuarioRole: g.usuarioRole,
+        total: 0,
+        porCategoria: categoriasZeradas(),
+        ultimaAcaoEm: g.ultimaEm,
+      };
+      porUsuario.set(g.usuarioId, linha);
+    }
+    linha.total += g.quantidade;
+    linha.porCategoria[categoriaDaEntidade(g.entidade)] += g.quantidade;
+    if (g.ultimaEm > linha.ultimaAcaoEm) {
+      linha.ultimaAcaoEm = g.ultimaEm;
+      linha.usuarioNome = g.usuarioNome ?? linha.usuarioNome;
+      linha.usuarioRole = g.usuarioRole;
+    }
+  }
+
+  return [...porUsuario.values()].sort((a, b) => b.total - a.total);
+}
+
+/** Total por categoria a partir dos grupos — mesma ordem de CATEGORIAS_PRODUTIVIDADE. */
+export function produtividadeDeGruposPorCategoria(grupos: GrupoAuditoria[]): LinhaCategoria[] {
+  const totais = categoriasZeradas();
+  for (const g of grupos) {
+    if (!g.usuarioId) continue;
+    totais[categoriaDaEntidade(g.entidade)] += g.quantidade;
+  }
+  return CATEGORIAS_PRODUTIVIDADE.map((categoria) => ({ categoria, total: totais[categoria] }));
+}
+
 /**
  * Uma linha por conta de sistema, da mais para a menos ativa no período.
  * Ignora registro sem `usuarioId` — é o caso do portal do colaborador, que audita
@@ -123,28 +195,7 @@ function categoriasZeradas(): Record<CategoriaProdutividade, number> {
  * quem chama esta função já deve ter filtrado a consulta por papel de sistema.
  */
 export function produtividadePorUsuario(registros: RegistroAuditoriaSimples[]): LinhaProdutividade[] {
-  const porUsuario = new Map<string, LinhaProdutividade>();
-
-  for (const r of registros) {
-    if (!r.usuarioId) continue;
-    let linha = porUsuario.get(r.usuarioId);
-    if (!linha) {
-      linha = {
-        usuarioId: r.usuarioId,
-        usuarioNome: r.usuarioNome ?? "(sem nome)",
-        usuarioRole: r.usuarioRole,
-        total: 0,
-        porCategoria: categoriasZeradas(),
-        ultimaAcaoEm: r.createdAt,
-      };
-      porUsuario.set(r.usuarioId, linha);
-    }
-    linha.total++;
-    linha.porCategoria[categoriaDaEntidade(r.entidade)]++;
-    if (r.createdAt > linha.ultimaAcaoEm) linha.ultimaAcaoEm = r.createdAt;
-  }
-
-  return [...porUsuario.values()].sort((a, b) => b.total - a.total);
+  return produtividadeDeGruposPorUsuario(registrosComoGrupos(registros));
 }
 
 export interface LinhaCategoria {
@@ -154,10 +205,5 @@ export interface LinhaCategoria {
 
 /** Total geral por categoria, pro resumo no topo da tela — mesma ordem de CATEGORIAS_PRODUTIVIDADE. */
 export function produtividadePorCategoria(registros: RegistroAuditoriaSimples[]): LinhaCategoria[] {
-  const totais = categoriasZeradas();
-  for (const r of registros) {
-    if (!r.usuarioId) continue;
-    totais[categoriaDaEntidade(r.entidade)]++;
-  }
-  return CATEGORIAS_PRODUTIVIDADE.map((categoria) => ({ categoria, total: totais[categoria] }));
+  return produtividadeDeGruposPorCategoria(registrosComoGrupos(registros));
 }

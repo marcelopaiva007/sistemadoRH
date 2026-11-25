@@ -15,10 +15,25 @@ import { DelegadasView } from "./delegadas-view";
  * responsável já fez a parte dele — é o único ponto do fluxo em que a demora é
  * de quem pediu. Por isso ela vem no topo, separada.
  */
+// 26/11/2026: cada demanda é lida UMA vez. Antes eram duas consultas que se
+// sobrepunham — a lista (não terminais, SELECT_LISTA) e o painel (o histórico
+// INTEIRO, todos os status, SELECT_PAINEL) —, então toda demanda em aberto vinha
+// duas vezes e as canceladas vinham só para serem descartadas dentro de
+// montarPainelEntregas. Agora a lista já traz os campos do painel, e a segunda
+// consulta busca só as ENCERRADAS (o único histórico que o painel conta e a
+// lista esconde). CANCELADA nem sai do banco: o painel a ignorava.
+const SELECT_LISTA_E_PAINEL = {
+  ...SELECT_LISTA,
+  enviadaEm: SELECT_PAINEL.enviadaEm,
+  aceiteEm: SELECT_PAINEL.aceiteEm,
+  horasEstimadas: SELECT_PAINEL.horasEstimadas,
+  entregas: SELECT_PAINEL.entregas,
+} as const;
+
 export default async function DelegadasPage() {
   const usuario = await requireDelegacoesAccess();
 
-  const [linhas, linhasPainel, pessoas, marcas] = await Promise.all([
+  const [linhas, encerradas, pessoas, marcas] = await Promise.all([
     prisma.demanda.findMany({
       // Aqui NÃO se usa APENAS_ATIVAS: o RASCUNHO é meu e precisa aparecer,
       // senão salvar rascunho grava algo que nenhuma tela lista depois — e o
@@ -27,14 +42,13 @@ export default async function DelegadasPage() {
       where: {
         AND: [{ solicitanteId: usuario.id }, { status: { notIn: [...STATUS_TERMINAIS] } }],
       },
-      select: SELECT_LISTA,
+      select: SELECT_LISTA_E_PAINEL,
       orderBy: { prazo: "asc" },
     }),
-    // O painel de entregas quer o HISTÓRICO inteiro — inclusive ENCERRADA,
-    // que a lista acima esconde de propósito. Sem filtro de status: quem não
-    // conta (RASCUNHO, CANCELADA) é descartado dentro de montarPainelEntregas.
+    // O painel de entregas quer o histórico — inclusive ENCERRADA, que a lista
+    // acima esconde de propósito. As não terminais já vieram acima.
     prisma.demanda.findMany({
-      where: { solicitanteId: usuario.id },
+      where: { solicitanteId: usuario.id, status: "ENCERRADA" },
       select: SELECT_PAINEL,
     }),
     // A lista de quem pode receber demanda — fonte única, compartilhada com a
@@ -48,7 +62,7 @@ export default async function DelegadasPage() {
   ]);
 
   const demandas = linhas.map((d) => paraLinha(d));
-  const painel = montarPainelEntregas(linhasPainel.map((d) => paraPainel(d)));
+  const painel = montarPainelEntregas([...linhas, ...encerradas].map((d) => paraPainel(d)));
 
   return <DelegadasView demandas={demandas} painel={painel} usuarios={pessoas} marcas={marcas} />;
 }

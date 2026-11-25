@@ -3,7 +3,11 @@ import { requireDirecaoDoGrupoInteiro } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { inicioDoDiaSaoPaulo } from "@/lib/email";
 import { somarDiasUTC, formatarDataHoraBrasilia } from "@/lib/datas";
-import { produtividadePorUsuario, produtividadePorCategoria } from "@/lib/produtividade";
+import {
+  produtividadeDeGruposPorUsuario,
+  produtividadeDeGruposPorCategoria,
+  type GrupoAuditoria,
+} from "@/lib/produtividade";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Indicador } from "@/components/indicador";
@@ -56,26 +60,35 @@ export default async function ProdutividadePage({
   });
   const empresaSelecionada = empresas.some((e) => e.id === empresaParam) ? (empresaParam ?? null) : null;
 
-  const registros = await prisma.auditLog.findMany({
+  // 26/11/2026: contagem feita no banco. Antes vinha cada linha do AuditLog do
+  // período (30 dias = dezenas de milhares) para somar em memória; agora o
+  // Postgres devolve uma linha por (conta, nome, papel, entidade) com a
+  // contagem e a ação mais recente. O recorte é o mesmo de antes: papéis de
+  // sistema, contas do próprio grupo e, se escolhida, uma empresa do grupo.
+  const contasDoGrupo = await prisma.user.findMany({ where: { grupoId }, select: { id: true } });
+  const agrupados = await prisma.auditLog.groupBy({
+    by: ["usuarioId", "usuarioNome", "usuarioRole", "entidade"],
     where: {
       createdAt: { gte: desde },
       usuarioRole: { in: PAPEIS_SISTEMA },
       // Só as ações de contas do PRÓPRIO grupo.
-      usuarioId: {
-        in: (
-          await prisma.user.findMany({
-            where: { grupoId },
-            select: { id: true },
-          })
-        ).map((u) => u.id),
-      },
+      usuarioId: { in: contasDoGrupo.map((u) => u.id) },
       ...(empresaSelecionada ? { empresaId: empresaSelecionada } : {}),
     },
-    select: { usuarioId: true, usuarioNome: true, usuarioRole: true, entidade: true, createdAt: true },
+    _count: { _all: true },
+    _max: { createdAt: true },
   });
+  const grupos: GrupoAuditoria[] = agrupados.map((g) => ({
+    usuarioId: g.usuarioId,
+    usuarioNome: g.usuarioNome,
+    usuarioRole: g.usuarioRole,
+    entidade: g.entidade,
+    quantidade: g._count._all,
+    ultimaEm: g._max.createdAt ?? desde,
+  }));
 
-  const porUsuario = produtividadePorUsuario(registros);
-  const porCategoria = produtividadePorCategoria(registros);
+  const porUsuario = produtividadeDeGruposPorUsuario(grupos);
+  const porCategoria = produtividadeDeGruposPorCategoria(grupos);
   const totalAcoes = porCategoria.reduce((soma, c) => soma + c.total, 0);
 
   return (
