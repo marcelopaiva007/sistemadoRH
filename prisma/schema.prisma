@@ -332,6 +332,8 @@ model Empresa {
   recibosContrachequeInvalidados ReciboContrachequeInvalidado[]
 
   @@index([marcaId])
+  // A consulta mais repetida das guardas: CNPJs ativos de uma marca (v1.209.0).
+  @@index([marcaId, ativo])
   @@schema("rh")
 }
 
@@ -641,6 +643,8 @@ model Colaborador {
   @@index([empresaId, dataFimContrato])
   @@index([supervisorId])
   @@index([empresaId, gerente])
+  // Quase toda tela filtra "ativos destes CNPJs" (v1.209.0, auditoria de 25/11/2026).
+  @@index([empresaId, ativo])
   @@schema("rh")
 }
 
@@ -2302,6 +2306,8 @@ model Sinal {
   @@index([status, gravidade])
   // "Quantas vezes essa unidade já descartou esse tipo?" — a regra de silêncio.
   @@index([tipo, unidadeId])
+  // A tela de Sinais filtra por CNPJ e situação (v1.209.0).
+  @@index([empresaId, status])
   @@schema("rh")
 }
 
@@ -2361,6 +2367,8 @@ model SurveyToken {
 
   @@unique([pesquisaId, colaboradorId])
   @@index([status])
+  // Lembretes e portal buscam convites por pessoa, sem pesquisa (v1.209.0).
+  @@index([colaboradorId])
   @@schema("rh")
 }
 
@@ -2388,6 +2396,8 @@ model Resposta {
   itens RespostaItem[]
 
   @@index([pesquisaId])
+  // Busca de respostas por pessoa (v1.209.0).
+  @@index([colaboradorId])
   @@schema("rh")
 }
 

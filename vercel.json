@@ -1,4 +1,5 @@
 {
+  "regions": ["gru1"],
   "crons": [
     { "path": "/api/cron/gestao-ciclo-pesquisas", "schedule": "45 11 * * *" },
     { "path": "/api/cron/foto-mensal", "schedule": "30 6 5-9 * *" },

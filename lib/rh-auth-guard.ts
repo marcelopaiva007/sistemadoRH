@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
@@ -147,27 +148,41 @@ export async function requireAcessoAoColaborador(empresaId: string, colaboradorI
 // ADMIN e DIRETORIA têm papel GLOBAL: o pivô UserEmpresa fica vazio para eles.
 // Montar a lista a partir do pivô devolveria lista nenhuma — e uma tela que
 // depende dela some, ou responde 404 achando que a empresa não existe.
-export async function empresasVisiveis(user: {
+//
+// Memorizado por requisição e pela IDENTIDADE do objeto `user`: layout e página
+// recebem o mesmo objeto de `requireUser` (também memorizado), então a conta
+// inteira roda uma vez por navegação. Objeto diferente, conta nova — nunca
+// devolve a resposta de um usuário para outro.
+export const empresasVisiveis = cache(async (user: {
   id?: string;
   role: string;
   empresas: { empresaId: string; ativo: boolean }[];
-}): Promise<string[]> {
+}): Promise<string[]> => {
   // Tudo recortado pelo GRUPO do usuário (lib/grupo.ts): ADMIN e DIRETORIA
   // enxergam o grupo inteiro, e nenhum vínculo leva para fora dele. Com marca
   // marcada pelo admin (`marcasMarcadasNoGrupo`), ficam SÓ com os CNPJs dela.
-  const doGrupo = await empresasDoGrupo(await grupoDoUsuario(user.id));
+  //
+  // As duas perguntas (grupo e vínculos) são independentes: vão juntas ao
+  // banco, em vez de uma esperar a outra.
+  const empresasDoMeuGrupo = grupoDoUsuario(user.id).then(empresasDoGrupo);
   if (user.role === "ADMIN" || user.role === "DIRETORIA") {
-    const marcadas = await marcasMarcadasNoGrupo(user.id);
+    const [doGrupo, marcadas] = await Promise.all([
+      empresasDoMeuGrupo,
+      marcasMarcadasNoGrupo(user.id),
+    ]);
     if (marcadas.length === 0) return doGrupo;
     return (await empresasDasMarcas(marcadas)).filter((id) => doGrupo.includes(id));
   }
 
   const porEmpresa = user.empresas.filter((e) => e.ativo).map((e) => e.empresaId);
-  const porMarca = await empresasDasMarcasDoUsuario(user.id);
+  const [doGrupo, porMarca] = await Promise.all([
+    empresasDoMeuGrupo,
+    empresasDasMarcasDoUsuario(user.id),
+  ]);
   return [...new Set([...porEmpresa, ...porMarca])].filter((id) =>
     doGrupo.includes(id),
   );
-}
+});
 
 /**
  * O escopo de uma tela consolidada: a INTERSEÇÃO entre o `?empresas=` da URL e
@@ -193,24 +208,36 @@ export async function escopoDeEmpresas(
 // CNPJs que o usuário alcança por ter acesso à MARCA inteira. Consultado a cada
 // request, e não lido do JWT, justamente para que um CNPJ cadastrado depois
 // entre no acesso sem exigir novo login — é o que o vínculo por marca promete.
-async function empresasDasMarcasDoUsuario(userId?: string): Promise<string[]> {
+//
+// Memorizado POR REQUISIÇÃO (`cache` do React), como as funções de
+// lib/grupo.ts: o layout geral, o layout do módulo, a página e o contador da
+// lateral perguntam a mesma coisa na mesma navegação, e eram 2 a 3 rodadas
+// idênticas ao banco. Continua sendo a resposta do banco de agora — o cache
+// não atravessa requisições.
+const empresasDasMarcasDoUsuario = cache(async (userId?: string): Promise<string[]> => {
   if (!userId) return [];
   const vinculos = await prisma.userMarca.findMany({
     where: { userId, ativo: true },
     select: { marcaId: true },
   });
   return empresasDasMarcas(vinculos.map((v) => v.marcaId));
-}
+});
 
 /** CNPJs ativos destas marcas. */
 async function empresasDasMarcas(marcaIds: string[]): Promise<string[]> {
   if (marcaIds.length === 0) return [];
+  // O `cache` compara argumentos por identidade, e cada chamada monta um array
+  // novo: a chave memorizada é a lista ordenada em texto.
+  return empresasDasMarcasPorChave([...new Set(marcaIds)].sort().join(","));
+}
+
+const empresasDasMarcasPorChave = cache(async (chave: string): Promise<string[]> => {
   const empresas = await prisma.empresa.findMany({
-    where: { marcaId: { in: marcaIds }, ativo: true },
+    where: { marcaId: { in: chave.split(",") }, ativo: true },
     select: { id: true },
   });
   return empresas.map((e) => e.id);
-}
+});
 
 /**
  * Guarda de "Meu Setor" — a tela do GESTOR_SETOR.

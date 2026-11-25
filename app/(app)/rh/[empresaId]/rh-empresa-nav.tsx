@@ -193,6 +193,27 @@ export const ROTULO_DO_MODULO: Record<string, string> = {
   ponto: "Ponto Eletrônico",
 };
 
+// O layout monta este menu DUAS vezes — a lateral do computador e a barra do
+// celular (a que não cabe fica só escondida por CSS, mas monta igual). Cada
+// cópia buscava os contadores por conta própria: o dobro de chamadas, cada
+// uma passando por login e escopo no servidor. A segunda cópia agora pega
+// carona na busca da primeira — a mesma resposta, se pedida em até 1 s (as duas cópias montam no
+// mesmo instante; mais que isso atrasaria o badge que cai quando o RH
+// responde uma mensagem e troca de tela).
+const CARONA_MS = 1_000;
+const buscasRecentes = new Map<string, { quando: number; resposta: Promise<unknown> }>();
+
+function buscarComCarona<T>(url: string): Promise<T | null> {
+  const agora = Date.now();
+  const recente = buscasRecentes.get(url);
+  if (recente && agora - recente.quando < CARONA_MS) return recente.resposta as Promise<T | null>;
+  const resposta = fetch(url)
+    .then((r) => (r.ok ? (r.json() as Promise<T>) : null))
+    .catch(() => null);
+  buscasRecentes.set(url, { quando: agora, resposta });
+  return resposta;
+}
+
 export function RHEmpresaNav({ empresaId }: { empresaId: string }) {
   const pathname = usePathname();
   const base = `/rh/${empresaId}`;
@@ -206,16 +227,13 @@ export function RHEmpresaNav({ empresaId }: { empresaId: string }) {
   useEffect(() => {
     let ativo = true;
     const buscar = async () => {
-      try {
-        const r = await fetch(`/api/rh/${empresaId}/mensagens-abertas`);
-        if (!r.ok) return;
-        const dados = (await r.json()) as { abertas?: number };
-        if (ativo) setMensagensAbertas(dados.abertas ?? 0);
-      } catch {
-        // Rede falhou: mantém o último número conhecido em vez de zerar — um
-        // badge que pisca para 0 a cada oscilação diria "tudo respondido" sem
-        // ser verdade.
-      }
+      const dados = await buscarComCarona<{ abertas?: number }>(
+        `/api/rh/${empresaId}/mensagens-abertas`,
+      );
+      // Rede falhou (`null`): mantém o último número conhecido em vez de
+      // zerar — um badge que pisca para 0 a cada oscilação diria "tudo
+      // respondido" sem ser verdade.
+      if (ativo && dados) setMensagensAbertas(dados.abertas ?? 0);
     };
     buscar();
     const intervalo = setInterval(buscar, 60_000);
@@ -231,12 +249,9 @@ export function RHEmpresaNav({ empresaId }: { empresaId: string }) {
   const [totalPendencias, setTotalPendencias] = useState<number | null>(null);
   useEffect(() => {
     let ativo = true;
-    fetch(`/api/rh/${empresaId}/pendencias-total`)
-      .then((r) => (r.ok ? (r.json() as Promise<{ total?: number }>) : null))
-      .then((d) => {
-        if (ativo && d && typeof d.total === "number") setTotalPendencias(d.total);
-      })
-      .catch(() => {});
+    buscarComCarona<{ total?: number }>(`/api/rh/${empresaId}/pendencias-total`).then((d) => {
+      if (ativo && d && typeof d.total === "number") setTotalPendencias(d.total);
+    });
     return () => {
       ativo = false;
     };

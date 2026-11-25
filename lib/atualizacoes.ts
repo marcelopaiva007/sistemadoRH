@@ -26,6 +26,19 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.209.0",
+    data: "25/11/2026",
+    horario: "18:00",
+    titulo: "Sistema mais rápido: servidor em São Paulo e menos idas ao banco",
+    itens: [
+      "O sistema passou a rodar em São Paulo, ao lado do banco de dados. Antes rodava nos Estados Unidos, e cada consulta atravessava o continente.",
+      "Cada tela consulta o login e as empresas que você enxerga uma vez só, em vez de três ou mais.",
+      "Ao trocar de tela em Processos, Delegações, no início e no Meu Setor, aparece na hora um esboço da página enquanto ela carrega. Antes a tela anterior ficava parada, como se o clique não tivesse funcionado.",
+      "A Caixa de documentos abre mais rápido: a limpeza de arquivos antigos passou a rodar depois que a tela aparece.",
+      "O menu lateral do RH deixou de buscar duas vezes os contadores de Pendências e Mensagens.",
+    ],
+  },
+  {
     versao: "1.208.0",
     data: "23/11/2026",
     horario: "12:30",
