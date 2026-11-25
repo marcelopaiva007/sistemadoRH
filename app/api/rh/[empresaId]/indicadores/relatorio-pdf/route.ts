@@ -4,7 +4,7 @@
 // anexar num e-mail ou levar pronto pra reunião de diretoria.
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { escopoDeEmpresas, usuarioAlcancaEmpresa } from "@/lib/rh-auth-guard";
+import { escopoDeEmpresas, podeOperarEmpresaRH } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
 import { hojeUTC } from "@/lib/datas";
 import { rotuloDoEscopo } from "@/lib/escopo-marca";
@@ -32,11 +32,15 @@ export async function GET(
   const user = session?.user;
   if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
 
-  // Uma linha, uma regra: `usuarioAlcancaEmpresa` de lib/rh-auth-guard.ts, a
-  // MESMA que decide o acesso às páginas. Aqui havia uma checagem escrita à
-  // mão — cinco variantes diferentes conviviam em nove rotas, e duas delas
-  // esqueciam DIRETORIA, cujo pivô `UserEmpresa` é vazio por desenho.
-  if (!(await usuarioAlcancaEmpresa(user, empresaId))) {
+  // Uma linha, uma regra: `podeOperarEmpresaRH` de lib/rh-auth-guard.ts, a
+  // MESMA pergunta de `requireEmpresaAccess`, que decide o acesso às telas de
+  // /rh/<empresa>. (Antes de 11/08/2026 havia aqui uma checagem escrita à mão —
+  // cinco variantes em nove rotas, duas esquecendo DIRETORIA.) Até 25/11/2026
+  // era `usuarioAlcancaEmpresa`, que deixa passar o GESTOR_SETOR com vínculo no
+  // CNPJ e não confere o módulo "rh" do perfil: o gestor abria esta rota por
+  // link direto e levava dado da empresa inteira, que a tela dele (Meu Setor)
+  // nunca mostra. Achado da auditoria de permissões de 25/11/2026.
+  if (!(await podeOperarEmpresaRH(user, empresaId))) {
     return NextResponse.json({ error: "Sem acesso a esta empresa." }, { status: 403 });
   }
 
