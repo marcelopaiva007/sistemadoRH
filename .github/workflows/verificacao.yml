@@ -70,6 +70,10 @@ jobs:
         run: npx tsx scripts/test-conformidade.ts
       - name: Escala de trabalho
         run: npx tsx scripts/test-escala.ts
+      - name: Escala x CLT (interjornada, DSR e domingo)
+        run: npx tsx scripts/test-escala-clt.ts
+      - name: ASO periódico pela NR-7
+        run: npx tsx scripts/test-aso-periodicidade.ts
       - name: Admissão
         run: npx tsx scripts/test-admissao.ts
       - name: Indicadores (BI)

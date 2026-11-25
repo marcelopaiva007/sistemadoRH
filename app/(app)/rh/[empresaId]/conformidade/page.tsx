@@ -44,6 +44,7 @@ export default async function ConformidadePage({
         posicaoId: true,
         posicao: { select: { nome: true } },
         setor: { select: { nome: true } },
+        dataNascimento: true,
         certificados: { select: { norma: true, realizadoEm: true, validoAte: true } },
         exames: {
           select: { tipo: true, realizadoEm: true, validoAte: true, resultado: true, restricoes: true },
@@ -58,7 +59,8 @@ export default async function ConformidadePage({
   const linhas = colaboradores.map((c) => {
     const requisitos = requisitosPorPosicao.get(c.posicaoId) ?? [];
     const conformidade = conformidadeDoColaborador(requisitos, c.certificados);
-    const exame = situacaoDoExame(c.exames);
+    // Vencimento do ASO pela NR-7 (26/11/2026) — ver lib/aso-periodicidade.ts.
+    const exame = situacaoDoExame(c.exames, undefined, { dataNascimento: c.dataNascimento });
     return {
       id: c.id,
       nome: c.nome,

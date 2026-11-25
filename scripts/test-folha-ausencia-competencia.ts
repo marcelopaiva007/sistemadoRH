@@ -8,6 +8,7 @@
 import {
   diasDaAusenciaNaCompetencia,
   diasDaCompetencia,
+  dsrPerdidosPorColaboradorNaCompetencia,
   faltasPorColaboradorNaCompetencia,
 } from "@/lib/folha-ausencias";
 import { competenciaUTC } from "@/lib/constants-folha";
@@ -102,6 +103,36 @@ const porPessoa = faltasPorColaboradorNaCompetencia(
 );
 ok(porPessoa.get("a") === 7, "A: 5 da virada + 2 de 20–21/02 = 7 em fevereiro");
 ok(!porPessoa.has("b"), "B só faltou em janeiro — não entra em fevereiro");
+
+console.log("9. DSR perdido (Lei 605/49, art. 6º) — 1 por semana com falta");
+// 2027: 25/01 é segunda; 01/02 é segunda; 29/03 é segunda (semana até 04/04).
+const ABR = competenciaUTC(2027, 4);
+const dsr = (a: { dataInicio: Date; dataFim: Date }[], ref: Date) =>
+  dsrPerdidosPorColaboradorNaCompetencia(
+    a.map((x) => ({ colaboradorId: "a", ...x })),
+    ref,
+  ).get("a") ?? 0;
+ok(dsr([virada], JAN) === 1, "falta de 28/01 a 05/02: 1 DSR em janeiro (semana de 25 a 31/01)");
+ok(dsr([virada], FEV) === 1, "e 1 em fevereiro (semana de 01 a 07/02)");
+ok(
+  dsr([ausencia(dataUTC(2027, 2, 10), dataUTC(2027, 2, 10)), ausencia(dataUTC(2027, 2, 12), dataUTC(2027, 2, 12))], FEV) === 1,
+  "duas faltas na mesma semana (10 e 12/02): 1 DSR, não 2",
+);
+ok(
+  dsr([ausencia(dataUTC(2027, 2, 3), dataUTC(2027, 2, 3)), ausencia(dataUTC(2027, 2, 10), dataUTC(2027, 2, 10))], FEV) === 2,
+  "faltas em semanas diferentes (03 e 10/02): 2 DSR",
+);
+const semanaVirando = [ausencia(dataUTC(2027, 3, 31), dataUTC(2027, 3, 31)), ausencia(dataUTC(2027, 4, 2), dataUTC(2027, 4, 2))];
+ok(dsr(semanaVirando, MAR) === 1, "semana de 29/03 a 04/04 com faltas em 31/03 e 02/04: o DSR fica em março (1ª falta)");
+ok(dsr(semanaVirando, ABR) === 0, "e não se repete em abril");
+ok(dsr([ausencia(dataUTC(2027, 4, 1), dataUTC(2027, 4, 1))], ABR) === 1, "falta só em 01/04 (mesma semana): o DSR vai para abril");
+ok(dsr([ausencia(dataUTC(2027, 4, 1), dataUTC(2027, 4, 1))], MAR) === 0, "e nada em março");
+ok(dsr([longa], FEV) === 4, "falta de fevereiro inteiro (4 semanas de seg a dom): 4 DSR");
+ok(dsr([ausencia(dataUTC(2027, 2, 5), dataUTC(2027, 2, 1), 3)], FEV) === 0, "datas invertidas não geram DSR");
+ok(
+  !dsrPerdidosPorColaboradorNaCompetencia([{ colaboradorId: "b", ...ausencia(dataUTC(2027, 1, 5), dataUTC(2027, 1, 6)) }], FEV).has("b"),
+  "quem só faltou em janeiro não perde DSR em fevereiro",
+);
 
 if (falhas > 0) {
   console.error(`\n${falhas} teste(s) falharam.`);

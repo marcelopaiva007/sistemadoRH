@@ -13,7 +13,7 @@
 // `inicioDoDiaUTC` nas duas pontas, então uma data gravada com hora (ex.:
 // 03:00Z vindo de um fuso Brasília convertido) continua caindo no dia certo e
 // não escorrega para o mês vizinho.
-import { diferencaEmDiasUTC, inicioDoDiaUTC } from "@/lib/datas";
+import { diferencaEmDiasUTC, inicioDoDiaUTC, somarDiasUTC } from "@/lib/datas";
 
 export type AusenciaParaCompetencia = {
   dataInicio: Date;
@@ -80,6 +80,66 @@ export function faltasPorColaboradorNaCompetencia(
     const dias = diasDaAusenciaNaCompetencia(a, referencia);
     if (dias <= 0) continue;
     porColaborador.set(a.colaboradorId, (porColaborador.get(a.colaboradorId) ?? 0) + dias);
+  }
+  return porColaborador;
+}
+
+/** Segunda-feira (meia-noite UTC) da semana do dia — a semana da grade vai de segunda a domingo. */
+function segundaDaSemana(dia: Date): number {
+  const diaDaSemana = dia.getUTCDay(); // 0 = domingo
+  const voltar = diaDaSemana === 0 ? 6 : diaDaSemana - 1;
+  return somarDiasUTC(dia, -voltar).getTime();
+}
+
+/**
+ * DSR perdidos por colaborador na competência (26/11/2026).
+ *
+ * Lei 605/49, art. 6º: quem falta sem justificativa na semana não tem direito
+ * à remuneração do repouso semanal daquela semana. Uma semana com falta
+ * injustificada = 1 DSR perdido, tenha a semana 1 ou 5 faltas.
+ *
+ * Semana de segunda a domingo. A semana entra na competência em que cai a
+ * PRIMEIRA falta dela: semana de 27/01 a 02/02 com falta em 30/01 e 02/02 é 1
+ * DSR perdido em janeiro, nenhum em fevereiro — nunca a mesma semana contada
+ * nos dois meses. Por isso quem chama precisa trazer as ausências desde 6 dias
+ * antes do início do mês (a semana que começou no mês anterior).
+ *
+ * Fora daqui, de propósito: feriado da semana (a perda alcança também o
+ * feriado, art. 6º §1º, mas o sistema não tem calendário de feriados) e o
+ * valor em dinheiro — o escritório calcula; o sistema informa a quantidade.
+ */
+export function dsrPerdidosPorColaboradorNaCompetencia(
+  ausencias: readonly (Pick<AusenciaParaCompetencia, "dataInicio" | "dataFim"> & { colaboradorId: string })[],
+  referencia: Date,
+): Map<string, number> {
+  const { primeiro, ultimo } = diasDaCompetencia(referencia);
+  const janelaInicio = somarDiasUTC(primeiro, -6);
+
+  // colaborador -> semana (segunda, em ms) -> primeira falta da semana (ms)
+  const primeiraFaltaDaSemana = new Map<string, Map<number, number>>();
+  for (const a of ausencias) {
+    const inicio = inicioDoDiaUTC(a.dataInicio);
+    const fim = inicioDoDiaUTC(a.dataFim);
+    if (fim < inicio) continue;
+    const de = inicio > janelaInicio ? inicio : janelaInicio;
+    const ate = fim < ultimo ? fim : ultimo;
+    if (ate < de) continue;
+    const semanas = primeiraFaltaDaSemana.get(a.colaboradorId) ?? new Map<number, number>();
+    for (let dia = de; dia <= ate; dia = somarDiasUTC(dia, 1)) {
+      const semana = segundaDaSemana(dia);
+      const atual = semanas.get(semana);
+      if (atual === undefined || dia.getTime() < atual) semanas.set(semana, dia.getTime());
+    }
+    primeiraFaltaDaSemana.set(a.colaboradorId, semanas);
+  }
+
+  const porColaborador = new Map<string, number>();
+  for (const [colaboradorId, semanas] of primeiraFaltaDaSemana) {
+    let perdidos = 0;
+    for (const primeiraFalta of semanas.values()) {
+      if (primeiraFalta >= primeiro.getTime() && primeiraFalta <= ultimo.getTime()) perdidos++;
+    }
+    if (perdidos > 0) porColaborador.set(colaboradorId, perdidos);
   }
   return porColaborador;
 }

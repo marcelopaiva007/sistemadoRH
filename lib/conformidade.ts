@@ -12,6 +12,7 @@
 import { diferencaEmDiasUTC, hojeUTC, somarMesesUTC } from "@/lib/datas";
 import { DIAS_ALERTA_VENCIMENTO } from "@/lib/constants-dp";
 import type { StatusBadgeMap } from "@/components/status-badge";
+import { vencimentoAsoEfetivo, type PerfilAso } from "@/lib/aso-periodicidade";
 
 export type SituacaoItem = "EM_DIA" | "VENCENDO" | "VENCIDO" | "NUNCA_FEITO";
 
@@ -100,10 +101,15 @@ export type SituacaoExame = {
 /**
  * Situação do exame ocupacional. O demissional é ignorado: ele encerra o
  * vínculo e não é o exame que mantém alguém apto para trabalhar.
+ *
+ * Com `perfil` (data de nascimento da pessoa), o vencimento segue a NR-7 —
+ * anual ou a cada 2 anos, ver lib/aso-periodicidade.ts (26/11/2026). Sem ele,
+ * vale o `validoAte` gravado, como antes.
  */
 export function situacaoDoExame(
   exames: { tipo: string; realizadoEm: Date; validoAte: Date | null; resultado: string; restricoes: string | null }[],
   hoje: Date = hojeUTC(),
+  perfil?: PerfilAso,
 ): SituacaoExame {
   const vigentes = exames
     .filter((e) => e.tipo !== "DEMISSIONAL")
@@ -114,11 +120,12 @@ export function situacaoDoExame(
     return { situacao: "NUNCA_FEITO", realizadoEm: null, validoAte: null, diasAteVencer: null, resultado: null, restricoes: null };
   }
 
-  const { situacao, dias } = situacaoPorValidade(atual.validoAte, hoje);
+  const validoAte = perfil ? vencimentoAsoEfetivo(atual, perfil).validoAte : atual.validoAte;
+  const { situacao, dias } = situacaoPorValidade(validoAte, hoje);
   return {
     situacao,
     realizadoEm: atual.realizadoEm,
-    validoAte: atual.validoAte,
+    validoAte,
     diasAteVencer: dias,
     resultado: atual.resultado,
     restricoes: atual.restricoes,

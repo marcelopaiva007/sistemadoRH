@@ -26,6 +26,8 @@ export type LinhaRelatorioAso = {
   tipoLabel: string | null;
   realizadoTexto: string | null;
   validadeTexto: string | null;
+  /** Periodicidade pela NR-7 ("Periódico anual — maior de 45 anos"), ver lib/aso-periodicidade.ts. */
+  periodicidadeTexto: string | null;
   /**
    * Dias até o vencimento do ASO vigente: negativo = vencido há |dias| dias.
    * null = sem ASO cadastrado, ou ASO sem validade preenchida — os dois pedem
@@ -183,7 +185,7 @@ export function RelatorioAsoView({
 
   function exportarCsv() {
     const csv = gerarCsv(
-      ["Colaborador", "CNPJ", "Setor", "Tipo do último ASO", "Realizado em", "Validade", "Situação", "Dias de atraso"],
+      ["Colaborador", "CNPJ", "Setor", "Tipo do último ASO", "Realizado em", "Validade", "Periodicidade (NR-7)", "Situação", "Dias de atraso"],
       exibidas.map((l) => [
         l.nome,
         l.empresaNome,
@@ -191,6 +193,7 @@ export function RelatorioAsoView({
         l.tipoLabel ?? "",
         l.realizadoTexto ?? "",
         l.validadeTexto ?? "",
+        l.periodicidadeTexto ?? "",
         situacaoTexto(l),
         l.dias !== null && l.dias < 0 ? String(-l.dias) : "",
       ]),
@@ -422,7 +425,12 @@ export function RelatorioAsoView({
                             </span>
                           )}
                         </TableCell>
-                        <TableCell className="tabular-nums">{l.validadeTexto ?? "—"}</TableCell>
+                        <TableCell className="tabular-nums">
+                          {l.validadeTexto ?? "—"}
+                          {l.periodicidadeTexto && (
+                            <span className="block text-xs text-muted-foreground">{l.periodicidadeTexto}</span>
+                          )}
+                        </TableCell>
                         <TableCell>
                           <Badge variant={l.dias === null || l.dias < 0 ? "destructive" : "secondary"}>
                             {situacaoTexto(l)}

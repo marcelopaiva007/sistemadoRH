@@ -2,6 +2,7 @@ import { escopoDeEmpresas, requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
 import { tipoExameLabel } from "@/lib/constants-sst";
 import { diferencaEmDiasUTC, formatarData, hojeUTC } from "@/lib/datas";
+import { textoPeriodicidade, vencimentoAsoEfetivo } from "@/lib/aso-periodicidade";
 import { RelatorioAsoView, type LinhaRelatorioAso } from "./relatorio-aso-view";
 
 // Relatório de ASO (Saúde & segurança). Pedido do RH em 28/09/2026: ASO
@@ -39,6 +40,7 @@ export default async function RelatorioAsoPage({
       id: true,
       nome: true,
       empresaId: true,
+      dataNascimento: true,
       setor: { select: { nome: true } },
       empresa: { select: { nome: true } },
       exames: {
@@ -51,8 +53,11 @@ export default async function RelatorioAsoPage({
     orderBy: { nome: "asc" },
   });
 
+  // Vencimento pela NR-7 (26/11/2026): anual ou a cada 2 anos conforme idade
+  // e risco — não mais 12 meses para todo mundo. Ver lib/aso-periodicidade.ts.
   const linhas: LinhaRelatorioAso[] = colaboradores.map((c) => {
     const exame = c.exames[0] ?? null;
+    const venc = exame ? vencimentoAsoEfetivo(exame, { dataNascimento: c.dataNascimento }) : null;
     return {
       colaboradorId: c.id,
       empresaId: c.empresaId,
@@ -61,8 +66,9 @@ export default async function RelatorioAsoPage({
       setorNome: c.setor.nome,
       tipoLabel: exame ? tipoExameLabel(exame.tipo) : null,
       realizadoTexto: exame ? formatarData(exame.realizadoEm) : null,
-      validadeTexto: exame?.validoAte ? formatarData(exame.validoAte) : null,
-      dias: exame?.validoAte ? diferencaEmDiasUTC(exame.validoAte, hoje) : null,
+      validadeTexto: venc?.validoAte ? formatarData(venc.validoAte) : null,
+      periodicidadeTexto: venc ? textoPeriodicidade(venc) : null,
+      dias: venc?.validoAte ? diferencaEmDiasUTC(venc.validoAte, hoje) : null,
       temExame: !!exame,
     };
   });

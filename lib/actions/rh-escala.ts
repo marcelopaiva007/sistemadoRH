@@ -84,10 +84,14 @@ export async function copiarSemana(
   const fimOrigem = new Date(inicioOrigem.getTime() + 6 * 86_400_000);
   const deslocamentoDias = Math.round((inicioDestino.getTime() - inicioOrigem.getTime()) / 86_400_000);
 
+  // Só quem continua ativo (26/11/2026): copiar a semana passada trazia o
+  // turno de quem foi desligado nesse meio-tempo, e a pessoa voltava a ocupar
+  // a escala — a grade nem a mostra (lista só ativos), mas o turno ficava
+  // gravado e entrava na conta de quem está de plantão.
   const origem = await prisma.escalaTurno.findMany({
-    where: { empresaId, data: { gte: inicioOrigem, lte: fimOrigem } },
+    where: { empresaId, data: { gte: inicioOrigem, lte: fimOrigem }, colaborador: { ativo: true } },
   });
-  if (origem.length === 0) return { ok: false, error: "A semana de origem não tem nenhuma escala definida." };
+  if (origem.length === 0) return { ok: false, error: "A semana de origem não tem nenhuma escala de colaborador ativo." };
 
   const destinoExistente = await prisma.escalaTurno.findMany({
     where: {
@@ -98,26 +102,23 @@ export async function copiarSemana(
   });
   const jaPreenchido = new Set(destinoExistente.map((d) => `${d.colaboradorId}::${d.data.toISOString()}`));
 
-  let copiados = 0;
-  for (const linha of origem) {
-    const novaData = new Date(linha.data.getTime() + deslocamentoDias * 86_400_000);
-    const chave = `${linha.colaboradorId}::${novaData.toISOString()}`;
-    if (jaPreenchido.has(chave)) continue;
+  const novos = origem
+    .map((linha) => ({ linha, novaData: new Date(linha.data.getTime() + deslocamentoDias * 86_400_000) }))
+    .filter(({ linha, novaData }) => !jaPreenchido.has(`${linha.colaboradorId}::${novaData.toISOString()}`))
+    .map(({ linha, novaData }) => ({
+      empresaId,
+      colaboradorId: linha.colaboradorId,
+      data: novaData,
+      turno: linha.turno,
+      criadoPorId: usuario?.id ?? null,
+      criadoPorNome: usuario?.name ?? null,
+    }));
 
-    await prisma.escalaTurno.upsert({
-      where: { colaboradorId_data: { colaboradorId: linha.colaboradorId, data: novaData } },
-      create: {
-        empresaId,
-        colaboradorId: linha.colaboradorId,
-        data: novaData,
-        turno: linha.turno,
-        criadoPorId: usuario?.id ?? null,
-        criadoPorNome: usuario?.name ?? null,
-      },
-      update: {},
-    });
-    copiados++;
-  }
+  // Uma gravação só, em vez de um upsert por linha em sequência (26/11/2026).
+  // `skipDuplicates` cobre o dia que alguém preencheu entre a leitura acima e
+  // esta escrita — o mesmo "não sobrescreve" do upsert com update vazio.
+  const { count: copiados } =
+    novos.length > 0 ? await prisma.escalaTurno.createMany({ data: novos, skipDuplicates: true }) : { count: 0 };
 
   await registrarAuditoria({
     empresaId,
