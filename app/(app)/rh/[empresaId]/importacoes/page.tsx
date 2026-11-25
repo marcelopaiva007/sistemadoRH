@@ -2,6 +2,11 @@ import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
 import { ImportacoesView } from "./importacoes-view";
 
+// A confirmação da importação (server action desta página) grava numa
+// transação de até 60 s; sem teto explícito a função podia morrer antes da
+// transação terminar, deixando o RH sem saber se gravou (26/11/2026).
+export const maxDuration = 300;
+
 // Importação em massa (Fase 6, etapa C): planilha de colaboradores em CSV,
 // com conferência antes de gravar e histórico do que já foi importado.
 export default async function ImportacoesPage({

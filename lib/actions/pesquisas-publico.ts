@@ -7,6 +7,7 @@ import { definicaoPesquisa } from "@/lib/pesquisas-catalogo";
 import type { ActionResult } from "@/lib/constants";
 import { ipDaRequisicao } from "@/lib/login-tentativas";
 import { envioPublicoBarrado, LIMITE_RESPOSTA_PESQUISA, MENSAGEM_LIMITE_PUBLICO } from "@/lib/limite-publico";
+import { validarItensEnvio } from "@/lib/pesquisa-envio-validacao";
 
 const respostaItemSchema = z.object({
   perguntaId: z.string(),
@@ -15,8 +16,12 @@ const respostaItemSchema = z.object({
   opcaoId: z.string().optional(),
 });
 
+// Só o formato. O conteúdo (pergunta é desta pesquisa? opção é desta
+// pergunta? nota dentro da escala? repetida?) é conferido contra o banco em
+// validarItensEnvio (lib/pesquisa-envio-validacao.ts) — 26/11/2026. O teto de
+// itens corta payload absurdo antes de qualquer laço.
 const respostaSchema = z.object({
-  itens: z.array(respostaItemSchema),
+  itens: z.array(respostaItemSchema).max(500),
 });
 
 function faixaEtaria(nascimento: Date | null): string | null {
@@ -43,7 +48,14 @@ export async function responderPesquisa(token: string, _prev: ActionResult, form
 
   const surveyToken = await prisma.surveyToken.findUnique({
     where: { token },
-    include: { pesquisa: { include: { perguntas: true } }, colaborador: true },
+    include: {
+      pesquisa: {
+        include: {
+          perguntas: { select: { id: true, tipo: true, obrigatoria: true, ordem: true, enunciado: true, opcoes: { select: { id: true } } } },
+        },
+      },
+      colaborador: true,
+    },
   });
   if (!surveyToken) return { ok: false, error: "Convite não encontrado." };
   if (surveyToken.pesquisa.status !== "ACTIVE") {
@@ -75,10 +87,10 @@ export async function responderPesquisa(token: string, _prev: ActionResult, form
   const parsed = respostaSchema.safeParse({ itens: itensRaw });
   if (!parsed.success) return { ok: false, error: "Respostas inválidas." };
 
-  const perguntasObrigatorias = surveyToken.pesquisa.perguntas.filter((p) => p.obrigatoria);
-  const perguntasRespondidas = new Set(parsed.data.itens.map((i) => i.perguntaId));
-  const faltando = perguntasObrigatorias.some((p) => !perguntasRespondidas.has(p.id));
-  if (faltando) return { ok: false, error: "Responda todas as perguntas obrigatórias." };
+  // Cada item conferido contra as perguntas DESTA pesquisa (26/11/2026) —
+  // inclui a checagem de obrigatórias, agora feita sobre os itens já limpos.
+  const validacao = validarItensEnvio(surveyToken.pesquisa.perguntas, parsed.data.itens);
+  if (!validacao.ok) return { ok: false, error: validacao.error };
 
   // Sentinela para abortar a transação quando outro envio chegou primeiro.
   const JA_RESPONDIDO = "JA_RESPONDIDO";
@@ -125,15 +137,11 @@ export async function responderPesquisa(token: string, _prev: ActionResult, form
         },
       });
 
-      for (const item of parsed.data.itens) {
-        await tx.respostaItem.create({
-          data: {
-            respostaId: resposta.id,
-            perguntaId: item.perguntaId,
-            valorNumerico: item.valorNumerico ?? null,
-            valorTexto: item.valorTexto || null,
-            opcaoId: item.opcaoId || null,
-          },
+      // Uma ida ao banco para todos os itens (26/11/2026), dentro da mesma
+      // transação: ou a resposta entra inteira, ou nada entra.
+      if (validacao.itens.length > 0) {
+        await tx.respostaItem.createMany({
+          data: validacao.itens.map((item) => ({ respostaId: resposta.id, ...item })),
         });
       }
     });

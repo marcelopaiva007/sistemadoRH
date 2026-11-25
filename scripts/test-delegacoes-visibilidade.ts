@@ -12,6 +12,7 @@ import {
   demandasVisiveisPara,
   diasAtePrazo,
   ehDirecao,
+  podeAbrirNoPainel,
   podeVerDemanda,
   prazoEmTexto,
 } from "../lib/delegacoes/consultas";
@@ -91,6 +92,23 @@ async function blocoDetalhe() {
   ok(!(await podeVerDemanda({ role: "RH_MANAGER" }, demanda, grupoDe)), "sessão sem id não vê");
   const propria = { solicitanteId: "eu", responsavelId: "eu" };
   ok(await podeVerDemanda({ id: "eu", role: "GESTOR_SETOR" }, propria, grupoDe), "quem delegou para si vê");
+
+  // O painel LISTA toda demanda do grupo (decisão do CEO, 09/09/2026), mas o
+  // link para o detalhe só vai para quem o detalhe deixa entrar — senão o
+  // clique cai em 404 (auditoria, 26/11/2026). Dentro do painel (já recortado
+  // pelo grupo), as duas regras têm de dar a MESMA resposta.
+  console.log("\nO link do painel segue a regra do detalhe\n");
+  for (const [quem, rotulo] of [
+    [SOL, "quem pediu"],
+    [RESP, "quem faz"],
+    [DIRETORIA, "a direção do grupo"],
+    [OUTRO, "quem não participa"],
+    [{ role: "RH_MANAGER" }, "sessão sem id"],
+  ] as const) {
+    const detalhe = await podeVerDemanda(quem, demanda, grupoDe);
+    igual(podeAbrirNoPainel(quem, demanda), detalhe, `${rotulo}: link no painel = acesso ao detalhe (${detalhe})`);
+  }
+  ok(!podeAbrirNoPainel(OUTRO, demanda), "quem não participa vê a linha SEM link — não amplia o detalhe");
 }
 
 console.log("\nO recorte não se mistura com filtro de tela\n");

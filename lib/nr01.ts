@@ -231,3 +231,20 @@ export function calcularNR01(
     porCargo: porChave((r) => canonizarCargo(r.posicaoNomeSnapshot).nome),
   };
 }
+
+// Versão para mandar ao NAVEGADOR (26/11/2026): grupo abaixo do piso de
+// anonimato vai sem dimensões e com índice zerado — só nome, contagem de
+// pessoas e o indicador. `calcularGrupo` já conta pessoas (Resposta), mas os
+// números do grupo pequeno seguiam no payload do dashboard e só a tela
+// escondia. O PDF (lib/nr01-relatorio.ts) roda no servidor e já não imprime
+// número de grupo sinalizado, por isso continua recebendo o resultado inteiro.
+export function semNumerosAbaixoDoPiso(resultado: ResultadoNR01): ResultadoNR01 {
+  const limpar = (g: ResultadoGrupo): ResultadoGrupo =>
+    g.amostraInsuficiente ? { ...g, dimensoes: [], indiceGeral100: 0, nivelGeral: "BAIXO" } : g;
+  return {
+    totalRespostas: resultado.totalRespostas,
+    geral: limpar(resultado.geral),
+    porSetor: resultado.porSetor.map(limpar),
+    porCargo: resultado.porCargo.map(limpar),
+  };
+}

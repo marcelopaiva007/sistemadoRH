@@ -35,8 +35,17 @@ export default async function CandidatosPage({
       }
     : {};
 
+  // "Disponível" = não está em processo ativo em nenhuma vaga agora nem já foi
+  // contratado. O filtro vai NA CONSULTA, antes do `take` (26/11/2026,
+  // auditoria): aplicado depois do corte de 200, ele só olhava os 200 mais
+  // recentes — e os disponíveis mais antigos, que são justamente o banco de
+  // talentos que o filtro existe para achar, sumiam da lista.
+  const filtroDisponivel = soDisponiveis
+    ? { candidaturas: { none: { etapa: { in: [...ETAPAS_EM_ANDAMENTO, "CONTRATADO"] } } } }
+    : {};
+
   const candidatos = await prisma.candidato.findMany({
-    where: { empresaId, ...filtroBusca },
+    where: { AND: [{ empresaId }, filtroBusca, filtroDisponivel] },
     orderBy: [{ createdAt: "desc" }],
     take: 200,
     select: {
@@ -62,16 +71,14 @@ export default async function CandidatosPage({
   });
 
   const emAndamento = new Set<string>(ETAPAS_EM_ANDAMENTO);
-  const lista = candidatos
-    .map((c) => ({
-      ...c,
-      // "Disponível" = não está em processo ativo em nenhuma vaga agora nem
-      // já foi contratado. É esse filtro que faz o banco de talentos valer:
-      // quem já foi avaliado antes e está livre para uma vaga nova.
-      emProcesso: c.candidaturas.some((cd) => emAndamento.has(cd.etapa)),
-      jaContratado: c.candidaturas.some((cd) => cd.etapa === "CONTRATADO"),
-    }))
-    .filter((c) => (soDisponiveis ? !c.emProcesso && !c.jaContratado : true));
+  // As marcas da linha. É o mesmo critério do `filtroDisponivel` acima — é
+  // esse filtro que faz o banco de talentos valer: quem já foi avaliado antes
+  // e está livre para uma vaga nova.
+  const lista = candidatos.map((c) => ({
+    ...c,
+    emProcesso: c.candidaturas.some((cd) => emAndamento.has(cd.etapa)),
+    jaContratado: c.candidaturas.some((cd) => cd.etapa === "CONTRATADO"),
+  }));
 
   return (
     <CandidatosView

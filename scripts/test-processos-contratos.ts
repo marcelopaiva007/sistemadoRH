@@ -21,6 +21,7 @@ import {
   papeisDaContraparte,
 } from "../lib/processos/contratos";
 import { dataUTC } from "../lib/datas";
+import { areaDoTipoPendencia, filtroTipoDaArea, TIPOS_PENDENCIA_CONTRATOS } from "../lib/processos/areas";
 
 let falhas = 0;
 function ok(condicao: boolean, descricao: string) {
@@ -261,6 +262,25 @@ console.log("\nQuem pode assinar — a empresa provisória sem CNPJ fica de fora
   ok(
     !empresaPodeAssinar(null, "outra-empresa-sem-cnpj", PROVISORIA),
     "vir de OUTRA empresa sem CNPJ não autoriza entrar nesta",
+  );
+}
+
+console.log("\nA área de uma pendência (a aba que a action confere — 26/11/2026)\n");
+{
+  // As actions da Central conferem a aba da PENDÊNCIA contra as abas da
+  // pessoa: quem só tem Frota não dispensa pendência de Contratos. A área
+  // tem de bater com o filtro que a Central usa para LISTAR — senão a pessoa
+  // veria na tela uma linha que a action recusa, ou o contrário.
+  for (const tipo of TIPOS_PENDENCIA_CONTRATOS) {
+    igual(areaDoTipoPendencia(tipo), "contratos", `${tipo} é de Contratos`);
+  }
+  for (const tipo of ["INDICAR_CONDUTOR", "LICENCIAMENTO", "CNH_VENCENDO", "CADASTRO_INCOMPLETO"]) {
+    igual(areaDoTipoPendencia(tipo), "frota", `${tipo} é de Frota`);
+  }
+  igual(
+    JSON.stringify(filtroTipoDaArea("contratos")),
+    JSON.stringify({ in: TIPOS_PENDENCIA_CONTRATOS }),
+    "a lista de Contratos usa a mesma partição da action",
   );
 }
 

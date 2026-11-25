@@ -24,3 +24,19 @@ export async function proximaMatricula(cliente: ClientePrisma = prisma): Promise
   `;
   return String(linhas[0].valor);
 }
+
+/**
+ * `quantidade` matrículas de uma vez, numa consulta só — para a importação em
+ * lote não fazer uma ida ao banco por colaborador novo (26/11/2026). Mesma
+ * sequence, mesma garantia de número nunca repetido.
+ */
+export async function proximasMatriculas(
+  quantidade: number,
+  cliente: ClientePrisma = prisma,
+): Promise<string[]> {
+  if (quantidade <= 0) return [];
+  const linhas = await cliente.$queryRaw<{ valor: bigint }[]>`
+    SELECT nextval('"rh"."matricula_seq"') AS valor FROM generate_series(1, ${quantidade}::int)
+  `;
+  return linhas.map((l) => String(l.valor));
+}

@@ -197,7 +197,7 @@ export function PendenciasView({
     {
       chave: "feriasVencidas",
       titulo: "Férias vencidas",
-      descricao: "12+ meses de casa sem férias aprovadas no último ano — risco de dobra.",
+      descricao: "Período sem férias marcadas dentro do prazo legal, vencido ou a 60 dias de vencer — risco de dobra.",
       // filtro=RISCO_DOBRA e não VENCIDO: "Vencidas" na tela de Férias são só
       // as confirmadas com histórico, e o número deste cartão não batia com a
       // lista. RISCO_DOBRA usa a mesma conta deste contador — bate pessoa a

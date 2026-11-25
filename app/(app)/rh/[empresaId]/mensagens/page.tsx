@@ -7,6 +7,8 @@ import { MensagensView } from "./mensagens-view";
 //
 // ESCOPO: `empresasVisiveis` + filtro `?empresas=` da barra lateral — mesmo
 // padrão do resto do módulo RH (ver aprovacoes/page.tsx).
+const LIMITE_RESPONDIDAS = 200;
+
 export default async function MensagensPage({
   params,
   searchParams,
@@ -43,7 +45,12 @@ export default async function MensagensPage({
   // único fazia o cartão dizer 250 para uma tela que só mostrava 200. O teto
   // fica onde faz sentido: no histórico já respondido, que só existe como
   // contexto.
-  const [abertas, respondidas] = await Promise.all([
+  //
+  // O histórico vem das MAIS RECENTES (26/11/2026, auditoria): ordenava pela
+  // resposta mais ANTIGA e cortava em 200 — passadas 200 respondidas, as de
+  // ontem sumiam da tela e ficavam as de anos atrás. Busca uma a mais que o
+  // teto para a tela poder dizer que existe histórico além do que mostra.
+  const [abertas, respondidasMaisUma] = await Promise.all([
     prisma.mensagemPortal.findMany({
       where: { empresaId: { in: escopoIds }, respondidaEm: null },
       orderBy: { createdAt: "desc" },
@@ -51,16 +58,19 @@ export default async function MensagensPage({
     }),
     prisma.mensagemPortal.findMany({
       where: { empresaId: { in: escopoIds }, respondidaEm: { not: null } },
-      orderBy: [{ respondidaEm: "asc" }, { createdAt: "desc" }],
-      take: 200,
+      orderBy: [{ respondidaEm: "desc" }, { id: "desc" }],
+      take: LIMITE_RESPONDIDAS + 1,
       select: camposDaMensagem,
     }),
   ]);
+  const haMaisRespondidas = respondidasMaisUma.length > LIMITE_RESPONDIDAS;
+  const respondidas = respondidasMaisUma.slice(0, LIMITE_RESPONDIDAS);
   const mensagens = [...abertas, ...respondidas];
 
   return (
     <MensagensView
       empresaId={empresaId}
+      respondidasLimitadas={haMaisRespondidas ? LIMITE_RESPONDIDAS : null}
       mensagens={mensagens.map((m) => ({
         id: m.id,
         mensagem: m.mensagem,

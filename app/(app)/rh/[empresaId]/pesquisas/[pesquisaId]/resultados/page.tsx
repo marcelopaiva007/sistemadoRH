@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { marcaDaEmpresa } from "@/lib/escopo-marca";
 import { CONVITES_NA_PESQUISA } from "@/lib/pesquisa-numeros";
 import { calcularResultadoEnps } from "@/lib/pesquisa-enps-resultado";
+import { AMOSTRA_MINIMA_ANONIMATO } from "@/lib/constants-rh";
 import { ResultadosView } from "../resultados-view";
 
 export default async function ResultadosPage({
@@ -63,39 +64,46 @@ export default async function ResultadosPage({
         )
       : null;
 
-  const somaPorChave = new Map<string, { soma: number; qtd: number }>();
-  const acumular = (chave: string, valor: number) => {
-    const atual = somaPorChave.get(chave) ?? { soma: 0, qtd: 0 };
+  // Médias por dimensão e por setor (26/11/2026):
+  // - só escalas de concordância/frequência entram (LIKERT_5, FREQ_0_4) — a
+  //   nota NPS (0-10) puxava a média de 1-5 para cima;
+  // - `respostas` conta PESSOAS (Resposta distintas), não itens;
+  // - setor com menos pessoas que o piso de anonimato não manda média ao
+  //   navegador: vai só o nome e a contagem, em `setoresSemAmostra`.
+  const TIPOS_NA_MEDIA = new Set(["LIKERT_5", "FREQ_0_4"]);
+  type Acumulador = { soma: number; qtd: number; pessoas: Set<string> };
+  const porDimensao = new Map<string, Acumulador>();
+  const porSetor = new Map<string, Acumulador>();
+  const acumular = (mapa: Map<string, Acumulador>, chave: string, valor: number, pessoa: string) => {
+    const atual = mapa.get(chave) ?? { soma: 0, qtd: 0, pessoas: new Set<string>() };
     atual.soma += valor;
     atual.qtd += 1;
-    somaPorChave.set(chave, atual);
+    atual.pessoas.add(pessoa);
+    mapa.set(chave, atual);
   };
 
   for (const resposta of respostas) {
     for (const item of resposta.itens) {
-      if (item.valorNumerico == null) continue;
+      if (item.valorNumerico == null || !TIPOS_NA_MEDIA.has(item.pergunta.tipo)) continue;
       // Usa dimensaoGPTW se existir, senão dimensão do modelo NR-01, senão "GERAL"
       const dimensao = item.pergunta.dimensaoGPTW || item.pergunta.dimensao || "GERAL";
-      acumular(`dimensao:${dimensao}`, item.valorNumerico);
-      acumular(`setor:${resposta.setorNomeSnapshot}`, item.valorNumerico);
+      acumular(porDimensao, dimensao, item.valorNumerico, resposta.id);
+      acumular(porSetor, resposta.setorNomeSnapshot, item.valorNumerico, resposta.id);
     }
   }
 
-  const mediaPorDimensao = [...somaPorChave.entries()]
-    .filter(([chave]) => chave.startsWith("dimensao:"))
-    .map(([chave, v]) => ({
-      dimensao: chave.replace("dimensao:", ""),
-      media: v.soma / v.qtd,
-      respostas: v.qtd,
-    }));
+  const mediaPorDimensao = [...porDimensao.entries()].map(([dimensao, v]) => ({
+    dimensao,
+    media: v.soma / v.qtd,
+    respostas: v.pessoas.size,
+  }));
 
-  const mediaPorSetor = [...somaPorChave.entries()]
-    .filter(([chave]) => chave.startsWith("setor:"))
-    .map(([chave, v]) => ({
-      setor: chave.replace("setor:", ""),
-      media: v.soma / v.qtd,
-      respostas: v.qtd,
-    }));
+  const mediaPorSetor = [...porSetor.entries()]
+    .filter(([, v]) => v.pessoas.size >= AMOSTRA_MINIMA_ANONIMATO)
+    .map(([setor, v]) => ({ setor, media: v.soma / v.qtd, respostas: v.pessoas.size }));
+  const setoresSemAmostra = [...porSetor.entries()]
+    .filter(([, v]) => v.pessoas.size < AMOSTRA_MINIMA_ANONIMATO)
+    .map(([setor, v]) => ({ setor, respostas: v.pessoas.size }));
 
   return (
     <ResultadosView
@@ -105,6 +113,7 @@ export default async function ResultadosPage({
       porPergunta={porPergunta}
       mediaPorDimensao={mediaPorDimensao}
       mediaPorSetor={mediaPorSetor}
+      setoresSemAmostra={setoresSemAmostra}
       resultadoEnps={resultadoEnps}
     />
   );

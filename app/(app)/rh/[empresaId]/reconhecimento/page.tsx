@@ -1,11 +1,7 @@
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
-import { anosCompletos, hojeUTC } from "@/lib/datas";
+import { hojeBrasiliaUTC, marcoDoAno } from "@/lib/reconhecimento/anos-de-casa";
 import { ReconhecimentoView } from "./reconhecimento-view";
-
-// Marcos redondos que ganham destaque no tempo de casa — os demais anos
-// aparecem na lista, mas sem o realce.
-const MARCOS_REDONDOS = new Set([1, 3, 5, 10, 15, 20, 25, 30]);
 
 export default async function ReconhecimentoPage({
   params,
@@ -15,7 +11,8 @@ export default async function ReconhecimentoPage({
   const { empresaId } = await params;
   await requireEmpresaAccess(empresaId);
 
-  const hoje = hojeUTC();
+  // Dia de Brasília, não UTC (26/11/2026) — ver lib/reconhecimento/anos-de-casa.ts.
+  const hoje = hojeBrasiliaUTC();
   const mes = hoje.getUTCMonth() + 1;
   const ano = hoje.getUTCFullYear();
 
@@ -56,7 +53,10 @@ export default async function ReconhecimentoPage({
   const marcos = colaboradores
     .filter((c) => c.dataAdmissao && c.dataAdmissao.getUTCMonth() + 1 === mes)
     .map((c) => {
-      const anos = anosCompletos(c.dataAdmissao!, hoje);
+      // Os anos que a pessoa COMPLETA no aniversário deste mês, não os que tem
+      // hoje (26/11/2026): admitido em 28/11/2016, em 25/11/2026 a linha é do
+      // 10º ano — e é ele que é redondo. Com os anos de hoje a tela dizia "9".
+      const { anos, redondo } = marcoDoAno(c.dataAdmissao!, hoje);
       return {
         id: c.id,
         nome: c.nome,
@@ -64,7 +64,7 @@ export default async function ReconhecimentoPage({
         posicaoNome: c.posicao.nome,
         dia: c.dataAdmissao!.getUTCDate(),
         anos,
-        redondo: MARCOS_REDONDOS.has(anos),
+        redondo,
         temTelegram: !!c.telegramChatId,
         jaEnviado: enviadoSet.has(`${c.id}::TEMPO_CASA`),
       };

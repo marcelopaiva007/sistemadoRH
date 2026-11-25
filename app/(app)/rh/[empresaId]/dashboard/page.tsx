@@ -1,7 +1,7 @@
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
 import { CONVITES_NA_PESQUISA } from "@/lib/pesquisa-numeros";
-import { calcularNR01 } from "@/lib/nr01";
+import { calcularNR01, semNumerosAbaixoDoPiso } from "@/lib/nr01";
 import { DashboardNR01View } from "./dashboard-view";
 
 export default async function DashboardPage({
@@ -100,7 +100,8 @@ export default async function DashboardPage({
     }),
   ]);
 
-  const resultado = calcularNR01(perguntas, respostas);
+  // Grupos abaixo do piso não levam número ao navegador (26/11/2026).
+  const resultado = semNumerosAbaixoDoPiso(calcularNR01(perguntas, respostas));
 
   return (
     <DashboardNR01View

@@ -32,7 +32,7 @@ import {
   type ResultadoComparativo,
   type EvolucaoCiclo,
 } from "@/lib/clima";
-import { dimensaoGPTWLabel } from "@/lib/constants-rh";
+import { AMOSTRA_MINIMA_ANONIMATO, dimensaoGPTWLabel } from "@/lib/constants-rh";
 
 const CORES_DIM = [
   "var(--chart-1)",
@@ -104,6 +104,19 @@ export function DashboardClimaView({
       <Card>
         <CardContent className="py-8 text-center text-muted-foreground">
           Ainda não há respostas para exibir o dashboard.
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Pesquisa inteira abaixo do piso de anonimato (26/11/2026): o servidor já
+  // não manda número nenhum — aqui só se explica o porquê.
+  if (resultado.mostraAmostraInsuficiente) {
+    return (
+      <Card>
+        <CardContent className="py-8 text-center text-muted-foreground">
+          {resultado.totalRespostas} de {convites} resposta(s). Os resultados aparecem a partir de{" "}
+          {AMOSTRA_MINIMA_ANONIMATO} pessoas, para proteger o anonimato de quem respondeu.
         </CardContent>
       </Card>
     );
@@ -393,6 +406,19 @@ export function DashboardClimaView({
             <CardContent>
               <div className="space-y-3">
                 {resultado.porSetor.map((s) => {
+                  // Setor abaixo do piso de anonimato chega sem média e sem
+                  // posição (26/11/2026) — mostra só a contagem de pessoas.
+                  if (s.media100 === null) {
+                    return (
+                      <div key={s.setor} className="flex items-center gap-3">
+                        <div className="w-8 text-center font-bold text-muted-foreground">—</div>
+                        <div className="w-40 text-sm truncate">{s.setor}</div>
+                        <div className="flex-1 text-xs text-muted-foreground">
+                          {s.respostas} pessoa(s) — amostra insuficiente (mínimo {AMOSTRA_MINIMA_ANONIMATO}) para preservar o anonimato
+                        </div>
+                      </div>
+                    );
+                  }
                   const cls = classificarScore(s.media100);
                   return (
                     <div key={s.setor} className="flex items-center gap-3">
@@ -443,17 +469,19 @@ export function DashboardClimaView({
                             const cell = resultado.heatmap.find(
                               (h) => h.setor === setor && h.dimensao === d.dimensao,
                             );
-                            const cor = cell ? CORES_NIVEL[cell.nivel] : "var(--card)";
+                            // Célula abaixo do piso vem sem número (26/11/2026).
+                            const cor = cell?.nivel ? CORES_NIVEL[cell.nivel] : "var(--muted-foreground)";
                             return (
                               <td
                                 key={d.dimensao}
                                 className="p-2 text-center font-bold"
                                 style={{
-                                  backgroundColor: cell ? `color-mix(in srgb, ${cor} 12%, transparent)` : "var(--card)",
+                                  backgroundColor: cell?.nivel ? `color-mix(in srgb, ${cor} 12%, transparent)` : "var(--card)",
                                   color: cor,
                                 }}
+                                title={cell?.amostraInsuficiente ? `Amostra insuficiente (mínimo ${AMOSTRA_MINIMA_ANONIMATO} pessoas)` : undefined}
                               >
-                                {cell ? cell.media100 : "—"}
+                                {cell?.media100 ?? "—"}
                               </td>
                             );
                           })}

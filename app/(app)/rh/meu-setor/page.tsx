@@ -2,6 +2,7 @@ import { requireGestorSetor } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
 import { hojeUTC } from "@/lib/datas";
 import { AMOSTRA_MINIMA_ANONIMATO } from "@/lib/constants-rh";
+import { ehItemLikert } from "@/lib/clima";
 import { montarMeuTime, type ColaboradorParaTime } from "@/lib/meu-time";
 import { montarPainelDoSetor } from "@/lib/painel-setor";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -9,6 +10,9 @@ import { AjudaDaTela } from "@/components/ajuda-da-tela";
 import { TimeView } from "../[empresaId]/time/time-view";
 import { PainelSetorView } from "../[empresaId]/painel-setor/painel-setor-view";
 import { MeuSetorView } from "./meu-setor-view";
+
+// Quantas pesquisas (as mais recentes) a tela mostra.
+const PESQUISAS_NO_MEU_SETOR = 6;
 
 export default async function MeuSetorPage() {
   const acesso = await requireGestorSetor();
@@ -35,35 +39,64 @@ export default async function MeuSetorPage() {
     select: { colaboradorId: true },
   });
 
+  // Só o necessário (26/11/2026): as pesquisas mais recentes, e de cada
+  // resposta do setor só a nota e o tipo/dimensão da pergunta. Antes vinham
+  // todas as pesquisas da empresa com todas as perguntas e respostas.
   const pesquisas = await prisma.pesquisa.findMany({
     where: { empresaId: user.empresaAtivaId, status: { in: ["ACTIVE", "FINISHED"] } },
     orderBy: { createdAt: "desc" },
-    include: {
-      perguntas: true,
-      respostas: { where: { setorNomeSnapshot: setor.nome }, include: { itens: { include: { pergunta: true } } } },
+    take: PESQUISAS_NO_MEU_SETOR,
+    select: {
+      id: true,
+      titulo: true,
+      respostas: {
+        where: { setorNomeSnapshot: setor.nome },
+        select: {
+          itens: {
+            where: { valorNumerico: { not: null } },
+            select: { valorNumerico: true, pergunta: { select: { tipo: true, dimensaoGPTW: true } } },
+          },
+        },
+      },
     },
   });
 
+  // Piso de anonimato no SERVIDOR (26/11/2026): abaixo de
+  // AMOSTRA_MINIMA_ANONIMATO pessoas a média não é calculada nem enviada — o
+  // navegador recebe só a contagem e o indicador. Antes as notas iam no
+  // payload e só a tela escondia (dava para ler no DevTools). Mesmo critério
+  // por dimensão: cada barra precisa de pessoas suficientes. Só a escala 1-5
+  // entra na média; a nota NPS (0-10) ficava misturada.
   const resultados = pesquisas.map((p) => {
-    const somaPorDimensao = new Map<string, { soma: number; qtd: number }>();
+    const totalRespostas = p.respostas.length;
+    const amostraInsuficiente = totalRespostas < AMOSTRA_MINIMA_ANONIMATO;
+    if (amostraInsuficiente) {
+      return { id: p.id, titulo: p.titulo, totalRespostas, amostraInsuficiente, mediaPorDimensao: null };
+    }
+    const somaPorDimensao = new Map<string, { soma: number; qtd: number; pessoas: number }>();
     for (const resposta of p.respostas) {
+      const dimensoesDaPessoa = new Set<string>();
       for (const item of resposta.itens) {
-        if (item.valorNumerico == null) continue;
+        if (!ehItemLikert(item)) continue;
         const dimensao = item.pergunta.dimensaoGPTW ?? "GERAL";
-        const atual = somaPorDimensao.get(dimensao) ?? { soma: 0, qtd: 0 };
+        const atual = somaPorDimensao.get(dimensao) ?? { soma: 0, qtd: 0, pessoas: 0 };
         atual.soma += item.valorNumerico;
         atual.qtd += 1;
+        if (!dimensoesDaPessoa.has(dimensao)) {
+          atual.pessoas += 1;
+          dimensoesDaPessoa.add(dimensao);
+        }
         somaPorDimensao.set(dimensao, atual);
       }
     }
     return {
       id: p.id,
       titulo: p.titulo,
-      totalRespostas: p.respostas.length,
-      mediaPorDimensao: [...somaPorDimensao.entries()].map(([dimensao, v]) => ({
-        dimensao,
-        media: v.soma / v.qtd,
-      })),
+      totalRespostas,
+      amostraInsuficiente,
+      mediaPorDimensao: [...somaPorDimensao.entries()]
+        .filter(([, v]) => v.pessoas >= AMOSTRA_MINIMA_ANONIMATO)
+        .map(([dimensao, v]) => ({ dimensao, media: v.soma / v.qtd })),
     };
   });
 

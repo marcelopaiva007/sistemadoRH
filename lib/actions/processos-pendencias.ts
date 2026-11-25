@@ -7,6 +7,8 @@ import { requireProcessosEmpresa } from "@/lib/processos-auth-guard";
 import { empresasVisiveis } from "@/lib/rh-auth-guard";
 import { registrarAuditoria } from "@/lib/audit";
 import { sincronizarPendencias } from "@/lib/processos/pendencias";
+import { areaDoTipoPendencia } from "@/lib/processos/areas";
+import { areasProcessosPermitidas } from "@/lib/telas";
 import type { ActionResult } from "@/lib/constants";
 
 // A Central de Pendências — as três coisas que se faz com uma pendência:
@@ -17,6 +19,49 @@ import type { ActionResult } from "@/lib/constants";
 // de encontrar e a linha se fecha sozinha. Um botão "marcar como resolvida"
 // transformaria a lista numa lista de coisas que alguém DISSE que resolveu, que
 // é exatamente o que ela existe para não ser.
+
+/**
+ * A pendência, SE esta pessoa alcança a pendência — CNPJ e aba.
+ *
+ * Auditoria de 26/11/2026. A Central é consolidada: lista as pendências de
+ * todos os CNPJs do escopo, e o `empresaId` do caminho é só onde a pessoa
+ * está. Duas falhas saíam daí:
+ *
+ * - `dispensarPendencia` filtrava pelo CNPJ do CAMINHO: dispensar uma
+ *   pendência do CNPJ B estando no A respondia "não encontrada". O CNPJ que
+ *   vale é o DA PENDÊNCIA, conferido contra `empresasVisiveis` — id digitado
+ *   à mão não vira acesso.
+ * - `requireProcessosEmpresa` não olha a ABA (Frota/Contratos, lib/telas.ts):
+ *   quem só tem Frota dispensava ou dava dono a pendência de Contratos
+ *   chamando a action direto. A área sai do TIPO da pendência
+ *   (lib/processos/areas.ts), a mesma regra que a Central usa para listar.
+ *
+ * Responde a mesma mensagem nos dois casos: dizer "existe, mas não é sua"
+ * confirmaria a existência de um id alheio.
+ */
+async function pendenciaNoAcesso(
+  usuario: Awaited<ReturnType<typeof requireProcessosEmpresa>>,
+  pendenciaId: string,
+) {
+  const [visiveis, areas] = await Promise.all([
+    empresasVisiveis(usuario),
+    areasProcessosPermitidas(usuario.id),
+  ]);
+  const pendencia = await prisma.pendencia.findFirst({
+    where: { id: pendenciaId, empresaId: { in: visiveis } },
+    select: { id: true, titulo: true, tipo: true, empresaId: true },
+  });
+  if (!pendencia || !areas.includes(areaDoTipoPendencia(pendencia.tipo))) return null;
+  return { pendencia, visiveis };
+}
+
+/** As telas que mostram a pendência — a do caminho e a do CNPJ dela. */
+function revalidarCentral(empresaIds: string[]) {
+  for (const id of new Set(empresaIds)) {
+    revalidatePath(`/processos/${id}`);
+    revalidatePath(`/processos/${id}/contratos/pendencias`);
+  }
+}
 
 /**
  * Dá dono a uma pendência — ou troca o dono.
@@ -36,22 +81,21 @@ export async function definirResponsavel(input: {
 }): Promise<ActionResult> {
   const usuario = await requireProcessosEmpresa(input.empresaId);
 
-  const visiveis = await empresasVisiveis(usuario);
-  const pendencia = await prisma.pendencia.findFirst({
-    where: { id: input.pendenciaId, empresaId: { in: visiveis } },
-    select: { id: true, titulo: true, tipo: true },
-  });
-  if (!pendencia) return { ok: false, error: "Pendência não encontrada no seu acesso." };
+  const acesso = await pendenciaNoAcesso(usuario, input.pendenciaId);
+  if (!acesso) return { ok: false, error: "Pendência não encontrada no seu acesso." };
+  const { pendencia, visiveis } = acesso;
 
   // Os ids vêm do cliente. Só usuário ATIVO vira dono: apontar para quem já saiu
   // da empresa é o mesmo que não ter dono, com a agravante de parecer que tem.
   const [responsavel, substituto] = await Promise.all([
-    // Dono e substituto só do GRUPO dono do CNPJ (lib/grupo.ts).
+    // Dono e substituto só do GRUPO dono do CNPJ (lib/grupo.ts) — o CNPJ DA
+    // PENDÊNCIA, não o do caminho (26/11/2026): na Central consolidada os dois
+    // podem diferir.
     prisma.user.findFirst({
       where: {
         id: input.responsavelId,
         ativo: true,
-        ...whereUsuariosDoGrupoDaEmpresa(input.empresaId),
+        ...whereUsuariosDoGrupoDaEmpresa(pendencia.empresaId),
       },
       select: { id: true, nome: true, username: true },
     }),
@@ -60,7 +104,7 @@ export async function definirResponsavel(input: {
           where: {
             id: input.substitutoId,
             ativo: true,
-            ...whereUsuariosDoGrupoDaEmpresa(input.empresaId),
+            ...whereUsuariosDoGrupoDaEmpresa(pendencia.empresaId),
           },
           select: { id: true, nome: true, username: true },
         })
@@ -121,7 +165,7 @@ export async function definirResponsavel(input: {
   }
 
   await registrarAuditoria({
-    empresaId: input.empresaId,
+    empresaId: pendencia.empresaId,
     acao: "VINCULAR",
     entidade: "Pendencia",
     entidadeId: pendencia.id,
@@ -130,8 +174,7 @@ export async function definirResponsavel(input: {
       : `Definiu ${responsavel.nome} como responsável por "${pendencia.titulo}"`,
   });
 
-  revalidatePath(`/processos/${input.empresaId}`);
-  revalidatePath(`/processos/${input.empresaId}/contratos/pendencias`);
+  revalidarCentral([input.empresaId, pendencia.empresaId]);
   return { ok: true };
 }
 
@@ -154,11 +197,9 @@ export async function dispensarPendencia(input: {
     return { ok: false, error: "Escreva o motivo — pelo menos uma frase que explique por que isto não se aplica." };
   }
 
-  const pendencia = await prisma.pendencia.findFirst({
-    where: { id: input.pendenciaId, empresaId: input.empresaId },
-    select: { id: true, titulo: true },
-  });
-  if (!pendencia) return { ok: false, error: "Pendência não encontrada no seu acesso." };
+  const acesso = await pendenciaNoAcesso(usuario, input.pendenciaId);
+  if (!acesso) return { ok: false, error: "Pendência não encontrada no seu acesso." };
+  const { pendencia } = acesso;
 
   await prisma.pendencia.update({
     where: { id: pendencia.id },
@@ -172,7 +213,7 @@ export async function dispensarPendencia(input: {
   });
 
   await registrarAuditoria({
-    empresaId: input.empresaId,
+    empresaId: pendencia.empresaId,
     acao: "CANCELAR",
     entidade: "Pendencia",
     entidadeId: pendencia.id,
@@ -180,8 +221,7 @@ export async function dispensarPendencia(input: {
     detalhes: { motivo },
   });
 
-  revalidatePath(`/processos/${input.empresaId}`);
-  revalidatePath(`/processos/${input.empresaId}/contratos/pendencias`);
+  revalidarCentral([input.empresaId, pendencia.empresaId]);
   return { ok: true };
 }
 
@@ -196,6 +236,12 @@ export async function sincronizarAgora(input: { empresaId: string }): Promise<
   ActionResult & { criadas?: number; atualizadas?: number; resolvidas?: number }
 > {
   const usuario = await requireProcessosEmpresa(input.empresaId);
+  // Sem nenhuma das abas, não há Central para atualizar (26/11/2026): a guarda
+  // do módulo não olha aba, e as telas olham. Rodar o detector não expõe dado
+  // — só recalcula o que o cron já calcularia —, então basta ter UMA aba.
+  if ((await areasProcessosPermitidas(usuario.id)).length === 0) {
+    return { ok: false, error: "Sem acesso a Frota nem a Contratos." };
+  }
   // Roda para tudo que a pessoa alcança, e não só para o CNPJ do caminho: a
   // Central é consolidada por padrão, igual ao resto do sistema.
   const visiveis = await empresasVisiveis(usuario);

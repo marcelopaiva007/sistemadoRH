@@ -28,9 +28,12 @@ type Mensagem = {
 export function MensagensView({
   empresaId,
   mensagens,
+  respondidasLimitadas,
 }: {
   empresaId: string;
   mensagens: Mensagem[];
+  /** Quando há mais respondidas que o teto da página, o teto; senão null. */
+  respondidasLimitadas: number | null;
 }) {
   const abertas = mensagens.filter((m) => !m.respondidaEm);
   const respondidas = mensagens.filter((m) => m.respondidaEm);
@@ -69,6 +72,11 @@ export function MensagensView({
         <Card>
           <CardHeader>
             <CardTitle>Respondidas</CardTitle>
+            {respondidasLimitadas !== null && (
+              <CardDescription>
+                Mostrando as {respondidasLimitadas} respondidas mais recentes. As mais antigas não aparecem aqui.
+              </CardDescription>
+            )}
           </CardHeader>
           <CardContent className="space-y-3">
             {respondidas.map((m) => (

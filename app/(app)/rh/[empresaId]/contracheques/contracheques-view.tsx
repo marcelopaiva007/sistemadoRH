@@ -121,11 +121,14 @@ export function ContrachequesView({
   competencias,
   competencia,
   linhas,
+  limiteAtingido = null,
 }: {
   empresaId: string;
   competencias: { chave: string; total: number }[];
   competencia: string | null;
   linhas: LinhaContracheque[];
+  /** Preenchido quando a competência tem mais contracheques que o teto da tela — ver page.tsx. */
+  limiteAtingido?: { mostrados: number; total: number } | null;
 }) {
   const router = useRouter();
   const busca = useSearchParams();
@@ -373,6 +376,16 @@ export function ContrachequesView({
         </div>
       ) : (
         <>
+          {/* 26/11/2026: antes o corte era mudo — a lista parava na pessoa
+              1.000 e o RH achava que via a competência inteira. */}
+          {limiteAtingido && (
+            <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+              Esta competência tem {limiteAtingido.total} contracheques e a tela mostra os primeiros{" "}
+              {limiteAtingido.mostrados} (por nome). Use o filtro de marca/CNPJ no topo para ver o restante — os
+              totais e o envio desta tela valem só para os que aparecem.
+            </div>
+          )}
+
           {/* Barra de Ações do Topo */}
           <div className="flex flex-wrap items-end justify-between gap-3 bg-muted/20 p-3 rounded-lg border">
             <div className="flex flex-wrap items-end gap-3">
@@ -571,7 +584,14 @@ export function ContrachequesView({
                       >
                         {l.pessoa}
                       </Link>
-                      {l.desligado && <span className="ml-1 text-xs text-destructive">(desligado)</span>}
+                      {l.desligado && (
+                        <span
+                          className="ml-1 text-xs text-destructive"
+                          title="Desligado: o aviso vai só por e-mail (link de assinatura com CPF). Telegram e portal não são usados para quem saiu."
+                        >
+                          (desligado · aviso só por e-mail)
+                        </span>
+                      )}
                       <span className="block text-xs text-muted-foreground">
                         CPF: {l.cpf} · {l.empresa} ({l.setor})
                       </span>

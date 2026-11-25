@@ -33,14 +33,28 @@ export async function responderMensagemPortal(
   }
   if (mensagem.respondidaEm) return { ok: false, error: "Esta mensagem já foi respondida." };
 
-  await prisma.mensagemPortal.update({
-    where: { id: mensagem.id },
+  // Grava SÓ se ainda não respondida — condição no próprio UPDATE (auditoria
+  // de 26/11/2026). A conferência acima lê e o `update` escrevia depois: dois
+  // atendentes respondendo a mesma mensagem passavam os dois pela leitura, e
+  // o segundo sobrescrevia a resposta do primeiro sem ninguém saber — o
+  // colaborador via no portal só a última. Com `updateMany` condicional, o
+  // banco decide quem chegou primeiro; o segundo recebe aviso e a tela
+  // recarrega mostrando a resposta que valeu.
+  const { count } = await prisma.mensagemPortal.updateMany({
+    where: { id: mensagem.id, respondidaEm: null },
     data: {
       resposta,
       respondidaEm: new Date(),
       respondidaPorNome: usuario.name ?? usuario.email ?? "RH",
     },
   });
+  if (count === 0) {
+    revalidatePath(`/rh/${empresaId}/mensagens`);
+    return {
+      ok: false,
+      error: "Outra pessoa do RH respondeu esta mensagem enquanto você escrevia. A sua resposta não foi enviada.",
+    };
+  }
 
   await registrarAuditoria({
     empresaId: mensagem.empresaId,
@@ -51,5 +65,6 @@ export async function responderMensagemPortal(
   });
 
   revalidatePath("/portal");
+  revalidatePath(`/rh/${empresaId}/mensagens`);
   return { ok: true };
 }
