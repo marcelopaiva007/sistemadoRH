@@ -3,7 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, Copy } from "lucide-react";
+import { AlertTriangle, ChevronLeft, ChevronRight, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { definirTurno, copiarSemana } from "@/lib/actions/rh-escala";
@@ -31,6 +31,7 @@ export function EscalasView({
   setorSelecionado,
   colaboradores,
   turnoPorCelula,
+  avisosPorCelula,
   turnosDisponiveis,
 }: {
   empresaId: string;
@@ -43,6 +44,8 @@ export function EscalasView({
   setorSelecionado: string;
   colaboradores: Colaborador[];
   turnoPorCelula: Record<string, string>;
+  /** Conferência CLT (lib/escala-clt.ts) — "<colaborador>::<AAAA-MM-DD>" -> mensagens. */
+  avisosPorCelula: Record<string, string[]>;
   turnosDisponiveis: OpcaoCatalogo[];
 }) {
   const corDoTurno = (v: string | null) =>
@@ -64,6 +67,14 @@ export function EscalasView({
     else params.delete("setor");
     router.push(`?${params.toString()}`);
   }
+
+  // Lista dos avisos da semana, na ordem da grade (pessoa, depois dia). Aviso
+  // não impede gravar — é o RH quem decide (26/11/2026).
+  const avisosDaSemana = colaboradores.flatMap((c) =>
+    dias.flatMap((d) =>
+      (avisosPorCelula[`${c.id}::${d}`] ?? []).map((mensagem) => ({ chave: `${c.id}::${d}::${mensagem}`, nome: c.nome, dia: d, mensagem })),
+    ),
+  );
 
   async function aoMudarCelula(colaboradorId: string, dataISO: string, turno: string) {
     const resultado = await definirTurno(empresaId, colaboradorId, dataISO, turno);
@@ -172,12 +183,23 @@ export function EscalasView({
                         {dias.map((d) => {
                           const chave = `${c.id}::${d}T00:00:00.000Z`;
                           const turnoAtual = turnoPorCelula[chave] ?? "";
+                          const avisos = avisosPorCelula[`${c.id}::${d}`];
                           return (
-                            <td key={d} className="px-1 py-1 text-center">
+                            <td
+                              key={d}
+                              className={`px-1 py-1 text-center ${avisos ? "relative" : ""}`}
+                              title={avisos ? avisos.join(" · ") : undefined}
+                            >
+                              {avisos && (
+                                <AlertTriangle
+                                  className="pointer-events-none absolute right-1.5 top-1.5 size-3 text-amber-600"
+                                  aria-label="Aviso da CLT"
+                                />
+                              )}
                               <select
                                 value={turnoAtual}
                                 onChange={(e) => aoMudarCelula(c.id, d, e.target.value)}
-                                className="h-8 w-full rounded-md border-0 px-1 text-center text-xs font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                                className={`h-8 w-full rounded-md border-0 px-1 text-center text-xs font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring/50 ${avisos ? "ring-1 ring-amber-500" : ""}`}
                                 style={{
                                   background: turnoAtual ? `${corDoTurno(turnoAtual)}33` : "transparent",
                                   color: turnoAtual ? corDoTurno(turnoAtual) : "var(--muted-foreground)",
@@ -202,6 +224,32 @@ export function EscalasView({
           )}
         </CardContent>
       </Card>
+
+      {avisosDaSemana.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <AlertTriangle className="size-4 text-amber-600" />
+              Conferência da CLT ({avisosDaSemana.length})
+            </CardTitle>
+            <CardDescription>
+              Interjornada de 11h (art. 66), 24h de descanso na semana (art. 67) e um domingo de folga a cada 7
+              semanas. É aviso, não bloqueio: acordo coletivo, 12x36 e compensação podem justificar — o RH decide.
+              Horários de Manhã, Tarde, Noite, Integral e Plantão são presumidos.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-1.5 text-sm">
+              {avisosDaSemana.map((a) => (
+                <li key={a.chave}>
+                  <span className="font-medium">{a.nome}</span>{" "}
+                  <span className="text-muted-foreground">({formatarDiaCurto(a.dia)})</span> — {a.mensagem}
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

@@ -310,7 +310,8 @@ export default async function ColaboradorPage({
     : null;
 
   const conformidade = conformidadeDoColaborador(requisitos, certificados);
-  const situacaoExame = situacaoDoExame(exames);
+  // Vencimento do ASO pela NR-7 (26/11/2026) — ver lib/aso-periodicidade.ts.
+  const situacaoExame = situacaoDoExame(exames, undefined, { dataNascimento: colaborador.dataNascimento });
 
   // Fora do Promise.all de cima de propósito: aquele array já tem 24
   // posições — inserir no meio dele para uma busca nova é o tipo de mudança

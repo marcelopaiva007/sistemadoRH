@@ -9,6 +9,7 @@ import { tipoExameLabel } from "@/lib/constants-sst";
 import { tipoEpiLabel } from "@/lib/constants-epi";
 import { diferencaEmDiasUTC, formatarData, hojeUTC, somarDiasUTC } from "@/lib/datas";
 import { Indicador } from "@/components/indicador";
+import { textoPeriodicidade, vencimentoAsoEfetivo } from "@/lib/aso-periodicidade";
 import { AsoView, type LinhaAso } from "./aso-view";
 
 // Painel de vencimentos: o que está prestes a vencer (ou já venceu) na empresa
@@ -80,13 +81,14 @@ export default async function VencimentosPage({
         id: true,
         nome: true,
         empresaId: true,
+        dataNascimento: true,
         setor: { select: { nome: true } },
         empresa: { select: { nome: true } },
         exames: {
           where: { tipo: { not: "DEMISSIONAL" } },
           orderBy: { realizadoEm: "desc" },
           take: 1,
-          select: { tipo: true, validoAte: true },
+          select: { tipo: true, realizadoEm: true, validoAte: true },
         },
       },
       orderBy: { nome: "asc" },
@@ -131,8 +133,11 @@ export default async function VencimentosPage({
   certificadosVigentes.sort((a, b) => a.validoAte!.getTime() - b.validoAte!.getTime());
 
   // A base inteira, um por pessoa: o card de ASO filtra/ordena no cliente.
+  // Vencimento pela NR-7 (26/11/2026): anual ou a cada 2 anos conforme idade
+  // e risco — não mais 12 meses para todo mundo. Ver lib/aso-periodicidade.ts.
   const linhasAso: LinhaAso[] = colaboradoresAso.map((c) => {
     const exame = c.exames[0] ?? null;
+    const venc = exame ? vencimentoAsoEfetivo(exame, { dataNascimento: c.dataNascimento }) : null;
     return {
       colaboradorId: c.id,
       empresaId: c.empresaId,
@@ -140,8 +145,9 @@ export default async function VencimentosPage({
       empresaNome: c.empresa.nome,
       setorNome: c.setor.nome,
       tipoLabel: exame ? tipoExameLabel(exame.tipo) : null,
-      validadeTexto: exame?.validoAte ? formatarData(exame.validoAte) : null,
-      dias: exame?.validoAte ? diferencaEmDiasUTC(exame.validoAte, hoje) : null,
+      validadeTexto: venc?.validoAte ? formatarData(venc.validoAte) : null,
+      periodicidadeTexto: venc ? textoPeriodicidade(venc) : null,
+      dias: venc?.validoAte ? diferencaEmDiasUTC(venc.validoAte, hoje) : null,
       temExame: !!exame,
     };
   });

@@ -23,6 +23,8 @@ export type LinhaAso = {
   /** Rótulo do tipo do exame mais recente — null quando nunca houve ASO. */
   tipoLabel: string | null;
   validadeTexto: string | null;
+  /** Periodicidade pela NR-7 ("Periódico anual — maior de 45 anos"), ver lib/aso-periodicidade.ts. */
+  periodicidadeTexto: string | null;
   /**
    * Dias até o vencimento do ASO vigente: negativo = vencido há |dias| dias.
    * null = sem ASO cadastrado, ou ASO sem validade preenchida — os dois
@@ -77,7 +79,8 @@ export function AsoView({ linhas }: { linhas: LinhaAso[] }) {
         <CardTitle>ASO / PCMSO</CardTitle>
         <CardDescription>
           Todos os colaboradores ativos, pelo exame mais recente de cada um (demissional não
-          conta). {vencidos.length} vencido(s), {emDia.length} em dia, {semAso.length} sem ASO.
+          conta). Vencimento pela NR-7: anual para menores de 18, maiores de 45 e quem tem risco no
+          PGR; a cada 2 anos para os demais. {vencidos.length} vencido(s), {emDia.length} em dia, {semAso.length} sem ASO.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -131,7 +134,12 @@ export function AsoView({ linhas }: { linhas: LinhaAso[] }) {
                     <TableCell className="text-muted-foreground">{l.empresaNome}</TableCell>
                     <TableCell className="text-muted-foreground">{l.setorNome}</TableCell>
                     <TableCell>{l.tipoLabel ?? "—"}</TableCell>
-                    <TableCell className="tabular-nums">{l.validadeTexto ?? "—"}</TableCell>
+                    <TableCell className="tabular-nums">
+                      {l.validadeTexto ?? "—"}
+                      {l.periodicidadeTexto && (
+                        <span className="block text-xs text-muted-foreground">{l.periodicidadeTexto}</span>
+                      )}
+                    </TableCell>
                     <TableCell>
                       {l.dias === null ? (
                         <Badge variant="destructive">

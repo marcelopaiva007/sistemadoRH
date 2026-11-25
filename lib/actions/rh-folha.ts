@@ -14,7 +14,8 @@ import {
   rubricaUnidade,
 } from "@/lib/constants-folha";
 import type { ActionResult } from "@/lib/constants";
-import { faltasPorColaboradorNaCompetencia } from "@/lib/folha-ausencias";
+import { dsrPerdidosPorColaboradorNaCompetencia, faltasPorColaboradorNaCompetencia } from "@/lib/folha-ausencias";
+import { somarDiasUTC } from "@/lib/datas";
 
 const RUBRICAS_VALIDAS = new Set<string>(RUBRICAS.map((r) => r.value));
 
@@ -69,7 +70,7 @@ export async function abrirCompetencia(
 
 /**
  * Traz para a competência o que o sistema já sabe: faltas injustificadas do
- * período e benefícios vigentes. Apaga só os DERIVADOS antes de recriar —
+ * período, os DSR perdidos por elas e benefícios vigentes. Apaga só os DERIVADOS antes de recriar —
  * lançamento manual do RH nunca é tocado, senão recalcular perderia trabalho.
  */
 export async function importarEventosDerivados(
@@ -91,7 +92,10 @@ export async function importarEventosDerivados(
         abonada: false,
         status: "APROVADA",
         dataInicio: { lte: fim },
-        dataFim: { gte: inicio },
+        // 6 dias antes do mês (26/11/2026): a semana do DSR perdido que começou
+        // no mês anterior precisa das faltas dela para saber em que mês cai a
+        // primeira. A contagem de faltas recorta ao mês e ignora o excedente.
+        dataFim: { gte: somarDiasUTC(inicio, -6) },
       },
       // dataInicio/dataFim para o recorte ao mês (ver abaixo).
       select: { colaboradorId: true, dias: true, dataInicio: true, dataFim: true },
@@ -106,16 +110,23 @@ export async function importarEventosDerivados(
     }),
   ]);
 
-  const porColaborador = new Map<string, { faltas: number; desconto: number }>();
+  const porColaborador = new Map<string, { faltas: number; dsrPerdidos: number; desconto: number }>();
   // Só os dias DENTRO do mês (26/11/2026). A busca acima traz toda ausência
   // que toca a competência; somar o `dias` inteiro lançava uma falta de 28/01
   // a 05/02 como 9 faltas em janeiro e mais 9 em fevereiro.
   for (const [colaboradorId, dias] of faltasPorColaboradorNaCompetencia(faltas, inicio)) {
-    porColaborador.set(colaboradorId, { faltas: dias, desconto: 0 });
+    porColaborador.set(colaboradorId, { faltas: dias, dsrPerdidos: 0, desconto: 0 });
+  }
+  // DSR perdido (Lei 605/49, art. 6º) — 1 por semana com falta injustificada.
+  // Linha própria, só a quantidade: o valor é o escritório quem calcula.
+  for (const [colaboradorId, semanas] of dsrPerdidosPorColaboradorNaCompetencia(faltas, inicio)) {
+    const a = porColaborador.get(colaboradorId) ?? { faltas: 0, dsrPerdidos: 0, desconto: 0 };
+    a.dsrPerdidos = semanas;
+    porColaborador.set(colaboradorId, a);
   }
   for (const b of beneficios) {
     if (!b.valorColaborador) continue;
-    const a = porColaborador.get(b.colaboradorId) ?? { faltas: 0, desconto: 0 };
+    const a = porColaborador.get(b.colaboradorId) ?? { faltas: 0, dsrPerdidos: 0, desconto: 0 };
     a.desconto += b.valorColaborador;
     porColaborador.set(b.colaboradorId, a);
   }
@@ -143,6 +154,9 @@ export async function importarEventosDerivados(
     };
     if (dados.faltas > 0) {
       novos.push({ ...base, tipo: "FALTA", quantidade: dados.faltas, valor: null });
+    }
+    if (dados.dsrPerdidos > 0) {
+      novos.push({ ...base, tipo: "DSR_PERDIDO", quantidade: dados.dsrPerdidos, valor: null });
     }
     if (dados.desconto > 0) {
       novos.push({ ...base, tipo: "BENEFICIO", quantidade: null, valor: dados.desconto });

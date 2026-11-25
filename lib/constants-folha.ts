@@ -17,6 +17,11 @@ export const RUBRICAS = [
   { value: "BONUS", label: "Bônus / premiação", unidade: "VALOR", natureza: "PROVENTO" },
   { value: "AJUDA_CUSTO", label: "Ajuda de custo", unidade: "VALOR", natureza: "PROVENTO" },
   { value: "FALTA", label: "Falta injustificada", unidade: "DIAS", natureza: "DESCONTO" },
+  // DSR perdido (26/11/2026): semana com falta injustificada perde o repouso
+  // remunerado (Lei 605/49, art. 6º). Quantidade = semanas; sem valor — o
+  // escritório transforma em dinheiro. Derivado das faltas, ver
+  // lib/folha-ausencias.ts.
+  { value: "DSR_PERDIDO", label: "DSR perdido (semanas com falta)", unidade: "DIAS", natureza: "DESCONTO" },
   { value: "ATRASO", label: "Atraso", unidade: "HORAS", natureza: "DESCONTO" },
   { value: "ADIANTAMENTO", label: "Adiantamento", unidade: "VALOR", natureza: "DESCONTO" },
   { value: "DESCONTO", label: "Desconto diverso", unidade: "VALOR", natureza: "DESCONTO" },
@@ -51,7 +56,7 @@ export const rubricaNatureza = (v: string): NaturezaRubrica =>
   RUBRICAS.find((r) => r.value === v)?.natureza ?? "INFORMATIVO";
 
 /** Rubricas que o sistema traz sozinho de outros módulos — o RH não digita. */
-export const RUBRICAS_DERIVADAS: readonly string[] = ["FALTA", "BENEFICIO"];
+export const RUBRICAS_DERIVADAS: readonly string[] = ["FALTA", "DSR_PERDIDO", "BENEFICIO"];
 
 export const unidadeLabel: Record<UnidadeRubrica, string> = {
   HORAS: "h",
