@@ -16,6 +16,9 @@ export type PerguntaDoEnvio = {
   tipo: string;
   obrigatoria: boolean;
   opcoes: { id: string }[];
+  /** Para a mensagem de "faltou responder" dizer QUAL pergunta e em que posição. */
+  ordem?: number;
+  enunciado?: string;
 };
 
 export type ItemEnviado = {
@@ -96,8 +99,21 @@ export function validarItensEnvio(
   }
 
   const respondidas = new Set(validados.map((i) => i.perguntaId));
-  if (perguntas.some((p) => p.obrigatoria && !respondidas.has(p.id))) {
-    return { ok: false, error: "Responda todas as perguntas obrigatórias." };
+  const faltando = perguntas.filter((p) => p.obrigatoria && !respondidas.has(p.id));
+  if (faltando.length > 0) {
+    // O formulário marca a obrigatória com asterisco, mas não impede o envio:
+    // a recusa vem daqui, e a mensagem diz QUAIS faltam (26/11/2026) — sem
+    // isso, quem pulou uma de 35 perguntas não acharia qual foi.
+    const nomes = faltando
+      .slice(0, 3)
+      .map((p) => {
+        const titulo = (p.enunciado ?? "").trim();
+        const curto = titulo.length > 60 ? `${titulo.slice(0, 57)}...` : titulo;
+        return p.ordem != null ? `nº ${p.ordem}${curto ? ` ("${curto}")` : ""}` : curto || "uma pergunta";
+      })
+      .join("; ");
+    const resto = faltando.length > 3 ? ` e mais ${faltando.length - 3}` : "";
+    return { ok: false, error: `Falta responder pergunta obrigatória: ${nomes}${resto}.` };
   }
 
   return { ok: true, itens: validados };

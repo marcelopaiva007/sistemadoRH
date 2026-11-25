@@ -26,6 +26,23 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.211.0",
+    data: "26/11/2026",
+    horario: "10:00",
+    titulo: "Contas do RH corrigidas: clima, folha, férias, ponto e importação",
+    itens: [
+      "Pesquisa de clima: setor, sexo ou grupo com menos de 3 pessoas não mostra mais média nem posição no ranking, e o comentário perde o nome do setor. \"Respostas\" passa a contar pessoas, não perguntas. A nota de recomendação (0 a 10) saiu da média da escala de 1 a 5, por isso algumas médias podem baixar um pouco.",
+      "O formulário da pesquisa recusa notas fora da escala, opções inválidas e perguntas repetidas, e diz qual pergunta obrigatória ficou sem resposta.",
+      "Folha: faltas que atravessam a virada do mês são lançadas só nos dias de cada mês, sem desconto em dobro. Recalcule as competências abertas para corrigir os lançamentos.",
+      "Férias: \"Risco de dobra\" e o cartão \"Férias vencidas\" seguem a regra da CLT: avisam quando o prazo legal está vencido ou a 60 dias de vencer sem férias marcadas.",
+      "Contracheques: desligados voltam a aparecer e recebem o contracheque da rescisão por e-mail.",
+      "Ponto: os Relatórios Avançados usam o horário de Brasília (antes quase toda entrada aparecia como atraso) e dá para escolher o mês. O Banco de Horas diz com clareza que ainda não é calculado e o que falta para calcular.",
+      "Importação de colaboradores: reaproveita os setores e cargos que a marca já tem, registra mudanças de setor, cargo e salário na aba Movimentações e aceita até 5.000 linhas por arquivo.",
+      "\"Remover sem funcionários\" em Setores e Cargos não apaga mais vagas abertas, metas, planos de ação nem requisitos de NR.",
+      "Delegações, Pendências, Mensagens, Talentos e Reconhecimento: o painel não leva mais a página de erro, dá para dispensar pendências de qualquer CNPJ que você vê, o histórico de mensagens mostra as mais recentes, o filtro \"disponíveis\" acha os mais antigos e o tempo de casa conta o ano certo.",
+    ],
+  },
+  {
     versao: "1.210.0",
     data: "25/11/2026",
     horario: "20:30",

@@ -51,7 +51,7 @@ export async function responderPesquisa(token: string, _prev: ActionResult, form
     include: {
       pesquisa: {
         include: {
-          perguntas: { select: { id: true, tipo: true, obrigatoria: true, opcoes: { select: { id: true } } } },
+          perguntas: { select: { id: true, tipo: true, obrigatoria: true, ordem: true, enunciado: true, opcoes: { select: { id: true } } } },
         },
       },
       colaborador: true,
