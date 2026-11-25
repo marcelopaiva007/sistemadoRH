@@ -9,6 +9,8 @@ import { dataDoFormulario, formatarData } from "@/lib/datas";
 import { ITENS_OFFBOARDING, itemOffboardingLabel } from "@/lib/constants-offboarding";
 import {
   MOTIVOS_DESLIGAMENTO,
+  causaDesligamentoLabel,
+  ehCausaDesligamento,
   motivoDesligamentoLabel,
   PRIMEIRO_DESLIGAMENTO_COBRADO,
 } from "@/lib/constants-dp";
@@ -99,6 +101,19 @@ export async function corrigirDadosDesligamento(
     return { ok: false, error: "Informe o motivo da saída." };
   }
 
+  // Causa gerencial: aceita aqui para o RH classificar o histórico pela lista
+  // (é o caminho das pendências da área Desligamentos), mas NÃO é obrigatória
+  // — corrigir só a data de uma saída de 2024 não pode travar por uma causa
+  // que ninguém registrou na época. Campo ausente do formulário = não mexe.
+  let causa: string | null | undefined = undefined;
+  if (formData.has("causaDesligamento")) {
+    const bruta = String(formData.get("causaDesligamento") ?? "").trim();
+    if (bruta && !ehCausaDesligamento(bruta)) return { ok: false, error: "Causa da saída inválida." };
+    causa = bruta || null;
+  }
+  // Transferência não tem causa: a pessoa não saiu do grupo.
+  if (ehTransferencia(motivo)) causa = null;
+
   // Transferência: o destino é o CNPJ da ficha ativa com o mesmo CPF. Trocar
   // para outro motivo limpa o destino — senão a ficha seguiria "Transferido".
   let destino: { empresaId: string; empresaNome: string } | null = null;
@@ -133,6 +148,7 @@ export async function corrigirDadosDesligamento(
     data: {
       dataDesligamento,
       motivoDesligamento: motivo,
+      ...(causa !== undefined ? { causaDesligamento: causa } : {}),
       transferidoParaEmpresaId: destino?.empresaId ?? null,
       ...(dispensarOffboarding
         ? {
@@ -152,6 +168,7 @@ export async function corrigirDadosDesligamento(
     entidadeId: colaboradorId,
     resumo:
       `Desligamento de ${colaborador.nome} corrigido: ${formatarData(dataDesligamento)}, ${motivoDesligamentoLabel(motivo)}` +
+      (causa ? ` (causa: ${causaDesligamentoLabel(causa)})` : "") +
       (destino ? ` → ${destino.empresaNome}.` : ".") +
       (dispensarOffboarding
         ? " Offboarding dispensado (desligamento anterior ao cadastro no sistema)."

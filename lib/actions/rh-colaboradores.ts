@@ -14,7 +14,8 @@ import { hojeUTC } from "@/lib/datas";
 import { destinoDaTransferencia, ehTransferencia } from "@/lib/transferencia";
 import { lerAnexo } from "@/lib/anexos";
 import { enviarParaBlob } from "@/lib/blob";
-import { MOTIVOS_DESLIGAMENTO, TIPOS_CONTRATO, CONTRATOS_POR_PRAZO } from "@/lib/constants-dp";
+import { MOTIVOS_DESLIGAMENTO, TIPOS_CONTRATO, CONTRATOS_POR_PRAZO, ehCausaDesligamento } from "@/lib/constants-dp";
+import { gravarRetratoDesligamento } from "@/lib/retrato-desligamento";
 import type { ActionResult } from "@/lib/constants";
 import { MSG_PROVA_DE_RECEBIMENTO, recibosConfirmadosTravando } from "@/lib/contracheques/protecao";
 import { validarEmailColaboradorLivre } from "@/lib/colaborador-email";
@@ -273,6 +274,13 @@ export async function updateColaborador(
   if (!atual) return { ok: false, error: "Colaborador não encontrado." };
   await requireEmpresaAccess(atual.empresaId);
 
+  // Desligar não passa por aqui: este formulário não pede motivo, causa nem
+  // grava o retrato da época. Era a porta pela qual uma saída entrava sem
+  // nenhum dos três. O caminho é o botão "Desativar" (toggleColaboradorAtivo).
+  if (atual.ativo && !parsed.data.ativo) {
+    return { ok: false, error: "Para desligar, use o botão Desativar — ele pede o motivo e a causa da saída." };
+  }
+
   if (parsed.data.email) {
     const erroEmail = await validarEmailColaboradorLivre(prisma, {
       empresaId: atual.empresaId,
@@ -337,12 +345,17 @@ export async function updateColaborador(
  * ele para desativar. `motivoDesligamento` fica obrigatório só nesta
  * transição (true→false); reativar não pede nada, e desativar quem já estava
  * inativo (chamada redundante) também não.
+ *
+ * Causa gerencial (`causaDesligamento`) idem, exceto na transferência no
+ * grupo — ninguém saiu, não há causa a cobrar. É também aqui que nasce o
+ * retrato da estrutura da época (lib/retrato-desligamento.ts).
  */
 export async function toggleColaboradorAtivo(
   empresaId: string,
   id: string,
   ativo: boolean,
-  motivoDesligamento?: string
+  motivoDesligamento?: string,
+  causaDesligamento?: string,
 ): Promise<ActionResult> {
   const usuario = await requireEmpresaAccess(empresaId);
 
@@ -361,6 +374,9 @@ export async function toggleColaboradorAtivo(
 
   // Transferência: o destino é o CNPJ da ficha ativa com o mesmo CPF.
   const transferindo = estaDesligando && ehTransferencia(motivoDesligamento);
+  if (estaDesligando && !transferindo && !ehCausaDesligamento(causaDesligamento)) {
+    return { ok: false, error: "Selecione a causa do desligamento." };
+  }
   let destino: { empresaId: string; empresaNome: string } | null = null;
   if (transferindo) {
     const r = await destinoDaTransferencia(prisma, colaborador, await empresasVisiveis(usuario));
@@ -379,11 +395,15 @@ export async function toggleColaboradorAtivo(
               // bloco "Vínculo" pode ter sido preenchido antes do clique).
               dataDesligamento: colaborador.dataDesligamento ?? hojeUTC(),
               motivoDesligamento,
+              causaDesligamento: transferindo ? null : causaDesligamento,
               transferidoParaEmpresaId: destino?.empresaId ?? null,
             }
           : {}),
       },
     });
+    if (estaDesligando) {
+      await gravarRetratoDesligamento(tx, id, usuario);
+    }
     // RD-001 + fase 4 (P09-OFF): mesma regra do formulário de edição — ver acima.
     // Os convites expiram também na transferência (a ficha nova recebe os
     // dela); a pesquisa de DESLIGAMENTO não sai — a pessoa não saiu do grupo.

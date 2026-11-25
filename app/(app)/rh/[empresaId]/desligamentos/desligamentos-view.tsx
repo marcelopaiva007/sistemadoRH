@@ -10,6 +10,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   MOTIVOS_DESLIGAMENTO,
+  CAUSAS_DESLIGAMENTO,
+  causaDesligamentoLabel,
   motivoDesligamentoLabel,
   PRIMEIRO_DESLIGAMENTO_COBRADO,
 } from "@/lib/constants-dp";
@@ -27,6 +29,7 @@ type Desligamento = {
   empresaNome: string;
   dataDesligamento: Date;
   motivoDesligamento: string | null;
+  causaDesligamento: string | null;
   setorNome: string;
   checklistTotal: number;
   checklistConcluido: number;
@@ -120,6 +123,11 @@ export function DesligamentosView({
                       </TableCell>
                       <TableCell>
                         {d.motivoDesligamento ? motivoDesligamentoLabel(d.motivoDesligamento) : "—"}
+                        {d.causaDesligamento && (
+                          <span className="block text-xs text-muted-foreground">
+                            {causaDesligamentoLabel(d.causaDesligamento)}
+                          </span>
+                        )}
                       </TableCell>
                       <TableCell className="whitespace-nowrap" title={d.avisoPrevio.texto}>
                         {d.avisoPrevio.dias !== null ? (
@@ -254,6 +262,14 @@ export function DesligamentosView({
                 opcoes={MOTIVOS_DESLIGAMENTO}
                 defaultValue={editando.motivoDesligamento}
                 required
+              />
+              {/* Opcional aqui: é por esta tela que o RH classifica o
+                  histórico, e corrigir só a data não pode travar na causa. */}
+              <CampoSelect
+                name="causaDesligamento"
+                label="Causa da saída"
+                opcoes={CAUSAS_DESLIGAMENTO}
+                defaultValue={editando.causaDesligamento}
               />
             </FormularioAction>
           )}

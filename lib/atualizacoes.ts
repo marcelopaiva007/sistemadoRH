@@ -26,6 +26,18 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.213.0",
+    data: "25/11/2026",
+    titulo: "Desligamento passa a registrar a causa da saída e o setor da época",
+    itens: [
+      "Ao desligar alguém, além do motivo legal (pedido de demissão, sem justa causa, acordo...), o sistema pede a causa da saída: desempenho, comportamento, reestruturação, pedido do colaborador, fim de contrato/experiência ou outros. Quando o motivo legal já responde (pedido de demissão, fim de contrato), a causa vem pré-preenchida. Transferência para outro CNPJ do grupo não pede causa.",
+      "No momento do desligamento o sistema guarda um retrato de setor, cargo, líder e data de admissão como estavam naquele dia. Assim a saída continua contando no setor certo mesmo que a ficha seja corrigida depois. Desligamentos anteriores a esta versão não têm retrato e seguem usando o setor atual da ficha.",
+      "A causa aparece na ficha (bloco Vínculo) e na lista de Desligamentos, onde dá para classificar as saídas antigas pelo lápis de correção.",
+      "O formulário de edição do colaborador não desliga mais pela caixa \"Colaborador ativo\": o caminho é o botão Desativar, que registra motivo e causa.",
+      "Base da nova área Desligamentos, que chega nas próximas versões.",
+    ],
+  },
+  {
     versao: "1.212.1",
     data: "26/11/2026",
     horario: "16:00",

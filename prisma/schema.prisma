@@ -565,6 +565,15 @@ model Colaborador {
   // Referência SOFT, sem @relation: é registro histórico — não deve travar
   // nem sumir junto com a Empresa de destino.
   transferidoParaEmpresaId   String?
+  // Causa GERENCIAL da saída (CAUSAS_DESLIGAMENTO em lib/constants-dp.ts):
+  // desempenho, comportamento, reestruturação, pedido do colaborador, fim de
+  // contrato/experiência, outros. É outra pergunta que `motivoDesligamento`,
+  // que é o tipo LEGAL da rescisão (sem justa causa, acordo...) e decide verba
+  // e prazo: "dispensa sem justa causa" não diz se foi desempenho ou corte de
+  // estrutura, e é essa resposta que a área Desligamentos cobra dos gestores.
+  // Obrigatória em desligamento novo (exceto transferência no grupo); nula no
+  // histórico anterior a 11/2026, que o RH classifica pela lista de pendências.
+  causaDesligamento          String?
   // Desligamento anterior ao sistema, sem como cobrar devolução de crachá,
   // notebook, EPI — nem entrevista de saída — de quem já saiu há tempo. A
   // dispensa tira a pessoa das pendências de checklist E de entrevista
@@ -627,6 +636,7 @@ model Colaborador {
   checklistIntegracao      ChecklistIntegracao[]
   checklistDesligamento    ChecklistDesligamento[]
   entrevistaDesligamento   EntrevistaDesligamento?
+  retratoDesligamento      RetratoDesligamento?
   avaliacoesRecebidas      AvaliacaoDesempenho[]
   metas                    Meta[]
   pdi                      PlanoDesenvolvimento[]
@@ -1623,6 +1633,43 @@ model ChecklistDesligamento {
 // Uma por colaborador — quem sai mais de uma vez do grupo volta como um
 // Colaborador novo neste modelo (não há reintegração aqui), então não há
 // necessidade de histórico de várias entrevistas para o mesmo id.
+// Retrato da estrutura no MOMENTO do desligamento: setor, cargo, líder e
+// admissão como estavam no dia em que a pessoa saiu.
+//
+// Por que existe: a ficha do desligado continua editável, e o setor dela é o
+// ATUAL — se o RH corrige "Não definido" depois, ou a pessoa tinha mudado de
+// setor antes de sair, a saída passava a contar no setor errado. Era o recorte
+// menos confiável da base (ver lib/painel-setor.ts). Com o retrato, a área
+// Desligamentos atribui cada saída ao setor e ao gestor da época.
+//
+// Gravado pelas actions que desligam (lib/retrato-desligamento.ts), nunca à
+// mão. Um por ficha: desligar de novo quem foi reativado sobrescreve.
+// Motivo legal e causa NÃO ficam aqui — moram na ficha, onde são corrigidos,
+// para não haver duas versões do mesmo fato.
+//
+// Nomes copiados como TEXTO (setorNome, posicaoNome, supervisorNome): é
+// registro histórico; renomear ou apagar o setor depois não pode reescrever o
+// passado. Os ids vão junto como referência SOFT, sem @relation.
+model RetratoDesligamento {
+  id                String      @id @default(cuid())
+  empresaId         String
+  colaboradorId     String      @unique
+  colaborador       Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  setorId           String?
+  setorNome         String
+  posicaoId         String?
+  posicaoNome       String
+  supervisorId      String?
+  supervisorNome    String?
+  dataAdmissao      DateTime?
+  registradoEm      DateTime    @default(now())
+  registradoPorId   String?
+  registradoPorNome String?
+
+  @@index([empresaId])
+  @@schema("rh")
+}
+
 model EntrevistaDesligamento {
   id                  String      @id @default(cuid())
   empresaId           String
