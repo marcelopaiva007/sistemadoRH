@@ -359,23 +359,47 @@ export async function redefinirSenhaComToken(
 
   const user = await prisma.user.findFirst({
     where: { recuperacaoSenhaTokenHash: tokenHash },
-    select: { id: true, nome: true, role: true, recuperacaoSenhaExpiraEm: true },
+    select: { id: true, nome: true, role: true, ativo: true, recuperacaoSenhaExpiraEm: true },
   });
   if (!user) return { ok: false, error: "Link inválido ou já utilizado." };
   if (!user.recuperacaoSenhaExpiraEm || user.recuperacaoSenhaExpiraEm < new Date()) {
     return { ok: false, error: "Link expirado. Peça a redefinição de novo." };
   }
+  // Conta desativada não ganha senha nova (25/11/2026). O "Esqueci minha
+  // senha" já não manda link para ela, mas um link mandado ANTES da
+  // desativação (ou o de 24 h do administrador) continuava funcionando.
+  if (!user.ativo) {
+    return { ok: false, error: "Esta conta está desativada. Fale com o administrador do sistema." };
+  }
 
   const passwordHash = await bcrypt.hash(parsed.data.senha, 10);
 
-  await prisma.user.update({
-    where: { id: user.id },
+  // GRAVAÇÃO CONDICIONAL (25/11/2026): só grava se o link AINDA não foi usado,
+  // não venceu e a conta continua ativa — conferido no próprio UPDATE, não na
+  // leitura de cima. Com `update` por id, dois envios simultâneos do mesmo
+  // link (duplo clique, duas abas) passavam os dois pela leitura e gravavam
+  // as duas senhas; agora o segundo encontra o token já apagado e recebe
+  // "já utilizado". Mesma conferência pega a conta desativada entre a leitura
+  // e a gravação (o hash do bcrypt leva ~100 ms).
+  //
+  // `sessoesValidasDesde`: senha redefinida derruba toda sessão aberta antes
+  // dela — quem pede o link costuma ser quem perdeu o controle da senha.
+  const agora = new Date();
+  const { count } = await prisma.user.updateMany({
+    where: {
+      id: user.id,
+      recuperacaoSenhaTokenHash: tokenHash,
+      recuperacaoSenhaExpiraEm: { gt: agora },
+      ativo: true,
+    },
     data: {
       passwordHash,
       recuperacaoSenhaTokenHash: null,
       recuperacaoSenhaExpiraEm: null,
+      sessoesValidasDesde: agora,
     },
   });
+  if (count !== 1) return { ok: false, error: "Link inválido ou já utilizado." };
 
   await registrarAuditoria({
     acao: "RESET_SENHA",

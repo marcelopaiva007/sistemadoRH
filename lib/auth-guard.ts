@@ -2,15 +2,23 @@ import { cache } from "react";
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { direcaoRestrita, ehMaster } from "@/lib/grupo";
+import { CONFERIR_SESSAO } from "@/lib/sessao-conferir";
 
 // Memorizado por requisição (`cache` do React): layout geral, layout do módulo
 // e página chamam isto na mesma navegação, e cada `auth()` refaz o callback
 // `jwt` inteiro (cookie + vínculos no banco). Uma vez por requisição basta — a
 // sessão não muda no meio de um render. Fora de render (rota de API) o cache
 // não memoriza e o comportamento é o de antes.
+//
+// Sem sessão vai para /api/sessao/conferir, e não direto para /login (desde
+// 25/11/2026). Quem chega aqui sem sessão quase sempre TEM o cookie — o proxy
+// deixou passar —, mas o callback `jwt` o recusou (conta desativada, senha
+// trocada; ver lib/sessao-revalidada.ts). Página não consegue apagar cookie, e
+// com ele no navegador o proxy devolveria /login para "/" e "/" para /login,
+// em círculo. A rota apaga o cookie recusado e então manda para o login.
 export const requireUser = cache(async () => {
   const session = await auth();
-  if (!session?.user) redirect("/login");
+  if (!session?.user) redirect(CONFERIR_SESSAO);
   return session.user;
 });
 

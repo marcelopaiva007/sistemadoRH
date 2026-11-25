@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { requireAdmin, requireUser } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { direcaoRestrita, ehMaster, grupoDoUsuario } from "@/lib/grupo";
+import { CONFERIR_SESSAO_ADMIN } from "@/lib/sessao-conferir";
 
 /**
  * ADMIN de cadastro (marcas, CNPJs) — e o GRUPO em que ele manda.
@@ -60,9 +61,16 @@ export async function requireMaster() {
  * conta de administrador — quem abre /admin logado como Diretoria entende o
  * que aconteceu em vez de cair, sem explicação, no painel do RH.
  */
+//
+// Passa por /api/sessao/conferir antes do login do admin (25/11/2026): quem
+// chega aqui e não passa já foi aceito pelo proxy como MASTER — o proxy barra
+// os demais antes. Então ou a sessão foi recusada (conta desativada, senha
+// trocada) ou a conta deixou de ser MASTER e o cookie ainda diz que é. Nos
+// dois casos o proxy devolveria /admin/login para /admin, em círculo; a rota
+// apaga ou regrava o cookie e só então abre o login do admin.
 export async function requireAreaAdmin() {
   const session = await auth();
   const user = session?.user;
-  if (!user || !ehMaster(user)) redirect("/admin/login");
+  if (!user || !ehMaster(user)) redirect(CONFERIR_SESSAO_ADMIN);
   return user;
 }

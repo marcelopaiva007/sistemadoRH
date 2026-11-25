@@ -14,6 +14,7 @@
 import { cache } from "react";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
+import type { EmpresaNaSessao, UsuarioParaRevalidar } from "@/lib/sessao-revalidada";
 
 const COOKIE_EMPRESA = "rh_empresa_ativa";
 const COOKIE_SETOR = "rh_setor_ativo";
@@ -63,41 +64,57 @@ export async function escreverCookieSetorAtivo(setorId: string | null): Promise<
   });
 }
 
-// Resolve qual empresa cair no `empresaAtivaId` do JWT. Ordem:
-//   1. Cookie, se apontar para uma empresa onde o user tem UserEmpresa ativo.
-//   2. UserEmpresa com papelPrincipal=true.
-//   3. Primeira UserEmpresa ativa.
-//   4. null (ADMIN/DIRETORIA sem empresa específica).
+// RELEITURA DA SESSÃO — o usuário (ativo, papel, `sessoesValidasDesde`) e os
+// vínculos UserEmpresa ativos, numa ida só ao banco. Roda no callback `jwt`
+// (auth.ts) a cada `auth()`; a regra de "a sessão ainda vale?" e a escolha da
+// empresa ativa moram em lib/sessao-revalidada.ts, sem banco.
 //
-// A leitura dos vínculos é memorizada POR REQUISIÇÃO (`cache` do React). Este
-// resolver roda no callback `jwt`, que o NextAuth chama a CADA `auth()` — e
-// uma tela chama `auth()` três vezes ou mais (layout geral, layout do módulo,
-// página, rotas de auditoria). Sem o cache eram três ou mais consultas
-// idênticas por navegação, cada uma pagando a ida e volta até o banco. Com
-// ele, uma só, e a resposta continua vindo do banco de agora (vínculo
-// desativado deixa de valer na requisição seguinte, como antes).
+// Até 25/11/2026 aqui se liam só os vínculos (`vinculosAtivos`, v1.209.0) e o
+// resto vinha da cópia gravada no JWT no login — conta desativada ou senha
+// trocada seguia valendo até a sessão expirar (30 dias). A consulta passou a
+// trazer o usuário junto, por LEFT JOIN, para continuar UMA ida ao banco (o
+// `include` do Prisma faria duas: usuário, depois vínculos).
+//
+// Memorizada POR REQUISIÇÃO (`cache` do React), como a anterior: o NextAuth
+// chama o `jwt` a CADA `auth()` — e uma tela chama `auth()` três vezes ou mais
+// (layout geral, layout do módulo, página, rotas de auditoria). Com o cache é
+// uma consulta por navegação, e a resposta continua vindo do banco de agora.
 // Fora de um render do React (rota de API) o `cache` não memoriza e a
-// consulta roda como sempre rodou.
-const vinculosAtivos = cache((userId: string) =>
-  prisma.userEmpresa.findMany({
-    where: { userId, ativo: true },
-    orderBy: [{ papelPrincipal: "desc" }, { createdAt: "asc" }],
-    select: { empresaId: true, setorId: true, papelPrincipal: true },
-  }),
-);
+// consulta roda uma vez por `auth()`, como sempre rodou.
+type LinhaDaSessao = {
+  ativo: boolean;
+  role: string;
+  sessoesValidasDesde: Date | null;
+  empresaId: string | null;
+  papel: string | null;
+  setorId: string | null;
+  papelPrincipal: boolean | null;
+};
 
-export async function resolverEmpresaAtiva(
-  userId: string,
-  cookie: CookieEmpresa | null,
-): Promise<{ empresaId: string; setorId: string | null } | null> {
-  const vinculos = await vinculosAtivos(userId);
-  if (vinculos.length === 0) return null;
+export const dadosDaSessao = cache(async (userId: string): Promise<UsuarioParaRevalidar | null> => {
+  const linhas = await prisma.$queryRaw<LinhaDaSessao[]>`
+    SELECT u."ativo", u."role", u."sessoesValidasDesde",
+           ue."empresaId", ue."role" AS "papel", ue."setorId", ue."papelPrincipal"
+      FROM "rh"."User" u
+      LEFT JOIN "rh"."UserEmpresa" ue ON ue."userId" = u."id" AND ue."ativo" = true
+     WHERE u."id" = ${userId}
+     ORDER BY ue."papelPrincipal" DESC NULLS LAST, ue."createdAt" ASC
+  `;
+  if (linhas.length === 0) return null;
+  const [u] = linhas;
+  return {
+    ativo: u.ativo,
+    role: u.role,
+    sessoesValidasDesde: u.sessoesValidasDesde,
+    empresas: linhas
+      .filter((l): l is LinhaDaSessao & { empresaId: string } => l.empresaId !== null)
+      .map((l) => ({
+        empresaId: l.empresaId,
+        papel: l.papel as EmpresaNaSessao["papel"],
+        setorId: l.setorId,
+        papelPrincipal: l.papelPrincipal === true,
+        ativo: true as const,
+      })),
+  };
+});
 
-  if (cookie) {
-    const match = vinculos.find((v) => v.empresaId === cookie.empresaId);
-    if (match) return { empresaId: match.empresaId, setorId: match.setorId };
-  }
-
-  const principal = vinculos.find((v) => v.papelPrincipal) ?? vinculos[0];
-  return { empresaId: principal.empresaId, setorId: principal.setorId };
-}

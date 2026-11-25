@@ -536,6 +536,11 @@ export async function updateUsuario(
           role: parsed.data.role,
           ativo: parsed.data.ativo,
           ...(passwordHash ? { passwordHash } : {}),
+          // Desativou ou trocou a senha: quem já estava logado com esta conta
+          // cai na próxima requisição (25/11/2026, lib/sessao-revalidada.ts).
+          // Papel e vínculos não precisam disto — são relidos a cada
+          // requisição e a sessão segue, com o acesso novo.
+          ...(passwordHash || (antes.ativo && !parsed.data.ativo) ? { sessoesValidasDesde: new Date() } : {}),
         },
       });
       const atuais = new Set(
@@ -600,9 +605,11 @@ export async function resetSenhaUsuario(
   if (senha.length < 8) return { ok: false, error: "A senha deve ter pelo menos 8 caracteres." };
 
   const passwordHash = await bcrypt.hash(senha, 10);
+  // Senha nova derruba as sessões abertas com a velha (25/11/2026): quem
+  // redefine a senha de alguém costuma fazê-lo justamente porque ela vazou.
   const user = await prisma.user.update({
     where: { id },
-    data: { passwordHash },
+    data: { passwordHash, sessoesValidasDesde: new Date() },
     select: { username: true },
   });
 
@@ -766,7 +773,7 @@ export async function deleteUsuario(id: string): Promise<ActionResult> {
     });
   } catch {
     // FK em Pesquisas/lotes de importação — soft delete preserva histórico.
-    await prisma.user.update({ where: { id }, data: { ativo: false } });
+    await prisma.user.update({ where: { id }, data: { ativo: false, sessoesValidasDesde: new Date() } });
     await registrarAuditoria({
       acao: "DESATIVAR",
       entidade: "User",
@@ -809,9 +816,13 @@ export async function toggleStatusUsuario(id: string): Promise<ActionResult> {
 
   try {
     const novoStatus = !usuario.ativo;
+    // Desativar derruba quem já estava logado com a conta (25/11/2026). O
+    // `ativo: false` sozinho já recusa a sessão na próxima requisição; o
+    // marcador garante que, se a conta for REATIVADA, as sessões abertas antes
+    // da desativação continuem mortas — reativar não ressuscita sessão velha.
     await prisma.user.update({
       where: { id },
-      data: { ativo: novoStatus },
+      data: novoStatus ? { ativo: true } : { ativo: false, sessoesValidasDesde: new Date() },
     });
 
     await registrarAuditoria({

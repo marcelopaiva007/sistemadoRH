@@ -74,6 +74,8 @@ jobs:
         run: npx tsx scripts/test-produtividade.ts
       - name: Bloqueio por tentativas de login
         run: npx tsx scripts/test-login-tentativas.ts
+      - name: Sessão revalidada a cada requisição (conta desativada, senha trocada)
+        run: npx tsx scripts/test-sessao-revalidada.ts
       - name: Migrations pela conexão direta, fora do pooler do Neon
         run: node scripts/test-url-direta.mjs
       - name: Aviso de deploy de produção que falhou
