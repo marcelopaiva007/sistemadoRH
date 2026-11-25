@@ -1190,12 +1190,21 @@ function ColaboradorForm({
           ter mais gente do que o organograma mostra.
         </p>
       </div>
-      <div className="flex items-center gap-2">
-        <Checkbox id="ativo" checked={ativo} onCheckedChange={(v) => setAtivo(v === true)} />
-        <Label htmlFor="ativo" className="font-normal">
-          Colaborador ativo
-        </Label>
-      </div>
+      {/* Editando quem está ativo, desmarcar aqui desligaria sem motivo, sem
+          causa e sem o retrato da época — updateColaborador recusa. O caminho
+          é o botão Desativar, que pede os dois. */}
+      {defaultValues?.id && defaultValues.ativo ? (
+        <p className="text-xs text-muted-foreground">
+          Para desligar, use o botão Desativar na lista ou na ficha — ele registra o motivo e a causa da saída.
+        </p>
+      ) : (
+        <div className="flex items-center gap-2">
+          <Checkbox id="ativo" checked={ativo} onCheckedChange={(v) => setAtivo(v === true)} />
+          <Label htmlFor="ativo" className="font-normal">
+            Colaborador ativo
+          </Label>
+        </div>
+      )}
       {!state.ok && (
         <Alert variant="destructive">
           <AlertDescription>{state.error}</AlertDescription>

@@ -330,6 +330,8 @@ jobs:
         run: npx tsx scripts/smoke-movimentacoes.ts
       - name: Offboarding
         run: npx tsx scripts/smoke-offboarding.ts
+      - name: Retrato do desligamento e causa da saída (v1.213.0)
+        run: npx tsx scripts/smoke-retrato-desligamento.ts
       - name: Onboarding
         run: npx tsx scripts/smoke-onboarding.ts
       - name: Pendências

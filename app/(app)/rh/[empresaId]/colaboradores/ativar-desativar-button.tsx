@@ -6,7 +6,8 @@ import { UserCheck, UserMinus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toggleColaboradorAtivo } from "@/lib/actions/rh-colaboradores";
-import { MOTIVOS_DESLIGAMENTO } from "@/lib/constants-dp";
+import { CAUSAS_DESLIGAMENTO, MOTIVOS_DESLIGAMENTO, causaSugerida } from "@/lib/constants-dp";
+import { ehTransferencia } from "@/lib/transferencia";
 
 /**
  * Desativar/reativar com confirmação no lugar do botão.
@@ -26,6 +27,11 @@ import { MOTIVOS_DESLIGAMENTO } from "@/lib/constants-dp";
  * Mora na lista e na ficha: quem abre a ficha para conferir quem é a pessoa é
  * justamente quem decide desativá-la, e voltar para a lista só para isso é
  * caminho longo.
+ *
+ * Desde 11/2026 pede também a CAUSA gerencial (desempenho, comportamento,
+ * reestruturação...), que é o que a área Desligamentos cobra dos gestores. O
+ * motivo legal pré-seleciona a causa quando não há dúvida (pedido de demissão
+ * → pedido do colaborador); transferência no grupo não pede causa.
  */
 export function AtivarDesativarButton({
   empresaId,
@@ -42,14 +48,27 @@ export function AtivarDesativarButton({
   const [confirmando, setConfirmando] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [motivo, setMotivo] = useState("");
+  const [causa, setCausa] = useState("");
+  const pedeCausa = motivo !== "" && !ehTransferencia(motivo);
+
+  function limpar() {
+    setMotivo("");
+    setCausa("");
+  }
 
   async function confirmar() {
     setSalvando(true);
-    const result = await toggleColaboradorAtivo(empresaId, id, !ativo, ativo ? motivo : undefined);
+    const result = await toggleColaboradorAtivo(
+      empresaId,
+      id,
+      !ativo,
+      ativo ? motivo : undefined,
+      ativo && pedeCausa ? causa : undefined,
+    );
     setSalvando(false);
     if (result.ok) {
       setConfirmando(false);
-      setMotivo("");
+      limpar();
       toast.success(ativo ? "Colaborador desativado." : "Colaborador reativado.");
     } else {
       toast.error(result.error);
@@ -65,7 +84,14 @@ export function AtivarDesativarButton({
     if (ativo) {
       return (
         <span className="inline-flex flex-wrap items-center gap-1.5">
-          <Select value={motivo} onValueChange={(v) => setMotivo(v ?? "")} items={Object.fromEntries(MOTIVOS_DESLIGAMENTO.map((m) => [m.value, m.label]))}>
+          <Select
+            value={motivo}
+            onValueChange={(v) => {
+              const novo = v ?? "";
+              setMotivo(novo);
+              setCausa(causaSugerida(novo));
+            }}
+            items={Object.fromEntries(MOTIVOS_DESLIGAMENTO.map((m) => [m.value, m.label]))}>
             <SelectTrigger className="h-8 w-44 text-xs">
               <SelectValue placeholder="Motivo do desligamento" />
             </SelectTrigger>
@@ -77,7 +103,21 @@ export function AtivarDesativarButton({
               ))}
             </SelectContent>
           </Select>
-          <Button size="sm" variant="destructive" disabled={salvando || !motivo} onClick={confirmar}>
+          {pedeCausa && (
+            <Select value={causa} onValueChange={(v) => setCausa(v ?? "")} items={Object.fromEntries(CAUSAS_DESLIGAMENTO.map((c) => [c.value, c.label]))}>
+              <SelectTrigger className="h-8 w-44 text-xs">
+                <SelectValue placeholder="Causa da saída" />
+              </SelectTrigger>
+              <SelectContent>
+                {CAUSAS_DESLIGAMENTO.map((c) => (
+                  <SelectItem key={c.value} value={c.value}>
+                    {c.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          <Button size="sm" variant="destructive" disabled={salvando || !motivo || (pedeCausa && !causa)} onClick={confirmar}>
             {salvando ? "..." : "Confirmar"}
           </Button>
           <Button
@@ -85,7 +125,7 @@ export function AtivarDesativarButton({
             variant="ghost"
             onClick={() => {
               setConfirmando(false);
-              setMotivo("");
+              limpar();
             }}
           >
             Cancelar

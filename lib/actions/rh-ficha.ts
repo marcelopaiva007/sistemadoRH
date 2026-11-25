@@ -10,6 +10,8 @@ import { violouUnique } from "@/lib/prisma-erros";
 import { criariCiclo } from "@/lib/organograma";
 import { dataDoFormulario, inicioDoDiaUTC, mesmoDiaUTC } from "@/lib/datas";
 import { validarEmailColaboradorLivre } from "@/lib/colaborador-email";
+import { ehCausaDesligamento } from "@/lib/constants-dp";
+import { gravarRetratoDesligamento } from "@/lib/retrato-desligamento";
 import type { ActionResult } from "@/lib/constants";
 
 // A ficha é editada por blocos (identificação, endereço, emergência, banco,
@@ -64,6 +66,7 @@ const CAMPOS: Record<string, Tipo> = {
   dataAdmissao: "data",
   dataDesligamento: "data",
   motivoDesligamento: "texto",
+  causaDesligamento: "texto",
   tipoContrato: "texto",
   dataFimContrato: "data",
   jornadaSemanal: "inteiro",
@@ -248,10 +251,25 @@ export async function atualizarFicha(
   if (desligamentoMudou) {
     const motivo = typeof data.motivoDesligamento === "string" ? data.motivoDesligamento : atual.motivoDesligamento;
     if (!motivo) return { ok: false, error: "Informe o motivo do desligamento." };
+    // Causa gerencial: mesma régua do motivo (só no momento do desligamento),
+    // dispensada na transferência no grupo — a pessoa não saiu.
+    const causa = "causaDesligamento" in data ? data.causaDesligamento : atual.causaDesligamento;
+    if (!ehTransferencia(motivo) && !causa) {
+      return { ok: false, error: "Informe a causa do desligamento." };
+    }
     const admissao = data.dataAdmissao instanceof Date ? data.dataAdmissao : atual.dataAdmissao;
     if (!(admissao instanceof Date)) {
       return { ok: false, error: "Informe a data de admissão antes de registrar o desligamento." };
     }
+  }
+
+  // Valor fora da lista nunca é gravado (server action é endpoint público);
+  // vazio limpa. Transferência não tem causa — limpa junto.
+  if ("causaDesligamento" in data && data.causaDesligamento !== null && !ehCausaDesligamento(data.causaDesligamento)) {
+    return { ok: false, error: "Causa do desligamento inválida." };
+  }
+  if ("motivoDesligamento" in data && ehTransferencia(data.motivoDesligamento as string | null)) {
+    data.causaDesligamento = null;
   }
 
   // Motivo trocado no bloco "Vínculo": transferência acha o CNPJ de destino
@@ -273,8 +291,17 @@ export async function atualizarFicha(
     }
   }
 
+  // Retrato da estrutura da época: só no PRIMEIRO registro da saída (a ficha
+  // não tinha data). Corrigir a data de um desligamento já registrado não é o
+  // momento da saída — retratar ali gravaria o setor de hoje como se fosse o
+  // da época, que é o erro que o retrato existe para evitar.
+  const registrandoSaida = desligamentoMudou && !(atual.dataDesligamento instanceof Date);
+
   try {
-    await prisma.colaborador.update({ where: { id: colaboradorId, empresaId }, data });
+    await prisma.$transaction(async (tx) => {
+      await tx.colaborador.update({ where: { id: colaboradorId, empresaId }, data });
+      if (registrandoSaida) await gravarRetratoDesligamento(tx, colaboradorId, usuario);
+    });
   } catch (e) {
     if (violouUnique(e, "Colaborador_empresaId_cpf_key")) {
       return { ok: false, error: "Já existe um colaborador com esse CPF nesta empresa." };

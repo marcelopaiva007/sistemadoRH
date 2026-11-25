@@ -7,6 +7,7 @@ import {
   ESCOLARIDADES,
   ESTADOS_CIVIS,
   MOTIVOS_DESLIGAMENTO,
+  CAUSAS_DESLIGAMENTO,
   TIPOS_CONTRATO,
 } from "@/lib/constants-dp";
 import { Campo, CampoData, CampoSelect, CampoTexto, FormularioAction } from "./campos";
@@ -52,6 +53,7 @@ type Colaborador = {
   dataAdmissao: Date | null;
   dataDesligamento: Date | null;
   motivoDesligamento: string | null;
+  causaDesligamento: string | null;
   tipoContrato: string | null;
   dataFimContrato: Date | null;
   jornadaSemanal: number | null;
@@ -267,6 +269,14 @@ export function FichaBlocos({
             label="Motivo do desligamento"
             opcoes={MOTIVOS_DESLIGAMENTO}
             defaultValue={c.motivoDesligamento}
+          />
+          {/* Causa gerencial — obrigatória ao registrar a saída (exceto
+              transferência no grupo); ver CAUSAS_DESLIGAMENTO. */}
+          <CampoSelect
+            name="causaDesligamento"
+            label="Causa da saída"
+            opcoes={CAUSAS_DESLIGAMENTO}
+            defaultValue={c.causaDesligamento}
           />
         </div>
       </Bloco>

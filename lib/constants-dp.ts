@@ -162,6 +162,45 @@ export const MOTIVOS_DESLIGAMENTO = [
   { value: "TRANSFERENCIA_GRUPO", label: "Transferência para outro CNPJ do grupo" },
 ] as const;
 
+// Causa GERENCIAL da saída — o "por quê" que a gestão cobra, separado do tipo
+// legal acima (MOTIVOS_DESLIGAMENTO decide verba e prazo; esta lista decide de
+// quem é a conta). Guardada em Colaborador.causaDesligamento. Obrigatória em
+// desligamento novo, exceto transferência no grupo (ninguém saiu).
+export const CAUSAS_DESLIGAMENTO = [
+  { value: "DESEMPENHO", label: "Desempenho" },
+  { value: "COMPORTAMENTO", label: "Comportamento" },
+  { value: "REESTRUTURACAO", label: "Reestruturação" },
+  { value: "PEDIDO_COLABORADOR", label: "Pedido do colaborador" },
+  { value: "FIM_CONTRATO", label: "Fim de contrato / experiência" },
+  { value: "OUTROS", label: "Outros" },
+] as const;
+
+export type CausaDesligamento = (typeof CAUSAS_DESLIGAMENTO)[number]["value"];
+
+export function ehCausaDesligamento(v: unknown): v is CausaDesligamento {
+  return typeof v === "string" && CAUSAS_DESLIGAMENTO.some((c) => c.value === v);
+}
+
+/**
+ * Causa que o tipo legal já entrega sem margem de dúvida — só pré-seleciona o
+ * campo na tela, a pessoa confirma ou troca. Dispensa pela empresa (sem justa
+ * causa, justa causa, acordo) fica sem sugestão de propósito: é exatamente aí
+ * que "desempenho × comportamento × reestruturação" precisa ser escolhido.
+ */
+export function causaSugerida(motivoLegal: string | null | undefined): CausaDesligamento | "" {
+  switch (motivoLegal) {
+    case "PEDIDO_DEMISSAO":
+      return "PEDIDO_COLABORADOR";
+    case "FIM_CONTRATO":
+      return "FIM_CONTRATO";
+    case "APOSENTADORIA":
+    case "FALECIMENTO":
+      return "OUTROS";
+    default:
+      return "";
+  }
+}
+
 const rotulo = <T extends readonly { value: string; label: string }[]>(lista: T) =>
   (v: string | null | undefined) => (v ? lista.find((i) => i.value === v)?.label ?? v : "—");
 
@@ -173,6 +212,7 @@ export const escolaridadeLabel = rotulo(ESCOLARIDADES);
 export const parentescoLabel = rotulo(PARENTESCOS);
 export const tipoContaLabel = rotulo(TIPOS_CONTA_BANCARIA);
 export const motivoDesligamentoLabel = rotulo(MOTIVOS_DESLIGAMENTO);
+export const causaDesligamentoLabel = rotulo(CAUSAS_DESLIGAMENTO);
 
 // Tamanho máximo de anexo. Vercel limita o corpo de uma requisição de função a
 // 4,5 MB — 4 MB deixa margem para o resto do formulário.
