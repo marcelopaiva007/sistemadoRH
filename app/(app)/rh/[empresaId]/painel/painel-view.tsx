@@ -217,6 +217,10 @@ export function PainelView({
         </div>
         <div className="flex flex-col items-end gap-2">
           <div className="flex flex-wrap gap-2">
+            {/* Atalho para a área do assunto (v1.215.0): meta, custo, setor e gestor. */}
+            <Button variant="outline" size="sm" render={<a href={`/rh/${empresaId}/desligamentos`} />}>
+              Área Desligamentos
+            </Button>
             <AlternadorDeVista vista={vista} aoTrocar={setVista} />
             <Button
               variant="outline"

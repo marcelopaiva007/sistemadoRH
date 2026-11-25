@@ -18,7 +18,7 @@ import {
 import { corrigirDadosDesligamento } from "@/lib/actions/rh-offboarding";
 import { formatarData } from "@/lib/datas";
 import { Indicador } from "@/components/indicador";
-import { CampoData, CampoSelect, FormularioAction } from "../colaboradores/[colaboradorId]/campos";
+import { CampoData, CampoSelect, FormularioAction } from "../../colaboradores/[colaboradorId]/campos";
 import { Paginacao } from "@/components/paginacao";
 import { usePaginacao } from "@/lib/use-paginacao";
 
@@ -55,10 +55,11 @@ export function DesligamentosView({
   return (
     <div className="space-y-6">
       <div>
-        <h1>Desligamentos</h1>
+        <h1>Registros de desligamento</h1>
         <p className="text-sm text-muted-foreground">
           Checklist de saída e entrevista de desligamento de todas as pessoas desligadas nesta
-          empresa. Abra a ficha do colaborador para gerar o checklist ou registrar a entrevista.
+          empresa. Abra a ficha do colaborador para gerar o checklist ou registrar a entrevista. O
+          lápis corrige data, motivo e causa da saída — é por ele que se classificam as saídas antigas.
         </p>
         <p className="mt-1 text-sm text-muted-foreground">
           Aviso prévio: 30 dias + 3 por ano completo de serviço, até 90 (Lei 12.506/2011), quando a

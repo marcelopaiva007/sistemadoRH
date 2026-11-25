@@ -55,7 +55,7 @@ export async function gerarChecklistPadrao(
   });
 
   revalidatePath(`/rh/${empresaId}/colaboradores/${colaboradorId}`);
-  revalidatePath(`/rh/${empresaId}/desligamentos`);
+  revalidatePath(`/rh/${empresaId}/desligamentos`, "layout");
   return { ok: true };
 }
 
@@ -175,7 +175,7 @@ export async function corrigirDadosDesligamento(
         : ""),
   });
 
-  revalidatePath(`/rh/${empresaId}/desligamentos`);
+  revalidatePath(`/rh/${empresaId}/desligamentos`, "layout");
   revalidatePath(`/rh/${empresaId}/colaboradores/${colaboradorId}`);
   revalidatePath(`/rh/${empresaId}/colaboradores`);
   return { ok: true };
@@ -239,7 +239,7 @@ export async function dispensarChecklistDesligamento(
   });
 
   revalidatePath(`/rh/${empresaId}/colaboradores/${colaboradorId}`);
-  revalidatePath(`/rh/${empresaId}/desligamentos`);
+  revalidatePath(`/rh/${empresaId}/desligamentos`, "layout");
   return { ok: true };
 }
 
@@ -276,7 +276,7 @@ export async function reverterDispensaChecklist(
   });
 
   revalidatePath(`/rh/${empresaId}/colaboradores/${colaboradorId}`);
-  revalidatePath(`/rh/${empresaId}/desligamentos`);
+  revalidatePath(`/rh/${empresaId}/desligamentos`, "layout");
   return { ok: true };
 }
 
@@ -343,7 +343,7 @@ export async function alternarItemChecklist(
   });
 
   revalidatePath(`/rh/${empresaId}/colaboradores/${colaboradorId}`);
-  revalidatePath(`/rh/${empresaId}/desligamentos`);
+  revalidatePath(`/rh/${empresaId}/desligamentos`, "layout");
   return { ok: true };
 }
 
@@ -370,7 +370,7 @@ export async function excluirItemChecklist(
   });
 
   revalidatePath(`/rh/${empresaId}/colaboradores/${colaboradorId}`);
-  revalidatePath(`/rh/${empresaId}/desligamentos`);
+  revalidatePath(`/rh/${empresaId}/desligamentos`, "layout");
   return { ok: true };
 }
 

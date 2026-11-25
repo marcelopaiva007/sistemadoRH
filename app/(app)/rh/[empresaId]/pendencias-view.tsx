@@ -211,7 +211,7 @@ export function PendenciasView({
       chave: "avisoPrevio",
       titulo: "Aviso prévio em curso",
       descricao: "Saída registrada para os próximos 7 dias; o offboarding precisa andar.",
-      href: comFiltro(`/rh/${empresaId}/desligamentos`),
+      href: comFiltro(`/rh/${empresaId}/desligamentos/registros`),
       icon: DoorOpen,
       urgente: true,
     },
@@ -220,7 +220,7 @@ export function PendenciasView({
       titulo: "Desligamento incompleto",
       descricao:
         "Pessoa já saiu com item de offboarding em aberto (crachá, acesso, EPI…). Saídas a partir de 16/08/2026 — antes disso é histórico importado, sem cobrança.",
-      href: comFiltro(`/rh/${empresaId}/desligamentos`),
+      href: comFiltro(`/rh/${empresaId}/desligamentos/registros`),
       icon: ClipboardList,
     },
     {
@@ -371,7 +371,7 @@ export function PendenciasView({
       titulo: "Desligado sem checklist",
       descricao:
         "Saída registrada e nenhum item de offboarding criado — nada a devolver, nada a cobrar, nada rastreado. Saídas a partir de 16/08/2026, o início do uso do sistema.",
-      href: comFiltro(`/rh/${empresaId}/desligamentos`),
+      href: comFiltro(`/rh/${empresaId}/desligamentos/registros`),
       icon: FileX,
     },
     {
@@ -383,7 +383,7 @@ export function PendenciasView({
         // como resposta pendente da pessoa que saiu. A ação é do RH — conduzir
         // a conversa e registrar na ficha, card "Entrevista de desligamento".
         "O RH ainda não registrou a entrevista de desligamento — conduza a conversa e preencha na ficha do desligado. Saídas a partir de 16/08/2026, o início do uso do sistema.",
-      href: comFiltro(`/rh/${empresaId}/desligamentos`),
+      href: comFiltro(`/rh/${empresaId}/desligamentos/registros`),
       icon: UserMinus,
     },
     {
