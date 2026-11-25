@@ -243,8 +243,13 @@ export function PlacarView({
         <h1>Placar do grupo</h1>
         <p className="max-w-3xl text-sm text-muted-foreground">
           Um CNPJ por linha — não uma linha por marca. Painel e Indicadores consolidam pela marca, e
-          a média some com o extremo: os CNPJs da LM Telecom aparecem juntos como uma empresa só,
-          enquanto a RSM e a LM SISTEMAS estão em pontos opostos da tabela.
+          a média some com o extremo: CNPJs da mesma marca aparecem juntos como uma empresa só,
+          mesmo quando estão em pontos opostos desta tabela.
+        </p>
+        <p className="mt-1 text-sm">
+          <Link href={`/rh/${empresaId}/desligamentos`} className="font-medium underline-offset-2 hover:underline">
+            Meta de desligamento, custo e o quadro por setor e por gestor ficam na área Desligamentos →
+          </Link>
         </p>
       </div>
 

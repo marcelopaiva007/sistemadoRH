@@ -51,7 +51,6 @@ export const AREAS_RH: GrupoDeAreas[] = [
       { slug: "vagas", label: "Vagas" },
       { slug: "candidatos", label: "Talentos" },
       { slug: "integracoes", label: "Integrações" },
-      { slug: "desligamentos", label: "Desligamentos" },
     ],
   },
   {
@@ -105,6 +104,9 @@ export const AREAS_RH: GrupoDeAreas[] = [
       { slug: "painel", label: "Painel executivo", soLeitura: true },
       { slug: "placar", label: "Placar do grupo", soLeitura: true },
       { slug: "painel-setor", label: "Painel do setor", soLeitura: true },
+      // Saiu de "Ciclo de vida" em v1.215.0, junto com o menu. NÃO é só
+      // leitura: a aba Registros corrige data, motivo e causa das saídas.
+      { slug: "desligamentos", label: "Desligamentos" },
       { slug: "sinais", label: "Central de Sinais" },
       { slug: "lideranca", label: "Malha de liderança", soLeitura: true },
       { slug: "time", label: "Meu time", soLeitura: true },

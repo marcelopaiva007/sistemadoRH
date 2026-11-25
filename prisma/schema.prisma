@@ -247,6 +247,9 @@ model Grupo {
   // Cadastro de contrapartes (fornecedores, locadores) — por grupo desde
   // 25/11/2026.
   contrapartes Contraparte[]
+  // Área Desligamentos (27/11/2026): configuração e crescimento do negócio.
+  configuracaoDesligamentos ConfiguracaoDesligamentos?
+  indicadoresNegocio        IndicadorNegocioAno[]
 
   @@schema("rh")
 }
@@ -4205,5 +4208,45 @@ model DelegacaoFavorito {
 
   @@unique([userId, favoritoId])
   @@index([userId])
+  @@schema("rh")
+}
+
+// Configuração da área Desligamentos — uma por cliente (Grupo). Sem linha, a
+// área usa os padrões de lib/desligamentos/configuracao.ts (meta 10%, limite
+// 15%, R$ 4.000): os números que a diretoria usa para cobrar os gestores não
+// ficam gravados no código, e cada cliente tem os seus. Custo em CENTAVOS,
+// inteiro — mesma regra de Grupo.valorMensalCentavos. Meta e limite em % do
+// quadro médio do ano.
+model ConfiguracaoDesligamentos {
+  id                           String   @id @default(cuid())
+  grupoId                      String   @unique
+  grupo                        Grupo    @relation(fields: [grupoId], references: [id], onDelete: Cascade)
+  custoPorDesligamentoCentavos Int      @default(400000)
+  metaPct                      Float    @default(10)
+  limitePct                    Float    @default(15)
+  atualizadoEm                 DateTime @default(now()) @updatedAt
+  atualizadoPorId              String?
+  atualizadoPorNome            String?
+
+  @@schema("rh")
+}
+
+// Crescimento do negócio por ano, digitado à mão (o sistema não tem essa
+// informação): base de clientes e faturamento, em % sobre o ano anterior. É a
+// régua contra a qual a área Desligamentos compara o crescimento do quadro —
+// equipe que cresce mais que o negócio é custo que precisa de explicação.
+model IndicadorNegocioAno {
+  id                        String   @id @default(cuid())
+  grupoId                   String
+  grupo                     Grupo    @relation(fields: [grupoId], references: [id], onDelete: Cascade)
+  ano                       Int
+  crescimentoClientesPct    Float?
+  crescimentoFaturamentoPct Float?
+  observacao                String?
+  atualizadoEm              DateTime @default(now()) @updatedAt
+  atualizadoPorId           String?
+  atualizadoPorNome         String?
+
+  @@unique([grupoId, ano])
   @@schema("rh")
 }

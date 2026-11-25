@@ -267,10 +267,23 @@ export const GUIAS: Guia[] = [
   {
     slug: "desligamentos",
     titulo: "Desligamentos",
-    paraQue: "Rastreia o que falta fechar depois que a data de desligamento entra na ficha.",
+    paraQue:
+      "A área de controle dos desligamentos: a meta do ano, quanto as saídas custaram, quais setores e gestores puxam o número — e, na aba Registros, o que falta fechar de cada saída.",
     alimenta:
-      "O andamento do checklist de saída e o registro de que a entrevista de desligamento foi feita.",
+      "A reunião de gerentes (placar, custo, quadros por setor e por gestor) e o andamento do checklist de saída e da entrevista de desligamento.",
     passos: [
+      {
+        titulo: "O placar da meta",
+        fala: "Desligamentos do ano divididos pelo quadro médio, contra a meta e o limite que a diretoria definiu. Verde abaixo da meta, amarelo entre a meta e o limite, vermelho acima do limite — e a projeção até o fim do ano pelo ritmo atual.",
+        cena: "cartoes",
+        rotulos: ["Realizado|18", "Meta|17 pessoas", "Limite|26 pessoas", "Projeção|21"],
+      },
+      {
+        titulo: "Setor e gestor, do pior para o melhor",
+        fala: "Cada setor e cada gestor numa linha: quem entrou, quem saiu, o turnover de 12 meses, quantos têm menos de um ano de casa e quanto custou. Clique numa linha para ver quem saiu e por quê. Transferência entre empresas do grupo não conta como saída.",
+        cena: "tabela",
+        rotulos: ["Setor", "Saídas", "Turnover 12m", "Custo"],
+      },
       {
         titulo: "O motivo formal fica na ficha",
         fala: "Data e motivo do desligamento são preenchidos na ficha do colaborador. Esta tela é o passo seguinte: o que ainda falta encerrar depois que a saída foi registrada.",

@@ -30,7 +30,9 @@ const GRUPOS: GrupoDoMenu[] = [
       { slug: "vagas", label: "Vagas" },
       { slug: "candidatos", label: "Talentos" },
       { slug: "integracoes", label: "Integrações" },
-      { slug: "desligamentos", label: "Desligamentos" },
+      // "Desligamentos" saiu daqui para "Gestão" em v1.215.0: virou a área do
+      // assunto inteiro (meta, custo, setores, gestores) e a lista operacional
+      // de saídas é uma aba dela.
     ],
   },
   {
@@ -124,6 +126,10 @@ const GRUPOS: GrupoDoMenu[] = [
       // O zoom seguinte ao Placar: o grupo → o CNPJ → o SETOR. Mesmo motor da
       // seção "Números do setor" que o gestor vê em /rh/meu-setor.
       { slug: "painel-setor", label: "Painel do setor" },
+      // A área do assunto (v1.215.0, pedido do CEO): placar da meta anual,
+      // custo, setores, gestores e — numa aba — a lista operacional de saídas,
+      // que antes morava sozinha em Ciclo de vida.
+      { slug: "desligamentos", label: "Desligamentos" },
       // O que o radar de desvio e os detectores de lib/alertas.ts encontram
       // vira cartão aqui, com dono e prazo — sem isso, alerta é ruído que o
       // time aprende a ignorar em um mês.

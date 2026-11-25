@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ContactRound, LayoutDashboard } from "lucide-react";
+import { ContactRound, LayoutDashboard, UserMinus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { prisma } from "@/lib/prisma";
 import { requireEmpresaAccess, escopoDeEmpresas } from "@/lib/rh-auth-guard";
@@ -191,6 +191,13 @@ export default async function PainelSetorPage({
             >
               <LayoutDashboard className="size-4 text-muted-foreground" />
               Painel executivo (grupo)
+            </Link>
+            <Link
+              href={`${base}/desligamentos?setor=${encodeURIComponent(chaveDeSetor(painel.setorNome))}`}
+              className="inline-flex h-9 items-center gap-2 rounded-md border border-border px-3.5 text-sm font-medium transition-colors hover:bg-muted"
+            >
+              <UserMinus className="size-4 text-muted-foreground" />
+              Desligamentos deste setor
             </Link>
           </div>
         </>

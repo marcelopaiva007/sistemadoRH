@@ -26,6 +26,20 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.215.0",
+    data: "25/11/2026",
+    titulo: "Nova área Desligamentos em Gestão: meta, custo, setores e gestores",
+    itens: [
+      "Desligamentos saiu de Ciclo de vida e virou uma área em Gestão, com duas abas: Painel e Registros. Registros é a lista de sempre (checklist de saída, entrevista, aviso prévio, prazo da rescisão); os cartões de Pendências levam direto a ela.",
+      "Placar da meta do ano: desligamentos ÷ quadro médio, contra a meta (10%) e o limite (15%), em pessoas e em percentual, com a projeção até 31/12 pelo ritmo atual e o mês em que a meta e o limite foram ultrapassados. Verde abaixo da meta, amarelo entre a meta e o limite, vermelho acima do limite.",
+      "Custo dos desligamentos: total (número de saídas × custo mínimo por desligamento), o que passou da meta e o que passou do limite. O custo (R$ 4.000), a meta e o limite podem ser ajustados pela diretoria em \"Meta e custo\" e valem para todas as empresas do grupo.",
+      "Quadro por setor e quadro por gestor: ativos, entradas, saídas, saldo, turnover de 12 meses, % com menos de 1 ano de casa, dispensas pela empresa × pedidos de demissão e custo estimado, do pior para o melhor. Acima do limite fica em vermelho. Clicar numa linha mostra o detalhe: mês a mês, quem saiu, motivo e causa.",
+      "O gestor de cada pessoa vem do líder no dia da saída (quando registrado), do líder no cadastro ou, na falta dos dois, do gestor do setor. A tela diz quantas saídas vieram de cada fonte.",
+      "Filtros por período (ano atual, 12 meses, 24 meses ou datas escolhidas), setor e gestor. Não há filtro por CNPJ: a análise é do grupo, por setor e por gestor.",
+      "Painel executivo, Placar do grupo e Painel do setor ganharam atalho para a área.",
+    ],
+  },
+  {
     versao: "1.214.0",
     data: "25/11/2026",
     titulo: "Turnover sem transferências entre empresas do grupo, em todas as telas",

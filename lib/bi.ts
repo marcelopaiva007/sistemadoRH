@@ -79,10 +79,31 @@ export function calcularTurnover(
   hoje: Date = hojeUTC(),
   janelaMeses = 12,
 ): ResultadoTurnover {
-  const inicio = somarMesesUTC(hoje, -janelaMeses);
+  return turnoverNoPeriodo(vinculos, headcountAtual, somarMesesUTC(hoje, -janelaMeses), hoje, hoje);
+}
 
-  const saidas = vinculos.filter((v) => naJanela(v.dataDesligamento, inicio, hoje));
-  const entradas = vinculos.filter((v) => naJanela(admissaoNoQuadro(v), inicio, hoje));
+/**
+ * O caso geral de `calcularTurnover`: um período qualquer [inicio, fim] — o
+ * ano corrente, um ano fechado, um intervalo escolhido na tela. `fim` depois
+ * de hoje vale como hoje (não se conta saída que ainda não aconteceu).
+ *
+ * O quadro do FIM do período, quando ele termina antes de hoje, também é
+ * reconstruído: o de hoje, desfazendo o que aconteceu depois. Mesma fórmula,
+ * mesma aproximação — a janela móvel de `calcularTurnover` é só o caso em que
+ * o fim é hoje.
+ */
+export function turnoverNoPeriodo(
+  vinculos: VinculoParaTurnover[],
+  headcountAtual: number,
+  inicio: Date,
+  fim: Date,
+  hoje: Date = hojeUTC(),
+): ResultadoTurnover {
+  const fimEfetivo = fim > hoje ? hoje : fim;
+  const depoisDoFim = (d: Date | null) => d !== null && d > fimEfetivo && d <= hoje;
+
+  const saidas = vinculos.filter((v) => naJanela(v.dataDesligamento, inicio, fimEfetivo));
+  const entradas = vinculos.filter((v) => naJanela(admissaoNoQuadro(v), inicio, fimEfetivo));
   const saidasPorTransferencia = saidas.filter((v) => v.saidaPorTransferencia).length;
   const entradasPorTransferencia = entradas.filter((v) => v.entradaPorTransferencia).length;
   const desligados = saidas.length - saidasPorTransferencia;
@@ -91,7 +112,12 @@ export function calcularTurnover(
   // O quadro do início desfaz TODO movimento da janela, transferência
   // inclusive: quem chegou transferido não estava aqui no começo, e quem saiu
   // transferido estava. Só a TAXA ignora as transferências.
-  const headcountFim = headcountAtual;
+  const headcountFim = Math.max(
+    0,
+    headcountAtual -
+      vinculos.filter((v) => depoisDoFim(admissaoNoQuadro(v))).length +
+      vinculos.filter((v) => depoisDoFim(v.dataDesligamento)).length,
+  );
   const headcountInicio = Math.max(0, headcountFim - entradas.length + saidas.length);
   const headcountMedio = (headcountInicio + headcountFim) / 2;
   const taxaPct = headcountMedio > 0 ? (desligados / headcountMedio) * 100 : 0;
