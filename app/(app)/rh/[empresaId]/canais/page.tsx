@@ -1,5 +1,5 @@
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
-import { CHAVE_TELEGRAM, PAPEIS_QUE_CONFIGURAM, statusDoSegredo, statusDoSmtp } from "@/lib/segredos";
+import { CHAVE_TELEGRAM, podeConfigurarSistema, statusDoSegredo, statusDoSmtp } from "@/lib/segredos";
 import { blobConfigurado } from "@/lib/blob";
 import { infoWebhookTelegram } from "@/lib/telegram";
 import { CanaisView } from "./canais-view";
@@ -33,7 +33,7 @@ export default async function CanaisPage({
       urlBase={process.env.NEXT_PUBLIC_APP_URL ?? null}
       smtp={smtp}
       arquivosLigado={blobConfigurado()}
-      podeConfigurar={PAPEIS_QUE_CONFIGURAM.includes(user.role as string)}
+      podeConfigurar={await podeConfigurarSistema(user)}
     />
   );
 }

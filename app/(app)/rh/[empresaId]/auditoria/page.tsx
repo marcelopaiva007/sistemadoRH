@@ -1,4 +1,4 @@
-import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
+import { empresasVisiveis, requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,7 +41,7 @@ export default async function AuditoriaPage({
 }) {
   const { empresaId } = await params;
   const { pagina: paginaParam, dias: diasParam } = await searchParams;
-  await requireEmpresaAccess(empresaId);
+  const usuario = await requireEmpresaAccess(empresaId);
 
   const pagina = Math.max(1, Number.parseInt(paginaParam ?? "1", 10) || 1);
   const diasParseado = Number.parseInt(diasParam ?? "7", 10);
@@ -52,7 +52,15 @@ export default async function AuditoriaPage({
   // Produtividade é por MARCA (RH_MANAGER costuma responder por mais de um
   // CNPJ da mesma marca); a trilha abaixo continua por CNPJ, de propósito —
   // são perguntas diferentes na mesma tela.
-  const empresasDaMarca = await empresasDaMesmaMarca(empresaId);
+  //
+  // Da marca, mas SÓ os CNPJs que o usuário enxerga (25/11/2026): um RH de um
+  // único CNPJ via aqui a produtividade (nome de quem fez o quê, e quanto) dos
+  // CNPJs irmãos que não alcança. Para quem vê a marca toda, nada muda.
+  const [daMarca, visiveis] = await Promise.all([
+    empresasDaMesmaMarca(empresaId),
+    empresasVisiveis(usuario),
+  ]);
+  const empresasDaMarca = daMarca.filter((id) => visiveis.includes(id));
   const agora = new Date();
   const inicioJanela = new Date(agora);
   inicioJanela.setDate(inicioJanela.getDate() - (janelaDias - 1));

@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { blobConfigurado } from "@/lib/blob";
 import { mascararCpf } from "@/lib/cpf";
 import { formatarData, formatarDataHoraBrasilia } from "@/lib/datas";
-import { PAPEIS_QUE_CONFIGURAM } from "@/lib/segredos";
+import { podeConfigurarSistema } from "@/lib/segredos";
 import { iaLigada } from "@/lib/caixa-documentos/ia";
 import { lerDados, limparCaixa, paginasLidas, DIAS_GUARDA_ORIGINAL } from "@/lib/caixa-documentos/processar";
 import { conferenciaDasPaginas, janelaDoItem } from "@/lib/caixa-documentos/decidir";
@@ -237,7 +237,7 @@ export default async function CaixaDocumentosPage({
       gravados={gravados}
       fichas={fichasOpcao}
       iaLigada={ligada}
-      podeConfigurarIa={PAPEIS_QUE_CONFIGURAM.includes(usuario.role)}
+      podeConfigurarIa={await podeConfigurarSistema(usuario)}
       comBlob={blobConfigurado()}
       ambienteDeTeste={process.env.VERCEL_ENV === "preview"}
       empresasSemCnpj={empresasSemCnpj.map((e) => e.nome)}

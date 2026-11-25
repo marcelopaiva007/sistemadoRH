@@ -234,9 +234,12 @@ model Grupo {
   diaVencimento       Int?
   contratoAtivo       Boolean @default(true)
 
-  marcas   Marca[]
-  usuarios User[]
-  perfis   Perfil[]
+  marcas       Marca[]
+  usuarios     User[]
+  perfis       Perfil[]
+  // Cadastro de contrapartes (fornecedores, locadores) — por grupo desde
+  // 25/11/2026.
+  contrapartes Contraparte[]
 
   @@schema("rh")
 }
@@ -3539,9 +3542,20 @@ model Contraparte {
   tipoPessoa             String  @default("JURIDICA")
   razaoSocial            String
   nomeFantasia           String?
-  // Só dígitos, sem máscara — mesma convenção do CNPJ de Empresa. Único no
-  // grupo inteiro: é o que impede cadastrar o mesmo fornecedor duas vezes.
-  cnpjCpf                String  @unique
+  // GRUPO (sociedade) dono do cadastro — desde 25/11/2026. Antes a
+  // contraparte não tinha dono e era "do sistema inteiro": a lista mostrava
+  // fornecedor de outro cliente, editar mudava o cadastro dele, e o aviso de
+  // duplicado revelava a razão social que ele usava. Nula só nas linhas antigas
+  // que a migration 20261125200000 não conseguiu atribuir a grupo nenhum
+  // (sem contrato, sem registro de criação, sem criador com grupo) — essas não
+  // aparecem para ninguém; ver o comentário da migration.
+  grupoId                String?
+  grupo                  Grupo?  @relation(fields: [grupoId], references: [id])
+  // Só dígitos, sem máscara — mesma convenção do CNPJ de Empresa. Único DENTRO
+  // do grupo (`@@unique([grupoId, cnpjCpf])`): é o que impede cadastrar o
+  // mesmo fornecedor duas vezes, sem impedir que dois clientes do FASTMAI
+  // tenham, cada um, o seu cadastro do mesmo fornecedor.
+  cnpjCpf                String
   inscricaoEstadual      String?
   endereco               String?
   emailNotificacaoFormal String?
@@ -3566,6 +3580,7 @@ model Contraparte {
 
   contratos Contrato[]
 
+  @@unique([grupoId, cnpjCpf])
   @@schema("rh")
 }
 

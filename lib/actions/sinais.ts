@@ -6,13 +6,16 @@
 // Escopo: o sinal pode pertencer a um CNPJ (empresaId) ou ao grupo/marca
 // (empresaId nulo). Quem age precisa de acesso à empresa da ROTA (é por onde
 // chegou) e, se o sinal é de um CNPJ, também enxergá-lo em empresasVisiveis —
-// um id de sinal digitado à mão não vira acesso a outro CNPJ.
+// um id de sinal digitado à mão não vira acesso a outro CNPJ. Sinal SEM
+// empresa passa pela mesma regra da tela (lib/sinais-escopo.ts) desde
+// 25/11/2026 — antes era aceito de qualquer grupo.
 
 import { whereUsuariosDoGrupoDaEmpresa } from "@/lib/grupo";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireEmpresaAccess, empresasVisiveis } from "@/lib/rh-auth-guard";
 import { registrarAuditoria } from "@/lib/audit";
+import { escopoDeSinaisSemEmpresa, sinalSemEmpresaVisivel } from "@/lib/sinais-escopo";
 import { formatarData, hojeUTC, somarDiasUTC, dataDoFormulario } from "@/lib/datas";
 import { STATUS_SINAL_VIVOS, tipoSinalLabel, type StatusSinal } from "@/lib/sinais";
 import type { ActionResult } from "@/lib/constants";
@@ -39,6 +42,9 @@ async function sinalNoEscopo(
     if (!visiveis.includes(sinal.empresaId)) {
       return { erro: "Este sinal está fora do seu escopo." };
     }
+  } else if (!sinalSemEmpresaVisivel(await escopoDeSinaisSemEmpresa(usuario), sinal)) {
+    // Mesma resposta de "não existe": não confirma que o id é de outro grupo.
+    return { erro: "Sinal não encontrado." };
   }
   return { usuario, sinal } as const;
 }

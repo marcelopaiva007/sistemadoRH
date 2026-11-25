@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireContratosEmpresa } from "@/lib/processos-auth-guard";
 import { escopoDeEmpresas } from "@/lib/rh-auth-guard";
+import { grupoDoUsuario } from "@/lib/grupo";
 import { formatarData, hojeUTC, paraInputDate } from "@/lib/datas";
 import { rotuloCompetencia } from "@/lib/processos/alugueis";
 import { STATUS_COM_PRAZO_CORRENDO } from "@/lib/processos/pendencias";
@@ -23,7 +24,10 @@ export default async function AlugueisPage({
   const { empresaId } = await params;
   const { empresas: empresasParam } = await searchParams;
   const usuario = await requireContratosEmpresa(empresaId);
-  const escopo = await escopoDeEmpresas(usuario, empresasParam);
+  const [escopo, grupoId] = await Promise.all([
+    escopoDeEmpresas(usuario, empresasParam),
+    grupoDoUsuario(usuario.id),
+  ]);
 
   const [empresa, contratos, empresas, contrapartes] = await Promise.all([
     prisma.empresa.findUnique({
@@ -74,8 +78,10 @@ export default async function AlugueisPage({
       select: { id: true, nome: true, cnpj: true },
     }),
     // Contrapartes são do grupo inteiro (sem empresaId) — a lista alimenta o
-    // select "inquilino" do formulário.
+    // select "inquilino" do formulário. Do grupo DO USUÁRIO (25/11/2026); sem
+    // grupo, lista vazia.
     prisma.contraparte.findMany({
+      where: grupoId ? { grupoId } : { id: { in: [] } },
       orderBy: { razaoSocial: "asc" },
       select: { id: true, razaoSocial: true },
     }),
