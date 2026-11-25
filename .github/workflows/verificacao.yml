@@ -74,6 +74,8 @@ jobs:
         run: npx tsx scripts/test-produtividade.ts
       - name: Bloqueio por tentativas de login
         run: npx tsx scripts/test-login-tentativas.ts
+      - name: Sessão revalidada a cada requisição (conta desativada, senha trocada)
+        run: npx tsx scripts/test-sessao-revalidada.ts
       - name: Migrations pela conexão direta, fora do pooler do Neon
         run: node scripts/test-url-direta.mjs
       - name: Aviso de deploy de produção que falhou
@@ -128,6 +130,66 @@ jobs:
         run: npx tsx scripts/test-email-logs.ts
       - name: Guarda de assinatura e selfie de contracheque (actions)
         run: npx tsx scripts/test-contracheques-assinatura-action.ts
+      # Os 26 de baixo existiam e passavam, mas estavam fora daqui — entre
+      # eles os de permissão (RBAC, guarda unificada, troca de empresa pelo
+      # caminho) e os de delegações, justamente a classe de defeito que não
+      # dá erro na tela. Rodados um a um sem DATABASE_URL e com TZ=UTC (como
+      # no runner) em 25/11/2026: todos verdes. Entraram junto com o teste do
+      # limite das telas públicas, escrito no mesmo dia.
+      - name: Limite de envios por IP nas telas públicas (vaga e pesquisa)
+        run: npx tsx scripts/test-limite-publico.ts
+      - name: Permissões por papel (RBAC)
+        run: npx tsx scripts/test-permissoes.ts
+      - name: Guarda unificada de acesso
+        run: npx tsx scripts/test-guarda-unificacao.ts
+      - name: Troca de empresa pelo caminho (<empresaId> da URL)
+        run: npx tsx scripts/test-troca-empresa-caminho.ts
+      - name: Delegações (núcleo)
+        run: npx tsx scripts/test-delegacoes.ts
+      - name: Delegações — quem acessa
+        run: npx tsx scripts/test-delegacoes-acesso.ts
+      - name: Delegações — visibilidade
+        run: npx tsx scripts/test-delegacoes-visibilidade.ts
+      - name: Delegações — classificador
+        run: npx tsx scripts/test-delegacoes-classificador.ts
+      - name: Delegações — resumo (digest)
+        run: npx tsx scripts/test-delegacoes-digest.ts
+      - name: Delegações — painel
+        run: npx tsx scripts/test-delegacoes-painel.ts
+      - name: Delegações — redator
+        run: npx tsx scripts/test-delegacoes-redator.ts
+      - name: Delegações — régua de cobrança
+        run: npx tsx scripts/test-delegacoes-regua.ts
+      - name: Delegações — relatório
+        run: npx tsx scripts/test-delegacoes-relatorio.ts
+      - name: Delegações — reuniões
+        run: npx tsx scripts/test-delegacoes-reunioes.ts
+      - name: Delegações — semáforo
+        run: npx tsx scripts/test-delegacoes-semaforo.ts
+      - name: Delegações — Telegram
+        run: npx tsx scripts/test-delegacoes-telegram.ts
+      - name: Contracheques — comprovante em PDF
+        run: npx tsx scripts/test-contracheques-comprovante-pdf.ts
+      - name: Contracheques — envio
+        run: npx tsx scripts/test-contracheques-envio.ts
+      - name: Contracheques — lembretes do cron
+        run: npx tsx scripts/test-contracheques-lembrete-cron.ts
+      - name: Contracheques — painel do RH (exportar)
+        run: npx tsx scripts/test-contracheques-painel-rh.ts
+      - name: Contracheques — campos de assinatura no schema
+        run: npx tsx scripts/test-contracheques-schema.ts
+      - name: Contracheques — link de assinatura (token)
+        run: npx tsx scripts/test-contracheques-token-auth.ts
+      - name: Contracheques pelo Telegram
+        run: npx tsx scripts/test-telegram-contracheques.ts
+      - name: Identidade pelo Telegram
+        run: npx tsx scripts/test-telegram-identidade.ts
+      - name: Aluguéis (parcelas e resumo)
+        run: npx tsx scripts/test-alugueis.ts
+      - name: Frota — financeiro (vencimentos e recorrência)
+        run: npx tsx scripts/test-frota-financeiro.ts
+      - name: Pesquisa — análise gerencial
+        run: npx tsx scripts/test-pesquisa-analise.ts
 
   # Os 31 smokes contra Postgres de verdade. O banco nasce vazio a cada
   # execução: schema gerado do prisma/schema.prisma via `migrate diff` (o

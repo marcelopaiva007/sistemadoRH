@@ -3,6 +3,7 @@
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { signIn } from "@/auth";
 import { requireUser } from "@/lib/auth-guard";
 import { registrarAuditoria } from "@/lib/audit";
 import type { ActionResult } from "@/lib/constants";
@@ -34,8 +35,14 @@ export async function alterarSenha(_prev: ActionResult, formData: FormData): Pro
   const senhaValida = await bcrypt.compare(parsed.data.senhaAtual, registro.passwordHash);
   if (!senhaValida) return { ok: false, error: "Senha atual incorreta." };
 
+  // Trocar a senha derruba as OUTRAS sessões desta conta (25/11/2026): o
+  // celular esquecido logado, o computador de quem viu a senha. Até então a
+  // senha nova não tirava ninguém — o JWT valia 30 dias sem reler o banco.
   const novoHash = await bcrypt.hash(parsed.data.novaSenha, 10);
-  await prisma.user.update({ where: { id: user.id }, data: { passwordHash: novoHash } });
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { passwordHash: novoHash, sessoesValidasDesde: new Date() },
+  });
 
   await registrarAuditoria({
     acao: "RESET_SENHA",
@@ -43,6 +50,17 @@ export async function alterarSenha(_prev: ActionResult, formData: FormData): Pro
     entidadeId: user.id,
     resumo: `${registro.username} alterou a própria senha.`,
   });
+
+  // ...mas não a de quem acabou de trocar: entra de novo, aqui mesmo, com a
+  // senha nova. O login grava `entrouEm` agora, depois do marcador, e o cookie
+  // novo sai nesta resposta (server action pode gravar cookie). Se o login
+  // falhar por qualquer motivo (ex.: balde de tentativas cheio), a troca da
+  // senha já valeu — a pessoa só precisa entrar de novo.
+  await signIn("credentials", {
+    username: registro.username,
+    password: parsed.data.novaSenha,
+    redirect: false,
+  }).catch(() => {});
 
   return { ok: true };
 }

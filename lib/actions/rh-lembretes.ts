@@ -5,7 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-guard";
 import { registrarAuditoria } from "@/lib/audit";
 import { ehChaveLembrete, LEMBRETES_CONFIGURAVEIS, type ChaveLembrete } from "@/lib/cron-horario";
-import { PAPEIS_QUE_CONFIGURAM } from "@/lib/segredos";
+import { podeConfigurarSistema } from "@/lib/segredos";
+import { usuarioAlcancaEmpresa } from "@/lib/rh-auth-guard";
 import type { ActionResult } from "@/lib/constants";
 
 /**
@@ -13,13 +14,25 @@ import type { ActionResult } from "@/lib/constants";
  * empresa — mesmo raciocínio e mesmos dois papéis de
  * lib/actions/rh-segredos.ts: ADMIN e DIRETORIA, não RH_MANAGER/GESTOR_SETOR,
  * que são escopados a uma empresa.
+ *
+ * Desde 25/11/2026: o horário e o liga/desliga valem para os crons de TODOS os
+ * grupos, então só ADMIN/DIRETORIA do grupo inteiro (`podeConfigurarSistema`;
+ * a direção presa a marcas fica de fora), e a pessoa precisa alcançar o CNPJ
+ * da rota — é nele que a trilha de auditoria é gravada. Antes bastava o papel,
+ * e o `empresaId` vinha da chamada sem conferência nenhuma.
  */
-async function exigirPapel(): Promise<
+async function exigirPapel(empresaId: string): Promise<
   { ok: true; user: { id: string; nome?: string | null } } | { ok: false; error: string }
 > {
   const user = await requireUser();
-  if (!PAPEIS_QUE_CONFIGURAM.includes(user.role as string)) {
-    return { ok: false, error: "Só a administração ou a diretoria pode alterar horário de lembrete." };
+  if (!(await podeConfigurarSistema(user))) {
+    return {
+      ok: false,
+      error: "Só a administração ou a diretoria com acesso ao grupo inteiro pode alterar horário de lembrete.",
+    };
+  }
+  if (!(await usuarioAlcancaEmpresa(user, empresaId))) {
+    return { ok: false, error: "Sem acesso a esta empresa." };
   }
   return { ok: true, user };
 }
@@ -38,7 +51,7 @@ export async function adicionarHorarioLembrete(
   chave: string,
   horario: string,
 ): Promise<ActionResult> {
-  const permissao = await exigirPapel();
+  const permissao = await exigirPapel(empresaId);
   if (!permissao.ok) return permissao;
   if (!ehChaveLembrete(chave)) return { ok: false, error: "Lembrete desconhecido." };
 
@@ -67,7 +80,7 @@ export async function adicionarHorarioLembrete(
 }
 
 export async function removerHorarioLembrete(empresaId: string, id: string): Promise<ActionResult> {
-  const permissao = await exigirPapel();
+  const permissao = await exigirPapel(empresaId);
   if (!permissao.ok) return permissao;
 
   const existente = await prisma.configuracaoLembrete.findUnique({ where: { id } });
@@ -109,7 +122,7 @@ export async function definirEnvioAutomatico(
   chave: string,
   ligado: boolean,
 ): Promise<ActionResult> {
-  const permissao = await exigirPapel();
+  const permissao = await exigirPapel(empresaId);
   if (!permissao.ok) return permissao;
   if (!ehChaveLembrete(chave)) return { ok: false, error: "Lembrete desconhecido." };
 
@@ -152,7 +165,7 @@ export async function alternarHorarioLembrete(
   id: string,
   ativo: boolean,
 ): Promise<ActionResult> {
-  const permissao = await exigirPapel();
+  const permissao = await exigirPapel(empresaId);
   if (!permissao.ok) return permissao;
 
   const existente = await prisma.configuracaoLembrete.findUnique({ where: { id } });

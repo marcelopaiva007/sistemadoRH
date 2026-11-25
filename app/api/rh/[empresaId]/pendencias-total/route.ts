@@ -10,9 +10,8 @@
 // ESCOPO: só o CNPJ do caminho (sem `?empresas=`).
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { empresasVisiveis, usuarioAlcancaEmpresa } from "@/lib/rh-auth-guard";
+import { empresasVisiveis, podeOperarEmpresaRH } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
-import { sistemasPermitidos } from "@/lib/permissoes/efetivas";
 import { pendenciasDaEmpresa, totalPendencias } from "@/lib/pendencias";
 
 export const runtime = "nodejs";
@@ -27,18 +26,15 @@ export async function GET(
   const session = await auth();
   const user = session?.user;
   if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-  if (!(await usuarioAlcancaEmpresa(user, empresaId))) {
+  // Enforcement de MÓDULO e de PAPEL, além do CNPJ: `podeOperarEmpresaRH` é a
+  // mesma pergunta das telas de /rh/<empresa>. Quem só tem Processos & Ativos
+  // no perfil é barrado em /rh pelo requireRHAccess do layout — e tem de ser
+  // barrado aqui também, senão a contagem de pendências do RH sai por uma porta
+  // que a tela fecha (mesmo achado da revisão adversarial que corrigiu
+  // /api/busca em 03/09/2026). Até 25/11/2026 a conferência de módulo era feita
+  // à mão aqui, depois de `usuarioAlcancaEmpresa`, e o GESTOR_SETOR passava.
+  if (!(await podeOperarEmpresaRH(user, empresaId))) {
     return NextResponse.json({ error: "Sem acesso a esta empresa." }, { status: 403 });
-  }
-  // Enforcement de MÓDULO, além do CNPJ: `usuarioAlcancaEmpresa` responde
-  // "papel de RH + alcança este CNPJ?", e não olha o grant de sistema. Quem só
-  // tem Processos & Ativos no perfil é barrado em /rh pelo requireRHAccess do
-  // layout — e tem de ser barrado aqui também, senão a contagem de pendências
-  // do RH sai por uma porta que a tela fecha. Mesmo achado da revisão
-  // adversarial que corrigiu /api/busca em 03/09/2026.
-  const sistemas = await sistemasPermitidos(user);
-  if (!sistemas.includes("rh")) {
-    return NextResponse.json({ error: "Sem acesso ao módulo Pessoas (RH)." }, { status: 403 });
   }
 
   const total = totalPendencias(await pendenciasDaEmpresa([empresaId], prisma, await empresasVisiveis(user)));

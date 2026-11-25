@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireEmpresaAccess, requireRHAccess, usuarioAlcancaEmpresa } from "@/lib/rh-auth-guard";
+import { podeOperarEmpresaRH, requireEmpresaAccess, requireRHAccess } from "@/lib/rh-auth-guard";
 import { violouUnique, registroNaoEncontrado } from "@/lib/prisma-erros";
 import type { ActionResult } from "@/lib/constants";
 
@@ -19,13 +19,18 @@ const tipoBeneficioSchema = z.object({
  * motivo) do de Setores na v1.124.2: a tela lista o grupo inteiro, e validar
  * pela empresa da rota fazia o Prisma não achar tipo de outro CNPJ (P2025),
  * com o catch mentindo "nome duplicado". Fora do alcance = inexistente.
+ *
+ * Alcance = `podeOperarEmpresaRH`, a mesma pergunta de `requireEmpresaAccess`
+ * (desde 25/11/2026; antes `usuarioAlcancaEmpresa`, que deixava o GESTOR_SETOR
+ * mexer no catálogo de benefícios da empresa por POST direto — ver o
+ * comentário gêmeo em rh-setores.ts).
  */
 async function resolverTipoAlcancavel(
   id: string,
 ): Promise<{ ok: true; tipoEmpresaId: string } | { ok: false; error: string }> {
   const usuario = await requireRHAccess();
   const tipo = await prisma.tipoBeneficio.findUnique({ where: { id }, select: { empresaId: true } });
-  if (!tipo || !(await usuarioAlcancaEmpresa(usuario, tipo.empresaId))) {
+  if (!tipo || !(await podeOperarEmpresaRH(usuario, tipo.empresaId))) {
     return { ok: false, error: "Tipo de benefício não encontrado." };
   }
   return { ok: true, tipoEmpresaId: tipo.empresaId };

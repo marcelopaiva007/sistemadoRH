@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { lerSessaoPortal } from "@/lib/portal-auth";
+import { ERRO_CPF_NAO_CONFIRMADO, lerSessaoPortal } from "@/lib/portal-auth";
 import { registrarAuditoria } from "@/lib/audit";
 import type { ActionResult } from "@/lib/constants";
 
@@ -22,6 +22,7 @@ export async function enviarMensagemAoRh(
 ): Promise<ActionResult> {
   const sessao = await lerSessaoPortal();
   if (!sessao) return { ok: false, error: "Sua sessão expirou. Peça /portal ao bot novamente." };
+  if (!sessao.verificado) return { ok: false, error: ERRO_CPF_NAO_CONFIRMADO };
 
   const mensagem = String(formData.get("mensagem") ?? "").trim().slice(0, MAXIMO_MENSAGEM);
   if (!mensagem) return { ok: false, error: "Escreva a mensagem antes de enviar." };

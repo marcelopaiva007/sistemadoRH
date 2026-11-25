@@ -10,6 +10,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
+import { marcasMarcadasNoGrupo, whereMarcasDoGrupoDe } from "@/lib/grupo";
 import { prisma } from "@/lib/prisma";
 import { CHAVE_TELEGRAM, statusDoSegredo, statusDoSmtp } from "@/lib/segredos";
 import { LEMBRETES_CONFIGURAVEIS, type ChaveLembrete } from "@/lib/cron-horario";
@@ -24,14 +25,25 @@ export default async function ConfiguracoesPage({
   params: Promise<{ empresaId: string }>;
 }) {
   const { empresaId } = await params;
-  await requireEmpresaAccess(empresaId);
+  const usuario = await requireEmpresaAccess(empresaId);
+
+  // O cartão "Marcas & CNPJs" conta o que a tela de Estrutura MOSTRA: as
+  // marcas do grupo de quem olha (e, para a direção presa a marcas, só as
+  // dela) — mesmo recorte de estrutura/page.tsx. Até 25/11/2026 a contagem
+  // era do banco inteiro, somando as marcas e os CNPJs de outro cliente.
+  const marcasDaRestricao = await marcasMarcadasNoGrupo(usuario.id);
+  const restrita =
+    (usuario.role === "ADMIN" || usuario.role === "DIRETORIA") && marcasDaRestricao.length > 0;
+  const whereMarcas = restrita
+    ? { AND: [whereMarcasDoGrupoDe(usuario.id!), { id: { in: marcasDaRestricao } }] }
+    : whereMarcasDoGrupoDe(usuario.id!);
 
   const [setores, posicoes, marcas, empresas, telegram, smtp, lembretes, tiposBeneficio] =
     await Promise.all([
       prisma.setor.count({ where: { empresaId, ativo: true } }),
       prisma.posicao.count({ where: { empresaId, ativo: true } }),
-      prisma.marca.count({ where: { ativo: true } }),
-      prisma.empresa.count({ where: { ativo: true } }),
+      prisma.marca.count({ where: { AND: [whereMarcas, { ativo: true }] } }),
+      prisma.empresa.count({ where: { ativo: true, marca: whereMarcas } }),
       statusDoSegredo(CHAVE_TELEGRAM),
       statusDoSmtp(),
       prisma.configuracaoLembrete.findMany({ select: { chave: true, ativo: true } }),

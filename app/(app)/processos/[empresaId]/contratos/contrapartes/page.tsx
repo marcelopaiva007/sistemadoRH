@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireContratosEmpresa } from "@/lib/processos-auth-guard";
 import { escopoDeEmpresas } from "@/lib/rh-auth-guard";
+import { grupoDoUsuario } from "@/lib/grupo";
 import { ContrapartesView, type ContraparteNaTela } from "./contrapartes-view";
 
 // Quem assina do outro lado — locador, prefeitura, condomínio, fornecedor,
@@ -12,6 +13,12 @@ import { ContrapartesView, type ContraparteNaTela } from "./contrapartes-view";
 // empresas, o mesmo prestador atende três. Duplicar por CNPJ é como o endereço
 // de notificação formal fica certo numa ficha e desatualizado na outra — e a
 // notificação de denúncia vai para o endereço errado.
+//
+// "Do grupo" é do GRUPO DO USUÁRIO (`Contraparte.grupoId`, 25/11/2026). Até
+// então o `findMany` não tinha where nenhum e listava o cadastro de todos os
+// clientes do sistema. Sem grupo (conta órfã), o filtro vira `id in []` e a
+// lista sai vazia — falha fechada; NUNCA `grupoId: null`, que listaria as
+// contrapartes antigas que a migration não conseguiu atribuir a ninguém.
 export default async function ContrapartesPage({
   params,
   searchParams,
@@ -22,7 +29,10 @@ export default async function ContrapartesPage({
   const { empresaId } = await params;
   const { empresas: empresasParam } = await searchParams;
   const usuario = await requireContratosEmpresa(empresaId);
-  const escopo = await escopoDeEmpresas(usuario, empresasParam);
+  const [escopo, grupoId] = await Promise.all([
+    escopoDeEmpresas(usuario, empresasParam),
+    grupoDoUsuario(usuario.id),
+  ]);
 
   const [empresa, contrapartes] = await Promise.all([
     prisma.empresa.findUnique({
@@ -30,6 +40,7 @@ export default async function ContrapartesPage({
       select: { nome: true, marca: { select: { nome: true } } },
     }),
     prisma.contraparte.findMany({
+      where: grupoId ? { grupoId } : { id: { in: [] } },
       orderBy: { razaoSocial: "asc" },
       select: {
         id: true,

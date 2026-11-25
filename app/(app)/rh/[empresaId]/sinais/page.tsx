@@ -1,6 +1,7 @@
 import { whereUsuariosDoGrupoDaEmpresa } from "@/lib/grupo";
 import { empresasVisiveis, requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { PAPEL_PORTAL } from "@/lib/delegacoes/acesso-colaborador";
+import { escopoDeSinaisSemEmpresa, whereSinaisSemEmpresa } from "@/lib/sinais-escopo";
 import { prisma } from "@/lib/prisma";
 import { diferencaEmDiasUTC, formatarData, hojeUTC, paraInputDate } from "@/lib/datas";
 import { SinaisView, type SinalNaTela } from "./sinais-view";
@@ -14,9 +15,11 @@ import { SinaisView, type SinalNaTela } from "./sinais-view";
 //
 // ESCOPO: sinais de CNPJ seguem `empresasVisiveis` estreitado pelo
 // `?empresas=` da tela de Pendências (interseção, nunca amplia — mesma regra
-// de Aprovações); sinais de grupo/marca (empresaId nulo) aparecem para todo
-// mundo que entra aqui — o pico do grupo é história de todos os leitores, e
+// de Aprovações); sinais de grupo/marca (empresaId nulo) aparecem para quem
+// é daquele grupo/marca — o pico do grupo é história de todos os leitores, e
 // escondê-lo de quem só enxerga um CNPJ esconderia o contexto do próprio CNPJ.
+// Até 25/11/2026 apareciam para TODO leitor, de qualquer cliente do sistema;
+// a regra de quem vê qual está em lib/sinais-escopo.ts.
 export default async function SinaisPage({
   params,
   searchParams,
@@ -27,7 +30,10 @@ export default async function SinaisPage({
   const { empresaId } = await params;
   const { empresas: empresasParam } = await searchParams;
   const usuario = await requireEmpresaAccess(empresaId);
-  const visiveis = await empresasVisiveis(usuario);
+  const [visiveis, escopoSemEmpresa] = await Promise.all([
+    empresasVisiveis(usuario),
+    escopoDeSinaisSemEmpresa(usuario),
+  ]);
   const pedidas = (empresasParam ?? "").split(",").filter(Boolean);
   const escopo = pedidas.length === 0 ? visiveis : pedidas.filter((id) => visiveis.includes(id));
   const hoje = hojeUTC();
@@ -37,7 +43,7 @@ export default async function SinaisPage({
     // documento por construção (o Sinal só guarda agregado e frase), mas o
     // contrato de não usar `include` vale igual.
     prisma.sinal.findMany({
-      where: { OR: [{ empresaId: null }, { empresaId: { in: escopo } }] },
+      where: { OR: [...whereSinaisSemEmpresa(escopoSemEmpresa), { empresaId: { in: escopo } }] },
       orderBy: { detectadoEm: "desc" },
       select: {
         id: true,

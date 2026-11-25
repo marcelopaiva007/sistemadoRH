@@ -3,7 +3,8 @@ import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { authConfig } from "@/auth.config";
 import { prisma } from "@/lib/prisma";
-import { lerCookieEmpresaAtiva, resolverEmpresaAtiva } from "@/lib/empresa-ativa";
+import { dadosDaSessao, lerCookieEmpresaAtiva } from "@/lib/empresa-ativa";
+import { escolherEmpresaAtiva, sessaoAindaVale, type EmpresaNaSessao } from "@/lib/sessao-revalidada";
 import { usuarioPorLogin } from "@/lib/usuario-por-identificador";
 import { ondeDestaRequisicao } from "@/lib/endereco-cliente";
 import {
@@ -31,14 +32,6 @@ const HASH_DESCARTAVEL = bcrypt.hashSync("::timing-guard::", 10);
 // 05/11/2026): cada usuário é de um grupo, e quem trabalha na LM e nas demais
 // marcas tem dois. O e-mail virou contato (pode repetir) e o "Entrar com
 // Google", que dependia dele, saiu.
-
-type EmpresaNaSessao = {
-  empresaId: string;
-  papel: "RH_MANAGER" | "GESTOR_SETOR";
-  setorId: string | null;
-  papelPrincipal: boolean;
-  ativo: true;
-};
 
 // auth.ts roda em Node (rotas de API e server actions). Aqui podemos usar
 // Prisma para resolver a empresa ativa. A versão stub em auth.config.ts
@@ -158,6 +151,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async jwt({ token, user }) {
       // Reaplica tudo do token existente (campos spreads pelo NextAuth).
       const next = { ...token };
+      let vinculos: EmpresaNaSessao[];
 
       if (user) {
         // Login fresco: copiar tudo que o `authorize` trouxe.
@@ -175,20 +169,46 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         next.email = u.email;
         next.ativo = u.ativo;
         next.empresas = u.empresas;
+        // O instante do login, em ms — é com ele que a sessão se compara a
+        // `sessoesValidasDesde`. Não o `iat`: o NextAuth o renova a cada
+        // regravação do token (ver lib/sessao-revalidada.ts).
+        next.entrouEm = Date.now();
+        // O `authorize` acabou de ler os vínculos: nada a reler agora.
+        vinculos = u.empresas;
+      } else {
+        // REVALIDAÇÃO A CADA REQUISIÇÃO (25/11/2026). Até aqui papel, "ativo"
+        // e vínculos vinham da cópia gravada no login e valiam 30 dias: conta
+        // desativada, CNPJ retirado, papel rebaixado ou senha redefinida não
+        // derrubavam quem já estava logado. Agora relê do banco — numa
+        // consulta só, memorizada por requisição, a mesma que já existia para
+        // os vínculos (`dadosDaSessao`).
+        //
+        // `return null` encerra a sessão: no @auth/core instalado (0.41.3,
+        // lib/actions/session.js) token nulo faz o `/api/auth/session`
+        // responder sem sessão e APAGAR o cookie, e o `auth()` devolve null.
+        // Em página (RSC) o cookie não pode ser apagado — por isso o
+        // `requireUser` manda para /api/sessao/conferir, que apaga.
+        const id = typeof next.id === "string" ? next.id : null;
+        const dados = id ? await dadosDaSessao(id) : null;
+        if (!sessaoAindaVale(dados, next.entrouEm)) return null;
+        next.role = dados.role;
+        next.ativo = dados.ativo;
+        next.empresas = dados.empresas;
+        vinculos = dados.empresas;
       }
 
-      // Resolver empresa ativa: lê cookie, valida contra pivô.
-      // Chamado em todo request — cookie pode ter mudado desde o login
-      // (troca de empresa via UI em `trocarEmpresaAtiva`).
+      // Resolver empresa ativa: lê cookie, valida contra os vínculos lidos
+      // acima (sem segunda consulta). Chamado em todo request — cookie pode
+      // ter mudado desde o login (troca de empresa via UI em
+      // `trocarEmpresaAtiva`).
       const cookie = await lerCookieEmpresaAtiva();
-      const empresas = (next.empresas as EmpresaNaSessao[] | undefined) ?? [];
-      if (empresas.length === 0) {
+      if (vinculos.length === 0) {
         next.empresaAtivaId = null;
         next.setorAtivaId = null;
         next.empresaId = null;
         next.setorId = null;
       } else {
-        const ativa = await resolverEmpresaAtiva(next.id as string, cookie);
+        const ativa = escolherEmpresaAtiva(vinculos, cookie);
         next.empresaAtivaId = ativa?.empresaId ?? null;
         next.setorAtivaId = ativa?.setorId ?? null;
         // Legado: Fase 8 remove esses campos.

@@ -6,7 +6,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { baixarDoBlob } from "@/lib/blob";
-import { lerSessaoPortal } from "@/lib/portal-auth";
+import { ERRO_CPF_NAO_CONFIRMADO, lerSessaoPortal } from "@/lib/portal-auth";
 import { registrarAuditoria } from "@/lib/audit";
 
 export const runtime = "nodejs";
@@ -21,7 +21,7 @@ export async function GET(
   if (!sessao) return NextResponse.json({ error: "Sessão expirada." }, { status: 401 });
   // Sessão aberta mas CPF ainda não confirmado não baixa nada.
   if (!sessao.verificado) {
-    return NextResponse.json({ error: "Confirme seu CPF no portal." }, { status: 403 });
+    return NextResponse.json({ error: ERRO_CPF_NAO_CONFIRMADO }, { status: 403 });
   }
 
   // O `where` amarra o arquivo ao dono da sessão: um id de arquivo de outro

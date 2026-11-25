@@ -2,7 +2,7 @@
 // Mesmo padrão do relatorio-pdf de NR-01.
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { usuarioAlcancaEmpresa } from "@/lib/rh-auth-guard";
+import { podeOperarEmpresaRH } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
 import { CONVITES_NA_PESQUISA } from "@/lib/pesquisa-numeros";
 import { gerarHtmlRelatorioClima } from "@/lib/clima-relatorio";
@@ -26,7 +26,12 @@ export async function GET(
   // MESMA que decide o acesso às páginas. Aqui havia uma checagem escrita à
   // mão — cinco variantes diferentes conviviam em nove rotas, e duas delas
   // esqueciam DIRETORIA, cujo pivô `UserEmpresa` é vazio por desenho.
-  if (!(await usuarioAlcancaEmpresa(user, empresaId))) {
+  //
+  // `podeOperarEmpresaRH`, e não `usuarioAlcancaEmpresa`, desde 25/11/2026: a
+  // segunda deixa passar o GESTOR_SETOR com vínculo no CNPJ e não confere o
+  // módulo RH do perfil — o relatório traz o resultado da empresa inteira.
+  // Só as telas de /rh/<empresa> chamam esta rota, e o gestor não entra nelas.
+  if (!(await podeOperarEmpresaRH(user, empresaId))) {
     return NextResponse.json({ error: "Sem acesso a esta empresa." }, { status: 403 });
   }
 

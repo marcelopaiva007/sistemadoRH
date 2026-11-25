@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { lerSessaoPortal } from "@/lib/portal-auth";
+import { ERRO_CPF_NAO_CONFIRMADO, lerSessaoPortal } from "@/lib/portal-auth";
 import type { ActionResult } from "@/lib/constants";
 import {
   EVENTO_DA_TRANSICAO,
@@ -47,14 +47,26 @@ const ERRO_CONFLITO = "A demanda mudou enquanto você respondia — recarregue a
  * null aqui é o caso normal de quem nunca recebeu nada, não um erro.
  */
 async function autorDaSessao(): Promise<Autor | null> {
+  const r = await resolverAutor();
+  return r.ok ? r.autor : null;
+}
+
+/**
+ * Mesma resolução, com o motivo da recusa — é o que as actions que gravam usam.
+ *
+ * 25/11/2026: sessão sem CPF confirmado não aceita, não reporta, não entrega.
+ * Antes só a página barrava; a action aceitava quem tivesse o cookie do link.
+ */
+async function resolverAutor(): Promise<{ ok: true; autor: Autor } | { ok: false; error: string }> {
   const sessao = await lerSessaoPortal();
-  if (!sessao) return null;
+  if (!sessao) return { ok: false, error: ERRO_SESSAO };
+  if (!sessao.verificado) return { ok: false, error: ERRO_CPF_NAO_CONFIRMADO };
   const user = await prisma.user.findUnique({
     where: { colaboradorId: sessao.colaboradorId },
     select: { id: true, nome: true, ativo: true },
   });
-  if (!user || !user.ativo) return null;
-  return { userId: user.id, colaboradorId: sessao.colaboradorId, nome: user.nome };
+  if (!user || !user.ativo) return { ok: false, error: ERRO_SESSAO };
+  return { ok: true, autor: { userId: user.id, colaboradorId: sessao.colaboradorId, nome: user.nome } };
 }
 
 export type DemandaNoPortal = {
@@ -183,8 +195,9 @@ async function registrarEventoPortal(
 
 /** "✅ Aceito" — o compromisso com o prazo, do lado de quem executa. */
 export async function aceitarNoPortal(input: { id: string }): Promise<ActionResult> {
-  const autor = await autorDaSessao();
-  if (!autor) return { ok: false, error: ERRO_SESSAO };
+  const quem = await resolverAutor();
+  if (!quem.ok) return { ok: false, error: quem.error };
+  const autor = quem.autor;
   const demanda = await minhaDemanda(input.id, autor);
   if (!demanda) return { ok: false, error: ERRO_NAO_ENCONTRADA };
 
@@ -210,8 +223,9 @@ export async function reportarNoPortal(input: {
   id: string;
   conteudo: string;
 }): Promise<ActionResult> {
-  const autor = await autorDaSessao();
-  if (!autor) return { ok: false, error: ERRO_SESSAO };
+  const quem = await resolverAutor();
+  if (!quem.ok) return { ok: false, error: quem.error };
+  const autor = quem.autor;
   const demanda = await minhaDemanda(input.id, autor);
   if (!demanda) return { ok: false, error: ERRO_NAO_ENCONTRADA };
 
@@ -252,8 +266,9 @@ export async function entregarNoPortal(input: {
   evidencia: string;
   resultado?: string | null;
 }): Promise<ActionResult> {
-  const autor = await autorDaSessao();
-  if (!autor) return { ok: false, error: ERRO_SESSAO };
+  const quem = await resolverAutor();
+  if (!quem.ok) return { ok: false, error: quem.error };
+  const autor = quem.autor;
   const demanda = await minhaDemanda(input.id, autor);
   if (!demanda) return { ok: false, error: ERRO_NAO_ENCONTRADA };
 

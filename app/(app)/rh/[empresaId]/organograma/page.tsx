@@ -1,4 +1,4 @@
-import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
+import { empresasVisiveis, requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
 import { OrganogramaView } from "./organograma-view";
 
@@ -11,18 +11,27 @@ export default async function OrganogramaPage({
   params: Promise<{ empresaId: string }>;
 }) {
   const { empresaId } = await params;
-  await requireEmpresaAccess(empresaId);
+  const usuario = await requireEmpresaAccess(empresaId);
 
   // O organograma é da MARCA inteira, não do CNPJ da URL. Quem lidera quem não
   // respeita fronteira de CNPJ no grupo: um supervisor da RSM tem gente da
   // BRNET e da BR SISTEMAS embaixo. Filtrando por empresa, a hierarquia
   // aparecia picotada — cada CNPJ mostrava um pedaço e ninguém via a estrutura.
-  const empresa = await prisma.empresa.findUniqueOrThrow({
-    where: { id: empresaId },
-    select: { marcaId: true, marca: { select: { nome: true } } },
-  });
+  //
+  // Da marca, mas SÓ os CNPJs que o usuário enxerga (25/11/2026): um RH_MANAGER
+  // de um único CNPJ via aqui nome, setor e cargo de gente de CNPJ irmão que ele
+  // não alcança em nenhuma outra tela. Para quem vê a marca toda, nada muda;
+  // para quem vê parte, a árvore mostra o que ele alcança, e quem tem líder em
+  // CNPJ invisível cai na lista dos "sem líder no mapa" (a view já trata isso).
+  const [empresa, visiveis] = await Promise.all([
+    prisma.empresa.findUniqueOrThrow({
+      where: { id: empresaId },
+      select: { marcaId: true, marca: { select: { nome: true } } },
+    }),
+    empresasVisiveis(usuario),
+  ]);
   const empresasDaMarca = await prisma.empresa.findMany({
-    where: { marcaId: empresa.marcaId, ativo: true },
+    where: { marcaId: empresa.marcaId, ativo: true, id: { in: visiveis } },
     select: { id: true },
   });
 

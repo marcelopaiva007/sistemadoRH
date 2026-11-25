@@ -1,6 +1,6 @@
 {
   "name": "sistema-rh",
-  "version": "1.209.2",
+  "version": "1.210.0",
   "private": true,
   "scripts": {
     "// ━━━━━━━━━━━━━━━━ DESENVOLVIMENTO ━━━━━━━━━━━━━━━━": "",
@@ -36,6 +36,7 @@
     "smokes": "for s in scripts/smoke-*.ts; do echo \"— $s\"; tsx \"$s\" || exit 1; done",
     "// ━━━━━━━━━━━━━━━━ TESTES FUNCIONAIS ━━━━━━━━━━━━━━━━": "",
     "test:login-tentativas": "tsx scripts/test-login-tentativas.ts",
+    "test:sessao-revalidada": "tsx scripts/test-sessao-revalidada.ts",
     "test:ferias": "tsx scripts/test-ferias.ts",
     "test:portal": "tsx scripts/test-portal.ts",
     "test:desacoplamento": "tsx scripts/test-desacoplamento.ts",

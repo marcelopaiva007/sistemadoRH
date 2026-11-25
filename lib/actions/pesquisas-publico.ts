@@ -1,9 +1,12 @@
 "use server";
 
 import { z } from "zod";
+import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { definicaoPesquisa } from "@/lib/pesquisas-catalogo";
 import type { ActionResult } from "@/lib/constants";
+import { ipDaRequisicao } from "@/lib/login-tentativas";
+import { envioPublicoBarrado, LIMITE_RESPOSTA_PESQUISA, MENSAGEM_LIMITE_PUBLICO } from "@/lib/limite-publico";
 
 const respostaItemSchema = z.object({
   perguntaId: z.string(),
@@ -31,6 +34,13 @@ function faixaEtaria(nascimento: Date | null): string | null {
 // autorização é o próprio token (imprevisível, gerado com crypto.randomBytes).
 // Roda a partir de uma página pública, sem sessão.
 export async function responderPesquisa(token: string, _prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  // Limite por IP (25/11/2026): 30 envios por hora (lib/limite-publico.ts).
+  // Vem ANTES da busca do token — a busca é justamente o que um robô
+  // chutando tokens exploraria. Falha aberta se a contagem der erro.
+  if (await envioPublicoBarrado(LIMITE_RESPOSTA_PESQUISA, ipDaRequisicao(await headers()))) {
+    return { ok: false, error: MENSAGEM_LIMITE_PUBLICO };
+  }
+
   const surveyToken = await prisma.surveyToken.findUnique({
     where: { token },
     include: { pesquisa: { include: { perguntas: true } }, colaborador: true },

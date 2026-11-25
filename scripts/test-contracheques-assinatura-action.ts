@@ -1,4 +1,8 @@
 // Mock do prismaGlobal antes de qualquer import para testes unitários das actions
+// A chave do cookie de sessão vem do AUTH_SECRET (sem segredo, falha fechada).
+process.env.AUTH_SECRET ??= "segredo-de-teste-assinatura-action";
+const DIA = 24 * 60 * 60 * 1000;
+let tentativasValido = 0;
 (globalThis as unknown as { prismaGlobal: unknown }).prismaGlobal = {
   reciboContracheque: {
     findUnique: async (args: { where?: { tokenAssinatura?: string } }) => {
@@ -18,13 +22,36 @@
           },
         };
       }
+      if (args?.where?.tokenAssinatura === "token-expirado") {
+        return {
+          id: "recibo-expirado",
+          tokenAssinatura: "token-expirado",
+          bloqueadoEm: null,
+          tentativasCodigo: 0,
+          confirmadoEm: null,
+          enviadoEm: new Date(Date.now() - 121 * DIA),
+          createdAt: new Date(Date.now() - 200 * DIA),
+          competencia: new Date("2026-06-01T00:00:00Z"),
+          tipoFolha: "MENSAL",
+          comprovanteArquivoId: null,
+          colaborador: {
+            nome: "Carlos Silva",
+            cpf: "11122233344",
+            email: "carlos@exemplo.com",
+            telegramChatId: null,
+            empresa: { nome: "LM Telecom", marca: { nome: "LM Telecom" } },
+          },
+        };
+      }
       if (args?.where?.tokenAssinatura === "token-valido") {
         return {
           id: "recibo-valido",
           tokenAssinatura: "token-valido",
           bloqueadoEm: null,
-          tentativasCodigo: 0,
+          tentativasCodigo: tentativasValido,
           confirmadoEm: null,
+          enviadoEm: new Date(),
+          createdAt: new Date(),
           competencia: new Date("2026-11-01T00:00:00Z"),
           tipoFolha: "MENSAL",
           colaborador: {
@@ -38,13 +65,17 @@
       }
       return null;
     },
-    update: async () => ({ id: "recibo-atualizado" }),
+    // Incremento atômico: devolve o contador já somado, como o banco faria.
+    update: async (args: { data?: { tentativasCodigo?: { increment?: number } } }) => {
+      if (args?.data?.tentativasCodigo?.increment) tentativasValido += args.data.tentativasCodigo.increment;
+      return { id: "recibo-atualizado", tentativasCodigo: tentativasValido };
+    },
+    updateMany: async () => ({ count: 1 }),
   },
 };
 
 async function test() {
   const {
-    solicitarCodigo2faAction,
     validarCpfAssinaturaAction,
     assinarContrachequeAction,
     obterDadosReciboPublicoAction,
@@ -55,20 +86,29 @@ async function test() {
   if (r0.encontrado) throw new Error("Token inexistente não deve ser encontrado");
   console.log("  ✓ Token inexistente tratado como 404");
 
-  console.log("\n2. Testando solicitar 2FA com token inexistente:");
-  const r1 = await solicitarCodigo2faAction("token-inexistente-xyz", "12345678900");
-  if (r1.ok) throw new Error("Token inexistente não pode solicitar 2FA");
-  console.log("  ✓ Recusa de 2FA para token inválido");
+  console.log("\n2. Testando validar CPF com token inexistente:");
+  const r1 = await validarCpfAssinaturaAction("token-inexistente-xyz", "12345678900");
+  if (r1.ok) throw new Error("Token inexistente não pode validar CPF");
+  console.log("  ✓ Recusa de CPF para token inválido");
 
   console.log("\n3. Testando token bloqueado:");
-  const rBloq = await solicitarCodigo2faAction("token-bloqueado", "11122233344");
+  const rBloq = await validarCpfAssinaturaAction("token-bloqueado", "11122233344");
   if (rBloq.ok || !rBloq.bloqueado) throw new Error("Token bloqueado deve retornar bloqueado: true");
   console.log("  ✓ Bloqueio de segurança respeitado");
 
   console.log("\n4. Testando CPF divergente em token válido:");
   const rCpfErrado = await validarCpfAssinaturaAction("token-valido", "00000000000");
   if (rCpfErrado.ok) throw new Error("CPF errado não pode prosseguir");
-  console.log("  ✓ CPF divergente recusado com incremento de tentativa");
+  if (tentativasValido !== 1) throw new Error(`Esperava 1 tentativa gravada, veio ${tentativasValido}`);
+  if (rCpfErrado.error.indexOf("Tentativa 1 de 5") < 0) throw new Error(`Mensagem deve usar o contador devolvido, veio: ${rCpfErrado.error}`);
+  console.log("  ✓ CPF divergente recusado com incremento atômico de tentativa");
+
+  console.log("\n4.0. Testando link fora do prazo (mais de 120 dias do envio):");
+  const rExp = await validarCpfAssinaturaAction("token-expirado", "11122233344");
+  if (rExp.ok || !rExp.error.includes("expirou")) throw new Error("Link vencido não pode liberar a sessão");
+  const dExp = await obterDadosReciboPublicoAction("token-expirado");
+  if (!dExp.encontrado || !dExp.linkExpirado) throw new Error("Página deve saber que o link expirou");
+  console.log("  ✓ Link vencido recusado com orientação para pedir novo ao RH");
 
   console.log("\n4.1. Testando CPF correto em token válido (fluxo simplificado sem 2FA):");
   const rCpfCorreto = await validarCpfAssinaturaAction("token-valido", "11122233344");

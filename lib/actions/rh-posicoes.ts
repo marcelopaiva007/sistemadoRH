@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import {
   requireEmpresaAccess,
   requireRHAccess,
-  usuarioAlcancaEmpresa,
+  podeOperarEmpresaRH,
   empresasVisiveis,
 } from "@/lib/rh-auth-guard";
 import { violouUnique, registroNaoEncontrado } from "@/lib/prisma-erros";
@@ -24,13 +24,18 @@ const posicaoSchema = z.object({
  * lista o grupo inteiro, e validar pela empresa da rota fazia o Prisma não
  * achar cargo de outro CNPJ (P2025), com o catch mentindo "nome duplicado".
  * Cargo fora do alcance responde igual a inexistente.
+ *
+ * Alcance = `podeOperarEmpresaRH`, a mesma pergunta de `requireEmpresaAccess`
+ * (desde 25/11/2026; antes `usuarioAlcancaEmpresa`, que deixava o GESTOR_SETOR
+ * editar ou excluir cargo da empresa inteira por POST direto — ver o
+ * comentário gêmeo em rh-setores.ts).
  */
 async function resolverPosicaoAlcancavel(
   id: string,
 ): Promise<{ ok: true; posicaoEmpresaId: string } | { ok: false; error: string }> {
   const usuario = await requireRHAccess();
   const posicao = await prisma.posicao.findUnique({ where: { id }, select: { empresaId: true } });
-  if (!posicao || !(await usuarioAlcancaEmpresa(usuario, posicao.empresaId))) {
+  if (!posicao || !(await podeOperarEmpresaRH(usuario, posicao.empresaId))) {
     return { ok: false, error: "Posição não encontrada." };
   }
   return { ok: true, posicaoEmpresaId: posicao.empresaId };

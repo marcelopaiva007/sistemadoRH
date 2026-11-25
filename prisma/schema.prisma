@@ -68,6 +68,13 @@ model User {
   recuperacaoSenhaExpiraEm  DateTime?
   recuperacaoSenhaTokenHash String?
   ultimoAcessoEm            DateTime?
+  // SESSÕES VÁLIDAS DESDE (25/11/2026): sessão aberta ANTES deste instante
+  // deixa de valer na requisição seguinte (callback `jwt` em auth.ts, regra em
+  // lib/sessao-revalidada.ts). Gravado ao desativar a conta e ao trocar ou
+  // redefinir a senha — até então o JWT guardava papel, ativo e vínculos do
+  // login e valia por 30 dias, e quem já estava logado não caía. Nulo = nada
+  // a derrubar, o estado de toda conta antes desta coluna.
+  sessoesValidasDesde       DateTime?
   createdAt                 DateTime  @default(now())
 
   // TELAS QUE A PESSOA VÊ (v1.207.0, pedido do CEO em 13/11/2026): o admin
@@ -234,9 +241,12 @@ model Grupo {
   diaVencimento       Int?
   contratoAtivo       Boolean @default(true)
 
-  marcas   Marca[]
-  usuarios User[]
-  perfis   Perfil[]
+  marcas       Marca[]
+  usuarios     User[]
+  perfis       Perfil[]
+  // Cadastro de contrapartes (fornecedores, locadores) — por grupo desde
+  // 25/11/2026.
+  contrapartes Contraparte[]
 
   @@schema("rh")
 }
@@ -3539,9 +3549,20 @@ model Contraparte {
   tipoPessoa             String  @default("JURIDICA")
   razaoSocial            String
   nomeFantasia           String?
-  // Só dígitos, sem máscara — mesma convenção do CNPJ de Empresa. Único no
-  // grupo inteiro: é o que impede cadastrar o mesmo fornecedor duas vezes.
-  cnpjCpf                String  @unique
+  // GRUPO (sociedade) dono do cadastro — desde 25/11/2026. Antes a
+  // contraparte não tinha dono e era "do sistema inteiro": a lista mostrava
+  // fornecedor de outro cliente, editar mudava o cadastro dele, e o aviso de
+  // duplicado revelava a razão social que ele usava. Nula só nas linhas antigas
+  // que a migration 20261125200000 não conseguiu atribuir a grupo nenhum
+  // (sem contrato, sem registro de criação, sem criador com grupo) — essas não
+  // aparecem para ninguém; ver o comentário da migration.
+  grupoId                String?
+  grupo                  Grupo?  @relation(fields: [grupoId], references: [id])
+  // Só dígitos, sem máscara — mesma convenção do CNPJ de Empresa. Único DENTRO
+  // do grupo (`@@unique([grupoId, cnpjCpf])`): é o que impede cadastrar o
+  // mesmo fornecedor duas vezes, sem impedir que dois clientes do FASTMAI
+  // tenham, cada um, o seu cadastro do mesmo fornecedor.
+  cnpjCpf                String
   inscricaoEstadual      String?
   endereco               String?
   emailNotificacaoFormal String?
@@ -3566,6 +3587,7 @@ model Contraparte {
 
   contratos Contrato[]
 
+  @@unique([grupoId, cnpjCpf])
   @@schema("rh")
 }
 

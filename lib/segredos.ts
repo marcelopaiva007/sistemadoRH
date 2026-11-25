@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { cifrar, decifrar } from "@/lib/cripto";
+import { direcaoRestrita } from "@/lib/grupo";
 
 export const CHAVE_ANTHROPIC = "ANTHROPIC_API_KEY";
 export const CHAVE_TELEGRAM = "TELEGRAM_BOT_TOKEN";
@@ -28,6 +29,31 @@ export const CHAVE_EMAIL_FROM = "EMAIL_FROM";
  * RH_MANAGER e GESTOR_SETOR ficam de fora.
  */
 export const PAPEIS_QUE_CONFIGURAM: readonly string[] = ["ADMIN", "DIRETORIA"];
+
+/**
+ * Pode mexer numa configuração GLOBAL do sistema (segredos de `SegredoApp`,
+ * horários de lembrete, cobrança manual)? ADMIN ou DIRETORIA que enxerga o
+ * GRUPO INTEIRO — a mesma régua de `requireDirecaoDoGrupoInteiro`
+ * (lib/auth-guard.ts), mas devolvendo booleano em vez de redirecionar, para a
+ * action responder com mensagem e a tela decidir se mostra o formulário.
+ *
+ * Por que excluir a direção RESTRITA a marcas (25/11/2026): `SegredoApp` não
+ * tem grupo — o SMTP, o token do bot do Telegram e a chave da Anthropic valem
+ * para o sistema inteiro, todos os clientes. Uma Diretoria que o admin prendeu
+ * a uma marca trocava o remetente dos e-mails ou o bot de TODOS. O papel
+ * sozinho não basta.
+ *
+ * RISCO RESIDUAL (documentado, não resolvido): não existe hoje no sistema uma
+ * marca de "grupo dono do sistema" (nem variável de ambiente, nem coluna em
+ * Grupo). Então uma ADMIN/DIRETORIA não restrita de QUALQUER cliente ainda
+ * altera estas configurações globais. Fechar isso exige decidir qual grupo é o
+ * dono — o dono do sistema usa uma conta DIRETORIA em cada grupo — e passa por
+ * criar esse marcador; não foi inventado aqui.
+ */
+export async function podeConfigurarSistema(user: { id?: string; role: string }): Promise<boolean> {
+  if (!PAPEIS_QUE_CONFIGURAM.includes(user.role)) return false;
+  return !(await direcaoRestrita(user));
+}
 
 export type OrigemSegredo = "ambiente" | "sistema";
 

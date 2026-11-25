@@ -11,10 +11,13 @@ import { prisma } from "@/lib/prisma";
 import { rotuloDoContracheque } from "@/lib/contracheques/situacao";
 import {
   compararCpf,
+  ERRO_LINK_ASSINATURA_EXPIRADO,
   gerarAssinaturaSessao,
+  linkAssinaturaNoPrazo,
   MAXIMO_TENTATIVAS_ERRO,
   verificarAssinaturaSessao,
 } from "@/lib/contracheques/token-auth";
+import { ipDaRequisicao } from "@/lib/login-tentativas";
 import { sendEmail } from "@/lib/email";
 import { validarSelfieContracheque } from "@/lib/contracheques/validar-selfie";
 import { baixarDoBlob, blobConfigurado, enviarParaBlob } from "@/lib/blob";
@@ -35,6 +38,8 @@ export type DadosReciboPublico =
       temTelegram: boolean;
       emailMascarado: string;
       autenticadoSessao: boolean;
+      /** Link fora do prazo e ainda não assinado: a página manda pedir outro ao RH. */
+      linkExpirado: boolean;
     }
   | { encontrado: false };
 
@@ -81,11 +86,14 @@ async function setarCookieSeguro(
   }
 }
 
+// 25/11/2026: o IP gravado como prova vinha do PRIMEIRO valor do
+// x-forwarded-for — o que o próprio navegador manda e pode inventar. Agora sai
+// de ipDaRequisicao, a mesma leitura do login e do ponto (x-real-ip da Vercel,
+// senão o último salto do x-forwarded-for).
 async function obterHeadersSeguro(): Promise<{ ip: string; userAgent: string }> {
   try {
     const h = await headers();
-    const forwarded = h.get("x-forwarded-for");
-    const ip = (forwarded ? forwarded.split(",")[0].trim() : h.get("x-real-ip")) || "127.0.0.1";
+    const ip = ipDaRequisicao(h);
     const userAgent = h.get("user-agent") || "Navegador Web";
     return { ip, userAgent };
   } catch {
@@ -104,6 +112,8 @@ export async function obterDadosReciboPublicoAction(token: string): Promise<Dado
       bloqueadoEm: true,
       confirmadoEm: true,
       comprovanteArquivoId: true,
+      enviadoEm: true,
+      createdAt: true,
       colaborador: {
         select: {
           nome: true,
@@ -133,6 +143,7 @@ export async function obterDadosReciboPublicoAction(token: string): Promise<Dado
     temTelegram: !!recibo.colaborador.telegramChatId,
     emailMascarado: mascararEmail(recibo.colaborador.email),
     autenticadoSessao,
+    linkExpirado: recibo.confirmadoEm === null && !linkAssinaturaNoPrazo(recibo),
   };
 }
 
@@ -140,6 +151,11 @@ export async function obterDadosReciboPublicoAction(token: string): Promise<Dado
  * Validação simplificada por CPF (OS 07/11/2026):
  * O colaborador insere apenas seu CPF. Se conferir, emite cookie de sessão imediatamente
  * e libera a visualização do contracheque e a assinatura (sem necessidade de código 2FA).
+ *
+ * 25/11/2026: também serve a quem JÁ assinou e volta pelo link do e-mail para
+ * baixar o comprovante — o PDF do comprovante (CPF, selfie, IP, localização)
+ * passou a exigir esta mesma sessão. Nesse caso o CPF libera só o download; a
+ * data da validação original, que é prova, não é regravada.
  */
 export async function validarCpfAssinaturaAction(
   token: string,
@@ -155,6 +171,9 @@ export async function validarCpfAssinaturaAction(
       bloqueadoEm: true,
       tentativasCodigo: true,
       confirmadoEm: true,
+      codigoValidadoEm: true,
+      enviadoEm: true,
+      createdAt: true,
       colaborador: {
         select: {
           cpf: true,
@@ -164,28 +183,30 @@ export async function validarCpfAssinaturaAction(
   });
 
   if (!recibo) return { ok: false, bloqueado: false, error: "Contracheque não localizado." };
-  if (recibo.confirmadoEm) return { ok: false, bloqueado: false, error: "Este contracheque já foi assinado." };
   if (recibo.bloqueadoEm !== null) {
-    return {
-      ok: false,
-      bloqueado: true,
-      error: "Este link foi bloqueado por excesso de tentativas. Entre em contato com o RH da sua empresa.",
-    };
+    return { ok: false, bloqueado: true, error: ERRO_LINK_BLOQUEADO };
+  }
+  if (!recibo.confirmadoEm && !linkAssinaturaNoPrazo(recibo)) {
+    return { ok: false, bloqueado: false, error: ERRO_LINK_ASSINATURA_EXPIRADO };
   }
 
   // Compara o CPF com a ficha cadastrada
   if (!compararCpf(cpfDigitado, recibo.colaborador.cpf)) {
-    const novasTentativas = recibo.tentativasCodigo + 1;
-    const estourou = novasTentativas >= MAXIMO_TENTATIVAS_ERRO;
-    await prisma.reciboContracheque.update({
+    // 25/11/2026: incremento atômico. Antes lia, somava 1 e gravava — várias
+    // tentativas em paralelo liam o mesmo número e o limite de 5 não pegava.
+    // O valor que vale é o devolvido pelo banco.
+    const { tentativasCodigo: novasTentativas } = await prisma.reciboContracheque.update({
       where: { id: recibo.id },
-      data: {
-        tentativasCodigo: novasTentativas,
-        bloqueadoEm: estourou ? new Date() : null,
-      },
+      data: { tentativasCodigo: { increment: 1 } },
+      select: { tentativasCodigo: true },
     });
+    const estourou = novasTentativas >= MAXIMO_TENTATIVAS_ERRO;
 
     if (estourou) {
+      await prisma.reciboContracheque.updateMany({
+        where: { id: recibo.id, bloqueadoEm: null },
+        data: { bloqueadoEm: new Date() },
+      });
       return {
         ok: false,
         bloqueado: true,
@@ -201,14 +222,18 @@ export async function validarCpfAssinaturaAction(
     };
   }
 
-  // CPF confere: registra validação e emite cookie assinado de sessão
+  // CPF confere. A gravação só passa se o link continua desbloqueado e abaixo
+  // do limite NESTE instante — tentativas erradas em paralelo que já estouraram
+  // o limite derrubam também a certa que chegou junto.
   const agora = new Date();
-  await prisma.reciboContracheque.update({
-    where: { id: recibo.id },
+  const { count } = await prisma.reciboContracheque.updateMany({
+    where: { id: recibo.id, bloqueadoEm: null, tentativasCodigo: { lt: MAXIMO_TENTATIVAS_ERRO } },
     data: {
-      codigoValidadoEm: agora,
+      // Já assinado: mantém a data da validação que entrou no comprovante.
+      codigoValidadoEm: recibo.confirmadoEm ? recibo.codigoValidadoEm : agora,
     },
   });
+  if (count === 0) return { ok: false, bloqueado: true, error: ERRO_LINK_BLOQUEADO };
 
   const cookieValor = gerarAssinaturaSessao(token);
   await setarCookieSeguro(`cc_auth_${token}`, cookieValor);
@@ -216,32 +241,16 @@ export async function validarCpfAssinaturaAction(
   return { ok: true };
 }
 
-/** @deprecated Mantido para compatibilidade com chamadas/testes legados. */
-export async function solicitarCodigo2faAction(
-  token: string,
-  cpfDigitado: string
-): Promise<
-  | { ok: true; canal: "TELEGRAM" | "EMAIL"; destinoMascarado: string }
-  | { ok: false; bloqueado: boolean; error: string; tentativasRestantes?: number }
-> {
-  const r = await validarCpfAssinaturaAction(token, cpfDigitado);
-  if (!r.ok) return r;
-  return { ok: true, canal: "EMAIL", destinoMascarado: "seu e-mail" };
-}
+// 25/11/2026: removidas solicitarCodigo2faAction e validarCodigo2faAction
+// (legado do 2FA). Nenhuma tela as importava, e a segunda gravava o cookie de
+// sessão sem conferir nada — bastava o token do link para assinar.
 
-/** @deprecated Mantido para compatibilidade com chamadas/testes legados. */
-export async function validarCodigo2faAction(
-  token: string,
-  _codigoDigitado: string
-): Promise<
-  | { ok: true }
-  | { ok: false; bloqueado: boolean; error: string; tentativasRestantes?: number }
-> {
-  void _codigoDigitado;
-  const cookieValor = gerarAssinaturaSessao(token);
-  await setarCookieSeguro(`cc_auth_${token}`, cookieValor);
-  return { ok: true };
-}
+const ERRO_LINK_BLOQUEADO =
+  "Este link foi bloqueado por excesso de tentativas. Entre em contato com o RH da sua empresa.";
+const ERRO_JA_ASSINADO = "Este contracheque já foi assinado anteriormente.";
+
+/** Sinal interno para desfazer a transação quando outra chamada assinou primeiro. */
+class JaAssinadoNaCorrida extends Error {}
 
 async function bytesDoArquivo(arquivo: { blobUrl: string | null; conteudo: Uint8Array | null }): Promise<Uint8Array | null> {
   if (arquivo.blobUrl) {
@@ -288,6 +297,8 @@ export async function assinarContrachequeAction(
       codigoValidadoEm: true,
       canalCodigo: true,
       confirmadoEm: true,
+      bloqueadoEm: true,
+      createdAt: true,
       colaborador: {
         select: {
           nome: true,
@@ -311,7 +322,9 @@ export async function assinarContrachequeAction(
   });
 
   if (!recibo) return { ok: false, error: "Contracheque não encontrado." };
-  if (recibo.confirmadoEm) return { ok: false, error: "Este contracheque já foi assinado anteriormente." };
+  if (recibo.confirmadoEm) return { ok: false, error: ERRO_JA_ASSINADO };
+  if (recibo.bloqueadoEm) return { ok: false, error: ERRO_LINK_BLOQUEADO };
+  if (!linkAssinaturaNoPrazo(recibo)) return { ok: false, error: ERRO_LINK_ASSINATURA_EXPIRADO };
 
   const arquivoDoc = recibo.documento.arquivo;
   const docBytes = arquivoDoc ? await bytesDoArquivo(arquivoDoc) : null;
@@ -382,8 +395,15 @@ export async function assinarContrachequeAction(
     if (rPdf.ok) blobPdfUrl = rPdf.url;
   }
 
-  // 4. Grava no banco dentro de transação
-  await prisma.$transaction(async (tx) => {
+  // 4. Grava no banco dentro de transação.
+  //
+  // 25/11/2026: a marca de assinado só entra se o recibo ainda está sem
+  // confirmação e desbloqueado (updateMany condicional). Clique duplo ou duas
+  // abas: a segunda chamada não acha linha, a transação desfaz os arquivos que
+  // ela criou e não sai um segundo comprovante nem um segundo e-mail. (O que
+  // essa chamada perdedora já tiver subido ao Blob fica órfão — raro, sem
+  // linha no banco, não aparece em tela nenhuma.)
+  const assinou = await prisma.$transaction(async (tx) => {
     const arqFoto = await tx.arquivo.create({
       data: {
         empresaId: recibo.empresaId,
@@ -404,8 +424,8 @@ export async function assinarContrachequeAction(
       },
     });
 
-    await tx.reciboContracheque.update({
-      where: { id: recibo.id },
+    const { count } = await tx.reciboContracheque.updateMany({
+      where: { id: recibo.id, confirmadoEm: null, bloqueadoEm: null },
       data: {
         confirmadoEm: agora,
         confirmadoIp: ip,
@@ -417,7 +437,13 @@ export async function assinarContrachequeAction(
         comprovanteArquivoId: arqPdf.id,
       },
     });
+    if (count === 0) throw new JaAssinadoNaCorrida();
+    return true;
+  }).catch((e: unknown) => {
+    if (e instanceof JaAssinadoNaCorrida) return false;
+    throw e;
   });
+  if (!assinou) return { ok: false, error: ERRO_JA_ASSINADO };
 
   // 5. Envia e-mail de confirmação COM O PDF ASSINADO ANEXADO
   if (recibo.colaborador.email) {

@@ -7,7 +7,7 @@
 // (app/api/rh/[empresaId]/arquivos/[arquivoId]/route.ts).
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { usuarioAlcancaEmpresa } from "@/lib/rh-auth-guard";
+import { podeOperarEmpresaRH } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
 import { baixarDoBlob } from "@/lib/blob";
 import { registrarAuditoria } from "@/lib/audit";
@@ -25,7 +25,10 @@ export async function GET(
   if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
   // Uma linha, uma regra: a MESMA checagem das páginas (ver o histórico das
   // cinco variantes divergentes em rotas de API, corrigido em 11/08/2026).
-  if (!(await usuarioAlcancaEmpresa(user, empresaId))) {
+  // Desde 25/11/2026 é `podeOperarEmpresaRH`, igual a `requireEmpresaAccess`:
+  // `usuarioAlcancaEmpresa` deixava o GESTOR_SETOR abrir a selfie de batida de
+  // qualquer colaborador do CNPJ por link direto.
+  if (!(await podeOperarEmpresaRH(user, empresaId))) {
     return NextResponse.json({ error: "Sem acesso a esta empresa." }, { status: 403 });
   }
 

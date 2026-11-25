@@ -46,15 +46,26 @@ const colaboradorSchema = z.object({
  * mesma árvore. Validando por empresaId, o nome aparecia na lista mas o Salvar
  * respondia "Líder inválido para essa empresa" — a tela oferecia uma escolha
  * que o servidor recusava.
+ *
+ * Mas a marca é cruzada com o que o USUÁRIO enxerga (25/11/2026): o
+ * organograma passou a mostrar só os CNPJs visíveis, e sem a interseção aqui um
+ * RH de um único CNPJ conseguia, por POST montado à mão, pendurar alguém sob
+ * um líder de CNPJ irmão que ele não vê em tela nenhuma — e o nome desse líder
+ * voltava na trilha de auditoria.
  */
 async function validarSupervisor(
   empresaId: string,
+  usuario: Parameters<typeof empresasVisiveis>[0],
   supervisorId: string,
   idExcluido?: string,
 ): Promise<string | null> {
   if (supervisorId === idExcluido) return "Alguém não pode liderar a si mesmo.";
+  const [daMarca, visiveis] = await Promise.all([
+    empresasDaMesmaMarca(empresaId),
+    empresasVisiveis(usuario),
+  ]);
   const supervisor = await prisma.colaborador.findFirst({
-    where: { id: supervisorId, empresaId: { in: await empresasDaMesmaMarca(empresaId) }, ativo: true },
+    where: { id: supervisorId, empresaId: { in: daMarca.filter((e) => visiveis.includes(e)) }, ativo: true },
   });
   if (!supervisor) return "Líder inválido para essa marca.";
   // Na criação não há ciclo possível: um colaborador novo não lidera ninguém
@@ -116,7 +127,7 @@ export async function createColaborador(
   _prev: ActionResult,
   formData: FormData
 ): Promise<ActionResult> {
-  await requireEmpresaAccess(empresaId);
+  const usuario = await requireEmpresaAccess(empresaId);
   const raw = {
     nome: formData.get("nome"),
     cpf: formData.get("cpf") || undefined,
@@ -159,7 +170,7 @@ export async function createColaborador(
   }
 
   if (parsed.data.supervisorId) {
-    const erroSupervisor = await validarSupervisor(empresaId, parsed.data.supervisorId);
+    const erroSupervisor = await validarSupervisor(empresaId, usuario, parsed.data.supervisorId);
     if (erroSupervisor) return { ok: false, error: erroSupervisor };
   }
 
@@ -215,7 +226,7 @@ export async function updateColaborador(
   _prev: ActionResult,
   formData: FormData
 ): Promise<ActionResult> {
-  await requireEmpresaAccess(empresaId);
+  const usuario = await requireEmpresaAccess(empresaId);
   const raw = {
     nome: formData.get("nome"),
     cpf: formData.get("cpf") || undefined,
@@ -239,7 +250,7 @@ export async function updateColaborador(
   }
 
   if (parsed.data.supervisorId) {
-    const erroSupervisor = await validarSupervisor(empresaId, parsed.data.supervisorId, id);
+    const erroSupervisor = await validarSupervisor(empresaId, usuario, parsed.data.supervisorId, id);
     if (erroSupervisor) return { ok: false, error: erroSupervisor };
   }
 
@@ -435,7 +446,7 @@ export async function definirSupervisor(
 
   let nomeNovoLider: string | null = null;
   if (supervisorId) {
-    const erro = await validarSupervisor(empresaId, supervisorId, id);
+    const erro = await validarSupervisor(empresaId, usuario, supervisorId, id);
     if (erro) return { ok: false, error: erro };
     nomeNovoLider = (await prisma.colaborador.findUnique({ where: { id: supervisorId }, select: { nome: true } }))!
       .nome;

@@ -6,7 +6,7 @@
 // registrada na auditoria. Rosto é dado pessoal; não sai por URL solta.
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { usuarioAlcancaEmpresa } from "@/lib/rh-auth-guard";
+import { podeOperarEmpresaRH } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
 import { baixarDoBlob } from "@/lib/blob";
 import { registrarAuditoria } from "@/lib/audit";
@@ -22,7 +22,11 @@ export async function GET(
   const session = await auth();
   const user = session?.user;
   if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-  if (!(await usuarioAlcancaEmpresa(user, empresaId))) {
+  // A mesma pergunta das telas de /rh/<empresa> (`requireEmpresaAccess`). Até
+  // 25/11/2026 era `usuarioAlcancaEmpresa`, que deixava o GESTOR_SETOR abrir o
+  // rosto de qualquer colaborador do CNPJ por link direto — a tela dele não
+  // mostra foto nenhuma.
+  if (!(await podeOperarEmpresaRH(user, empresaId))) {
     return NextResponse.json({ error: "Sem acesso a esta empresa." }, { status: 403 });
   }
 

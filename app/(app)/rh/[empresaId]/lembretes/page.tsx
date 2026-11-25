@@ -6,7 +6,7 @@ import {
   envioAutomaticoLigado,
   type ChaveLembrete,
 } from "@/lib/cron-horario";
-import { PAPEIS_QUE_CONFIGURAM } from "@/lib/segredos";
+import { podeConfigurarSistema } from "@/lib/segredos";
 import { LembretesView } from "./lembretes-view";
 
 // Horário dos crons de comunicação (alertas-rh, enviar-convites,
@@ -47,7 +47,7 @@ export default async function LembretesPage({
     <LembretesView
       empresaId={empresaId}
       lembretes={lembretes}
-      podeConfigurar={PAPEIS_QUE_CONFIGURAM.includes(user.role as string)}
+      podeConfigurar={await podeConfigurarSistema(user)}
     />
   );
 }
