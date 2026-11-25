@@ -19,8 +19,11 @@ interface IndicadoresDashboardProps {
 }
 
 export function IndicadoresDashboard({ dados, mesReferencia }: IndicadoresDashboardProps) {
+  // `atrasos` conta ENTRADAS atrasadas do mês inteiro, não pessoas: num mês
+  // de 22 dias passa do número de colaboradores com facilidade. Sem o piso a
+  // pontualidade aparecia negativa (26/11/2026).
   const taxaPontualidade = dados.totalColaboradores > 0
-    ? Math.round(((dados.totalColaboradores - dados.atrasos) / dados.totalColaboradores) * 100)
+    ? Math.max(0, Math.round(((dados.totalColaboradores - dados.atrasos) / dados.totalColaboradores) * 100))
     : 0;
 
   const taxaAbsenteismo = dados.totalColaboradores > 0
@@ -108,11 +111,20 @@ export function IndicadoresDashboard({ dados, mesReferencia }: IndicadoresDashbo
           </CardHeader>
           <CardContent>
             <p className="text-sm text-yellow-800">
-              {dados.saidasAntecipadas} colaborador(es) tiveram saída(s) antecipada(s) neste período.
+              {dados.saidasAntecipadas} saída(s) antecipada(s) neste período.
             </p>
           </CardContent>
         </Card>
       )}
+
+      {/* O sistema ainda não liga cada colaborador a uma jornada contratual:
+          atraso, saída antecipada e hora extra aqui são referência fixa, não
+          apuração. Dito na tela para ninguém fechar folha com isso. */}
+      <p className="text-xs text-muted-foreground">
+        Referência do painel, igual para todos: atraso é 1ª entrada depois das 08:10, saída antecipada é
+        2ª saída antes das 17:50 e hora extra é o que passa de 8h trabalhadas no dia (horário de Brasília).
+        Não considera a jornada contratual de cada colaborador, feriados nem ausências — não é apuração.
+      </p>
     </div>
   );
 }
