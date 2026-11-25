@@ -24,11 +24,68 @@
 // o líder e a dedução deixa de ser necessária.
 import { prisma } from "@/lib/prisma";
 import { grupoDaEmpresa } from "@/lib/grupo";
-import { marcarTransferencias } from "@/lib/transferencia";
+import { somarDiasUTC } from "@/lib/datas";
+import { ehTransferencia, marcarTransferencias } from "@/lib/transferencia";
 import { saidasPorTransferenciaDoGrupo } from "@/lib/transferencia-grupo";
 import { setorParaContas } from "@/lib/retrato-desligamento";
 import { chaveDeSetor } from "@/lib/painel-setor";
 import { CONFIG_PADRAO, type ConfigDaArea, type FichaDoPainel } from "@/lib/desligamentos/painel";
+import type { IndicadoresDoAno } from "@/lib/desligamentos/analises";
+
+/** Crescimento do negócio por ano, digitado pela diretoria (IndicadorNegocioAno). */
+export async function indicadoresDoNegocio(empresaIdDaRota: string): Promise<Map<number, IndicadoresDoAno>> {
+  const grupoId = await grupoDaEmpresa(empresaIdDaRota);
+  if (!grupoId) return new Map();
+  const linhas = await prisma.indicadorNegocioAno.findMany({
+    where: { grupoId },
+    select: { ano: true, crescimentoClientesPct: true, crescimentoFaturamentoPct: true, observacao: true },
+  });
+  return new Map(
+    linhas.map((l) => [
+      l.ano,
+      {
+        crescimentoClientesPct: l.crescimentoClientesPct,
+        crescimentoFaturamentoPct: l.crescimentoFaturamentoPct,
+        observacao: l.observacao,
+      },
+    ]),
+  );
+}
+
+/**
+ * Saídas que PARECEM transferência não marcada: a ficha saiu (por qualquer
+ * motivo que não transferência) e uma ficha do MESMO CPF foi admitida em
+ * outro CNPJ do escopo entre 30 dias antes e 90 dias depois da saída. É o
+ * desenho de uma transferência registrada como dispensa — comum antes da
+ * v1.184.0, quando o motivo "transferência" não existia. Não reclassifica
+ * nada sozinho: vai para as pendências, e o RH confirma na ficha.
+ */
+function possiveisTransferencias(
+  fichas: { id: string; empresaId: string; cpf: string | null; dataAdmissao: Date | null; dataDesligamento: Date | null; motivoDesligamento: string | null; ativo: boolean }[],
+): Set<string> {
+  const porCpf = new Map<string, typeof fichas>();
+  for (const f of fichas) {
+    const cpf = (f.cpf ?? "").replace(/\D/g, "");
+    if (!cpf) continue;
+    const lista = porCpf.get(cpf) ?? [];
+    lista.push(f);
+    porCpf.set(cpf, lista);
+  }
+  const suspeitas = new Set<string>();
+  for (const lista of porCpf.values()) {
+    if (lista.length < 2) continue;
+    for (const a of lista) {
+      if (a.ativo || !a.dataDesligamento || ehTransferencia(a.motivoDesligamento)) continue;
+      const de = somarDiasUTC(a.dataDesligamento, -30);
+      const ate = somarDiasUTC(a.dataDesligamento, 90);
+      const chegou = lista.some(
+        (b) => b.id !== a.id && b.empresaId !== a.empresaId && b.dataAdmissao !== null && b.dataAdmissao >= de && b.dataAdmissao <= ate,
+      );
+      if (chegou) suspeitas.add(a.id);
+    }
+  }
+  return suspeitas;
+}
 
 export async function configuracaoDaArea(empresaIdDaRota: string): Promise<ConfigDaArea> {
   const grupoId = await grupoDaEmpresa(empresaIdDaRota);
@@ -52,6 +109,8 @@ export type BaseDaArea = {
   config: ConfigDaArea;
   /** Desligados do escopo sem data de saída: existem, mas nenhuma conta os enxerga. */
   desligadosSemData: number;
+  /** Ids das saídas com cara de transferência não marcada (ver `possiveisTransferencias`). */
+  possiveisTransferencias: Set<string>;
 };
 
 export async function carregarBaseDaArea(empresaIdDaRota: string, escopo: string[]): Promise<BaseDaArea> {
@@ -185,5 +244,6 @@ export async function carregarBaseDaArea(empresaIdDaRota: string, escopo: string
     fichas,
     config,
     desligadosSemData: fichas.filter((f) => !f.ativo && !f.dataDesligamento).length,
+    possiveisTransferencias: possiveisTransferencias(fichasDoCadastro),
   };
 }

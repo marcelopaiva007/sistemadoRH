@@ -26,6 +26,19 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.216.0",
+    data: "25/11/2026",
+    titulo: "Área Desligamentos: motivos, contratação errada, comparações, pendências e PDF",
+    itens: [
+      "Aba Motivos: a causa da saída (desempenho, comportamento, reestruturação, pedido do colaborador, fim de contrato) no geral, por setor e por gestor, e quem decidiu a saída — empresa ou colaborador.",
+      "Aba Contratação errada: quantas saídas tinham menos de 90 e de 180 dias de casa, por setor e por gestor, quanto das contratações do período já saiu e a lista de quem saiu cedo. O tempo de casa conta desde a entrada no grupo — transferência não zera.",
+      "Aba Comparações: admissões × desligamentos mês a mês (12 ou 24 meses) com o quadro de cada mês, e o ano contra ano (desligamentos, dispensas, admissões, ativos no fim do ano, % do quadro). O crescimento do quadro aparece ao lado do crescimento de clientes e de faturamento, que a diretoria preenche em \"Crescimento do negócio\".",
+      "Aba Pendências: saídas com setor \"Não definido\", sem motivo, sem causa, desligados sem data e saídas que parecem transferência não marcada (o mesmo CPF admitido em outro CNPJ do grupo logo depois). Cada linha abre a ficha para corrigir.",
+      "Botão Exportar PDF em todas as abas: o relatório da área para a reunião de gerentes, com os mesmos filtros da tela.",
+      "Os filtros (período, setor, gestor) acompanham a troca de aba.",
+    ],
+  },
+  {
     versao: "1.215.0",
     data: "25/11/2026",
     titulo: "Nova área Desligamentos em Gestão: meta, custo, setores e gestores",

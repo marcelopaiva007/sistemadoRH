@@ -17,6 +17,7 @@
 // setor. Um setor nunca mostra aqui um número e lá outro.
 import { movimentoMensal, turnoverNoPeriodo, type VinculoParaTurnover } from "@/lib/bi";
 import { somarAnosUTC, somarMesesUTC } from "@/lib/datas";
+import { ehSetorSemSetor } from "@/lib/retrato-desligamento";
 
 export const CONFIG_PADRAO = {
   custoPorDesligamento: 4000,
@@ -273,9 +274,24 @@ function linhaDe(
   };
 }
 
-/** Do pior para o melhor turnover de 12 meses; sem taxa vai para o fim. */
+/**
+ * Linhas que não são setor nem gestor de verdade — o balde "Não definido" e
+ * o "Sem gestor definido". Vão para o FIM do ranking: com quase ninguém ativo
+ * elas dão 200% de turnover e liderariam a lista que serve para cobrar
+ * gestores, quando o que pedem é correção de cadastro (aba Pendências).
+ */
+export function linhaSemDono(l: Pick<LinhaDoQuadro, "chave" | "nome">): boolean {
+  return l.chave === "sem-gestor" || ehSetorSemSetor(l.nome);
+}
+
+/** Do pior para o melhor turnover de 12 meses; sem taxa e linha sem dono vão para o fim. */
 function doPiorParaOMelhor(a: LinhaDoQuadro, b: LinhaDoQuadro): number {
-  return (b.turnover12mPct ?? -1) - (a.turnover12mPct ?? -1) || b.saidas - a.saidas || a.nome.localeCompare(b.nome, "pt-BR");
+  return (
+    Number(linhaSemDono(a)) - Number(linhaSemDono(b)) ||
+    (b.turnover12mPct ?? -1) - (a.turnover12mPct ?? -1) ||
+    b.saidas - a.saidas ||
+    a.nome.localeCompare(b.nome, "pt-BR")
+  );
 }
 
 /**
