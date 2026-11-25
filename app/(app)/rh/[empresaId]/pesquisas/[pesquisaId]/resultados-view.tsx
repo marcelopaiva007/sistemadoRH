@@ -10,6 +10,7 @@ import {
   Tooltip,
 } from "recharts";
 import { participacaoPct } from "@/lib/pesquisa-numeros";
+import { AMOSTRA_MINIMA_ANONIMATO } from "@/lib/constants-rh";
 import type { ResultadoEnps } from "@/lib/pesquisa-enps-resultado";
 import type { ApuracaoPergunta } from "@/lib/pesquisa-apuracao";
 
@@ -28,6 +29,7 @@ export function ResultadosView({
   porPergunta,
   mediaPorDimensao,
   mediaPorSetor,
+  setoresSemAmostra = [],
   resultadoEnps,
 }: {
   totalRespostas: number;
@@ -37,6 +39,8 @@ export function ResultadosView({
   porPergunta: ApuracaoPergunta[];
   mediaPorDimensao: { dimensao: string; media: number; respostas: number }[];
   mediaPorSetor: { setor: string; media: number; respostas: number }[];
+  /** Setores abaixo do piso de anonimato: só nome e nº de pessoas, sem média (26/11/2026). */
+  setoresSemAmostra?: { setor: string; respostas: number }[];
   /** Quando a pesquisa é P05-ENPS: score/zona já calculados (lib/pesquisa-enps-resultado.ts). Os gráficos genéricos de dimensão/setor não fazem sentido pra 1 pergunta de nota — este card substitui os dois. */
   resultadoEnps?: ResultadoEnps | null;
 }) {
@@ -154,6 +158,12 @@ export function ResultadosView({
                 </BarChart>
               </ResponsiveContainer>
             </div>
+            {setoresSemAmostra.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Sem média por amostra insuficiente (mínimo {AMOSTRA_MINIMA_ANONIMATO} pessoas, para preservar o anonimato):{" "}
+                {setoresSemAmostra.map((s) => s.setor).join(", ")}.
+              </p>
+            )}
           </>
         )}
       </CardContent>

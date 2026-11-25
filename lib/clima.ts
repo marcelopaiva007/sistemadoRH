@@ -52,21 +52,25 @@ export type ResultadoNPS = {
   score: number;
 };
 
+// `respostas` aqui é número de PESSOAS (Resposta distintas), não de itens
+// respondidos (26/11/2026). Abaixo do piso de anonimato a média vem `null` —
+// o número não sai do servidor, não é só a tela que esconde — e o setor fica
+// fora do ranking (`ranking: null`).
 export type ResultadoSetor = {
   setor: string;
-  media: number;
-  media100: number;
+  media: number | null;
+  media100: number | null;
   respostas: number;
   amostraInsuficiente: boolean;
-  ranking: number;
+  ranking: number | null;
 };
 
 export type HeatmapCelula = {
   dimensao: DimensaoGPTW;
   dimensaoLabel: string;
   setor: string;
-  media100: number;
-  nivel: "critico" | "atencao" | "bom" | "excelente";
+  media100: number | null;
+  nivel: "critico" | "atencao" | "bom" | "excelente" | null;
   respostas: number;
   amostraInsuficiente: boolean;
 };
@@ -92,7 +96,9 @@ export type FaixaEtariaBucket = {
 };
 
 export type AnaliseDemografica = {
-  porSexo: { sexo: string; count: number; media: number }[];
+  // `media` em 0-100 (mesma régua do resto do painel); `null` quando o grupo
+  // tem menos pessoas que o piso de anonimato (26/11/2026).
+  porSexo: { sexo: string; count: number; media: number | null }[];
   porFaixaEtaria: FaixaEtariaBucket[];
 };
 
@@ -178,6 +184,22 @@ export function gerarAnaliseExecutiva(
   comparativo: ResultadoComparativo | null,
   participacao: number,
 ): AnaliseExecutiva {
+  // Abaixo do piso não há número para interpretar (26/11/2026) — sem isto o
+  // veredito diria "CRÍTICO (0/100)" sobre uma pesquisa sem resultado.
+  if (resultado.mostraAmostraInsuficiente) {
+    return {
+      vereditoGeral: `Amostra insuficiente: a pesquisa tem ${resultado.totalRespostas} resposta(s), abaixo do mínimo de ${AMOSTRA_MINIMA_ANONIMATO} pessoas que protege o anonimato. Os resultados ficam ocultos até atingir o mínimo.`,
+      tendencia: "sem_historico",
+      resumoTendencia: "",
+      pontosFortes: [],
+      pontosCriticos: [],
+      setoresEmRisco: [],
+      setoresEmAlta: [],
+      participacaoNota: "",
+      conclusao: "",
+      alertasTexto: [],
+    };
+  }
   const cls = classificarScore(resultado.scoreGeral);
   const tendencia: AnaliseExecutiva["tendencia"] = comparativo
     ? comparativo.atual.scoreGeral > comparativo.anterior!.scoreGeral + 2
@@ -210,12 +232,12 @@ export function gerarAnaliseExecutiva(
 
   // Setores em risco: piores setores
   const setoresEmRisco = resultado.porSetor
-    .filter((s) => !s.amostraInsuficiente && s.media100 < 60)
+    .filter((s) => !s.amostraInsuficiente && s.media100 !== null && s.media100 < 60)
     .slice(0, 3)
     .map((s) => `${s.setor} (${s.media100}/100) — recomenda-se reunião entre RH e liderança local para entender os motivos`);
 
   const setoresEmAlta = resultado.porSetor
-    .filter((s) => !s.amostraInsuficiente && s.media100 >= 75)
+    .filter((s) => !s.amostraInsuficiente && s.media100 !== null && s.media100 >= 75)
     .slice(0, 3)
     .map((s) => `${s.setor} (${s.media100}/100) — referência para outras áreas; investigue práticas para replicar`);
 
@@ -397,19 +419,61 @@ export function gerarRecomendacoes(dimensoes: ResultadoDimensao[]): Recomendacao
 
 // ---------------------------------------------------------------- Agregações
 
-export function agregarPorDimensao(itens: Array<{
-  pergunta: { dimensaoGPTW: string | null; dimensao: string | null };
+// Só a escala Likert 1-5 entra nas médias de dimensão, setor, heatmap e sexo
+// (26/11/2026). Antes TODO item com valor numérico entrava — inclusive a nota
+// NPS (0-10) e a frequência 0-4 —, e um 9 de NPS virava "acima do máximo" na
+// conta de 1 a 5, puxando a média e o 0-100 (likertTo100) para cima.
+export const TIPOS_LIKERT: ReadonlySet<string> = new Set(["LIKERT_5"]);
+
+export function ehItemLikert(item: {
+  pergunta: { tipo: string };
   valorNumerico: number | null;
-}>): Map<string, { soma: number; qtd: number }> {
-  const mapa = new Map<string, { soma: number; qtd: number }>();
-  for (const item of itens) {
-    if (item.valorNumerico == null) continue;
-    const dimensao = (item.pergunta.dimensaoGPTW || item.pergunta.dimensao || "GERAL") as DimensaoGPTW;
-    const atual = mapa.get(dimensao) ?? { soma: 0, qtd: 0 };
-    atual.soma += item.valorNumerico;
-    atual.qtd += 1;
-    mapa.set(dimensao, atual);
-  }
+}): item is { pergunta: { tipo: string }; valorNumerico: number } {
+  return (
+    item.valorNumerico != null &&
+    TIPOS_LIKERT.has(item.pergunta.tipo) &&
+    item.valorNumerico >= 1 &&
+    item.valorNumerico <= 5
+  );
+}
+
+// Acumulador de um recorte: soma/qtd dos ITENS (para a média) e o conjunto de
+// PESSOAS (índice da Resposta) que contribuíram — é ele que vale para o piso
+// de anonimato. Até 25/11/2026 o piso comparava `qtd`, que conta itens: um
+// setor com 1 pessoa que respondeu 35 perguntas aparecia como "35 respostas",
+// com média e posição no ranking (auditoria de 25/11/2026).
+type Acumulador = { soma: number; qtd: number; pessoas: Set<number> };
+
+function acumular(mapa: Map<string, Acumulador>, chave: string, valor: number, pessoa: number) {
+  const atual = mapa.get(chave) ?? { soma: 0, qtd: 0, pessoas: new Set<number>() };
+  atual.soma += valor;
+  atual.qtd += 1;
+  atual.pessoas.add(pessoa);
+  mapa.set(chave, atual);
+}
+
+/** true quando o grupo tem menos PESSOAS que o piso de anonimato. */
+export function abaixoDoPiso(pessoas: number): boolean {
+  return pessoas < AMOSTRA_MINIMA_ANONIMATO;
+}
+
+function dimensaoDoItem(pergunta: { dimensaoGPTW: string | null; dimensao: string | null }): DimensaoGPTW {
+  return (pergunta.dimensaoGPTW || pergunta.dimensao || "GERAL") as DimensaoGPTW;
+}
+
+export function agregarPorDimensao(respostas: Array<{
+  itens: Array<{
+    pergunta: { dimensaoGPTW: string | null; dimensao: string | null; tipo: string };
+    valorNumerico: number | null;
+  }>;
+}>): Map<string, Acumulador> {
+  const mapa = new Map<string, Acumulador>();
+  respostas.forEach((resposta, pessoa) => {
+    for (const item of resposta.itens) {
+      if (!ehItemLikert(item)) continue;
+      acumular(mapa, dimensaoDoItem(item.pergunta), item.valorNumerico, pessoa);
+    }
+  });
   return mapa;
 }
 
@@ -432,7 +496,16 @@ export type RespostaPrisma = {
   faixaEtariaSnapshot: string | null;
 };
 
-type PerguntaPrisma = { id: string };
+const ORDEM_NIVEL = { critico: 0, atencao: 1, bom: 2, excelente: 3 } as const;
+
+const ANALISE_VAZIA: AnaliseExecutiva = {
+  vereditoGeral: "", tendencia: "sem_historico", resumoTendencia: "", pontosFortes: [], pontosCriticos: [],
+  setoresEmRisco: [], setoresEmAlta: [], participacaoNota: "", conclusao: "", alertasTexto: [],
+};
+
+// Rótulo que substitui o nome do setor num comentário aberto quando o setor
+// tem menos pessoas que o piso: o texto aparece, a origem não.
+export const SETOR_OCULTO_COMENTARIO = "Setor não identificado (amostra pequena)";
 
 export function calcularClima(dados: {
   respostas: RespostaPrisma[];
@@ -447,18 +520,40 @@ export function calcularClima(dados: {
     DIMENSOES_GPTW.map((d) => [d.value, d.label]),
   );
 
-  // NPS
-  const npsIds = perguntas.filter((p) => p.tipo === "NPS_10").map((p) => p.id);
+  // Pesquisa inteira abaixo do piso (26/11/2026): com 1 ou 2 respostas,
+  // qualquer média é a nota de uma pessoa identificável. Nada de número,
+  // comentário ou recorte sai daqui — só a contagem e o aviso.
+  if (abaixoDoPiso(respostas.length)) {
+    return {
+      resultado: {
+        totalRespostas: respostas.length,
+        mediaPorDimensao: [],
+        scoreGeral: 0,
+        nps: null,
+        porSetor: [],
+        heatmap: [],
+        perguntasCriticas: [],
+        comentarios: [],
+        demografia: null,
+        recomendacoes: [],
+        analiseExecutiva: ANALISE_VAZIA,
+        mostraAmostraInsuficiente: true,
+      },
+      evolucao: [],
+    };
+  }
+
+  // NPS — fica fora das médias Likert e tem o seu próprio indicador.
+  const npsIds = new Set(perguntas.filter((p) => p.tipo === "NPS_10").map((p) => p.id));
   const itensNPS = respostas.flatMap((r) =>
     r.itens
-      .filter((i) => npsIds.includes(i.pergunta.id))
+      .filter((i) => npsIds.has(i.pergunta.id) || i.pergunta.tipo === "NPS_10")
       .map((i) => ({ valorNumerico: i.valorNumerico })),
   );
   const nps = calcularNPS(itensNPS);
 
-  // Por dimensão
-  const todosItens = respostas.flatMap((r) => r.itens);
-  const porDimensao = agregarPorDimensao(todosItens);
+  // Por dimensão (empresa inteira, só Likert). `respostas` = pessoas.
+  const porDimensao = agregarPorDimensao(respostas);
 
   const mediaPorDimensao: ResultadoDimensao[] = [];
   for (const [dim, d] of porDimensao.entries()) {
@@ -471,7 +566,7 @@ export function calcularClima(dados: {
       label,
       media,
       media100,
-      respostas: d.qtd,
+      respostas: d.pessoas.size,
       nivel: cls.nivel,
     });
   }
@@ -480,79 +575,79 @@ export function calcularClima(dados: {
   // Por setor. O snapshot guarda o vocabulário da época da resposta — no Clima
   // 2026 "Comercial" e "Vendas" convivem na MESMA pesquisa. Agrupar pelo nome
   // canônico junta o que é o mesmo setor (ver lib/de-para-rotulos.ts).
-  const porSetorMap = new Map<string, { soma: number; qtd: number }>();
-  for (const resposta of respostas) {
-    const setorCanonico = canonizarSetor(resposta.setorNomeSnapshot).nome;
-    for (const item of resposta.itens) {
-      if (item.valorNumerico == null) continue;
-      const atual = porSetorMap.get(setorCanonico) ?? { soma: 0, qtd: 0 };
-      atual.soma += item.valorNumerico;
-      atual.qtd += 1;
-      porSetorMap.set(setorCanonico, atual);
-    }
-  }
-  const resultadoSetor: ResultadoSetor[] = [];
-  for (const [setor, d] of porSetorMap.entries()) {
-    const media = d.soma / d.qtd;
-    resultadoSetor.push({
-      setor,
-      media,
-      media100: likertTo100(media),
-      respostas: d.qtd,
-      amostraInsuficiente: d.qtd < AMOSTRA_MINIMA_ANONIMATO,
-      ranking: 0,
-    });
-  }
-  resultadoSetor.sort((a, b) => a.media100 - b.media100);
-  resultadoSetor.forEach((s, i) => { s.ranking = i + 1; });
+  const setorDe = respostas.map((r) => canonizarSetor(r.setorNomeSnapshot).nome);
+  // Quantas pessoas responderam por setor (qualquer item) — vale para decidir
+  // se o nome do setor pode acompanhar um comentário aberto.
+  const pessoasPorSetor = new Map<string, number>();
+  for (const setor of setorDe) pessoasPorSetor.set(setor, (pessoasPorSetor.get(setor) ?? 0) + 1);
 
-  // Heatmap: setor × dimensão
-  const heatmap: HeatmapCelula[] = [];
-  const setorDimensaoMap = new Map<string, Map<string, { soma: number; qtd: number }>>();
-  for (const resposta of respostas) {
+  const porSetorMap = new Map<string, Acumulador>();
+  const setorDimensaoMap = new Map<string, Map<string, Acumulador>>();
+  respostas.forEach((resposta, pessoa) => {
+    const setor = setorDe[pessoa];
     for (const item of resposta.itens) {
-      if (item.valorNumerico == null) continue;
-      const dim = (item.pergunta.dimensaoGPTW || item.pergunta.dimensao || "GERAL") as DimensaoGPTW;
+      if (!ehItemLikert(item)) continue;
+      acumular(porSetorMap, setor, item.valorNumerico, pessoa);
       // Mesma tradução do ranking por setor — sem ela o heatmap mostraria
       // "Comercial" e "Vendas" como duas linhas do mesmo setor.
-      const setor = canonizarSetor(resposta.setorNomeSnapshot).nome;
       if (!setorDimensaoMap.has(setor)) setorDimensaoMap.set(setor, new Map());
-      const mapa = setorDimensaoMap.get(setor)!;
-      const atual = mapa.get(dim) ?? { soma: 0, qtd: 0 };
-      atual.soma += item.valorNumerico;
-      atual.qtd += 1;
-      mapa.set(dim, atual);
+      acumular(setorDimensaoMap.get(setor)!, dimensaoDoItem(item.pergunta), item.valorNumerico, pessoa);
+    }
+  });
+
+  const comNumero: ResultadoSetor[] = [];
+  const semNumero: ResultadoSetor[] = [];
+  for (const [setor, d] of porSetorMap.entries()) {
+    const pessoas = d.pessoas.size;
+    if (abaixoDoPiso(pessoas)) {
+      semNumero.push({ setor, media: null, media100: null, respostas: pessoas, amostraInsuficiente: true, ranking: null });
+    } else {
+      const media = d.soma / d.qtd;
+      comNumero.push({ setor, media, media100: likertTo100(media), respostas: pessoas, amostraInsuficiente: false, ranking: 0 });
     }
   }
+  comNumero.sort((a, b) => (a.media100 ?? 0) - (b.media100 ?? 0));
+  comNumero.forEach((s, i) => { s.ranking = i + 1; });
+  semNumero.sort((a, b) => a.setor.localeCompare(b.setor, "pt-BR"));
+  // Setores sem amostra vão para o fim, sem posição no ranking.
+  const resultadoSetor: ResultadoSetor[] = [...comNumero, ...semNumero];
+
+  // Heatmap: setor × dimensão — piso conferido em cada célula, por pessoas.
+  const heatmap: HeatmapCelula[] = [];
   for (const [setor, dimMap] of setorDimensaoMap.entries()) {
     for (const [dim, d] of dimMap.entries()) {
-      const media100 = likertTo100(d.soma / d.qtd);
-      const cls = classificarScore(media100);
+      const pessoas = d.pessoas.size;
+      const insuficiente = abaixoDoPiso(pessoas);
+      const media100 = insuficiente ? null : likertTo100(d.soma / d.qtd);
       heatmap.push({
         dimensao: dim as DimensaoGPTW,
         dimensaoLabel: dimensaoMap.get(dim) ?? dim,
         setor,
         media100,
-        nivel: cls.nivel,
-        respostas: d.qtd,
-        amostraInsuficiente: d.qtd < AMOSTRA_MINIMA_ANONIMATO,
+        nivel: media100 === null ? null : classificarScore(media100).nivel,
+        respostas: pessoas,
+        amostraInsuficiente: insuficiente,
       });
     }
   }
   heatmap.sort((a, b) => {
-    const ordem = { critico: 0, atencao: 1, bom: 2, excelente: 3 };
-    return (ordem[a.nivel] - ordem[b.nivel]);
+    const oa = a.nivel === null ? 4 : ORDEM_NIVEL[a.nivel];
+    const ob = b.nivel === null ? 4 : ORDEM_NIVEL[b.nivel];
+    return oa - ob;
   });
 
-  // Perguntas críticas (as piores 5 por média)
-  const porPergunta = new Map<string, { soma: number; qtd: number; pergunta: typeof perguntas[0] }>();
-  for (const item of todosItens) {
-    if (item.valorNumerico == null) continue;
-    if (item.pergunta.tipo === "TEXT" || item.pergunta.tipo === "NPS_10") continue;
-    const atual = porPergunta.get(item.pergunta.id) ?? { soma: 0, qtd: 0, pergunta: item.pergunta };
-    atual.soma += item.valorNumerico;
-    atual.qtd += 1;
-    porPergunta.set(item.pergunta.id, atual);
+  // Perguntas críticas (as piores 5 por média) — só Likert. Uma pessoa
+  // responde cada pergunta uma vez (o envio público recusa repetida), então
+  // `qtd` aqui é pessoas; o mínimo de 5 já é mais rígido que o piso.
+  const porPergunta = new Map<string, { soma: number; qtd: number; pergunta: RespostaPrisma["itens"][number]["pergunta"] }>();
+  for (const resposta of respostas) {
+    for (const item of resposta.itens) {
+      if (!ehItemLikert(item)) continue;
+      const atual = porPergunta.get(item.pergunta.id) ?? { soma: 0, qtd: 0, pergunta: item.pergunta };
+      atual.soma += item.valorNumerico;
+      atual.qtd += 1;
+      porPergunta.set(item.pergunta.id, atual);
+    }
   }
   const perguntasCriticas: PerguntaCritica[] = [];
   for (const [, d] of porPergunta.entries()) {
@@ -561,8 +656,8 @@ export function calcularClima(dados: {
     perguntasCriticas.push({
       id: d.pergunta.id,
       enunciado: d.pergunta.enunciado,
-      dimensao: (d.pergunta.dimensaoGPTW || d.pergunta.dimensao || "GERAL") as DimensaoGPTW,
-      dimensaoLabel: dimensaoMap.get(d.pergunta.dimensaoGPTW || d.pergunta.dimensao || "GERAL") ?? "Geral",
+      dimensao: dimensaoDoItem(d.pergunta),
+      dimensaoLabel: dimensaoMap.get(dimensaoDoItem(d.pergunta)) ?? "Geral",
       media,
       media100: likertTo100(media),
       respostas: d.qtd,
@@ -571,29 +666,35 @@ export function calcularClima(dados: {
   perguntasCriticas.sort((a, b) => a.media100 - b.media100);
   perguntasCriticas.splice(5);
 
-  // Comentários (TEXT)
+  // Comentários (TEXT). O nome do setor só acompanha o texto quando o setor
+  // tem pessoas suficientes — comentário "de Financeiro" com 1 pessoa no
+  // Financeiro é comentário assinado.
   const comentarios: Comentario[] = respostas
-    .flatMap((r) =>
-      r.itens
+    .flatMap((r, pessoa) => {
+      const setor = setorDe[pessoa];
+      const setorVisivel = abaixoDoPiso(pessoasPorSetor.get(setor) ?? 0) ? SETOR_OCULTO_COMENTARIO : setor;
+      return r.itens
         .filter((i) => i.pergunta.tipo === "TEXT" && i.valorTexto && i.valorTexto.trim().length > 5)
         // Rótulo traduzido para bater com os nomes do ranking/heatmap na tela.
-        .map((i) => ({ texto: i.valorTexto!, setor: canonizarSetor(r.setorNomeSnapshot).nome })),
-    )
+        .map((i) => ({ texto: i.valorTexto!, setor: setorVisivel }));
+    })
     .slice(0, 20);
 
-  // Demografia
+  // Demografia. A média por sexo é a média das médias Likert de cada pessoa
+  // (0-100) e só sai com o grupo no piso; a contagem por faixa etária é só
+  // contagem, sem nota.
   let demografia: AnaliseDemografica | null = null;
-  const porSexoMap = new Map<string, { soma: number; qtd: number }>();
+  const porSexoMap = new Map<string, { soma: number; comNota: number; pessoas: number }>();
   const porFaixaMap = new Map<string, number>();
   for (const resposta of respostas) {
-    const media = resposta.itens
-      .filter((i) => i.valorNumerico != null)
-      .reduce((s, i) => s + (i.valorNumerico ?? 0), 0) /
-      Math.max(resposta.itens.filter((i) => i.valorNumerico != null).length, 1);
+    const likert = resposta.itens.filter(ehItemLikert).map((i) => i.valorNumerico as number);
     if (resposta.sexoSnapshot) {
-      const atual = porSexoMap.get(resposta.sexoSnapshot) ?? { soma: 0, qtd: 0 };
-      atual.soma += media;
-      atual.qtd += 1;
+      const atual = porSexoMap.get(resposta.sexoSnapshot) ?? { soma: 0, comNota: 0, pessoas: 0 };
+      atual.pessoas += 1;
+      if (likert.length > 0) {
+        atual.soma += likert.reduce((s, v) => s + v, 0) / likert.length;
+        atual.comNota += 1;
+      }
       porSexoMap.set(resposta.sexoSnapshot, atual);
     }
     if (resposta.faixaEtariaSnapshot) {
@@ -604,8 +705,8 @@ export function calcularClima(dados: {
     demografia = {
       porSexo: [...porSexoMap.entries()].map(([sexo, d]) => ({
         sexo,
-        count: d.qtd,
-        media: Math.round((d.soma / d.qtd) * 100),
+        count: d.pessoas,
+        media: abaixoDoPiso(d.comNota) ? null : likertTo100(d.soma / d.comNota),
       })),
       porFaixaEtaria: [...porFaixaMap.entries()].map(([faixa, count]) => ({ faixa, count })),
     };
@@ -615,25 +716,6 @@ export function calcularClima(dados: {
   const recomendacoes = gerarRecomendacoes(mediaPorDimensao);
 
   const scoreGeral = calcularScoreGeral(mediaPorDimensao);
-
-  const analiseExecutiva = gerarAnaliseExecutiva(
-    {
-      totalRespostas: respostas.length,
-      mediaPorDimensao,
-      scoreGeral,
-      nps,
-      porSetor: resultadoSetor,
-      heatmap,
-      perguntasCriticas,
-      comentarios,
-      demografia,
-      recomendacoes,
-      analiseExecutiva: { vereditoGeral: "", tendencia: "sem_historico", resumoTendencia: "", pontosFortes: [], pontosCriticos: [], setoresEmRisco: [], setoresEmAlta: [], participacaoNota: "", conclusao: "", alertasTexto: [] },
-      mostraAmostraInsuficiente: respostas.length < AMOSTRA_MINIMA_ANONIMATO,
-    },
-    null,
-    0,
-  );
 
   const resultado: ResultadoClima = {
     totalRespostas: respostas.length,
@@ -646,9 +728,10 @@ export function calcularClima(dados: {
     comentarios,
     demografia,
     recomendacoes,
-    analiseExecutiva,
-    mostraAmostraInsuficiente: respostas.length < AMOSTRA_MINIMA_ANONIMATO,
+    analiseExecutiva: ANALISE_VAZIA,
+    mostraAmostraInsuficiente: false,
   };
+  resultado.analiseExecutiva = gerarAnaliseExecutiva(resultado, null, 0);
 
   return { resultado, evolucao: [] };
 }
@@ -656,7 +739,8 @@ export function calcularClima(dados: {
 // ---------------------------------------------------------------- Comparativo
 
 export function compararCiclos(atual: ResultadoClima, anterior: ResultadoClima | null): ResultadoComparativo | null {
-  if (!anterior) return null;
+  // Ciclo anterior abaixo do piso não tem número para comparar (26/11/2026).
+  if (!anterior || anterior.mostraAmostraInsuficiente) return null;
   const variacao = atual.mediaPorDimensao.map((d) => {
     const ant = anterior.mediaPorDimensao.find((a) => a.dimensao === d.dimensao);
     return {
@@ -678,9 +762,10 @@ export function extrairEvolucao(
     respostas: RespostaPrisma[];
   }>,
 ): EvolucaoCiclo[] {
-  return ciclos.map((c) => {
-    const todosItens = c.respostas.flatMap((r) => r.itens);
-    const porDim = agregarPorDimensao(todosItens);
+  // Ciclo com menos pessoas que o piso não entra na linha do tempo: o score
+  // dele seria a nota de alguém identificável (26/11/2026).
+  return ciclos.filter((c) => !abaixoDoPiso(c.respostas.length)).map((c) => {
+    const porDim = agregarPorDimensao(c.respostas);
     const dimensoes = [...porDim.entries()].map(([dim, d]) => ({
       dimensao: dim as DimensaoGPTW,
       media100: likertTo100(d.soma / d.qtd),

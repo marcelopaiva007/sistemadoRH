@@ -16,7 +16,10 @@ type Resultado = {
   id: string;
   titulo: string;
   totalRespostas: number;
-  mediaPorDimensao: { dimensao: string; media: number }[];
+  // Decidido no servidor (26/11/2026): abaixo do piso de anonimato as médias
+  // nem chegam aqui — `mediaPorDimensao` vem null.
+  amostraInsuficiente: boolean;
+  mediaPorDimensao: { dimensao: string; media: number }[] | null;
 };
 
 export function MeuSetorView({ resultados }: { resultados: Resultado[] }) {
@@ -32,10 +35,14 @@ export function MeuSetorView({ resultados }: { resultados: Resultado[] }) {
             <CardTitle className="text-base">{r.titulo}</CardTitle>
           </CardHeader>
           <CardContent>
-            {r.totalRespostas < AMOSTRA_MINIMA_ANONIMATO ? (
+            {r.amostraInsuficiente || !r.mediaPorDimensao ? (
               <p className="text-sm text-muted-foreground">
                 Amostra insuficiente para exibir resultados ({r.totalRespostas} de {AMOSTRA_MINIMA_ANONIMATO} respostas
                 mínimas necessárias para preservar o anonimato).
+              </p>
+            ) : r.mediaPorDimensao.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Nenhuma pergunta de escala 1 a 5 com respostas suficientes para exibir média.
               </p>
             ) : (
               <div className="h-64">
