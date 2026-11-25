@@ -30,6 +30,13 @@ export default async function ColaboradorPage({
 
   const colaborador = await prisma.colaborador.findFirst({
     where: { id: colaboradorId, empresaId },
+    // `pontoPinHash` NUNCA sai do servidor (26/11/2026). Este objeto vai
+    // inteiro para <ColaboradorDetalhe> ("use client") e, pelo `include` sem
+    // `select`, levava junto o bcrypt do PIN do ponto — 6 dígitos, 1 milhão
+    // de combinações, quebrável offline em minutos por quem abrisse o payload
+    // da página. A ficha não usa o PIN (quem define/reseta é a aba
+    // Colaboradores do Ponto). É o único hash/segredo do model Colaborador.
+    omit: { pontoPinHash: true },
     include: {
       setor: true,
       posicao: true,

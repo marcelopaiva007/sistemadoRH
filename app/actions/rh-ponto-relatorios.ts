@@ -3,24 +3,26 @@
 import { prisma } from "@/lib/prisma";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { marcacoesDaJornada } from "@/lib/ponto-jornada";
-import { eachDayOfInterval, startOfMonth, endOfMonth, startOfDay, endOfDay } from "date-fns";
+import {
+  agruparPorDiaBrasilia,
+  ehAtrasoNoPainel,
+  ehSaidaAntecipadaNoPainel,
+  janelaDoMesBrasilia,
+  lerCompetencia,
+  minutosTrabalhadosNoDia,
+  primeiroDiaDoMesCalendario,
+} from "@/lib/ponto-relatorios";
 
-const TIMEZONE = "America/Sao_Paulo";
+// Toda conta de fuso, mês e dia vem de lib/ponto-relatorios.ts (26/11/2026).
+// Até ali esta action somava e subtraía 3h à mão, com o sinal trocado nas duas
+// direções — ver o cabeçalho daquele arquivo.
 
-/** Retorna o primeiro e último dia do mês com um ajuste simples para o fuso (UTC-3) */
-function periodoDoMesEmUTC(mes: Date) {
-  const inicio = startOfMonth(mes);
-  const fim = endOfMonth(mes);
-
-  // Simples: data local - 3 horas (UTC-3 é fuso do Brasil)
-  const inicioLocal = startOfDay(inicio);
-  const fimLocal = endOfDay(fim);
-
-  const OFFSET_BRASILIA_MS = 3 * 60 * 60 * 1000; // 3 horas em ms
-  const inicioUTC = new Date(inicioLocal.getTime() - OFFSET_BRASILIA_MS);
-  const fimUTC = new Date(fimLocal.getTime() - OFFSET_BRASILIA_MS);
-
-  return { inicio: inicioUTC, fim: fimUTC };
+/** Quem entra no relatório do mês: ativo, ou desligado a partir do dia 1º do mês. */
+function filtroColaboradoresDoMes(empresaId: string, competencia: string) {
+  return {
+    empresaId,
+    OR: [{ ativo: true }, { dataDesligamento: { gte: primeiroDiaDoMesCalendario(competencia) } }],
+  };
 }
 
 export interface DadosIndicadoresRH {
@@ -33,154 +35,59 @@ export interface DadosIndicadoresRH {
   horasExtrasTotais: number;
 }
 
-/** Dashboard de indicadores gerais da empresa no mês */
+/** Dashboard de indicadores gerais da empresa no mês ("AAAA-MM", calendário de Brasília). */
 export async function obterIndicadoresRH(
   empresaId: string,
-  mes: Date = new Date(),
+  competencia: string,
 ): Promise<DadosIndicadoresRH | { erro: string }> {
   await requireEmpresaAccess(empresaId);
+  if (!lerCompetencia(competencia)) return { erro: "Mês inválido." };
 
   try {
-    const { inicio, fim } = periodoDoMesEmUTC(mes);
+    const { inicio, fim } = janelaDoMesBrasilia(competencia);
 
-    // Total de colaboradores ativos
-    const totalColaboradores = await prisma.colaborador.count({
-      where: { empresaId, ativo: true },
+    const colaboradores = await prisma.colaborador.findMany({
+      where: filtroColaboradoresDoMes(empresaId, competencia),
+      select: { id: true },
     });
+    const doMes = new Set(colaboradores.map((c) => c.id));
 
-    // Colaboradores com marcação no mês
-    const colaboradoresComMarcacao = await prisma.registroPonto.findMany({
-      where: {
-        empresaId,
-        dataHora: { gte: inicio, lte: fim },
-      },
-      distinct: ["colaboradorId"],
-      select: { colaboradorId: true },
-    });
+    // Batidas + marcações tratadas (inclusão manual aprovada), janela [inicio, fim).
+    const marcacoes = (await marcacoesDaJornada(prisma, { empresaId, de: inicio, ate: fim })).filter((m) =>
+      doMes.has(m.colaboradorId),
+    );
 
-    const colaboradoresComMarcacaoSet = new Set(colaboradoresComMarcacao.map((c) => c.colaboradorId));
-    const presentes = colaboradoresComMarcacaoSet.size;
-    const ausentes = totalColaboradores - presentes;
+    const presentesSet = new Set(marcacoes.map((m) => m.colaboradorId));
+    const totalColaboradores = doMes.size;
+    const presentes = presentesSet.size;
+    const ausentes = Math.max(0, totalColaboradores - presentes);
 
-    // Marcações do mês (incluindo tratadas)
-    const marcacoes = await marcacoesDaJornada(prisma, {
-      empresaId,
-      de: inicio,
-      ate: fim,
-    });
-
-    // Contar atrasos (entrada após horário esperado)
     let atrasos = 0;
     let saidasAntecipadas = 0;
+    for (const m of marcacoes) {
+      if (m.tipo === "ENTRADA_1" && ehAtrasoNoPainel(m.dataHora)) atrasos++;
+      if (m.tipo === "SAIDA_2" && ehSaidaAntecipadaNoPainel(m.dataHora)) saidasAntecipadas++;
+    }
+
+    // Horas por colaborador-dia, com o DIA de Brasília (saída às 22:30 fica no
+    // mesmo dia da entrada).
     let totalMinutosTrabalhados = 0;
-    let diasComTrabalhosContados = 0;
-
-    const marcacoesPorColaboradorDia = new Map<string, string[]>();
-    for (const m of marcacoes) {
-      const dataBrasilia = new Date(m.dataHora.getTime() + 3 * 60 * 60 * 1000);
-      const chave = `${m.colaboradorId}-${dataBrasilia.toDateString()}`;
-      const tipos = marcacoesPorColaboradorDia.get(chave) ?? [];
-      tipos.push(m.tipo);
-      marcacoesPorColaboradorDia.set(chave, tipos);
-    }
-
-    // Simples heurística: se tem ENTRADA_1 muito depois do esperado (~08:00) = atraso
-    // Se tem SAIDA_2 muito antes do esperado (~18:00) = saída antecipada
-    for (const m of marcacoes) {
-      const dataBrasilia = new Date(m.dataHora.getTime() + 3 * 60 * 60 * 1000);
-      if (m.tipo === "ENTRADA_1") {
-        const hora = dataBrasilia.getHours();
-        const minutos = dataBrasilia.getMinutes();
-        if (hora > 8 || (hora === 8 && minutos > 10)) {
-          atrasos++;
-        }
-      }
-
-      if (m.tipo === "SAIDA_2") {
-        const hora = dataBrasilia.getHours();
-        const minutos = dataBrasilia.getMinutes();
-        if (hora < 18 || (hora === 18 && minutos < -10)) {
-          saidasAntecipadas++;
-        }
+    let diasContados = 0;
+    let minutosExtras = 0;
+    for (const colaboradorId of presentesSet) {
+      const doColaborador = marcacoes.filter((m) => m.colaboradorId === colaboradorId);
+      for (const marcacoesDoDia of agruparPorDiaBrasilia(doColaborador).values()) {
+        const minutos = minutosTrabalhadosNoDia(marcacoesDoDia);
+        if (minutos <= 0) continue;
+        totalMinutosTrabalhados += minutos;
+        diasContados++;
+        // Simplificado: o que passa de 8h no dia. Não é apuração de hora extra
+        // (não conhece a jornada contratual de cada um) — a tela diz isso.
+        if (minutos > 480) minutosExtras += minutos - 480;
       }
     }
 
-    // Calcular horas trabalhadas
-    const diasDoMes = eachDayOfInterval({
-      start: new Date(inicio),
-      end: new Date(fim),
-    });
-
-    for (const dia of diasDoMes) {
-      for (const colaborador of colaboradoresComMarcacao) {
-        const marcacoesDoDiaColaborador = marcacoes.filter(
-          (m) =>
-            m.colaboradorId === colaborador.colaboradorId &&
-            new Date(m.dataHora.getTime() + 3 * 60 * 60 * 1000).toDateString() === dia.toDateString(),
-        );
-
-        if (marcacoesDoDiaColaborador.length >= 2) {
-          let minutosDoDia = 0;
-
-          // Calcular minutos entre ENTRADA_1 e SAIDA_1 (período 1)
-          const entrada1 = marcacoesDoDiaColaborador.find((m) => m.tipo === "ENTRADA_1");
-          const saida1 = marcacoesDoDiaColaborador.find((m) => m.tipo === "SAIDA_1");
-
-          if (entrada1 && saida1) {
-            minutosDoDia += (saida1.dataHora.getTime() - entrada1.dataHora.getTime()) / (1000 * 60);
-          }
-
-          // Calcular minutos entre ENTRADA_2 e SAIDA_2 (período 2)
-          const entrada2 = marcacoesDoDiaColaborador.find((m) => m.tipo === "ENTRADA_2");
-          const saida2 = marcacoesDoDiaColaborador.find((m) => m.tipo === "SAIDA_2");
-
-          if (entrada2 && saida2) {
-            minutosDoDia += (saida2.dataHora.getTime() - entrada2.dataHora.getTime()) / (1000 * 60);
-          }
-
-          if (minutosDoDia > 0) {
-            totalMinutosTrabalhados += minutosDoDia;
-            diasComTrabalhosContados++;
-          }
-        }
-      }
-    }
-
-    const horaMediaTrabalhada = diasComTrabalhosContados > 0 ? totalMinutosTrabalhados / diasComTrabalhosContados / 60 : 0;
-
-    // Horas extras (simplificado: minutos > 480 por dia, acumulado)
-    let horasExtrasTotais = 0;
-    for (const dia of diasDoMes) {
-      for (const colaborador of colaboradoresComMarcacao) {
-        const marcacoesDoDiaColaborador = marcacoes.filter(
-          (m) =>
-            m.colaboradorId === colaborador.colaboradorId &&
-            new Date(m.dataHora.getTime() + 3 * 60 * 60 * 1000).toDateString() === dia.toDateString(),
-        );
-
-        if (marcacoesDoDiaColaborador.length >= 2) {
-          let minutosDoDia = 0;
-
-          const entrada1 = marcacoesDoDiaColaborador.find((m) => m.tipo === "ENTRADA_1");
-          const saida1 = marcacoesDoDiaColaborador.find((m) => m.tipo === "SAIDA_1");
-
-          if (entrada1 && saida1) {
-            minutosDoDia += (saida1.dataHora.getTime() - entrada1.dataHora.getTime()) / (1000 * 60);
-          }
-
-          const entrada2 = marcacoesDoDiaColaborador.find((m) => m.tipo === "ENTRADA_2");
-          const saida2 = marcacoesDoDiaColaborador.find((m) => m.tipo === "SAIDA_2");
-
-          if (entrada2 && saida2) {
-            minutosDoDia += (saida2.dataHora.getTime() - entrada2.dataHora.getTime()) / (1000 * 60);
-          }
-
-          if (minutosDoDia > 480) {
-            horasExtrasTotais += (minutosDoDia - 480) / 60;
-          }
-        }
-      }
-    }
+    const horaMediaTrabalhada = diasContados > 0 ? totalMinutosTrabalhados / diasContados / 60 : 0;
 
     return {
       totalColaboradores,
@@ -189,7 +96,7 @@ export async function obterIndicadoresRH(
       atrasos,
       saidasAntecipadas,
       horaMediaTrabalhada: Math.round(horaMediaTrabalhada * 100) / 100,
-      horasExtrasTotais: Math.round(horasExtrasTotais * 100) / 100,
+      horasExtrasTotais: Math.round((minutosExtras / 60) * 100) / 100,
     };
   } catch (error) {
     console.error("Erro ao obter indicadores:", error);
@@ -206,77 +113,51 @@ export interface DadosHorasTrabalhadas {
   horaMedia: number;
 }
 
-/** Relatório de horas trabalhadas por colaborador no mês */
+/** Relatório de horas trabalhadas por colaborador no mês ("AAAA-MM", calendário de Brasília). */
 export async function obterHorasTrabalhadas(
   empresaId: string,
-  mes: Date = new Date(),
+  competencia: string,
 ): Promise<DadosHorasTrabalhadas[] | { erro: string }> {
   await requireEmpresaAccess(empresaId);
+  if (!lerCompetencia(competencia)) return { erro: "Mês inválido." };
 
   try {
-    const { inicio, fim } = periodoDoMesEmUTC(mes);
+    const { inicio, fim } = janelaDoMesBrasilia(competencia);
 
+    // Desligados no mês entram (26/11/2026): antes só `ativo: true`, e as
+    // horas de quem saiu no meio do mês sumiam do relatório.
     const colaboradores = await prisma.colaborador.findMany({
-      where: { empresaId, ativo: true },
+      where: filtroColaboradoresDoMes(empresaId, competencia),
       select: { id: true, nome: true },
     });
 
-    const marcacoes = await marcacoesDaJornada(prisma, {
-      empresaId,
-      de: inicio,
-      ate: fim,
-    });
+    const marcacoes = await marcacoesDaJornada(prisma, { empresaId, de: inicio, ate: fim });
 
     const resultado: DadosHorasTrabalhadas[] = [];
 
     for (const colab of colaboradores) {
       const marcacoesColab = marcacoes.filter((m) => m.colaboradorId === colab.id);
-
       if (marcacoesColab.length === 0) continue;
 
-      const diasTrabalhados = new Set<string>();
+      let diasTrabalhados = 0;
       let totalMinutos = 0;
-
-      const marcacoesPorDia = new Map<string, typeof marcacoesColab>();
-      for (const m of marcacoesColab) {
-        const dia = new Date(m.dataHora.getTime() + 3 * 60 * 60 * 1000).toDateString();
-        const list = marcacoesPorDia.get(dia) ?? [];
-        list.push(m);
-        marcacoesPorDia.set(dia, list);
-      }
-
-      for (const [dia, marcacoesDoDia] of marcacoesPorDia) {
-        let minutosDoDia = 0;
-
-        const entrada1 = marcacoesDoDia.find((m) => m.tipo === "ENTRADA_1");
-        const saida1 = marcacoesDoDia.find((m) => m.tipo === "SAIDA_1");
-
-        if (entrada1 && saida1) {
-          minutosDoDia += (saida1.dataHora.getTime() - entrada1.dataHora.getTime()) / (1000 * 60);
-        }
-
-        const entrada2 = marcacoesDoDia.find((m) => m.tipo === "ENTRADA_2");
-        const saida2 = marcacoesDoDia.find((m) => m.tipo === "SAIDA_2");
-
-        if (entrada2 && saida2) {
-          minutosDoDia += (saida2.dataHora.getTime() - entrada2.dataHora.getTime()) / (1000 * 60);
-        }
-
-        if (minutosDoDia > 0) {
-          diasTrabalhados.add(dia);
-          totalMinutos += minutosDoDia;
+      for (const marcacoesDoDia of agruparPorDiaBrasilia(marcacoesColab).values()) {
+        const minutos = minutosTrabalhadosNoDia(marcacoesDoDia);
+        if (minutos > 0) {
+          diasTrabalhados++;
+          totalMinutos += minutos;
         }
       }
 
-      const totalHoras = Math.floor(totalMinutos / 60);
-      const horaMedia = diasTrabalhados.size > 0 ? totalMinutos / diasTrabalhados.size / 60 : 0;
+      const minutosInteiros = Math.round(totalMinutos);
+      const horaMedia = diasTrabalhados > 0 ? totalMinutos / diasTrabalhados / 60 : 0;
 
       resultado.push({
         colaboradorId: colab.id,
         nome: colab.nome,
-        totalHoras,
-        totalMinutos: totalMinutos % 60,
-        diasTrabalhados: diasTrabalhados.size,
+        totalHoras: Math.floor(minutosInteiros / 60),
+        totalMinutos: minutosInteiros % 60,
+        diasTrabalhados,
         horaMedia: Math.round(horaMedia * 100) / 100,
       });
     }
@@ -288,41 +169,9 @@ export async function obterHorasTrabalhadas(
   }
 }
 
-export interface DadosBancoHoras {
-  colaboradorId: string;
-  nome: string;
-  saldoAnterior: number;
-  creditosMes: number;
-  debitosMes: number;
-  saldoAtual: number;
-  saldoEmHoras: string;
-}
-
-/** Relatório de banco de horas por colaborador */
-export async function obterBancoHoras(
-  empresaId: string,
-  competencia: string,
-): Promise<DadosBancoHoras[] | { erro: string }> {
-  await requireEmpresaAccess(empresaId);
-
-  try {
-    const registros = await prisma.bancoHoras.findMany({
-      where: { empresaId, competencia },
-      include: { colaborador: { select: { nome: true } } },
-      orderBy: { colaborador: { nome: "asc" } },
-    });
-
-    return registros.map((r) => ({
-      colaboradorId: r.colaboradorId,
-      nome: r.colaborador.nome,
-      saldoAnterior: r.saldoAnterior,
-      creditosMes: r.creditosMes,
-      debitosMes: r.debitosMes,
-      saldoAtual: r.saldoAtual,
-      saldoEmHoras: `${Math.floor(Math.abs(r.saldoAtual) / 60)}h ${Math.abs(r.saldoAtual) % 60}m ${r.saldoAtual < 0 ? "(débito)" : ""}`,
-    }));
-  } catch (error) {
-    console.error("Erro ao obter banco de horas:", error);
-    return { erro: "Erro ao obter dados de banco de horas." };
-  }
-}
+// Banco de horas: `obterBancoHoras` foi REMOVIDA em 26/11/2026. Ela lia a
+// tabela rh.BancoHoras, que nada no sistema grava (não existe create/upsert
+// fora do client gerado) — devolvia lista vazia sempre, e a tela mostrava
+// "Sem dados disponíveis para este período" como se o período estivesse
+// zerado. A tela agora diz que o banco de horas ainda não é calculado e o que
+// falta para calcular (banco-horas-relatorio.tsx).
