@@ -27,10 +27,12 @@ function confere(ok: boolean, msg: string) {
 
 // Exceções conscientes — cada uma com o porquê. Caminhos com "/".
 const EXCECOES: Record<string, string> = {
-  // Frente de pesquisas cuida destas em paralelo (25/11/2026); ficam de fora
-  // deste conserto para não conflitar. Pendência registrada no relatório.
-  // Segredos/lembretes: frente própria em paralelo.
-  "lib/actions/rh-segredos.ts": "frente de segredos/lembretes",
+  // Segredos e lembretes: antes de `usuarioAlcancaEmpresa` passam por
+  // `podeConfigurarSistema` (lib/segredos.ts), que só aceita ADMIN/DIRETORIA
+  // do grupo inteiro — o gestor de setor já ficou de fora ali. O alcance do
+  // CNPJ da rota é só a conferência complementar (25/11/2026).
+  "lib/actions/rh-segredos.ts": "guardada por podeConfigurarSistema",
+  "lib/actions/rh-lembretes.ts": "guardada por podeConfigurarSistema",
 };
 
 function arquivos(dir: string, filtro: (f: string) => boolean): string[] {
