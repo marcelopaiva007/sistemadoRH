@@ -12,6 +12,7 @@ import {
 import { violouUnique, registroNaoEncontrado } from "@/lib/prisma-erros";
 import { registrarAuditoria } from "@/lib/audit";
 import { validarFusao, carregarSetores } from "@/lib/actions/guarda-unificacao";
+import { decidirLimpeza } from "@/lib/limpeza-catalogo";
 import type { ActionResult } from "@/lib/constants";
 
 const setorSchema = z.object({
@@ -342,39 +343,87 @@ export async function unificarGrupoSetores(
   return { ok: true };
 }
 
+/**
+ * "Remover N sem funcionários": apaga os setores do CNPJ que NÃO têm nada vivo
+ * pendurado. Até 26/11/2026 apagava junto metas, vagas e planos de ação do
+ * setor para conseguir removê-lo — agora setor com vaga aberta, meta, plano de
+ * ação aberto ou gestor vinculado FICA, e a resposta diz quantos e por quê.
+ * A regra está em lib/limpeza-catalogo.ts (testada sem banco).
+ */
 export async function removerSetoresSemColaboradores(
   empresaId: string,
-): Promise<{ ok: boolean; removidos: number; error?: string }> {
+): Promise<{ ok: boolean; removidos: number; mantidos?: number; motivoMantidos?: string; error?: string }> {
   await requireEmpresaAccess(empresaId);
 
   try {
-    const setoresSemColab = await prisma.setor.findMany({
+    const candidatos = await prisma.setor.findMany({
       where: {
         empresaId,
         colaboradores: { none: {} },
       },
-      select: { id: true },
+      select: {
+        id: true,
+        _count: {
+          select: {
+            colaboradores: true,
+            metas: true,
+            userEmpresas: true,
+            vagas: { where: { status: { in: ["ABERTA", "PAUSADA"] } } },
+            planosAcao: { where: { status: { in: ["ABERTO", "EM_ANDAMENTO"] } } },
+          },
+        },
+      },
     });
 
-    if (setoresSemColab.length === 0) {
-      return { ok: true, removidos: 0 };
+    const decisao = decidirLimpeza(
+      candidatos.map((s) => ({
+        id: s.id,
+        uso: {
+          colaboradores: s._count.colaboradores,
+          vagasAbertas: s._count.vagas,
+          metas: s._count.metas,
+          planosAbertos: s._count.planosAcao,
+          requisitosNR: 0,
+          gestoresVinculados: s._count.userEmpresas,
+        },
+      })),
+    );
+
+    if (decisao.remover.length > 0) {
+      // Só o setor sai. Vaga encerrada e plano concluído/cancelado continuam
+      // existindo — o FK é SetNull, eles só perdem o vínculo. A régua repetida
+      // no `where` fecha a janela entre a decisão e o delete: se alguém abriu
+      // uma vaga no meio, o setor não sai.
+      await prisma.setor.deleteMany({
+        where: {
+          id: { in: decisao.remover },
+          empresaId,
+          colaboradores: { none: {} },
+          metas: { none: {} },
+          userEmpresas: { none: {} },
+          vagas: { none: { status: { in: ["ABERTA", "PAUSADA"] } } },
+          planosAcao: { none: { status: { in: ["ABERTO", "EM_ANDAMENTO"] } } },
+        },
+      });
+      await registrarAuditoria({
+        empresaId,
+        acao: "EXCLUIR",
+        entidade: "Setor",
+        resumo:
+          `Limpeza: ${decisao.remover.length} setor(es) sem colaboradores removido(s)` +
+          (decisao.mantidos > 0 ? `; ${decisao.mantidos} mantido(s) (${decisao.motivoMantidos})` : ""),
+      });
     }
 
-    const ids = setoresSemColab.map((s) => s.id);
-
-    await prisma.$transaction(async (tx) => {
-      await tx.meta.deleteMany({ where: { setorId: { in: ids } } });
-      await tx.vaga.deleteMany({ where: { setorId: { in: ids } } });
-      await tx.planoAcao.deleteMany({ where: { setorId: { in: ids } } });
-      await tx.userEmpresa.updateMany({ where: { setorId: { in: ids } }, data: { setorId: null } });
-      await tx.setor.deleteMany({ where: { id: { in: ids } } });
-    });
-
     revalidatePath(`/rh/${empresaId}/setores`);
-    return { ok: true, removidos: ids.length };
+    return {
+      ok: true,
+      removidos: decisao.remover.length,
+      mantidos: decisao.mantidos,
+      motivoMantidos: decisao.motivoMantidos,
+    };
   } catch (err: unknown) {
     const errorMsg = err instanceof Error ? err.message : "Erro ao remover setores sem colaboradores.";
     return { ok: false, removidos: 0, error: errorMsg };
   }
 }
-

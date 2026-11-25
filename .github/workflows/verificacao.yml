@@ -148,6 +148,8 @@ jobs:
         run: npx tsx scripts/test-permissoes.ts
       - name: Guarda unificada de acesso
         run: npx tsx scripts/test-guarda-unificacao.ts
+      - name: Importação × catálogo da marca, movimentação e limpeza de setores/cargos
+        run: npx tsx scripts/test-importacao-catalogo.ts
       - name: Troca de empresa pelo caminho (<empresaId> da URL)
         run: npx tsx scripts/test-troca-empresa-caminho.ts
       - name: Delegações (núcleo)
