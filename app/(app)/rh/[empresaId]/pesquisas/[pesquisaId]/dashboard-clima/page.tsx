@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
-import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
+import { empresasVisiveis, requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { prisma } from "@/lib/prisma";
-import { marcaDaEmpresa } from "@/lib/escopo-marca";
+import { cnpjsVisiveisDaMarca, marcaDaEmpresa } from "@/lib/escopo-marca";
 import { CONVITES_NA_PESQUISA } from "@/lib/pesquisa-numeros";
 import { calcularClima, compararCiclos, extrairEvolucao, gerarAnaliseExecutiva, type RespostaPrisma } from "@/lib/clima";
 import { DashboardClimaView } from "./dashboard-clima-view";
@@ -12,10 +12,21 @@ export default async function DashboardClimaPage({
   params: Promise<{ empresaId: string; pesquisaId: string }>;
 }) {
   const { empresaId, pesquisaId } = await params;
-  await requireEmpresaAccess(empresaId);
+  const usuario = await requireEmpresaAccess(empresaId);
+
+  // Pesquisa é da MARCA (26/11/2026): esta, o ciclo anterior e o histórico
+  // saem da mesma marca do CNPJ do caminho, criadas em CNPJ que o usuário
+  // enxerga — o mesmo recorte da lista de pesquisas. Antes o ciclo anterior e
+  // o histórico filtravam pelo CNPJ do caminho e perdiam os ciclos criados no
+  // CNPJ irmão.
+  const [marcaId, cnpjsDaMarca] = await Promise.all([
+    marcaDaEmpresa(empresaId),
+    empresasVisiveis(usuario).then((visiveis) => cnpjsVisiveisDaMarca(empresaId, visiveis)),
+  ]);
+  const daMarcaVisivel = { marcaId, empresaId: { in: cnpjsDaMarca } };
 
   const pesquisa = await prisma.pesquisa.findFirst({
-    where: { id: pesquisaId, marcaId: await marcaDaEmpresa(empresaId), modelo: "CLIMA" },
+    where: { id: pesquisaId, ...daMarcaVisivel, modelo: "CLIMA" },
     include: {
       empresa: { select: { nome: true } },
     },
@@ -57,7 +68,7 @@ export default async function DashboardClimaPage({
 
   // Último ciclo anterior para comparativo
   const cicloAnterior = await prisma.pesquisa.findFirst({
-    where: { empresaId, modelo: "CLIMA", encerradaEm: { not: null }, id: { not: pesquisaId } },
+    where: { ...daMarcaVisivel, modelo: "CLIMA", encerradaEm: { not: null }, id: { not: pesquisaId } },
     orderBy: { encerradaEm: "desc" },
     include: {
       respostas: { include: { itens: { include: { pergunta: true } } } },
@@ -95,7 +106,7 @@ export default async function DashboardClimaPage({
 
   // Evolução dos últimos 5 ciclos
   const ciclosHistorico = await prisma.pesquisa.findMany({
-    where: { empresaId, modelo: "CLIMA", encerradaEm: { not: null } },
+    where: { ...daMarcaVisivel, modelo: "CLIMA", encerradaEm: { not: null } },
     orderBy: { encerradaEm: "desc" },
     take: 5,
     include: {

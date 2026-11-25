@@ -42,8 +42,25 @@ export function diasDaCompetencia(referencia: Date): { primeiro: Date; ultimo: D
  */
 export function diasDaAusenciaNaCompetencia(a: AusenciaParaCompetencia, referencia: Date): number {
   const { primeiro, ultimo } = diasDaCompetencia(referencia);
+  return diasDaAusenciaNoIntervalo(a, primeiro, ultimo);
+}
+
+/**
+ * Quantos dias da ausência caem no intervalo [primeiro, ultimo] — as duas
+ * pontas contam. É o recorte da competência generalizado (26/11/2026) para o
+ * absenteísmo (lib/bi.ts, lib/dashboard.ts), que recorta à janela
+ * [hoje − 30, hoje]: lá o `dias` inteiro somava dias que ainda não aconteceram
+ * e dias de antes da janela. Mesma regra da folha: ausência inteira dentro
+ * devolve o `dias` gravado; a que atravessa uma ponta conta só os dias
+ * corridos dentro, nunca mais que o `dias` gravado; fora (ou datas
+ * invertidas) devolve 0.
+ */
+export function diasDaAusenciaNoIntervalo(a: AusenciaParaCompetencia, primeiroDia: Date, ultimoDia: Date): number {
+  const primeiro = inicioDoDiaUTC(primeiroDia);
+  const ultimo = inicioDoDiaUTC(ultimoDia);
   const inicio = inicioDoDiaUTC(a.dataInicio);
   const fim = inicioDoDiaUTC(a.dataFim);
+  if (ultimo < primeiro) return 0;
   if (fim < inicio || fim < primeiro || inicio > ultimo) return 0;
   if (inicio >= primeiro && fim <= ultimo) return Math.max(0, a.dias);
 

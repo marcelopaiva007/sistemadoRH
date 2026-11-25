@@ -51,9 +51,11 @@ ok(mesDoDesligamento?.desligamentos === 1, "o desligamento aparece no mês certo
 
 console.log("4. Absenteísmo");
 const ausencias = [
-  { setorNome: "Comercial", dias: 3, abonada: false, dataInicio: dataUTC(2026, 7, 10) },
-  { setorNome: "Comercial", dias: 5, abonada: true, dataInicio: dataUTC(2026, 7, 12) }, // abonada, não conta
-  { setorNome: "Comercial", dias: 2, abonada: false, dataInicio: dataUTC(2026, 1, 1) }, // fora da janela
+  { setorNome: "Comercial", dias: 3, abonada: false, dataInicio: dataUTC(2026, 7, 10), dataFim: dataUTC(2026, 7, 12) },
+  // abonada, não conta
+  { setorNome: "Comercial", dias: 5, abonada: true, dataInicio: dataUTC(2026, 7, 12), dataFim: dataUTC(2026, 7, 16) },
+  // fora da janela
+  { setorNome: "Comercial", dias: 2, abonada: false, dataInicio: dataUTC(2026, 1, 1), dataFim: dataUTC(2026, 1, 2) },
 ];
 const absent = absenteismoPorSetor(ausencias, hc, HOJE, 30, 22);
 const comercial = absent.find((a) => a.setor === "Comercial")!;

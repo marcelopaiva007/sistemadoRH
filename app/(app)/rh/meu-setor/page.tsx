@@ -1,4 +1,5 @@
-import { requireGestorSetor } from "@/lib/rh-auth-guard";
+import { empresasVisiveis, requireGestorSetor } from "@/lib/rh-auth-guard";
+import { cnpjsVisiveisDaMarca, marcaDaEmpresa } from "@/lib/escopo-marca";
 import { prisma } from "@/lib/prisma";
 import { hojeUTC } from "@/lib/datas";
 import { AMOSTRA_MINIMA_ANONIMATO } from "@/lib/constants-rh";
@@ -42,8 +43,17 @@ export default async function MeuSetorPage() {
   // Só o necessário (26/11/2026): as pesquisas mais recentes, e de cada
   // resposta do setor só a nota e o tipo/dimensão da pergunta. Antes vinham
   // todas as pesquisas da empresa com todas as perguntas e respostas.
+  //
+  // Pela MARCA do CNPJ do gestor (26/11/2026), não pelo CNPJ: a pesquisa é da
+  // marca, e a criada no CNPJ irmão — com o time dele respondendo — não
+  // aparecia aqui. Mesmo recorte do dashboard de clima: marca do vínculo,
+  // criada em CNPJ que ele enxerga.
+  const [marcaId, cnpjsDaMarca] = await Promise.all([
+    marcaDaEmpresa(user.empresaAtivaId),
+    empresasVisiveis(user).then((visiveis) => cnpjsVisiveisDaMarca(user.empresaAtivaId, visiveis)),
+  ]);
   const pesquisas = await prisma.pesquisa.findMany({
-    where: { empresaId: user.empresaAtivaId, status: { in: ["ACTIVE", "FINISHED"] } },
+    where: { marcaId, empresaId: { in: cnpjsDaMarca }, status: { in: ["ACTIVE", "FINISHED"] } },
     orderBy: { createdAt: "desc" },
     take: PESQUISAS_NO_MEU_SETOR,
     select: {

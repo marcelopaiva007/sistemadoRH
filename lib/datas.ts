@@ -103,6 +103,17 @@ export function diaBrasilia(d: Date): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(d);
 }
 
+/**
+ * O dia de HOJE em Brasília, como meia-noite UTC desse dia — o formato das
+ * datas de calendário acima. `hojeUTC()` vira o dia três horas antes (às 21h
+ * de Brasília já é amanhã em UTC); para recortes "até hoje" que não podem
+ * contar o dia de amanhã (absenteísmo, 26/11/2026), use esta. Mesma conta de
+ * `hojeBrasiliaUTC` em lib/reconhecimento/anos-de-casa.ts.
+ */
+export function hojeCalendarioBrasilia(agora: Date = new Date()): Date {
+  return new Date(`${diaBrasilia(agora)}T00:00:00Z`);
+}
+
 export function formatarDataHoraBrasilia(d: Date): string {
   return d.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
 }

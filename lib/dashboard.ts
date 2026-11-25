@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
-import { hojeUTC, somarDiasUTC, somarMesesUTC, somarAnosUTC } from "@/lib/datas";
+import { hojeCalendarioBrasilia, hojeUTC, somarMesesUTC, somarAnosUTC } from "@/lib/datas";
+import { diasDeFaltaNaJanela, filtroAusenciasDaJanela } from "@/lib/bi";
 import { BALDES_SEM_ESTRUTURA } from "@/lib/estrutura-pendente";
 
 export type ResumoDashboard = {
@@ -28,7 +29,8 @@ export async function resumoDaEmpresa(empresaIds: string[]): Promise<ResumoDashb
   const empresaId = { in: empresaIds };
   const hoje = hojeUTC();
   const inicio12m = somarMesesUTC(hoje, -12);
-  const inicio30d = somarDiasUTC(hoje, -30);
+  // Dia de Brasília: "até hoje" não pode incluir o amanhã UTC das 21h.
+  const hojeAbsenteismo = hojeCalendarioBrasilia();
 
   const [ativos, admissoes12m, desligamentos12m, faltas, folha, beneficios, semSalario] =
     await Promise.all([
@@ -39,14 +41,19 @@ export async function resumoDaEmpresa(empresaIds: string[]): Promise<ResumoDashb
       prisma.colaborador.count({
         where: { empresaId, dataDesligamento: { gte: inicio12m, lte: hoje } },
       }),
-      prisma.ausencia.aggregate({
+      // A exceção ao "só count/aggregate" (26/11/2026): somar `dias` no banco
+      // contava o afastamento inteiro que começou na janela — inclusive os dias
+      // que ainda não aconteceram — e ignorava o que começou antes e segue
+      // dentro. O recorte à janela é por linha, então busca as poucas ausências
+      // que tocam os últimos 30 dias (três colunas) e soma aqui.
+      prisma.ausencia.findMany({
         where: {
           empresaId,
           abonada: false,
           status: "APROVADA",
-          dataInicio: { gte: inicio30d, lte: hoje },
+          ...filtroAusenciasDaJanela(hojeAbsenteismo),
         },
-        _sum: { dias: true },
+        select: { dataInicio: true, dataFim: true, dias: true },
       }),
       prisma.colaborador.aggregate({
         where: { empresaId, ativo: true },
@@ -68,7 +75,7 @@ export async function resumoDaEmpresa(empresaIds: string[]): Promise<ResumoDashb
   const headcountMedio = (headcountInicio + ativos) / 2;
   const turnoverPct = headcountMedio > 0 ? (desligamentos12m / headcountMedio) * 100 : 0;
 
-  const diasFalta30d = faltas._sum.dias ?? 0;
+  const diasFalta30d = faltas.reduce((t, a) => t + diasDeFaltaNaJanela(a, hojeAbsenteismo), 0);
   // 30 dias úteis aproximados por pessoa no período — mesma simplificação da
   // tela de Indicadores, para os dois números não divergirem.
   const diasPossiveis = ativos * 30;
