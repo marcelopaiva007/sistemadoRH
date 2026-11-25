@@ -32,6 +32,10 @@ type Desligamento = {
   checklistConcluido: number;
   checklistDispensado: boolean;
   temEntrevista: boolean;
+  /** Lei 12.506/2011 pelo motivo da saída (lib/prazos-legais.ts). */
+  avisoPrevio: { dias: number | null; texto: string };
+  /** CLT art. 477 §6º — nulo na transferência dentro do grupo. */
+  prazoRescisao: { prazo: Date; regra: string } | null;
 };
 
 export function DesligamentosView({
@@ -52,6 +56,12 @@ export function DesligamentosView({
         <p className="text-sm text-muted-foreground">
           Checklist de saída e entrevista de desligamento de todas as pessoas desligadas nesta
           empresa. Abra a ficha do colaborador para gerar o checklist ou registrar a entrevista.
+        </p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Aviso prévio: 30 dias + 3 por ano completo de serviço, até 90 (Lei 12.506/2011), quando a
+          dispensa é sem justa causa. Rescisão: paga até 10 dias corridos do término (CLT art. 477
+          §6º) — se o 10º dia cai no fim de semana, o prazo mostrado é a sexta anterior. O envio ao
+          eSocial fica em Prazos eSocial.
         </p>
       </div>
 
@@ -85,6 +95,8 @@ export function DesligamentosView({
                     <TableHead>Setor</TableHead>
                     <TableHead>Desligado em</TableHead>
                     <TableHead>Motivo</TableHead>
+                    <TableHead>Aviso prévio</TableHead>
+                    <TableHead>Pagar rescisão até</TableHead>
                     <TableHead>Checklist</TableHead>
                     <TableHead>Entrevista</TableHead>
                     <TableHead className="w-20" />
@@ -108,6 +120,16 @@ export function DesligamentosView({
                       </TableCell>
                       <TableCell>
                         {d.motivoDesligamento ? motivoDesligamentoLabel(d.motivoDesligamento) : "—"}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap" title={d.avisoPrevio.texto}>
+                        {d.avisoPrevio.dias !== null ? (
+                          <span className="tabular-nums">{d.avisoPrevio.dias} dias</span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="tabular-nums whitespace-nowrap" title={d.prazoRescisao?.regra}>
+                        {d.prazoRescisao ? formatarData(d.prazoRescisao.prazo) : "—"}
                       </TableCell>
                       <TableCell>
                         {/* Saída até 15/08/2026 sem checklist não é pendência

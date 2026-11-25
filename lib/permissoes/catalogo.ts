@@ -78,6 +78,7 @@ export const AREAS_RH: GrupoDeAreas[] = [
       { slug: "beneficios", label: "Benefícios" },
       { slug: "entregas", label: "Entregas" },
       { slug: "folha", label: "Folha" },
+      { slug: "esocial", label: "Prazos eSocial" },
     ],
   },
   {

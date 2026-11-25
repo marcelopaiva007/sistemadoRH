@@ -35,6 +35,7 @@ import {
   FileX,
   UserMinus,
   Radar,
+  FileUp,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -392,6 +393,17 @@ export function PendenciasView({
         "Sinal crítico ou alto detectado na Central e ainda sem reconhecer, descartar ou virar plano.",
       href: comFiltro(`/rh/${empresaId}/sinais`),
       icon: Radar,
+    },
+    {
+      // 26/11/2026. O número é a lista "Pendentes" da tela Prazos eSocial,
+      // tirada a CAT — que já é o cartão "CAT sem emitir" lá em cima.
+      chave: "esocialAEnviar",
+      titulo: "eSocial a enviar ao escritório",
+      descricao:
+        "Admissão, desligamento ou afastamento com prazo legal no eSocial e ainda não marcado como enviado ao escritório contábil.",
+      href: comFiltro(`/rh/${empresaId}/esocial`),
+      icon: FileUp,
+      urgente: true,
     },
   ];
 

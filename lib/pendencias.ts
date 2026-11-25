@@ -10,6 +10,7 @@ import { RUBRICAS_HORA_EXTRA, LIMITE_HORAS_EXTRAS_MES } from "@/lib/constants-fo
 import { hojeUTC, somarDiasUTC, diferencaEmDiasUTC } from "@/lib/datas";
 import { emRiscoDeDobra } from "@/lib/ferias";
 import { BALDES_SEM_ESTRUTURA } from "@/lib/estrutura-pendente";
+import { esocialAEnviarPorEmpresa } from "@/lib/esocial";
 
 export type Pendencias = {
   aprovacoes: number;
@@ -196,6 +197,23 @@ export type Pendencias = {
    * `atestadosSemDocumento`.
    */
   sinaisAbertos: number;
+
+  /**
+   * Evento do eSocial (admissão S-2200, desligamento S-2299, afastamento
+   * S-2230) ainda não marcado como enviado ao escritório contábil — 26/11/2026.
+   *
+   * O sistema não transmite ao eSocial; quem transmite é o escritório. O que
+   * o RH precisa é não deixar o prazo legal passar sem os dados chegarem lá.
+   * A regra inteira (quais fatos, a partir de quando, qual prazo) mora em
+   * lib/esocial.ts + lib/prazos-legais.ts, e é a MESMA lista que a tela
+   * /rh/<empresa>/esocial mostra — o cartão e a lista não têm como divergir.
+   *
+   * Conta TODO evento não enviado, vencido ou não: o prazo de admissão é o
+   * dia anterior ao início, e esperar "vencer" para cobrar seria cobrar tarde.
+   * A CAT (S-2210) fica de fora deste número de propósito: o mesmo acidente
+   * já é `catPendente`, e somá-lo aqui o contaria duas vezes no total.
+   */
+  esocialAEnviar: number;
 };
 
 /**
@@ -319,6 +337,7 @@ export const ROTULOS_PENDENCIA: Record<keyof Pendencias, string> = {
   desligamentosSemChecklist: "Desligado sem checklist de saída",
   desligamentosSemEntrevista: "Desligado sem entrevista de saída",
   sinaisAbertos: "Sinal sem triagem",
+  esocialAEnviar: "Evento do eSocial a enviar ao escritório",
 };
 
 // As listas por natureza moram em lib/pendencias-natureza.ts (sem Prisma,
@@ -390,6 +409,7 @@ export const zeradas = (): Pendencias => ({
   desligamentosSemChecklist: 0,
   desligamentosSemEntrevista: 0,
   sinaisAbertos: 0,
+  esocialAEnviar: 0,
 });
 
 /**
@@ -437,7 +457,11 @@ const ts = (d: Date) => Prisma.sql`${d.toISOString()}::timestamp`;
  * dobra". Duas cópias da regra (uma em SQL, outra em TS) foi exatamente o que
  * deixou o falso positivo de "gozou há 13 meses" passar até 26/11/2026.
  */
-type PendenciaForaDaSql = "feriasVencidas";
+//
+// Desde 26/11/2026, também "eSocial a enviar": os prazos dependem de dia útil
+// e de regra por tipo de afastamento (lib/prazos-legais.ts), e a lista da tela
+// /esocial sai da mesma função que conta aqui (lib/esocial.ts).
+type PendenciaForaDaSql = "feriasVencidas" | "esocialAEnviar";
 
 function subconsultasDePendencias(
   hoje: Date,
@@ -672,9 +696,10 @@ export async function pendenciasPorEmpresa(
   if (empresaIds.length === 0) return mapa;
 
   const hoje = hojeUTC();
-  const [linhas, ferias] = await Promise.all([
+  const [linhas, ferias, esocial] = await Promise.all([
     contarPorEmpresa(cliente, empresaIds, subconsultasDePendencias(hoje, visiveis)),
     feriasEmRiscoPorEmpresa(cliente, empresaIds, hoje),
+    esocialAEnviarPorEmpresa(cliente, empresaIds),
   ]);
 
   // `+=`, não `=`: `aprovacoes` chega em duas linhas por CNPJ (férias e
@@ -686,6 +711,10 @@ export async function pendenciasPorEmpresa(
   for (const [empresaId, n] of ferias) {
     const p = mapa.get(empresaId);
     if (p) p.feriasVencidas += n;
+  }
+  for (const [empresaId, n] of esocial) {
+    const p = mapa.get(empresaId);
+    if (p) p.esocialAEnviar += n;
   }
 
   return mapa;
