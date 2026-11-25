@@ -4,6 +4,8 @@ import {
   categoriaDaEntidade,
   produtividadePorCategoria,
   produtividadePorUsuario,
+  produtividadeDeGruposPorUsuario,
+  produtividadeDeGruposPorCategoria,
 } from "@/lib/produtividade";
 import {
   aplicarRanking,
@@ -80,6 +82,27 @@ ok(bruno?.posicao === 2 && carlos?.posicao === 2, "Bruno e Carlos empatam em 100
 const daniela = comRanking.find((r) => r.usuarioNome === "Daniela");
 const eduardo = comRanking.find((r) => r.usuarioNome === "Eduardo");
 ok(daniela?.posicao === 4 && eduardo?.posicao === 4, "Daniela e Eduardo empatam com 0 ações e compartilham o 4º lugar");
+
+console.log("\n6. Agregação a partir do groupBy do banco (26/11/2026)");
+const grupos = [
+  { usuarioId: "u1", usuarioNome: "Ana", usuarioRole: "RH_MANAGER", entidade: "Colaborador", quantidade: 40, ultimaEm: dataUTC(2026, 8, 7) },
+  { usuarioId: "u1", usuarioNome: "Ana Souza", usuarioRole: "ADMIN", entidade: "Vaga", quantidade: 2, ultimaEm: dataUTC(2026, 8, 9) },
+  { usuarioId: "u2", usuarioNome: "Beto", usuarioRole: "ADMIN", entidade: "User", quantidade: 5, ultimaEm: dataUTC(2026, 8, 8) },
+  { usuarioId: null, usuarioNome: "Portal", usuarioRole: null, entidade: "Candidatura", quantidade: 99, ultimaEm: dataUTC(2026, 8, 9) },
+];
+const gUsuario = produtividadeDeGruposPorUsuario(grupos);
+ok(gUsuario.length === 2, "grupo sem usuarioId não vira conta");
+ok(gUsuario[0].usuarioId === "u1" && gUsuario[0].total === 42, "soma as quantidades de todos os grupos da conta");
+ok(gUsuario[0].porCategoria["Departamento Pessoal"] === 40 && gUsuario[0].porCategoria["Ciclo de vida"] === 2, "quantidade vai inteira para a categoria da entidade");
+ok(gUsuario[0].usuarioNome === "Ana Souza" && gUsuario[0].usuarioRole === "ADMIN", "nome/papel do grupo mais recente quando a conta mudou");
+ok(gUsuario[0].ultimaAcaoEm.getTime() === dataUTC(2026, 8, 9).getTime(), "última ação é o maior _max dos grupos");
+const gCategoria = produtividadeDeGruposPorCategoria(grupos);
+ok(gCategoria.find((c) => c.categoria === "Gestão & Configuração")!.total === 5, "categoria soma quantidade, ignora portal");
+const equivalente = produtividadePorUsuario(registros);
+const viaGrupos = produtividadeDeGruposPorUsuario(
+  registros.map((r) => ({ ...r, quantidade: 1, ultimaEm: r.createdAt })),
+);
+ok(JSON.stringify(equivalente) === JSON.stringify(viaGrupos), "registro cru e grupo de 1 dão o mesmo resultado");
 
 console.log(falhas === 0 ? "\nTodos os testes passaram." : `\n${falhas} teste(s) falharam.`);
 process.exit(falhas === 0 ? 0 : 1);

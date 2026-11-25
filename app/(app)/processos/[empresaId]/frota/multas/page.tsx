@@ -3,7 +3,34 @@ import { prisma } from "@/lib/prisma";
 import { requireFrotaEmpresa } from "@/lib/processos-auth-guard";
 import { escopoDeEmpresas } from "@/lib/rh-auth-guard";
 import { diferencaEmDiasUTC, formatarData, formatarDataHoraBrasilia, hojeUTC } from "@/lib/datas";
+import { PaginacaoPorLink } from "@/components/padroes/paginacao-por-link";
+import { fatiar, lerPagina, resumoDaFatia } from "@/lib/paginacao-servidor";
+import type { Prisma } from "@/app/generated/prisma/client";
 import { MultasView, type MultaNaTela } from "./multas-view";
+
+// 26/11/2026: as TRATADAS (indicação feita, dispensada etc.) passaram a vir
+// paginadas do banco, 50 por vez, mais recentes primeiro. As A INDICAR vêm
+// sempre todas — são a razão da tela e o número do cabeçalho — e continuam no
+// topo, pelo prazo. Antes o histórico inteiro de multas do escopo ia para o
+// navegador a cada abertura.
+const TRATADAS_POR_PAGINA = 50;
+
+const SELECT_MULTA = {
+  id: true,
+  numeroAIT: true,
+  veiculoId: true,
+  dataHoraInfracao: true,
+  descricao: true,
+  natureza: true,
+  pontos: true,
+  valorOriginal: true,
+  statusIndicacao: true,
+  statusProcessual: true,
+  prazoIndicacaoCondutor: true,
+  empresaId: true,
+  veiculo: { select: { placa: true, modelo: true } },
+  condutorIndicado: { select: { colaborador: { select: { nome: true } } } },
+} satisfies Prisma.InfracaoSelect;
 
 // Multas — a tela de maior retorno do módulo.
 //
@@ -18,41 +45,60 @@ export default async function MultasPage({
   searchParams,
 }: {
   params: Promise<{ empresaId: string }>;
-  searchParams: Promise<{ empresas?: string; foco?: string }>;
+  searchParams: Promise<{ empresas?: string; foco?: string; pagina?: string }>;
 }) {
   const { empresaId } = await params;
-  const { empresas: empresasParam, foco } = await searchParams;
+  const { empresas: empresasParam, foco, pagina: paginaParam } = await searchParams;
   const usuario = await requireFrotaEmpresa(empresaId);
   const escopo = await escopoDeEmpresas(usuario, empresasParam);
 
-  const [empresa, multas, veiculos, condutores, empresas] = await Promise.all([
+  // Mesmo `escopo` de sempre; a paginação só fatia dentro dele.
+  const whereTratadas = { empresaId: { in: escopo }, statusIndicacao: { not: "PENDENTE" as const } };
+  const totalTratadas = await prisma.infracao.count({ where: whereTratadas });
+
+  // `?foco=` da Central numa multa já tratada: abre na página dela, senão o
+  // destaque apontaria para uma linha que não veio.
+  let paginaPedida = lerPagina(paginaParam);
+  if (foco && !paginaParam) {
+    const alvo = await prisma.infracao.findFirst({
+      where: { ...whereTratadas, id: foco },
+      select: { id: true, dataHoraInfracao: true },
+    });
+    if (alvo) {
+      const antes = await prisma.infracao.count({
+        where: {
+          ...whereTratadas,
+          OR: [
+            { dataHoraInfracao: { gt: alvo.dataHoraInfracao } },
+            { dataHoraInfracao: alvo.dataHoraInfracao, id: { gt: alvo.id } },
+          ],
+        },
+      });
+      paginaPedida = Math.floor(antes / TRATADAS_POR_PAGINA) + 1;
+    }
+  }
+  const fatia = fatiar(paginaPedida, totalTratadas, TRATADAS_POR_PAGINA);
+
+  const [empresa, pendentes, tratadas, veiculos, condutores, empresas] = await Promise.all([
     prisma.empresa.findUnique({
       where: { id: empresaId },
       select: { nome: true, marca: { select: { nome: true } } },
     }),
+    // Só um desempate estável: a ORDEM das a indicar (por prazo) é do sort
+    // explícito lá embaixo, num lugar só.
     prisma.infracao.findMany({
-      where: { empresaId: { in: escopo } },
-      // Só um desempate estável: a ORDEM da tela (a indicar primeiro, por
-      // prazo) é do sort explícito lá embaixo. Um orderBy de três colunas aqui
-      // seria uma segunda implementação da mesma regra, mantida à parte — e
-      // jogada fora a cada carregamento.
+      where: { empresaId: { in: escopo }, statusIndicacao: "PENDENTE" },
       orderBy: { dataHoraInfracao: "desc" },
-      select: {
-        id: true,
-        numeroAIT: true,
-        veiculoId: true,
-        dataHoraInfracao: true,
-        descricao: true,
-        natureza: true,
-        pontos: true,
-        valorOriginal: true,
-        statusIndicacao: true,
-        statusProcessual: true,
-        prazoIndicacaoCondutor: true,
-        empresaId: true,
-        veiculo: { select: { placa: true, modelo: true } },
-        condutorIndicado: { select: { colaborador: { select: { nome: true } } } },
-      },
+      select: SELECT_MULTA,
+    }),
+    // Tratadas: a ordem do banco É a da tela (mais recentes no topo), com o
+    // id de desempate para a fatia não pular nem repetir linha entre páginas.
+    prisma.infracao.findMany({
+      where: whereTratadas,
+      orderBy: [{ dataHoraInfracao: "desc" }, { id: "desc" }],
+      skip: fatia.skip,
+      take: fatia.take,
+      select: SELECT_MULTA,
     }),
     prisma.veiculo.findMany({
       where: { empresaId: { in: escopo }, situacao: { in: ["ATIVO", "EM_MANUTENCAO"] } },
@@ -71,7 +117,7 @@ export default async function MultasPage({
   const nomeDaEmpresa = new Map(empresas.map((e) => [e.id, e.nome]));
   const hoje = hojeUTC();
 
-  const naTela: MultaNaTela[] = multas.map((m) => ({
+  const naTela: MultaNaTela[] = [...pendentes, ...tratadas].map((m) => ({
     id: m.id,
     numeroAIT: m.numeroAIT,
     placa: m.veiculo.placa,
@@ -130,6 +176,15 @@ export default async function MultasPage({
         condutores={condutores.map((c) => ({ id: c.id, nome: c.colaborador.nome }))}
         foco={foco ?? null}
       />
+
+      {totalTratadas > TRATADAS_POR_PAGINA && (
+        <PaginacaoPorLink
+          pagina={fatia.pagina}
+          totalPaginas={fatia.totalPaginas}
+          resumo={`Já tratadas: ${resumoDaFatia(fatia)}`}
+          params={{ empresas: empresasParam }}
+        />
+      )}
     </div>
   );
 }

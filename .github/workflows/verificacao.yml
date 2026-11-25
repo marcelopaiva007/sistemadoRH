@@ -76,6 +76,8 @@ jobs:
         run: npx tsx scripts/test-bi.ts
       - name: Produtividade
         run: npx tsx scripts/test-produtividade.ts
+      - name: Paginação no servidor (listas grandes)
+        run: npx tsx scripts/test-paginacao.ts
       - name: Bloqueio por tentativas de login
         run: npx tsx scripts/test-login-tentativas.ts
       - name: Sessão revalidada a cada requisição (conta desativada, senha trocada)
