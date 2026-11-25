@@ -1,4 +1,4 @@
--- OS de melhorias de 11/11/2026 (v1.204.0). Só colunas novas, todas
+-- OS de melhorias de 11/11/2026 (v1.217.0). Só colunas novas, todas
 -- anuláveis ou com padrão, e uma tabela nova: nada é reescrito nem apagado.
 --
 -- 1. Fila do teto diário de e-mail dos contracheques.
