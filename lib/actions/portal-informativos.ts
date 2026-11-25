@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { lerSessaoPortal } from "@/lib/portal-auth";
+import { ERRO_CPF_NAO_CONFIRMADO, lerSessaoPortal } from "@/lib/portal-auth";
 import type { ActionResult } from "@/lib/constants";
 
 /**
@@ -16,6 +16,7 @@ import type { ActionResult } from "@/lib/constants";
 export async function darCienciaInformativo(destinatarioId: string): Promise<ActionResult> {
   const sessao = await lerSessaoPortal();
   if (!sessao) return { ok: false, error: "Sua sessão expirou. Peça /portal ao bot novamente." };
+  if (!sessao.verificado) return { ok: false, error: ERRO_CPF_NAO_CONFIRMADO };
 
   const d = await prisma.informativoDestinatario.findFirst({
     where: { id: destinatarioId, colaboradorId: sessao.colaboradorId },

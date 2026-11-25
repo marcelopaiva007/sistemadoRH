@@ -113,6 +113,18 @@ export type SessaoPortal = {
   verificado: boolean;
 };
 
+/**
+ * Recusa de quem abriu o link do bot mas ainda não confirmou o CPF. É o mesmo
+ * texto das rotas de arquivo do portal (/api/portal/...).
+ *
+ * 25/11/2026: a auditoria achou actions do portal que gravavam (cadastro,
+ * documento, ciência, recebimento, mensagem, demanda) conferindo só se havia
+ * sessão — quem barrava o CPF era a página. Link de uso único vazado (print do
+ * chat, celular emprestado) bastava para gravar em nome da pessoa. Toda action
+ * que grava confere `sessao.verificado` e devolve esta mensagem.
+ */
+export const ERRO_CPF_NAO_CONFIRMADO = "Confirme seu CPF no portal.";
+
 /** Lê a sessão do cookie. `null` quando não há, expirou ou foi encerrada. */
 export async function lerSessaoPortal(): Promise<SessaoPortal | null> {
   const cookie = (await cookies()).get(COOKIE_SESSAO)?.value;
