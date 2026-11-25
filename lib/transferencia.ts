@@ -16,6 +16,7 @@
 // qual CNPJ de outra marca um CPF trabalha.
 
 import type { Cliente } from "@/lib/prisma";
+import { somarDiasUTC } from "@/lib/datas";
 
 export const MOTIVO_TRANSFERENCIA = "TRANSFERENCIA_GRUPO";
 
@@ -67,4 +68,146 @@ export async function destinoDaTransferencia(
     };
   }
   return { ok: true, empresaId: candidatas[0].empresaId, empresaNome: candidatas[0].empresa.nome };
+}
+
+// ---------------------------------------------------------------
+// Transferência nas CONTAS (turnover, admissões, quadro) — v1.214.0
+// ---------------------------------------------------------------
+//
+// Regra do CEO (25/11/2026): transferência entre empresas do grupo NÃO conta
+// como desligamento nem como admissão. Até aqui nenhuma conta sabia disso: a
+// ficha antiga entrava como saída num CNPJ e a ficha nova como contratação no
+// outro, e o consolidado do grupo somava as duas — turnover inflado justamente
+// no número que a diretoria usa para cobrar os gestores.
+//
+// O que muda e o que não muda:
+// - A SAÍDA por transferência continua mexendo no QUADRO do recorte (a pessoa
+//   saiu daquele CNPJ/setor), mas não entra na contagem de desligamentos.
+// - A CHEGADA por transferência idem: soma no quadro, não é contratação.
+// - O quadro reconstruído do grupo fica igual, porque as duas pontas se anulam.
+//
+// Funções puras, sem Prisma: a ficha de origem é buscada pelo caller
+// (lib/transferencia-grupo.ts) e chega aqui como lista.
+
+/** Ficha que vai entrar nas contas. */
+export type FichaParaTransferencia = {
+  id: string;
+  empresaId: string;
+  cpf: string | null;
+  dataAdmissao: Date | null;
+  dataDesligamento: Date | null;
+  motivoDesligamento: string | null;
+};
+
+/** Ficha ENCERRADA por transferência, em qualquer CNPJ do grupo. */
+export type SaidaPorTransferencia = {
+  id: string;
+  empresaId: string;
+  cpf: string | null;
+  dataAdmissao: Date | null;
+  dataDesligamento: Date | null;
+  transferidoParaEmpresaId: string | null;
+};
+
+export type MarcasDeTransferencia = {
+  /** A saída desta ficha é transferência: mexe no quadro, não é desligamento. */
+  saidaPorTransferencia: boolean;
+  /** A admissão desta ficha é chegada por transferência: mexe no quadro, não é contratação. */
+  entradaPorTransferencia: boolean;
+  /**
+   * A admissão que vale para o QUADRO (lib/bi.ts lê este campo quando ele
+   * existe). Igual à do cadastro, exceto na chegada por transferência com
+   * admissão anterior à data da transferência (a ficha nova herdou a admissão
+   * original): aí vale a data da transferência — senão a pessoa conta nas duas
+   * fichas ao mesmo tempo e o quadro infla. `dataAdmissao` continua sendo a do
+   * cadastro, para quem usa a admissão para outra coisa.
+   */
+  dataAdmissaoNoQuadro: Date | null;
+  /**
+   * Desde quando a pessoa está no GRUPO: a admissão mais antiga da cadeia de
+   * transferências. É a base do tempo de casa — o CNPJ não importa.
+   */
+  inicioNoGrupo: Date | null;
+};
+
+/**
+ * Até quantos dias DEPOIS da transferência a admissão no CNPJ novo ainda é
+ * "a mesma pessoa chegando". Admissão muito posterior é recontratação — essa
+ * conta como contratação de verdade. 90 dias cobre o atraso de cadastro que
+ * se vê na base (a ficha nova às vezes nasce semanas depois da mudança).
+ */
+export const TOLERANCIA_TRANSFERENCIA_DIAS = 90;
+
+function soDigitos(cpf: string | null): string | null {
+  const d = (cpf ?? "").replace(/\D/g, "");
+  return d.length > 0 ? d : null;
+}
+
+/**
+ * Marca cada ficha com o que ela é nas contas. A chegada por transferência é
+ * reconhecida pela ficha de ORIGEM: mesmo CPF, encerrada como transferência,
+ * com destino = o CNPJ desta ficha, e esta admissão até
+ * TOLERANCIA_TRANSFERENCIA_DIAS depois da saída de lá (ou sem data para
+ * conferir — na dúvida, a marca registrada pelo RH vale).
+ */
+export function marcarTransferencias<T extends FichaParaTransferencia>(
+  fichas: T[],
+  saidasDoGrupo: SaidaPorTransferencia[],
+): (T & MarcasDeTransferencia)[] {
+  const saidasPorCpf = new Map<string, SaidaPorTransferencia[]>();
+  for (const s of saidasDoGrupo) {
+    const cpf = soDigitos(s.cpf);
+    if (!cpf || !s.transferidoParaEmpresaId) continue;
+    const lista = saidasPorCpf.get(cpf) ?? [];
+    lista.push(s);
+    saidasPorCpf.set(cpf, lista);
+  }
+
+  return fichas.map((f) => {
+    const saidaPorTransferencia = ehTransferencia(f.motivoDesligamento);
+    const cpf = soDigitos(f.cpf);
+    const daMesmaPessoa = cpf ? (saidasPorCpf.get(cpf) ?? []).filter((s) => s.id !== f.id) : [];
+
+    // A origem desta ficha: transferência PARA este CNPJ, com a admissão aqui
+    // dentro da tolerância. Mais de uma (ida e volta) → a mais recente que
+    // ainda casa com a admissão.
+    const origens = daMesmaPessoa
+      .filter((s) => s.transferidoParaEmpresaId === f.empresaId)
+      .filter(
+        (s) =>
+          !f.dataAdmissao ||
+          !s.dataDesligamento ||
+          f.dataAdmissao <= somarDiasUTC(s.dataDesligamento, TOLERANCIA_TRANSFERENCIA_DIAS),
+      )
+      .sort((a, b) => (b.dataDesligamento?.getTime() ?? 0) - (a.dataDesligamento?.getTime() ?? 0));
+    const origem = origens[0];
+    const entradaPorTransferencia = origem !== undefined;
+
+    let dataAdmissaoNoQuadro = f.dataAdmissao;
+    if (origem?.dataDesligamento && (!f.dataAdmissao || f.dataAdmissao < origem.dataDesligamento)) {
+      dataAdmissaoNoQuadro = origem.dataDesligamento;
+    }
+
+    // Tempo de casa: a admissão mais antiga entre esta ficha e as fichas de
+    // transferência da mesma pessoa que saíram até a chegada aqui (A → B → C
+    // pega a admissão em A).
+    let inicioNoGrupo = f.dataAdmissao;
+    if (entradaPorTransferencia) {
+      const limite = dataAdmissaoNoQuadro
+        ? somarDiasUTC(dataAdmissaoNoQuadro, TOLERANCIA_TRANSFERENCIA_DIAS)
+        : null;
+      for (const s of daMesmaPessoa) {
+        if (limite && s.dataDesligamento && s.dataDesligamento > limite) continue;
+        if (s.dataAdmissao && (!inicioNoGrupo || s.dataAdmissao < inicioNoGrupo)) inicioNoGrupo = s.dataAdmissao;
+      }
+    }
+
+    return {
+      ...f,
+      saidaPorTransferencia,
+      entradaPorTransferencia,
+      dataAdmissaoNoQuadro,
+      inicioNoGrupo,
+    };
+  });
 }

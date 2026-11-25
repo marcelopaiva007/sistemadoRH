@@ -29,6 +29,7 @@ import { formatarData, hojeUTC } from "@/lib/datas";
 import { buscarDestinatarios } from "@/lib/pesquisa-notificacoes";
 import { planoAcaoVencidoWhere } from "@/lib/pendencias";
 import type { CandidatoSinal } from "@/lib/sinais";
+import { MOTIVO_TRANSFERENCIA } from "@/lib/transferencia";
 
 // regras_globais.n_minimo_exibicao no seed — mesmo corte usado pra não expor
 // agregado de amostra pequena, reaproveitado aqui pra não alertar taxa de
@@ -166,7 +167,15 @@ export async function verificarDesligamentosConcentrados(
 ): Promise<ResultadoAlertas> {
   const corte = new Date(hoje.getTime() - JANELA_DESLIGAMENTOS_DIAS * 24 * 60 * 60 * 1000);
   const desligados = await cliente.colaborador.findMany({
-    where: { ativo: false, dataDesligamento: { gte: corte, lte: hoje } },
+    where: {
+      ativo: false,
+      dataDesligamento: { gte: corte, lte: hoje },
+      // Transferência no grupo não é desligamento (25/11/2026): três pessoas
+      // mudando de CNPJ no mesmo setor não são "turnover concentrado". OR com
+      // null explícito porque `not` sozinho, no SQL, também descarta o motivo
+      // vazio — e esse é a maioria do histórico.
+      OR: [{ motivoDesligamento: null }, { motivoDesligamento: { not: MOTIVO_TRANSFERENCIA } }],
+    },
     select: { empresaId: true, setorId: true, setor: { select: { nome: true } } },
   });
 

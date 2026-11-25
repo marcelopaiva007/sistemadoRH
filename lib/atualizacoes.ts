@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.214.0",
+    data: "25/11/2026",
+    titulo: "Turnover sem transferências entre empresas do grupo, em todas as telas",
+    itens: [
+      "Transferência para outra empresa do grupo deixou de contar como desligamento e como admissão. Antes, cada transferência entrava como uma saída numa empresa e uma contratação na outra, e o turnover do grupo saía maior do que é. Os números mudam no Painel executivo, no Placar do grupo, no Painel do setor e em Meu Setor, na tela inicial (Pendências), na Central de Sinais, no Assistente e nos arquivos CSV e PDF de Indicadores.",
+      "O quadro de cada empresa e de cada setor continua acompanhando quem chegou e quem saiu por transferência: a pessoa sai do quadro de uma e entra no da outra, mas fica fora da taxa. Quando há transferências na janela, as telas dizem quantas foram.",
+      "Quem foi transferido e manteve a data de admissão original na ficha nova não é mais contado duas vezes no quadro.",
+      "No Painel do setor e no filtro de setor do Placar, o desligamento registrado a partir da versão 1.213.0 conta no setor em que a pessoa estava no dia da saída, mesmo que a ficha mude depois. Os anteriores continuam no setor atual da ficha, e o Painel do setor diz quantos são.",
+    ],
+  },
+  {
     versao: "1.213.0",
     data: "25/11/2026",
     titulo: "Desligamento passa a registrar a causa da saída e o setor da época",

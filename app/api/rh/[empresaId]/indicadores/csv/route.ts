@@ -16,6 +16,8 @@ import {
   custoPessoalPorSetor,
   headcountPorSetor,
 } from "@/lib/bi";
+import { marcarTransferencias } from "@/lib/transferencia";
+import { saidasPorTransferenciaDoGrupo } from "@/lib/transferencia-grupo";
 
 export const runtime = "nodejs";
 
@@ -52,7 +54,7 @@ export async function GET(
   // (26/11/2026) — a mesma busca e a mesma conta do Painel, para o arquivo
   // bater com a tela.
   const hojeAbsenteismo = hojeCalendarioBrasilia();
-  const [rotuloEscopo, ativos, todosOsVinculos, ausenciasRecentes, beneficiosVigentes] = await Promise.all([
+  const [rotuloEscopo, ativos, vinculosDoCadastro, ausenciasRecentes, beneficiosVigentes, saidasPorTransferencia] = await Promise.all([
     rotuloDoEscopo(empresaIds),
     prisma.colaborador.findMany({
       where: { empresaId: { in: empresaIds }, ativo: true },
@@ -60,7 +62,9 @@ export async function GET(
     }),
     prisma.colaborador.findMany({
       where: { empresaId: { in: empresaIds } },
-      select: { dataAdmissao: true, dataDesligamento: true },
+      // id, CPF e motivo: só para reconhecer transferência no grupo — a mesma
+      // conta do Painel, que é o que o arquivo precisa repetir.
+      select: { id: true, empresaId: true, cpf: true, motivoDesligamento: true, dataAdmissao: true, dataDesligamento: true },
     }),
     prisma.ausencia.findMany({
       where: { empresaId: { in: empresaIds }, ...filtroAusenciasDaJanela(hojeAbsenteismo) },
@@ -70,7 +74,9 @@ export async function GET(
       where: { empresaId: { in: empresaIds }, OR: [{ dataFim: null }, { dataFim: { gte: hoje } }], colaborador: { ativo: true } },
       select: { valorEmpresa: true, colaborador: { select: { setor: { select: { nome: true } } } } },
     }),
+    saidasPorTransferenciaDoGrupo(empresaIds),
   ]);
+  const todosOsVinculos = marcarTransferencias(vinculosDoCadastro, saidasPorTransferencia);
 
   const headcount = headcountPorSetor(ativos.map((c) => ({ setorNome: c.setor.nome })));
   const turnover = calcularTurnover(todosOsVinculos, ativos.length, hoje);

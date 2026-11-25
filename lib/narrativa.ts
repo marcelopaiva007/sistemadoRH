@@ -131,6 +131,9 @@ export type SaldoEmpresaParaNarrativa = {
   /** Somas da janela, de `movimentoMensal` — a mesma série dos gráficos da tela. */
   admissoes: number;
   desligamentos: number;
+  /** Transferências no grupo na janela (de `movimentoMensal`): mudam o quadro, não o saldo. */
+  entradasPorTransferencia?: number;
+  saidasPorTransferencia?: number;
   /** Desligados do CNPJ sem dataDesligamento: fora do saldo E do pico. */
   desligadosSemData: number;
 };
@@ -302,14 +305,22 @@ function fatoDeSaldo(
   janelaMeses: number,
   cnpjsComPico: Set<string>
 ): FatoNarrado[] {
+  // O fato é sobre contratação contra saída DE VERDADE: transferência no grupo
+  // não é desidratação nem crescimento (v1.214.0) — fica fora do saldo.
   const saldo = s.admissoes - s.desligamentos;
+  const entradasT = s.entradasPorTransferencia ?? 0;
+  const saidasT = s.saidasPorTransferencia ?? 0;
   // A mesma reconstrução retroativa de lib/bi.ts::calcularTurnover — por isso o
-  // "~": é cálculo a partir do quadro de hoje, não foto guardada.
-  const inicio = Math.max(0, s.ativos - saldo);
+  // "~": é cálculo a partir do quadro de hoje, não foto guardada. O quadro do
+  // início desfaz também as transferências, que mudaram quem está no CNPJ.
+  const inicio = Math.max(0, s.ativos - saldo - entradasT + saidasT);
   const trechoSemData =
-    s.desligadosSemData > 0
+    (s.desligadosSemData > 0
       ? ` ${s.desligadosSemData} desligado(s) sem data não entram nesta conta.`
-      : "";
+      : "") +
+    (entradasT + saidasT > 0
+      ? ` Transferências no grupo, fora da conta: ${saidasT} saída(s) e ${entradasT} chegada(s).`
+      : "");
 
   if (saldo <= -SALDO_NEGATIVO_MINIMO) {
     const perdaPct = inicio > 0 ? (Math.abs(saldo) / inicio) * 100 : 100;

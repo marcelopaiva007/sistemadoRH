@@ -9,6 +9,9 @@ import { calcularTurnover, tempoMedioDeCasaAnos } from "@/lib/bi";
 import { PISO_ATIVOS } from "@/lib/anomalias";
 import { medirQualidadeSalarial } from "@/lib/qualidade-salarial";
 import { normalizarTexto } from "@/lib/text";
+import { marcarTransferencias } from "@/lib/transferencia";
+import { saidasPorTransferenciaDoGrupo } from "@/lib/transferencia-grupo";
+import { setorParaContas } from "@/lib/retrato-desligamento";
 import { PlacarView } from "./placar-view";
 import type { ForaDoRecorte, LinhaPlacar, OpcaoSetor } from "./placar-view";
 
@@ -51,10 +54,17 @@ type Vinculo = {
   salarioBase: number | null;
   setorId: string | null;
   setor: { nome: string } | null;
+  /** Setor do dia da saída (v1.213.0) — ver `setorParaContas`. */
+  retratoDesligamento?: { setorNome: string } | null;
   posicao: { nome: string };
   sexo: string | null;
   tipoContrato: string | null;
   jornadaSemanal: number | null;
+  // Marcas de transferência no grupo (lib/transferencia.ts): a transferência
+  // mexe no quadro do CNPJ, mas não é admissão nem desligamento.
+  saidaPorTransferencia?: boolean;
+  entradaPorTransferencia?: boolean;
+  dataAdmissaoNoQuadro?: Date | null;
 };
 
 export default async function PlacarPage({
@@ -82,7 +92,7 @@ export default async function PlacarPage({
   const hoje = hojeUTC();
   const inicioDaJanela = somarMesesUTC(hoje, -janela);
 
-  const [empresas, todosOsVinculos] = await Promise.all([
+  const [empresas, vinculosDoCadastro, saidasPorTransferencia] = await Promise.all([
     // Todas as visíveis, não só as do escopo: os seletores de marca e CNPJ
     // precisam oferecer o que está fora do filtro atual, senão filtrar em um
     // CNPJ tranca a pessoa nele.
@@ -101,6 +111,11 @@ export default async function PlacarPage({
     prisma.colaborador.findMany({
       where: { empresaId: { in: escopo } },
       select: {
+        // id, cpf e motivo só para reconhecer transferência no grupo — nenhum
+        // dos três entra em `LinhaPlacar`.
+        id: true,
+        cpf: true,
+        motivoDesligamento: true,
         empresaId: true,
         ativo: true,
         dataAdmissao: true,
@@ -108,23 +123,35 @@ export default async function PlacarPage({
         salarioBase: true,
         setorId: true,
         setor: { select: { nome: true } },
+        retratoDesligamento: { select: { setorNome: true } },
         posicao: { select: { nome: true } },
         sexo: true,
         tipoContrato: true,
         jornadaSemanal: true,
       },
     }),
+    saidasPorTransferenciaDoGrupo(escopo),
   ]);
+
+  // Transferência no grupo não é admissão nem desligamento (25/11/2026).
+  const todosOsVinculos = marcarTransferencias(vinculosDoCadastro, saidasPorTransferencia);
 
   const setores = montarOpcoesDeSetor(todosOsVinculos);
   const setorSelecionado =
     setorParam && setores.some(s => s.chave === setorParam) ? setorParam : null;
 
   // O filtro de setor corta ativos E desligados: o turnover do Comercial precisa
-  // do numerador e do denominador no mesmo recorte. `setorId` sobrevive ao
-  // desligamento, então quem saiu continua contando no setor em que estava.
+  // do numerador e do denominador no mesmo recorte. Quem saiu conta no setor em
+  // que estava no dia da saída quando há retrato (v1.213.0) e, no histórico
+  // anterior, no setor da ficha — a mesma régua do Painel do setor.
   const vinculos = setorSelecionado
-    ? todosOsVinculos.filter(v => v.setor && normalizarTexto(v.setor.nome) === setorSelecionado)
+    ? todosOsVinculos.filter(
+        v =>
+          v.setor &&
+          normalizarTexto(
+            setorParaContas({ ativo: v.ativo, setor: v.setor, retratoDesligamento: v.retratoDesligamento })
+          ) === setorSelecionado
+      )
     : todosOsVinculos;
 
   const empresasNoEscopo = empresas.filter(e => escopo.includes(e.id));
@@ -281,7 +308,7 @@ function montarForaDoRecorte(
     // por falta de cadastro. Misturar os dois grupos apagaria a diferença entre
     // "abra a janela" e "vá cobrar o DP".
     desligadosAntesDaJanela: vinculos.filter(
-      v => v.dataDesligamento && v.dataDesligamento < inicioDaJanela
+      v => v.dataDesligamento && v.dataDesligamento < inicioDaJanela && !v.saidaPorTransferencia
     ).length,
     ativosSemSalario: ativos.filter(v => v.salarioBase == null).length,
     empresasSemFolha: linhas.filter(l => l.folhaBase === null && l.ativos > 0).map(l => l.empresa),

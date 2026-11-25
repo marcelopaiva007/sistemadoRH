@@ -80,6 +80,8 @@ jobs:
         run: npx tsx scripts/test-admissao.ts
       - name: Indicadores (BI)
         run: npx tsx scripts/test-bi.ts
+      - name: Transferência no grupo fora do turnover (v1.214.0)
+        run: npx tsx scripts/test-transferencias-turnover.ts
       - name: Absenteísmo recortado à janela dos últimos 30 dias
         run: npx tsx scripts/test-absenteismo-janela.ts
       - name: Aviso ao colaborador da resposta do Fale com o RH
@@ -332,6 +334,8 @@ jobs:
         run: npx tsx scripts/smoke-offboarding.ts
       - name: Retrato do desligamento e causa da saída (v1.213.0)
         run: npx tsx scripts/smoke-retrato-desligamento.ts
+      - name: Transferência no grupo nas telas que agregam (v1.214.0)
+        run: npx tsx scripts/smoke-transferencia-grupo.ts
       - name: Onboarding
         run: npx tsx scripts/smoke-onboarding.ts
       - name: Pendências

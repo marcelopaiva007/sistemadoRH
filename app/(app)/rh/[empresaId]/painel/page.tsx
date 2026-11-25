@@ -16,6 +16,8 @@ import { analisarDesligamentos, type Anomalia, type VinculoParaAnomalia } from "
 import { resumoTempoDeCasa, tempoDeCasaPorSetor } from "@/lib/tempo-de-casa";
 import { medirMalhaLideranca } from "@/lib/lideranca";
 import { montarNarrativa, type DesligamentoParaNarrativa, type SaldoEmpresaParaNarrativa } from "@/lib/narrativa";
+import { marcarTransferencias } from "@/lib/transferencia";
+import { saidasPorTransferenciaDoGrupo } from "@/lib/transferencia-grupo";
 import { PainelView } from "./painel-view";
 import type { AbsenteismoNaTela, LinhaCustoNaTela } from "./painel-view";
 import type { AnomaliaNaTela, SaidaDoMes } from "./radar-desvio";
@@ -102,13 +104,14 @@ export default async function PainelPage({
 
   const [
     empresas,
-    vinculos,
+    vinculosDoCadastro,
     ativos,
     setores,
     ausenciasRecentes,
     ausenciasNoEscopo,
     beneficiosVigentes,
     ativosDoGrupoParaMalha,
+    saidasPorTransferencia,
   ] = await Promise.all([
     // Todas as visíveis, não só as do escopo: os seletores de marca e CNPJ
     // precisam oferecer o que está fora do filtro atual, senão filtrar em um
@@ -132,6 +135,10 @@ export default async function PainelPage({
         empresaId: true,
         dataAdmissao: true,
         dataDesligamento: true,
+        // CPF e motivo só para reconhecer transferência no grupo
+        // (lib/transferencia.ts) — nenhum dos dois sai desta página.
+        cpf: true,
+        motivoDesligamento: true,
         setor: { select: { nome: true } },
         posicao: { select: { nome: true } },
       },
@@ -199,7 +206,15 @@ export default async function PainelPage({
         empresaId: true,
       },
     }),
+    // Fichas encerradas por transferência no grupo: transferência não é
+    // desligamento nem admissão (regra do CEO, 25/11/2026) — ver
+    // lib/transferencia-grupo.ts.
+    saidasPorTransferenciaDoGrupo(escopo),
   ]);
+
+  // Toda conta desta tela parte daqui: cada ficha sabe se a saída ou a chegada
+  // dela é transferência no grupo.
+  const vinculos = marcarTransferencias(vinculosDoCadastro, saidasPorTransferencia);
 
   const porEmpresa = new Map(empresas.map(e => [e.id, e]));
 
@@ -232,6 +247,7 @@ export default async function PainelPage({
         marcaNome: e.marca.nome,
         ativo: v.ativo,
         dataDesligamento: v.dataDesligamento,
+        saidaPorTransferencia: v.saidaPorTransferencia,
       },
     ];
   });
@@ -261,7 +277,7 @@ export default async function PainelPage({
   // se viesse de outra janela. Malha é do grupo inteiro (ver a consulta acima).
   const desligamentosParaNarrativa: DesligamentoParaNarrativa[] = vinculos.flatMap(v => {
     const e = porEmpresa.get(v.empresaId);
-    if (!e || v.ativo || !v.dataDesligamento) return [];
+    if (!e || v.ativo || !v.dataDesligamento || v.saidaPorTransferencia) return [];
     const dentroDoRadar =
       hoje.getTime() - v.dataDesligamento.getTime() <= MESES_DO_RADAR * 31 * 86_400_000;
     if (!dentroDoRadar) return [];
@@ -287,6 +303,8 @@ export default async function PainelPage({
         ativos: vinculosDaEmpresa.filter(v => v.ativo).length,
         admissoes: mov.reduce((t, m) => t + m.admissoes, 0),
         desligamentos: mov.reduce((t, m) => t + m.desligamentos, 0),
+        entradasPorTransferencia: mov.reduce((t, m) => t + m.entradasPorTransferencia, 0),
+        saidasPorTransferencia: mov.reduce((t, m) => t + m.saidasPorTransferencia, 0),
         desligadosSemData: vinculosDaEmpresa.filter(v => !v.ativo && !v.dataDesligamento).length,
       },
     ];
@@ -410,6 +428,7 @@ type VinculoCarregado = {
   ativo: boolean;
   empresaId: string;
   dataDesligamento: Date | null;
+  saidaPorTransferencia: boolean;
   setor: { nome: string };
   posicao: { nome: string };
 };
@@ -436,7 +455,8 @@ function saidasDaAnomalia(
 ): SaidaDoMes[] {
   return vinculos
     .filter(v => {
-      if (v.ativo || !v.dataDesligamento) return false;
+      // Transferência no grupo não é saída — fora da lista, como fora da série.
+      if (v.ativo || !v.dataDesligamento || v.saidaPorTransferencia) return false;
       if (chaveDoMes(v.dataDesligamento) !== anomalia.mes) return false;
       const empresa = porEmpresa.get(v.empresaId);
       if (!empresa) return false;
