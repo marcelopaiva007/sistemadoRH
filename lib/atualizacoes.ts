@@ -35,6 +35,15 @@ export const ATUALIZACOES: Atualizacao[] = [
     ],
   },
   {
+    versao: "1.209.1",
+    data: "25/11/2026",
+    horario: "19:00",
+    titulo: "Atualização de segurança da base do sistema",
+    itens: [
+      "A base do sistema (Next.js) foi atualizada para corrigir falhas de segurança conhecidas. Nada muda nas telas.",
+    ],
+  },
+  {
     versao: "1.209.0",
     data: "25/11/2026",
     horario: "18:00",
