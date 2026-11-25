@@ -19,6 +19,16 @@ export const TIPOS_PENDENCIA_CONTRATOS = [
   "ALUGUEL_ATRASADO",
 ];
 
+/**
+ * A área de UMA pendência, pelo tipo — a mesma partição de `filtroTipoDaArea`.
+ * É o que as actions da Central (lib/actions/processos-pendencias.ts) conferem
+ * contra as abas da pessoa (26/11/2026): sem isso, quem só vê Frota
+ * dispensava pendência de Contratos chamando a action direto.
+ */
+export function areaDoTipoPendencia(tipo: string): AreaProcessos {
+  return TIPOS_PENDENCIA_CONTRATOS.includes(tipo) ? "contratos" : "frota";
+}
+
 /** Filtro Prisma de `Pendencia.tipo` para uma área. */
 export function filtroTipoDaArea(area: AreaProcessos) {
   return area === "contratos"

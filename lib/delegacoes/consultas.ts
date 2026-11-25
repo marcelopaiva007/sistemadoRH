@@ -287,6 +287,10 @@ export function paraPainel(d: LinhaPainelDoBanco): DemandaParaPainel {
 
 export const SELECT_PAINEL_DIRECAO = {
   ...SELECT_LISTA,
+  // Só para decidir `podeAbrir` no servidor (26/11/2026) — `paraLinha` não
+  // repassa os ids ao navegador.
+  solicitanteId: true,
+  responsavelId: true,
   nivelEscalonamento: true,
   // A mais recente RECEBIDA com classificação — não a mais recente de
   // qualquer tipo, senão uma cobrança ENVIADA sem resposta apagaria a última
@@ -305,21 +309,55 @@ export type DemandaPainelDirecao = DemandaNaTela & {
   /** null até o PR 6 existir — ver o comentário acima. */
   classificacaoIa: string | null;
   confiancaIa: number | null;
+  /**
+   * Se quem olha o painel consegue ABRIR o detalhe (`/delegacoes/<id>`).
+   * Ver `podeAbrirNoPainel` — quando false, a linha vai sem link.
+   */
+  podeAbrir: boolean;
 };
 
+/**
+ * O painel LISTA toda demanda do grupo (decisão do CEO, 09/09/2026 — ver
+ * app/(app)/delegacoes/painel/page.tsx), mas o DETALHE continua com a regra
+ * de `podeVerDemanda`: quem pediu, quem faz, ou a Direção do grupo. A decisão
+ * registrada abriu a LISTA, não o detalhe — não há linha no código que amplie
+ * `podeVerDemanda`, e ampliar por tabela seria decidir pelo CEO.
+ *
+ * Até 26/11/2026 toda linha do painel era link, e quem não é Direção clicava
+ * numa demanda alheia e caía em 404 (auditoria). Agora a linha só vira link
+ * quando a pessoa pode abrir; nas demais, a tela diz por quê.
+ *
+ * Mesma resposta de `podeVerDemanda` SEM ida ao banco: as linhas do painel já
+ * vêm recortadas por `demandasDoMeuGrupo`, então "Direção do mesmo grupo do
+ * solicitante" se reduz a "é Direção". Usar fora do painel exige o recorte de
+ * grupo no `where` — senão é `podeVerDemanda` que vale.
+ */
+export function podeAbrirNoPainel(
+  user: { id?: string; role: string },
+  demanda: { solicitanteId: string; responsavelId: string },
+): boolean {
+  if (!user.id) return false;
+  if (demanda.solicitanteId === user.id || demanda.responsavelId === user.id) return true;
+  return ehDirecao(user);
+}
+
 type LinhaPainelDirecaoDoBanco = LinhaDoBanco & {
+  solicitanteId: string;
+  responsavelId: string;
   nivelEscalonamento: number;
   interacoes: { classificacaoIa: string | null; confiancaIa: number | null }[];
 };
 
 export function paraLinhaPainelDirecao(
   d: LinhaPainelDirecaoDoBanco,
+  usuario: { id?: string; role: string },
   agora = new Date(),
 ): DemandaPainelDirecao {
   const base = paraLinha(d, agora);
   const ultima = d.interacoes[0];
   return {
     ...base,
+    podeAbrir: podeAbrirNoPainel(usuario, d),
     nivelEscalonamento: d.nivelEscalonamento,
     classificacaoIa: ultima?.classificacaoIa ?? null,
     confiancaIa: ultima?.confiancaIa ?? null,

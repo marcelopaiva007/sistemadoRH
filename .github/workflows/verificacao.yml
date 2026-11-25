@@ -190,6 +190,8 @@ jobs:
         run: npx tsx scripts/test-frota-financeiro.ts
       - name: Pesquisa — análise gerencial
         run: npx tsx scripts/test-pesquisa-analise.ts
+      - name: Reconhecimento — anos de casa e marco redondo
+        run: npx tsx scripts/test-anos-de-casa.ts
 
   # Os 31 smokes contra Postgres de verdade. O banco nasce vazio a cada
   # execução: schema gerado do prisma/schema.prisma via `migrate diff` (o
