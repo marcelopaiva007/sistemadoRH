@@ -71,7 +71,7 @@ export async function devolverDocumento(
   id: string,
   motivo: string,
 ): Promise<ActionResult> {
-  const usuario = await requireEmpresaAccess(empresaId);
+  await requireEmpresaAccess(empresaId);
 
   const texto = motivo.trim();
   if (texto.length < 5) {
