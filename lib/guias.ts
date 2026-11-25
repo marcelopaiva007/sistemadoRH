@@ -606,6 +606,32 @@ export const GUIAS: Guia[] = [
       },
     ],
   },
+  {
+    slug: "esocial",
+    titulo: "Prazos eSocial",
+    paraQue: "Mostra o prazo legal de cada evento que o escritório contábil precisa mandar ao eSocial.",
+    alimenta: "A marcação de que os dados de cada admissão, desligamento, acidente e afastamento já foram para o escritório.",
+    passos: [
+      {
+        titulo: "O sistema avisa, o escritório transmite",
+        fala: "Admissão, desligamento, acidente e afastamento registrados aqui viram um evento com data-limite. Quem transmite ao eSocial é o escritório contábil — o seu papel é fazer os dados chegarem lá antes do prazo.",
+        cena: "fluxo",
+        rotulos: ["Registro no sistema", "Dados ao escritório", "Escritório transmite"],
+      },
+      {
+        titulo: "Exporte e mande",
+        fala: "Cada tipo de evento tem o seu arquivo, que abre no Excel, com os dados que a ficha tem. É esse arquivo que vai para o escritório.",
+        cena: "tabela",
+        rotulos: ["Evento", "Colaborador", "Prazo", "Situação"],
+      },
+      {
+        titulo: "Marque como enviado",
+        fala: "Depois que os dados chegaram ao escritório, marque o evento como enviado. Ele sai das Pendências. Se a data do fato for corrigida na ficha, o evento volta, porque o escritório precisa retificar.",
+        cena: "checklist",
+        rotulos: ["Admissão enviada", "Rescisão enviada", "Afastamento enviado"],
+      },
+    ],
+  },
 
   // ────────────────── Desempenho & desenvolvimento ──────────────────
   {

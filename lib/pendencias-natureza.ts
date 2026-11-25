@@ -74,6 +74,10 @@ export const PENDENCIAS_PRAZO = [
   "desligamentosSemEntrevista",
   "sinaisAbertos",
   "entregasNaoConfirmadas",
+  // 26/11/2026. Prazo legal puro (S-2200 até a véspera da admissão, S-2299 em
+  // 10 dias, S-2230 até o 16º dia) — e quem destrava é o RH mandando os dados
+  // ao escritório, não alguém esperando resposta.
+  "esocialAEnviar",
 ] as const;
 
 export const PENDENCIAS_CADASTRO = [

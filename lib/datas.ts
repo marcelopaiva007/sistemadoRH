@@ -114,6 +114,23 @@ export function hojeCalendarioBrasilia(agora: Date = new Date()): Date {
   return new Date(`${diaBrasilia(agora)}T00:00:00Z`);
 }
 
+/**
+ * O dia de Brasília de um instante, como data de calendário (meia-noite UTC) —
+ * a forma em que o resto deste arquivo trata datas. Criado em 26/11/2026 para
+ * os prazos do eSocial (lib/prazos-legais.ts): o acidente das 22h de sexta em
+ * Brasília é de SEXTA, e o prazo da CAT é o 1º dia útil depois DELE — com a
+ * data crua em UTC, viraria sábado e o prazo pularia para terça.
+ */
+export function dataBrasilia(d: Date): Date {
+  const [ano, mes, dia] = diaBrasilia(d).split("-").map(Number);
+  return dataUTC(ano, mes, dia);
+}
+
+/** Hoje em Brasília, como data de calendário (meia-noite UTC). */
+export function hojeBrasilia(): Date {
+  return dataBrasilia(new Date());
+}
+
 export function formatarDataHoraBrasilia(d: Date): string {
   return d.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
 }

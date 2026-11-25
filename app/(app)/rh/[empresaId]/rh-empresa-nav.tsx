@@ -80,6 +80,10 @@ const GRUPOS: GrupoDoMenu[] = [
       // benefícios — mas a tela serve para notebook, uniforme e crachá igual.
       { slug: "entregas", label: "Entregas" },
       { slug: "folha", label: "Folha" },
+      // 26/11/2026. Ao lado da Folha porque é a mesma conversa com o
+      // escritório contábil: o prazo legal de cada evento (admissão,
+      // desligamento, CAT, afastamento), o CSV e a marcação de enviado.
+      { slug: "esocial", label: "Prazos eSocial" },
     ],
   },
   {
