@@ -28,19 +28,23 @@ export type LimitePublico = {
   janelaMinutos: number;
 };
 
-/** Inscrição em vaga: 5 por IP por hora. Uma pessoa se inscreve em poucas
- * vagas; quem manda dezenas por hora do mesmo lugar é robô. */
+/** Inscrição em vaga: 20 por IP por hora. Uma pessoa se inscreve em poucas
+ * vagas, mas num processo seletivo presencial vários candidatos usam o mesmo
+ * Wi-Fi (o mesmo IP) — 5, o primeiro número, barraria o 6º candidato da sala.
+ * Quem manda centenas por hora do mesmo lugar continua barrado. */
 export const LIMITE_INSCRICAO_VAGA: LimitePublico = {
   chave: "publico:vaga-inscricao",
-  maximo: 5,
+  maximo: 20,
   janelaMinutos: 60,
 };
 
-/** Resposta de pesquisa: 30 por IP por hora. Teto mais alto de propósito —
- * colegas respondem do mesmo Wi-Fi da loja, e todos saem pelo mesmo IP. */
+/** Resposta de pesquisa: 300 por IP por hora. Teto alto de propósito — a
+ * pesquisa de clima costuma ser respondida em grupo, no Wi-Fi da empresa, e
+ * todos saem pelo mesmo IP (uma loja grande passa de 30 numa hora). O que o
+ * limite barra é o robô que manda milhares. */
 export const LIMITE_RESPOSTA_PESQUISA: LimitePublico = {
   chave: "publico:pesquisa-resposta",
-  maximo: 30,
+  maximo: 300,
   janelaMinutos: 60,
 };
 

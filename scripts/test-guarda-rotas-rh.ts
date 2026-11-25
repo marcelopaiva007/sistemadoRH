@@ -29,8 +29,6 @@ function confere(ok: boolean, msg: string) {
 const EXCECOES: Record<string, string> = {
   // Frente de pesquisas cuida destas em paralelo (25/11/2026); ficam de fora
   // deste conserto para não conflitar. Pendência registrada no relatório.
-  "app/api/rh/[empresaId]/pesquisas/[pesquisaId]/relatorio-pdf/route.ts": "frente de pesquisas",
-  "app/api/rh/[empresaId]/pesquisas/[pesquisaId]/relatorio-clima-pdf/route.ts": "frente de pesquisas",
   // Segredos/lembretes: frente própria em paralelo.
   "lib/actions/rh-segredos.ts": "frente de segredos/lembretes",
 };
