@@ -38,6 +38,14 @@ export const ATUALIZACOES: Atualizacao[] = [
     ],
   },
   {
+    versao: "1.212.2",
+    data: "25/11/2026",
+    titulo: "Preparação do banco para a área Desligamentos",
+    itens: [
+      "Sem mudança visível. O banco passa a ter onde guardar a causa da saída, o retrato de setor, cargo e líder no dia do desligamento, e a configuração da área Desligamentos (custo por desligamento, meta, limite e crescimento do negócio por ano), que as próximas versões começam a usar.",
+    ],
+  },
+  {
     versao: "1.212.1",
     data: "26/11/2026",
     horario: "16:00",
