@@ -23,20 +23,51 @@ import { PainelDirecaoView } from "./painel-direcao-view";
  *
  * RASCUNHO fica de fora: é anotação privada de quem ainda nem delegou —
  * mostrar rascunho alheio no painel geral seria expor intenção não
- * comunicada. ENCERRADA/CANCELADA vêm no dado (o filtro de status é da
- * tela, client-side) para não pedir uma segunda ida ao banco ao alternar
- * "mostrar histórico".
+ * comunicada.
+ *
+ * HISTÓRICO LIMITADO (26/11/2026, auditoria): até aqui ENCERRADA/CANCELADA
+ * vinham TODAS no dado, para o filtro "mostrar histórico" não pedir uma
+ * segunda ida ao banco — e o painel crescia sem teto, serializando no HTML o
+ * histórico inteiro do grupo. Agora são duas consultas: as ATIVAS vêm todas
+ * (é o que o painel existe para mostrar, e o volume é o do trabalho em
+ * curso), e do histórico só as `historico` mais recentes (padrão
+ * HISTORICO_POR_PAGINA), com "ver mais" que sobe o número pela URL.
+ *
+ * O link para o detalhe NÃO vem em toda linha: o painel é aberto a todos,
+ * o detalhe não (`podeAbrirNoPainel`, lib/delegacoes/consultas.ts).
  */
-export default async function PainelDirecaoPage() {
-  const usuario = await requireDelegacoesAccess();
+const HISTORICO_POR_PAGINA = 100;
+const HISTORICO_MAXIMO = 2000;
 
-  const [linhas, marcas] = await Promise.all([
+function lerLimiteHistorico(valor: string | undefined): number {
+  const n = Number(valor);
+  if (!Number.isInteger(n) || n <= 0) return HISTORICO_POR_PAGINA;
+  return Math.min(n, HISTORICO_MAXIMO);
+}
+
+export default async function PainelDirecaoPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ historico?: string }>;
+}) {
+  const usuario = await requireDelegacoesAccess();
+  const { historico } = await searchParams;
+  const limiteHistorico = lerLimiteHistorico(historico);
+
+  const doGrupo = demandasDoMeuGrupo(usuario.id);
+  const [ativas, encerradas, marcas] = await Promise.all([
     prisma.demanda.findMany({
-      where: {
-        AND: [{ status: { not: "RASCUNHO" } }, demandasDoMeuGrupo(usuario.id)],
-      },
+      where: { AND: [{ status: { notIn: ["RASCUNHO", "ENCERRADA", "CANCELADA"] } }, doGrupo] },
       select: SELECT_PAINEL_DIRECAO,
       orderBy: { prazo: "asc" },
+    }),
+    // Uma a mais que o limite: é como se sabe se existe "ver mais" sem um
+    // `count` separado.
+    prisma.demanda.findMany({
+      where: { AND: [{ status: { in: ["ENCERRADA", "CANCELADA"] } }, doGrupo] },
+      select: SELECT_PAINEL_DIRECAO,
+      orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+      take: limiteHistorico + 1,
     }),
     prisma.marca.findMany({
       where: { ativo: true, ...whereMarcasDoGrupoDe(usuario.id!) },
@@ -45,7 +76,25 @@ export default async function PainelDirecaoPage() {
     }),
   ]);
 
-  const demandas = linhas.map((d) => paraLinhaPainelDirecao(d));
+  const haMaisHistorico = encerradas.length > limiteHistorico;
+  const demandas = [...ativas, ...encerradas.slice(0, limiteHistorico)].map((d) =>
+    paraLinhaPainelDirecao(d, usuario),
+  );
 
-  return <PainelDirecaoView demandas={demandas} marcas={marcas} />;
+  return (
+    <PainelDirecaoView
+      demandas={demandas}
+      marcas={marcas}
+      historico={{
+        // Veio de "ver mais": a tela já abre com o histórico à mostra.
+        aberto: historico !== undefined,
+        limite: limiteHistorico,
+        haMais: haMaisHistorico,
+        proximoLimite:
+          haMaisHistorico && limiteHistorico < HISTORICO_MAXIMO
+            ? Math.min(limiteHistorico + HISTORICO_POR_PAGINA, HISTORICO_MAXIMO)
+            : null,
+      }}
+    />
+  );
 }

@@ -48,15 +48,18 @@ function rotuloClassificacao(chave: string): string {
 export function PainelDirecaoView({
   demandas,
   marcas,
+  historico,
 }: {
   demandas: DemandaPainelDirecao[];
   marcas: { id: string; nome: string }[];
+  /** O histórico (encerradas/canceladas) vem limitado — ver painel/page.tsx. */
+  historico: { aberto: boolean; limite: number; haMais: boolean; proximoLimite: number | null };
 }) {
   const [busca, setBusca] = useState("");
   const [marcaId, setMarcaId] = useState("");
   const [criticidade, setCriticidade] = useState("");
   const [semaforos, setSemaforos] = useState<Set<Semaforo>>(new Set());
-  const [mostrarHistorico, setMostrarHistorico] = useState(false);
+  const [mostrarHistorico, setMostrarHistorico] = useState(historico.aberto);
 
   const FACETA_IA = useMemo(
     () => [...new Set(demandas.map((d) => d.classificacaoIa).filter((v): v is string => !!v))].sort(),
@@ -205,9 +208,21 @@ export function PainelDirecaoView({
                   </div>
 
                   <div className="min-w-0 flex-1">
-                    <Link href={d.href} className="text-sm font-medium text-foreground hover:underline">
-                      {d.titulo}
-                    </Link>
+                    {/* Link só para quem pode abrir o detalhe (26/11/2026):
+                        o painel é aberto a todos, a demanda alheia não — sem
+                        isto, o clique caía em 404. */}
+                    {d.podeAbrir ? (
+                      <Link href={d.href} className="text-sm font-medium text-foreground hover:underline">
+                        {d.titulo}
+                      </Link>
+                    ) : (
+                      <span
+                        className="text-sm font-medium text-foreground"
+                        title="Só quem pediu, quem faz e a Direção abrem o detalhe desta demanda."
+                      >
+                        {d.titulo}
+                      </span>
+                    )}
                     <p className="mt-1 text-xs text-muted-foreground">
                       de <span className="text-foreground">{d.solicitanteNome}</span> para{" "}
                       <span className="text-foreground">{d.responsavelNome}</span>
@@ -240,8 +255,25 @@ export function PainelDirecaoView({
               ))}
             </div>
           )}
+          {mostrarHistorico && historico.haMais && (
+            <p className="border-t border-border/60 px-4 py-3 text-center text-xs text-muted-foreground">
+              Mostrando as {historico.limite} encerradas e canceladas mais recentes.{" "}
+              {historico.proximoLimite !== null ? (
+                <Link href={`?historico=${historico.proximoLimite}`} className="text-foreground hover:underline">
+                  Ver mais
+                </Link>
+              ) : (
+                "Esse é o limite desta tela."
+              )}
+            </p>
+          )}
         </CardContent>
       </Card>
+      {demandas.some((d) => !d.podeAbrir) && (
+        <p className="text-xs text-muted-foreground">
+          Títulos sem link: o detalhe da demanda abre só para quem pediu, quem faz e a Direção.
+        </p>
+      )}
     </div>
   );
 }
