@@ -44,6 +44,15 @@ export const ATUALIZACOES: Atualizacao[] = [
     ],
   },
   {
+    versao: "1.211.1",
+    data: "26/11/2026",
+    horario: "14:00",
+    titulo: "Preparação do banco para os Prazos eSocial",
+    itens: [
+      "O banco ganhou a tabela que guarda quais eventos do eSocial já foram enviados ao escritório contábil. Nada muda nas telas ainda.",
+    ],
+  },
+  {
     versao: "1.211.0",
     data: "26/11/2026",
     horario: "10:00",
