@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { marcaDaEmpresa } from "@/lib/escopo-marca";
-import { requireEmpresaAccess, requireRHAccess } from "@/lib/rh-auth-guard";
+import { empresasVisiveis, requireEmpresaAccess, requireRHAccess } from "@/lib/rh-auth-guard";
 import { executarGestaoCiclo } from "@/lib/pesquisa-ciclo";
 import { enviarUmConvite, enviosRestantesHoje, LIMITE_DIARIO_ENVIOS } from "@/lib/convites";
 import { vinculoTelegramQuebrado, MSG_AGUARDANDO_NOVO_VINCULO } from "@/lib/pesquisa-numeros";
@@ -415,16 +415,23 @@ export async function gerarConvites(empresaId: string, pesquisaId: string): Prom
  * Quem já respondeu não pode ser excluído: a resposta anônima já está contada
  * nos agregados e não há como retirá-la, então tirar o convite só apagaria o
  * registro de que aquela pessoa participou.
+ *
+ * Só alcança quem é de um CNPJ que o usuário ENXERGA (25/11/2026). O convite
+ * é da marca, mas desativar a ficha é escrita no cadastro da pessoa: sem este
+ * recorte, um RH de um único CNPJ desativava, por esta porta, funcionário de
+ * CNPJ irmão que ele não vê em tela nenhuma — e a pessoa sumia do headcount
+ * de outro RH sem aviso. Convite de CNPJ invisível responde "não encontrado".
  */
 export async function excluirDaPesquisa(
   empresaId: string,
   tokenId: string,
   motivo?: string,
 ): Promise<ResultadoComMensagem> {
-  await requireEmpresaAccess(empresaId);
+  const usuario = await requireEmpresaAccess(empresaId);
+  const visiveis = await empresasVisiveis(usuario);
 
   const token = await prisma.surveyToken.findFirst({
-    where: { id: tokenId, pesquisa: { empresaId } },
+    where: { id: tokenId, pesquisa: { empresaId }, colaborador: { empresaId: { in: visiveis } } },
     include: {
       colaborador: { select: { id: true, nome: true, ativo: true } },
       pesquisa: { select: { titulo: true } },
@@ -488,10 +495,17 @@ export async function reincluirNaPesquisa(
   empresaId: string,
   tokenId: string,
 ): Promise<ResultadoComMensagem> {
-  await requireEmpresaAccess(empresaId);
+  const usuario = await requireEmpresaAccess(empresaId);
+  // Mesmo recorte de `excluirDaPesquisa`: só quem é de CNPJ visível.
+  const visiveis = await empresasVisiveis(usuario);
 
   const token = await prisma.surveyToken.findFirst({
-    where: { id: tokenId, pesquisa: { empresaId }, status: "EXCLUIDO" },
+    where: {
+      id: tokenId,
+      pesquisa: { empresaId },
+      status: "EXCLUIDO",
+      colaborador: { empresaId: { in: visiveis } },
+    },
     include: { colaborador: { select: { nome: true, ativo: true } } },
   });
   if (!token) return { ok: false, error: "Convite não encontrado ou não está excluído." };
@@ -531,15 +545,25 @@ export async function reincluirNaPesquisa(
  * Só apaga EXCLUIDO. Um convite respondido carrega o registro de que aquela
  * pessoa participou, e a resposta é anônima: apagar o convite não tira a
  * resposta do resultado, só esconde de quem ela veio.
+ *
+ * `visiveis` (25/11/2026): só convites e fichas de CNPJs que o usuário
+ * enxerga — mesma razão de `excluirDaPesquisa`. "Limpar todos" numa pesquisa
+ * da marca deixa intocados os excluídos de CNPJ que ele não vê.
  */
 async function apagarExcluidos(
   empresaId: string,
+  visiveis: string[],
   where: { pesquisaId: string } | { id: string },
 ): Promise<{ apagados: number; pesquisaId: string | null; nomes: string[] }> {
   const marcaId = await marcaDaEmpresa(empresaId);
 
   const tokens = await prisma.surveyToken.findMany({
-    where: { ...where, status: "EXCLUIDO", pesquisa: { marcaId } },
+    where: {
+      ...where,
+      status: "EXCLUIDO",
+      pesquisa: { marcaId },
+      colaborador: { empresaId: { in: visiveis } },
+    },
     select: {
       id: true,
       pesquisaId: true,
@@ -557,8 +581,16 @@ async function apagarExcluidos(
     // excluído pode ser da BRNET numa pesquisa criada na RSM. Preso ao CNPJ,
     // o updateMany não pegaria ninguém e a pessoa voltaria no próximo "Gerar
     // convites" — o retorno que este trecho existe justamente para impedir.
+    //
+    // E SÓ nos CNPJs visíveis (25/11/2026): a marca inteira deixava desativar
+    // ficha de CNPJ irmão que o usuário não alcança.
     prisma.colaborador.updateMany({
-      where: { id: { in: colaboradorIds }, empresa: { marcaId }, ativo: true },
+      where: {
+        id: { in: colaboradorIds },
+        empresa: { marcaId },
+        empresaId: { in: visiveis },
+        ativo: true,
+      },
       data: { ativo: false },
     }),
     prisma.surveyToken.deleteMany({ where: { id: { in: ids } } }),
@@ -576,9 +608,13 @@ export async function apagarConviteExcluido(
   empresaId: string,
   tokenId: string,
 ): Promise<ResultadoComMensagem> {
-  await requireEmpresaAccess(empresaId);
+  const usuario = await requireEmpresaAccess(empresaId);
 
-  const { apagados, pesquisaId, nomes } = await apagarExcluidos(empresaId, { id: tokenId });
+  const { apagados, pesquisaId, nomes } = await apagarExcluidos(
+    empresaId,
+    await empresasVisiveis(usuario),
+    { id: tokenId },
+  );
   if (apagados === 0) {
     return { ok: false, error: "Só dá para apagar quem está fora da pesquisa." };
   }
@@ -600,9 +636,9 @@ export async function limparExcluidosDaPesquisa(
   empresaId: string,
   pesquisaId: string,
 ): Promise<ResultadoComMensagem> {
-  await requireEmpresaAccess(empresaId);
+  const usuario = await requireEmpresaAccess(empresaId);
 
-  const { apagados } = await apagarExcluidos(empresaId, { pesquisaId });
+  const { apagados } = await apagarExcluidos(empresaId, await empresasVisiveis(usuario), { pesquisaId });
   if (apagados === 0) return { ok: true, message: "Não há ninguém fora da pesquisa." };
 
   await registrarAuditoria({
@@ -627,15 +663,18 @@ export async function limparExcluidosDaPesquisa(
  * (ver lib/convites.ts), e é exatamente o /start seguinte que vai gravar um
  * chat_id válido por cima — precisa que o envio tente de novo sozinho quando
  * isso acontecer.
+ *
+ * Como `apagarExcluidos`, só mexe em ficha de CNPJ visível (25/11/2026).
  */
 async function limparVinculo(
   empresaId: string,
+  visiveis: string[],
   where: { pesquisaId: string } | { id: string },
 ): Promise<{ limpos: number; pesquisaId: string | null; nomes: string[] }> {
   const marcaId = await marcaDaEmpresa(empresaId);
 
   const tokens = await prisma.surveyToken.findMany({
-    where: { ...where, pesquisa: { marcaId } },
+    where: { ...where, pesquisa: { marcaId }, colaborador: { empresaId: { in: visiveis } } },
     select: {
       id: true,
       pesquisaId: true,
@@ -657,7 +696,7 @@ async function limparVinculo(
     // ser de alguém de um CNPJ irmão. Preso ao CNPJ, o botão diria "limpo" e
     // o vínculo continuaria lá, com a pessoa parada em FAILED para sempre.
     prisma.colaborador.updateMany({
-      where: { id: { in: colaboradorIds }, empresa: { marcaId } },
+      where: { id: { in: colaboradorIds }, empresa: { marcaId }, empresaId: { in: visiveis } },
       data: { telegramChatId: null },
     }),
     prisma.surveyToken.updateMany({
@@ -678,9 +717,13 @@ export async function limparVinculoQuebrado(
   empresaId: string,
   tokenId: string,
 ): Promise<ResultadoComMensagem> {
-  await requireEmpresaAccess(empresaId);
+  const usuario = await requireEmpresaAccess(empresaId);
 
-  const { limpos, pesquisaId, nomes } = await limparVinculo(empresaId, { id: tokenId });
+  const { limpos, pesquisaId, nomes } = await limparVinculo(
+    empresaId,
+    await empresasVisiveis(usuario),
+    { id: tokenId },
+  );
   if (limpos === 0) {
     return { ok: false, error: "Este convite não está com vínculo quebrado." };
   }
@@ -702,9 +745,9 @@ export async function limparVinculosQuebradosDaPesquisa(
   empresaId: string,
   pesquisaId: string,
 ): Promise<ResultadoComMensagem> {
-  await requireEmpresaAccess(empresaId);
+  const usuario = await requireEmpresaAccess(empresaId);
 
-  const { limpos } = await limparVinculo(empresaId, { pesquisaId });
+  const { limpos } = await limparVinculo(empresaId, await empresasVisiveis(usuario), { pesquisaId });
   if (limpos === 0) return { ok: true, message: "Não há vínculo quebrado nesta pesquisa." };
 
   await registrarAuditoria({

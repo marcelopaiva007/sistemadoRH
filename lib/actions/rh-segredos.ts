@@ -18,7 +18,7 @@ import {
   CHAVE_SMTP_USER,
   CHAVE_TELEGRAM,
   gravarSegredo,
-  PAPEIS_QUE_CONFIGURAM,
+  podeConfigurarSistema,
 } from "@/lib/segredos";
 import type { ActionResult } from "@/lib/constants";
 
@@ -46,8 +46,14 @@ async function exigirPapel(empresaId: string): Promise<
   { ok: true; user: { id: string; nome?: string | null } } | { ok: false; error: string }
 > {
   const user = await requireUser();
-  if (!PAPEIS_QUE_CONFIGURAM.includes(user.role as string)) {
-    return { ok: false, error: "Só a administração ou a diretoria pode alterar a chave da API." };
+  // Configuração GLOBAL (o `SegredoApp` não tem grupo): só ADMIN/DIRETORIA do
+  // grupo inteiro — quem foi preso a algumas marcas fica de fora desde
+  // 25/11/2026. Ver `podeConfigurarSistema` e o risco residual descrito lá.
+  if (!(await podeConfigurarSistema(user))) {
+    return {
+      ok: false,
+      error: "Só a administração ou a diretoria com acesso ao grupo inteiro pode alterar esta configuração.",
+    };
   }
   // A chave é DA EMPRESA: só mexe quem alcança este CNPJ — o que barra o CNPJ
   // de outro grupo e, para Diretoria/Administrativo preso a algumas marcas

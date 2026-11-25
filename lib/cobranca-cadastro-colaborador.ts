@@ -506,11 +506,17 @@ export async function cobrarCadastroAgora(
  *   isto, rodar o teste dispararia mensagem de Telegram REAL para a base
  *   inteira — mesmo risco que scripts/smoke-regua-cobranca.ts documenta, e que
  *   já custou 15 e-mails indevidos em 04/08/2026.
+ * @param empresaIds Restringe a estes CNPJs (25/11/2026). Existe para o
+ *   disparo À MÃO (`rodarCobrancaAgora`): quem clica só antecipa a rodada dos
+ *   CNPJs que enxerga. Sem isto, uma diretoria de um cliente cobrava, pelo
+ *   botão, os funcionários de TODOS os clientes do sistema. O cron não passa
+ *   nada e continua rodando a base inteira, como antes. Lista vazia = ninguém.
  */
 export async function executarCobrancaCadastro(
   cliente: Cliente = prisma,
   hoje: Date = new Date(),
   apenas?: string[],
+  empresaIds?: string[],
 ): Promise<ResultadoCobrancaCadastro> {
   const candidatos = await cliente.colaborador.findMany({
     where: {
@@ -527,6 +533,7 @@ export async function executarCobrancaCadastro(
       // no desligamento. Cobrar seria ruído no pior momento possível.
       dataDesligamento: null,
       ...(apenas ? { id: { in: apenas } } : {}),
+      ...(empresaIds ? { empresaId: { in: empresaIds } } : {}),
     },
     select: SELECAO_DA_COBRANCA,
   });

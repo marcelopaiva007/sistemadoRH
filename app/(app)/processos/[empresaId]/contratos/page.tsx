@@ -1,4 +1,4 @@
-import { whereUsuariosDoGrupoDaEmpresa } from "@/lib/grupo";
+import { grupoDoUsuario, whereUsuariosDoGrupoDaEmpresa } from "@/lib/grupo";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireContratosEmpresa } from "@/lib/processos-auth-guard";
@@ -22,7 +22,12 @@ export default async function ContratosPage({
   const { empresaId } = await params;
   const { empresas: empresasParam, status: statusParam } = await searchParams;
   const usuario = await requireContratosEmpresa(empresaId);
-  const escopo = await escopoDeEmpresas(usuario, empresasParam);
+  // `grupoDoUsuario` já foi perguntado dentro de `escopoDeEmpresas` e está
+  // memorizado na requisição — não é ida a mais ao banco.
+  const [escopo, grupoId] = await Promise.all([
+    escopoDeEmpresas(usuario, empresasParam),
+    grupoDoUsuario(usuario.id),
+  ]);
 
   const [empresa, contratos, contrapartes, gestores, empresas] = await Promise.all([
     prisma.empresa.findUnique({
@@ -84,8 +89,11 @@ export default async function ContratosPage({
       },
     }),
     // A contraparte é do GRUPO, não do CNPJ — a lista do formulário não é
-    // escopada. Duplicar o mesmo locador por empresa é o que este modelo evita.
+    // escopada por CNPJ. Duplicar o mesmo locador por empresa é o que este
+    // modelo evita. Mas é do grupo DO USUÁRIO (25/11/2026): sem o where, o
+    // <select> oferecia fornecedor de outro cliente do sistema.
     prisma.contraparte.findMany({
+      where: grupoId ? { grupoId } : { id: { in: [] } },
       orderBy: { razaoSocial: "asc" },
       select: { id: true, razaoSocial: true, cnpjCpf: true },
     }),

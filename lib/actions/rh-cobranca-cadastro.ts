@@ -140,14 +140,23 @@ export type ResultadoRodadaManual = ActionResult & {
  * ficha: aquele é uma decisão sobre UMA pessoa e ignora as travas; este é
  * antecipar o relógio da campanha, e mexer nas travas aqui atropelaria a
  * cadência de todo mundo de uma vez.
+ *
+ * Recortada aos CNPJs que o usuário ENXERGA (25/11/2026). Até então chamava a
+ * rodada do cron sem recorte nenhum: uma diretoria de um cliente disparava
+ * Telegram e e-mail para os funcionários de TODOS os clientes do sistema. O
+ * cron continua rodando a base inteira; o botão, só o pedaço de quem clica.
  */
 export async function rodarCobrancaAgora(empresaId: string): Promise<ResultadoRodadaManual> {
   const usuario = await requireEmpresaAccess(empresaId);
+  // O papel continua sendo a régua (não `podeConfigurarSistema`): com o
+  // recorte abaixo o botão não alcança nada fora do que a pessoa já enxerga,
+  // então a direção presa a marcas pode antecipar a rodada das marcas dela.
   if (!PAPEIS_QUE_CONFIGURAM.includes(usuario.role as string)) {
     return { ok: false, error: "Só a administração ou a diretoria pode disparar a rodada inteira." };
   }
 
-  const r = await executarCobrancaCadastro();
+  const visiveis = await empresasVisiveis(usuario);
+  const r = await executarCobrancaCadastro(prisma, new Date(), undefined, visiveis);
 
   await registrarAuditoria({
     empresaId,

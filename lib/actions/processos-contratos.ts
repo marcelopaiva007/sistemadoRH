@@ -1,6 +1,6 @@
 "use server";
 
-import { whereUsuariosDoGrupoDaEmpresa } from "@/lib/grupo";
+import { grupoDaEmpresa, grupoDoUsuario, whereUsuariosDoGrupoDaEmpresa } from "@/lib/grupo";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireContratosEmpresa } from "@/lib/processos-auth-guard";
@@ -36,6 +36,12 @@ import type { ActionResult } from "@/lib/constants";
 // vencida ficaria em dia numa ficha e vencida na outra. Por isso ela não tem
 // `empresaId` e as actions de contraparte só exigem que a pessoa alcance o
 // módulo — o que ela vê de contrato continua escopado normalmente.
+//
+// "Do grupo" quer dizer do GRUPO DO USUÁRIO (`Contraparte.grupoId`), desde
+// 25/11/2026. Antes era "do sistema inteiro": a busca e a edição eram só pelo
+// id, e o aviso de duplicado mostrava a razão social cadastrada por OUTRO
+// cliente. Toda leitura e escrita de contraparte aqui filtra por
+// `grupoDoUsuario` — o mesmo recorte das telas.
 //
 // NÃO existe aqui controle de certidão de fornecedor: o CEO decidiu em
 // 23/08/2026 não desenvolver (o grupo não vai usar). A regra que sobrou da
@@ -89,6 +95,10 @@ export async function salvarContraparte(input: {
   observacoes?: string | null;
 }): Promise<ActionResult & { id?: string }> {
   const usuario = await requireContratosEmpresa(input.empresaId);
+  // O dono do cadastro é o grupo de quem cadastra — lido do banco, nunca do
+  // formulário. Sem grupo (conta órfã), falha fechada: não há onde gravar.
+  const grupoId = await grupoDoUsuario(usuario.id);
+  if (!grupoId) return { ok: false, error: "Sua conta não está ligada a um grupo." };
 
   const razaoSocial = limpo(input.razaoSocial);
   if (!razaoSocial) return { ok: false, error: "Informe a razão social ou o nome." };
@@ -108,16 +118,24 @@ export async function salvarContraparte(input: {
     return { ok: false, error: "Marque ao menos um papel — é ele que diz o que esta contraparte é para o grupo." };
   }
 
-  // O documento é único no grupo inteiro. Sem esta checagem, o erro chegaria
+  // O documento é único DENTRO do grupo. Sem esta checagem, o erro chegaria
   // como violação de unique do Postgres — sem dizer QUEM já usa o número, que é
-  // exatamente o que a pessoa precisa saber para não recadastrar.
+  // exatamente o que a pessoa precisa saber para não recadastrar. A busca é só
+  // no grupo dela: o cadastro de outro cliente não conflita, e o nome que ele
+  // usa nunca aparece nesta mensagem.
+  //
+  // Editar exige que a contraparte seja do grupo — um id de outro cliente
+  // montado à mão responde "não encontrada", igual a um id que não existe.
   if (input.id) {
-    const existe = await prisma.contraparte.findUnique({ where: { id: input.id }, select: { id: true } });
+    const existe = await prisma.contraparte.findFirst({
+      where: { id: input.id, grupoId },
+      select: { id: true },
+    });
     if (!existe) return { ok: false, error: "Contraparte não encontrada." };
   }
 
   const jaExiste = await prisma.contraparte.findUnique({
-    where: { cnpjCpf: documento },
+    where: { grupoId_cnpjCpf: { grupoId, cnpjCpf: documento } },
     select: { id: true, razaoSocial: true },
   });
   if (jaExiste && jaExiste.id !== input.id) {
@@ -137,10 +155,12 @@ export async function salvarContraparte(input: {
     observacoes: limpo(input.observacoes),
   };
 
+  // `update` com `grupoId` no where: a checagem acima já garantiu o dono, e
+  // o filtro repetido aqui fecha a janela entre ler e gravar.
   const contraparte = input.id
-    ? await prisma.contraparte.update({ where: { id: input.id }, data: dados })
+    ? await prisma.contraparte.update({ where: { id: input.id, grupoId }, data: dados })
     : await prisma.contraparte.create({
-        data: { ...dados, criadoPorId: usuario.id, criadoPorNome: usuario.name ?? null },
+        data: { ...dados, grupoId, criadoPorId: usuario.id, criadoPorNome: usuario.name ?? null },
       });
 
   await registrarAuditoria({
@@ -316,10 +336,18 @@ export async function salvarContrato(input: {
   const dataInicio = dataDoFormulario(input.dataInicio);
   if (!dataInicio) return { ok: false, error: "Informe a data de início da vigência." };
 
-  const contraparte = await prisma.contraparte.findUnique({
-    where: { id: input.contraparteId },
-    select: { id: true, razaoSocial: true },
-  });
+  // A contraparte tem que ser do MESMO grupo do CNPJ que assina (25/11/2026).
+  // Antes bastava existir: um id de contraparte de outro cliente, montado à
+  // mão, entrava no contrato e passava a aparecer (nome e tudo) nas telas e
+  // pendências deste grupo. O CNPJ já foi validado contra `empresasVisiveis`,
+  // então o grupo dele é o grupo do usuário.
+  const grupoDoContrato = await grupoDaEmpresa(empresaDoContrato);
+  const contraparte = grupoDoContrato
+    ? await prisma.contraparte.findFirst({
+        where: { id: input.contraparteId, grupoId: grupoDoContrato },
+        select: { id: true, razaoSocial: true },
+      })
+    : null;
   if (!contraparte) return { ok: false, error: "Escolha a contraparte do contrato." };
 
   const indeterminado = input.indeterminado ?? false;

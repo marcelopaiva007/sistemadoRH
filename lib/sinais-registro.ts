@@ -6,7 +6,7 @@
 // lib/alertas.ts (scripts/smoke-*.ts), sem gravar nada de verdade no banco.
 import { prisma, type Cliente } from "@/lib/prisma";
 import { hojeUTC } from "@/lib/datas";
-import { analisarDesligamentos, type VinculoParaAnomalia } from "@/lib/anomalias";
+import { analisarDesligamentos, ID_GRUPO, type VinculoParaAnomalia } from "@/lib/anomalias";
 import { decidirRegistro, type CandidatoSinal, type NivelUnidadeSinal } from "@/lib/sinais";
 
 /**
@@ -131,6 +131,15 @@ export async function registrarSinais(
  * usuário logado, então o recorte é o grupo inteiro (todas as empresas
  * ativas); a TELA é que filtra depois por `empresasVisiveis`.
  *
+ * POR GRUPO (sociedade), desde 25/11/2026. Antes a análise rodava uma vez com
+ * os funcionários de TODOS os clientes do sistema, e o nível "grupo" do radar
+ * (`ID_GRUPO`) somava as duas sociedades numa unidade só — um sinal "do grupo"
+ * que era, na verdade, de ninguém, e que qualquer leitor da Central via. Agora
+ * a análise roda separada para cada grupo, e o sinal de nível GRUPO grava o id
+ * REAL do grupo em `unidadeId` (e o nome dele), que é como a tela e as actions
+ * sabem a quem mostrá-lo (lib/sinais-escopo.ts). Os de marca e CNPJ não mudam
+ * de chave: cada marca e CNPJ já é de um grupo só.
+ *
  * Gravidade "critica" por decisão: o radar só dispara com p < 2% E excesso de
  * 4+ saídas — quando ele fala, já passou por dois cortes que os alertas de
  * limiar fixo não têm.
@@ -146,22 +155,46 @@ export async function coletarCandidatosDeAnomalias(
       ativo: true,
       dataDesligamento: true,
       empresa: {
-        select: { id: true, nome: true, ativo: true, marca: { select: { id: true, nome: true } } },
+        select: {
+          id: true,
+          nome: true,
+          ativo: true,
+          marca: { select: { id: true, nome: true, grupo: { select: { id: true, nome: true } } } },
+        },
       },
     },
   });
 
-  const paraAnalise: VinculoParaAnomalia[] = vinculos
-    .filter(v => v.empresa.ativo)
-    .map(v => ({
+  // Um balde por grupo: nenhuma conta do radar atravessa a parede de sociedade.
+  const porGrupo = new Map<string, { nome: string; vinculos: VinculoParaAnomalia[] }>();
+  for (const v of vinculos) {
+    if (!v.empresa.ativo) continue;
+    const g = v.empresa.marca.grupo;
+    const balde = porGrupo.get(g.id) ?? { nome: g.nome, vinculos: [] };
+    balde.vinculos.push({
       empresaId: v.empresa.id,
       empresaNome: v.empresa.nome,
       marcaId: v.empresa.marca.id,
       marcaNome: v.empresa.marca.nome,
       ativo: v.ativo,
       dataDesligamento: v.dataDesligamento,
-    }));
+    });
+    porGrupo.set(g.id, balde);
+  }
 
+  const candidatos: CandidatoSinal[] = [];
+  for (const [grupoId, grupo] of porGrupo) {
+    candidatos.push(...candidatosDoGrupo(grupoId, grupo.nome, grupo.vinculos, hoje));
+  }
+  return candidatos;
+}
+
+function candidatosDoGrupo(
+  grupoId: string,
+  grupoNome: string,
+  paraAnalise: VinculoParaAnomalia[],
+  hoje: Date,
+): CandidatoSinal[] {
   const resultado = analisarDesligamentos(paraAnalise, hoje, MESES_DO_RADAR);
   // Os avisos valem para a análise inteira (quem ficou fora do teste), então
   // vão no rodapé de CADA sinal — o cartão é lido sozinho, não em lote.
@@ -172,14 +205,20 @@ export async function coletarCandidatosDeAnomalias(
     // O detector de hoje só monta grupo/marca/empresa; "setor"/"cargo" existem
     // no tipo da lib para o futuro. Guarda explícita em vez de cast.
     if (a.nivel !== "grupo" && a.nivel !== "marca" && a.nivel !== "empresa") continue;
+    // O radar chama o nível de cima de `ID_GRUPO` ("grupo"); no sinal ele vira
+    // o grupo de verdade — id e nome —, inclusive na chave de dedupe.
+    const ehGrupo = a.nivel === "grupo" && a.unidadeId === ID_GRUPO;
+    const unidadeId = ehGrupo ? grupoId : a.unidadeId;
     candidatos.push({
       tipo: "ANOMALIA_DESLIGAMENTO",
       // Mesma chave do radar na tela (`nivel:unidadeId:mes`) — evento datado:
       // junho/2026 e julho/2026 na mesma unidade são ocorrências distintas.
-      chaveDedupe: `anomalia:${a.nivel}:${a.unidadeId}:${a.mes}`,
+      // No nível grupo a chave usa o id real do grupo (ver acima), então os
+      // sinais "grupo" antigos não são mais confirmados e envelhecem sozinhos.
+      chaveDedupe: `anomalia:${a.nivel}:${unidadeId}:${a.mes}`,
       nivelUnidade: NIVEL_ANOMALIA_PARA_SINAL[a.nivel],
-      unidadeId: a.unidadeId,
-      unidadeNome: a.unidadeNome,
+      unidadeId,
+      unidadeNome: ehGrupo ? grupoNome : a.unidadeNome,
       empresaId: a.nivel === "empresa" ? a.unidadeId : null,
       titulo: a.frase,
       observado: `${a.observado} desligamentos em ${a.mesRotulo}`,
