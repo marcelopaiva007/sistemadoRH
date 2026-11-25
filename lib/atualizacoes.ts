@@ -26,6 +26,15 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.212.1",
+    data: "26/11/2026",
+    horario: "16:00",
+    titulo: "Prazos eSocial: transferência no grupo sem texto de rescisão",
+    itens: [
+      "Na tela Prazos eSocial, a transferência para outro CNPJ do grupo aparecia com o texto do prazo de pagamento da rescisão (CLT art. 477). Transferência não tem rescisão: agora o texto diz \"até o 10º dia seguinte à saída — transferência no grupo, sem pagamento de rescisão\". A data do prazo não muda.",
+    ],
+  },
+  {
     versao: "1.212.0",
     data: "26/11/2026",
     horario: "14:30",

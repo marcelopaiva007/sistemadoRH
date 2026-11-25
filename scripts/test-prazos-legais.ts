@@ -16,6 +16,7 @@ import {
   prazoAfastamento,
   prazoCat,
   prazoRescisao,
+  prazoTransferenciaGrupo,
   proximoDiaUtil,
   referenciaDoEvento,
   situacaoDoPrazo,
@@ -61,6 +62,10 @@ console.log("\n3. S-2299 / rescisão — 10 dias corridos do término (CLT art. 
   ok(igual(prazoRescisao(d("2026-11-19")).prazo, "2026-11-27"), "10º dia num domingo → antecipa para a sexta");
   ok(/antecipado/.test(prazoRescisao(d("2026-11-18")).regra), "a regra diz que foi antecipado");
   ok(!/antecipado/.test(prazoRescisao(d("2026-11-20")).regra), "sem fim de semana, a regra não fala em antecipar");
+  // Transferência no grupo: mesmo prazo do S-2299, sem falar em rescisão.
+  ok(igual(prazoTransferenciaGrupo(d("2026-11-18")).prazo, "2026-11-27"), "transferência: mesmo prazo do S-2299 (antecipa do sábado)");
+  ok(!/477|pagamento da rescis/i.test(prazoTransferenciaGrupo(d("2026-11-20")).regra.replace("sem pagamento de rescisão", "")), "transferência: o texto não cita o art. 477");
+  ok(/sem pagamento de rescisão/.test(prazoTransferenciaGrupo(d("2026-11-20")).regra), "transferência: o texto diz que não há rescisão");
 }
 
 console.log("\n4. S-2210 — CAT: 1º dia útil seguinte; óbito, imediato:");

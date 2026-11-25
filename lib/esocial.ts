@@ -25,6 +25,7 @@ import {
   prazoAfastamento,
   prazoCat,
   prazoRescisao,
+  prazoTransferenciaGrupo,
   referenciaDoEvento,
   type TipoEventoEsocial,
 } from "@/lib/prazos-legais";
@@ -169,7 +170,12 @@ export async function eventosEsocial(
   for (const c of desligados) {
     if (!c.dataDesligamento || !contratoGeraEventoDeEmpregado(c.tipoContrato)) continue;
     const referenciaId = referenciaDoEvento(c.id, c.dataDesligamento);
-    const p = prazoRescisao(c.dataDesligamento);
+    // Transferência no grupo não tem rescisão: mesmo prazo de envio, texto
+    // sem pagamento (26/11/2026 — o texto do art. 477 aparecia nela).
+    const p =
+      c.motivoDesligamento === "TRANSFERENCIA_GRUPO"
+        ? prazoTransferenciaGrupo(c.dataDesligamento)
+        : prazoRescisao(c.dataDesligamento);
     const aviso = c.dataAdmissao
       ? avisoPrevioDevido(c.motivoDesligamento, anosCompletos(c.dataAdmissao, c.dataDesligamento))
       : null;

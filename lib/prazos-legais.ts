@@ -140,6 +140,27 @@ export function prazoRescisao(dataDesligamento: Date): Prazo {
 }
 
 /**
+ * S-2299 de TRANSFERÊNCIA para outro CNPJ do grupo (26/11/2026). O evento
+ * existe (motivo "transferência para empresa do mesmo grupo", e o S-2200 no
+ * CNPJ de destino), mas NÃO há rescisão: o contrato continua, só muda o
+ * empregador dentro do grupo, e não há verbas rescisórias a pagar. O prazo de
+ * envio é o mesmo do S-2299 (10º dia seguinte ao desligamento, com a mesma
+ * antecipação do fim de semana de `prazoRescisao`); o que muda é o texto, que
+ * não pode falar em pagamento nem citar o art. 477.
+ */
+export function prazoTransferenciaGrupo(dataDesligamento: Date): Prazo {
+  const { prazo } = prazoRescisao(dataDesligamento);
+  const decimoDia = somarDiasUTC(dataDesligamento, 10);
+  return {
+    prazo,
+    regra:
+      prazo.getTime() === decimoDia.getTime()
+        ? "Até o 10º dia seguinte à saída — transferência no grupo, sem pagamento de rescisão"
+        : "Até o 10º dia seguinte à saída, antecipado do fim de semana — transferência no grupo, sem pagamento de rescisão",
+  };
+}
+
+/**
  * S-2210 — CAT. Lei 8.213/91, art. 22: até o 1º dia útil seguinte ao da
  * ocorrência; em caso de morte, de imediato (o próprio dia).
  *
