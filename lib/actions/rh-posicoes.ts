@@ -12,6 +12,7 @@ import {
 import { violouUnique, registroNaoEncontrado } from "@/lib/prisma-erros";
 import { registrarAuditoria } from "@/lib/audit";
 import { validarFusao, carregarPosicoes } from "@/lib/actions/guarda-unificacao";
+import { decidirLimpeza } from "@/lib/limpeza-catalogo";
 import type { ActionResult } from "@/lib/constants";
 
 const posicaoSchema = z.object({
@@ -306,38 +307,82 @@ export async function unificarGrupoPosicoes(
   return { ok: true };
 }
 
+/**
+ * "Remover N sem funcionários" dos cargos. Até 26/11/2026 apagava junto os
+ * requisitos de NR e as vagas do cargo — agora cargo com vaga aberta ou
+ * requisito de NR FICA (o requisito é Cascade: apagar o cargo apagaria a
+ * exigência de treinamento), e a resposta diz quantos e por quê. Regra em
+ * lib/limpeza-catalogo.ts.
+ */
 export async function removerPosicoesSemColaboradores(
   empresaId: string,
-): Promise<{ ok: boolean; removidos: number; error?: string }> {
+): Promise<{ ok: boolean; removidos: number; mantidos?: number; motivoMantidos?: string; error?: string }> {
   await requireEmpresaAccess(empresaId);
 
   try {
-    const posicoesSemColab = await prisma.posicao.findMany({
+    const candidatos = await prisma.posicao.findMany({
       where: {
         empresaId,
         colaboradores: { none: {} },
       },
-      select: { id: true },
+      select: {
+        id: true,
+        _count: {
+          select: {
+            colaboradores: true,
+            requisitosNR: true,
+            vagas: { where: { status: { in: ["ABERTA", "PAUSADA"] } } },
+          },
+        },
+      },
     });
 
-    if (posicoesSemColab.length === 0) {
-      return { ok: true, removidos: 0 };
+    const decisao = decidirLimpeza(
+      candidatos.map((p) => ({
+        id: p.id,
+        uso: {
+          colaboradores: p._count.colaboradores,
+          vagasAbertas: p._count.vagas,
+          metas: 0,
+          planosAbertos: 0,
+          requisitosNR: p._count.requisitosNR,
+          gestoresVinculados: 0,
+        },
+      })),
+    );
+
+    if (decisao.remover.length > 0) {
+      // Só o cargo sai; vaga encerrada continua existindo (FK SetNull). O
+      // `where` repete a régua para não apagar cargo que ganhou vínculo entre
+      // a decisão e o delete.
+      await prisma.posicao.deleteMany({
+        where: {
+          id: { in: decisao.remover },
+          empresaId,
+          colaboradores: { none: {} },
+          requisitosNR: { none: {} },
+          vagas: { none: { status: { in: ["ABERTA", "PAUSADA"] } } },
+        },
+      });
+      await registrarAuditoria({
+        empresaId,
+        acao: "EXCLUIR",
+        entidade: "Posicao",
+        resumo:
+          `Limpeza: ${decisao.remover.length} cargo(s) sem colaboradores removido(s)` +
+          (decisao.mantidos > 0 ? `; ${decisao.mantidos} mantido(s) (${decisao.motivoMantidos})` : ""),
+      });
     }
 
-    const ids = posicoesSemColab.map((p) => p.id);
-
-    await prisma.$transaction(async (tx) => {
-      // Limpa requisitos NR e vagas vinculadas a cargos vagos sem colaboradores
-      await tx.requisitoNR.deleteMany({ where: { posicaoId: { in: ids } } });
-      await tx.vaga.deleteMany({ where: { posicaoId: { in: ids } } });
-      await tx.posicao.deleteMany({ where: { id: { in: ids } } });
-    });
-
     revalidatePath(`/rh/${empresaId}/posicoes`);
-    return { ok: true, removidos: ids.length };
+    return {
+      ok: true,
+      removidos: decisao.remover.length,
+      mantidos: decisao.mantidos,
+      motivoMantidos: decisao.motivoMantidos,
+    };
   } catch (err: unknown) {
     const errorMsg = err instanceof Error ? err.message : "Erro ao remover cargos sem colaboradores.";
     return { ok: false, removidos: 0, error: errorMsg };
   }
 }
-

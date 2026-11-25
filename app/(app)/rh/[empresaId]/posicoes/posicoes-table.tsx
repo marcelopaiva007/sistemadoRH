@@ -257,10 +257,16 @@ export function PosicoesTable({
     try {
       const res = await removerPosicoesSemColaboradores(empresaId);
       if (res.ok) {
+        // Os que ficaram precisam de explicação: sem ela o botão parece ter
+        // falhado (26/11/2026 — a limpeza deixou de apagar vaga/meta/plano/NR).
+        const ficaram =
+          res.mantidos && res.mantidos > 0
+            ? ` ${res.mantidos} cargo(s) sem colaboradores ficaram por estarem em uso: ${res.motivoMantidos}.`
+            : "";
         toast.success(
-          res.removidos > 0
-            ? `${res.removidos} cargo(s) sem colaboradores removido(s) com sucesso!`
-            : "Nenhum cargo sem colaboradores para remover.",
+          (res.removidos > 0
+            ? `${res.removidos} cargo(s) sem colaboradores removido(s).`
+            : "Nenhum cargo sem colaboradores para remover.") + ficaram,
         );
       } else {
         toast.error(res.error || "Erro ao remover cargos sem colaboradores.");

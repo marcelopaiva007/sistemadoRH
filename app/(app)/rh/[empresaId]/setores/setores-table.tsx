@@ -259,10 +259,16 @@ export function SetoresTable({
     try {
       const res = await removerSetoresSemColaboradores(empresaId);
       if (res.ok) {
+        // Os que ficaram precisam de explicação: sem ela o botão parece ter
+        // falhado (26/11/2026 — a limpeza deixou de apagar vaga/meta/plano/NR).
+        const ficaram =
+          res.mantidos && res.mantidos > 0
+            ? ` ${res.mantidos} setor(es) sem colaboradores ficaram por estarem em uso: ${res.motivoMantidos}.`
+            : "";
         toast.success(
-          res.removidos > 0
-            ? `${res.removidos} setor(es) sem colaboradores removido(s) com sucesso!`
-            : "Nenhum setor sem colaboradores para remover.",
+          (res.removidos > 0
+            ? `${res.removidos} setor(es) sem colaboradores removido(s).`
+            : "Nenhum setor sem colaboradores para remover.") + ficaram,
         );
       } else {
         toast.error(res.error || "Erro ao remover setores sem colaboradores.");

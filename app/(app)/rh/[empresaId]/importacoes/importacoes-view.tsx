@@ -64,7 +64,10 @@ export function ImportacoesView({
       }
       if (r.fase === "importado") {
         toast.success(
-          `Importado: ${r.criados} criado(s), ${r.atualizados} atualizado(s).`,
+          `Importado: ${r.criados} criado(s), ${r.atualizados} atualizado(s)` +
+            (r.semMudanca > 0 ? `, ${r.semMudanca} sem mudança` : "") +
+            (r.movimentacoes > 0 ? ` · ${r.movimentacoes} movimentação(ões) no histórico` : "") +
+            ".",
         );
         setRelatorio(null);
         formRef.current?.reset();
@@ -193,6 +196,21 @@ export function ImportacoesView({
                   )}{" "}
                   Se algum for erro de digitação na planilha, corrija lá antes de confirmar —
                   senão vira cadastro duplicado.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {(relatorio.setoresCasados.length > 0 || relatorio.cargosCasados.length > 0) && (
+              <Alert>
+                <AlertDescription>
+                  Nomes da planilha que já existem no cadastro da marca com outra grafia — as
+                  pessoas vão para o cadastro existente, sem criar duplicata:{" "}
+                  <span className="font-medium text-foreground">
+                    {[...relatorio.setoresCasados, ...relatorio.cargosCasados]
+                      .map((c) => `${c.planilha} → ${c.cadastro}`)
+                      .join("; ")}
+                  </span>
+                  .
                 </AlertDescription>
               </Alert>
             )}
