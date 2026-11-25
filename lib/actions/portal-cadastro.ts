@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { lerSessaoPortal } from "@/lib/portal-auth";
+import { ERRO_CPF_NAO_CONFIRMADO, lerSessaoPortal } from "@/lib/portal-auth";
 import { registrarAuditoria } from "@/lib/audit";
 import { lerAnexo } from "@/lib/anexos";
 import { enviarParaBlob } from "@/lib/blob";
@@ -46,6 +46,7 @@ export async function atualizarMeusDados(
 ): Promise<ActionResult> {
   const sessao = await lerSessaoPortal();
   if (!sessao) return { ok: false, error: "Sua sessão expirou. Peça /portal ao bot novamente." };
+  if (!sessao.verificado) return { ok: false, error: ERRO_CPF_NAO_CONFIRMADO };
 
   const colaborador = await prisma.colaborador.findUnique({
     where: { id: sessao.colaboradorId },
@@ -163,6 +164,7 @@ export async function enviarMeuDocumento(
 ): Promise<ActionResult> {
   const sessao = await lerSessaoPortal();
   if (!sessao) return { ok: false, error: "Sua sessão expirou. Peça /portal ao bot novamente." };
+  if (!sessao.verificado) return { ok: false, error: ERRO_CPF_NAO_CONFIRMADO };
 
   const colaborador = await prisma.colaborador.findUnique({
     where: { id: sessao.colaboradorId },

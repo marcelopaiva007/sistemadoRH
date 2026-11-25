@@ -3,7 +3,7 @@
 // (lib/contracheques/confirmar.ts) — por isso ele sai por esta rota, e não pela
 // de arquivos do portal: é ela que marca "abriu em".
 import { NextResponse, type NextRequest } from "next/server";
-import { lerSessaoPortal } from "@/lib/portal-auth";
+import { ERRO_CPF_NAO_CONFIRMADO, lerSessaoPortal } from "@/lib/portal-auth";
 import { abrirContracheque } from "@/lib/contracheques/confirmar";
 
 export const runtime = "nodejs";
@@ -13,7 +13,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ rec
   const { reciboId } = await params;
   const sessao = await lerSessaoPortal();
   if (!sessao) return NextResponse.json({ error: "Sessão expirada." }, { status: 401 });
-  if (!sessao.verificado) return NextResponse.json({ error: "Confirme seu CPF no portal." }, { status: 403 });
+  if (!sessao.verificado) return NextResponse.json({ error: ERRO_CPF_NAO_CONFIRMADO }, { status: 403 });
 
   const aberto = await abrirContracheque(reciboId, sessao.colaboradorId);
   if (!aberto) {

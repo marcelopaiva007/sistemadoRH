@@ -22,8 +22,10 @@ export function PaginaAssinaturaClient({
   token: string;
   dados: Extract<DadosReciboPublico, { encontrado: true }>;
 }) {
+  // 25/11/2026: quem já assinou e volta sem sessão (link do comprovante no
+  // e-mail, que agora exige o CPF) passa pela etapa do CPF antes de baixar.
   const [etapa, setEtapa] = useState<Etapa>(() => {
-    if (dados.jaAssinado) return "SUCESSO";
+    if (dados.jaAssinado) return dados.autenticadoSessao ? "SUCESSO" : "CPF";
     if (dados.autenticadoSessao) return "VISUALIZAR_E_ASSINAR";
     return "CPF";
   });
@@ -70,7 +72,7 @@ export function PaginaAssinaturaClient({
     startTransition(async () => {
       const res = await validarCpfAssinaturaAction(token, cpf);
       if (res.ok) {
-        setEtapa("VISUALIZAR_E_ASSINAR");
+        setEtapa(dados.jaAssinado ? "SUCESSO" : "VISUALIZAR_E_ASSINAR");
       } else {
         if (res.bloqueado) setBloqueado(true);
         setErro(res.error);
@@ -139,6 +141,21 @@ export function PaginaAssinaturaClient({
               <p>Para desbloquear e receber um novo link de assinatura, entre em contato diretamente com o setor de RH da sua empresa.</p>
             </CardContent>
           </Card>
+        ) : dados.linkExpirado ? (
+          <Card className="border-amber-200 bg-amber-50/50 shadow-sm">
+            <CardHeader className="text-center pb-3">
+              <div className="mx-auto size-12 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 mb-2">
+                <ShieldAlert className="size-6" />
+              </div>
+              <CardTitle className="text-base text-amber-900">Link expirado</CardTitle>
+              <CardDescription className="text-xs text-amber-800">
+                Por segurança, o link de assinatura vale por um tempo limitado depois do envio.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="text-center text-xs text-slate-600 space-y-2">
+              <p>Peça ao RH da sua empresa para reenviar o contracheque e use o link novo.</p>
+            </CardContent>
+          </Card>
         ) : etapa === "SUCESSO" ? (
           /* Tela de Sucesso */
           <Card className="border-emerald-200 bg-emerald-50/40 shadow-sm text-center">
@@ -174,7 +191,9 @@ export function PaginaAssinaturaClient({
             <CardHeader>
               <CardTitle className="text-base font-semibold">Identificação do Colaborador</CardTitle>
               <CardDescription className="text-xs">
-                Olá, {dados.colaboradorPrimeiroNome}. Confirme seu CPF para acessar seu contracheque.
+                {dados.jaAssinado
+                  ? `Olá, ${dados.colaboradorPrimeiroNome}. Este contracheque já foi assinado — confirme seu CPF para baixar o comprovante.`
+                  : `Olá, ${dados.colaboradorPrimeiroNome}. Confirme seu CPF para acessar seu contracheque.`}
               </CardDescription>
             </CardHeader>
             <form onSubmit={aoValidarCpf}>
@@ -202,7 +221,7 @@ export function PaginaAssinaturaClient({
               </CardContent>
               <CardFooter>
                 <Button type="submit" className="w-full" disabled={isPending || cpf.replace(/\D/g, "").length !== 11}>
-                  {isPending ? "Validando..." : "Acessar contracheque"}
+                  {isPending ? "Validando..." : dados.jaAssinado ? "Acessar comprovante" : "Acessar contracheque"}
                 </Button>
               </CardFooter>
             </form>
