@@ -26,6 +26,15 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.209.2",
+    data: "25/11/2026",
+    horario: "20:00",
+    titulo: "Preparação do banco para as correções de segurança",
+    itens: [
+      "O banco ganhou dois campos usados pela próxima atualização: o instante a partir do qual as sessões de uma conta valem, e o cliente dono de cada fornecedor dos Contratos. Nada muda nas telas ainda.",
+    ],
+  },
+  {
     versao: "1.209.0",
     data: "25/11/2026",
     horario: "18:00",
