@@ -15,7 +15,8 @@
 import "dotenv/config";
 import { prisma } from "../lib/prisma";
 import { dataUTC, somarMesesUTC, hojeUTC } from "../lib/datas";
-import { carregarBaseDaArea, configuracaoDaArea } from "../lib/desligamentos/base";
+import { carregarBaseDaArea, configuracaoDaArea, indicadoresDoNegocio } from "../lib/desligamentos/base";
+import { somarDiasUTC } from "../lib/datas";
 
 let falhas = 0;
 function ok(cond: boolean, msg: string) {
@@ -112,14 +113,47 @@ async function main() {
     });
     const gravada = await configuracaoDaArea(empresa.id);
     ok(gravada.personalizada && gravada.custoPorDesligamento === 5500.5 && gravada.metaPct === 8 && gravada.limitePct === 12, "com linha: os valores gravados, centavos convertidos");
+
+    console.log("3. Crescimento do negócio");
+    ok((await indicadoresDoNegocio(empresa.id)).size === 0, "sem linha: mapa vazio");
+    await prisma.indicadorNegocioAno.create({
+      data: { grupoId: grupo.id, ano: 2026, crescimentoClientesPct: 3.5, crescimentoFaturamentoPct: -1 },
+    });
+    const ind = await indicadoresDoNegocio(empresa.id);
+    ok(ind.get(2026)?.crescimentoClientesPct === 3.5 && ind.get(2026)?.crescimentoFaturamentoPct === -1, "ano gravado chega com os dois percentuais");
+
+    console.log("4. Possível transferência não marcada");
+    // Saiu do CNPJ 1 como dispensa e, 10 dias depois, o mesmo CPF foi
+    // admitido no CNPJ 2 do mesmo grupo: tem cara de transferência.
+    const empresa2 = await prisma.empresa.create({ data: { nome: `CNPJ 2 ${sufixo}`, marcaId: marca.id } });
+    const [setor2, cargo2] = await Promise.all([
+      prisma.setor.create({ data: { empresaId: empresa2.id, nome: "Comercial" } }),
+      prisma.posicao.create({ data: { empresaId: empresa2.id, nome: "Analista" } }),
+    ]);
+    const saiuComoDispensa = await prisma.colaborador.create({
+      data: {
+        ...base, nome: "Saiu como dispensa", cpf: "321.654.987-00", setorId: comercial.id, ativo: false,
+        dataDesligamento: haDoisMeses, motivoDesligamento: "SEM_JUSTA_CAUSA",
+      },
+    });
+    await prisma.colaborador.create({
+      data: {
+        empresaId: empresa2.id, nome: "Saiu como dispensa", cpf: "32165498700", setorId: setor2.id, posicaoId: cargo2.id,
+        dataAdmissao: somarDiasUTC(haDoisMeses, 10),
+      },
+    });
+    const comDoisCnpjs = await carregarBaseDaArea(empresa.id, [empresa.id, empresa2.id]);
+    ok(comDoisCnpjs.possiveisTransferencias.has(saiuComoDispensa.id), "a saída aparece como possível transferência não marcada");
+    ok(!comDoisCnpjs.possiveisTransferencias.has(comRetrato.id), "saída sem ficha nova do mesmo CPF não aparece");
   } finally {
     // A configuração e os indicadores do grupo caem em cascata com o grupo.
-    await prisma.userEmpresa.deleteMany({ where: { empresaId: empresa.id } });
+    const empresasDoTeste = (await prisma.empresa.findMany({ where: { marcaId: marca.id }, select: { id: true } })).map((e) => e.id);
+    await prisma.userEmpresa.deleteMany({ where: { empresaId: { in: empresasDoTeste } } });
     await prisma.user.deleteMany({ where: { id: { in: userIds } } });
-    await prisma.colaborador.deleteMany({ where: { empresaId: empresa.id } });
-    await prisma.setor.deleteMany({ where: { empresaId: empresa.id } });
-    await prisma.posicao.deleteMany({ where: { empresaId: empresa.id } });
-    await prisma.empresa.delete({ where: { id: empresa.id } });
+    await prisma.colaborador.deleteMany({ where: { empresaId: { in: empresasDoTeste } } });
+    await prisma.setor.deleteMany({ where: { empresaId: { in: empresasDoTeste } } });
+    await prisma.posicao.deleteMany({ where: { empresaId: { in: empresasDoTeste } } });
+    await prisma.empresa.deleteMany({ where: { id: { in: empresasDoTeste } } });
     await prisma.marca.delete({ where: { id: marca.id } });
     await prisma.grupo.delete({ where: { id: grupo.id } });
   }

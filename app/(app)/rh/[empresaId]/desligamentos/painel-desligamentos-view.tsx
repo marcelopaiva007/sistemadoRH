@@ -20,17 +20,18 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Indicador } from "@/components/indicador";
 import { CabecalhoDePagina } from "@/components/padroes/cabecalho-de-pagina";
 import { FaixaDeIndicadores } from "@/components/padroes/faixa-de-indicadores";
-import { CLASSE_RECORTE, Segmentado } from "@/components/padroes/barra-de-filtros";
+import { Segmentado } from "@/components/padroes/barra-de-filtros";
 import { cn } from "@/lib/utils";
 import { causaDesligamentoLabel, motivoDesligamentoLabel } from "@/lib/constants-dp";
+import type { FiltrosDaArea } from "@/lib/desligamentos/area";
 import {
-  type ChavePeriodo,
   type ConfigDaArea,
   type DetalheDoRecorte,
   type LinhaDoQuadro,
   type PlacarDaMeta,
 } from "@/lib/desligamentos/painel";
 import { ConfiguracaoDesligamentosDialog } from "./configuracao-dialog";
+import { BotaoExportarPdf, FiltrosDaAreaBarra } from "./filtros-da-area";
 
 // A vista do painel — client por causa do recharts e dos filtros; todo número
 // chega pronto do servidor (lib/desligamentos/painel.ts).
@@ -71,32 +72,20 @@ type Props = {
   setores: LinhaDoQuadro[];
   gestores: LinhaDoQuadro[];
   detalhe: DetalheDoRecorte | null;
+  nomeDoRecorte: string | null;
   config: ConfigDaArea;
   podeConfigurar: boolean;
-  periodo: { chave: ChavePeriodo; rotulo: string; de: string; ate: string };
-  ano: number;
-  anoAtual: number;
-  filtros: {
-    setor: string | null;
-    gestor: string | null;
-    setores: { chave: string; nome: string }[];
-    gestores: { chave: string; nome: string }[];
-  };
+  filtros: FiltrosDaArea;
   avisos: string[];
 };
 
 export function PainelDesligamentosView(props: Props) {
-  const { empresaId, placar, setores, gestores, detalhe, config, periodo, ano, anoAtual, filtros, avisos } = props;
+  const { empresaId, placar, setores, gestores, detalhe, nomeDoRecorte, config, filtros, avisos } = props;
+  const { periodo, ano } = filtros;
   const router = useRouter();
   const pathname = usePathname();
   const busca = useSearchParams();
   const [ordemGestores, setOrdemGestores] = useState<"turnover" | "custo">("turnover");
-  const [de, setDe] = useState(periodo.de);
-  const [ate, setAte] = useState(periodo.ate);
-  // "Personalizado" só abre os campos de data; a URL muda no "Aplicar". Sem
-  // isso, o clique navegava sem datas, o servidor voltava para o ano atual (é
-  // o que ele faz com período inválido) e os campos nunca chegavam a aparecer.
-  const [personalizando, setPersonalizando] = useState(periodo.chave === "personalizado");
 
   const navegar = (mudancas: Record<string, string | null>) => {
     const proximos = new URLSearchParams(busca.toString());
@@ -109,14 +98,8 @@ export function PainelDesligamentosView(props: Props) {
   };
 
   const semaforo = SEMAFORO[placar.faixa];
-  const nomeDoRecorte = filtros.setor
-    ? `setor ${filtros.setores.find((s) => s.chave === filtros.setor)?.nome ?? ""}`
-    : filtros.gestor
-      ? `equipe de ${filtros.gestores.find((g) => g.chave === filtros.gestor)?.nome ?? ""}`
-      : null;
   const gestoresOrdenados =
     ordemGestores === "custo" ? [...gestores].sort((a, b) => b.custo - a.custo || b.saidas - a.saidas) : gestores;
-  const anos = [anoAtual, anoAtual - 1, anoAtual - 2];
 
   return (
     <div className="space-y-6">
@@ -132,7 +115,10 @@ export function PainelDesligamentosView(props: Props) {
           </>
         }
         acoes={
-          <ConfiguracaoDesligamentosDialog empresaId={empresaId} config={config} podeConfigurar={props.podeConfigurar} />
+          <>
+            <BotaoExportarPdf empresaId={empresaId} />
+            <ConfiguracaoDesligamentosDialog empresaId={empresaId} config={config} podeConfigurar={props.podeConfigurar} />
+          </>
         }
       />
 
@@ -140,107 +126,7 @@ export function PainelDesligamentosView(props: Props) {
         “Cada gestor é responsável pela equipe que tem — temos que contratar bem para demitir menos.”
       </p>
 
-      {/* Filtros: período, setor, gestor. Sem filtro de CNPJ, de propósito. */}
-      <div className="flex flex-wrap items-end gap-3">
-        <Segmentado
-          rotulo="Período das tabelas"
-          valor={personalizando ? "personalizado" : periodo.chave}
-          aoMudar={(v) => {
-            if (v === "personalizado") {
-              setPersonalizando(true);
-              return;
-            }
-            setPersonalizando(false);
-            navegar({ periodo: v === "ano" ? null : v, de: null, ate: null });
-          }}
-          opcoes={[
-            { valor: "ano", label: "Ano atual" },
-            { valor: "12m", label: "12 meses" },
-            { valor: "24m", label: "24 meses" },
-            { valor: "personalizado", label: "Personalizado" },
-          ]}
-        />
-        {personalizando && (
-          <form
-            className="flex items-end gap-2"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!de || !ate || de > ate) return;
-              navegar({ periodo: "personalizado", de, ate });
-            }}
-          >
-            <label className="text-xs text-muted-foreground">
-              De
-              <input type="date" value={de} onChange={(e) => setDe(e.target.value)} className={cn(CLASSE_RECORTE, "block")} />
-            </label>
-            <label className="text-xs text-muted-foreground">
-              Até
-              <input type="date" value={ate} onChange={(e) => setAte(e.target.value)} className={cn(CLASSE_RECORTE, "block")} />
-            </label>
-            <button
-              type="submit"
-              disabled={!de || !ate || de > ate}
-              title={de && ate && de > ate ? "A data inicial é depois da final." : undefined}
-              className="h-9 border border-input px-3 text-[13px] hover:bg-muted disabled:opacity-50"
-            >
-              Aplicar
-            </button>
-          </form>
-        )}
-        <label className="text-xs text-muted-foreground">
-          Setor
-          <select
-            value={filtros.setor ?? ""}
-            onChange={(e) => navegar({ setor: e.target.value || null })}
-            className={cn(CLASSE_RECORTE, "block")}
-          >
-            <option value="">Todos os setores</option>
-            {filtros.setores.map((s) => (
-              <option key={s.chave} value={s.chave}>
-                {s.nome}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="text-xs text-muted-foreground">
-          Gestor
-          <select
-            value={filtros.gestor ?? ""}
-            onChange={(e) => navegar({ gestor: e.target.value || null })}
-            className={cn(CLASSE_RECORTE, "block")}
-          >
-            <option value="">Todos os gestores</option>
-            {filtros.gestores.map((g) => (
-              <option key={g.chave} value={g.chave}>
-                {g.nome}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="text-xs text-muted-foreground">
-          Ano da meta
-          <select
-            value={String(ano)}
-            onChange={(e) => navegar({ ano: e.target.value === String(anoAtual) ? null : e.target.value })}
-            className={cn(CLASSE_RECORTE, "block")}
-          >
-            {anos.map((a) => (
-              <option key={a} value={a}>
-                {a}
-              </option>
-            ))}
-          </select>
-        </label>
-        {(filtros.setor || filtros.gestor || periodo.chave !== "ano" || ano !== anoAtual) && (
-          <button
-            type="button"
-            onClick={() => router.push(pathname)}
-            className="h-9 px-2 text-[13px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-          >
-            Limpar filtros
-          </button>
-        )}
-      </div>
+      <FiltrosDaAreaBarra filtros={filtros} mostrarAno />
 
       {/* 1. Placar da meta */}
       <Card>

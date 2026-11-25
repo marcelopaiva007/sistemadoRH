@@ -285,6 +285,12 @@ export const GUIAS: Guia[] = [
         rotulos: ["Setor", "Saídas", "Turnover 12m", "Custo"],
       },
       {
+        titulo: "Por que saem, e quem saiu cedo demais",
+        fala: "Motivos mostra a causa de cada saída por setor e gestor. Contratação errada mostra quem saiu com menos de 90 ou 180 dias e quanto das contratações já foi embora. Comparações põe o ano contra o ano anterior, e o crescimento da equipe ao lado do crescimento do negócio. Pendências lista o dado que falta corrigir. O botão Exportar PDF leva tudo para a reunião, com os mesmos filtros.",
+        cena: "grafico",
+        rotulos: ["Desempenho", "Comportamento", "Reestruturação", "Pedido"],
+      },
+      {
         titulo: "O motivo formal fica na ficha",
         fala: "Data e motivo do desligamento são preenchidos na ficha do colaborador. Esta tela é o passo seguinte: o que ainda falta encerrar depois que a saída foi registrada.",
         cena: "fluxo",

@@ -6,7 +6,87 @@ import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { direcaoRestrita, grupoDaEmpresa } from "@/lib/grupo";
 import { registrarAuditoria } from "@/lib/audit";
 import { validarConfiguracao } from "@/lib/desligamentos/painel";
+import { validarIndicadoresNegocio } from "@/lib/desligamentos/analises";
+import { hojeUTC } from "@/lib/datas";
 import type { ActionResult } from "@/lib/constants";
+
+/** A mesma porta das duas gravações da área: diretoria que enxerga o grupo inteiro. */
+async function exigirDiretoriaDoGrupo(
+  empresaId: string,
+): Promise<{ ok: true; grupoId: string; usuario: { id?: string; name?: string | null } } | { ok: false; error: string }> {
+  if (typeof empresaId !== "string" || !empresaId) return { ok: false, error: "Empresa inválida." };
+  const usuario = await requireEmpresaAccess(empresaId);
+  if (usuario.role !== "ADMIN" && usuario.role !== "DIRETORIA") {
+    return { ok: false, error: "Só a diretoria muda os números da área Desligamentos." };
+  }
+  if (await direcaoRestrita(usuario)) {
+    return {
+      ok: false,
+      error: "Estes números valem para todas as marcas do grupo — só quem enxerga o grupo inteiro pode mudar.",
+    };
+  }
+  const grupoId = await grupoDaEmpresa(empresaId);
+  if (!grupoId) return { ok: false, error: "Empresa sem grupo — não há onde gravar." };
+  return { ok: true, grupoId, usuario };
+}
+
+/**
+ * Crescimento da base de clientes e do faturamento dos últimos três anos —
+ * digitado pela diretoria, porque o sistema não tem essa informação. É a
+ * régua contra a qual a aba Comparações mede o crescimento da equipe.
+ */
+export async function salvarIndicadoresNegocio(
+  empresaId: string,
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const porta = await exigirDiretoriaDoGrupo(empresaId);
+  if (!porta.ok) return porta;
+  const { grupoId, usuario } = porta;
+
+  const anoAtual = hojeUTC().getUTCFullYear();
+  const anos = [anoAtual - 2, anoAtual - 1, anoAtual];
+  const campos: Record<string, string> = {};
+  for (const ano of anos) {
+    for (const nome of ["clientes", "faturamento", "observacao"]) {
+      campos[`${nome}_${ano}`] = String(formData.get(`${nome}_${ano}`) ?? "");
+    }
+  }
+  const validacao = validarIndicadoresNegocio(campos, anos);
+  if (!validacao.ok) return validacao;
+
+  for (const v of validacao.valores) {
+    const dados = {
+      crescimentoClientesPct: v.crescimentoClientesPct,
+      crescimentoFaturamentoPct: v.crescimentoFaturamentoPct,
+      observacao: v.observacao,
+      atualizadoPorId: usuario.id ?? null,
+      atualizadoPorNome: usuario.name ?? null,
+    };
+    await prisma.indicadorNegocioAno.upsert({
+      where: { grupoId_ano: { grupoId, ano: v.ano } },
+      create: { grupoId, ano: v.ano, ...dados },
+      update: dados,
+    });
+  }
+
+  const fmt = (n: number | null) => (n === null ? "—" : `${n.toLocaleString("pt-BR")}%`);
+  await registrarAuditoria({
+    empresaId,
+    acao: "ATUALIZAR",
+    entidade: "IndicadorNegocioAno",
+    entidadeId: grupoId,
+    resumo:
+      "Crescimento do negócio (área Desligamentos): " +
+      validacao.valores
+        .map((v) => `${v.ano} clientes ${fmt(v.crescimentoClientesPct)}, faturamento ${fmt(v.crescimentoFaturamentoPct)}`)
+        .join("; ") +
+      ".",
+  });
+
+  revalidatePath(`/rh/${empresaId}/desligamentos`, "layout");
+  return { ok: true };
+}
 
 /**
  * Grava a configuração da área Desligamentos do cliente: custo por
@@ -22,20 +102,9 @@ export async function salvarConfiguracaoDesligamentos(
   _prev: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
-  if (typeof empresaId !== "string" || !empresaId) return { ok: false, error: "Empresa inválida." };
-  const usuario = await requireEmpresaAccess(empresaId);
-  if (usuario.role !== "ADMIN" && usuario.role !== "DIRETORIA") {
-    return { ok: false, error: "Só a diretoria muda a meta e o custo dos desligamentos." };
-  }
-  if (await direcaoRestrita(usuario)) {
-    return {
-      ok: false,
-      error: "A configuração vale para todas as marcas do grupo — só quem enxerga o grupo inteiro pode mudar.",
-    };
-  }
-
-  const grupoId = await grupoDaEmpresa(empresaId);
-  if (!grupoId) return { ok: false, error: "Empresa sem grupo — não há onde gravar a configuração." };
+  const porta = await exigirDiretoriaDoGrupo(empresaId);
+  if (!porta.ok) return porta;
+  const { grupoId, usuario } = porta;
 
   const validacao = validarConfiguracao({
     custo: String(formData.get("custo") ?? ""),
