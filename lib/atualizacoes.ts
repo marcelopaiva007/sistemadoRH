@@ -26,6 +26,14 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.212.2",
+    data: "25/11/2026",
+    titulo: "Preparação do banco para a área Desligamentos",
+    itens: [
+      "Sem mudança visível. O banco passa a ter onde guardar a causa da saída e o retrato de setor, cargo e líder no dia do desligamento, que a próxima versão começa a usar.",
+    ],
+  },
+  {
     versao: "1.212.1",
     data: "26/11/2026",
     horario: "16:00",
