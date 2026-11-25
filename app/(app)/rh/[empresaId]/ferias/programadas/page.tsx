@@ -6,6 +6,7 @@ import {
   resumirProgramacaoFerias,
 } from "@/lib/ferias-passivo";
 import { diferencaEmDiasUTC, hojeUTC } from "@/lib/datas";
+import { antecedenciaDaProgramacao, dataLimitePagamento, DIAS_AVISO_FERIAS } from "@/lib/ferias-clt";
 import { ProgramadasView } from "./programadas-view";
 
 // A agenda de férias do grupo: tudo que está programado (pendente ou aprovado)
@@ -45,6 +46,14 @@ export type LinhaProgramada = {
   terminaEmDias: number;
   /** MESMA regra do cartão "Férias programadas" (contaComoProgramada). */
   naJanela: boolean;
+  /** Art. 145 (26/11/2026): último dia para pagar férias + abono — 2 dias antes do início. */
+  pagarAte: Date;
+  /**
+   * Art. 135 (26/11/2026): dias entre o lançamento do pedido e o início, quando
+   * foram MENOS de 30 — o aviso ao empregado saiu (ou sai) fora do prazo. null
+   * quando houve antecedência. Alerta, não bloqueio.
+   */
+  avisoCurtoDias: number | null;
 };
 
 export default async function FeriasProgramadasPage({
@@ -87,6 +96,8 @@ export default async function FeriasProgramadasPage({
         dias: true,
         diasAbono: true,
         status: true,
+        // createdAt: quando a programação entrou — mede a antecedência do aviso (art. 135).
+        createdAt: true,
         colaborador: {
           select: {
             id: true,
@@ -115,6 +126,7 @@ export default async function FeriasProgramadasPage({
 
   const linhas: LinhaProgramada[] = agenda.map((s) => {
     const comecaEmDias = diferencaEmDiasUTC(s.dataInicio, hoje);
+    const antecedencia = antecedenciaDaProgramacao(s.dataInicio, s.createdAt);
     return {
       solicitacaoId: s.id,
       colaboradorId: s.colaborador.id,
@@ -133,6 +145,8 @@ export default async function FeriasProgramadasPage({
       comecaEmDias,
       terminaEmDias: diferencaEmDiasUTC(s.dataFim, hoje),
       naJanela: contaComoProgramada(s, hoje),
+      pagarAte: dataLimitePagamento(s.dataInicio),
+      avisoCurtoDias: antecedencia < DIAS_AVISO_FERIAS ? Math.max(0, antecedencia) : null,
     };
   });
 

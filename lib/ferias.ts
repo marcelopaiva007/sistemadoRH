@@ -12,8 +12,11 @@
 //   * o gozo pode ser fracionado em até 3 períodos, nenhum menor que 5 dias e
 //     um deles com no mínimo 14 dias (art. 134 §1º).
 //
-// Fora do escopo por ora: redução do direito por faltas injustificadas
-// (art. 130) — o saldo assume os 30 dias cheios.
+// Desde 26/11/2026 o direito do período deixou de ser sempre 30: o art. 130
+// (faltas injustificadas reduzem para 24/18/12 ou zeram) e o art. 133, IV
+// (afastamento previdenciário de mais de 6 meses zera e reinicia a contagem)
+// entram pelas ausências registradas. As regras puras moram em
+// lib/ferias-clt.ts; aqui elas só são aplicadas a cada período.
 import {
   diferencaEmDiasUTC,
   hojeUTC,
@@ -23,12 +26,26 @@ import {
   somarDiasUTC,
 } from "@/lib/datas";
 import type { StatusBadgeMap } from "@/components/status-badge";
+import {
+  diasDeDireitoPorFaltas,
+  erroDeFracionamento,
+  erroDeInicioAntesDoDsr,
+  faltasInjustificadasNoPeriodo,
+  MAXIMO_FRACOES_CLT,
+  MINIMO_DIAS_FRACAO_CLT,
+  MINIMO_DIAS_FRACAO_PRINCIPAL_CLT,
+  perdaPorAfastamento,
+  type AusenciaParaFerias,
+} from "@/lib/ferias-clt";
+
+export type { AusenciaParaFerias } from "@/lib/ferias-clt";
 
 export const DIAS_FERIAS_POR_PERIODO = 30;
 export const MAXIMO_DIAS_ABONO = 10;
-export const MINIMO_DIAS_FRACAO = 5;
-export const MINIMO_DIAS_FRACAO_PRINCIPAL = 14;
-export const MAXIMO_FRACOES = 3;
+// As três abaixo moram em lib/ferias-clt.ts desde 26/11/2026 (art. 134 §1º).
+export const MINIMO_DIAS_FRACAO = MINIMO_DIAS_FRACAO_CLT;
+export const MINIMO_DIAS_FRACAO_PRINCIPAL = MINIMO_DIAS_FRACAO_PRINCIPAL_CLT;
+export const MAXIMO_FRACOES = MAXIMO_FRACOES_CLT;
 
 // A partir de quantos dias do fim do período concessivo o período entra no
 // painel de alertas como "vencendo".
@@ -55,8 +72,15 @@ export type ProgressoPeriodoEmCurso = {
   percentual: number;
 };
 
+/** Por que o período ficou sem direito a férias — null quando tem direito. */
+export type PerdaDoDireito = "FALTAS_ART_130" | "AFASTAMENTO_ART_133";
+
 export type PeriodoAquisitivo = {
   inicio: Date;
+  /**
+   * Véspera do aniversário seguinte — ou, quando o período foi perdido pelo
+   * art. 133, a véspera da volta ao trabalho (o novo período começa nela).
+   */
   fim: Date;
   /** Último dia do período concessivo: depois disso as férias vencem em dobro. */
   limiteConcessivo: Date;
@@ -64,7 +88,17 @@ export type PeriodoAquisitivo = {
   diasUsados: number;
   /** Dias presos em solicitações ainda PENDENTES (não contam como usados). */
   diasReservados: number;
-  /** 30 − usados − reservados. */
+  /**
+   * Dias de férias a que o período dá direito: 30, reduzido pelas faltas
+   * injustificadas (art. 130: 24/18/12/0) ou 0 pelo art. 133. No período em
+   * curso é o direito ATÉ HOJE — pode cair se vierem mais faltas.
+   */
+  direito: number;
+  /** Faltas injustificadas (ausência aprovada não abonada) dentro do período. */
+  faltasInjustificadas: number;
+  /** Preenchido quando o direito zerou; diz qual artigo zerou. */
+  perdaDireito: PerdaDoDireito | null;
+  /** direito − usados − reservados (nunca negativo). */
   saldo: number;
   status: StatusPeriodo;
   /** Dias até o limite concessivo (negativo = já venceu). */
@@ -94,20 +128,51 @@ export function contarDiasCorridos(inicio: Date, fim: Date): number {
  */
 export function calcularFerias(
   dataAdmissao: Date,
-  solicitacoes: SolicitacaoParaCalculo[],
+  solicitacoes: readonly SolicitacaoParaCalculo[],
   hoje: Date = hojeUTC(),
+  /**
+   * Ausências do colaborador (26/11/2026) — faltas injustificadas (art. 130) e
+   * afastamentos previdenciários (art. 133). Sem elas o direito é 30 cheio,
+   * como era antes; quem mostra saldo deve passá-las.
+   */
+  ausencias: readonly AusenciaParaFerias[] = [],
 ): ResumoFerias {
   const referencia = inicioDoDiaUTC(hoje);
   const admissao = inicioDoDiaUTC(dataAdmissao);
   const periodos: PeriodoAquisitivo[] = [];
 
+  // Os períodos são aniversários de uma ÂNCORA: a admissão, ou a volta ao
+  // trabalho depois de um período perdido pelo art. 133 (§2º: "iniciar-se-á o
+  // decurso de novo período aquisitivo quando o empregado ... retornar ao
+  // serviço"). Somar anos à âncora (e não encadear fim + 1) mantém a regra do
+  // 29/02 de `somarAnosUTC` exatamente como antes.
+  let ancora = admissao;
+  let anosDesdeAncora = 0;
+
   // Limite de segurança: 60 anos de casa cobre qualquer vínculo real e evita
   // laço infinito se a data de admissão vier absurda (ex.: ano digitado errado).
   for (let i = 0; i < 60; i++) {
-    const inicio = somarAnosUTC(admissao, i);
+    const inicio = somarAnosUTC(ancora, anosDesdeAncora);
     if (inicio > referencia) break;
 
-    const fim = somarDiasUTC(somarAnosUTC(inicio, 1), -1);
+    // Art. 133, IV: mais de 180 dias de afastamento previdenciário no período
+    // zera o direito e o período termina na véspera da volta ao trabalho.
+    const perda = perdaPorAfastamento(ausencias, inicio, somarDiasUTC(somarAnosUTC(inicio, 1), -1));
+    const fim = perda ? somarDiasUTC(perda.retorno, -1) : somarDiasUTC(somarAnosUTC(inicio, 1), -1);
+    if (perda) {
+      ancora = perda.retorno;
+      anosDesdeAncora = 0;
+    } else {
+      anosDesdeAncora++;
+    }
+    // Art. 130: faltas injustificadas no período reduzem o direito.
+    const faltasInjustificadas = faltasInjustificadasNoPeriodo(ausencias, inicio, fim);
+    const direito = perda ? 0 : diasDeDireitoPorFaltas(faltasInjustificadas);
+    const perdaDireito: PerdaDoDireito | null = perda
+      ? "AFASTAMENTO_ART_133"
+      : direito === 0
+        ? "FALTAS_ART_130"
+        : null;
     const limiteConcessivo = somarAnosUTC(fim, 1);
 
     const daPeriodo = solicitacoes.filter((s) => mesmoDiaUTC(s.periodoAquisitivoInicio, inicio));
@@ -117,7 +182,7 @@ export function calcularFerias(
     const diasReservados = daPeriodo
       .filter((s) => s.status === "PENDENTE")
       .reduce((total, s) => total + s.dias + s.diasAbono, 0);
-    const saldo = Math.max(0, DIAS_FERIAS_POR_PERIODO - diasUsados - diasReservados);
+    const saldo = Math.max(0, direito - diasUsados - diasReservados);
 
     const adquirido = fim < referencia;
     const diasAteLimite = diferencaEmDiasUTC(limiteConcessivo, referencia);
@@ -151,6 +216,9 @@ export function calcularFerias(
       limiteConcessivo,
       diasUsados,
       diasReservados,
+      direito,
+      faltasInjustificadas,
+      perdaDireito,
       saldo,
       status,
       diasAteLimite,
@@ -173,10 +241,30 @@ export type ValidacaoFerias =
   | { ok: true; dias: number; periodo: PeriodoAquisitivo }
   | { ok: false; error: string };
 
+/** Mensagem de "sem direito" do período, com o artigo e o número que zerou. */
+export function motivoSemDireito(periodo: PeriodoAquisitivo): string | null {
+  if (periodo.perdaDireito === "AFASTAMENTO_ART_133") {
+    return "Sem direito a férias neste período: o colaborador ficou afastado pelo INSS (auxílio-doença ou acidente) por mais de 6 meses dentro do período aquisitivo (CLT art. 133, IV). Um novo período começou na volta ao trabalho.";
+  }
+  if (periodo.perdaDireito === "FALTAS_ART_130") {
+    return `Sem direito a férias neste período: ${periodo.faltasInjustificadas} faltas injustificadas no período aquisitivo — acima de 32 o direito se perde (CLT art. 130).`;
+  }
+  return null;
+}
+
 /**
- * Valida um pedido de férias contra o saldo do período e as regras de
- * fracionamento. `fracoesExistentes` são as demais solicitações do mesmo
- * período aquisitivo já aprovadas ou pendentes.
+ * Valida um pedido de férias contra o direito do período (art. 130/133), o
+ * saldo, o fracionamento (art. 134 §1º) e o dia de início (art. 134 §3º).
+ * `fracoesExistentes` são as demais solicitações do mesmo período aquisitivo
+ * já aprovadas ou pendentes.
+ *
+ * `retroativo` (lançamento de férias JÁ gozadas): pula a conferência do dia de
+ * início — é registro de fato passado, não programação; bloquear impediria o
+ * RH de lançar o histórico como aconteceu. Direito, saldo e fracionamento
+ * continuam valendo.
+ *
+ * Prazos (aviso de 30 dias, art. 135) não entram aqui: não invalidam a
+ * programação, só alertam — ver `alertaDeAvisoPrevio` em lib/ferias-clt.ts.
  */
 export function validarSolicitacaoFerias(params: {
   resumo: ResumoFerias;
@@ -185,6 +273,7 @@ export function validarSolicitacaoFerias(params: {
   dataFim: Date;
   diasAbono: number;
   fracoesExistentes: { dias: number }[];
+  retroativo?: boolean;
 }): ValidacaoFerias {
   const { resumo, periodoAquisitivoInicio, dataInicio, dataFim, diasAbono, fracoesExistentes } = params;
 
@@ -197,37 +286,35 @@ export function validarSolicitacaoFerias(params: {
   if (periodo.status === "EM_CURSO") {
     return { ok: false, error: "Este período aquisitivo ainda não completou 12 meses." };
   }
+  const semDireito = motivoSemDireito(periodo);
+  if (semDireito) return { ok: false, error: semDireito };
 
   const dias = contarDiasCorridos(dataInicio, dataFim);
   if (diasAbono < 0 || diasAbono > MAXIMO_DIAS_ABONO) {
     return { ok: false, error: `O abono pecuniário é de no máximo ${MAXIMO_DIAS_ABONO} dias (1/3 do período).` };
   }
   if (dias + diasAbono > periodo.saldo) {
+    const reduzido =
+      periodo.direito < DIAS_FERIAS_POR_PERIODO
+        ? ` O direito deste período é de ${periodo.direito} dias por ${periodo.faltasInjustificadas} faltas injustificadas (CLT art. 130).`
+        : "";
     return {
       ok: false,
-      error: `Saldo insuficiente: restam ${periodo.saldo} dia(s) neste período aquisitivo e o pedido soma ${dias + diasAbono}.`,
+      error: `Saldo insuficiente: restam ${periodo.saldo} dia(s) neste período aquisitivo e o pedido soma ${dias + diasAbono}.${reduzido}`,
     };
   }
 
+  // Fracionamento (art. 134 §1º) — conferido a cada pedido contra o que ainda
+  // sobra, não só quando o saldo zera: um 13 + 9 é recusado no 9, quando já não
+  // cabe mais uma fração de 14, e não só no terceiro pedido.
+  const restante = periodo.direito - periodo.diasUsados - periodo.diasReservados - dias - diasAbono;
   const fracoes = [...fracoesExistentes.map((f) => f.dias), dias];
-  if (fracoes.length > MAXIMO_FRACOES) {
-    return {
-      ok: false,
-      error: `As férias podem ser divididas em no máximo ${MAXIMO_FRACOES} períodos (CLT art. 134 §1º).`,
-    };
-  }
-  if (fracoes.length > 1 && dias < MINIMO_DIAS_FRACAO) {
-    return { ok: false, error: `Nenhum período fracionado pode ter menos de ${MINIMO_DIAS_FRACAO} dias corridos.` };
-  }
-  // A regra dos 14 dias só é verificável quando o período é todo consumido; se
-  // ainda sobra saldo, uma fração maior pode vir depois.
-  const consomeTudo =
-    periodo.diasUsados + periodo.diasReservados + dias + diasAbono >= DIAS_FERIAS_POR_PERIODO;
-  if (fracoes.length > 1 && consomeTudo && !fracoes.some((d) => d >= MINIMO_DIAS_FRACAO_PRINCIPAL)) {
-    return {
-      ok: false,
-      error: `Ao fracionar, um dos períodos precisa ter pelo menos ${MINIMO_DIAS_FRACAO_PRINCIPAL} dias corridos (CLT art. 134 §1º).`,
-    };
+  const erroFracao = erroDeFracionamento(fracoes, Math.max(0, restante));
+  if (erroFracao) return { ok: false, error: erroFracao };
+
+  if (!params.retroativo) {
+    const erroInicio = erroDeInicioAntesDoDsr(dataInicio);
+    if (erroInicio) return { ok: false, error: erroInicio };
   }
 
   return { ok: true, dias, periodo };
@@ -275,7 +362,7 @@ export type SolicitacaoParaRiscoDobra = SolicitacaoParaCalculo & { dataInicio: D
 
 export type PeriodoEmRiscoDeDobra = {
   periodo: PeriodoAquisitivo;
-  /** Dias do direito (30) ainda sem gozo/abono marcado DENTRO do concessivo. */
+  /** Dias do direito do período (30, ou menos pelo art. 130) ainda sem gozo/abono marcado DENTRO do concessivo. */
   diasDescobertos: number;
   /** true = o concessivo já acabou: a dobra está caracterizada, não é mais risco. */
   vencido: boolean;
@@ -317,9 +404,16 @@ export function periodosEmRiscoDeDobra(
   solicitacoes: readonly SolicitacaoParaRiscoDobra[],
   hoje: Date = hojeUTC(),
   janelaDias: number = DIAS_ALERTA_RISCO_DOBRA,
+  /**
+   * Ausências (26/11/2026): com o direito reduzido pelo art. 130, o risco é
+   * sobre os dias do direito NOVO — 24 dias marcados cobrem quem tem direito a
+   * 24. Período sem direito (art. 130 acima de 32 faltas, ou 133) não tem o
+   * que pagar em dobro. Tela e Pendências passam as mesmas ausências.
+   */
+  ausencias: readonly AusenciaParaFerias[] = [],
 ): PeriodoEmRiscoDeDobra[] {
   const vivas = solicitacoes.filter((s) => s.status === "APROVADA" || s.status === "PENDENTE");
-  const { periodos } = calcularFerias(dataAdmissao, vivas, hoje);
+  const { periodos } = calcularFerias(dataAdmissao, vivas, hoje, ausencias);
   const emRisco: PeriodoEmRiscoDeDobra[] = [];
 
   for (const periodo of periodos) {
@@ -328,7 +422,7 @@ export function periodosEmRiscoDeDobra(
     const cobertos = vivas
       .filter((s) => mesmoDiaUTC(s.periodoAquisitivoInicio, periodo.inicio))
       .reduce((total, s) => total + diasCobertosAteOLimite(s, periodo.limiteConcessivo), 0);
-    const diasDescobertos = Math.max(0, DIAS_FERIAS_POR_PERIODO - cobertos);
+    const diasDescobertos = Math.max(0, periodo.direito - cobertos);
     if (diasDescobertos === 0) continue;
     emRisco.push({ periodo, diasDescobertos, vencido: periodo.diasAteLimite < 0 });
   }
@@ -341,6 +435,7 @@ export function emRiscoDeDobra(
   solicitacoes: readonly SolicitacaoParaRiscoDobra[],
   hoje: Date = hojeUTC(),
   janelaDias: number = DIAS_ALERTA_RISCO_DOBRA,
+  ausencias: readonly AusenciaParaFerias[] = [],
 ): boolean {
-  return periodosEmRiscoDeDobra(dataAdmissao, solicitacoes, hoje, janelaDias).length > 0;
+  return periodosEmRiscoDeDobra(dataAdmissao, solicitacoes, hoje, janelaDias, ausencias).length > 0;
 }

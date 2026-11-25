@@ -9,6 +9,7 @@ import {
 import { RUBRICAS_HORA_EXTRA, LIMITE_HORAS_EXTRAS_MES } from "@/lib/constants-folha";
 import { hojeUTC, somarDiasUTC, diferencaEmDiasUTC } from "@/lib/datas";
 import { emRiscoDeDobra } from "@/lib/ferias";
+import { SELECT_AUSENCIAS_PARA_FERIAS, WHERE_AUSENCIAS_PARA_FERIAS } from "@/lib/ferias-clt";
 import { BALDES_SEM_ESTRUTURA } from "@/lib/estrutura-pendente";
 
 export type Pendencias = {
@@ -727,12 +728,16 @@ async function feriasEmRiscoPorEmpresa(
           dataFim: true,
         },
       },
+      // As MESMAS ausências da tela de Férias (26/11/2026): com o direito
+      // reduzido pelo art. 130 ou zerado pelo 133, o risco é sobre o direito
+      // novo — sem isto o cartão e a lista voltariam a discordar.
+      ausencias: { where: WHERE_AUSENCIAS_PARA_FERIAS, select: SELECT_AUSENCIAS_PARA_FERIAS },
     },
   });
 
   const porEmpresa = new Map<string, number>();
   for (const c of colaboradores) {
-    if (!c.dataAdmissao || !emRiscoDeDobra(c.dataAdmissao, c.ferias, hoje)) continue;
+    if (!c.dataAdmissao || !emRiscoDeDobra(c.dataAdmissao, c.ferias, hoje, undefined, c.ausencias)) continue;
     porEmpresa.set(c.empresaId, (porEmpresa.get(c.empresaId) ?? 0) + 1);
   }
   return porEmpresa;

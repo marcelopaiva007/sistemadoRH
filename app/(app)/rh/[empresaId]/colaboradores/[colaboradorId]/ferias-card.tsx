@@ -17,9 +17,16 @@ import {
   registrarFeriasGozadas,
   conciliarSaldoFerias,
 } from "@/lib/actions/rh-ferias";
+import { Badge } from "@/components/ui/badge";
 import { STATUS_PERIODO_BADGE, DIAS_FERIAS_POR_PERIODO, type ResumoFerias } from "@/lib/ferias";
+import {
+  alertaDeAvisoPrevio,
+  AVISO_FERIADOS_NAO_CONFERIDOS,
+  dataLimitePagamento,
+  erroDeInicioAntesDoDsr,
+} from "@/lib/ferias-clt";
 import { STATUS_SOLICITACAO_BADGE } from "@/lib/constants-dp";
-import { formatarData, paraInputDate } from "@/lib/datas";
+import { dataDoFormulario, formatarData, hojeUTC, paraInputDate } from "@/lib/datas";
 import { Campo, CampoData, CampoTexto, CampoCheckbox, FormularioAction } from "./campos";
 import { BotaoExcluir } from "./dependentes-card";
 
@@ -52,6 +59,9 @@ export function FeriasCard({
   const [novoAberto, setNovoAberto] = useState(false);
   const [gozadaAberto, setGozadaAberto] = useState(false);
   const [conciliarAberto, setConciliarAberto] = useState(false);
+  // Início escolhido no formulário de programação — só para os avisos ao vivo
+  // (art. 134 §3º e 135). Quem decide é o servidor (validarSolicitacaoFerias).
+  const [inicioProgramado, setInicioProgramado] = useState("");
 
   if (!resumo) {
     return (
@@ -72,6 +82,17 @@ export function FeriasCard({
   }
 
   const periodosSelecionaveis = resumo.periodos.filter((p) => p.status !== "EM_CURSO" && p.saldo > 0);
+  // Acumulado pelo DIREITO de cada período (art. 130/133), não 30 × períodos.
+  const acumuladoConciliavel = periodosSelecionaveis.reduce((total, p) => total + p.direito, 0);
+
+  const dataInicioProgramada = dataDoFormulario(inicioProgramado);
+  const avisosProgramacao = dataInicioProgramada
+    ? {
+        dsr: erroDeInicioAntesDoDsr(dataInicioProgramada),
+        aviso: alertaDeAvisoPrevio(dataInicioProgramada, hojeUTC()),
+        pagarAte: dataLimitePagamento(dataInicioProgramada),
+      }
+    : null;
 
   return (
     <div className="space-y-4">
@@ -81,6 +102,9 @@ export function FeriasCard({
           <CardDescription>
             Calculados a partir da data de admissão. As férias precisam ser gozadas dentro dos 12
             meses seguintes ao fim do período — depois disso o pagamento é em dobro (CLT art. 137).
+            O direito do período cai com faltas injustificadas (art. 130: até 5 faltas, 30 dias; 6 a
+            14, 24; 15 a 23, 18; 24 a 32, 12; acima, nenhum) e se perde com mais de 6 meses de
+            afastamento pelo INSS (art. 133).
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -97,6 +121,7 @@ export function FeriasCard({
                 <TableRow>
                   <TableHead>Período aquisitivo</TableHead>
                   <TableHead>Gozar até</TableHead>
+                  <TableHead className="text-right">Direito</TableHead>
                   <TableHead className="text-right">Usados</TableHead>
                   <TableHead className="text-right">Pendentes</TableHead>
                   <TableHead className="text-right">Saldo</TableHead>
@@ -127,13 +152,38 @@ export function FeriasCard({
                         formatarData(p.limiteConcessivo)
                       )}
                     </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      <span
+                        title={
+                          p.faltasInjustificadas > 0
+                            ? `${p.faltasInjustificadas} falta(s) injustificada(s) no período (CLT art. 130)`
+                            : undefined
+                        }
+                        className={p.direito < DIAS_FERIAS_POR_PERIODO ? "font-medium text-destructive" : undefined}
+                      >
+                        {p.direito}
+                      </span>
+                    </TableCell>
                     <TableCell className="text-right tabular-nums">{p.diasUsados}</TableCell>
                     <TableCell className="text-right tabular-nums">{p.diasReservados}</TableCell>
                     <TableCell className="text-right font-medium tabular-nums">{p.saldo}</TableCell>
                     <TableCell>
-                      <StatusBadge status={p.status} map={STATUS_PERIODO_BADGE}>
-                        {p.status === "VENCENDO" && ` · ${p.diasAteLimite} d`}
-                      </StatusBadge>
+                      {p.perdaDireito ? (
+                        <Badge
+                          variant="outline"
+                          title={
+                            p.perdaDireito === "AFASTAMENTO_ART_133"
+                              ? "Mais de 6 meses de afastamento pelo INSS no período (CLT art. 133, IV). O novo período começa na volta ao trabalho."
+                              : `${p.faltasInjustificadas} faltas injustificadas no período — acima de 32 o direito se perde (CLT art. 130).`
+                          }
+                        >
+                          Sem direito ({p.perdaDireito === "AFASTAMENTO_ART_133" ? "art. 133" : "art. 130"})
+                        </Badge>
+                      ) : (
+                        <StatusBadge status={p.status} map={STATUS_PERIODO_BADGE}>
+                          {p.status === "VENCENDO" && ` · ${p.diasAteLimite} d`}
+                        </StatusBadge>
+                      )}
                     </TableCell>
                     <TableCell className="text-center">
                       {p.status === "VENCIDO" && p.saldo > 0 && (
@@ -192,9 +242,7 @@ export function FeriasCard({
                       <br />
                       <br />
                       Acumulado desde a admissão:{" "}
-                      <strong>
-                        {periodosSelecionaveis.length * DIAS_FERIAS_POR_PERIODO} dias
-                      </strong>{" "}
+                      <strong>{acumuladoConciliavel} dias</strong>{" "}
                       em {periodosSelecionaveis.length} período(s) completo(s). Pensando em meses:
                       multiplique por 30 (ex.: 2 meses ≈ 60 dias).
                     </AlertDescription>
@@ -210,7 +258,7 @@ export function FeriasCard({
                       label="Saldo atual (dias)"
                       type="number"
                       min={0}
-                      max={periodosSelecionaveis.length * DIAS_FERIAS_POR_PERIODO}
+                      max={acumuladoConciliavel}
                       required
                     />
                     <Campo label="Observações">
@@ -284,7 +332,13 @@ export function FeriasCard({
               </DialogContent>
             </Dialog>
 
-            <Dialog open={novoAberto} onOpenChange={setNovoAberto}>
+            <Dialog
+              open={novoAberto}
+              onOpenChange={(aberto) => {
+                setNovoAberto(aberto);
+                if (!aberto) setInicioProgramado("");
+              }}
+            >
               <DialogTrigger render={<Button size="sm" disabled={periodosSelecionaveis.length === 0} />}>
                 <Plus className="size-4" />
                 Programar férias
@@ -312,10 +366,36 @@ export function FeriasCard({
                       ))}
                     </select>
                   </Campo>
-                  <div className="grid gap-4 sm:grid-cols-2">
+                  {/* onChange no contêiner (o evento sobe do input): CampoData
+                      não expõe onChange, e o valor só serve aos avisos abaixo. */}
+                  <div
+                    className="grid gap-4 sm:grid-cols-2"
+                    onChange={(e) => {
+                      const alvo = e.target as HTMLInputElement;
+                      if (alvo.name === "dataInicio") setInicioProgramado(alvo.value);
+                    }}
+                  >
                     <CampoData name="dataInicio" label="Início do gozo" />
                     <CampoData name="dataFim" label="Fim do gozo" />
                   </div>
+                  {avisosProgramacao?.dsr && (
+                    <Alert variant="destructive">
+                      <AlertDescription>{avisosProgramacao.dsr}</AlertDescription>
+                    </Alert>
+                  )}
+                  {avisosProgramacao?.aviso && (
+                    <Alert>
+                      <AlertDescription>{avisosProgramacao.aviso}</AlertDescription>
+                    </Alert>
+                  )}
+                  {avisosProgramacao && (
+                    <p className="text-xs text-muted-foreground">
+                      Pagamento das férias até{" "}
+                      <strong className="tabular-nums">{formatarData(avisosProgramacao.pagarAte)}</strong>{" "}
+                      (2 dias antes do início — CLT art. 145).
+                    </p>
+                  )}
+                  <p className="text-xs text-muted-foreground">{AVISO_FERIADOS_NAO_CONFERIDOS}</p>
                   <CampoTexto
                     name="diasAbono"
                     label="Abono pecuniário (dias vendidos, até 10)"
@@ -346,6 +426,7 @@ export function FeriasCard({
                     <TableHead>Gozo</TableHead>
                     <TableHead className="text-right">Dias</TableHead>
                     <TableHead className="text-right">Abono</TableHead>
+                    <TableHead>Pagar até</TableHead>
                     <TableHead>Situação</TableHead>
                     <TableHead>Decisão</TableHead>
                     <TableHead className="w-40 text-right">Ações</TableHead>
@@ -359,6 +440,14 @@ export function FeriasCard({
                       </TableCell>
                       <TableCell className="text-right tabular-nums">{s.dias}</TableCell>
                       <TableCell className="text-right tabular-nums">{s.diasAbono || "—"}</TableCell>
+                      <TableCell
+                        className="tabular-nums"
+                        title="CLT art. 145: férias e abono pagos até 2 dias antes do início"
+                      >
+                        {s.status === "PENDENTE" || s.status === "APROVADA"
+                          ? formatarData(dataLimitePagamento(s.dataInicio))
+                          : "—"}
+                      </TableCell>
                       <TableCell>
                         <StatusBadge status={s.status} map={STATUS_SOLICITACAO_BADGE} />
                       </TableCell>
