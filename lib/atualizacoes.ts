@@ -26,6 +26,23 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.210.0",
+    data: "25/11/2026",
+    horario: "20:30",
+    titulo: "Segurança: acessos revistos em todo o sistema",
+    itens: [
+      "Desativar uma conta ou redefinir a senha desconecta na hora quem já estava logado com ela, em qualquer aparelho. Mudanças de papel e de empresas valem já na próxima tela.",
+      "Ao trocar a sua senha em Conta, os outros aparelhos são desconectados, mas você continua dentro.",
+      "Gestores de setor não conseguem mais baixar relatórios, planilhas, fotos de ponto, anexos ou documentos da empresa inteira por link direto, nem alterar setores, cargos e tipos de benefício.",
+      "Portal do colaborador: atualizar dados, enviar documentos, confirmar entregas, mandar mensagem ao RH, dar ciência e responder demandas só funcionam depois de confirmar o CPF.",
+      "Contracheque: o link \"Baixar comprovante\" pede o CPF antes de liberar o PDF; o link de assinatura vale 120 dias a partir do envio; o IP registrado é o real; clique duplo em \"Assinar\" não gera dois comprovantes.",
+      "Fornecedores, locadores e inquilinos dos Contratos agora são de cada cliente: cada grupo vê e edita só os próprios.",
+      "Organograma, convidados das pesquisas, produtividade da auditoria e Central de Sinais mostram só as empresas que você tem acesso.",
+      "Canais de envio, chave do assistente e horários de lembrete ficam com a diretoria ou a administração que vê o grupo inteiro; \"Rodar cobrança agora\" cobra só as suas empresas.",
+      "Inscrição em vagas e resposta de pesquisas limitam envios repetidos da mesma conexão, contra robôs. Clique duplo em \"Inscrever-me\" mostra que você já está inscrito, em vez de erro.",
+    ],
+  },
+  {
     versao: "1.209.0",
     data: "25/11/2026",
     horario: "18:00",
