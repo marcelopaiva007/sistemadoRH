@@ -102,14 +102,16 @@ async function main() {
         e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002",
         "constraint UNIQUE(vagaId, candidatoId) barra a inscrição repetida",
       );
-      // Regressão: o nome do índice NÃO aparece em e.message (só os campos),
-      // então `e.message.includes(indice)` nunca casa e o erro vaza como 500
-      // na página pública. violouUnique procura no lugar certo (e.meta).
+      // Regressão: até o Prisma 7.10.0 o nome do índice NÃO aparecia em
+      // e.message (só os campos), então `e.message.includes(indice)` nunca
+      // casava e o erro vazava como 500 na página pública. violouUnique
+      // procura no lugar certo (e.meta) e é o que o sistema usa.
+      //
+      // A afirmação sobre o TEXTO de e.message saiu em 26/11/2026: o Prisma
+      // 7.10.1 passou a incluir o nome do índice na mensagem, e o texto de erro
+      // de biblioteca não é contrato — o que importa é violouUnique continuar
+      // reconhecendo o índice, conferido logo abaixo.
       ok(violouUnique(e, "Candidatura_vagaId_candidatoId_key"), "violouUnique reconhece o índice pelo nome");
-      ok(
-        !(e instanceof Error && e.message.includes("Candidatura_vagaId_candidatoId_key")),
-        "confirmado: o nome do índice realmente não está em e.message",
-      );
       ok(!violouUnique(e, "Outro_indice_qualquer_key"), "violouUnique não dá falso positivo para outro índice");
     }
     throw new RollbackProposital();
