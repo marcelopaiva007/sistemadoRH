@@ -1,7 +1,13 @@
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { formatarData } from "@/lib/datas";
 import { montarArea, type ParametrosDaArea } from "@/lib/desligamentos/area";
-import { detalheDoRecorte, placarDaMeta, quadroPorGestor, quadroPorSetor } from "@/lib/desligamentos/painel";
+import {
+  detalheDoRecorte,
+  ordenarPorCusto,
+  placarDaMeta,
+  quadroPorGestor,
+  quadroPorSetor,
+} from "@/lib/desligamentos/painel";
 import { PainelDesligamentosView } from "./painel-desligamentos-view";
 
 /**
@@ -29,13 +35,15 @@ export default async function DesligamentosPainelPage({
   const usuario = await requireEmpresaAccess(empresaId);
   const area = await montarArea(empresaId, usuario, await searchParams);
   const { fichas, ativosHoje, periodo, hoje, base } = area;
+  const gestores = quadroPorGestor(fichas, periodo, hoje, base.config);
 
   return (
     <PainelDesligamentosView
       empresaId={empresaId}
       placar={placarDaMeta(fichas, ativosHoje, area.ano, hoje, base.config)}
       setores={quadroPorSetor(fichas, periodo, hoje, base.config)}
-      gestores={quadroPorGestor(fichas, periodo, hoje, base.config)}
+      gestores={gestores}
+      gestoresPorCusto={ordenarPorCusto(gestores)}
       detalhe={area.nomeDoRecorte ? detalheDoRecorte(fichas, periodo, hoje, formatarData) : null}
       nomeDoRecorte={area.nomeDoRecorte}
       config={base.config}

@@ -70,7 +70,9 @@ type Props = {
   empresaId: string;
   placar: PlacarDaMeta;
   setores: LinhaDoQuadro[];
+  /** Por turnover (o padrão) e por custo — as duas ordens vêm prontas do servidor (lib/desligamentos/painel.ts). */
   gestores: LinhaDoQuadro[];
+  gestoresPorCusto: LinhaDoQuadro[];
   detalhe: DetalheDoRecorte | null;
   nomeDoRecorte: string | null;
   config: ConfigDaArea;
@@ -80,7 +82,8 @@ type Props = {
 };
 
 export function PainelDesligamentosView(props: Props) {
-  const { empresaId, placar, setores, gestores, detalhe, nomeDoRecorte, config, filtros, avisos } = props;
+  const { empresaId, placar, setores, gestores, gestoresPorCusto, detalhe, nomeDoRecorte, config, filtros, avisos } =
+    props;
   const { periodo, ano } = filtros;
   const router = useRouter();
   const pathname = usePathname();
@@ -98,8 +101,7 @@ export function PainelDesligamentosView(props: Props) {
   };
 
   const semaforo = SEMAFORO[placar.faixa];
-  const gestoresOrdenados =
-    ordemGestores === "custo" ? [...gestores].sort((a, b) => b.custo - a.custo || b.saidas - a.saidas) : gestores;
+  const gestoresOrdenados = ordemGestores === "custo" ? gestoresPorCusto : gestores;
 
   return (
     <div className="space-y-6">
@@ -245,7 +247,7 @@ export function PainelDesligamentosView(props: Props) {
       {/* 3. Quadro por setor */}
       <QuadroDeLinhas
         titulo="Quadro por setor"
-        descricao={`Entradas, saídas e custo: ${periodo.rotulo}. Turnover: sempre os últimos 12 meses. Do pior para o melhor; em vermelho, acima do limite de ${pct(config.limitePct)}. Clique num setor para ver o detalhe.`}
+        descricao={`Entradas, saídas e custo: ${periodo.rotulo}. Turnover: sempre os últimos 12 meses. Do pior para o melhor, com as equipes pequenas depois das demais e "Não definido" no fim; em vermelho, acima do limite de ${pct(config.limitePct)}. Clique num setor para ver o detalhe.`}
         rotuloDaLinha="Setor"
         linhas={setores}
         selecionada={filtros.setor}
@@ -255,7 +257,7 @@ export function PainelDesligamentosView(props: Props) {
       {/* 4. Quadro por gestor */}
       <QuadroDeLinhas
         titulo="Quadro por gestor"
-        descricao={`Mesmos indicadores agrupados pelo gestor responsável. Entradas, saídas e custo: ${periodo.rotulo}. Clique num gestor para ver a equipe.`}
+        descricao={`Mesmos indicadores agrupados pelo gestor responsável. Entradas, saídas e custo: ${periodo.rotulo}. Por turnover, as equipes pequenas vêm depois das demais; "Sem gestor definido" fica no fim nas duas ordens. Clique num gestor para ver a equipe.`}
         rotuloDaLinha="Gestor"
         linhas={gestoresOrdenados}
         selecionada={filtros.gestor}
@@ -426,7 +428,12 @@ function QuadroDeLinhas({
                         </span>
                       )}
                       {l.amostraPequena && (
-                        <span className="block text-xs text-muted-foreground">equipe pequena — taxa oscila muito</span>
+                        <span
+                          className="block text-xs text-muted-foreground"
+                          title="Menos de 5 ativos hoje e menos de 5 saídas em 12 meses: uma saída muda a taxa em dezenas de pontos. No ranking por turnover, vem depois das equipes maiores."
+                        >
+                          equipe pequena — taxa oscila muito
+                        </span>
                       )}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{l.ativos}</TableCell>

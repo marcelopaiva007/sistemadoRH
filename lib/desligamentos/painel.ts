@@ -205,8 +205,20 @@ export function placarDaMeta(
 // 2. Quadro por setor / por gestor
 // ---------------------------------------------------------------
 
-/** Abaixo disto, a taxa descreve uma pessoa, não uma equipe — a tela marca, sem esconder. */
-export const ATIVOS_MINIMOS_PARA_TAXA = 5;
+/**
+ * Equipe pequena: menos que isto de ativos hoje E menos que isto de saídas nos
+ * últimos 12 meses. Nela a taxa descreve uma ou duas pessoas, não uma equipe —
+ * a tela marca e o ranking por turnover põe a linha depois das equipes de
+ * verdade (v1.216.1: no ar, uma equipe de 1 pessoa liderava o quadro por
+ * gestor com 200%, e a segunda era uma de 3 ativos com 2 saídas).
+ *
+ * As saídas entram de propósito: a equipe que perdeu 5 ou mais pessoas no ano
+ * fica no ranking principal mesmo com poucos ativos hoje — perder quase todo
+ * mundo é o pior caso, não ruído. "Ativos + saídas" foi testado e descartado:
+ * com os dados do ar, punha a equipe de 3 ativos e 2 saídas (66,7%) no topo,
+ * acima da de 56 ativos e 32 saídas.
+ */
+export const PESSOAS_MINIMAS_PARA_TAXA = 5;
 
 export type LinhaDoQuadro = {
   chave: string;
@@ -270,7 +282,7 @@ function linhaDe(
     outrosMotivos: saidasDoPeriodo.filter((f) => classeDoMotivo(f.motivoDesligamento) === "outros").length,
     custo: noPeriodo.desligados * config.custoPorDesligamento,
     acimaDoLimite: turnover12mPct !== null && turnover12mPct > config.limitePct,
-    amostraPequena: ativos.length < ATIVOS_MINIMOS_PARA_TAXA,
+    amostraPequena: ativos.length < PESSOAS_MINIMAS_PARA_TAXA && t12.desligados < PESSOAS_MINIMAS_PARA_TAXA,
   };
 }
 
@@ -284,14 +296,53 @@ export function linhaSemDono(l: Pick<LinhaDoQuadro, "chave" | "nome">): boolean 
   return l.chave === "sem-gestor" || ehSetorSemSetor(l.nome);
 }
 
-/** Do pior para o melhor turnover de 12 meses; sem taxa e linha sem dono vão para o fim. */
+/**
+ * Do pior para o melhor turnover de 12 meses, em três blocos: as equipes de
+ * verdade, depois as pequenas (marcadas na tela; a taxa delas oscila com uma
+ * pessoa) e, no fim, as linhas sem dono. Sem taxa vai para o fim do bloco.
+ */
 function doPiorParaOMelhor(a: LinhaDoQuadro, b: LinhaDoQuadro): number {
   return (
     Number(linhaSemDono(a)) - Number(linhaSemDono(b)) ||
+    Number(a.amostraPequena) - Number(b.amostraPequena) ||
     (b.turnover12mPct ?? -1) - (a.turnover12mPct ?? -1) ||
     b.saidas - a.saidas ||
     a.nome.localeCompare(b.nome, "pt-BR")
   );
+}
+
+/**
+ * O ranking por custo (seletor do quadro por gestor). Custo é valor absoluto:
+ * equipe pequena que demitiu muito custou de verdade e fica onde o custo a
+ * põe. Só a linha sem dono vai para o fim, como no ranking por turnover — até
+ * a v1.216.0 a ordem por custo era feita na tela e deixava "Sem gestor
+ * definido" entre os primeiros.
+ */
+export function ordenarPorCusto(linhas: LinhaDoQuadro[]): LinhaDoQuadro[] {
+  return [...linhas].sort(
+    (a, b) =>
+      Number(linhaSemDono(a)) - Number(linhaSemDono(b)) ||
+      b.custo - a.custo ||
+      b.saidas - a.saidas ||
+      a.nome.localeCompare(b.nome, "pt-BR"),
+  );
+}
+
+/**
+ * Opções do filtro de setor: só setor de verdade. Os baldes ("Não definido" e
+ * o arquivo "Demitidos") ficam fora da lista — as saídas deles estão na aba
+ * Pendências e na linha própria do quadro. Exceção: o balde já selecionado
+ * (pelo clique na linha do quadro) continua na lista, senão o seletor
+ * mostraria "Todos os setores" com o filtro aplicado.
+ */
+export function opcoesDeSetor(
+  setores: Map<string, string>,
+  selecionado: string | null,
+): { chave: string; nome: string }[] {
+  return [...setores.entries()]
+    .filter(([chave, nome]) => !ehSetorSemSetor(nome) || chave === selecionado)
+    .map(([chave, nome]) => ({ chave, nome }))
+    .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
 }
 
 /**
