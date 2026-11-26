@@ -9,6 +9,7 @@ import { ehSetorSemSetor } from "@/lib/retrato-desligamento";
 import { carregarBaseDaArea, type BaseDaArea } from "@/lib/desligamentos/base";
 import {
   ehDesligamento,
+  opcoesDeSetor,
   periodoDaUrl,
   ROTULO_ORIGEM_GESTOR,
   type ChavePeriodo,
@@ -107,9 +108,7 @@ export async function montarArea(
       anoAtual,
       setor,
       gestor,
-      setores: [...setoresDisponiveis.entries()]
-        .map(([chave, nome]) => ({ chave, nome }))
-        .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")),
+      setores: opcoesDeSetor(setoresDisponiveis, setor),
       gestores: [...gestoresDisponiveis.entries()]
         .map(([chave, nome]) => ({ chave, nome }))
         .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")),
@@ -136,7 +135,7 @@ function avisosDaArea(fichas: FichaDoPainel[], base: BaseDaArea, periodo: Period
   const semSetor = saidas.filter((f) => ehSetorSemSetor(f.setor)).length;
   if (semSetor > 0) {
     avisos.push(
-      `${semSetor} saída(s) do período estão com setor "Não definido" — aparecem numa linha própria até o RH corrigir o setor na ficha (ver Pendências).`,
+      `${semSetor} saída(s) do período estão fora de um setor de verdade ("Não definido" ou o arquivo "Demitidos") — aparecem numa linha própria, no fim do quadro, até o RH corrigir o setor na ficha (ver Pendências).`,
     );
   }
   const porOrigem = new Map<OrigemDoGestor, number>();

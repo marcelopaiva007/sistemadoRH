@@ -8,6 +8,8 @@ import {
   classeDoMotivo,
   detalheDoRecorte,
   faixaDaTaxa,
+  opcoesDeSetor,
+  ordenarPorCusto,
   periodoDaUrl,
   placarDaMeta,
   quadroPorGestor,
@@ -119,10 +121,73 @@ ok(comercial.saldo === -1, "saldo = 1 − 2");
 ok(comercial.dispensasEmpresa === 1 && comercial.pedidos === 1, "1 dispensa pela empresa × 1 pedido");
 ok(comercial.custo === 8000, "custo estimado = 2 × R$ 4.000");
 ok(comercial.pctMenosDeUmAno === 10, "1 dos 10 ativos tem menos de 1 ano de casa");
-ok(setores.some((l) => l.nome === "Marketing"), "setor só com desligados aparece (perdeu todo mundo é o pior caso)");
-ok(setores[0].nome === "Marketing", "ordem do pior para o melhor turnover");
+ok(setores.some((l) => l.nome === "Marketing"), "setor só com desligados aparece");
+ok(
+  setores.map((l) => l.nome).join(" > ") === "Comercial > Marketing > Estoque",
+  "equipe de verdade primeiro; as pequenas depois, também do pior para o melhor (Marketing 200% antes de Estoque 0%)",
+);
 ok(setores.find((l) => l.nome === "Estoque")!.amostraPequena, "Estoque com 2 ativos é marcado como equipe pequena");
+ok(setores.find((l) => l.nome === "Marketing")!.amostraPequena, "Marketing: 1 pessoa em 12 meses (0 ativos + 1 saída) é equipe pequena");
 ok(comercial.acimaDoLimite, "Comercial com 2 saídas sobre ~11 de quadro passa de 15%: destacado");
+
+console.log("4b. Equipe pequena no ranking (v1.216.1)");
+// No ar, uma equipe de 1 pessoa liderava o quadro por gestor com 200%.
+seq = 0;
+const vendas = [
+  ...Array.from({ length: 10 }, () => ficha({ setor: "Vendas" })),
+  ficha({ setor: "Vendas", ativo: false, dataDesligamento: dataUTC(2026, 6, 1), motivoDesligamento: "SEM_JUSTA_CAUSA" }),
+  ficha({ setor: "Vendas", ativo: false, dataDesligamento: dataUTC(2026, 9, 1), motivoDesligamento: "SEM_JUSTA_CAUSA" }),
+];
+const rh = [
+  ficha({ setor: "RH" }),
+  ficha({ setor: "RH", ativo: false, dataDesligamento: dataUTC(2026, 10, 1), motivoDesligamento: "PEDIDO_DEMISSAO" }),
+];
+// Perdeu as 6 pessoas: 0 ativos hoje, mas 6 passaram pela equipe — é o pior caso, não amostra pequena.
+const obras = Array.from({ length: 6 }, (_, i) =>
+  ficha({ setor: "Obras", ativo: false, dataDesligamento: dataUTC(2026, 3 + i, 10), motivoDesligamento: "SEM_JUSTA_CAUSA" }),
+);
+const semSetor = [
+  ficha({ setor: "Demitidos", ativo: false, dataDesligamento: dataUTC(2026, 4, 1) }),
+  ficha({ setor: "Demitidos", ativo: false, dataDesligamento: dataUTC(2026, 5, 1) }),
+];
+const ranking = quadroPorSetor([...vendas, ...rh, ...obras, ...semSetor], periodo2026, HOJE, CONFIG);
+const linha = (nome: string) => ranking.find((l) => l.nome === nome)!;
+ok(
+  ranking.map((l) => l.nome).join(" > ") === "Obras > Vendas > RH > Demitidos",
+  "ordem: equipes de verdade (Obras 200%, Vendas ~18%), depois a pequena (RH ~67%), e o balde no fim",
+);
+ok(linha("RH").turnover12mPct! > linha("Vendas").turnover12mPct!, "RH tem taxa maior que Vendas e mesmo assim vem depois");
+ok(linha("RH").amostraPequena && !linha("Vendas").amostraPequena, "RH (1 ativo + 1 saída) é pequena; Vendas não");
+ok(!linha("Obras").amostraPequena && linha("Obras").ativos === 0, "setor que perdeu as 6 pessoas NÃO é 'pequeno' e lidera");
+
+console.log("4c. Ranking por custo e opções do filtro de setor");
+seq = 0;
+const semGestor = Array.from({ length: 5 }, (_, i) => ({
+  ...ficha({ gestor: "Sem gestor definido", ativo: false, dataDesligamento: dataUTC(2026, 2 + i, 1) }),
+  gestorChave: "sem-gestor",
+}));
+const daDani = [
+  ficha({ gestor: "Dani" }),
+  ficha({ gestor: "Dani", ativo: false, dataDesligamento: dataUTC(2026, 7, 1) }),
+  ficha({ gestor: "Dani", ativo: false, dataDesligamento: dataUTC(2026, 8, 1) }),
+];
+const doEdu = [...Array.from({ length: 8 }, () => ficha({ gestor: "Edu" })), ficha({ gestor: "Edu", ativo: false, dataDesligamento: dataUTC(2026, 9, 1) })];
+const porCusto = ordenarPorCusto(quadroPorGestor([...semGestor, ...daDani, ...doEdu], periodo2026, HOJE, CONFIG));
+ok(
+  porCusto.map((l) => l.nome).join(" > ") === "Dani > Edu > Sem gestor definido",
+  "por custo: a equipe pequena fica onde o custo a põe (R$ 8 mil > R$ 4 mil) e 'Sem gestor' vai para o fim mesmo custando mais",
+);
+const opcoes = new Map([
+  ["vendas", "Vendas"],
+  ["demitidos", "Demitidos"],
+  ["não definido", "Não definido"],
+  ["obras", "Obras"],
+]);
+ok(opcoesDeSetor(opcoes, null).map((o) => o.nome).join(",") === "Obras,Vendas", "o filtro de setor não lista os baldes");
+ok(
+  opcoesDeSetor(opcoes, "demitidos").map((o) => o.nome).join(",") === "Demitidos,Obras,Vendas",
+  "o balde selecionado pelo clique na linha continua na lista (senão o seletor mentiria)",
+);
 
 console.log("5. Quadro por gestor e detalhe");
 seq = 0;

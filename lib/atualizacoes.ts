@@ -26,6 +26,17 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.216.1",
+    data: "26/11/2026",
+    titulo: "Desligamentos: equipe pequena não lidera mais o ranking",
+    itens: [
+      "Quadro por setor e por gestor: as equipes pequenas (menos de 5 pessoas passaram por elas em 12 meses, contando quem saiu) vêm depois das demais no ranking por turnover. No ar, uma equipe de 1 pessoa liderava o quadro por gestor com 200%. O setor que perdeu muita gente continua no topo: ele não é \"pequeno\", é o pior caso.",
+      "Ranking por custo: \"Sem gestor definido\" vai para o fim, como já acontecia no ranking por turnover.",
+      "Filtro de setor: \"Não definido\" e \"Demitidos\" saem da lista, porque não são setores. As saídas deles continuam na linha própria do quadro e na aba Pendências.",
+      "O PDF marca as equipes pequenas e explica a ordem dos quadros.",
+    ],
+  },
+  {
     versao: "1.216.0",
     data: "25/11/2026",
     titulo: "Área Desligamentos: motivos, contratação errada, comparações, pendências e PDF",

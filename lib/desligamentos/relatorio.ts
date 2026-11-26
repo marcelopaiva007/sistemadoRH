@@ -52,7 +52,9 @@ function tabelaQuadro(rotulo: string, linhas: LinhaDoQuadro[], limitePct: number
   return `<table><thead><tr><th>${esc(rotulo)}</th><th class="n">Ativos</th><th class="n">Entradas</th><th class="n">Saídas</th><th class="n">Saldo</th><th class="n">Turnover 12m</th><th class="n">&lt; 1 ano</th><th class="n">Empresa × pedido</th><th class="n">Custo</th></tr></thead><tbody>${linhas
     .map(
       (l) => `<tr>
-      <td>${esc(l.nome)}${l.saidasPeloSetor ? `<div class="sub">${l.saidasPeloSetor} saída(s) atribuída(s) pelo setor</div>` : ""}</td>
+      <td>${esc(l.nome)}${l.saidasPeloSetor ? `<div class="sub">${l.saidasPeloSetor} saída(s) atribuída(s) pelo setor</div>` : ""}${
+        l.amostraPequena ? `<div class="sub">equipe pequena — taxa oscila muito</div>` : ""
+      }</td>
       <td class="n">${l.ativos}</td><td class="n">${l.entradas}</td><td class="n">${l.saidas}</td>
       <td class="n">${l.saldo > 0 ? `+${l.saldo}` : l.saldo}</td>
       <td class="n" style="${l.turnover12mPct !== null && l.turnover12mPct > limitePct ? "color:#b91c1c;font-weight:700" : ""}">${pct(l.turnover12mPct)}</td>
@@ -132,10 +134,11 @@ export function gerarHtmlRelatorioDesligamentos(p: {
   <p class="sub">Custo mínimo por desligamento${config.personalizada ? " definido pela diretoria" : " (valor padrão)"}: piso, não conta exata.</p>
 
   <h2>Quadro por setor</h2>
-  <p class="sub">Entradas, saídas e custo: ${esc(p.periodoRotulo)}. Turnover: últimos 12 meses. Em vermelho, acima do limite.</p>
+  <p class="sub">Entradas, saídas e custo: ${esc(p.periodoRotulo)}. Turnover: últimos 12 meses. Do pior para o melhor, com as equipes pequenas (menos de 5 pessoas em 12 meses) depois das demais e "Não definido" no fim. Em vermelho, acima do limite.</p>
   ${tabelaQuadro("Setor", p.setores, config.limitePct)}
 
   <h2>Quadro por gestor</h2>
+  <p class="sub">Mesma ordem: as equipes pequenas depois das demais e "Sem gestor definido" no fim.</p>
   ${tabelaQuadro("Gestor", p.gestores, config.limitePct)}
 
   <h2>Contratação errada</h2>
