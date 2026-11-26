@@ -430,7 +430,7 @@ function QuadroDeLinhas({
                       {l.amostraPequena && (
                         <span
                           className="block text-xs text-muted-foreground"
-                          title="Menos de 5 pessoas passaram pela equipe em 12 meses (ativas hoje + quem saiu): uma saída muda a taxa em dezenas de pontos. No ranking por turnover, vem depois das equipes maiores."
+                          title="Menos de 5 ativos hoje e menos de 5 saídas em 12 meses: uma saída muda a taxa em dezenas de pontos. No ranking por turnover, vem depois das equipes maiores."
                         >
                           equipe pequena — taxa oscila muito
                         </span>

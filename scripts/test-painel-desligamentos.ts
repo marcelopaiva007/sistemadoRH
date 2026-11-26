@@ -127,7 +127,7 @@ ok(
   "equipe de verdade primeiro; as pequenas depois, também do pior para o melhor (Marketing 200% antes de Estoque 0%)",
 );
 ok(setores.find((l) => l.nome === "Estoque")!.amostraPequena, "Estoque com 2 ativos é marcado como equipe pequena");
-ok(setores.find((l) => l.nome === "Marketing")!.amostraPequena, "Marketing: 1 pessoa em 12 meses (0 ativos + 1 saída) é equipe pequena");
+ok(setores.find((l) => l.nome === "Marketing")!.amostraPequena, "Marketing: 0 ativos e 1 saída em 12 meses é equipe pequena");
 ok(comercial.acimaDoLimite, "Comercial com 2 saídas sobre ~11 de quadro passa de 15%: destacado");
 
 console.log("4b. Equipe pequena no ranking (v1.216.1)");
@@ -159,6 +159,31 @@ ok(
 ok(linha("RH").turnover12mPct! > linha("Vendas").turnover12mPct!, "RH tem taxa maior que Vendas e mesmo assim vem depois");
 ok(linha("RH").amostraPequena && !linha("Vendas").amostraPequena, "RH (1 ativo + 1 saída) é pequena; Vendas não");
 ok(!linha("Obras").amostraPequena && linha("Obras").ativos === 0, "setor que perdeu as 6 pessoas NÃO é 'pequeno' e lidera");
+
+// O caso do ar: depois da equipe de 1 pessoa, a 2ª linha do quadro por gestor
+// era uma equipe de 3 ativos com 2 saídas (66,7%), acima da de 56 ativos e 32
+// saídas. "Ativos + saídas < 5" não a pegaria (3 + 2 = 5) — por isso a regra é
+// "menos de 5 ativos E menos de 5 saídas".
+seq = 0;
+const doFabio = [
+  ...Array.from({ length: 3 }, () => ficha({ gestor: "Fábio" })),
+  ...Array.from({ length: 2 }, (_, i) => ficha({ gestor: "Fábio", ativo: false, dataDesligamento: dataUTC(2026, 4 + i, 1) })),
+];
+const doGil = [
+  ...Array.from({ length: 20 }, () => ficha({ gestor: "Gil" })),
+  ...Array.from({ length: 6 }, (_, i) => ficha({ gestor: "Gil", ativo: false, dataDesligamento: dataUTC(2026, 2 + i, 1) })),
+];
+const doHugo = [
+  ...Array.from({ length: 3 }, () => ficha({ gestor: "Hugo" })),
+  ...Array.from({ length: 5 }, (_, i) => ficha({ gestor: "Hugo", ativo: false, dataDesligamento: dataUTC(2026, 3 + i, 1) })),
+];
+const porGestor = quadroPorGestor([...doFabio, ...doGil, ...doHugo], periodo2026, HOJE, CONFIG);
+ok(
+  porGestor.map((l) => l.nome).join(" > ") === "Hugo > Gil > Fábio",
+  "3 ativos e 5 saídas (91%) lidera; 20 ativos (26%) vem antes de 3 ativos e 2 saídas (50%)",
+);
+ok(porGestor.find((l) => l.nome === "Fábio")!.amostraPequena, "3 ativos e 2 saídas no ano: equipe pequena");
+ok(!porGestor.find((l) => l.nome === "Hugo")!.amostraPequena, "3 ativos mas 5 saídas no ano: NÃO é pequena — perdeu gente demais para ser ruído");
 
 console.log("4c. Ranking por custo e opções do filtro de setor");
 seq = 0;

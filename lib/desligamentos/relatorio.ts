@@ -134,7 +134,7 @@ export function gerarHtmlRelatorioDesligamentos(p: {
   <p class="sub">Custo mínimo por desligamento${config.personalizada ? " definido pela diretoria" : " (valor padrão)"}: piso, não conta exata.</p>
 
   <h2>Quadro por setor</h2>
-  <p class="sub">Entradas, saídas e custo: ${esc(p.periodoRotulo)}. Turnover: últimos 12 meses. Do pior para o melhor, com as equipes pequenas (menos de 5 pessoas em 12 meses) depois das demais e "Não definido" no fim. Em vermelho, acima do limite.</p>
+  <p class="sub">Entradas, saídas e custo: ${esc(p.periodoRotulo)}. Turnover: últimos 12 meses. Do pior para o melhor, com as equipes pequenas (menos de 5 ativos e menos de 5 saídas em 12 meses) depois das demais e "Não definido" no fim. Em vermelho, acima do limite.</p>
   ${tabelaQuadro("Setor", p.setores, config.limitePct)}
 
   <h2>Quadro por gestor</h2>

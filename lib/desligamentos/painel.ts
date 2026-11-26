@@ -206,15 +206,17 @@ export function placarDaMeta(
 // ---------------------------------------------------------------
 
 /**
- * Equipe pequena: menos que isto de pessoas PASSOU pela equipe nos últimos 12
- * meses (ativas hoje + quem saiu). Abaixo disto a taxa descreve uma pessoa,
- * não uma equipe — a tela marca e o ranking por turnover põe a linha depois
- * das equipes de verdade (v1.216.1: no ar, uma equipe de 1 pessoa liderava o
- * quadro por gestor com 200%).
+ * Equipe pequena: menos que isto de ativos hoje E menos que isto de saídas nos
+ * últimos 12 meses. Nela a taxa descreve uma ou duas pessoas, não uma equipe —
+ * a tela marca e o ranking por turnover põe a linha depois das equipes de
+ * verdade (v1.216.1: no ar, uma equipe de 1 pessoa liderava o quadro por
+ * gestor com 200%, e a segunda era uma de 3 ativos com 2 saídas).
  *
- * Conta quem saiu de propósito: com "menos de 5 ativos hoje" sozinho, o setor
- * que perdeu quase todo mundo viraria "equipe pequena" e desceria para o fim —
- * e esse é o pior caso, não ruído.
+ * As saídas entram de propósito: a equipe que perdeu 5 ou mais pessoas no ano
+ * fica no ranking principal mesmo com poucos ativos hoje — perder quase todo
+ * mundo é o pior caso, não ruído. "Ativos + saídas" foi testado e descartado:
+ * com os dados do ar, punha a equipe de 3 ativos e 2 saídas (66,7%) no topo,
+ * acima da de 56 ativos e 32 saídas.
  */
 export const PESSOAS_MINIMAS_PARA_TAXA = 5;
 
@@ -280,7 +282,7 @@ function linhaDe(
     outrosMotivos: saidasDoPeriodo.filter((f) => classeDoMotivo(f.motivoDesligamento) === "outros").length,
     custo: noPeriodo.desligados * config.custoPorDesligamento,
     acimaDoLimite: turnover12mPct !== null && turnover12mPct > config.limitePct,
-    amostraPequena: ativos.length + t12.desligados < PESSOAS_MINIMAS_PARA_TAXA,
+    amostraPequena: ativos.length < PESSOAS_MINIMAS_PARA_TAXA && t12.desligados < PESSOAS_MINIMAS_PARA_TAXA,
   };
 }
 
