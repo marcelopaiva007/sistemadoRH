@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireFrotaEmpresa } from "@/lib/processos-auth-guard";
 import { empresasVisiveis } from "@/lib/rh-auth-guard";
+import { empresasDoGrupo, grupoDoUsuario } from "@/lib/grupo";
+import { moverHistoricoDoVeiculo } from "@/lib/transferencia-empresa";
 import { registrarAuditoria } from "@/lib/audit";
 import { lerAnexo } from "@/lib/anexos";
 import { blobConfigurado, enviarDocumentoVeiculoParaBlob, removerDoBlob } from "@/lib/blob";
@@ -23,6 +25,7 @@ import {
 } from "@/lib/processos/ctb";
 import type { ActionResult } from "@/lib/constants";
 import { cpfValido } from "@/lib/cpf";
+import { ehTipoVeiculo } from "@/lib/processos/tipo-veiculo";
 import { cnpjValido } from "@/lib/cnpj";
 
 // Frota do módulo Processos & Ativos.
@@ -56,6 +59,16 @@ export async function salvarVeiculo(input: {
   id?: string | null;
   empresaId: string;
   placa: string;
+  /**
+   * Cadastro provisório SEM placa (OS 11/11/2026, item 9): tuk-tuk e moto
+   * ainda não emplacados. O sistema gera o identificador interno
+   * SEMPLACA<nº> no lugar da placa — o mesmo formato que a importação da
+   * planilha já usava — e o veículo nasce "não emplacado". Quando a placa
+   * sair, é só editar e digitar a placa de verdade.
+   */
+  semPlaca?: boolean;
+  /** Tipo informado à mão (OS 11/11/2026, item 8). Vazio = deduzir. */
+  tipo?: string | null;
   renavam?: string | null;
   chassi?: string | null;
   marca?: string | null;
@@ -119,22 +132,40 @@ export async function salvarVeiculo(input: {
     });
     if (!existente) return { ok: false, error: "Veículo não encontrado no seu acesso." };
     if (input.empresaDestinoId && input.empresaDestinoId !== existente.empresaId) {
-      if (!visiveis.includes(input.empresaDestinoId)) {
-        return { ok: false, error: "Empresa de destino fora do seu acesso." };
+      // Trocar a marca/CNPJ do veículo vale para QUALQUER empresa ativa do
+      // grupo — OS 11/11/2026, item 7 ("LM para VAPT", marcas com logins
+      // diferentes). A parede de grupo continua: fora dele, recusa.
+      const doGrupo = await empresasDoGrupo(await grupoDoUsuario(usuario.id));
+      if (!doGrupo.includes(input.empresaDestinoId)) {
+        return { ok: false, error: "Empresa de destino fora do grupo." };
       }
       empresaDestino = input.empresaDestinoId;
     }
   }
 
-  const placa = normalizarPlaca(input.placa);
+  // Sem placa (só no cadastro novo): gera o próximo SEMPLACA<nº>. Na edição
+  // de um provisório, a placa chega igual e passa pela regra de "inalterada".
+  const placa =
+    input.semPlaca && !existente ? await proximoIdentificadorSemPlaca() : normalizarPlaca(input.placa);
+  if (input.semPlaca && !existente && !(input.chassi ?? "").trim() && !(input.modelo ?? "").trim()) {
+    return {
+      ok: false,
+      error: "Sem placa, informe pelo menos o chassi ou o modelo — é o que vai identificar o veículo até o emplacamento.",
+    };
+  }
   // Na edição, placa INALTERADA não passa pela validação de formato: a frota
   // importada tem placas provisórias (SEMPLACA-01) e legadas fora do padrão, e
   // travar aqui impediria o RH de completar renavam/chassi desses veículos. Só
   // valida quando a placa é nova ou foi trocada — a hora de exigir o formato.
   const placaMudou = !existente || existente.placa !== placa;
-  if (placaMudou && !placaValida(placa)) {
-    return { ok: false, error: "Placa inválida. Use o formato ABC1234 ou ABC1D23." };
+  if (placaMudou && !(input.semPlaca && !existente) && !placaValida(placa)) {
+    return {
+      ok: false,
+      error: "Placa inválida. Use o formato ABC1234 ou ABC1D23 — ou marque \"Ainda sem placa\".",
+    };
   }
+  const tipo = (input.tipo ?? "").trim() || null;
+  if (tipo && !ehTipoVeiculo(tipo)) return { ok: false, error: "Tipo de veículo inválido." };
 
   // A adesão ao SNE só vale para o desconto de 40% se for ANTERIOR à
   // notificação — por isso a data é obrigatória quando o "sim" é marcado.
@@ -222,7 +253,9 @@ export async function salvarVeiculo(input: {
     observacoes: (input.observacoes ?? "").trim().slice(0, 1000) || null,
     cidadeBase: (input.cidadeBase ?? "").trim() || null,
     setor: (input.setor ?? "").trim() || null,
-    emplacado: input.emplacado ?? false,
+    // Provisório sem placa nunca nasce como emplacado.
+    emplacado: input.semPlaca && !existente ? false : (input.emplacado ?? false),
+    tipo,
     motoristaInformado: (input.motoristaInformado ?? "").trim() || null,
     motoristaColaboradorId,
     proprietarioTipo,
@@ -230,8 +263,22 @@ export async function salvarVeiculo(input: {
     proprietarioDocumento,
   };
 
+  // Mudou de empresa: o histórico inteiro vai junto, na mesma transação —
+  // documentos, multas, manutenções, consumo, financeiro, alocações (OS
+  // 11/11/2026, item 7). Antes só a linha do veículo mudava, e o resto ficava
+  // órfão no CNPJ antigo.
+  let movidos: { registros: number; anexos: number } | null = null;
   const veiculo = input.id
-    ? await prisma.veiculo.update({ where: { id: input.id }, data: dados })
+    ? empresaDestino
+      ? await prisma.$transaction(
+          async (tx) => {
+            const v = await tx.veiculo.update({ where: { id: input.id! }, data: dados });
+            movidos = await moverHistoricoDoVeiculo(tx, v.id, empresaDestino!);
+            return v;
+          },
+          { timeout: 30_000 },
+        )
+      : await prisma.veiculo.update({ where: { id: input.id }, data: dados })
     : await prisma.veiculo.create({
         data: { ...dados, criadoPorId: usuario.id, criadoPorNome: usuario.name ?? usuario.username },
       });
@@ -243,9 +290,14 @@ export async function salvarVeiculo(input: {
     entidadeId: veiculo.id,
     resumo:
       `${input.id ? "Editou" : "Cadastrou"} o veículo ${formatarPlaca(placa)}` +
-      (empresaDestino && input.id ? " — MOVIDO de empresa" : ""),
-    detalhes: empresaDestino ? { empresaAnterior: existente?.empresaId, empresaNova: empresaDestino } : undefined,
+      (empresaDestino && input.id ? " — MOVIDO de empresa, com o histórico" : ""),
+    detalhes: empresaDestino
+      ? { empresaAnterior: existente?.empresaId, empresaNova: empresaDestino, ...(movidos ?? {}) }
+      : undefined,
   });
+  if (empresaDestino && input.id && existente && existente.empresaId !== input.empresaId) {
+    revalidatePath(caminho(existente.empresaId));
+  }
 
   revalidatePath(caminho(input.empresaId));
   return { ok: true, id: veiculo.id };
@@ -1459,4 +1511,83 @@ export async function registrarTransferencia(input: {
 
   revalidatePath(caminho(input.empresaId));
   return { ok: true };
+}
+
+/** Prefixo do identificador provisório de veículo sem placa (OS 11/11/2026, item 9). */
+const PREFIXO_SEM_PLACA = "SEMPLACA";
+
+/**
+ * O próximo SEMPLACA<nº> livre. A importação da planilha já gravou alguns
+ * (SEMPLACA01, SEMPLACA02…): segue a numeração deles, com dois dígitos.
+ */
+async function proximoIdentificadorSemPlaca(): Promise<string> {
+  const existentes = await prisma.veiculo.findMany({
+    where: { placa: { startsWith: PREFIXO_SEM_PLACA } },
+    select: { placa: true },
+  });
+  const maior = existentes.reduce((m, v) => {
+    const n = Number(v.placa.slice(PREFIXO_SEM_PLACA.length));
+    return Number.isFinite(n) && n > m ? n : m;
+  }, 0);
+  return `${PREFIXO_SEM_PLACA}${String(maior + 1).padStart(2, "0")}`;
+}
+
+/**
+ * Vincula, em lote, o motorista do CADASTRO aos veículos que só têm o nome em
+ * texto da planilha (OS 11/11/2026, item 10). Mesma régua de escopo do
+ * `salvarVeiculo`: veículo e colaborador têm de estar no alcance de quem faz,
+ * e o colaborador tem de estar ativo. O texto legado fica gravado (é a origem
+ * do dado); a tela passa a mostrar o vínculo.
+ */
+export async function vincularMotoristasEmLote(input: {
+  empresaId: string;
+  vinculos: { veiculoId: string; colaboradorId: string }[];
+}): Promise<ActionResult & { vinculados?: number }> {
+  const usuario = await requireFrotaEmpresa(input.empresaId);
+  const pares = input.vinculos.filter((v) => v.veiculoId && v.colaboradorId).slice(0, 300);
+  if (pares.length === 0) return { ok: false, error: "Escolha o motorista de pelo menos um veículo." };
+
+  const visiveis = await empresasVisiveis(usuario);
+  const [veiculos, colaboradores] = await Promise.all([
+    prisma.veiculo.findMany({
+      where: { id: { in: pares.map((p) => p.veiculoId) }, empresaId: { in: visiveis } },
+      select: { id: true, placa: true, empresaId: true },
+    }),
+    prisma.colaborador.findMany({
+      where: { id: { in: pares.map((p) => p.colaboradorId) }, ativo: true, empresaId: { in: visiveis } },
+      select: { id: true, nome: true },
+    }),
+  ]);
+  const veiculoPorId = new Map(veiculos.map((v) => [v.id, v]));
+  const nomePorId = new Map(colaboradores.map((c) => [c.id, c.nome]));
+  const validos = pares.filter((p) => veiculoPorId.has(p.veiculoId) && nomePorId.has(p.colaboradorId));
+  if (validos.length !== pares.length) {
+    return { ok: false, error: "Algum veículo ou motorista está fora do seu acesso ou inativo. Nada foi gravado." };
+  }
+
+  await prisma.$transaction(
+    validos.map((p) =>
+      prisma.veiculo.update({ where: { id: p.veiculoId }, data: { motoristaColaboradorId: p.colaboradorId } }),
+    ),
+  );
+
+  for (const empresaId of new Set(validos.map((p) => veiculoPorId.get(p.veiculoId)!.empresaId))) {
+    const daEmpresa = validos.filter((p) => veiculoPorId.get(p.veiculoId)!.empresaId === empresaId);
+    await registrarAuditoria({
+      empresaId,
+      acao: "ATUALIZAR",
+      entidade: "Veiculo",
+      entidadeId: null,
+      resumo: `Vinculou motorista do cadastro a ${daEmpresa.length} veículo(s) que só tinham o nome em texto da planilha.`,
+      detalhes: {
+        vinculos: daEmpresa.map((p) => ({
+          placa: veiculoPorId.get(p.veiculoId)!.placa,
+          motorista: nomePorId.get(p.colaboradorId),
+        })),
+      },
+    });
+  }
+
+  revalidatePath(caminho(input.empresaId));
+  return { ok: true, vinculados: validos.length };
 }

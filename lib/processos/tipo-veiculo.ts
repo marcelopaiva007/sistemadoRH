@@ -40,7 +40,12 @@ const MARCA_MOTO =
 const ELETRICO =
   /\b(BYD|DOLPHIN|GEELY|EX2|AION|GAC|EV|ELETRICO|ELÉTRICO|ELETRICA|ELÉTRICA|VOLTZ|SUPER SOCO|LEAF|KWID E-TECH|E-TECH|RENAULT ZOE|ZOE)\b/;
 
-export function tipoDoVeiculo(v: {
+export function ehTipoVeiculo(valor: string | null | undefined): valor is TipoVeiculo {
+  return TIPOS_VEICULO.some((t) => t.value === valor);
+}
+
+/** O tipo DEDUZIDO de marca/modelo/motorização, ignorando o informado à mão. */
+export function tipoDeduzidoDoVeiculo(v: {
   marca: string | null;
   modelo: string | null;
   motorizacao: string;
@@ -58,6 +63,21 @@ export function tipoDoVeiculo(v: {
     MARCA_MOTO.test(texto.replace(/\b(HONDA|SUZUKI)\b/g, ""));
   if (ehMoto) return eletrico ? "MOTO_ELETRICA" : "MOTO_COMBUSTAO";
   return eletrico ? "CARRO_ELETRICO" : "CARRO_COMBUSTAO";
+}
+
+/**
+ * O tipo que a tela e o CSV usam: o INFORMADO no cadastro (OS 11/11/2026,
+ * item 8 — campo `Veiculo.tipo`) quando houver; senão, o deduzido. A dedução
+ * erra em casos como a moto elétrica Centry V5 (a marca Centry é de tuk-tuk),
+ * e o campo existe exatamente para o RH corrigir esses.
+ */
+export function tipoDoVeiculo(v: {
+  marca: string | null;
+  modelo: string | null;
+  motorizacao: string;
+  tipo?: string | null;
+}): TipoVeiculo {
+  return ehTipoVeiculo(v.tipo) ? v.tipo : tipoDeduzidoDoVeiculo(v);
 }
 
 export function rotuloTipoVeiculo(tipo: TipoVeiculo): string {

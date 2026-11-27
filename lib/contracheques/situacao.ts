@@ -12,7 +12,10 @@ export type Situacao =
   | "ABERTO"
   | "CONFIRMADO"
   | "ATRASADO"
-  | "BLOQUEADO";
+  | "BLOQUEADO"
+  // Só o e-mail ia avisar e ele bateu no teto diário: está na fila e sai
+  // sozinho no próximo dia com saldo (OS 11/11/2026, item 1).
+  | "NA_FILA";
 
 export const SITUACAO_LABEL: Record<Situacao, string> = {
   NAO_ENVIADO: "Não enviado",
@@ -23,6 +26,7 @@ export const SITUACAO_LABEL: Record<Situacao, string> = {
   CONFIRMADO: "Assinado com foto",
   ATRASADO: "Atrasado (> 5 dias)",
   BLOQUEADO: "Bloqueado (5 erros)",
+  NA_FILA: "Na fila do e-mail",
 };
 
 export function situacaoDo(
@@ -33,6 +37,7 @@ export function situacaoDo(
     confirmadoEm: Date | null;
     bloqueadoEm?: Date | null;
     cienciaTelegramEm?: Date | null;
+    emailNaFilaDesde?: Date | null;
   } | null,
   agora?: Date
 ): Situacao {
@@ -42,7 +47,7 @@ export function situacaoDo(
   if (recibo.vistoEm) return "ABERTO";
   if (recibo.cienciaTelegramEm) return "CIENTE";
   if (!recibo.enviadoEm) return "NAO_ENVIADO";
-  if (!recibo.canal) return "SEM_CANAL";
+  if (!recibo.canal) return recibo.emailNaFilaDesde ? "NA_FILA" : "SEM_CANAL";
   if (agora && (agora.getTime() - recibo.enviadoEm.getTime()) / (24 * 60 * 60 * 1000) > 5) {
     return "ATRASADO";
   }

@@ -47,6 +47,7 @@ export async function GET(
       ausencia: { select: { id: true, tipo: true, colaborador: { select: { nome: true } } } },
       exame: { select: { id: true, colaborador: { select: { nome: true } } } },
       certificado: { select: { id: true, colaborador: { select: { nome: true } } } },
+      tratamentoPonto: { select: { id: true, colaborador: { select: { nome: true } } } },
       documentoRecebido: { select: { id: true } },
       reciboContracheque: { select: { id: true, colaborador: { select: { nome: true } } } },
       contrachequesInvalidadosFoto: {
@@ -68,6 +69,14 @@ export async function GET(
     return NextResponse.json({ error: "Arquivo não encontrado." }, { status: 404 });
   }
 
+  // Evidência de ajuste de ponto (OS de 23/11/2026) pode ser exame ou
+  // atestado — dado de saúde, sensível na LGPD. Alcançar a empresa não basta
+  // (perfis só de frota/processos alcançam): exige a mesma régua de quem
+  // DECIDE o tratamento — operar o RH desta empresa, sem GESTOR_SETOR.
+  if (arquivo.tratamentoPonto && !(await podeOperarEmpresaRH(user, empresaId))) {
+    return NextResponse.json({ error: "Sem acesso a este anexo." }, { status: 403 });
+  }
+
   const invalidado =
     arquivo.contrachequesInvalidadosFoto[0] ??
     arquivo.contrachequesInvalidadosComprovante[0] ??
@@ -80,6 +89,7 @@ export async function GET(
     arquivo.ausencia?.colaborador.nome ??
     arquivo.exame?.colaborador.nome ??
     arquivo.certificado?.colaborador.nome ??
+    arquivo.tratamentoPonto?.colaborador.nome ??
     arquivo.reciboContracheque?.colaborador.nome ??
     invalidado?.colaborador.nome ??
     "—";
@@ -91,6 +101,8 @@ export async function GET(
         ? ["ExameOcupacional", arquivo.exame.id]
         : arquivo.certificado
           ? ["CertificadoNR", arquivo.certificado.id]
+          : arquivo.tratamentoPonto
+            ? ["TratamentoPonto", arquivo.tratamentoPonto.id]
           : arquivo.reciboContracheque
             ? ["ReciboContracheque", arquivo.reciboContracheque.id]
             : invalidado

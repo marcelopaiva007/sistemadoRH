@@ -90,6 +90,7 @@ type TratamentoPonto = {
   tipoMarcacao: string | null;
   horaSolicitada: string | null;
   createdAt: Date;
+  arquivo: { id: string; nome: string; tamanhoBytes: number } | null;
   colaborador: { nome: string; setor: { nome: string }; empresa: { nome: string } };
 };
 
@@ -239,6 +240,12 @@ export function AprovacoesView({
         t.motivo,
         `Aberto em ${formatarDataHoraBrasilia(t.createdAt)}${t.origem === "COLABORADOR" ? " · pedido pelo colaborador" : ""}`,
       ],
+      anexo: t.arquivo
+        ? {
+            href: `/api/rh/${t.empresaId}/arquivos/${t.arquivo.id}`,
+            nome: `${t.arquivo.nome} · ${formatarTamanho(t.arquivo.tamanhoBytes)}`,
+          }
+        : null,
       // Rejeitar um ajuste de ponto sem dizer por quê deixa o colaborador sem
       // saber o que corrigir — e a action recusa motivo com menos de 5
       // caracteres de qualquer forma.

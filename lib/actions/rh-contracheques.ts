@@ -23,7 +23,7 @@ import { sendTelegramMessage } from "@/lib/telegram";
 const MAXIMO_POR_ENVIO = 400;
 
 export type ResultadoEnvio =
-  | { ok: true; avisados: number; semCanal: number; jaConfirmados: number; falhas: number }
+  | { ok: true; avisados: number; semCanal: number; jaConfirmados: number; falhas: number; naFila: number; jaEnviados: number }
   | { ok: false; error: string };
 
 /**
@@ -75,12 +75,20 @@ export async function enviarContrachequesAction(
       acao: "ENVIAR_CONVITE",
       entidade: "ReciboContracheque",
       entidadeId: null,
-      resumo: `Aviso de contracheque de ${rotuloDoContracheque(competencia, "MENSAL")}: ${conta.avisados} avisado(s), ${conta.semCanal} sem Telegram nem e-mail.`,
+      resumo: `Aviso de contracheque de ${rotuloDoContracheque(competencia, "MENSAL")}: ${conta.avisados} avisado(s), ${conta.semCanal} sem Telegram nem e-mail${r.naFila ? `, ${r.naFila} e-mail(s) na fila do teto diário` : ""}.`,
       detalhes: { competencia: competenciaTexto, documentos: docs.filter((d) => d.empresaId === e).map((d) => d.id) },
     });
   }
   revalidatePath(`/rh/${empresaId}/contracheques`);
-  return { ok: true, avisados: r.avisados, semCanal: r.semCanal, jaConfirmados: r.jaConfirmados, falhas: r.falhas };
+  return {
+    ok: true,
+    avisados: r.avisados,
+    semCanal: r.semCanal,
+    jaConfirmados: r.jaConfirmados,
+    falhas: r.falhas,
+    naFila: r.naFila,
+    jaEnviados: r.jaEnviados,
+  };
 }
 
 /**
@@ -90,7 +98,7 @@ export async function enviarContrachequesAction(
 export async function reenviarEmailContrachequeAction(
   empresaId: string,
   documentoId: string
-): Promise<{ ok: true } | { ok: false; error: string }> {
+): Promise<{ ok: true; naFila: boolean } | { ok: false; error: string }> {
   const user = await requireEmpresaAccess(empresaId);
   const doc = await prisma.documentoColaborador.findUnique({
     where: { id: documentoId },
@@ -179,12 +187,13 @@ export async function reenviarEmailContrachequeAction(
       enviadoPorNome: user.name,
       canal: aviso.canal,
       envioErro: aviso.erro,
+      emailNaFilaDesde: aviso.emailNaFila ? new Date() : null,
       envios: { increment: 1 },
     },
   });
 
   revalidatePath(`/rh/${empresaId}/contracheques`);
-  return { ok: true };
+  return { ok: true, naFila: aviso.emailNaFila };
 }
 
 /**
@@ -453,11 +462,12 @@ export async function invalidarAssinaturaContrachequeAction(
             enviadoPorNome: user.name ?? "RH",
             canal: aviso.canal,
             envioErro: aviso.erro,
+            emailNaFilaDesde: aviso.emailNaFila ? new Date() : null,
             envios: { increment: 1 },
           },
         });
 
-        if (aviso.canal) {
+        if (aviso.canal || aviso.emailNaFila) {
           reenviado = true;
         } else {
           erroReenvio = aviso.erro ?? "Colaborador sem canal de contato.";

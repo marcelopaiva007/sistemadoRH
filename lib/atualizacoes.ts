@@ -26,6 +26,37 @@ export type Atualizacao = {
 
 export const ATUALIZACOES: Atualizacao[] = [
   {
+    versao: "1.218.0",
+    data: "27/11/2026",
+    titulo: "Anexo de evidência no pedido de ajuste de ponto",
+    itens: [
+      "Portal e app de ponto: o pedido de ajuste ou abono ganhou o campo opcional \"Anexar documento\" — foto da câmera, imagem da galeria ou PDF (JPG, PNG, WEBP, HEIC ou PDF, até 4 MB). O colaborador vê o anexo na lista dos seus pedidos.",
+      "Tratamento de Ponto e Central de Aprovações: pedidos com anexo mostram um clipe; o RH abre o arquivo antes de aprovar ou rejeitar.",
+      "Novo Ajuste / Abono (RH): o mesmo campo, para guardar o documento recebido por outro canal.",
+      "O anexo é só evidência: não altera as marcações originais. Fica vinculado ao tratamento desde o envio, entra na trilha de auditoria (quem enviou, quando, nome do arquivo) e não pode ser trocado nem apagado depois. Só o próprio colaborador e quem opera o RH da empresa conseguem abrir.",
+    ],
+  },
+  {
+    versao: "1.217.0",
+    data: "27/11/2026",
+    titulo: "Fila do teto de e-mails, Telegram bloqueado, transferência entre empresas, tipo de contrato e ajustes na frota",
+    itens: [
+      "Contracheques: quando o teto diário de e-mails é atingido, o e-mail entra numa fila e sai sozinho no próximo dia com saldo. A tela avisa quantos estão na fila — não é mais preciso reenviar um a um.",
+      "Contracheques: dá para marcar na tabela quem entra no primeiro envio (\"Enviar aos N marcados\"). O envio geral não manda de novo para quem já foi avisado (para isso há o \"Reenviar\" da linha).",
+      "Contracheques: quando o Telegram não entrega (bot bloqueado), nenhum e-mail extra de aviso sai — vai só o e-mail do link, e a pessoa aparece como \"Telegram bloqueado\" para o RH cobrar.",
+      "Telegram: quem bloqueou o bot ou apagou a conta deixa de aparecer como \"Telegram ativo\", passa a \"Telegram bloqueado\" e entra em \"Bloqueados\" em Contracheques (e na lista de colaboradores). Quem já tinha falhado antes desta versão é marcado na atualização. Volta sozinho quando a pessoa fala com o bot de novo.",
+      "Telegram: o webhook que só recebia mensagens é corrigido sozinho, de hora em hora, para receber também os toques em botão das Delegações.",
+      "Configuração › Lembretes: cada lembrete mostra por qual canal sai (Telegram, e-mail ou os dois), para quem vai e se gasta o teto de e-mails. Onde houver opção, dá para deixar o lembrete só no Telegram.",
+      "Colaborador: novo \"Transferir para outra empresa\" na aba Carreira da ficha. A ficha muda de empresa com data efetiva e leva dossiê, contracheques, férias, atestados, NR, ASO, EPI e o resto do histórico pessoal.",
+      "Desligamento com motivo \"Transferência para outro CNPJ do grupo\": a ficha ativa no CNPJ novo é encontrada em qualquer empresa do grupo, inclusive de outro login.",
+      "Ficha › Vínculo: o tipo de contrato passa a ser salvo de verdade (antes voltava ao anterior). A mudança entra nas Movimentações com data efetiva; ao virar CLT, o fim do contrato é limpo; em experiência, temporário ou estágio, o fim do prazo é obrigatório.",
+      "Frota: ao trocar a empresa de um veículo (para qualquer empresa do grupo), documentos, multas, manutenções, consumo e financeiro vão junto.",
+      "Frota: novo campo Tipo no cadastro do veículo, para corrigir quando a dedução automática erra (ex.: moto elétrica Centry aparecendo como tuk-tuk).",
+      "Frota: cadastro provisório de veículo ainda sem placa, com identificador SEMPLACA e a marca \"Aguardando emplacamento\".",
+      "Frota: lista dos veículos com motorista só em texto da planilha, com vínculo ao cadastro de colaboradores em lote.",
+    ],
+  },
+  {
     versao: "1.216.1",
     data: "26/11/2026",
     titulo: "Desligamentos: equipe pequena não lidera mais o ranking",

@@ -25,6 +25,14 @@ console.log("1. Situação:");
 ok(situacaoDo(null) === "NAO_ENVIADO", "sem recibo → não enviado");
 ok(situacaoDo(base) === "NAO_ENVIADO", "recibo criado sem envio → não enviado");
 ok(situacaoDo({ ...base, enviadoEm: d }) === "SEM_CANAL", "tentou avisar e não havia canal → sem como avisar");
+ok(
+  situacaoDo({ ...base, enviadoEm: d, emailNaFilaDesde: d }) === "NA_FILA",
+  "só o e-mail ia avisar e bateu no teto diário → na fila (OS 11/11/2026)",
+);
+ok(
+  situacaoDo({ ...base, enviadoEm: d, canal: "TELEGRAM", emailNaFilaDesde: d }) === "ENVIADO",
+  "Telegram avisou e o e-mail está na fila → avisado",
+);
 ok(situacaoDo({ ...base, enviadoEm: d, canal: "TELEGRAM" }) === "ENVIADO", "avisado e não abriu");
 ok(situacaoDo({ ...base, enviadoEm: d, canal: "EMAIL", vistoEm: d }) === "ABERTO", "abriu e não confirmou");
 ok(situacaoDo({ ...base, enviadoEm: d, canal: "EMAIL", vistoEm: d, confirmadoEm: d }) === "CONFIRMADO", "confirmado com foto");

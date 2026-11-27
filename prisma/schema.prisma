@@ -492,6 +492,14 @@ model Colaborador {
   // pro colaborador dar /start no bot e lê o chat_id via Bot API getUpdates).
   // Sem isso, o convite da pesquisa não pode ser enviado automaticamente.
   telegramChatId      String?
+  // O Telegram recusou a última mensagem para este chat ("bot was blocked by
+  // the user", "chat not found", conta apagada) — OS 11/11/2026, item 4. O
+  // chat continua gravado (a pessoa pode desbloquear o bot), mas a tela para
+  // de dizer "Telegram ativo" e conta em "Telegram bloqueado" para o RH
+  // cobrar. Limpo sozinho no próximo envio que der certo ou quando a pessoa
+  // fala com o bot de novo (webhook). Gravado por lib/telegram.ts.
+  telegramInvalidoEm     DateTime?
+  telegramInvalidoMotivo String?
   // Foto de referência: o rosto contra o qual o RH compara a selfie de cada
   // batida de ponto. Sem ela a conferência humana não fecha — quem abre a foto
   // de uma batida não tem com o que comparar, e ninguém reconhece 170 pessoas
@@ -820,6 +828,12 @@ model ReciboContracheque {
   canal          String?
   envioErro      String?
   envios         Int                  @default(0)
+  // Fila do teto diário de e-mail (OS 11/11/2026, item 1). Preenchido quando o
+  // e-mail do aviso foi recusado por COTA (lib/email.ts, motivo "COTA"); o cron
+  // /api/cron/fila-email-contracheque manda de novo, do mais antigo para o
+  // mais novo, assim que houver saldo no dia — e limpa ao conseguir. Antes,
+  // a mensagem dizia "o envio continua amanhã" e nada continuava.
+  emailNaFilaDesde DateTime?
 
   // Token único para a página de assinatura (/assinar/[token])
   tokenAssinatura String? @unique
@@ -861,6 +875,7 @@ model ReciboContracheque {
   @@index([empresaId, competencia])
   @@index([tokenAssinatura])
   @@index([colaboradorId, confirmadoEm])
+  @@index([emailNaFilaDesde])
   @@schema("rh")
 }
 
@@ -1145,9 +1160,16 @@ model Movimentacao {
   empresaId     String
   colaboradorId String
   colaborador   Colaborador @relation("MovimentacaoDoColaborador", fields: [colaboradorId], references: [id], onDelete: Cascade)
-  // PROMOCAO | TRANSFERENCIA_SETOR | MUDANCA_SUPERVISOR | MUDANCA_CARGO | OUTRO
+  // PROMOCAO | TRANSFERENCIA_SETOR | MUDANCA_SUPERVISOR | MUDANCA_CARGO |
+  // TRANSFERENCIA_EMPRESA | OUTRO
   tipo          String
   dataEfetiva   DateTime
+
+  // Transferência entre empresas do grupo (OS 11/11/2026, item 6): de onde a
+  // ficha saiu. O `empresaId` da linha é o CNPJ de DESTINO.
+  empresaAnteriorId   String?
+  empresaAnteriorNome String?
+  empresaNovaNome     String?
 
   setorAnteriorNome      String?
   setorNovoId            String?
@@ -2590,6 +2612,21 @@ model SegredoApp {
 //
 // Uma `chave` pode ter mais de uma linha (lembrete-pesquisa roda 2×/dia hoje,
 // 13h e 19h) — RH edita, adiciona ou remove horário por horário.
+// Canal de cada lembrete automático — OS 11/11/2026, item 3. Uma linha por
+// chave de LEMBRETES_CONFIGURAVEIS (lib/cron-horario.ts). Sem linha = padrão
+// do lembrete (ver CANAL_DOS_LEMBRETES em lib/canal-lembretes.ts). Só os
+// lembretes que mandam Telegram com reserva por e-mail têm escolha: desligar
+// `usarEmail` faz quem não tem Telegram ficar sem o aviso, em vez de gastar o
+// teto diário de e-mails (que é o que o contracheque precisa).
+model ConfiguracaoCanalLembrete {
+  chave         String   @id
+  usarEmail     Boolean  @default(true)
+  atualizadoEm  DateTime @default(now()) @updatedAt
+  atualizadoPor String?
+
+  @@schema("rh")
+}
+
 model ConfiguracaoLembrete {
   id            String   @id @default(cuid())
   chave         String
@@ -3158,6 +3195,13 @@ model Veiculo {
   proprietarioTipo      String? // PF | PJ
   proprietarioNome      String?
   proprietarioDocumento String?
+
+  // Tipo informado à mão — OS 11/11/2026, item 8. CARRO_COMBUSTAO |
+  // CARRO_ELETRICO | TUK_TUK | MOTO_COMBUSTAO | MOTO_ELETRICA. Nulo = o tipo é
+  // DEDUZIDO de marca/modelo/motorização (lib/processos/tipo-veiculo.ts), como
+  // desde a v1.202.0; preenchido, vale o que o RH escolheu. Nasceu das motos
+  // elétricas Centry V5, que a dedução chamava de tuk-tuk sem como corrigir.
+  tipo        String?
 
   // COMBUSTAO | ELETRICO | HIBRIDO — decide o que a tela de consumo pede:
   // litros de combustível ou kWh de recarga. Pedido do CEO em 23/08/2026.

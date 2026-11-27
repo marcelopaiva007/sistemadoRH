@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { FileEdit, ShieldAlert, CheckCircle2, XCircle, Clock3 } from "lucide-react";
+import { FileEdit, ShieldAlert, CheckCircle2, XCircle, Clock3, Paperclip } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,6 +29,8 @@ export type TratamentoItem = {
   /** Só nos pedidos de ajuste do colaborador: marcação e horário pedidos. */
   tipoMarcacao?: string | null;
   horaSolicitada?: string | null;
+  /** Evidência anexada ao pedido (OS de 23/11/2026). Imutável depois de criada. */
+  arquivo?: { id: string; nome: string; tamanhoBytes: number } | null;
   colaborador: {
     nome: string;
     setor: { nome: string };
@@ -65,6 +67,9 @@ export function TratamentoView({
   // par que o colaborador informa no pedido pelo app.
   const [tipoMarcacao, setTipoMarcacao] = useState("");
   const [horaSolicitada, setHoraSolicitada] = useState("");
+  // Documento que o RH recebeu por outro canal (OS de 23/11/2026). Opcional.
+  const [anexo, setAnexo] = useState<File | null>(null);
+  const campoAnexo = useRef<HTMLInputElement>(null);
 
   const handleSalvarTratamento = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,6 +79,16 @@ export function TratamentoView({
     // try/finally: sem ele, uma exceção na action (queda de conexão, pool
     // esgotado) deixaria o botão em "Registrando..." para sempre, sem erro na
     // tela e só resolvido com F5.
+    let fd: FormData | undefined;
+    if (anexo) {
+      if (anexo.size > 4 * 1024 * 1024) {
+        setErroForm("O anexo passa de 4 MB. Comprima o PDF ou reduza a foto.");
+        setLoading(false);
+        return;
+      }
+      fd = new FormData();
+      fd.set("anexo", anexo);
+    }
     try {
       const res = await registrarTratamentoPonto({
         empresaId,
@@ -87,7 +102,7 @@ export function TratamentoView({
         // Só viajam quando fazem sentido; o servidor ignora nos outros tipos.
         tipoMarcacao: tipo === "INCLUSAO_MANUAL" ? tipoMarcacao : undefined,
         horaSolicitada: tipo === "INCLUSAO_MANUAL" ? horaSolicitada : undefined,
-      });
+      }, fd);
 
       if (res.erro) {
         setErroForm(res.erro);
@@ -98,6 +113,8 @@ export function TratamentoView({
         setDataFato("");
         setTipoMarcacao("");
         setHoraSolicitada("");
+        setAnexo(null);
+        if (campoAnexo.current) campoAnexo.current.value = "";
         // Sem isto a lista abaixo continua mostrando o estado antigo: o
         // revalidatePath da action limpa o cache do servidor, mas este
         // componente é cliente e segue com as props que já tinha (mesma causa
@@ -261,6 +278,24 @@ export function TratamentoView({
                 />
               </div>
 
+              <div>
+                <Label className="text-xs" htmlFor="anexoTratamento">
+                  Anexar documento <span className="font-normal text-muted-foreground">(opcional)</span>
+                </Label>
+                <input
+                  id="anexoTratamento"
+                  ref={campoAnexo}
+                  type="file"
+                  accept="image/*,application/pdf,.heic"
+                  onChange={(e) => setAnexo(e.target.files?.[0] ?? null)}
+                  className="mt-1 block w-full text-xs file:mr-2 file:rounded-md file:border file:bg-background file:px-2 file:py-1"
+                />
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  O documento recebido por outro canal (WhatsApp, e-mail, papel). JPG, PNG, WEBP, HEIC ou PDF, até 4 MB.
+                  Fica vinculado a este tratamento e não pode ser trocado depois.
+                </p>
+              </div>
+
               <div className="flex justify-end gap-2 pt-2">
                 <Button
                   type="button"
@@ -389,6 +424,20 @@ function LinhaTratamento({
         <p className="text-xs whitespace-pre-line text-foreground italic">
           &ldquo;{t.motivo}&rdquo;
         </p>
+        {/* Evidência do pedido (OS de 23/11/2026): abre na aba ANTES de
+            aprovar/rejeitar. A rota confere a permissão e audita o download. */}
+        {t.arquivo && (
+          <a
+            href={`/api/rh/${empresaId}/arquivos/${t.arquivo.id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-xs text-primary underline-offset-2 hover:underline"
+            title="Abrir o anexo enviado com o pedido"
+          >
+            <Paperclip className="h-3.5 w-3.5" />
+            {t.arquivo.nome} · {(t.arquivo.tamanhoBytes / 1024 / 1024).toFixed(1)} MB
+          </a>
+        )}
         {/* Os dois textos aparecem separados porque são de pessoas diferentes:
             o de cima é o pedido, este é a decisão. Colados num campo só — como
             eram até 11/08/2026 — não dá para saber quem escreveu o quê. */}

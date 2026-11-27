@@ -2,8 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { empresasVisiveis, requireEmpresaAccess } from "@/lib/rh-auth-guard";
+import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { destinoDaTransferencia, ehTransferencia } from "@/lib/transferencia";
+import { empresasDoGrupoDoUsuario } from "@/lib/transferencia-grupo";
 import { registrarAuditoria } from "@/lib/audit";
 import { dataDoFormulario, formatarData } from "@/lib/datas";
 import { ITENS_OFFBOARDING, itemOffboardingLabel } from "@/lib/constants-offboarding";
@@ -118,7 +119,7 @@ export async function corrigirDadosDesligamento(
   // para outro motivo limpa o destino — senão a ficha seguiria "Transferido".
   let destino: { empresaId: string; empresaNome: string } | null = null;
   if (ehTransferencia(motivo)) {
-    const r = await destinoDaTransferencia(prisma, colaborador, await empresasVisiveis(usuario));
+    const r = await destinoDaTransferencia(prisma, colaborador, await empresasDoGrupoDoUsuario(usuario.id));
     if (!r.ok) return { ok: false, error: r.error };
     destino = r;
   }

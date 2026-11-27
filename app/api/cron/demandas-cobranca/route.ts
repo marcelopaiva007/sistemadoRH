@@ -17,6 +17,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { origemAutorizacao } from "@/lib/cron-horario";
 import { demandasParaCobrar, executarCobranca } from "@/lib/delegacoes/cobranca";
+import { repararWebhookIncompleto } from "@/lib/telegram";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -24,6 +25,17 @@ export const maxDuration = 120;
 export async function GET(req: NextRequest) {
   if (!origemAutorizacao(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // As respostas às cobranças (✅ Aceito, 📅 Repactuar…) são toques em botão:
+  // sem `callback_query` no webhook elas não chegam. Confere e conserta antes
+  // de cobrar — OS 11/11/2026, item 5. Falha aqui não impede a cobrança.
+  let webhook: string;
+  try {
+    webhook = await repararWebhookIncompleto();
+  } catch (e) {
+    console.error("[demandas-cobranca] reparo do webhook:", e);
+    webhook = "falhou";
   }
 
   const agora = new Date();
@@ -47,5 +59,5 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ ok: true, candidatas: candidatas.length, ...resultado });
+  return NextResponse.json({ ok: true, webhook, candidatas: candidatas.length, ...resultado });
 }

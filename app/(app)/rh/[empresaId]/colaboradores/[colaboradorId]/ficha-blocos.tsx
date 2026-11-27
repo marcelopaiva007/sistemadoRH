@@ -244,6 +244,9 @@ export function FichaBlocos({
         <div className="grid gap-4 sm:grid-cols-2">
           <CampoData name="dataAdmissao" label="Admissão" defaultValue={c.dataAdmissao} />
           <CampoSelect name="tipoContrato" label="Tipo de contrato" opcoes={TIPOS_CONTRATO} defaultValue={c.tipoContrato} />
+          {/* Só é lida quando o tipo de contrato MUDA: vira a data efetiva da
+              movimentação no histórico (OS 11/11/2026, item 11). Vazia = hoje. */}
+          <CampoData name="dataMudancaContrato" label="Mudança de contrato vale desde (se trocar o tipo)" defaultValue={null} />
           <CampoData
             name="dataFimContrato"
             label="Fim do contrato (prazo determinado)"

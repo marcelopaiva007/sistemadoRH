@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Clock, Play, Power, Plus, X } from "lucide-react";
+import { Clock, Mail, Play, Power, Plus, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -14,7 +14,9 @@ import {
   alternarHorarioLembrete,
   removerHorarioLembrete,
   definirEnvioAutomatico,
+  definirEmailDoLembrete,
 } from "@/lib/actions/rh-lembretes";
+import type { CanalDoLembrete } from "@/lib/canal-lembretes";
 import { rodarCobrancaAgora } from "@/lib/actions/rh-cobranca-cadastro";
 import type { ChaveLembrete } from "@/lib/cron-horario";
 
@@ -26,6 +28,10 @@ type Lembrete = {
   /** Nasce desligado: sem decisão da gestão, o envio automático não acontece. */
   precisaDecisaoDaGestao: boolean;
   ligado: boolean;
+  /** Por onde o lembrete sai (OS 11/11/2026, item 3). */
+  canal: CanalDoLembrete;
+  /** Reserva por e-mail ligada — só tem efeito quando `canal.emailOpcional`. */
+  usarEmail: boolean;
 };
 
 export function LembretesView({
@@ -45,6 +51,10 @@ export function LembretesView({
           Horário dos avisos automáticos (fuso de Brasília). O sistema confere a cada 15 minutos se
           é a hora configurada — mudar aqui não precisa de deploy nem mexe no que já está agendado
           para hoje em andamento.
+        </p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Cada cartão diz por onde o aviso sai. Todo e-mail disputa o mesmo teto diário com o envio de
+          contracheques; onde houver a opção, desligar o e-mail deixa o lembrete só no Telegram.
         </p>
       </div>
 
@@ -136,6 +146,27 @@ function CartaoLembrete({
     }
   }
 
+  async function trocarEmail(usarEmail: boolean) {
+    setOcupado(true);
+    try {
+      const r = await definirEmailDoLembrete(empresaId, lembrete.chave, usarEmail);
+      if (r.ok) {
+        toast.success(
+          usarEmail
+            ? `"${lembrete.label}" volta a usar e-mail para quem não tem Telegram.`
+            : `"${lembrete.label}" agora sai só pelo Telegram.`,
+        );
+        router.refresh();
+      } else {
+        toast.error(r.error);
+      }
+    } catch {
+      toast.error("Não foi possível salvar — verifique a conexão e tente de novo.");
+    } finally {
+      setOcupado(false);
+    }
+  }
+
   async function ligarDesligar(ligado: boolean) {
     setOcupado(true);
     try {
@@ -184,6 +215,38 @@ function CartaoLembrete({
         )}
       </CardHeader>
       <CardContent className="space-y-3">
+        {/* Canal — OS 11/11/2026, item 3 */}
+        <div className="space-y-1.5 rounded-md border px-3 py-2 text-sm">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Send className="size-3.5 text-muted-foreground" aria-hidden />
+            <span className="text-muted-foreground">Canal:</span>
+            <b>
+              {lembrete.canal.emailOpcional && !lembrete.usarEmail ? "Só Telegram" : lembrete.canal.descricao}
+            </b>
+          </div>
+          <div className="text-xs text-muted-foreground">Para: {lembrete.canal.destinatario}</div>
+          {(lembrete.canal.emailOpcional ? lembrete.usarEmail : lembrete.canal.usaEmail) && (
+            <div className="flex items-center gap-1 text-xs text-amber-700">
+              <Mail className="size-3" aria-hidden /> Gasta o teto diário de e-mails.
+            </div>
+          )}
+          {lembrete.canal.emailOpcional && podeConfigurar && (
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <span className="text-xs">
+                Envio por e-mail: <b>{lembrete.usarEmail ? "ligado" : "desligado"}</b>
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={ocupado}
+                onClick={() => trocarEmail(!lembrete.usarEmail)}
+                className="ml-auto h-7 text-xs"
+              >
+                {lembrete.usarEmail ? "Usar só Telegram" : "Voltar a usar e-mail"}
+              </Button>
+            </div>
+          )}
+        </div>
         {lembrete.precisaDecisaoDaGestao && podeConfigurar && (
           <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/40 px-3 py-2">
             <Power className="size-4 text-muted-foreground" />

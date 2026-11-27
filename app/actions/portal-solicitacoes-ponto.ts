@@ -10,6 +10,7 @@ import {
   tipoMarcacaoLabel,
 } from "@/lib/constants-ponto";
 import type { ActionResult } from "@/lib/constants";
+import { descartarAnexoPonto, guardarAnexoPonto, type AnexoPontoSalvo } from "@/lib/ponto-anexo";
 
 // Solicitações de ponto abertas pelo PRÓPRIO colaborador (21/08/2026):
 // ajuste de marcação (não conseguiu bater — celular, internet, GPS, fila) e
@@ -21,6 +22,11 @@ import type { ActionResult } from "@/lib/constants";
 // A identidade vem de resolverIdentidadeDePonto, nunca de parâmetro: server
 // action é endpoint POST público, e o resolver é o único lugar que aceita as
 // duas sessões (portal Telegram e PIN do app /ponto).
+//
+// Anexo de evidência (OS de 23/11/2026): as duas actions de pedido aceitam um
+// segundo argumento opcional, um FormData com o campo "anexo" (foto da câmera,
+// imagem da galeria ou PDF). O arquivo vira Arquivo privado vinculado ao
+// tratamento NA CRIAÇÃO e nunca mais é trocado — ver lib/ponto-anexo.ts.
 
 // Freio anti-duplo-toque e anti-fila-entupida, mesmo papel do MAXIMO_ABERTAS
 // de portal-mensagens.ts: com 5 pedidos ainda sem decisão, o sexto espera.
@@ -97,6 +103,22 @@ function validarMotivo(motivoBruto: string): { ok: true; motivo: string } | { ok
   return { ok: true, motivo };
 }
 
+/**
+ * Guarda o anexo (se veio) antes de criar o pedido. Devolve o arquivo, ou a
+ * recusa pronta para a tela (formato, tamanho, armazenamento).
+ */
+async function anexoDoPedido(
+  colaborador: Solicitante,
+  anexo: FormData | undefined,
+): Promise<{ ok: true; arquivo: AnexoPontoSalvo | null } | { ok: false; error: string }> {
+  return guardarAnexoPonto({
+    formData: anexo,
+    empresaId: colaborador.empresaId,
+    colaboradorId: colaborador.id,
+    criadoPorNome: colaborador.nome,
+  });
+}
+
 async function pendentesNoLimite(colaboradorId: string): Promise<boolean> {
   const pendentes = await prisma.tratamentoPonto.count({
     where: { colaboradorId, origem: "COLABORADOR", status: "PENDENTE" },
@@ -115,7 +137,10 @@ export type SolicitarAjustePontoInput = {
  * Pedido de ajuste de marcação: "deveria ter registrado a {marcação} de
  * {data} às {hora}, e não consegui porque {motivo}".
  */
-export async function solicitarAjustePonto(input: SolicitarAjustePontoInput): Promise<ActionResult> {
+export async function solicitarAjustePonto(
+  input: SolicitarAjustePontoInput,
+  anexo?: FormData,
+): Promise<ActionResult> {
   const sessao = await solicitanteDaSessao();
   if (!sessao.ok) return sessao;
   const { colaborador } = sessao;
@@ -140,6 +165,14 @@ export async function solicitarAjustePonto(input: SolicitarAjustePontoInput): Pr
     };
   }
 
+  // Anexo por último entre as validações: só sobe arquivo para pedido que vai
+  // mesmo ser criado.
+  const anexoRes = await anexoDoPedido(colaborador, anexo);
+  if (!anexoRes.ok) return anexoRes;
+  const arquivo = anexoRes.arquivo;
+
+  // Falhou a criação depois do upload: apaga o arquivo para não deixar
+  // documento (às vezes de saúde) órfão no armazenamento.
   const tratamento = await prisma.tratamentoPonto.create({
     data: {
       empresaId: colaborador.empresaId,
@@ -151,7 +184,12 @@ export async function solicitarAjustePonto(input: SolicitarAjustePontoInput): Pr
       motivo: motivoRes.motivo,
       origem: "COLABORADOR",
       status: "PENDENTE",
+      arquivoId: arquivo?.id ?? null,
     },
+    select: { id: true },
+  }).catch(async (e: unknown) => {
+    if (arquivo) await descartarAnexoPonto(arquivo.id);
+    throw e;
   });
 
   await registrarAuditoria({
@@ -159,8 +197,16 @@ export async function solicitarAjustePonto(input: SolicitarAjustePontoInput): Pr
     acao: "CRIAR",
     entidade: "TratamentoPonto",
     entidadeId: tratamento.id,
-    resumo: `Pedido de ajuste de ponto aberto por ${colaborador.nome}: ${tipoMarcacaoLabel(input.tipoMarcacao)} de ${formatarData(dataRes.data)} às ${hora}.`,
-    detalhes: { tipo: "INCLUSAO_MANUAL", origem: "COLABORADOR", tipoMarcacao: input.tipoMarcacao, horaSolicitada: hora },
+    resumo:
+      `Pedido de ajuste de ponto aberto por ${colaborador.nome}: ${tipoMarcacaoLabel(input.tipoMarcacao)} de ${formatarData(dataRes.data)} às ${hora}` +
+      (arquivo ? `, com anexo "${arquivo.nome}".` : "."),
+    detalhes: {
+      tipo: "INCLUSAO_MANUAL",
+      origem: "COLABORADOR",
+      tipoMarcacao: input.tipoMarcacao,
+      horaSolicitada: hora,
+      anexo: arquivo ? { arquivoId: arquivo.id, nome: arquivo.nome, tamanhoBytes: arquivo.tamanhoBytes } : null,
+    },
     ator: { id: colaborador.id, nome: colaborador.nome, papel: "COLABORADOR" },
   });
 
@@ -185,7 +231,10 @@ export type SolicitarAbonoFolgaInput = {
  * a pessoa sem canal. Quem confere se o dia era mesmo folga é o RH, que tem a
  * escala (quando existe) na tela ao lado — mesma régua do resto do sistema.
  */
-export async function solicitarAbonoFolga(input: SolicitarAbonoFolgaInput): Promise<ActionResult> {
+export async function solicitarAbonoFolga(
+  input: SolicitarAbonoFolgaInput,
+  anexo?: FormData,
+): Promise<ActionResult> {
   const sessao = await solicitanteDaSessao();
   if (!sessao.ok) return sessao;
   const { colaborador } = sessao;
@@ -202,6 +251,12 @@ export async function solicitarAbonoFolga(input: SolicitarAbonoFolgaInput): Prom
     };
   }
 
+  const anexoRes = await anexoDoPedido(colaborador, anexo);
+  if (!anexoRes.ok) return anexoRes;
+  const arquivo = anexoRes.arquivo;
+
+  // Falhou a criação depois do upload: apaga o arquivo para não deixar
+  // documento (às vezes de saúde) órfão no armazenamento.
   const tratamento = await prisma.tratamentoPonto.create({
     data: {
       empresaId: colaborador.empresaId,
@@ -211,7 +266,12 @@ export async function solicitarAbonoFolga(input: SolicitarAbonoFolgaInput): Prom
       motivo: motivoRes.motivo,
       origem: "COLABORADOR",
       status: "PENDENTE",
+      arquivoId: arquivo?.id ?? null,
     },
+    select: { id: true },
+  }).catch(async (e: unknown) => {
+    if (arquivo) await descartarAnexoPonto(arquivo.id);
+    throw e;
   });
 
   await registrarAuditoria({
@@ -219,8 +279,14 @@ export async function solicitarAbonoFolga(input: SolicitarAbonoFolgaInput): Prom
     acao: "CRIAR",
     entidade: "TratamentoPonto",
     entidadeId: tratamento.id,
-    resumo: `Pedido de abono em dia de folga aberto por ${colaborador.nome} para ${formatarData(dataRes.data)}.`,
-    detalhes: { tipo: "ABONO_FOLGA", origem: "COLABORADOR" },
+    resumo:
+      `Pedido de abono em dia de folga aberto por ${colaborador.nome} para ${formatarData(dataRes.data)}` +
+      (arquivo ? `, com anexo "${arquivo.nome}".` : "."),
+    detalhes: {
+      tipo: "ABONO_FOLGA",
+      origem: "COLABORADOR",
+      anexo: arquivo ? { arquivoId: arquivo.id, nome: arquivo.nome, tamanhoBytes: arquivo.tamanhoBytes } : null,
+    },
     ator: { id: colaborador.id, nome: colaborador.nome, papel: "COLABORADOR" },
   });
 
@@ -241,6 +307,8 @@ export type MinhaSolicitacaoPonto = {
   status: string;
   motivoDecisao: string | null;
   criadaEm: string; // ISO
+  /** Evidência enviada com o pedido (OS de 23/11/2026). */
+  anexo: { id: string; nome: string } | null;
 };
 
 /** As últimas solicitações do próprio colaborador, para acompanhar o status. */
@@ -262,6 +330,7 @@ export async function minhasSolicitacoesPonto(): Promise<MinhaSolicitacaoPonto[]
       status: true,
       motivoDecisao: true,
       createdAt: true,
+      arquivo: { select: { id: true, nome: true } },
     },
   });
 
@@ -275,5 +344,6 @@ export async function minhasSolicitacoesPonto(): Promise<MinhaSolicitacaoPonto[]
     status: l.status,
     motivoDecisao: l.motivoDecisao,
     criadaEm: l.createdAt.toISOString(),
+    anexo: l.arquivo ? { id: l.arquivo.id, nome: l.arquivo.nome } : null,
   }));
 }

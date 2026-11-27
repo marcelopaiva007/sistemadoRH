@@ -148,6 +148,8 @@ type Colaborador = {
   email: string | null;
   telefone: string | null;
   telegramChatId: string | null;
+  /** O Telegram recusou a última mensagem — bot bloqueado ou chat apagado. */
+  telegramInvalidoEm?: Date | null;
   supervisorId: string | null;
   // O filtro ?lacuna= só precisa saber SE falta, não o valor. O salário fica no
   // servidor; vem apenas o booleano.
@@ -444,7 +446,7 @@ export function ColaboradoresTable({
 
   const totais = useMemo(() => {
     const ativos = colaboradoresFiltrados.filter((c) => c.ativo).length;
-    const telegram = colaboradoresFiltrados.filter((c) => c.ativo && c.telegramChatId).length;
+    const telegram = colaboradoresFiltrados.filter((c) => c.ativo && c.telegramChatId && !c.telegramInvalidoEm).length;
     const semSetor = colaboradoresFiltrados.filter(
       (c) => c.ativo && ehBaldeSemEstrutura(c.setor.nome),
     ).length;
@@ -883,7 +885,15 @@ export function ColaboradoresTable({
                 </TableCell>
                 <TableCell className="text-muted-foreground">{c.posicao.nome}</TableCell>
                 <TableCell className="text-center">
-                  {c.telegramChatId ? (
+                  {c.telegramChatId && c.telegramInvalidoEm ? (
+                    <span
+                      className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive"
+                      title="O Telegram recusou a última mensagem: a pessoa bloqueou o bot ou apagou a conta. Peça para enviar /start ao bot."
+                    >
+                      <Send className="size-3" />
+                      Bloqueado
+                    </span>
+                  ) : c.telegramChatId ? (
                     <span
                       className="inline-flex items-center gap-1 rounded-full bg-card px-2 py-0.5 text-xs font-medium text-foreground ring-1 ring-inset ring-border"
                       title="Vinculará ao Telegram"

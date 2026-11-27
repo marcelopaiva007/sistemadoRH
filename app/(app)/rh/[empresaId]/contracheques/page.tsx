@@ -8,6 +8,7 @@ import {
   situacaoDo,
   tipoFolhaDaChave,
 } from "@/lib/contracheques/situacao";
+import { contarFilaEmailContracheque } from "@/lib/contracheques/fila-email";
 import { ContrachequesView, type LinhaContracheque } from "./contracheques-view";
 
 // Envio de contracheques (v1.180.0). A pergunta que esta tela responde: "quem
@@ -85,6 +86,8 @@ export default async function ContrachequesPage({
               ativo: true,
               email: true,
               telegramChatId: true,
+              telegramInvalidoEm: true,
+              telegramInvalidoMotivo: true,
               empresa: { select: { nome: true, cnpj: true } },
               setor: { select: { nome: true } },
             },
@@ -104,6 +107,7 @@ export default async function ContrachequesPage({
               hashDocumento: true,
               lembretesEnviados: true,
               bloqueadoEm: true,
+              emailNaFilaDesde: true,
               invalidacoes: {
                 orderBy: { invalidadoEm: "desc" },
                 take: 5,
@@ -149,8 +153,13 @@ export default async function ContrachequesPage({
       cnpj: d.colaborador.empresa.cnpj ?? "—",
       setor: d.colaborador.setor?.nome ?? "—",
       // Desligado não é avisado nem cobrado no Telegram (envio.ts e a cobrança
-      // em lote filtram por ativo) — mostrar "Telegram ativo" mentiria.
-      temTelegram: d.colaborador.ativo && !!d.colaborador.telegramChatId,
+      // em lote filtram por ativo) — mostrar "Telegram ativo" mentiria. Chat
+      // recusado pelo Telegram (bot bloqueado, chat apagado) também não conta
+      // como "Telegram ativo" — OS 11/11/2026, item 4.
+      temTelegram: d.colaborador.ativo && !!d.colaborador.telegramChatId && !d.colaborador.telegramInvalidoEm,
+      telegramBloqueado: d.colaborador.ativo && !!d.colaborador.telegramChatId && !!d.colaborador.telegramInvalidoEm,
+      telegramMotivo: d.colaborador.telegramInvalidoMotivo ?? null,
+      emailNaFila: !!d.recibo?.emailNaFilaDesde,
       temEmail: !!d.colaborador.email,
       email: d.colaborador.email,
       folha: rotuloDoContracheque(escolhida!, tipoFolha),
@@ -181,9 +190,14 @@ export default async function ContrachequesPage({
     };
   });
 
+  // Fila do teto diário (OS 11/11/2026, item 1): conta o ESCOPO inteiro, não só
+  // a competência aberta — quem está na fila de outubro também importa.
+  const naFilaEmail = await contarFilaEmailContracheque(escopo);
+
   return (
     <ContrachequesView
       empresaId={empresaId}
+      naFilaEmail={naFilaEmail}
       competencias={competencias}
       competencia={escolhida ? chaveDaCompetencia(escolhida) : null}
       linhas={linhas}

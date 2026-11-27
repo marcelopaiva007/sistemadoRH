@@ -14,7 +14,7 @@
 // setor pedem a mesma lista na mesma navegação.
 import { cache } from "react";
 import { prisma } from "@/lib/prisma";
-import { grupoDaEmpresa } from "@/lib/grupo";
+import { empresasDoGrupo, grupoDaEmpresa, grupoDoUsuario } from "@/lib/grupo";
 import { MOTIVO_TRANSFERENCIA, type SaidaPorTransferencia } from "@/lib/transferencia";
 
 const SELECT_SAIDA = {
@@ -50,4 +50,13 @@ export async function saidasPorTransferenciaDoGrupo(empresaIds: string[]): Promi
     where: { motivoDesligamento: MOTIVO_TRANSFERENCIA, empresaId: { in: empresaIds } },
     select: SELECT_SAIDA,
   });
+}
+
+/**
+ * As empresas onde procurar a ficha de destino: o grupo inteiro de quem
+ * registra. Mora aqui (módulo de servidor) e não em `lib/transferencia.ts`
+ * porque aquele arquivo é importado por Client Components.
+ */
+export async function empresasDoGrupoDoUsuario(usuarioId: string | undefined): Promise<string[]> {
+  return empresasDoGrupo(await grupoDoUsuario(usuarioId));
 }

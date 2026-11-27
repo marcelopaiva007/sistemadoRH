@@ -20,7 +20,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { segredoConfere } from "@/lib/cron-horario";
 import { prisma } from "@/lib/prisma";
 import { conferirNascimento, extrairCpfEData } from "@/lib/telegram-identidade";
-import { answerCallbackQuery, sendTelegramMessage, telegramWebhookSecret } from "@/lib/telegram";
+import { answerCallbackQuery, chatVoltouAFuncionar, sendTelegramMessage, telegramWebhookSecret } from "@/lib/telegram";
 import { CALLBACK_ABRIR_PORTAL } from "@/lib/contracheques/situacao";
 import { parseCallbackCienciaContracheque, tratarCallbackCienciaContracheque } from "@/lib/contracheques/telegram-ciencia";
 import { criarLinkDeAcesso, MINUTOS_VALIDADE_LINK } from "@/lib/portal-auth";
@@ -131,7 +131,7 @@ async function vincular(
     if (jaDono.cpf && colaborador.cpf && digitos(jaDono.cpf) === digitos(colaborador.cpf)) {
       await prisma.$transaction([
         prisma.colaborador.update({ where: { id: jaDono.id }, data: { telegramChatId: null } }),
-        prisma.colaborador.update({ where: { id: colaborador.id }, data: { telegramChatId: chatId } }),
+        prisma.colaborador.update({ where: { id: colaborador.id }, data: { telegramChatId: chatId, telegramInvalidoEm: null, telegramInvalidoMotivo: null } }),
       ]);
       await sendTelegramMessage(
         chatId,
@@ -202,7 +202,7 @@ async function vincular(
   }
   await prisma.colaborador.update({
     where: { id: colaborador.id },
-    data: { telegramChatId: chatId },
+    data: { telegramChatId: chatId, telegramInvalidoEm: null, telegramInvalidoMotivo: null },
   });
   await sendTelegramMessage(
     chatId,
@@ -258,7 +258,7 @@ async function migrarVinculoParaFichaAtiva(
   if (!destino || destino.id === fichaComChat.id) return null;
   await prisma.$transaction([
     prisma.colaborador.update({ where: { id: fichaComChat.id }, data: { telegramChatId: null } }),
-    prisma.colaborador.update({ where: { id: destino.id }, data: { telegramChatId: chatId } }),
+    prisma.colaborador.update({ where: { id: destino.id }, data: { telegramChatId: chatId, telegramInvalidoEm: null, telegramInvalidoMotivo: null } }),
   ]);
   return { id: destino.id, nome: destino.nome };
 }
@@ -309,6 +309,12 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ ok: true });
   }
+
+  // Quem fala com o bot desbloqueou o bot: tira a marca de "Telegram bloqueado"
+  // da ficha (OS 11/11/2026, item 4). Antes de qualquer ramo, para valer
+  // também para o toque em botão.
+  const chatQueFalou = update.callback_query?.message?.chat?.id ?? update.message?.chat?.id;
+  if (chatQueFalou !== undefined) await chatVoltouAFuncionar(String(chatQueFalou));
 
   // 0) Toque em botão inline (módulo Delegações). Vem ANTES do fluxo de
   // mensagem porque é outro tipo de update — `update.message` é indefinido

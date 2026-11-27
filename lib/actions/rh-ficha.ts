@@ -2,8 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { empresasVisiveis, requireEmpresaAccess } from "@/lib/rh-auth-guard";
+import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { destinoDaTransferencia, ehTransferencia } from "@/lib/transferencia";
+import { empresasDoGrupoDoUsuario } from "@/lib/transferencia-grupo";
 import { empresasDaMesmaMarca } from "@/lib/escopo-marca";
 import { registrarAuditoria, diffCampos } from "@/lib/audit";
 import { violouUnique } from "@/lib/prisma-erros";
@@ -13,6 +14,8 @@ import { validarEmailColaboradorLivre } from "@/lib/colaborador-email";
 import { ehCausaDesligamento } from "@/lib/constants-dp";
 import { gravarRetratoDesligamento } from "@/lib/retrato-desligamento";
 import type { ActionResult } from "@/lib/constants";
+import { CONTRATOS_POR_PRAZO, TIPOS_CONTRATO, tipoContratoLabel } from "@/lib/constants-dp";
+import { MOVIMENTACAO_MUDANCA_CONTRATO } from "@/lib/constants-movimentacao";
 
 // A ficha é editada por blocos (identificação, endereço, emergência, banco,
 // vínculo) e cada bloco é um formulário próprio. A action grava SÓ os campos
@@ -283,7 +286,7 @@ export async function atualizarFicha(
       ehTransferencia(motivoNovo) &&
       (motivoNovo !== atual.motivoDesligamento || !atual.transferidoParaEmpresaId)
     ) {
-      const r = await destinoDaTransferencia(prisma, atual, await empresasVisiveis(usuario));
+      const r = await destinoDaTransferencia(prisma, atual, await empresasDoGrupoDoUsuario(usuario.id));
       if (!r.ok) return { ok: false, error: r.error };
       data.transferidoParaEmpresaId = r.empresaId;
     } else if (!ehTransferencia(motivoNovo) && atual.transferidoParaEmpresaId) {
@@ -297,10 +300,53 @@ export async function atualizarFicha(
   // da época, que é o erro que o retrato existe para evitar.
   const registrandoSaida = desligamentoMudou && !(atual.dataDesligamento instanceof Date);
 
+  // Tipo de contrato (OS 11/11/2026, item 11). Mudou? Valida, ajusta o fim do
+  // prazo e registra a movimentação com data efetiva — na mesma transação da
+  // ficha, para o histórico nunca contar uma mudança que não gravou.
+  let mudancaContrato: { de: string | null; para: string | null; dataEfetiva: Date } | null = null;
+  if ("tipoContrato" in data && data.tipoContrato !== atual.tipoContrato) {
+    const novo = data.tipoContrato as string | null;
+    if (novo !== null && !TIPOS_CONTRATO.some((t) => t.value === novo)) {
+      return { ok: false, error: "Tipo de contrato inválido." };
+    }
+    const comPrazo = novo !== null && (CONTRATOS_POR_PRAZO as readonly string[]).includes(novo);
+    if (comPrazo) {
+      const fim = "dataFimContrato" in data ? data.dataFimContrato : atual.dataFimContrato;
+      if (!(fim instanceof Date)) {
+        return {
+          ok: false,
+          error: `Para ${tipoContratoLabel(novo!)}, informe o fim do contrato (prazo determinado).`,
+        };
+      }
+    } else {
+      // CLT por prazo indeterminado (e PJ/outros) não têm fim de prazo: o fim
+      // velho do estágio/experiência seguiria gerando pendência de vencimento.
+      data.dataFimContrato = null;
+    }
+    const efetiva = dataDoFormulario(formData.get("dataMudancaContrato")) ?? inicioDoDiaUTC(new Date());
+    mudancaContrato = { de: atual.tipoContrato, para: novo, dataEfetiva: efetiva };
+  }
+
   try {
     await prisma.$transaction(async (tx) => {
       await tx.colaborador.update({ where: { id: colaboradorId, empresaId }, data });
       if (registrandoSaida) await gravarRetratoDesligamento(tx, colaboradorId, usuario);
+      if (mudancaContrato) {
+        const m = mudancaContrato;
+        await tx.movimentacao.create({
+          data: {
+            empresaId,
+            colaboradorId,
+            tipo: MOVIMENTACAO_MUDANCA_CONTRATO,
+            dataEfetiva: m.dataEfetiva,
+            motivo: `Tipo de contrato: ${m.de ? tipoContratoLabel(m.de) : "não informado"} → ${
+              m.para ? tipoContratoLabel(m.para) : "não informado"
+            }`,
+            registradoPorId: usuario.id ?? null,
+            registradoPorNome: usuario.name ?? null,
+          },
+        });
+      }
     });
   } catch (e) {
     if (violouUnique(e, "Colaborador_empresaId_cpf_key")) {

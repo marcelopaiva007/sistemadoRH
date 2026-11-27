@@ -72,6 +72,11 @@ export type LinhaContracheque = {
   cnpj: string;
   setor: string;
   temTelegram: boolean;
+  /** Chat gravado, mas o Telegram recusou a última mensagem (bot bloqueado, chat apagado). */
+  telegramBloqueado: boolean;
+  telegramMotivo: string | null;
+  /** O e-mail do aviso está na fila do teto diário e sai sozinho. */
+  emailNaFila: boolean;
   temEmail: boolean;
   email: string | null;
   folha: string;
@@ -101,17 +106,26 @@ const COR: Record<Situacao, string> = {
   CONFIRMADO: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
   ATRASADO: "bg-orange-500/10 text-orange-700 dark:text-orange-400",
   BLOQUEADO: "bg-red-500/10 text-red-700 dark:text-red-400",
+  NA_FILA: "bg-violet-500/10 text-violet-700 dark:text-violet-400",
 };
 
-const FILTROS: { valor: Situacao | "TODOS"; rotulo: string }[] = [
+// Filtros que não são uma Situação do recibo, mas um estado do contato.
+type Filtro = Situacao | "TODOS" | "TELEGRAM_BLOQUEADO";
+
+const FILTROS: { valor: Filtro; rotulo: string }[] = [
   { valor: "TODOS", rotulo: "Todos" },
   { valor: "NAO_ENVIADO", rotulo: "Não enviados" },
   { valor: "CIENTE", rotulo: "Cientes no bot" },
   { valor: "ABERTO", rotulo: "Abertos na tela" },
   { valor: "CONFIRMADO", rotulo: "Assinados" },
   { valor: "ATRASADO", rotulo: "Atrasados (>5 dias)" },
+  // "Bloqueados" junta o link travado por 5 erros E o Telegram bloqueado —
+  // pedido da OS (item 4, reforçado em 19/11): é a lista de quem o RH precisa
+  // cobrar. O chip "Telegram bloqueado" separa só o segundo caso.
   { valor: "BLOQUEADO", rotulo: "Bloqueados" },
   { valor: "SEM_CANAL", rotulo: "Sem contato" },
+  { valor: "NA_FILA", rotulo: "Na fila do e-mail" },
+  { valor: "TELEGRAM_BLOQUEADO", rotulo: "Telegram bloqueado" },
 ];
 
 const mesAno = (chave: string) => `${chave.slice(5, 7)}/${chave.slice(0, 4)}`;
@@ -122,6 +136,7 @@ export function ContrachequesView({
   competencia,
   linhas,
   limiteAtingido = null,
+  naFilaEmail = 0,
 }: {
   empresaId: string;
   competencias: { chave: string; total: number }[];
@@ -129,10 +144,15 @@ export function ContrachequesView({
   linhas: LinhaContracheque[];
   /** Preenchido quando a competência tem mais contracheques que o teto da tela — ver page.tsx. */
   limiteAtingido?: { mostrados: number; total: number } | null;
+  /** Contracheques (de qualquer competência do escopo) esperando o e-mail na fila do teto diário. */
+  naFilaEmail?: number;
 }) {
   const router = useRouter();
   const busca = useSearchParams();
-  const [filtro, setFiltro] = useState<Situacao | "TODOS">("TODOS");
+  const [filtro, setFiltro] = useState<Filtro>("TODOS");
+  // Primeiro envio escolhendo quem recebe (OS 11/11/2026, item 2): marcados na
+  // tabela, só entre os ainda não enviados. Vazio = o botão manda a todos.
+  const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
   const [soPendentes, setSoPendentes] = useState(false);
   const [setorFiltro, setSetorFiltro] = useState("TODOS");
   const [enviando, iniciar] = useTransition();
@@ -179,13 +199,29 @@ export function ContrachequesView({
   const visiveis = useMemo(() => {
     return linhas.filter((l) => {
       if (soPendentes && l.situacao === "CONFIRMADO") return false;
-      if (filtro !== "TODOS" && l.situacao !== filtro) return false;
+      if (filtro === "TELEGRAM_BLOQUEADO") {
+        if (!l.telegramBloqueado) return false;
+      } else if (filtro === "BLOQUEADO") {
+        if (l.situacao !== "BLOQUEADO" && !l.telegramBloqueado) return false;
+      } else if (filtro !== "TODOS" && l.situacao !== filtro) return false;
       if (setorFiltro !== "TODOS" && l.setor !== setorFiltro) return false;
       return true;
     });
   }, [linhas, filtro, soPendentes, setorFiltro]);
 
   const naoEnviados = linhas.filter((l) => l.situacao === "NAO_ENVIADO");
+  // Só vale o que ainda está na lista de não enviados — trocar de competência
+  // ou enviar não deixa marcação velha mandando para quem já recebeu.
+  const idsNaoEnviados = new Set(naoEnviados.map((l) => l.documentoId));
+  const marcados = [...selecionados].filter((id) => idsNaoEnviados.has(id));
+  const alvoEnvio = marcados.length > 0 ? marcados : naoEnviados.map((l) => l.documentoId);
+  const alternarSelecao = (id: string, marcado: boolean) =>
+    setSelecionados((atual) => {
+      const novo = new Set(atual);
+      if (marcado) novo.add(id);
+      else novo.delete(id);
+      return novo;
+    });
 
   const trocarCompetencia = (chave: string) => {
     const p = new URLSearchParams(busca.toString());
@@ -205,10 +241,13 @@ export function ContrachequesView({
         return;
       }
       const partes = [`${r.avisados} avisado(s)`];
+      if (r.jaEnviados) partes.push(`${r.jaEnviados} já tinham sido avisados (não foram de novo)`);
+      if (r.naFila) partes.push(`${r.naFila} e-mail(s) na fila do teto diário — saem sozinhos`);
       if (r.semCanal) partes.push(`${r.semCanal} sem e-mail`);
       if (r.jaConfirmados) partes.push(`${r.jaConfirmados} já tinham assinado`);
       if (r.falhas) partes.push(`${r.falhas} com falha`);
-      (r.semCanal || r.falhas ? toast.warning : toast.success)(partes.join(" · "));
+      (r.semCanal || r.falhas || r.naFila ? toast.warning : toast.success)(partes.join(" · "));
+      setSelecionados(new Set());
       router.refresh();
     });
   };
@@ -252,8 +291,11 @@ export function ContrachequesView({
     iniciar(async () => {
       const r = await reenviarEmailContrachequeAction(empresaId, documentoId);
       setEmEnvio(null);
-      if (r.ok) {
-        toast.success("E-mail reenviado com novo link de assinatura. Bloqueio zerado.");
+      if (r.ok && r.naFila) {
+        toast.warning("Teto diário de e-mails atingido: o e-mail entrou na fila e sai sozinho no próximo dia com saldo.");
+        router.refresh();
+      } else if (r.ok) {
+        toast.success("E-mail enviado com link de assinatura. Bloqueio zerado.");
         router.refresh();
       } else {
         toast.error(r.error);
@@ -420,13 +462,10 @@ export function ContrachequesView({
               </label>
 
               <Button
-                disabled={naoEnviados.length === 0 || enviando}
+                disabled={alvoEnvio.length === 0 || enviando}
                 onClick={() => {
-                  if (confirm(`Enviar o e-mail de assinatura de ${mesAno(competencia!)} para ${naoEnviados.length} colaborador(es)?`)) {
-                    enviar(
-                      naoEnviados.map((l) => l.documentoId),
-                      "todos"
-                    );
+                  if (confirm(`Enviar o e-mail de assinatura de ${mesAno(competencia!)} para ${alvoEnvio.length} colaborador(es)?`)) {
+                    enviar(alvoEnvio, "todos");
                   }
                 }}
               >
@@ -435,8 +474,15 @@ export function ContrachequesView({
                   ? "Enviando..."
                   : naoEnviados.length === 0
                   ? "Todos enviados"
+                  : marcados.length > 0
+                  ? `Enviar aos ${marcados.length} marcados`
                   : `Enviar a ${naoEnviados.length} pendentes`}
               </Button>
+              {marcados.length > 0 && (
+                <Button variant="ghost" size="sm" onClick={() => setSelecionados(new Set())} className="text-xs">
+                  Limpar marcação
+                </Button>
+              )}
 
               <Button
                 variant="outline"
@@ -455,6 +501,18 @@ export function ContrachequesView({
               </Button>
             </div>
           </div>
+
+          {/* Fila do teto diário de e-mail (OS 11/11/2026, item 1) */}
+          {naFilaEmail > 0 && (
+            <div className="flex items-start gap-2 rounded-md border border-violet-200 bg-violet-50 px-3 py-2 text-sm text-violet-900">
+              <Mail className="mt-0.5 size-4 shrink-0 text-violet-600" aria-hidden />
+              <span>
+                <b>{naFilaEmail} contracheque(s) na fila do e-mail.</b> O teto diário de e-mails foi atingido; eles saem
+                sozinhos, do mais antigo para o mais novo, assim que houver saldo (a partir das 07h do próximo dia).
+                Não é preciso reenviar.
+              </span>
+            </div>
+          )}
 
           {/* Faixa de 6 Indicadores */}
           <FaixaDeIndicadores colunas={6}>
@@ -517,6 +575,10 @@ export function ContrachequesView({
                     ? linhas.length
                     : f.valor === "SEM_CANAL"
                     ? linhas.filter((l) => !l.temEmail || !l.temTelegram).length
+                    : f.valor === "TELEGRAM_BLOQUEADO"
+                    ? linhas.filter((l) => l.telegramBloqueado).length
+                    : f.valor === "BLOQUEADO"
+                    ? linhas.filter((l) => l.situacao === "BLOQUEADO" || l.telegramBloqueado).length
                     : conta(f.valor);
 
                 return (
@@ -551,6 +613,9 @@ export function ContrachequesView({
             <Table compacta>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-8">
+                    <span className="sr-only">Marcar para o primeiro envio</span>
+                  </TableHead>
                   <TableHead>Colaborador</TableHead>
                   <TableHead>Contato</TableHead>
                   <TableHead>Situação</TableHead>
@@ -562,7 +627,7 @@ export function ContrachequesView({
               <TableBody>
                 {visiveis.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
+                    <TableCell colSpan={7} className="py-8 text-center text-sm text-muted-foreground">
                       Nenhum colaborador encontrado com os filtros selecionados.
                     </TableCell>
                   </TableRow>
@@ -576,6 +641,16 @@ export function ContrachequesView({
 
                   return (
                   <TableRow key={l.documentoId}>
+                    {/* Marcação para o primeiro envio — só quem ainda não recebeu */}
+                    <TableCell>
+                      {l.situacao === "NAO_ENVIADO" && (
+                        <Checkbox
+                          aria-label={`Marcar ${l.pessoa} para o envio`}
+                          checked={selecionados.has(l.documentoId)}
+                          onCheckedChange={(c) => alternarSelecao(l.documentoId, c === true)}
+                        />
+                      )}
+                    </TableCell>
                     {/* Colaborador */}
                     <TableCell className="text-sm">
                       <Link
@@ -604,7 +679,15 @@ export function ContrachequesView({
                         <span>{l.email ?? <span className="text-destructive font-medium">Sem e-mail</span>}</span>
                       </div>
                       <div>
-                        {l.temTelegram ? (
+                        {l.telegramBloqueado ? (
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] bg-red-50 text-red-700 border-red-200"
+                            title={l.telegramMotivo ?? "O Telegram recusou a última mensagem"}
+                          >
+                            Telegram bloqueado
+                          </Badge>
+                        ) : l.temTelegram ? (
                           <Badge variant="outline" className="text-[10px] bg-sky-50 text-sky-700 border-sky-200">
                             Telegram ativo
                           </Badge>

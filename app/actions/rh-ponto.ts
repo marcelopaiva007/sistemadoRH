@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
 import { registrarAuditoria } from "@/lib/audit";
+import { descartarAnexoPonto, guardarAnexoPonto } from "@/lib/ponto-anexo";
 import type { ActionResult } from "@/lib/constants";
 import { formatarData } from "@/lib/datas";
 import { gerarConteudoAFD, gerarConteudoAEJ } from "@/lib/ponto-afdaej";
@@ -430,8 +431,16 @@ export type CriarTratamentoInput = {
  * as duas mãos: quem pede o ajuste não é, pelo mero ato de pedir, quem o
  * aprova.
  */
-export async function registrarTratamentoPonto(input: CriarTratamentoInput) {
-  await requireEmpresaAccess(input.empresaId);
+export async function registrarTratamentoPonto(
+  input: CriarTratamentoInput,
+  /**
+   * Documento recebido por outro canal (OS de 23/11/2026): FormData com o
+   * campo "anexo". Opcional; vira evidência imutável do tratamento — ver
+   * lib/ponto-anexo.ts.
+   */
+  anexo?: FormData,
+) {
+  const usuario = await requireEmpresaAccess(input.empresaId);
 
   if (!input.motivo || input.motivo.trim().length < 5) {
     return { erro: "O motivo do tratamento é obrigatório e deve ter no mínimo 5 caracteres." };
@@ -486,6 +495,18 @@ export async function registrarTratamentoPonto(input: CriarTratamentoInput) {
     if (!batida) return { erro: "Registro de ponto não encontrado nesta empresa." };
   }
 
+  const anexoRes = await guardarAnexoPonto({
+    formData: anexo,
+    empresaId: input.empresaId,
+    colaboradorId: colaborador.id,
+    criadoPorId: usuario.id ?? null,
+    criadoPorNome: usuario.name ?? "RH",
+  });
+  if (!anexoRes.ok) return { erro: anexoRes.error };
+  const arquivo = anexoRes.arquivo;
+
+  // Falhou a criação depois do upload: apaga o arquivo para não deixar
+  // documento (às vezes de saúde) órfão no armazenamento.
   const tratamento = await prisma.tratamentoPonto.create({
     data: {
       empresaId: input.empresaId,
@@ -497,7 +518,11 @@ export async function registrarTratamentoPonto(input: CriarTratamentoInput) {
       horaSolicitada,
       motivo: input.motivo.trim(),
       status: "PENDENTE",
+      arquivoId: arquivo?.id ?? null,
     },
+  }).catch(async (e: unknown) => {
+    if (arquivo) await descartarAnexoPonto(arquivo.id);
+    throw e;
   });
 
   // É AQUI que fica registrado quem pediu o ajuste. A entrega anterior deu
@@ -511,8 +536,15 @@ export async function registrarTratamentoPonto(input: CriarTratamentoInput) {
     entidadeId: tratamento.id,
     resumo:
       `Tratamento de ponto (${input.tipo}) aberto para ${colaborador.nome} em ${formatarData(input.dataFato)}` +
-      (tipoMarcacao && horaSolicitada ? `: ${tipoMarcacaoLabel(tipoMarcacao)} às ${horaSolicitada}.` : "."),
-    detalhes: { tipo: input.tipo, status: "PENDENTE", tipoMarcacao, horaSolicitada },
+      (tipoMarcacao && horaSolicitada ? `: ${tipoMarcacaoLabel(tipoMarcacao)} às ${horaSolicitada}` : "") +
+      (arquivo ? `, com anexo "${arquivo.nome}".` : "."),
+    detalhes: {
+      tipo: input.tipo,
+      status: "PENDENTE",
+      tipoMarcacao,
+      horaSolicitada,
+      anexo: arquivo ? { arquivoId: arquivo.id, nome: arquivo.nome, tamanhoBytes: arquivo.tamanhoBytes } : null,
+    },
   });
 
   revalidatePath(`/rh/${input.empresaId}/ponto`, "layout");

@@ -29,6 +29,8 @@ export default async function PontoTratamentoPage({
             posicao: { select: { nome: true } },
           },
         },
+        // Evidência do pedido (OS de 23/11/2026): o clipe na linha.
+        arquivo: { select: { id: true, nome: true, tamanhoBytes: true } },
       },
     }),
     prisma.tratamentoPonto.findMany({
@@ -43,6 +45,8 @@ export default async function PontoTratamentoPage({
             posicao: { select: { nome: true } },
           },
         },
+        // Evidência do pedido (OS de 23/11/2026): o clipe na linha.
+        arquivo: { select: { id: true, nome: true, tamanhoBytes: true } },
       },
     }),
     // Para o seletor do formulário: inclui DESLIGADOS. O ajuste de ponto de

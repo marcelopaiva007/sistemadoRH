@@ -269,7 +269,7 @@ export function PortalInicio({
               muda sozinho: cai na fila do RH (aba Tratamento), que aprova ou
               recusa. Aparece mesmo sem pontoLiberado: quem ainda não bate
               ponto pelo app pode justamente precisar pedir um ajuste. */}
-          <SolicitacoesPontoCard />
+          <SolicitacoesPontoCard podeAbrirAnexo />
       </TabsContent>
 
       {/* Avaliação e equipe não têm lugar na barra de cinco: chegam pelo
