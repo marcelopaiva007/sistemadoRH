@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
-import { destinoDaTransferencia, ehTransferencia, empresasDoGrupoDoUsuario } from "@/lib/transferencia";
+import { destinoDaTransferencia, ehTransferencia } from "@/lib/transferencia";
+import { empresasDoGrupoDoUsuario } from "@/lib/transferencia-grupo";
 import { empresasDaMesmaMarca } from "@/lib/escopo-marca";
 import { registrarAuditoria, diffCampos } from "@/lib/audit";
 import { violouUnique } from "@/lib/prisma-erros";

@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireEmpresaAccess } from "@/lib/rh-auth-guard";
-import { destinoDaTransferencia, ehTransferencia, empresasDoGrupoDoUsuario } from "@/lib/transferencia";
+import { destinoDaTransferencia, ehTransferencia } from "@/lib/transferencia";
+import { empresasDoGrupoDoUsuario } from "@/lib/transferencia-grupo";
 import { registrarAuditoria } from "@/lib/audit";
 import { dataDoFormulario, formatarData } from "@/lib/datas";
 import { ITENS_OFFBOARDING, itemOffboardingLabel } from "@/lib/constants-offboarding";

@@ -21,9 +21,12 @@
 // que se revela é só o nome do CNPJ de destino dentro do próprio grupo, para
 // quem já pode encerrar a ficha de origem.
 
+// Mantido livre de imports de servidor em runtime (Prisma / lib/grupo):
+// este módulo é importado por Client Components (`colaborador-detalhe.tsx`,
+// `offboarding-card.tsx`, `ativar-desativar-button.tsx`). Consultas de banco
+// ligadas ao grupo ficam em `lib/transferencia-grupo.ts`.
 import type { Cliente } from "@/lib/prisma";
 import { somarDiasUTC } from "@/lib/datas";
-import { empresasDoGrupo, grupoDoUsuario } from "@/lib/grupo";
 
 export const MOTIVO_TRANSFERENCIA = "TRANSFERENCIA_GRUPO";
 
@@ -42,7 +45,7 @@ export type DestinoTransferencia =
 export async function destinoDaTransferencia(
   cliente: Cliente,
   colaborador: { id: string; empresaId: string; cpf: string | null },
-  /** Empresas do GRUPO de quem registra (empresasDoGrupoDoUsuario). */
+  /** Empresas do GRUPO de quem registra (empresasDoGrupoDoUsuario em lib/transferencia-grupo.ts). */
   empresasDoUsuario: string[],
 ): Promise<DestinoTransferencia> {
   if (!colaborador.cpf) {
@@ -218,13 +221,4 @@ export function marcarTransferencias<T extends FichaParaTransferencia>(
       inicioNoGrupo,
     };
   });
-}
-
-/**
- * As empresas onde procurar a ficha de destino: o grupo inteiro de quem
- * registra. Mantido aqui para os três chamadores (ficha, desligamento e
- * offboarding) usarem a mesma régua.
- */
-export async function empresasDoGrupoDoUsuario(usuarioId: string | undefined): Promise<string[]> {
-  return empresasDoGrupo(await grupoDoUsuario(usuarioId));
 }
